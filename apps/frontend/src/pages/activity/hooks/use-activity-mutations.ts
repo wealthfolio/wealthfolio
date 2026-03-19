@@ -106,10 +106,12 @@ export function useActivityMutations(
         assetKind,
         symbolQuoteCcy,
         symbolInstrumentType,
+        contractMultiplier,
         transferMode: _transferMode,
         isExternal: _isExternal,
         direction: _direction,
         toAccountId: _toAccountId,
+        includeCashDeposit,
         ...rest
       } = data as NewActivityFormValues & {
         assetId?: string;
@@ -121,10 +123,12 @@ export function useActivityMutations(
         assetKind?: string;
         symbolQuoteCcy?: string;
         symbolInstrumentType?: string;
+        contractMultiplier?: number;
         transferMode?: string;
         isExternal?: boolean;
         direction?: string;
         toAccountId?: string;
+        includeCashDeposit?: boolean;
       };
       const quantity = "quantity" in rest ? rest.quantity : undefined;
       const unitPrice = "unitPrice" in rest ? rest.unitPrice : undefined;
@@ -154,6 +158,34 @@ export function useActivityMutations(
         // Serialize metadata object to JSON string for backend
         metadata: metadata ? JSON.stringify(metadata) : undefined,
       };
+
+      if (includeCashDeposit && rest.activityType === "BUY") {
+        const quantityNumber = Number(quantity) || 0;
+        const unitPriceNumber = Number(unitPrice) || 0;
+        const feeNumber = Number(fee) || 0;
+        const multiplier =
+          symbolInstrumentType === "OPTION" ? Number(contractMultiplier) || 100 : 1;
+        const totalCost = quantityNumber * unitPriceNumber * multiplier + feeNumber;
+
+        const depositPayload: ActivityCreate = {
+          accountId: createPayload.accountId,
+          activityType: "DEPOSIT",
+          activityDate: createPayload.activityDate,
+          amount: toDecimalPayload(totalCost),
+          currency: createPayload.currency,
+          comment: `Cash deposit for ${assetId ?? "buy"} purchase`,
+        };
+
+        const result = await saveActivities({
+          creates: [depositPayload, createPayload],
+        });
+
+        return (
+          result.created.find((activity) => activity.activityType === "BUY") ??
+          result.created[result.created.length - 1]
+        );
+      }
+
       // Backend handles quote creation for MANUAL pricing mode
       return await createActivity(createPayload);
     },
@@ -310,6 +342,9 @@ export function useActivityMutations(
       fxRate: restOfActivityData.fxRate ?? undefined,
       activityDate: date,
       comment: "Duplicated",
+      metadata: restOfActivityData.metadata
+        ? JSON.stringify(restOfActivityData.metadata)
+        : undefined,
       asset: buildAssetResolutionInput({
         id: _assetId,
         symbol: assetSymbol,
