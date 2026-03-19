@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, it, expect } from "vitest";
 import { ACTIVITY_FORM_CONFIG } from "../../../config/activity-form-config";
 import { buyFormSchema } from "../buy-form";
 import { depositFormSchema } from "../deposit-form";

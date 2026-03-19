@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import {
   ACTIVITY_SUBTYPES,
   ActivityType,
@@ -8,19 +9,18 @@ import {
 import { isSecuritiesTransfer } from "@/lib/activity-utils";
 import { parseOccSymbol } from "@/lib/occ-symbol";
 import type { ActivityDetails } from "@/lib/types";
-import type { ComponentType } from "react";
 import { BuyForm, type BuyFormValues } from "../components/forms/buy-form";
-import { DepositForm, type DepositFormValues } from "../components/forms/deposit-form";
-import { DividendForm, type DividendFormValues } from "../components/forms/dividend-form";
-import { FeeForm, type FeeFormValues } from "../components/forms/fee-form";
-import type { AccountSelectOption } from "../components/forms/fields";
-import { InterestForm, type InterestFormValues } from "../components/forms/interest-form";
-import type { NewActivityFormValues } from "../components/forms/schemas";
 import { SellForm, type SellFormValues } from "../components/forms/sell-form";
-import { SplitForm, type SplitFormValues } from "../components/forms/split-form";
-import { TaxForm, type TaxFormValues } from "../components/forms/tax-form";
-import { TransferForm, type TransferFormValues } from "../components/forms/transfer-form";
+import { DepositForm, type DepositFormValues } from "../components/forms/deposit-form";
 import { WithdrawalForm, type WithdrawalFormValues } from "../components/forms/withdrawal-form";
+import { DividendForm, type DividendFormValues } from "../components/forms/dividend-form";
+import { TransferForm, type TransferFormValues } from "../components/forms/transfer-form";
+import { SplitForm, type SplitFormValues } from "../components/forms/split-form";
+import { FeeForm, type FeeFormValues } from "../components/forms/fee-form";
+import { InterestForm, type InterestFormValues } from "../components/forms/interest-form";
+import { TaxForm, type TaxFormValues } from "../components/forms/tax-form";
+import type { AccountSelectOption } from "../components/forms/fields";
+import type { NewActivityFormValues } from "../components/forms/schemas";
 
 // Picker activity types (TRANSFER_IN/OUT merged into TRANSFER)
 export type PickerActivityType =

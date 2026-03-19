@@ -1,29 +1,29 @@
-import { useSettings } from "@/hooks/use-settings";
-import { ActivityType, QuoteMode } from "@/lib/constants";
-import { buildOccSymbol } from "@/lib/occ-symbol";
+import { useEffect, useMemo } from "react";
 import { normalizeCurrency } from "@/lib/utils";
+import { useForm, FormProvider, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
 import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Label } from "@wealthfolio/ui/components/ui/label";
-import { useEffect, useMemo } from "react";
-import { FormProvider, useForm, type Resolver } from "react-hook-form";
-import { z } from "zod";
+import { ActivityType, QuoteMode } from "@/lib/constants";
+import { buildOccSymbol } from "@/lib/occ-symbol";
+import { useSettings } from "@/hooks/use-settings";
 import {
   AccountSelect,
-  AdvancedOptionsSection,
-  AmountInput,
-  AssetTypeSelector,
-  DatePicker,
-  NotesInput,
-  OptionContractFields,
-  QuantityInput,
   SymbolSearch,
+  DatePicker,
+  AmountInput,
+  QuantityInput,
+  NotesInput,
+  AdvancedOptionsSection,
+  AssetTypeSelector,
+  OptionContractFields,
   createValidatedSubmit,
-  type AccountSelectOption,
   type AssetType,
+  type AccountSelectOption,
 } from "./fields";
 
 // Asset metadata schema for custom assets
