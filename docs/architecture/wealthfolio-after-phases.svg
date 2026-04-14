@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 780" font-family="Inter, -apple-system, sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#555" stroke-width="1.2"/>
+    </marker>
+    <marker id="arrow-tx" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#2e6ba8" stroke-width="1.4"/>
+    </marker>
+    <marker id="arrow-hl" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#8850a0" stroke-width="1.4"/>
+    </marker>
+    <marker id="arrow-new" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#2e7d32" stroke-width="1.4"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="600" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a1a1a">Wealthfolio — After Phases A / B / C</text>
+  <text x="600" y="50" text-anchor="middle" font-size="12" fill="#666">Materialized lots · relational snapshot_positions · unified valuation · liabilities as assets</text>
+
+  <!-- Legend -->
+  <rect x="80" y="62" width="16" height="16" rx="3" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5"/>
+  <text x="102" y="75" fill="#2e7d32" font-size="11" font-weight="bold">New</text>
+  <rect x="160" y="62" width="16" height="16" rx="3" fill="#fff8e1" stroke="#f57f17" stroke-width="1.5"/>
+  <text x="182" y="75" fill="#c56000" font-size="11" font-weight="bold">Modified</text>
+  <rect x="260" y="62" width="16" height="16" rx="3" fill="#f0f4f8" stroke="#8da4bf" stroke-width="1.5"/>
+  <text x="282" y="75" fill="#555" font-size="11">Unchanged</text>
+  <rect x="870" y="62" width="16" height="16" rx="3" fill="#cfe0f2" stroke="#2e6ba8" stroke-width="1.5"/>
+  <text x="892" y="75" fill="#2e6ba8" font-size="11" font-weight="bold">TRANSACTIONS flow</text>
+  <rect x="1020" y="62" width="16" height="16" rx="3" fill="#f4edfa" stroke="#8850a0" stroke-width="1.5"/>
+  <text x="1042" y="75" fill="#8850a0" font-size="11" font-weight="bold">HOLDINGS flow</text>
+
+  <!-- ═══ DATA SOURCES (TOP) ═══ -->
+  <rect x="80" y="100" width="260" height="58" rx="8" fill="#cfe0f2" stroke="#2e6ba8" stroke-width="1.8"/>
+  <text x="210" y="124" text-anchor="middle" font-weight="bold" fill="#2e6ba8" font-size="13">User enters activities</text>
+  <text x="210" y="143" text-anchor="middle" fill="#555" font-size="11">BUY / SELL / DIVIDEND / SPLIT / TRANSFER / ...</text>
+
+  <rect x="860" y="100" width="260" height="58" rx="8" fill="#f4edfa" stroke="#8850a0" stroke-width="1.8"/>
+  <text x="990" y="124" text-anchor="middle" font-weight="bold" fill="#8850a0" font-size="13">User enters snapshot</text>
+  <text x="990" y="143" text-anchor="middle" fill="#555" font-size="11">"I hold 50 MSFT as of 2025-06-01"</text>
+
+  <!-- ═══ activities ═══ -->
+  <rect x="80" y="185" width="260" height="94" rx="8" fill="#f0f4f8" stroke="#8da4bf" stroke-width="1.5"/>
+  <text x="210" y="210" text-anchor="middle" font-weight="bold" fill="#2c3e50">activities</text>
+  <text x="210" y="229" text-anchor="middle" fill="#555" font-size="11">activity_type, quantity, unit_price, amount</text>
+  <text x="210" y="245" text-anchor="middle" fill="#555" font-size="11">fee (commissions), activity_date, currency</text>
+  <text x="210" y="261" text-anchor="middle" fill="#555" font-size="11">account_id → accounts</text>
+  <text x="210" y="273" text-anchor="middle" fill="#555" font-size="10" font-style="italic">asset_id → assets (SET NULL on delete)</text>
+
+  <line x1="210" y1="158" x2="210" y2="183" stroke="#2e6ba8" stroke-width="1.5" marker-end="url(#arrow-tx)"/>
+
+  <!-- ═══ holdings_snapshots (modified — JSON vestigial) ═══ -->
+  <rect x="860" y="185" width="260" height="94" rx="8" fill="#fff8e1" stroke="#f57f17" stroke-width="1.8"/>
+  <text x="990" y="210" text-anchor="middle" font-weight="bold" fill="#e65100">holdings_snapshots</text>
+  <text x="990" y="229" text-anchor="middle" fill="#555" font-size="11">account_id, snapshot_date, source</text>
+  <text x="990" y="245" text-anchor="middle" fill="#555" font-size="11">cost_basis, net_contribution</text>
+  <text x="990" y="261" text-anchor="middle" fill="#c56000" font-size="11" font-style="italic">positions JSON: vestigial (always '{}')</text>
+  <text x="990" y="273" text-anchor="middle" fill="#c56000" font-size="11" font-style="italic">cash_balances JSON: still in use</text>
+
+  <line x1="990" y1="158" x2="990" y2="183" stroke="#8850a0" stroke-width="1.5" marker-end="url(#arrow-hl)"/>
+
+  <!-- ═══ snapshot_positions (NEW, Phase C) ═══ -->
+  <rect x="860" y="310" width="260" height="84" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.8"/>
+  <text x="990" y="335" text-anchor="middle" font-weight="bold" fill="#1b5e20">snapshot_positions</text>
+  <text x="990" y="354" text-anchor="middle" fill="#2e7d32" font-size="11">snapshot_id → holdings_snapshots</text>
+  <text x="990" y="370" text-anchor="middle" fill="#2e7d32" font-size="11">asset_id → assets (CASCADE)</text>
+  <text x="990" y="386" text-anchor="middle" fill="#2e7d32" font-size="11">quantity, average_cost, total_cost_basis</text>
+
+  <line x1="990" y1="279" x2="990" y2="308" stroke="#2e7d32" stroke-width="1.4" marker-end="url(#arrow-new)"/>
+  <text x="1000" y="296" fill="#2e7d32" font-size="10" font-weight="bold">relational</text>
+
+  <!-- ═══ lots (NEW, Phase A — the spine) ═══ -->
+  <rect x="430" y="310" width="340" height="140" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2.2"/>
+  <text x="600" y="336" text-anchor="middle" font-weight="bold" fill="#1b5e20" font-size="15">lots   (authoritative source of positions)</text>
+  <text x="600" y="356" text-anchor="middle" fill="#2e7d32" font-size="11">account_id → accounts (CASCADE)</text>
+  <text x="600" y="372" text-anchor="middle" fill="#2e7d32" font-size="11">asset_id → assets (CASCADE)</text>
+  <text x="600" y="388" text-anchor="middle" fill="#2e7d32" font-size="11">open_activity_id, close_activity_id (nullable)</text>
+  <text x="600" y="404" text-anchor="middle" fill="#2e7d32" font-size="11">open_date, close_date, is_closed</text>
+  <text x="600" y="420" text-anchor="middle" fill="#2e7d32" font-size="11">original_quantity, remaining_quantity</text>
+  <text x="600" y="436" text-anchor="middle" fill="#2e7d32" font-size="11">cost_per_unit, total_cost_basis, fee_allocated</text>
+
+  <!-- activities → lots (TRANSACTIONS: incremental FIFO, not full replay) -->
+  <path d="M340,265 Q385,265 420,340" fill="none" stroke="#2e6ba8" stroke-width="1.8" marker-end="url(#arrow-tx)"/>
+  <text x="370" y="295" fill="#2e6ba8" font-size="10" font-weight="bold">incremental FIFO</text>
+
+  <!-- snapshot_positions → lots (HOLDINGS: refresh from latest snapshot) -->
+  <path d="M860,360 Q810,380 770,380" fill="none" stroke="#8850a0" stroke-width="1.8" marker-end="url(#arrow-hl)"/>
+  <text x="795" y="370" fill="#8850a0" font-size="10" font-weight="bold">refresh</text>
+
+  <!-- ═══ accounts ═══ -->
+  <rect x="430" y="185" width="340" height="94" rx="8" fill="#f0f4f8" stroke="#8da4bf" stroke-width="1.5"/>
+  <text x="600" y="210" text-anchor="middle" font-weight="bold" fill="#2c3e50">accounts</text>
+  <text x="600" y="229" text-anchor="middle" fill="#555" font-size="11">tracking_mode: TRANSACTIONS | HOLDINGS</text>
+  <text x="600" y="245" text-anchor="middle" fill="#555" font-size="11">currency, group (display), platform_id</text>
+  <text x="600" y="261" text-anchor="middle" fill="#555" font-size="11">is_active, is_archived</text>
+  <text x="600" y="273" text-anchor="middle" fill="#777" font-size="10" font-style="italic">(implicit single owner — addressed in Phase D)</text>
+
+  <line x1="430" y1="225" x2="340" y2="220" stroke="#777" stroke-width="0.8" stroke-dasharray="3,3"/>
+  <line x1="770" y1="225" x2="860" y2="220" stroke="#777" stroke-width="0.8" stroke-dasharray="3,3"/>
+
+  <!-- ═══ assets (modified — account_id FK added) ═══ -->
+  <rect x="80" y="310" width="260" height="140" rx="8" fill="#fff8e1" stroke="#f57f17" stroke-width="1.8"/>
+  <text x="210" y="335" text-anchor="middle" font-weight="bold" fill="#e65100">assets</text>
+  <text x="210" y="354" text-anchor="middle" fill="#555" font-size="11">kind: INVESTMENT | PROPERTY |</text>
+  <text x="210" y="370" text-anchor="middle" fill="#555" font-size="11">  PRECIOUS_METAL | LIABILITY | ...</text>
+  <text x="210" y="386" text-anchor="middle" fill="#555" font-size="11">instrument_type, quote_ccy</text>
+  <text x="210" y="402" text-anchor="middle" fill="#555" font-size="11">quote_mode: MARKET | MANUAL</text>
+  <text x="210" y="420" text-anchor="middle" fill="#c56000" font-size="11" font-weight="bold">+ account_id → accounts (nullable)</text>
+  <text x="210" y="435" text-anchor="middle" fill="#c56000" font-size="10" font-style="italic">enables liability-as-asset linking (B10/B11)</text>
+
+  <!-- lots → assets -->
+  <line x1="430" y1="380" x2="340" y2="380" stroke="#555" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <text x="368" y="373" fill="#777" font-size="10">asset_id</text>
+
+  <!-- ═══ Unified read path ═══ -->
+  <rect x="430" y="490" width="340" height="62" rx="8" fill="#fff" stroke="#2e7d32" stroke-width="1.8"/>
+  <text x="600" y="515" text-anchor="middle" font-weight="bold" fill="#1b5e20">holdings_service.get_holdings()</text>
+  <text x="600" y="534" text-anchor="middle" fill="#2e7d32" font-size="11">lots ⨝ quotes ⨝ assets (single query path)</text>
+
+  <line x1="600" y1="450" x2="600" y2="488" stroke="#555" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <text x="615" y="472" fill="#777" font-size="10">read</text>
+
+  <!-- ═══ daily_account_valuation (modified — alt value column) ═══ -->
+  <rect x="80" y="490" width="280" height="110" rx="8" fill="#fff8e1" stroke="#f57f17" stroke-width="1.8"/>
+  <text x="220" y="515" text-anchor="middle" font-weight="bold" fill="#e65100">daily_account_valuation</text>
+  <text x="220" y="534" text-anchor="middle" fill="#555" font-size="11">account_id, valuation_date</text>
+  <text x="220" y="550" text-anchor="middle" fill="#555" font-size="11">cash_balance, total_value, cost_basis</text>
+  <text x="220" y="566" text-anchor="middle" fill="#555" font-size="11">investment_market_value</text>
+  <text x="220" y="582" text-anchor="middle" fill="#c56000" font-size="11" font-weight="bold">+ alternative_market_value</text>
+  <text x="220" y="594" text-anchor="middle" fill="#c56000" font-size="10" font-style="italic">TOTAL pseudo-account rows removed</text>
+
+  <!-- ═══ daily_portfolio_valuation (NEW — replaces TOTAL) ═══ -->
+  <rect x="80" y="625" width="280" height="110" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.8"/>
+  <text x="220" y="650" text-anchor="middle" font-weight="bold" fill="#1b5e20">daily_portfolio_valuation</text>
+  <text x="220" y="669" text-anchor="middle" fill="#2e7d32" font-size="11">valuation_date, base_currency</text>
+  <text x="220" y="685" text-anchor="middle" fill="#2e7d32" font-size="11">cash_balance, investment_market_value</text>
+  <text x="220" y="701" text-anchor="middle" fill="#2e7d32" font-size="11">alternative_market_value, total_assets</text>
+  <text x="220" y="717" text-anchor="middle" fill="#2e7d32" font-size="11">total_liabilities, net_worth, cost_basis</text>
+  <text x="220" y="729" text-anchor="middle" fill="#2e7d32" font-size="10" font-style="italic">portfolio-wide aggregation (no TOTAL pseudo)</text>
+
+  <line x1="220" y1="600" x2="220" y2="623" stroke="#2e7d32" stroke-width="1.4" marker-end="url(#arrow-new)"/>
+  <text x="235" y="615" fill="#2e7d32" font-size="10" font-weight="bold">aggregate</text>
+
+  <!-- ═══ quotes ═══ -->
+  <rect x="860" y="490" width="260" height="62" rx="8" fill="#f0f4f8" stroke="#8da4bf" stroke-width="1.5"/>
+  <text x="990" y="515" text-anchor="middle" font-weight="bold" fill="#2c3e50">quotes</text>
+  <text x="990" y="534" text-anchor="middle" fill="#555" font-size="11">asset_id, day, close, currency, source</text>
+
+  <line x1="860" y1="521" x2="772" y2="521" stroke="#555" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- Liabilities-as-assets callout -->
+  <rect x="430" y="590" width="340" height="68" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.2" stroke-dasharray="5,3"/>
+  <text x="600" y="611" text-anchor="middle" fill="#1b5e20" font-weight="bold" font-size="12">Liabilities are now explicit Liability assets</text>
+  <text x="600" y="629" text-anchor="middle" fill="#2e7d32" font-size="11">assets.kind = LIABILITY, quote_mode = MANUAL</text>
+  <text x="600" y="645" text-anchor="middle" fill="#2e7d32" font-size="11">optional account_id link (B10/B11) — no more negative cash</text>
+
+  <!-- snapshot_position_lots (NEW but vestigial) -->
+  <rect x="860" y="625" width="260" height="62" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="990" y="650" text-anchor="middle" font-weight="bold" fill="#1b5e20" font-size="12">snapshot_position_lots</text>
+  <text x="990" y="668" text-anchor="middle" fill="#2e7d32" font-size="10">created for symmetry, currently unused</text>
+  <text x="990" y="682" text-anchor="middle" fill="#2e7d32" font-size="10">(HOLDINGS positions have empty lots arrays)</text>
+
+  <!-- Footer line -->
+  <line x1="60" y1="755" x2="1140" y2="755" stroke="#ccc" stroke-width="0.8"/>
+  <text x="600" y="770" text-anchor="middle" fill="#777" font-size="11" font-style="italic">Lots are the single authoritative source for position state; all reads converge on one pipeline</text>
+</svg>

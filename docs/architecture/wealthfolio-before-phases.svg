@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 670" font-family="Inter, -apple-system, sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#555" stroke-width="1.2"/>
+    </marker>
+    <marker id="arrow-tx" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#2e6ba8" stroke-width="1.4"/>
+    </marker>
+    <marker id="arrow-hl" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#8850a0" stroke-width="1.4"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="600" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a1a1a">Wealthfolio — Data Model Before Refactor</text>
+  <text x="600" y="50" text-anchor="middle" font-size="12" fill="#666">JSON snapshots authoritative · no persistent lots · 4 inconsistent valuation paths</text>
+
+  <!-- Legend for flow colors -->
+  <rect x="870" y="62" width="16" height="16" rx="3" fill="#cfe0f2" stroke="#2e6ba8" stroke-width="1.5"/>
+  <text x="892" y="75" fill="#2e6ba8" font-size="11" font-weight="bold">TRANSACTIONS flow</text>
+  <rect x="1020" y="62" width="16" height="16" rx="3" fill="#f4edfa" stroke="#8850a0" stroke-width="1.5"/>
+  <text x="1042" y="75" fill="#8850a0" font-size="11" font-weight="bold">HOLDINGS flow</text>
+
+  <!-- ═══ DATA SOURCES (TOP) ═══ -->
+  <rect x="80" y="105" width="260" height="70" rx="8" fill="#cfe0f2" stroke="#2e6ba8" stroke-width="1.8"/>
+  <text x="210" y="131" text-anchor="middle" font-weight="bold" fill="#2e6ba8" font-size="14">User enters activities</text>
+  <text x="210" y="151" text-anchor="middle" fill="#555" font-size="11">BUY / SELL / DIVIDEND / SPLIT /</text>
+  <text x="210" y="166" text-anchor="middle" fill="#555" font-size="11">TRANSFER_IN / TRANSFER_OUT / FEE / ...</text>
+
+  <rect x="860" y="105" width="260" height="70" rx="8" fill="#f4edfa" stroke="#8850a0" stroke-width="1.8"/>
+  <text x="990" y="131" text-anchor="middle" font-weight="bold" fill="#8850a0" font-size="14">User enters snapshot</text>
+  <text x="990" y="151" text-anchor="middle" fill="#555" font-size="11">"I hold 50 MSFT + 100 AAPL</text>
+  <text x="990" y="166" text-anchor="middle" fill="#555" font-size="11">as of 2025-06-01"</text>
+
+  <!-- ═══ PROCESSING BOXES ═══ -->
+  <rect x="80" y="215" width="260" height="92" rx="8" fill="#fff" stroke="#2e6ba8" stroke-width="1.5"/>
+  <text x="210" y="241" text-anchor="middle" font-weight="bold" fill="#2e6ba8">holdings_calculator.rs</text>
+  <text x="210" y="260" text-anchor="middle" fill="#555" font-size="11">Replay ALL activities from start of time</text>
+  <text x="210" y="275" text-anchor="middle" fill="#555" font-size="11">Compute positions in memory, FIFO cost basis</text>
+  <text x="210" y="290" text-anchor="middle" fill="#c33" font-size="11">⚠ Triggered on every recalc, every quote update</text>
+
+  <rect x="860" y="215" width="260" height="92" rx="8" fill="#fff" stroke="#8850a0" stroke-width="1.5"/>
+  <text x="990" y="241" text-anchor="middle" font-weight="bold" fill="#8850a0">broker/manual snapshot import</text>
+  <text x="990" y="260" text-anchor="middle" fill="#555" font-size="11">Serialize positions → JSON</text>
+  <text x="990" y="275" text-anchor="middle" fill="#555" font-size="11">Cost basis from broker data (or user input)</text>
+  <text x="990" y="290" text-anchor="middle" fill="#c33" font-size="11">⚠ No FK from JSON refs to assets</text>
+
+  <!-- Activities arrow -->
+  <line x1="210" y1="175" x2="210" y2="213" stroke="#2e6ba8" stroke-width="1.5" marker-end="url(#arrow-tx)"/>
+  <line x1="990" y1="175" x2="990" y2="213" stroke="#8850a0" stroke-width="1.5" marker-end="url(#arrow-hl)"/>
+
+  <!-- ═══ CENTRAL TABLES ═══ -->
+
+  <!-- activities table -->
+  <rect x="80" y="345" width="260" height="110" rx="8" fill="#f0f4f8" stroke="#8da4bf" stroke-width="1.5"/>
+  <text x="210" y="370" text-anchor="middle" font-weight="bold" fill="#2c3e50">activities</text>
+  <text x="210" y="389" text-anchor="middle" fill="#555" font-size="11">activity_type, quantity, unit_price</text>
+  <text x="210" y="405" text-anchor="middle" fill="#555" font-size="11">amount, fee (commissions + tax mixed)</text>
+  <text x="210" y="421" text-anchor="middle" fill="#555" font-size="11">activity_date, currency</text>
+  <text x="210" y="437" text-anchor="middle" fill="#555" font-size="11">account_id → accounts</text>
+  <text x="210" y="449" text-anchor="middle" fill="#555" font-size="10" font-style="italic">asset_id → assets (SET NULL on delete)</text>
+
+  <!-- Activities → calculator -->
+  <line x1="210" y1="343" x2="210" y2="309" stroke="#2e6ba8" stroke-width="1.5" marker-end="url(#arrow-tx)"/>
+
+  <!-- holdings_snapshots -->
+  <rect x="440" y="345" width="320" height="160" rx="8" fill="#f0f4f8" stroke="#8da4bf" stroke-width="1.5"/>
+  <text x="600" y="370" text-anchor="middle" font-weight="bold" fill="#2c3e50">holdings_snapshots</text>
+  <text x="600" y="390" text-anchor="middle" fill="#555" font-size="11">account_id, snapshot_date, source</text>
+  <text x="600" y="406" text-anchor="middle" fill="#555" font-size="11">cost_basis, net_contribution</text>
+  <rect x="460" y="420" width="280" height="74" rx="4" fill="#fde8e8" stroke="#d44" stroke-width="1.2"/>
+  <text x="600" y="438" text-anchor="middle" fill="#a33" font-size="11" font-weight="bold">positions: JSON { asset_id → Position }</text>
+  <text x="600" y="454" text-anchor="middle" fill="#a33" font-size="10">quantity, avg_cost, currency, lots[...]</text>
+  <text x="600" y="470" text-anchor="middle" fill="#a33" font-size="11" font-weight="bold">cash_balances: JSON { ccy → amount }</text>
+  <text x="600" y="485" text-anchor="middle" fill="#a33" font-size="10">negative values = liabilities (e.g. loans)</text>
+
+  <!-- calculator → snapshot -->
+  <line x1="340" y1="280" x2="450" y2="360" stroke="#2e6ba8" stroke-width="1.5" marker-end="url(#arrow-tx)"/>
+  <text x="382" y="320" fill="#2e6ba8" font-size="10">serialize</text>
+
+  <!-- broker import → snapshot -->
+  <line x1="860" y1="280" x2="750" y2="360" stroke="#8850a0" stroke-width="1.5" marker-end="url(#arrow-hl)"/>
+  <text x="822" y="320" fill="#8850a0" font-size="10">insert</text>
+
+  <!-- ═══ READ / VALUATION ═══ -->
+
+  <!-- holdings_service -->
+  <rect x="440" y="545" width="320" height="72" rx="8" fill="#fff" stroke="#8da4bf" stroke-width="1.5"/>
+  <text x="600" y="570" text-anchor="middle" font-weight="bold" fill="#2c3e50">holdings_service.get_holdings()</text>
+  <text x="600" y="589" text-anchor="middle" fill="#555" font-size="11">Load snapshot → deserialize JSON → join</text>
+  <text x="600" y="605" text-anchor="middle" fill="#555" font-size="11">to quotes/assets at query time</text>
+
+  <line x1="600" y1="505" x2="600" y2="543" stroke="#555" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <text x="615" y="527" fill="#777" font-size="10">read</text>
+
+  <!-- daily_account_valuation -->
+  <rect x="80" y="545" width="280" height="95" rx="8" fill="#f0f4f8" stroke="#8da4bf" stroke-width="1.5"/>
+  <text x="220" y="570" text-anchor="middle" font-weight="bold" fill="#2c3e50">daily_account_valuation</text>
+  <text x="220" y="589" text-anchor="middle" fill="#555" font-size="11">account_id (includes "TOTAL" pseudo)</text>
+  <text x="220" y="605" text-anchor="middle" fill="#555" font-size="11">valuation_date, total_value, cash_balance</text>
+  <text x="220" y="621" text-anchor="middle" fill="#555" font-size="11">investment_market_value, cost_basis</text>
+  <text x="220" y="633" text-anchor="middle" fill="#c33" font-size="10">⚠ TOTAL row = synthesized pseudo-account</text>
+
+  <!-- Assets -->
+  <rect x="840" y="345" width="260" height="110" rx="8" fill="#f0f4f8" stroke="#8da4bf" stroke-width="1.5"/>
+  <text x="970" y="370" text-anchor="middle" font-weight="bold" fill="#2c3e50">assets</text>
+  <text x="970" y="389" text-anchor="middle" fill="#555" font-size="11">kind: INVESTMENT | PROPERTY |</text>
+  <text x="970" y="405" text-anchor="middle" fill="#555" font-size="11">  PRECIOUS_METAL | LIABILITY | ...</text>
+  <text x="970" y="421" text-anchor="middle" fill="#555" font-size="11">instrument_type, quote_ccy</text>
+  <text x="970" y="437" text-anchor="middle" fill="#555" font-size="11">quote_mode: MARKET | MANUAL</text>
+  <text x="970" y="450" text-anchor="middle" fill="#555" font-size="10" font-style="italic">no FK from snapshot positions JSON</text>
+
+  <!-- quotes -->
+  <rect x="840" y="545" width="260" height="72" rx="8" fill="#f0f4f8" stroke="#8da4bf" stroke-width="1.5"/>
+  <text x="970" y="570" text-anchor="middle" font-weight="bold" fill="#2c3e50">quotes</text>
+  <text x="970" y="589" text-anchor="middle" fill="#555" font-size="11">asset_id, day, close, currency</text>
+  <text x="970" y="606" text-anchor="middle" fill="#555" font-size="11">source (YAHOO / MANUAL / ...)</text>
+
+  <line x1="970" y1="455" x2="970" y2="543" stroke="#555" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- Accounts (small, in middle) -->
+  <rect x="440" y="150" width="320" height="50" rx="8" fill="#f0f4f8" stroke="#8da4bf" stroke-width="1.5"/>
+  <text x="600" y="172" text-anchor="middle" font-weight="bold" fill="#2c3e50">accounts</text>
+  <text x="600" y="191" text-anchor="middle" fill="#555" font-size="11">tracking_mode: TRANSACTIONS | HOLDINGS, group, currency, platform_id</text>
+
+  <!-- Activities → accounts -->
+  <line x1="340" y1="390" x2="440" y2="186" stroke="#777" stroke-width="0.8" stroke-dasharray="3,3"/>
+  <!-- Snapshot → accounts -->
+  <line x1="600" y1="345" x2="600" y2="202" stroke="#777" stroke-width="0.8" stroke-dasharray="3,3"/>
+
+  <!-- Implicit owner callout -->
+  <rect x="440" y="77" width="320" height="48" rx="8" fill="#fff3e0" stroke="#e09945" stroke-width="1.2" stroke-dasharray="5,3"/>
+  <text x="600" y="95" text-anchor="middle" fill="#b07020" font-size="11" font-style="italic">⚠ implicit single owner — no entity model</text>
+  <text x="600" y="113" text-anchor="middle" fill="#b07020" font-size="11">no jurisdiction, no tax classification</text>
+  <line x1="600" y1="125" x2="600" y2="148" stroke="#cca060" stroke-width="1" stroke-dasharray="4,3"/>
+</svg>

@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" font-family="Inter, -apple-system, sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow-new" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#2e7d32" stroke-width="1.4"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="600" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a1a1a">Wealthfolio — Data Model With Tax Tagging (Phase D)</text>
+  <text x="600" y="50" text-anchor="middle" font-size="12" fill="#666">Multi-jurisdiction tag surface · rules engine (QuickJS) consumes tagged data at evaluation time</text>
+
+  <!-- Legend -->
+  <rect x="80" y="62" width="16" height="16" rx="3" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5"/>
+  <text x="102" y="75" fill="#2e7d32" font-size="11" font-weight="bold">New</text>
+  <rect x="160" y="62" width="16" height="16" rx="3" fill="#fff8e1" stroke="#f57f17" stroke-width="1.5"/>
+  <text x="182" y="75" fill="#c56000" font-size="11" font-weight="bold">Modified (Phase D)</text>
+  <rect x="320" y="62" width="16" height="16" rx="3" fill="#f0f4f8" stroke="#8da4bf" stroke-width="1.5"/>
+  <text x="342" y="75" fill="#555" font-size="11">Unchanged from Phase A/B/C</text>
+
+  <!-- ═══ accounts (modified — wrapper_kind, jurisdiction) ═══ -->
+  <rect x="60" y="100" width="340" height="198" rx="8" fill="#fff8e1" stroke="#f57f17" stroke-width="2"/>
+  <text x="230" y="125" text-anchor="middle" font-weight="bold" fill="#e65100" font-size="14">accounts</text>
+  <text x="230" y="143" text-anchor="middle" fill="#6a3e80" font-size="11" font-weight="bold">② wrapper dimension</text>
+  <line x1="80" y1="153" x2="380" y2="153" stroke="#f57f17" stroke-width="0.8" stroke-dasharray="3,3"/>
+  <text x="80" y="173" fill="#555" font-size="11">(existing)  tracking_mode, currency, group, platform_id</text>
+  <text x="80" y="201" fill="#c56000" font-size="11" font-weight="bold">+ wrapper_kind TEXT</text>
+  <text x="92" y="216" fill="#555" font-size="10">ROTH_IRA · TRAD_IRA · 401K · TFSA · RRSP · ISA · CH_3A</text>
+  <text x="92" y="230" fill="#555" font-size="10">CH_3B · TAXABLE_BROKERAGE · ...</text>
+  <text x="80" y="255" fill="#c56000" font-size="11" font-weight="bold">+ jurisdiction TEXT (ISO)</text>
+  <text x="92" y="270" fill="#555" font-size="10">account regulatory home — nullable, defaults to filer</text>
+  <text x="80" y="290" fill="#888" font-size="10" font-style="italic">(coarse tax_wrapper_type derived from wrapper_kind lookup)</text>
+
+  <!-- ═══ assets (modified) ═══ -->
+  <rect x="430" y="100" width="340" height="330" rx="8" fill="#fff8e1" stroke="#f57f17" stroke-width="2"/>
+  <text x="600" y="125" text-anchor="middle" font-weight="bold" fill="#e65100" font-size="14">assets</text>
+  <text x="600" y="143" text-anchor="middle" fill="#6a3e80" font-size="11" font-weight="bold">③ asset intrinsic class dimension</text>
+  <line x1="450" y1="153" x2="750" y2="153" stroke="#f57f17" stroke-width="0.8" stroke-dasharray="3,3"/>
+  <text x="450" y="173" fill="#555" font-size="11">(existing)  kind, instrument_type, quote_ccy,</text>
+  <text x="450" y="187" fill="#555" font-size="11">                 quote_mode, account_id (from B10/B11)</text>
+  <text x="450" y="215" fill="#c56000" font-size="11" font-weight="bold">+ tax_class TEXT</text>
+  <text x="462" y="230" fill="#555" font-size="10">EQUITY · BOND_GOVT · BOND_CORP · BOND_SUBNATIONAL</text>
+  <text x="462" y="244" fill="#555" font-size="10">REIT · MLP · CRYPTO · METAL · ALT · CASH_EQUIV</text>
+  <text x="450" y="268" fill="#c56000" font-size="11" font-weight="bold">+ tax_class_source TEXT</text>
+  <text x="462" y="283" fill="#555" font-size="10">AUTO · USER · IMPORTED  (preserves user edits)</text>
+  <text x="450" y="307" fill="#c56000" font-size="11" font-weight="bold">+ issuer_jurisdiction TEXT (ISO)</text>
+  <text x="462" y="322" fill="#555" font-size="10">foreign-source income / treaty withholding / FTC tracking</text>
+  <text x="450" y="346" fill="#c56000" font-size="11" font-weight="bold">+ issuer_subdivision TEXT (ISO)</text>
+  <text x="462" y="361" fill="#555" font-size="10">state/canton/province — e.g. CA muni for CA resident</text>
+  <text x="450" y="385" fill="#c56000" font-size="11" font-weight="bold">+ tax_attributes JSON</text>
+  <text x="462" y="400" fill="#555" font-size="10">edge-case flags: {amt_preference, pfic, k1_reporting,</text>
+  <text x="462" y="414" fill="#555" font-size="10">qof_zone, qef_elected, ...}</text>
+
+  <!-- ═══ activities (modified) ═══ -->
+  <rect x="800" y="100" width="340" height="248" rx="8" fill="#fff8e1" stroke="#f57f17" stroke-width="2"/>
+  <text x="970" y="125" text-anchor="middle" font-weight="bold" fill="#e65100" font-size="14">activities</text>
+  <text x="970" y="143" text-anchor="middle" fill="#6a3e80" font-size="11" font-weight="bold">④ activity type dimension</text>
+  <line x1="820" y1="153" x2="1120" y2="153" stroke="#f57f17" stroke-width="0.8" stroke-dasharray="3,3"/>
+  <text x="820" y="173" fill="#555" font-size="11">(existing)  activity_type, quantity, amount,</text>
+  <text x="820" y="187" fill="#555" font-size="11">                 fee, activity_date, currency</text>
+  <text x="820" y="215" fill="#c56000" font-size="11" font-weight="bold">+ income_type TEXT (nullable)</text>
+  <text x="832" y="230" fill="#555" font-size="10">for DIVIDEND:  QUALIFIED_DIV · ORDINARY_DIV</text>
+  <text x="832" y="244" fill="#555" font-size="10">                     TAX_EXEMPT_DIV · RETURN_OF_CAPITAL</text>
+  <text x="832" y="258" fill="#555" font-size="10">for INTEREST:  ORDINARY_INT · TAX_EXEMPT_INT · TREASURY_INT</text>
+  <text x="832" y="272" fill="#888" font-size="10" font-style="italic">valid (type, income_type) pairs enforced in Rust</text>
+  <text x="820" y="295" fill="#c56000" font-size="11" font-weight="bold">+ tax_withheld TEXT (Decimal)</text>
+  <text x="832" y="310" fill="#555" font-size="10">foreign div WHT · stamp duty · FTT · separate from fee</text>
+  <text x="820" y="330" fill="#c56000" font-size="11" font-weight="bold">+ withholding_jurisdiction TEXT (ISO)</text>
+  <text x="832" y="344" fill="#555" font-size="10">who withheld — for FTC / treaty claim tracking</text>
+
+  <!-- ═══ wrapper_definitions (NEW reference table) ═══ -->
+  <rect x="60" y="327" width="340" height="148" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+  <text x="230" y="352" text-anchor="middle" font-weight="bold" fill="#1b5e20" font-size="14">wrapper_definitions  (NEW, seeded)</text>
+  <text x="80" y="375" fill="#2e7d32" font-size="11">id (e.g. "US/ROTH_IRA")</text>
+  <text x="80" y="391" fill="#2e7d32" font-size="11">jurisdiction (ISO)</text>
+  <text x="80" y="407" fill="#2e7d32" font-size="11">name — display label</text>
+  <text x="80" y="423" fill="#2e7d32" font-size="11">coarse_type — TAXABLE | TAX_DEFERRED | TAX_EXEMPT</text>
+  <text x="80" y="439" fill="#2e7d32" font-size="11">description</text>
+  <text x="80" y="455" fill="#2e7d32" font-size="11">rule_pack_id → (JS rule in Phase D.2)</text>
+  <text x="80" y="469" fill="#1b5e20" font-size="10" font-style="italic">users can add entries for jurisdictions we don't seed</text>
+
+  <!-- accounts.wrapper_kind → wrapper_definitions -->
+  <path d="M230,298 Q230,313 230,325" fill="none" stroke="#2e7d32" stroke-width="1.4" marker-end="url(#arrow-new)"/>
+  <text x="240" y="314" fill="#2e7d32" font-size="10">lookup</text>
+
+  <!-- ═══ settings.filer_jurisdiction (NEW) ═══ -->
+  <rect x="800" y="372" width="340" height="70" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+  <text x="970" y="396" text-anchor="middle" font-weight="bold" fill="#1b5e20" font-size="13">settings.filer_jurisdiction  (NEW, v1 single-filer)</text>
+  <text x="970" y="415" text-anchor="middle" fill="#2e7d32" font-size="11">① jurisdiction dimension — e.g. "US-CA" or "CH-ZH"</text>
+  <text x="970" y="431" text-anchor="middle" fill="#1b5e20" font-size="10" font-style="italic">Phase D.2: promotes to legal_entities.jurisdiction with accounts.entity_id FK</text>
+</svg>
