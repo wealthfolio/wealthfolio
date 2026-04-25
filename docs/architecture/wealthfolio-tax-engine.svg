@@ -1,0 +1,235 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 880" font-family="Inter, -apple-system, sans-serif" font-size="12">
+  <defs>
+    <marker id="arr" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <path d="M0,0 L9,3.5 L0,7" fill="none" stroke="#444" stroke-width="1.4"/>
+    </marker>
+    <marker id="arr-purple" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <path d="M0,0 L9,3.5 L0,7" fill="none" stroke="#6a3e80" stroke-width="1.4"/>
+    </marker>
+    <marker id="arr-orange" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <path d="M0,0 L9,3.5 L0,7" fill="none" stroke="#b8631e" stroke-width="1.4"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="620" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a1a1a">Wealthfolio Tax Engine — Architecture</text>
+  <text x="620" y="50" text-anchor="middle" font-size="12" fill="#666">Composable rule packs · profile-driven chain · two-pass evaluation (per-event + year-level)</text>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- LEFT BAND: DATA SOURCES                              -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <text x="140" y="78" text-anchor="middle" font-weight="bold" fill="#2c3e50" font-size="13">Data sources</text>
+  <text x="140" y="93" text-anchor="middle" fill="#666" font-size="10">existing schema + Phase D additions</text>
+
+  <!-- accounts -->
+  <rect x="30" y="100" width="220" height="64" rx="6" fill="#cfe0f2" stroke="#2e6ba8" stroke-width="1.4"/>
+  <text x="140" y="120" text-anchor="middle" font-weight="bold" fill="#2e6ba8">accounts</text>
+  <text x="140" y="138" text-anchor="middle" fill="#2e6ba8" font-size="11">wrapper_kind, jurisdiction</text>
+  <text x="140" y="154" text-anchor="middle" fill="#555" font-size="10" font-style="italic">+ existing fields</text>
+
+  <!-- assets -->
+  <rect x="30" y="174" width="220" height="80" rx="6" fill="#f4edfa" stroke="#8850a0" stroke-width="1.4"/>
+  <text x="140" y="194" text-anchor="middle" font-weight="bold" fill="#8850a0">assets</text>
+  <text x="140" y="212" text-anchor="middle" fill="#8850a0" font-size="11">tax_class, issuer_jurisdiction,</text>
+  <text x="140" y="226" text-anchor="middle" fill="#8850a0" font-size="11">issuer_subdivision, tax_attributes</text>
+  <text x="140" y="244" text-anchor="middle" fill="#555" font-size="10" font-style="italic">+ existing fields</text>
+
+  <!-- activities -->
+  <rect x="30" y="264" width="220" height="80" rx="6" fill="#fde9d9" stroke="#b8631e" stroke-width="1.4"/>
+  <text x="140" y="284" text-anchor="middle" font-weight="bold" fill="#b8631e">activities</text>
+  <text x="140" y="302" text-anchor="middle" fill="#b8631e" font-size="11">income_type, tax_withheld,</text>
+  <text x="140" y="316" text-anchor="middle" fill="#b8631e" font-size="11">withholding_jurisdiction</text>
+  <text x="140" y="334" text-anchor="middle" fill="#555" font-size="10" font-style="italic">+ existing fields</text>
+
+  <!-- lots -->
+  <rect x="30" y="354" width="220" height="64" rx="6" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.4"/>
+  <text x="140" y="374" text-anchor="middle" font-weight="bold" fill="#2e7d32">lots</text>
+  <text x="140" y="392" text-anchor="middle" fill="#2e7d32" font-size="11">open_date, original_quantity,</text>
+  <text x="140" y="408" text-anchor="middle" fill="#2e7d32" font-size="11">cost basis, holding_period</text>
+
+  <!-- quotes / fx -->
+  <rect x="30" y="428" width="220" height="48" rx="6" fill="#f0f0f0" stroke="#666" stroke-width="1.4"/>
+  <text x="140" y="448" text-anchor="middle" font-weight="bold" fill="#444">quotes / fx_rates</text>
+  <text x="140" y="464" text-anchor="middle" fill="#555" font-size="10" font-style="italic">conversion to filer currency</text>
+
+  <!-- settings → filer profile -->
+  <rect x="30" y="496" width="220" height="92" rx="6" fill="#fff8d6" stroke="#a08020" stroke-width="1.4"/>
+  <text x="140" y="516" text-anchor="middle" font-weight="bold" fill="#7a6010">settings.tax_profile</text>
+  <text x="140" y="534" text-anchor="middle" fill="#7a6010" font-size="11">primary_jurisdiction</text>
+  <text x="140" y="548" text-anchor="middle" fill="#7a6010" font-size="11">citizenship_jurisdictions</text>
+  <text x="140" y="562" text-anchor="middle" fill="#7a6010" font-size="11">wrapper_kinds_in_use</text>
+  <text x="140" y="576" text-anchor="middle" fill="#7a6010" font-size="11">fiscal_year_start</text>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- HYDRATION: arrows from sources into EvalContext      -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <line x1="252" y1="132" x2="320" y2="220" stroke="#666" stroke-width="1.2" marker-end="url(#arr)"/>
+  <line x1="252" y1="214" x2="320" y2="240" stroke="#666" stroke-width="1.2" marker-end="url(#arr)"/>
+  <line x1="252" y1="304" x2="320" y2="262" stroke="#666" stroke-width="1.2" marker-end="url(#arr)"/>
+  <line x1="252" y1="386" x2="320" y2="282" stroke="#666" stroke-width="1.2" marker-end="url(#arr)"/>
+  <line x1="252" y1="452" x2="320" y2="290" stroke="#666" stroke-width="1.2" marker-end="url(#arr)"/>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- TAX ENGINE BOX                                       -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <rect x="290" y="100" width="700" height="640" rx="10" fill="#fafbfc" stroke="#333" stroke-width="1.6" stroke-dasharray="0"/>
+  <text x="640" y="124" text-anchor="middle" font-weight="bold" fill="#1a1a1a" font-size="14">Tax Engine (QuickJS)</text>
+
+  <!-- EvalContext (hydrated) -->
+  <rect x="320" y="160" width="280" height="140" rx="8" fill="#ffffff" stroke="#444" stroke-width="1.4"/>
+  <text x="460" y="182" text-anchor="middle" font-weight="bold" fill="#222">EvalContext (per activity)</text>
+  <text x="335" y="204" fill="#444" font-size="11">filer        ← settings.tax_profile</text>
+  <text x="335" y="220" fill="#444" font-size="11">account      ← accounts row</text>
+  <text x="335" y="236" fill="#444" font-size="11">asset        ← assets row</text>
+  <text x="335" y="252" fill="#444" font-size="11">activity     ← activities row</text>
+  <text x="335" y="268" fill="#444" font-size="11">lots         ← lots for asset</text>
+  <text x="335" y="284" fill="#444" font-size="11">fx_rates     ← quotes (date, ccy)</text>
+  <text x="460" y="296" text-anchor="middle" fill="#888" font-size="10" font-style="italic">prepared by Rust service · packs cannot query DB</text>
+
+  <!-- Profile resolution box -->
+  <rect x="620" y="160" width="350" height="140" rx="8" fill="#fff8d6" stroke="#a08020" stroke-width="1.4"/>
+  <text x="795" y="182" text-anchor="middle" font-weight="bold" fill="#7a6010">Profile resolution → active pack chain</text>
+  <text x="630" y="204" fill="#7a6010" font-size="11">1. Load all built-in + custom packs</text>
+  <text x="630" y="220" fill="#7a6010" font-size="11">2. Filter by meta.applies ∩ filer profile</text>
+  <text x="630" y="236" fill="#7a6010" font-size="11">3. Filter by effective: {from, to} for activity date</text>
+  <text x="630" y="252" fill="#7a6010" font-size="11">4. Apply pack_overrides config</text>
+  <text x="630" y="268" fill="#7a6010" font-size="11">5. Sort by category, then priority</text>
+  <text x="795" y="288" text-anchor="middle" fill="#7a6010" font-size="11" font-style="italic">pure function of profile → recompute on profile change</text>
+
+  <!-- arrow EvalContext + profile down to chain -->
+  <line x1="460" y1="304" x2="460" y2="340" stroke="#444" stroke-width="1.4" marker-end="url(#arr)"/>
+  <line x1="795" y1="304" x2="795" y2="340" stroke="#a08020" stroke-width="1.4" marker-end="url(#arr-orange)"/>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- PER-EVENT PASS                                       -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <text x="640" y="358" text-anchor="middle" font-weight="bold" fill="#1a1a1a" font-size="13">Per-event pass — chain runs in priority order</text>
+  <text x="640" y="374" text-anchor="middle" fill="#666" font-size="11">Each pack reads ctx + prior treatment → emits operations (addLiability, addCredit, addSurcharge, …)</text>
+
+  <!-- chain boxes (6 categories) -->
+  <g font-size="10.5">
+    <rect x="320" y="392" width="100" height="52" rx="6" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.4"/>
+    <text x="370" y="410" text-anchor="middle" font-weight="bold" fill="#1976d2">wrapper</text>
+    <text x="370" y="425" text-anchor="middle" fill="#1976d2">Roth, ISA,</text>
+    <text x="370" y="438" text-anchor="middle" fill="#1976d2">TFSA, 3a</text>
+
+    <rect x="430" y="392" width="100" height="52" rx="6" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.4"/>
+    <text x="480" y="410" text-anchor="middle" font-weight="bold" fill="#2e7d32">character</text>
+    <text x="480" y="425" text-anchor="middle" fill="#2e7d32">LT/ST, QDI,</text>
+    <text x="480" y="438" text-anchor="middle" fill="#2e7d32">ROC</text>
+
+    <rect x="540" y="392" width="100" height="52" rx="6" fill="#fff3e0" stroke="#b8631e" stroke-width="1.4"/>
+    <text x="590" y="410" text-anchor="middle" font-weight="bold" fill="#b8631e">jurisdiction</text>
+    <text x="590" y="425" text-anchor="middle" fill="#b8631e">US-fed, CA-fed,</text>
+    <text x="590" y="438" text-anchor="middle" fill="#b8631e">UK, DE, ...</text>
+
+    <rect x="650" y="392" width="100" height="52" rx="6" fill="#fce4ec" stroke="#c2185b" stroke-width="1.4"/>
+    <text x="700" y="410" text-anchor="middle" font-weight="bold" fill="#c2185b">subdivision</text>
+    <text x="700" y="425" text-anchor="middle" fill="#c2185b">US-NY, US-CA,</text>
+    <text x="700" y="438" text-anchor="middle" fill="#c2185b">CH-ZH, ...</text>
+
+    <rect x="760" y="392" width="100" height="52" rx="6" fill="#f4edfa" stroke="#8850a0" stroke-width="1.4"/>
+    <text x="810" y="410" text-anchor="middle" font-weight="bold" fill="#8850a0">cross-border</text>
+    <text x="810" y="425" text-anchor="middle" fill="#8850a0">treaty WHT,</text>
+    <text x="810" y="438" text-anchor="middle" fill="#8850a0">FTC accrual</text>
+
+    <rect x="870" y="392" width="100" height="52" rx="6" fill="#e0f2f1" stroke="#00695c" stroke-width="1.4"/>
+    <text x="920" y="410" text-anchor="middle" font-weight="bold" fill="#00695c">adjustment</text>
+    <text x="920" y="425" text-anchor="middle" fill="#00695c">scrip basis,</text>
+    <text x="920" y="438" text-anchor="middle" fill="#00695c">ROC reduce</text>
+  </g>
+
+  <!-- arrows between chain stages -->
+  <line x1="420" y1="418" x2="430" y2="418" stroke="#444" stroke-width="1.4" marker-end="url(#arr)"/>
+  <line x1="530" y1="418" x2="540" y2="418" stroke="#444" stroke-width="1.4" marker-end="url(#arr)"/>
+  <line x1="640" y1="418" x2="650" y2="418" stroke="#444" stroke-width="1.4" marker-end="url(#arr)"/>
+  <line x1="750" y1="418" x2="760" y2="418" stroke="#444" stroke-width="1.4" marker-end="url(#arr)"/>
+  <line x1="860" y1="418" x2="870" y2="418" stroke="#444" stroke-width="1.4" marker-end="url(#arr)"/>
+
+  <!-- treatment accumulator -->
+  <rect x="320" y="464" width="650" height="46" rx="6" fill="#fffde7" stroke="#a08020" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <text x="335" y="482" font-weight="bold" fill="#7a6010">Treatment accumulates →</text>
+  <text x="335" y="500" fill="#7a6010" font-size="11">{ liabilities[], surcharges[], credits[], reasons[], basis_adjustments[], final?, treatment_changes_on? }</text>
+
+  <!-- arrow from chain down into accumulator -->
+  <line x1="640" y1="446" x2="640" y2="462" stroke="#444" stroke-width="1.2" marker-end="url(#arr)"/>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- YEAR-LEVEL PASS                                      -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <line x1="640" y1="510" x2="640" y2="540" stroke="#6a3e80" stroke-width="1.4" stroke-dasharray="6 3" marker-end="url(#arr-purple)"/>
+  <text x="660" y="528" fill="#6a3e80" font-size="11" font-style="italic">once all per-event treatments are produced for the tax year</text>
+
+  <text x="640" y="556" text-anchor="middle" font-weight="bold" fill="#1a1a1a" font-size="13">Year-level pass — runs over the year's treatments + positions snapshot</text>
+
+  <g font-size="10.5">
+    <rect x="320" y="572" width="160" height="58" rx="6" fill="#f3e5f5" stroke="#6a3e80" stroke-width="1.4"/>
+    <text x="400" y="592" text-anchor="middle" font-weight="bold" fill="#6a3e80">allowances</text>
+    <text x="400" y="607" text-anchor="middle" fill="#6a3e80">UK AEA, UK div allowance,</text>
+    <text x="400" y="621" text-anchor="middle" fill="#6a3e80">US capital-loss limit</text>
+
+    <rect x="490" y="572" width="160" height="58" rx="6" fill="#f3e5f5" stroke="#6a3e80" stroke-width="1.4"/>
+    <text x="570" y="592" text-anchor="middle" font-weight="bold" fill="#6a3e80">thresholds + cross-event</text>
+    <text x="570" y="607" text-anchor="middle" fill="#6a3e80">US NIIT, AMT,</text>
+    <text x="570" y="621" text-anchor="middle" fill="#6a3e80">wash-sale disallow</text>
+
+    <rect x="660" y="572" width="160" height="58" rx="6" fill="#f3e5f5" stroke="#6a3e80" stroke-width="1.4"/>
+    <text x="740" y="592" text-anchor="middle" font-weight="bold" fill="#6a3e80">wealth / deemed-return</text>
+    <text x="740" y="607" text-anchor="middle" fill="#6a3e80">CH wealth, NL Box 3,</text>
+    <text x="740" y="621" text-anchor="middle" fill="#6a3e80">SE ISK, NO formueskatt</text>
+
+    <rect x="830" y="572" width="140" height="58" rx="6" fill="#f3e5f5" stroke="#6a3e80" stroke-width="1.4"/>
+    <text x="900" y="592" text-anchor="middle" font-weight="bold" fill="#6a3e80">loss carryforward</text>
+    <text x="900" y="607" text-anchor="middle" fill="#6a3e80">IT 4-year offset,</text>
+    <text x="900" y="621" text-anchor="middle" fill="#6a3e80">IE 8-year deemed</text>
+  </g>
+
+  <!-- arrow to final aggregation -->
+  <line x1="640" y1="632" x2="640" y2="660" stroke="#444" stroke-width="1.4" marker-end="url(#arr)"/>
+
+  <rect x="320" y="664" width="650" height="60" rx="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.4"/>
+  <text x="640" y="685" text-anchor="middle" font-weight="bold" fill="#1b5e20">Final aggregation</text>
+  <text x="640" y="703" text-anchor="middle" fill="#1b5e20" font-size="11">per-event treatments + year-level liabilities → estimated tax by jurisdiction</text>
+  <text x="640" y="718" text-anchor="middle" fill="#444" font-size="10" font-style="italic">currency-aware sum · reasons preserved · "estimated" banner attached</text>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- RIGHT BAND: CONSUMERS                                -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <text x="1115" y="84" text-anchor="middle" font-weight="bold" fill="#2c3e50" font-size="13">Consumers</text>
+
+  <rect x="1010" y="160" width="210" height="62" rx="6" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.4"/>
+  <text x="1115" y="180" text-anchor="middle" font-weight="bold" fill="#1b5e20">In-app tax estimate</text>
+  <text x="1115" y="198" text-anchor="middle" fill="#2e7d32" font-size="11">per-account / per-year view</text>
+  <text x="1115" y="213" text-anchor="middle" fill="#2e7d32" font-size="11">with reasons + "estimated" banner</text>
+
+  <rect x="1010" y="232" width="210" height="62" rx="6" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.4"/>
+  <text x="1115" y="252" text-anchor="middle" font-weight="bold" fill="#0d47a1">Decision planner</text>
+  <text x="1115" y="270" text-anchor="middle" fill="#1976d2" font-size="11">"sell now vs wait 40 days?"</text>
+  <text x="1115" y="285" text-anchor="middle" fill="#1976d2" font-size="11">interactive what-if (ms-scale)</text>
+
+  <rect x="1010" y="304" width="210" height="62" rx="6" fill="#fff3e0" stroke="#b8631e" stroke-width="1.4"/>
+  <text x="1115" y="324" text-anchor="middle" font-weight="bold" fill="#8a4a18">Accountant export</text>
+  <text x="1115" y="342" text-anchor="middle" fill="#b8631e" font-size="11">treatments + reasons in</text>
+  <text x="1115" y="357" text-anchor="middle" fill="#b8631e" font-size="11">CSV / JSON for review</text>
+
+  <rect x="1010" y="376" width="210" height="76" rx="6" fill="#f4edfa" stroke="#8850a0" stroke-width="1.4"/>
+  <text x="1115" y="396" text-anchor="middle" font-weight="bold" fill="#6a3e80">External read-only tools</text>
+  <text x="1115" y="414" text-anchor="middle" fill="#8850a0" font-size="11">Spanish IRPF, Canadian T5008,</text>
+  <text x="1115" y="429" text-anchor="middle" fill="#8850a0" font-size="11">jurisdiction-specific reports</text>
+  <text x="1115" y="444" text-anchor="middle" fill="#8850a0" font-size="10" font-style="italic">consume same Treatment shape</text>
+
+  <!-- arrows from final aggregation to consumers (curved) -->
+  <path d="M 970 690 Q 1000 540 1010 195" fill="none" stroke="#444" stroke-width="1.2" marker-end="url(#arr)"/>
+  <path d="M 970 690 Q 1000 580 1010 265" fill="none" stroke="#444" stroke-width="1.2" marker-end="url(#arr)"/>
+  <path d="M 970 690 Q 1000 620 1010 337" fill="none" stroke="#444" stroke-width="1.2" marker-end="url(#arr)"/>
+  <path d="M 970 690 Q 1000 660 1010 410" fill="none" stroke="#444" stroke-width="1.2" marker-end="url(#arr)"/>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- BOTTOM NOTE: PACK CATALOG / CUSTOM                   -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <rect x="30" y="775" width="1190" height="86" rx="8" fill="#f7f7f7" stroke="#999" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <text x="50" y="797" font-weight="bold" fill="#444">Pack catalog</text>
+  <text x="50" y="816" fill="#555" font-size="11">Built-in packs ship with binary (≈12 v1 seed, ≈22 v1 stretch). Each is &lt;100 lines of JS, single concern, declarative meta block.</text>
+  <text x="50" y="833" fill="#555" font-size="11">Custom packs in <tspan font-family="monospace" fill="#222">~/.local/share/wealthfolio/tax-packs/*.js</tspan> (or platform equivalent) load automatically. Same contract; override built-ins.</text>
+  <text x="50" y="850" fill="#555" font-size="11">User-visible: pack manager (toggle/disable), active-chain viewer (what runs for me), effective-rule-book export (single concatenated .js for editing).</text>
+</svg>
