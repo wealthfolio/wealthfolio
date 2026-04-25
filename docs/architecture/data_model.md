@@ -171,6 +171,13 @@ single `lots ⨝ quotes ⨝ assets` pipeline. Portfolio-level aggregation
 lives in its own table. Liabilities are first-class assets with a
 nullable link back to an account.
 
+Lots also preserve `original_quantity` (as-acquired, pre-split share
+count) and reconstruct historical state by replaying activities forward
+through `replay_lots_to_date`. Sequential splits compound multiplicatively
+in this replay — a 3:1 followed by a 1:2 is correctly handled as a net
+1.5× factor, with `total_cost_basis` invariant. The Phase D tax layer
+inherits this behavior and does not re-solve splits.
+
 The original five problems from §1:
 
 | Problem | Status |
@@ -253,7 +260,7 @@ not stored. This keeps one source of truth.
 
 | Column | Notes |
 |---|---|
-| `income_type` TEXT | For DIVIDEND: `QUALIFIED_DIV`, `ORDINARY_DIV`, `TAX_EXEMPT_DIV`, `RETURN_OF_CAPITAL`. For INTEREST: `ORDINARY_INT`, `TAX_EXEMPT_INT`, `TREASURY_INT` (state-exempt in US). For SELL, gain character (LT vs ST) is derived from lot age at close — not stored. |
+| `income_type` TEXT | For DIVIDEND: `QUALIFIED_DIV`, `ORDINARY_DIV`, `TAX_EXEMPT_DIV`, `RETURN_OF_CAPITAL`, `BONUS_SHARE` (scrip dividend / stock dividend / DRIP-from-issuer — shares issued without cash payment). For INTEREST: `ORDINARY_INT`, `TAX_EXEMPT_INT`, `TREASURY_INT` (state-exempt in US). For SELL, gain character (LT vs ST) is derived from lot age at close — not stored. |
 | `tax_withheld` TEXT (Decimal) | Separate from `fee`. Foreign div WHT, stamp duty, FTT, capital gains tax collected at source. |
 | `withholding_jurisdiction` TEXT (ISO) | Who withheld. Needed for FTC / treaty claim tracking. |
 
@@ -300,6 +307,19 @@ rows without overwriting user edits.
 at both the service boundary and the sync-replay boundary. SQLite CHECK
 constraints are painful to evolve across migrations. A data-consistency
 health check flags any rows that escape the guard rails.
+
+**Cost-basis redistribution lives in rules, not the schema.** Bonus
+shares / scrip dividends issue new shares against existing holdings
+without a cash payment. Different jurisdictions treat the resulting
+basis differently — Spain (and several EU regimes) redistribute the
+existing cost basis proportionally across the enlarged position with
+zero taxable income at issue; the US generally treats the new shares as
+ordinary or qualified dividend income at FMV, establishing fresh basis
+for the new shares. Encoding either policy in the activity processor
+would force one jurisdiction's view on all users. Instead, v1 stores a
+neutral `BONUS_SHARE` `income_type`, and the rules engine emits the
+jurisdiction-correct treatment (income recognition + per-lot basis
+adjustment instructions) at evaluation time.
 
 **`tax_attributes` as JSON.** Attributes are heterogeneous — some are
 pure booleans (`amt_preference`), some carry values (`qof_zone:
@@ -424,6 +444,29 @@ For v2, ship seeded rule packs for jurisdictions where we have
 confidence: likely `US` federal plus a few common state variants, and
 `CA` federal (since upstream is Canadian). Other jurisdictions start as
 empty shells that users or community contributors populate.
+
+### 5.5 External consumers
+
+The tagging surface (§4.3) and the rule-pack contract (§5.1) are
+intentionally portable. Activities, accounts, and assets carry enough
+neutral metadata that an external read-only consumer — a per-jurisdiction
+report generator, a tax-prep export, a planner UI — can produce its
+output by opening the SQLite file in read-only mode and either invoking
+the same JS rule packs or implementing its own jurisdiction logic.
+
+This is a deliberate design property, not just an emergent one. Examples
+of external work this enables:
+
+- A Spanish IRPF report tool (cf. advenacodex/wealthfolio-taxes) can be
+  written without modifying the core app.
+- A Canadian T5008/T3 export can ship as a separate add-on without
+  blocking on Wealthfolio releases.
+- A planner that highlights `treatment_changes_on` dates across the
+  portfolio (§5.2) can be a third-party UI.
+
+The tax tagging surface should treat external consumers as
+first-class — the same way the `assets` and `quotes` schema treats
+external market-data importers as first-class.
 
 ---
 
