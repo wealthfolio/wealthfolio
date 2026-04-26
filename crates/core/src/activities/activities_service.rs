@@ -3942,6 +3942,60 @@ impl ActivityServiceTrait for ActivityService {
         // leave its counterpart with an orphan source_group_id.
         self.link_imported_transfer_pairs(&insertable_source_slice, &mut insertable_new_activities);
 
+        // ── 5.5. Resolve symbols → asset_ids ─────────────────────────────────
+        // The save and sync paths call prepare_activities_for_save /
+        // prepare_activities_for_sync respectively; the import path was
+        // missing the equivalent prepare_activities_for_import call. Without
+        // it, every imported activity lands with asset_id = NULL because the
+        // `/api/v1/activities/import` endpoint does not auto-resolve symbols
+        // and the bridge importers (Julius Baer, Morgan Stanley) submit
+        // symbol+exchange_mic instead of pre-resolved assetIds. NULL asset_id
+        // breaks lots/positions/holdings entirely. We delegate to
+        // prepare_activities_for_import so behavior matches the other write
+        // paths: ensure_assets() materializes missing assets and the per-
+        // activity asset_id is wired up before insert.
+        if !insertable_new_activities.is_empty() {
+            let mut indices_by_account: HashMap<String, Vec<usize>> = HashMap::new();
+            for (i, act) in insertable_new_activities.iter().enumerate() {
+                indices_by_account
+                    .entry(act.account_id.clone())
+                    .or_default()
+                    .push(i);
+            }
+            for (account_id, indices) in indices_by_account {
+                let account = match self.account_service.get_account(&account_id) {
+                    Ok(a) => a,
+                    Err(e) => {
+                        warn!(
+                            "import_activities: skipping asset resolution for account {} ({}); imported activities will land with asset_id=NULL",
+                            account_id, e
+                        );
+                        continue;
+                    }
+                };
+                let acct_activities: Vec<NewActivity> = indices
+                    .iter()
+                    .map(|&i| insertable_new_activities[i].clone())
+                    .collect();
+                let prep = self
+                    .prepare_activities_for_import(acct_activities, &account)
+                    .await?;
+                // prep.prepared is in input order, omitting any entries that
+                // errored; prep.errors carries the failed input indices.
+                let errored_inputs: HashSet<usize> =
+                    prep.errors.iter().map(|(i, _)| *i).collect();
+                let mut prep_iter = prep.prepared.into_iter();
+                for (rel_idx, abs_idx) in indices.iter().enumerate() {
+                    if errored_inputs.contains(&rel_idx) {
+                        continue;
+                    }
+                    if let Some(prepared) = prep_iter.next() {
+                        insertable_new_activities[*abs_idx] = prepared.activity;
+                    }
+                }
+            }
+        }
+
         // ── 6. Ensure FX pairs (one batch call) ──────────────────────────────
         let mut fx_pairs: HashSet<(String, String)> = HashSet::new();
         for (new_act, (_, src)) in insertable_new_activities
