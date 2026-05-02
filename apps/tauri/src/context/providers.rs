@@ -43,6 +43,7 @@ use wealthfolio_storage_sqlite::{
     goals::GoalRepository,
     health::HealthDismissalRepository,
     limits::ContributionLimitRepository,
+    lots::LotsRepository,
     market_data::{MarketDataRepository, QuoteSyncStateRepository},
     portfolio::{snapshot::SnapshotRepository, valuation::ValuationRepository},
     settings::SettingsRepository,
@@ -207,6 +208,8 @@ pub async fn initialize_context(
         timezone.clone(),
     ));
 
+    let lots_repository = Arc::new(LotsRepository::new(pool.clone(), writer.clone()));
+
     let snapshot_service = Arc::new(
         SnapshotService::new_with_timezone(
             base_currency.clone(),
@@ -217,6 +220,7 @@ pub async fn initialize_context(
             asset_repository.clone(),
             fx_service.clone(),
         )
+        .with_lot_repository(lots_repository.clone())
         .with_event_sink(domain_event_sink.clone()),
     );
 
@@ -226,10 +230,15 @@ pub async fn initialize_context(
         timezone.clone(),
     ));
 
-    let valuation_service = Arc::new(ValuationService::new(
+    let valuation_service = Arc::new(ValuationService::new_with_timezone(
         base_currency.clone(),
+        timezone.clone(),
         valuation_repository.clone(),
         snapshot_service.clone(),
+        lots_repository.clone(),
+        asset_repository.clone(),
+        account_repository.clone(),
+        activity_repository.clone(),
         quote_service.clone(),
         fx_service.clone(),
     ));
@@ -247,6 +256,8 @@ pub async fn initialize_context(
         snapshot_service.clone(),
         holdings_valuation_service.clone(),
         classification_service.clone(),
+        lots_repository.clone(),
+        activity_repository.clone(),
         timezone.clone(),
     ));
 
@@ -260,6 +271,8 @@ pub async fn initialize_context(
         account_repository.clone(),
         asset_repository.clone(),
         snapshot_repository.clone(),
+        lots_repository.clone(),
+        activity_repository.clone(),
         quote_service.clone(),
         valuation_repository.clone(),
         fx_service.clone(),
@@ -292,6 +305,7 @@ pub async fn initialize_context(
         )
         .with_event_sink(domain_event_sink.clone())
         .with_snapshot_service(snapshot_service.clone())
+        .with_lot_repository(lots_repository.clone())
         .with_quote_store(market_data_repo.clone()),
     );
 
@@ -343,6 +357,7 @@ pub async fn initialize_context(
         app_version,
     ));
     let device_sync_runtime = Arc::new(DeviceSyncRuntimeState::new());
+
     let now = chrono::Utc::now();
     if let Err(err) = app_sync_repository
         .prune_sync_outbox(
@@ -372,6 +387,7 @@ pub async fn initialize_context(
             income_service,
             snapshot_service,
             snapshot_repository,
+            lots_repository,
             app_sync_repository,
             holdings_service,
             allocation_service,

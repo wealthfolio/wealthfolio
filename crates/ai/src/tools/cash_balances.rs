@@ -268,7 +268,7 @@ mod tests {
             asset_kind: None,
             quantity: amount,
             open_date: None,
-            lots: None,
+            lot_details: None,
             contract_multiplier: Decimal::ONE,
             local_currency: currency.to_string(),
             base_currency: "CAD".to_string(),
@@ -343,6 +343,7 @@ mod tests {
                     cost_basis: Decimal::ZERO,
                     net_contribution: Decimal::ZERO,
                     calculated_at: Utc::now(),
+                    alternative_market_value: Decimal::ZERO,
                 }],
             }),
             ..MockEnvironment::new()

@@ -526,6 +526,31 @@ export interface MonetaryValue {
   base: number;
 }
 
+/// Persisted lot view for the holding detail "Lots" tab. Returned by
+/// the backend in `Holding.lotDetails` when a specific asset's holding
+/// is requested.
+export interface LotView {
+  id: string;
+  accountId: string;
+  acquisitionDate: string;
+  /** As-acquired (pre-split) original quantity. Immutable once opened. */
+  originalQuantity: number;
+  /** Remaining quantity in as-acquired (pre-split) units. */
+  remainingQuantity: number;
+  /** Cost per unit in as-acquired terms. */
+  costPerUnit: number;
+  /** Total cost basis (split-invariant). */
+  totalCostBasis: number;
+  fees: number;
+  /**
+   * Cumulative product of post-acquisition SPLIT ratios. 1 when no splits.
+   * When != 1, the row is showing pre-split (as-purchased) numbers.
+   */
+  splitRatio: number;
+  isClosed: boolean;
+  closeDate?: string;
+}
+
 export interface Lot {
   id: string;
   positionId: string;
@@ -565,6 +590,11 @@ export interface Holding {
   quantity: number;
   openDate?: string | Date | null;
   lots?: Lot[] | null;
+  /**
+   * Persisted lot view for the holding detail "Lots" tab. Populated only when
+   * a specific asset's lots are requested (e.g. via get_holding(asset_id)).
+   */
+  lotDetails?: LotView[] | null;
   localCurrency: string;
   baseCurrency: string;
   fxRate?: number | null;

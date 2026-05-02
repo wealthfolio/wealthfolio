@@ -236,6 +236,10 @@ pub struct Asset {
     // Provider configuration (single JSON blob)
     pub provider_config: Option<Value>,
 
+    /// Optional link to the account this asset belongs to (liabilities, property, etc.).
+    /// NULL for unlinked assets and investment assets (linked via activities/lots).
+    pub account_id: Option<String>,
+
     // Derived (not stored in DB)
     #[serde(skip_deserializing)]
     pub exchange_name: Option<String>, // Friendly exchange name (derived from MIC)
@@ -565,6 +569,9 @@ pub struct NewAsset {
     // Provider configuration
     pub provider_config: Option<Value>,
 
+    /// Optional link to the account this asset belongs to.
+    pub account_id: Option<String>,
+
     // Metadata
     pub notes: Option<String>,
     pub metadata: Option<Value>,
@@ -770,6 +777,7 @@ impl From<ProviderProfile> for NewAsset {
             instrument_symbol: canonical.instrument_symbol,
             instrument_exchange_mic: canonical.instrument_exchange_mic,
             provider_config,
+            account_id: None,
             notes: profile.notes,
             metadata,
             is_active: true,

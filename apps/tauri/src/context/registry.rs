@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 use wealthfolio_ai::{AiProviderServiceTrait, ChatService};
 use wealthfolio_connect::BrokerSyncServiceTrait;
+use wealthfolio_core::lots::LotRepositoryTrait;
 use wealthfolio_core::{
     self, accounts, activities,
     assets::{self, AlternativeAssetServiceTrait},
@@ -41,6 +42,7 @@ pub struct ServiceContext {
     pub income_service: Arc<dyn portfolio::income::IncomeServiceTrait>,
     pub snapshot_service: Arc<dyn portfolio::snapshot::SnapshotServiceTrait>,
     pub snapshot_repository: Arc<SnapshotRepository>,
+    pub lots_repository: Arc<dyn LotRepositoryTrait>,
     pub app_sync_repository: Arc<AppSyncRepository>,
     pub holdings_service: Arc<dyn portfolio::holdings::HoldingsServiceTrait>,
     pub allocation_service: Arc<dyn portfolio::allocation::AllocationServiceTrait>,

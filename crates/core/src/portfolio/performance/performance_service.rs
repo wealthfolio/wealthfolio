@@ -970,6 +970,7 @@ mod tests {
             cost_basis,
             net_contribution,
             calculated_at: DateTime::<Utc>::from_timestamp(0, 0).unwrap(),
+            alternative_market_value: Decimal::ZERO,
         }
     }
 

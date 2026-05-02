@@ -494,6 +494,7 @@ mod tests {
             instrument_exchange_mic: None,
             instrument_key: None,
             provider_config: None,
+            account_id: None,
             exchange_name: None,
             created_at: NaiveDateTime::default(),
             updated_at: NaiveDateTime::default(),

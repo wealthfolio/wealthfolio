@@ -276,41 +276,28 @@ fn handle_portfolio_calculation(
             }
         }
 
-        // --- Step 2: Calculate TOTAL portfolio snapshot ---
-        let total_result = snapshot_service
-            .recalculate_total_portfolio_snapshots(snapshot_mode)
-            .await;
-        if let Err(e) = total_result {
-            let err_msg = format!("Failed to calculate TOTAL portfolio snapshot: {}", e);
-            error!("{}", err_msg);
-            if let Err(e_emit) = app_handle.emit(PORTFOLIO_UPDATE_ERROR, &err_msg) {
-                error!(
-                    "Failed to emit {} event: {}",
-                    PORTFOLIO_UPDATE_ERROR, e_emit
-                );
+        // --- Step 2: Update position status from lots for quote sync planning ---
+        match context.lots_repository.get_open_position_quantities().await {
+            Ok(current_holdings) => {
+                let quote_service = context.quote_service();
+                if let Err(e) = quote_service
+                    .update_position_status_from_holdings(&current_holdings)
+                    .await
+                {
+                    warn!(
+                        "Failed to update position status from holdings: {}. Quote sync planning may be affected.",
+                        e
+                    );
+                }
             }
-            return;
-        }
-
-        // --- Step 2.5: Update position status from TOTAL snapshot ---
-        let quote_service = context.quote_service();
-        if let Err(e) = reconcile_quote_sync_from_latest_total_snapshot(
-            snapshot_service.as_ref(),
-            quote_service.as_ref(),
-        )
-        .await
-        {
-            warn!(
-                "Failed to update position status from holdings: {}. Quote sync planning may be affected.",
-                e
-            );
+            Err(e) => {
+                warn!("Failed to read position quantities from lots: {}", e);
+            }
         }
 
         // --- Step 3: Calculate Valuation History ---
         let mut accounts_for_valuation = initially_targeted_active_accounts;
-        if !accounts_for_valuation.contains(&PORTFOLIO_TOTAL_ACCOUNT_ID.to_string()) {
-            accounts_for_valuation.push(PORTFOLIO_TOTAL_ACCOUNT_ID.to_string());
-        }
+        accounts_for_valuation.retain(|id| id != PORTFOLIO_TOTAL_ACCOUNT_ID);
 
         if !accounts_for_valuation.is_empty() {
             let history_futures = accounts_for_valuation.iter().map(|account_id| {
@@ -342,6 +329,14 @@ fn handle_portfolio_calculation(
                     history_errors.join("; ")
                 );
             }
+        }
+
+        // Aggregate per-account valuations into portfolio-level rows.
+        if let Err(e) = valuation_service
+            .calculate_valuation_history(PORTFOLIO_TOTAL_ACCOUNT_ID, valuation_mode)
+            .await
+        {
+            error!("Portfolio valuation aggregation failed: {}", e);
         }
 
         if let Err(e) = app_handle.emit(PORTFOLIO_UPDATE_COMPLETE, ()) {

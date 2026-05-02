@@ -63,6 +63,7 @@ pub struct CreateAlternativeAssetRequest {
     pub purchase_date: Option<String>,
     pub metadata: Option<Value>,
     pub linked_asset_id: Option<String>,
+    pub account_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -216,6 +217,7 @@ pub async fn create_alternative_asset(
         purchase_date,
         metadata: request.metadata,
         linked_asset_id: request.linked_asset_id,
+        account_id: request.account_id,
     };
 
     // Delegate to core service
@@ -282,6 +284,7 @@ pub async fn update_alternative_asset_metadata(
     name: Option<String>,
     metadata: std::collections::HashMap<String, String>,
     notes: Option<String>,
+    account_id: Option<String>,
     state: State<'_, Arc<ServiceContext>>,
 ) -> Result<(), String> {
     // Convert HashMap<String, String> to HashMap<String, Option<String>>
@@ -303,6 +306,7 @@ pub async fn update_alternative_asset_metadata(
         name,
         notes,
         metadata: Some(metadata_map),
+        account_id,
     };
 
     // Delegate to core service

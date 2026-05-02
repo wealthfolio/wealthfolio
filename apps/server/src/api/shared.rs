@@ -123,6 +123,10 @@ pub async fn process_portfolio_job(
     state: Arc<AppState>,
     config: PortfolioJobConfig,
 ) -> ApiResult<()> {
+    // Acquire the global portfolio job lock to prevent concurrent recalculations.
+    // A second job arriving while one is running will wait until the first completes.
+    let _lock = state.portfolio_job_lock.lock().await;
+
     let event_bus = state.event_bus.clone();
     let snapshot_mode = config
         .since_date
@@ -241,44 +245,32 @@ pub async fn process_portfolio_job(
         }
     }
 
-    if let Err(err) = state
-        .snapshot_service
-        .recalculate_total_portfolio_snapshots(snapshot_mode)
-        .await
-    {
-        let err_msg = format!("Failed to calculate TOTAL portfolio snapshot: {}", err);
-        tracing::error!("{}", err_msg);
-        event_bus.publish(ServerEvent::with_payload(
-            PORTFOLIO_UPDATE_ERROR,
-            json!(err_msg),
-        ));
-        return Err(crate::error::ApiError::Anyhow(anyhow!(err_msg)));
+    // Update position status from lots for quote sync planning
+    match state.lots_repository.get_open_position_quantities().await {
+        Ok(current_holdings) => {
+            if let Err(e) = state
+                .quote_service
+                .update_position_status_from_holdings(&current_holdings)
+                .await
+            {
+                tracing::warn!(
+                    "Failed to update position status from holdings: {}. Quote sync planning may be affected.",
+                    e
+                );
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to read position quantities from lots: {}", e);
+        }
     }
 
-    // Update position status from TOTAL snapshot for quote sync planning.
-    if let Err(e) = reconcile_quote_sync_from_latest_total_snapshot(
-        state.snapshot_service.as_ref(),
-        state.quote_service.as_ref(),
-    )
-    .await
-    {
-        tracing::warn!(
-            "Failed to update position status from holdings: {}. Quote sync planning may be affected.",
-            e
-        );
-    }
+    // Remove TOTAL from the account list — portfolio valuations are aggregated separately.
+    account_ids.retain(|id| id != PORTFOLIO_TOTAL_ACCOUNT_ID);
 
-    if !account_ids
-        .iter()
-        .any(|id| id == PORTFOLIO_TOTAL_ACCOUNT_ID)
-    {
-        account_ids.push(PORTFOLIO_TOTAL_ACCOUNT_ID.to_string());
-    }
-
-    for account_id in account_ids {
+    for account_id in &account_ids {
         if let Err(err) = state
             .valuation_service
-            .calculate_valuation_history(&account_id, valuation_mode.clone())
+            .calculate_valuation_history(account_id, valuation_mode.clone())
             .await
         {
             let err_msg = format!(
@@ -291,6 +283,15 @@ pub async fn process_portfolio_job(
                 json!(err_msg),
             ));
         }
+    }
+
+    // Aggregate per-account valuations into portfolio-level rows.
+    if let Err(err) = state
+        .valuation_service
+        .calculate_valuation_history(PORTFOLIO_TOTAL_ACCOUNT_ID, valuation_mode)
+        .await
+    {
+        tracing::warn!("Portfolio valuation aggregation failed: {}", err);
     }
 
     event_bus.publish(ServerEvent::new(PORTFOLIO_UPDATE_COMPLETE));

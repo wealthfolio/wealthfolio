@@ -65,6 +65,7 @@ pub struct AssetDB {
     #[serde(skip_serializing)]
     pub instrument_key: Option<String>, // STORED generated column (read-only)
     pub provider_config: Option<String>,
+    pub account_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -87,6 +88,7 @@ pub struct InsertableAssetDB {
     pub instrument_exchange_mic: Option<String>,
     // instrument_key: NOT included (STORED generated column)
     pub provider_config: Option<String>,
+    pub account_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -129,6 +131,7 @@ impl From<AssetDB> for Asset {
             instrument_exchange_mic: db.instrument_exchange_mic,
             instrument_key: db.instrument_key,
             provider_config,
+            account_id: db.account_id,
             exchange_name: None, // Computed by Asset::enrich()
             created_at: text_to_datetime(&db.created_at),
             updated_at: text_to_datetime(&db.updated_at),
@@ -173,6 +176,7 @@ impl From<NewAsset> for InsertableAssetDB {
             instrument_symbol: domain.instrument_symbol,
             instrument_exchange_mic: domain.instrument_exchange_mic,
             provider_config,
+            account_id: domain.account_id,
             created_at: now.clone(),
             updated_at: now,
         }

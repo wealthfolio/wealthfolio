@@ -31,6 +31,7 @@ use wealthfolio_core::assets::{
 };
 use wealthfolio_core::errors::Result;
 use wealthfolio_core::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
+use wealthfolio_core::lots::LotRepositoryTrait;
 use wealthfolio_core::portfolio::snapshot::{
     AccountStateSnapshot, Position, SnapshotRepositoryTrait, SnapshotServiceTrait, SnapshotSource,
 };
@@ -55,6 +56,7 @@ pub struct BrokerSyncService {
     import_run_repository: Arc<dyn ImportRunRepositoryTrait>,
     snapshot_repository: Arc<dyn SnapshotRepositoryTrait>,
     snapshot_service: Option<Arc<dyn SnapshotServiceTrait>>,
+    lot_repository: Option<Arc<dyn LotRepositoryTrait>>,
     quote_store: Option<Arc<dyn QuoteStore>>,
     event_sink: Arc<dyn DomainEventSink>,
 }
@@ -81,9 +83,16 @@ impl BrokerSyncService {
             import_run_repository,
             snapshot_repository,
             snapshot_service: None,
+            lot_repository: None,
             quote_store: None,
             event_sink: Arc::new(NoOpDomainEventSink),
         }
+    }
+
+    /// Sets the lot repository for reading position data from the lots table.
+    pub fn with_lot_repository(mut self, lot_repository: Arc<dyn LotRepositoryTrait>) -> Self {
+        self.lot_repository = Some(lot_repository);
+        self
     }
 
     /// Sets the snapshot service for emitting HoldingsChanged events during broker sync.
@@ -933,9 +942,58 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
         }
 
         let tomorrow = today + chrono::Days::new(1);
+        // Fetch latest snapshot for manual-snapshot preservation check and
+        // content equality (cash balances). Positions come from lots instead.
         let latest = self
             .snapshot_repository
             .get_latest_snapshot_before_date(&account_id, tomorrow)?;
+
+        // Build a map of prior positions from lots for average cost fallback
+        // and holdings diff.
+        let prior_positions: HashMap<String, Position> =
+            if let Some(ref lot_repo) = self.lot_repository {
+                let open_lots = lot_repo.get_open_lots_for_account(&account_id).await?;
+                let mut grouped: HashMap<String, (Decimal, Decimal)> = HashMap::new();
+                for lot in &open_lots {
+                    let qty = lot.remaining_quantity.parse::<Decimal>().unwrap_or_default();
+                    let cost = lot.total_cost_basis.parse::<Decimal>().unwrap_or_default();
+                    let entry = grouped.entry(lot.asset_id.clone()).or_default();
+                    entry.0 += qty;
+                    entry.1 += cost;
+                }
+                grouped
+                    .into_iter()
+                    .map(|(asset_id, (qty, cost))| {
+                        let avg = if qty > Decimal::ZERO {
+                            cost / qty
+                        } else {
+                            Decimal::ZERO
+                        };
+                        let mut pos = Position::new(
+                            account_id.clone(),
+                            asset_id.clone(),
+                            String::new(),
+                            Utc::now(),
+                        );
+                        pos.quantity = qty;
+                        pos.total_cost_basis = cost;
+                        pos.average_cost = avg;
+                        (asset_id, pos)
+                    })
+                    .collect()
+            } else {
+                // Fallback: read from snapshot (legacy path when lot_repository not injected)
+                let snap = self
+                    .snapshot_repository
+                    .get_latest_snapshot_before_date(&account_id, tomorrow)?;
+                match snap {
+                    Some(s) if s.positions.is_empty() && s.source.is_non_calculated() => {
+                        self.snapshot_repository.get_snapshot_positions(&s.id)?
+                    }
+                    Some(s) => s.positions,
+                    None => HashMap::new(),
+                }
+            };
 
         // 4. Build positions_map using resolved asset IDs
         let mut positions_map: HashMap<String, Position> = HashMap::new();
@@ -959,9 +1017,7 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
 
             let avg_cost = Self::resolve_position_average_cost(
                 broker_avg_cost.as_ref().copied(),
-                latest
-                    .as_ref()
-                    .and_then(|snapshot| snapshot.positions.get(&asset_id)),
+                prior_positions.get(&asset_id),
                 *quantity,
                 currency,
             );
@@ -1012,7 +1068,7 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
         let positions_count = positions_map.len();
 
         // Check if content is unchanged from latest snapshot (skip if identical)
-        let diff = Self::compute_holdings_diff(latest.as_ref(), &positions_map);
+        let diff = Self::compute_holdings_diff(&prior_positions, &positions_map);
 
         if Self::should_preserve_manual_snapshot_for_date(latest.as_ref(), today) {
             info!(
@@ -1022,14 +1078,17 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
             return Ok((diff, assets_created, new_asset_ids));
         }
 
-        if let Some(existing) = latest {
-            if existing.is_content_equal(&snapshot) {
-                debug!(
-                    "Broker holdings unchanged for account {}, skipping save",
-                    account_id
-                );
-                return Ok((diff, 0, vec![]));
-            }
+        // Skip save if positions are unchanged (from lots-based diff) and cash is unchanged.
+        let cash_unchanged = latest
+            .as_ref()
+            .map(|s| s.cash_balances == snapshot.cash_balances)
+            .unwrap_or(false);
+        if cash_unchanged && diff.is_unchanged() {
+            debug!(
+                "Broker holdings unchanged for account {}, skipping save",
+                account_id
+            );
+            return Ok((diff, 0, vec![]));
         }
 
         // Save snapshot via SnapshotService if available (it emits HoldingsChanged internally).
@@ -1084,7 +1143,7 @@ impl BrokerSyncService {
 
     fn resolve_position_average_cost(
         broker_average_cost: Option<Decimal>,
-        latest_position: Option<&Position>,
+        prior_position: Option<&Position>,
         quantity: Decimal,
         currency: &str,
     ) -> Decimal {
@@ -1092,10 +1151,14 @@ impl BrokerSyncService {
             return avg_cost.round_dp(HOLDINGS_DECIMAL_PRECISION);
         }
 
-        if let Some(previous) = latest_position {
+        if let Some(previous) = prior_position {
             let same_quantity = previous.quantity.round_dp(HOLDINGS_DECIMAL_PRECISION)
                 == quantity.round_dp(HOLDINGS_DECIMAL_PRECISION);
-            if same_quantity && previous.currency == currency {
+            // When prior position comes from lots, currency is empty — skip the
+            // currency check in that case (asset currency doesn't change between syncs).
+            let currency_ok =
+                previous.currency.is_empty() || previous.currency == currency;
+            if same_quantity && currency_ok {
                 return previous.average_cost.round_dp(HOLDINGS_DECIMAL_PRECISION);
             }
         }
@@ -1104,7 +1167,7 @@ impl BrokerSyncService {
     }
 
     fn compute_holdings_diff(
-        latest_snapshot: Option<&AccountStateSnapshot>,
+        prior_positions: &HashMap<String, Position>,
         current_positions: &HashMap<String, Position>,
     ) -> HoldingsDiff {
         let mut diff = HoldingsDiff {
@@ -1112,9 +1175,9 @@ impl BrokerSyncService {
             ..Default::default()
         };
 
-        if let Some(latest) = latest_snapshot {
+        if !prior_positions.is_empty() {
             for (asset_id, current_position) in current_positions {
-                match latest.positions.get(asset_id) {
+                match prior_positions.get(asset_id) {
                     Some(previous_position) => {
                         if Self::positions_equal_for_diff(previous_position, current_position) {
                             diff.unchanged_positions += 1;
@@ -1128,8 +1191,7 @@ impl BrokerSyncService {
                 }
             }
 
-            diff.removed_positions = latest
-                .positions
+            diff.removed_positions = prior_positions
                 .keys()
                 .filter(|asset_id| !current_positions.contains_key(*asset_id))
                 .count();
@@ -1220,13 +1282,21 @@ impl BrokerSyncService {
             .snapshot_repository
             .get_earliest_non_calculated_snapshot(account_id)?;
 
-        let earliest = match earliest {
+        let mut earliest = match earliest {
             Some(s) => s,
             None => {
                 debug!("No earliest snapshot found for account {}", account_id);
                 return Ok(());
             }
         };
+
+        // Enrich positions from snapshot_positions table (DB load no longer
+        // parses positions JSON).
+        if earliest.positions.is_empty() && earliest.source.is_non_calculated() {
+            earliest.positions = self
+                .snapshot_repository
+                .get_snapshot_positions(&earliest.id)?;
+        }
 
         // Calculate synthetic date: 3 months before earliest
         let synthetic_date = earliest
@@ -1461,16 +1531,6 @@ mod tests {
         }
     }
 
-    fn snapshot_with_positions(positions: Vec<Position>) -> AccountStateSnapshot {
-        AccountStateSnapshot {
-            positions: positions
-                .into_iter()
-                .map(|p| (p.asset_id.clone(), p))
-                .collect::<HashMap<_, _>>(),
-            ..Default::default()
-        }
-    }
-
     fn snapshot_with_metadata(
         snapshot_date: &str,
         source: SnapshotSource,
@@ -1526,7 +1586,7 @@ mod tests {
 
     #[test]
     fn compute_holdings_diff_detects_added_updated_removed_and_unchanged() {
-        let latest = snapshot_with_positions(vec![
+        let latest = positions_map(vec![
             position("acc-1", "a", "10", "100", "1000", "USD"), // unchanged
             position("acc-1", "b", "5", "50", "250", "USD"),    // updated
             position("acc-1", "c", "2", "20", "40", "USD"),     // removed
@@ -1538,7 +1598,7 @@ mod tests {
             position("acc-1", "d", "1", "10", "10", "USD"),
         ]);
 
-        let diff = BrokerSyncService::compute_holdings_diff(Some(&latest), &current);
+        let diff = BrokerSyncService::compute_holdings_diff(&latest, &current);
         assert_eq!(diff.total_positions, 3);
         assert_eq!(diff.added_positions, 1);
         assert_eq!(diff.updated_positions, 1);
@@ -1548,7 +1608,7 @@ mod tests {
 
     #[test]
     fn compute_holdings_diff_ignores_tiny_decimal_drift_for_crypto() {
-        let latest = snapshot_with_positions(vec![position(
+        let latest = positions_map(vec![position(
             "acc-1",
             "btc",
             "0.123456789123",
@@ -1567,7 +1627,7 @@ mod tests {
             "USD",
         )]);
 
-        let diff = BrokerSyncService::compute_holdings_diff(Some(&latest), &current);
+        let diff = BrokerSyncService::compute_holdings_diff(&latest, &current);
         assert_eq!(diff.added_positions, 0);
         assert_eq!(diff.updated_positions, 0);
         assert_eq!(diff.removed_positions, 0);
@@ -1576,7 +1636,7 @@ mod tests {
 
     #[test]
     fn compute_holdings_diff_detects_cost_basis_change_with_same_quantity() {
-        let latest = snapshot_with_positions(vec![position(
+        let latest = positions_map(vec![position(
             "acc-1",
             "eth",
             "1.000000000001",
@@ -1594,7 +1654,7 @@ mod tests {
             "USD",
         )]);
 
-        let diff = BrokerSyncService::compute_holdings_diff(Some(&latest), &current);
+        let diff = BrokerSyncService::compute_holdings_diff(&latest, &current);
         assert_eq!(diff.added_positions, 0);
         assert_eq!(diff.updated_positions, 1);
         assert_eq!(diff.removed_positions, 0);

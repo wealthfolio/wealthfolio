@@ -29,6 +29,7 @@ pub struct DailyAccountValuationDB {
     pub cost_basis: String,
     pub net_contribution: String,
     pub calculated_at: String,
+    pub alternative_market_value: String,
 }
 
 impl From<DailyAccountValuation> for DailyAccountValuationDB {
@@ -52,6 +53,10 @@ impl From<DailyAccountValuation> for DailyAccountValuationDB {
                 .round_dp(DECIMAL_PRECISION)
                 .to_string(),
             calculated_at: value.calculated_at.to_rfc3339(),
+            alternative_market_value: value
+                .alternative_market_value
+                .round_dp(DECIMAL_PRECISION)
+                .to_string(),
         }
     }
 }
@@ -76,6 +81,8 @@ impl From<DailyAccountValuationDB> for DailyAccountValuation {
             calculated_at: DateTime::parse_from_rfc3339(&value.calculated_at)
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now()),
+            alternative_market_value: Decimal::from_str(&value.alternative_market_value)
+                .unwrap_or_default(),
         }
     }
 }
@@ -109,6 +116,7 @@ mod tests {
             cost_basis: "25".to_string(),
             net_contribution: "5".to_string(),
             calculated_at: "2026-04-22T00:00:00Z".to_string(),
+            alternative_market_value: "0".to_string(),
         };
 
         let valuation = DailyAccountValuation::from(db_value);

@@ -12,14 +12,17 @@ use wealthfolio_core::{
         allocation::{AllocationHoldings, PortfolioAllocations},
         holdings::Holding,
         snapshot::{
-            reconcile_quote_sync_from_latest_total_snapshot, CashBalanceInput, ManualHoldingInput,
-            ManualSnapshotRequest, ManualSnapshotService, SnapshotRecalcMode, SnapshotSource,
+            CashBalanceInput, ManualHoldingInput, ManualSnapshotRequest, ManualSnapshotService,
+            SnapshotSource,
         },
         valuation::{DailyAccountValuation, ValuationRecalcMode},
     },
 };
 
-use crate::{error::ApiResult, main_lib::AppState};
+use crate::{
+    error::{ApiError, ApiResult},
+    main_lib::AppState,
+};
 
 use super::dto::{
     AllocationHoldingsQuery, AssetHoldingsQuery, CheckHoldingsImportRequest,
@@ -51,6 +54,19 @@ pub async fn get_holding(
         .get_holding(&q.account_id, &q.asset_id, &base)
         .await?;
     Ok(Json(holding))
+}
+
+pub async fn get_asset_lots(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<super::dto::AssetLotsQuery>,
+) -> ApiResult<Json<Vec<wealthfolio_core::portfolio::holdings::LotView>>> {
+    use wealthfolio_core::portfolio::holdings::LotView;
+    let lots = state
+        .lots_repository
+        .get_lots_for_asset(&q.asset_id)
+        .await?;
+    let views: Vec<LotView> = lots.iter().filter_map(LotView::from_record).collect();
+    Ok(Json(views))
 }
 
 pub async fn get_asset_holdings(
@@ -168,14 +184,36 @@ pub async fn get_snapshots(
             .snapshot_service
             .get_holdings_keyframes(&q.account_id, start_date, end_date)?;
 
+    // Fetch all lots (open + closed) to compute per-date position counts.
+    let all_lots = state
+        .lots_repository
+        .get_all_lots_for_account(&q.account_id)
+        .await
+        .unwrap_or_default();
+
     let result: Vec<SnapshotInfo> = snapshots
         .into_iter()
-        .map(|s| SnapshotInfo {
-            id: s.id,
-            snapshot_date: s.snapshot_date.format("%Y-%m-%d").to_string(),
-            source: snapshot_source_to_string(s.source),
-            position_count: s.positions.len(),
-            cash_currency_count: s.cash_balances.len(),
+        .map(|s| {
+            let date_str = s.snapshot_date.format("%Y-%m-%d").to_string();
+            let position_count = all_lots
+                .iter()
+                .filter(|l| {
+                    l.open_date.as_str() <= date_str.as_str()
+                        && (!l.is_closed
+                            || l.close_date
+                                .as_deref()
+                                .is_some_and(|cd| cd > date_str.as_str()))
+                })
+                .map(|l| &l.asset_id)
+                .collect::<std::collections::HashSet<_>>()
+                .len();
+            SnapshotInfo {
+                id: s.id,
+                snapshot_date: date_str,
+                source: snapshot_source_to_string(s.source),
+                position_count,
+                cash_currency_count: s.cash_balances.len(),
+            }
         })
         .collect();
 
@@ -187,26 +225,17 @@ pub async fn get_snapshot_by_date(
     Query(q): Query<SnapshotDateQuery>,
 ) -> ApiResult<Json<Vec<Holding>>> {
     let target_date = parse_date(&q.date, "date")?;
-
-    // Get keyframes for this specific date
-    let snapshots = state.snapshot_service.get_holdings_keyframes(
-        &q.account_id,
-        Some(target_date),
-        Some(target_date),
-    )?;
-
-    let snapshot = snapshots
-        .into_iter()
-        .find(|s| s.snapshot_date == target_date)
-        .ok_or_else(|| anyhow::anyhow!("No snapshot found for date {}", q.date))?;
-
-    // Convert snapshot to holdings using core service
     let base_currency = state.base_currency.read().unwrap().clone();
+    // Security positions come from lots table; cash from snapshot (if any).
+    // NOTE: snapshot dependency carried here only for cash_balances;
+    // will be removed once cash is tracked independently of snapshots.
     let holdings = state
         .holdings_service
-        .holdings_from_snapshot(&snapshot, &base_currency)
+        .holdings_from_snapshot(&q.account_id, target_date, &base_currency)
         .await?;
-
+    if holdings.is_empty() {
+        return Err(ApiError::NotFound);
+    }
     Ok(Json(holdings))
 }
 
@@ -248,6 +277,15 @@ pub async fn delete_snapshot_handler(
         q.date
     );
 
+    // Refresh lots from the new latest snapshot (or clear them if none remains).
+    if let Err(e) = state
+        .snapshot_service
+        .refresh_lots_from_latest_snapshot(&q.account_id)
+        .await
+    {
+        tracing::warn!("Failed to refresh lots after snapshot delete: {}", e);
+    }
+
     // Recalculate valuations for the affected account
     if let Err(e) = state
         .valuation_service
@@ -260,26 +298,23 @@ pub async fn delete_snapshot_handler(
         );
     }
 
-    // Force recalculate TOTAL portfolio snapshots (force needed because deletion invalidates existing TOTAL)
-    if let Err(e) = state
-        .snapshot_service
-        .recalculate_total_portfolio_snapshots(SnapshotRecalcMode::Full)
-        .await
-    {
-        tracing::warn!("Failed to recalculate TOTAL snapshots after delete: {}", e);
-    }
-
-    // Update position status from TOTAL snapshot for quote sync planning.
-    if let Err(e) = reconcile_quote_sync_from_latest_total_snapshot(
-        state.snapshot_service.as_ref(),
-        state.quote_service.as_ref(),
-    )
-    .await
-    {
-        tracing::warn!(
-            "Failed to update position status from holdings after delete: {}",
-            e
-        );
+    // Update position status from lots for quote sync planning
+    match state.lots_repository.get_open_position_quantities().await {
+        Ok(current_holdings) => {
+            if let Err(e) = state
+                .quote_service
+                .update_position_status_from_holdings(&current_holdings)
+                .await
+            {
+                tracing::warn!(
+                    "Failed to update position status from holdings after delete: {}",
+                    e
+                );
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to read position quantities from lots: {}", e);
+        }
     }
 
     // Recalculate valuations for the TOTAL portfolio

@@ -127,7 +127,7 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
         asset_id: &str,
         metadata: Option<serde_json::Value>,
     ) -> Result<()> {
-        self.update_asset_details(asset_id, None, None, metadata, None)
+        self.update_asset_details(asset_id, None, None, metadata, None, None)
             .await
     }
 
@@ -159,12 +159,21 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
         display_code: Option<&str>,
         metadata: Option<serde_json::Value>,
         notes: Option<&str>,
+        account_id: Option<&str>,
     ) -> Result<()> {
         let asset_id_owned = asset_id.to_string();
         let name_owned = name.map(|n| n.to_string());
         let display_code_owned = display_code.map(|s| s.to_string());
         let metadata_str = metadata.and_then(|v| serde_json::to_string(&v).ok());
         let notes_owned = notes.map(|n| n.to_string());
+        // Some("") means clear the link, Some(id) means set it, None means unchanged
+        let account_id_owned = account_id.map(|s| {
+            if s.is_empty() {
+                None
+            } else {
+                Some(s.to_string())
+            }
+        });
 
         self.writer
             .exec_tx(move |tx| -> Result<()> {
@@ -172,7 +181,8 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                 let has_updates = name_owned.is_some()
                     || display_code_owned.is_some()
                     || metadata_str.is_some()
-                    || notes_owned.is_some();
+                    || notes_owned.is_some()
+                    || account_id_owned.is_some();
 
                 if !has_updates {
                     return Ok(()); // Nothing to update
@@ -187,6 +197,9 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                             .map(|s| assets::display_code.eq(s)),
                         metadata_str.as_ref().map(|m| assets::metadata.eq(Some(m))),
                         notes_owned.as_ref().map(|n| assets::notes.eq(Some(n))),
+                        account_id_owned
+                            .as_ref()
+                            .map(|id| assets::account_id.eq(id.as_deref())),
                     ))
                     .execute(tx.conn())
                     .map_err(StorageError::from)?;

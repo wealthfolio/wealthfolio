@@ -47,4 +47,12 @@ pub trait ValuationRepositoryTrait: Send + Sync {
         &self,
         account_ids: &[String],
     ) -> Result<Vec<NegativeBalanceInfo>>;
+
+    /// Get all per-account valuations (excluding the synthesized TOTAL row),
+    /// for portfolio aggregation.
+    fn get_all_account_valuations(
+        &self,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+    ) -> Result<Vec<DailyAccountValuation>>;
 }

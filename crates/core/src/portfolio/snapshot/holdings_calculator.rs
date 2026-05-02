@@ -2,6 +2,7 @@ use crate::activities::{Activity, ActivityType};
 use crate::assets::AssetRepositoryTrait;
 use crate::errors::{CalculatorError, Error, Result};
 use crate::fx::FxServiceTrait;
+use crate::lots::LotClosure;
 use crate::portfolio::snapshot::AccountStateSnapshot;
 use crate::portfolio::snapshot::HoldingsCalculationResult;
 use crate::portfolio::snapshot::HoldingsCalculationWarning;
@@ -38,6 +39,9 @@ pub struct HoldingsCalculator {
     /// the lots are consumed from this cache and added to the destination position,
     /// preserving original acquisition dates and cost basis.
     transfer_lots_cache: Arc<Mutex<HashMap<String, Vec<super::Lot>>>>,
+    /// Accumulates lot closures (fully consumed lots) during a recalculation run,
+    /// keyed by account_id. Cleared at the start of each run.
+    disposed_lots: Arc<Mutex<HashMap<String, Vec<LotClosure>>>>,
 }
 impl HoldingsCalculator {
     pub fn new(
@@ -65,6 +69,7 @@ impl HoldingsCalculator {
             timezone,
             asset_repository,
             transfer_lots_cache: Arc::new(Mutex::new(HashMap::new())),
+            disposed_lots: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -73,6 +78,57 @@ impl HoldingsCalculator {
     pub fn clear_transfer_lots_cache(&self) {
         if let Ok(mut cache) = self.transfer_lots_cache.lock() {
             cache.clear();
+        }
+    }
+
+    /// Clears the disposed lots log. Should be called at the start of each recalculation run.
+    pub fn clear_disposed_lots(&self) {
+        if let Ok(mut log) = self.disposed_lots.lock() {
+            log.clear();
+        }
+    }
+
+    /// Returns and removes all accumulated lot closures for the given account.
+    pub fn take_disposed_lots(&self, account_id: &str) -> Vec<LotClosure> {
+        if let Ok(mut log) = self.disposed_lots.lock() {
+            log.remove(account_id).unwrap_or_default()
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Records a lot closure in the disposed lots log, carrying the full lot
+    /// data so the persistence layer can INSERT the closed lot if it was never
+    /// written to the database (e.g. during a full recalc/replay).
+    fn record_lot_closure(
+        &self,
+        account_id: &str,
+        asset_id: &str,
+        lot: &super::Lot,
+        close_date: &str,
+        activity_id: &str,
+    ) {
+        let orig_qty = if lot.original_quantity.is_zero() {
+            lot.quantity
+        } else {
+            lot.original_quantity
+        };
+        if let Ok(mut log) = self.disposed_lots.lock() {
+            log.entry(account_id.to_string())
+                .or_default()
+                .push(LotClosure {
+                    lot_id: lot.id.clone(),
+                    close_date: close_date.to_string(),
+                    close_activity_id: Some(activity_id.to_string()),
+                    open_activity_id: lot.source_activity_id.clone(),
+                    account_id: account_id.to_string(),
+                    asset_id: asset_id.to_string(),
+                    open_date: lot.acquisition_date.format("%Y-%m-%d").to_string(),
+                    original_quantity: orig_qty.to_string(),
+                    cost_per_unit: lot.acquisition_price.to_string(),
+                    total_cost_basis: lot.cost_basis.to_string(),
+                    fee_allocated: lot.acquisition_fees.to_string(),
+                });
         }
     }
 
@@ -236,9 +292,9 @@ impl HoldingsCalculator {
             ActivityType::TransferOut => {
                 self.handle_transfer_out(activity, state, account_currency, asset_cache)
             }
-            // Split activities are NO-OPs here: the snapshot service retroactively
-            // adjusts historical activity quantities/prices before the calculator runs.
-            ActivityType::Split => Ok(()),
+            ActivityType::Split => {
+                self.handle_split(activity, state, asset_cache)
+            }
             ActivityType::Adjustment => self.handle_adjustment(activity, state, asset_cache),
             ActivityType::Unknown => {
                 warn!(
@@ -307,6 +363,7 @@ impl HoldingsCalculator {
             fee_for_lot,
             activity.activity_date,
             fx_rate_used,
+            Some(activity.id.clone()),
         )?;
 
         // Book cash outflow
@@ -361,7 +418,11 @@ impl HoldingsCalculator {
         }
 
         if let Some(position) = state.positions.get_mut(asset_id) {
-            let _reduction = position.reduce_lots_fifo(activity.qty())?;
+            let reduction = position.reduce_lots_fifo(activity.qty())?;
+            let close_date = self.activity_local_date(activity).to_string();
+            for lot in &reduction.fully_consumed_lots {
+                self.record_lot_closure(&state.account_id, asset_id, lot, &close_date, &activity.id);
+            }
         } else {
             warn!(
                 "Attempted to Sell non-existent/zero position {} via activity {}. Applying cash effect only.",
@@ -675,6 +736,7 @@ impl HoldingsCalculator {
                     fee_for_lot,
                     activity.activity_date,
                     fx_rate_used,
+                    Some(activity.id.clone()),
                 )?
             };
 
@@ -778,6 +840,12 @@ impl HoldingsCalculator {
                 let reduction = position.reduce_lots_fifo(activity.qty())?;
                 let cost_basis_removed = reduction.cost_basis_removed;
 
+                // Record fully consumed lots as closed
+                let close_date = activity_date.to_string();
+                for lot in &reduction.fully_consumed_lots {
+                    self.record_lot_closure(&state.account_id, asset_id, lot, &close_date, &activity.id);
+                }
+
                 // Cache removed lots for paired TRANSFER_IN (lot-level transfer)
                 if let Some(ref group_id) = activity.source_group_id {
                     if !reduction.removed_lots.is_empty() {
@@ -826,6 +894,71 @@ impl HoldingsCalculator {
         Ok(())
     }
 
+    /// Handle SPLIT activity.
+    ///
+    /// Multiplies the cumulative `split_ratio` of every open lot whose
+    /// `acquisition_date < activity.activity_date`, leaving `quantity`,
+    /// `acquisition_price`, `cost_basis`, and `acquisition_fees` unchanged.
+    /// Lots opened on or after the split date are not affected (their as-acquired
+    /// units are already post-split). See positions_model::Position::apply_split
+    /// and docs/architecture/data_model.md §3.5.
+    ///
+    /// SPLIT has no cash effect. Fractional cashouts must be reported by the
+    /// importer as a paired SELL activity; this handler does not synthesize one.
+    ///
+    /// The ratio is read from `activity.amount` (JB/MS bridge convention) with
+    /// a fallback to `activity.quantity` if amount is NULL or zero — the API's
+    /// import paths historically wrote quantity but not amount in some cases,
+    /// and a SPLIT row whose amount column is NULL would otherwise be silently
+    /// skipped. Both fields carry the same number when both are set.
+    fn handle_split(
+        &self,
+        activity: &Activity,
+        state: &mut AccountStateSnapshot,
+        _asset_cache: &mut HashMap<String, (String, bool, Decimal)>,
+    ) -> Result<()> {
+        let asset_id = match activity.asset_id.as_deref() {
+            Some(id) if !id.is_empty() => id,
+            _ => {
+                warn!(
+                    "SPLIT activity {} has no asset_id; skipping.",
+                    activity.id
+                );
+                return Ok(());
+            }
+        };
+
+        let ratio = {
+            let amt = activity.amt();
+            if amt.is_sign_positive() && !amt.is_zero() {
+                amt
+            } else {
+                activity.qty()
+            }
+        };
+        if !ratio.is_sign_positive() || ratio.is_zero() {
+            warn!(
+                "SPLIT activity {} on {} has non-positive ratio (amount={:?}, quantity={:?}); skipping.",
+                activity.id, activity.activity_date, activity.amount, activity.quantity
+            );
+            return Ok(());
+        }
+
+        if let Some(position) = state.positions.get_mut(asset_id) {
+            position.apply_split(ratio, activity.activity_date, &activity.id)?;
+        } else {
+            // Position not yet open in this account — split is a no-op for now.
+            // If a TRANSFER_IN later brings lots whose acquisition_date predates
+            // this split, the cumulative ratio recompute path (lots/mod.rs) will
+            // pick it up.
+            debug!(
+                "SPLIT activity {} for asset {} on {}: no open position, skipping.",
+                activity.id, asset_id, activity.activity_date
+            );
+        }
+        Ok(())
+    }
+
     /// Handle ADJUSTMENT activity.
     /// Dispatches on subtype:
     /// - OPTION_EXPIRY: removes option lots via FIFO, no cash effect
@@ -844,6 +977,16 @@ impl HoldingsCalculator {
                 if let Some(position) = state.positions.get_mut(asset_id) {
                     let qty = activity.qty();
                     let reduction = position.reduce_lots_fifo(qty)?;
+                    let close_date = self.activity_local_date(activity).to_string();
+                    for lot in &reduction.fully_consumed_lots {
+                        self.record_lot_closure(
+                            &state.account_id,
+                            asset_id,
+                            lot,
+                            &close_date,
+                            &activity.id,
+                        );
+                    }
                     debug!(
                         "OPTION_EXPIRY: removed qty={} cost_basis={} from {} (activity {})",
                         reduction.quantity_reduced,

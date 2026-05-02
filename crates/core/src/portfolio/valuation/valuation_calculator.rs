@@ -40,7 +40,7 @@ pub fn calculate_valuation(
     // --- 1. Calculate Market Values (Account Currency) ---
     // Returns (total_investment_value, performance_eligible_value)
     // performance_eligible_value excludes alternative assets for TWR/IRR calculations
-    let (total_investment_market_value_acct_ccy, _performance_eligible_value) =
+    let (total_investment_market_value_acct_ccy, performance_eligible_value) =
         calculate_investment_market_value_acct(
             holdings_snapshot,
             quotes_today,
@@ -102,6 +102,8 @@ pub fn calculate_valuation(
         cost_basis: cost_basis_acct_ccy,
         net_contribution: net_contribution_acct_ccy,
         calculated_at: Utc::now(),
+        alternative_market_value: total_investment_market_value_acct_ccy
+            - performance_eligible_value,
     };
 
     Ok(metrics)

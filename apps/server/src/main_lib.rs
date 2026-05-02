@@ -5,7 +5,7 @@ use crate::{
     ai_environment::ServerAiEnvironment, auth::AuthManager, config::Config,
     domain_events::WebDomainEventSink, events::EventBus, secrets::build_secret_store,
 };
-use tracing::{error, warn};
+use tracing::error;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 use wealthfolio_ai::{AiProviderService, AiProviderServiceTrait, ChatConfig, ChatService};
@@ -14,6 +14,7 @@ use wealthfolio_connect::{
     ImportRunRepositoryTrait, TokenLifecycleState,
 };
 use wealthfolio_core::addons::{AddonService, AddonServiceTrait};
+use wealthfolio_core::lots::LotRepositoryTrait;
 use wealthfolio_core::{
     accounts::AccountService,
     activities::{ActivityService as CoreActivityService, ActivityServiceTrait},
@@ -53,6 +54,7 @@ use wealthfolio_storage_sqlite::{
     goals::GoalRepository,
     health::HealthDismissalRepository,
     limits::ContributionLimitRepository,
+    lots::LotsRepository,
     market_data::{MarketDataRepository, QuoteSyncStateRepository},
     portfolio::{snapshot::SnapshotRepository, valuation::ValuationRepository},
     settings::SettingsRepository,
@@ -76,6 +78,7 @@ pub struct AppState {
     pub timezone: Arc<RwLock<String>>,
     pub snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
     pub snapshot_repository: Arc<SnapshotRepository>,
+    pub lots_repository: Arc<dyn LotRepositoryTrait + Send + Sync>,
     pub performance_service:
         Arc<dyn wealthfolio_core::portfolio::performance::PerformanceServiceTrait + Send + Sync>,
     pub income_service: Arc<dyn IncomeServiceTrait + Send + Sync>,
@@ -103,6 +106,10 @@ pub struct AppState {
     pub health_service: Arc<dyn HealthServiceTrait + Send + Sync>,
     pub token_lifecycle: Arc<TokenLifecycleState>,
     pub custom_provider_service: Arc<wealthfolio_core::custom_provider::CustomProviderService>,
+    /// Global mutex to prevent concurrent portfolio recalculations.
+    /// Both the API (`enqueue_portfolio_job`) and the queue worker acquire this
+    /// before running a portfolio job.
+    pub portfolio_job_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 pub fn init_tracing() {
@@ -119,32 +126,6 @@ pub fn init_tracing() {
             .with(fmt::layer().with_target(true).with_line_number(true))
             .init();
     }
-}
-
-#[cfg(feature = "device-sync")]
-fn start_sync_outbox_wake_worker(
-    mut receiver: tokio::sync::mpsc::Receiver<()>,
-    state: Arc<AppState>,
-) {
-    tokio::spawn(async move {
-        while receiver.recv().await.is_some() {
-            while receiver.try_recv().is_ok() {}
-            let was_running = state.device_sync_runtime.is_background_running().await;
-            if let Err(err) =
-                crate::api::device_sync_engine::ensure_background_engine_started(Arc::clone(&state))
-                    .await
-            {
-                warn!(
-                    "Failed to start background device sync engine after local outbox write: {}",
-                    err
-                );
-                continue;
-            }
-            if was_running {
-                state.device_sync_runtime.notify_sync_work_available();
-            }
-        }
-    });
 }
 
 pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
@@ -176,14 +157,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
     db::run_migrations(&db_path)?;
 
     let pool = db::create_pool(&db_path)?;
-    let (sync_outbox_wake_sender, sync_outbox_wake_receiver) = tokio::sync::mpsc::channel(128);
-    let writer = write_actor::spawn_writer_with_outbox_observer(
-        (*pool).clone(),
-        Arc::new(move || {
-            let _ = sync_outbox_wake_sender.try_send(());
-        }),
-    )
-    .map_err(|e| {
+    let writer = write_actor::spawn_writer((*pool).clone()).map_err(|e| {
         error!("Failed to initialize writer actor: {}", e);
         e
     })?;
@@ -261,6 +235,25 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         )?
         .with_event_sink(domain_event_sink.clone()),
     );
+    let lots_repository = Arc::new(LotsRepository::new(pool.clone(), writer.clone()));
+
+    // One-time backfill: legacy lot rows had post-split values baked into
+    // original_quantity / remaining_quantity / cost_per_unit. Convert them to
+    // as-acquired columns + split_ratio. Idempotent — re-running after a
+    // successful backfill is a no-op.
+    if let Err(e) = wealthfolio_core::lots::backfill_split_ratios(
+        lots_repository.as_ref(),
+        activity_repository.as_ref(),
+    )
+    .await
+    {
+        error!(
+            "backfill_split_ratios failed at startup: {}. Continuing — lots will be \
+             re-migrated on next start.",
+            e
+        );
+    }
+
     let snapshot_service = Arc::new(
         SnapshotService::new_with_timezone(
             base_currency.clone(),
@@ -271,14 +264,20 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
             asset_repository.clone(),
             fx_service.clone(),
         )
+        .with_lot_repository(lots_repository.clone())
         .with_event_sink(domain_event_sink.clone()),
     );
 
     let valuation_repository = Arc::new(ValuationRepository::new(pool.clone(), writer.clone()));
-    let valuation_service = Arc::new(ValuationService::new(
+    let valuation_service = Arc::new(ValuationService::new_with_timezone(
         base_currency.clone(),
+        timezone.clone(),
         valuation_repository.clone(),
         snapshot_service.clone(),
+        lots_repository.clone(),
+        asset_repository.clone(),
+        account_repo.clone(),
+        activity_repository.clone(),
         quote_service.clone(),
         fx_service.clone(),
     ));
@@ -289,6 +288,8 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
             account_repo.clone(),
             asset_repository.clone(),
             snapshot_repository.clone(),
+            lots_repository.clone(),
+            activity_repository.clone(),
             quote_service.clone(),
             valuation_repository.clone(),
             fx_service.clone(),
@@ -306,6 +307,8 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         snapshot_service.clone(),
         holdings_valuation_service.clone(),
         classification_service.clone(),
+        lots_repository.clone(),
+        activity_repository.clone(),
         timezone.clone(),
     ));
 
@@ -396,6 +399,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         )
         .with_event_sink(domain_event_sink.clone())
         .with_snapshot_service(snapshot_service.clone())
+        .with_lot_repository(lots_repository.clone())
         .with_quote_store(market_data_repository.clone()),
     );
 
@@ -453,18 +457,10 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
     let event_bus = EventBus::new(256);
     let device_sync_runtime = Arc::new(DeviceSyncRuntimeState::new());
     let token_lifecycle = Arc::new(TokenLifecycleState::new());
-    let now = chrono::Utc::now();
-    if let Err(err) = app_sync_repository
-        .prune_sync_outbox(
-            now - chrono::Duration::days(7),
-            now - chrono::Duration::days(30),
-        )
-        .await
-    {
-        warn!("Failed to prune local sync outbox: {}", err);
-    }
 
     // Domain event sink - Phase 2: Start the worker now that all services are ready
+    let portfolio_job_lock = Arc::new(tokio::sync::Mutex::new(()));
+
     domain_event_sink.start_worker(
         asset_service.clone(),
         connect_sync_service.clone(),
@@ -474,11 +470,12 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         quote_service.clone(),
         valuation_service.clone(),
         account_service.clone(),
-        goal_service.clone(),
         fx_service.clone(),
         timezone.clone(),
         secret_store.clone(),
         token_lifecycle.clone(),
+        lots_repository.clone(),
+        portfolio_job_lock.clone(),
     );
 
     let addon_service: Arc<dyn AddonServiceTrait + Send + Sync> = Arc::new(AddonService::new(
@@ -493,7 +490,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         .transpose()?
         .map(Arc::new);
 
-    let state = Arc::new(AppState {
+    Ok(Arc::new(AppState {
         domain_event_sink,
         account_service,
         settings_service,
@@ -505,6 +502,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         timezone,
         snapshot_service,
         snapshot_repository,
+        lots_repository,
         performance_service,
         income_service,
         goal_service,
@@ -531,10 +529,6 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         health_service,
         token_lifecycle,
         custom_provider_service,
-    });
-
-    #[cfg(feature = "device-sync")]
-    start_sync_outbox_wake_worker(sync_outbox_wake_receiver, Arc::clone(&state));
-
-    Ok(state)
+        portfolio_job_lock,
+    }))
 }

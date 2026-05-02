@@ -8,8 +8,9 @@ use std::sync::Arc;
 use tokio::time::{interval, Duration};
 #[cfg(not(feature = "connect-sync"))]
 use tracing::info;
+use tracing::warn;
 #[cfg(feature = "connect-sync")]
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 #[cfg(feature = "connect-sync")]
 use crate::api::connect::{has_broker_sync, perform_broker_sync};
@@ -46,6 +47,43 @@ pub fn start_broker_sync_scheduler(state: Arc<AppState>) {
 #[cfg(not(feature = "connect-sync"))]
 pub fn start_broker_sync_scheduler(_state: Arc<AppState>) {
     info!("Broker sync scheduler disabled: connect-sync feature is not compiled");
+}
+
+/// Checks whether the lots table is empty and, if so, runs a full holdings
+/// recalculation to populate it. Mirrors the Tauri `backfill_lots_if_needed`.
+pub async fn backfill_lots_if_needed(state: &Arc<AppState>) {
+    use wealthfolio_core::portfolio::snapshot::SnapshotRecalcMode;
+
+    let count = match state.lots_repository.count_lots() {
+        Ok(n) => n,
+        Err(e) => {
+            warn!("Lot backfill skipped: could not count lots ({})", e);
+            return;
+        }
+    };
+
+    if count > 0 {
+        return;
+    }
+
+    tracing::info!("Lots table is empty — running full holdings recalculation to populate it");
+    if let Err(e) = state
+        .snapshot_service
+        .recalculate_holdings_snapshots(None, SnapshotRecalcMode::Full)
+        .await
+    {
+        warn!("Lot backfill recalculation failed: {}", e);
+    }
+
+    // HOLDINGS-mode accounts are skipped by recalculate_holdings_snapshots.
+    // Backfill them separately from their latest snapshots.
+    if let Err(e) = state
+        .snapshot_service
+        .backfill_lots_for_holdings_accounts()
+        .await
+    {
+        warn!("HOLDINGS lot backfill failed: {}", e);
+    }
 }
 
 /// Runs a single scheduled sync operation.

@@ -16,6 +16,7 @@ pub mod fx;
 pub mod goals;
 pub mod health;
 pub mod limits;
+pub mod lots;
 pub mod planning;
 pub mod portfolio;
 pub mod quotes;

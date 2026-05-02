@@ -489,7 +489,7 @@ mod tests {
             instrument,
             asset_kind: None,
             open_date: None,
-            lots: None,
+            lot_details: None,
             contract_multiplier: Decimal::ONE,
             weight: dec!(0.0),
             as_of_date: NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(), // Placeholder

@@ -516,7 +516,8 @@ pub mod test_env {
 
         async fn holdings_from_snapshot(
             &self,
-            _snapshot: &wealthfolio_core::portfolio::snapshot::AccountStateSnapshot,
+            _account_id: &str,
+            _date: chrono::NaiveDate,
             _base_currency: &str,
         ) -> CoreResult<Vec<Holding>> {
             Ok(Vec::new())

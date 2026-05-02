@@ -34,4 +34,8 @@ pub struct DailyAccountValuation {
     pub cost_basis: Decimal,
     pub net_contribution: Decimal,
     pub calculated_at: DateTime<Utc>,
+    /// Market value of alternative (non-investment) assets in account currency.
+    /// Investments tab total = total_value - alternative_market_value.
+    pub alternative_market_value: Decimal,
 }
+

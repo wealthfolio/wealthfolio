@@ -47,6 +47,8 @@ pub struct CreateAlternativeAssetRequest {
     pub metadata: Option<Value>,
     /// For liabilities only: ID of the asset this liability finances (UI-only aggregation)
     pub linked_asset_id: Option<String>,
+    /// Optional link to the account this asset belongs to
+    pub account_id: Option<String>,
 }
 
 /// Response after creating an alternative asset.
@@ -140,6 +142,8 @@ pub struct AlternativeHolding {
     pub linked_asset_id: Option<String>,
     /// Asset notes
     pub notes: Option<String>,
+    /// Optional linked account ID
+    pub account_id: Option<String>,
 }
 
 /// Request for updating an alternative asset's details.
@@ -158,6 +162,8 @@ pub struct UpdateAssetDetailsRequest {
     /// Optional new metadata (merged with existing)
     /// Keys with None values are removed
     pub metadata: Option<std::collections::HashMap<String, Option<String>>>,
+    /// Optional account link (Some(id) = set, Some("") = clear, None = unchanged)
+    pub account_id: Option<String>,
 }
 
 /// Response after updating asset details.

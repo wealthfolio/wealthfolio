@@ -12,9 +12,7 @@ use tokio::sync::mpsc;
 use wealthfolio_connect::{
     ensure_valid_access_token, BrokerSyncServiceTrait, TokenLifecycleConfig, TokenLifecycleState,
 };
-use wealthfolio_core::{
-    assets::AssetServiceTrait, events::DomainEvent, goals::GoalServiceTrait, secrets::SecretStore,
-};
+use wealthfolio_core::{assets::AssetServiceTrait, events::DomainEvent, secrets::SecretStore};
 
 use super::planner::{plan_asset_enrichment, plan_broker_sync, plan_portfolio_job};
 use crate::events::EventBus;
@@ -38,13 +36,15 @@ pub struct QueueWorkerDeps {
     pub valuation_service:
         Arc<dyn wealthfolio_core::portfolio::valuation::ValuationServiceTrait + Send + Sync>,
     pub account_service: Arc<wealthfolio_core::accounts::AccountService>,
-    pub goal_service: Arc<dyn GoalServiceTrait + Send + Sync>,
     pub fx_service: Arc<dyn wealthfolio_core::fx::FxServiceTrait + Send + Sync>,
     pub timezone: Arc<RwLock<String>>,
     /// Secret store for accessing credentials (e.g., refresh tokens for broker sync)
     pub secret_store: Arc<dyn SecretStore>,
     /// Shared token lifecycle state; must be the same instance used by API handlers.
     pub token_lifecycle: Arc<TokenLifecycleState>,
+    pub lots_repository: Arc<dyn wealthfolio_core::lots::LotRepositoryTrait + Send + Sync>,
+    /// Global portfolio job lock — shared with API handlers to prevent concurrent recalcs.
+    pub portfolio_job_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 /// Runs the event queue worker.
@@ -209,9 +209,6 @@ async fn process_event_batch(events: &[DomainEvent], deps: Arc<QueueWorkerDeps>)
         // Run the portfolio job directly (not spawned) so that is_processing
         // guard properly tracks completion and prevents concurrent jobs
         run_portfolio_job(deps.clone(), config).await;
-
-        // Keep goal cards current after valuation changes, matching the Tauri worker.
-        refresh_all_goal_summaries(deps.clone()).await;
     }
 
     // 3. Plan and trigger broker sync
@@ -274,15 +271,10 @@ async fn run_portfolio_job(
     use wealthfolio_core::constants::PORTFOLIO_TOTAL_ACCOUNT_ID;
     use wealthfolio_core::portfolio::snapshot::reconcile_quote_sync_from_latest_total_snapshot;
 
+    // Acquire the global portfolio job lock to prevent concurrent recalculations.
+    let _lock = deps.portfolio_job_lock.lock().await;
+
     let event_bus = deps.event_bus.clone();
-    let snapshot_mode = config
-        .since_date
-        .map(wealthfolio_core::portfolio::snapshot::SnapshotRecalcMode::SinceDate)
-        .unwrap_or_else(|| config.snapshot_mode.clone());
-    let valuation_mode = config
-        .since_date
-        .map(wealthfolio_core::portfolio::valuation::ValuationRecalcMode::SinceDate)
-        .unwrap_or_else(|| config.valuation_mode.clone());
 
     // Only perform market sync if the mode requires it
     if config.market_sync_mode.requires_sync() {
@@ -376,7 +368,7 @@ async fn run_portfolio_job(
         let ids_slice = account_ids.as_slice();
         if let Err(err) = deps
             .snapshot_service
-            .recalculate_holdings_snapshots(Some(ids_slice), snapshot_mode.clone())
+            .recalculate_holdings_snapshots(Some(ids_slice), config.snapshot_mode.clone())
             .await
         {
             let err_msg = format!(
@@ -391,44 +383,33 @@ async fn run_portfolio_job(
         }
     }
 
-    if let Err(err) = deps
-        .snapshot_service
-        .recalculate_total_portfolio_snapshots(snapshot_mode)
-        .await
-    {
-        let err_msg = format!("Failed to calculate TOTAL portfolio snapshot: {}", err);
-        tracing::error!("{}", err_msg);
-        event_bus.publish(ServerEvent::with_payload(
-            PORTFOLIO_UPDATE_ERROR,
-            json!(err_msg),
-        ));
-        return;
+
+    // Update position status from lots for quote sync planning
+    match deps.lots_repository.get_open_position_quantities().await {
+        Ok(current_holdings) => {
+            if let Err(e) = deps
+                .quote_service
+                .update_position_status_from_holdings(&current_holdings)
+                .await
+            {
+                tracing::warn!(
+                    "Failed to update position status from holdings: {}. Quote sync planning may be affected.",
+                    e
+                );
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to read position quantities from lots: {}", e);
+        }
     }
 
-    // Update position status from TOTAL snapshot for quote sync planning.
-    if let Err(e) = reconcile_quote_sync_from_latest_total_snapshot(
-        deps.snapshot_service.as_ref(),
-        deps.quote_service.as_ref(),
-    )
-    .await
-    {
-        tracing::warn!(
-            "Failed to update position status from holdings: {}. Quote sync planning may be affected.",
-            e
-        );
-    }
+    // Remove TOTAL from the account list — portfolio valuations are aggregated separately.
+    account_ids.retain(|id| id != PORTFOLIO_TOTAL_ACCOUNT_ID);
 
-    if !account_ids
-        .iter()
-        .any(|id| id == PORTFOLIO_TOTAL_ACCOUNT_ID)
-    {
-        account_ids.push(PORTFOLIO_TOTAL_ACCOUNT_ID.to_string());
-    }
-
-    for account_id in account_ids {
+    for account_id in &account_ids {
         if let Err(err) = deps
             .valuation_service
-            .calculate_valuation_history(&account_id, valuation_mode.clone())
+            .calculate_valuation_history(account_id, config.valuation_mode.clone())
             .await
         {
             let err_msg = format!(
@@ -443,86 +424,16 @@ async fn run_portfolio_job(
         }
     }
 
+    // Aggregate per-account valuations into portfolio-level rows.
+    if let Err(err) = deps
+        .valuation_service
+        .calculate_valuation_history(PORTFOLIO_TOTAL_ACCOUNT_ID, config.valuation_mode)
+        .await
+    {
+        tracing::warn!("Portfolio valuation aggregation failed: {}", err);
+    }
+
     event_bus.publish(ServerEvent::new(PORTFOLIO_UPDATE_COMPLETE));
-}
-
-/// Refreshes cached summary fields for all active goals after valuation changes.
-async fn refresh_all_goal_summaries(deps: Arc<QueueWorkerDeps>) {
-    use rust_decimal::prelude::ToPrimitive;
-    use wealthfolio_core::accounts::AccountServiceTrait;
-
-    let goals = match deps.goal_service.get_goals() {
-        Ok(goals) => goals,
-        Err(err) => {
-            tracing::warn!("Failed to load goals for summary refresh: {}", err);
-            return;
-        }
-    };
-
-    let active_goals: Vec<_> = goals
-        .iter()
-        .filter(|goal| goal.status_lifecycle == "active")
-        .collect();
-
-    if active_goals.is_empty() {
-        return;
-    }
-
-    let accounts = match deps.account_service.get_active_non_archived_accounts() {
-        Ok(accounts) => accounts,
-        Err(err) => {
-            tracing::warn!("Failed to load accounts for goal summary refresh: {}", err);
-            return;
-        }
-    };
-    let account_ids: Vec<String> = accounts.into_iter().map(|account| account.id).collect();
-    let valuations = match deps.valuation_service.get_latest_valuations(&account_ids) {
-        Ok(valuations) => valuations,
-        Err(err) => {
-            tracing::warn!(
-                "Failed to load valuations for goal summary refresh: {}",
-                err
-            );
-            return;
-        }
-    };
-
-    let mut valuation_map = std::collections::HashMap::new();
-    for valuation in &valuations {
-        let Some(total) = valuation.total_value.to_f64() else {
-            tracing::warn!(
-                "Skipping goal summary refresh: invalid valuation total for account {}",
-                valuation.account_id
-            );
-            return;
-        };
-        let Some(fx) = valuation.fx_rate_to_base.to_f64() else {
-            tracing::warn!(
-                "Skipping goal summary refresh: invalid FX rate for account {}",
-                valuation.account_id
-            );
-            return;
-        };
-        valuation_map.insert(valuation.account_id.clone(), total * fx);
-    }
-
-    for goal in active_goals {
-        if let Err(err) = deps
-            .goal_service
-            .refresh_goal_summary(&goal.id, &valuation_map)
-            .await
-        {
-            tracing::debug!("Failed to refresh summary for goal {}: {}", goal.id, err);
-        }
-    }
-
-    tracing::debug!(
-        "Refreshed summaries for {} active goal(s)",
-        goals
-            .iter()
-            .filter(|goal| goal.status_lifecycle == "active")
-            .count()
-    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

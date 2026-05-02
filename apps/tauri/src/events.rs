@@ -78,13 +78,12 @@ pub struct PortfolioRequestPayloadBuilder {
 }
 
 impl PortfolioRequestPayloadBuilder {
-    /// Sets the account IDs, ensuring the TOTAL account ID is included if specific accounts are provided.
+    /// Sets the account IDs. TOTAL is no longer injected — portfolio valuations
+    /// are aggregated separately after per-account valuations complete.
     pub fn account_ids(mut self, account_ids: Option<Vec<String>>) -> Self {
         self.account_ids = match account_ids {
             Some(mut ids) => {
-                if !ids.is_empty() && !ids.contains(&PORTFOLIO_TOTAL_ACCOUNT_ID.to_string()) {
-                    ids.push(PORTFOLIO_TOTAL_ACCOUNT_ID.to_string());
-                }
+                ids.retain(|id| id != PORTFOLIO_TOTAL_ACCOUNT_ID);
                 Some(ids)
             }
             None => None, // None remains None (meaning all accounts)

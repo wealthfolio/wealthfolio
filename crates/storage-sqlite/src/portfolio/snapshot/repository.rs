@@ -10,12 +10,14 @@ use log::{debug, warn};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use super::model::AccountStateSnapshotDB;
+use super::model::{AccountStateSnapshotDB, NewSnapshotPositionRecord, SnapshotPositionRecord};
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
 use wealthfolio_core::constants::PORTFOLIO_TOTAL_ACCOUNT_ID;
 use wealthfolio_core::errors::{Error, Result};
-use wealthfolio_core::portfolio::snapshot::{AccountStateSnapshot, SnapshotRepositoryTrait};
+use wealthfolio_core::portfolio::snapshot::{
+    AccountStateSnapshot, Position, SnapshotRepositoryTrait,
+};
 
 pub struct SnapshotRepository {
     pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
@@ -38,6 +40,14 @@ impl SnapshotRepository {
             return Ok(());
         }
 
+        // Capture positions for non-calculated snapshots before From conversion
+        // strips them to "{}".
+        let positions_to_write: Vec<(String, HashMap<String, Position>)> = snapshots
+            .iter()
+            .filter(|s| s.source.is_non_calculated() && !s.positions.is_empty())
+            .map(|s| (s.id.clone(), s.positions.clone()))
+            .collect();
+
         let db_models: Vec<AccountStateSnapshotDB> = snapshots
             .iter()
             .cloned()
@@ -53,6 +63,12 @@ impl SnapshotRepository {
                     .values(&db_models)
                     .execute(conn)
                     .map_err(StorageError::from)?;
+
+                // Write positions to snapshot_positions table
+                for (snap_id, pos_map) in &positions_to_write {
+                    Self::write_snapshot_positions(conn, snap_id, pos_map)?;
+                }
+
                 Ok(())
             })
             .await
@@ -456,14 +472,6 @@ impl SnapshotRepository {
         Ok(())
     }
 
-    pub fn get_total_portfolio_snapshots(
-        &self,
-        start_date_opt: Option<NaiveDate>,
-        end_date_opt: Option<NaiveDate>,
-    ) -> Result<Vec<AccountStateSnapshot>> {
-        self.get_snapshots_by_account(PORTFOLIO_TOTAL_ACCOUNT_ID, start_date_opt, end_date_opt)
-    }
-
     pub fn get_all_non_archived_account_snapshots(
         &self,
         start_date_opt: Option<NaiveDate>,
@@ -483,7 +491,7 @@ impl SnapshotRepository {
         }
         let mut query = holdings_snapshots
             .into_boxed()
-            .filter(account_id.ne("TOTAL"))
+            .filter(account_id.ne(PORTFOLIO_TOTAL_ACCOUNT_ID))
             .filter(account_id.eq_any(non_archived_account_ids));
         if let Some(start) = start_date_opt {
             query = query.filter(snapshot_date.ge(start.format("%Y-%m-%d").to_string()));
@@ -701,6 +709,14 @@ impl SnapshotRepository {
     ) -> Result<()> {
         use crate::schema::holdings_snapshots::dsl::*;
 
+        let snap_id = snapshot.id.clone();
+        let positions_to_write: Option<HashMap<String, Position>> =
+            if snapshot.source.is_non_calculated() && !snapshot.positions.is_empty() {
+                Some(snapshot.positions.clone())
+            } else {
+                None
+            };
+
         let db_model = AccountStateSnapshotDB::from(snapshot.clone());
         debug!(
             "Saving/updating snapshot for account {} on date {}",
@@ -715,6 +731,11 @@ impl SnapshotRepository {
                     .map_err(StorageError::from)?;
 
                 tx.insert(&db_model)?;
+
+                // Write positions to snapshot_positions table
+                if let Some(ref pos_map) = positions_to_write {
+                    Self::write_snapshot_positions(tx.conn(), &snap_id, pos_map)?;
+                }
 
                 Ok(())
             })
@@ -753,6 +774,123 @@ impl SnapshotRepository {
             .map_err(StorageError::from)?;
 
         Ok(result.map(AccountStateSnapshot::from))
+    }
+
+    // --- snapshot_positions read/write helpers ---
+
+    /// Load positions from the `snapshot_positions` table for a single snapshot.
+    fn get_snapshot_positions_impl(
+        &self,
+        snapshot_id_param: &str,
+    ) -> Result<HashMap<String, Position>> {
+        use crate::schema::snapshot_positions::dsl::*;
+
+        let mut conn = get_connection(&self.pool)?;
+
+        let rows: Vec<SnapshotPositionRecord> = snapshot_positions
+            .filter(snapshot_id.eq(snapshot_id_param))
+            .load(&mut conn)
+            .map_err(StorageError::from)?;
+
+        // We need the account_id to reconstruct Position.id. Fetch it from the snapshot.
+        let acct_id: Option<String> = {
+            use crate::schema::holdings_snapshots::dsl as hs;
+            hs::holdings_snapshots
+                .select(hs::account_id)
+                .filter(hs::id.eq(snapshot_id_param))
+                .first::<String>(&mut conn)
+                .optional()
+                .map_err(StorageError::from)?
+        };
+        let acct_id = acct_id.unwrap_or_default();
+
+        let mut map = HashMap::new();
+        for row in rows {
+            let pos = row.to_position(&acct_id);
+            map.insert(pos.asset_id.clone(), pos);
+        }
+        Ok(map)
+    }
+
+    /// Batch-load positions for multiple snapshot IDs.
+    fn get_snapshot_positions_batch_impl(
+        &self,
+        snapshot_ids_param: &[String],
+    ) -> Result<HashMap<String, HashMap<String, Position>>> {
+        use crate::schema::snapshot_positions::dsl::*;
+
+        if snapshot_ids_param.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let mut conn = get_connection(&self.pool)?;
+
+        let rows: Vec<SnapshotPositionRecord> = snapshot_positions
+            .filter(snapshot_id.eq_any(snapshot_ids_param))
+            .load(&mut conn)
+            .map_err(StorageError::from)?;
+
+        if rows.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        // Fetch account_ids for the snapshots in one query.
+        let snap_account_map: HashMap<String, String> = {
+            use crate::schema::holdings_snapshots::dsl as hs;
+            let pairs: Vec<(String, String)> = hs::holdings_snapshots
+                .select((hs::id, hs::account_id))
+                .filter(hs::id.eq_any(snapshot_ids_param))
+                .load(&mut conn)
+                .map_err(StorageError::from)?;
+            pairs.into_iter().collect()
+        };
+
+        let mut result: HashMap<String, HashMap<String, Position>> = HashMap::new();
+        for row in rows {
+            let acct_id = snap_account_map
+                .get(&row.snapshot_id)
+                .cloned()
+                .unwrap_or_default();
+            let snap_id = row.snapshot_id.clone();
+            let pos = row.to_position(&acct_id);
+            result
+                .entry(snap_id)
+                .or_default()
+                .insert(pos.asset_id.clone(), pos);
+        }
+        Ok(result)
+    }
+
+    /// Write positions to `snapshot_positions` for a single snapshot.
+    /// Deletes existing rows for the snapshot_id first, then inserts new ones.
+    /// Only writes for non-calculated snapshots (HOLDINGS-mode).
+    fn write_snapshot_positions(
+        conn: &mut SqliteConnection,
+        snap_id: &str,
+        positions: &HashMap<String, Position>,
+    ) -> std::result::Result<(), StorageError> {
+        use crate::schema::snapshot_positions::dsl::*;
+
+        // Delete existing rows for this snapshot
+        diesel::delete(snapshot_positions.filter(snapshot_id.eq(snap_id)))
+            .execute(conn)
+            .map_err(StorageError::from)?;
+
+        if positions.is_empty() {
+            return Ok(());
+        }
+
+        let records: Vec<NewSnapshotPositionRecord> = positions
+            .values()
+            .map(|pos| NewSnapshotPositionRecord::from_position(snap_id, pos))
+            .collect();
+
+        diesel::insert_into(snapshot_positions)
+            .values(&records)
+            .execute(conn)
+            .map_err(StorageError::from)?;
+
+        Ok(())
     }
 }
 
@@ -851,14 +989,6 @@ impl SnapshotRepositoryTrait for SnapshotRepository {
             .await
     }
 
-    fn get_total_portfolio_snapshots(
-        &self,
-        start_date: Option<NaiveDate>,
-        end_date: Option<NaiveDate>,
-    ) -> Result<Vec<AccountStateSnapshot>> {
-        self.get_total_portfolio_snapshots(start_date, end_date)
-    }
-
     fn get_all_non_archived_account_snapshots(
         &self,
         start_date: Option<NaiveDate>,
@@ -897,6 +1027,17 @@ impl SnapshotRepositoryTrait for SnapshotRepository {
         account_id: &str,
     ) -> Result<Option<AccountStateSnapshot>> {
         self.get_earliest_non_calculated_snapshot_impl(account_id)
+    }
+
+    fn get_snapshot_positions(&self, snapshot_id: &str) -> Result<HashMap<String, Position>> {
+        self.get_snapshot_positions_impl(snapshot_id)
+    }
+
+    fn get_snapshot_positions_batch(
+        &self,
+        snapshot_ids: &[String],
+    ) -> Result<HashMap<String, HashMap<String, Position>>> {
+        self.get_snapshot_positions_batch_impl(snapshot_ids)
     }
 }
 

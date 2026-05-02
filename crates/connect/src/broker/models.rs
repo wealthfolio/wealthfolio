@@ -606,6 +606,13 @@ pub struct HoldingsDiff {
     pub snapshot_saved: bool,
 }
 
+impl HoldingsDiff {
+    /// Returns true if no positions were added, updated, or removed.
+    pub fn is_unchanged(&self) -> bool {
+        self.added_positions == 0 && self.updated_positions == 0 && self.removed_positions == 0
+    }
+}
+
 /// Information about a newly created account that needs user configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

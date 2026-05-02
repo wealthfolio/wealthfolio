@@ -13,11 +13,14 @@ use super::net_worth_model::{
 };
 use super::net_worth_traits::NetWorthServiceTrait;
 use crate::accounts::{account_types, AccountRepositoryTrait};
+use crate::activities::ActivityRepositoryTrait;
+use crate::constants::PORTFOLIO_TOTAL_ACCOUNT_ID;
 use crate::assets::{AssetKind, AssetRepositoryTrait};
 use crate::constants::DECIMAL_PRECISION;
 use crate::errors::Result;
 use crate::fx::currency::normalize_amount;
 use crate::fx::FxServiceTrait;
+use crate::lots::LotRepositoryTrait;
 use crate::portfolio::snapshot::SnapshotRepositoryTrait;
 use crate::portfolio::valuation::ValuationRepositoryTrait;
 use crate::quotes::QuoteServiceTrait;
@@ -31,6 +34,8 @@ pub struct NetWorthService {
     account_repository: Arc<dyn AccountRepositoryTrait>,
     asset_repository: Arc<dyn AssetRepositoryTrait>,
     snapshot_repository: Arc<dyn SnapshotRepositoryTrait>,
+    lot_repository: Arc<dyn LotRepositoryTrait>,
+    activity_repository: Arc<dyn ActivityRepositoryTrait>,
     quote_service: Arc<dyn QuoteServiceTrait>,
     valuation_repository: Arc<dyn ValuationRepositoryTrait>,
     fx_service: Arc<dyn FxServiceTrait>,
@@ -44,6 +49,8 @@ impl NetWorthService {
         account_repository: Arc<dyn AccountRepositoryTrait>,
         asset_repository: Arc<dyn AssetRepositoryTrait>,
         snapshot_repository: Arc<dyn SnapshotRepositoryTrait>,
+        lot_repository: Arc<dyn LotRepositoryTrait>,
+        activity_repository: Arc<dyn ActivityRepositoryTrait>,
         quote_service: Arc<dyn QuoteServiceTrait>,
         valuation_repository: Arc<dyn ValuationRepositoryTrait>,
         fx_service: Arc<dyn FxServiceTrait>,
@@ -53,6 +60,8 @@ impl NetWorthService {
             account_repository,
             asset_repository,
             snapshot_repository,
+            lot_repository,
+            activity_repository,
             quote_service,
             valuation_repository,
             fx_service,
@@ -154,11 +163,16 @@ impl NetWorthService {
         }
     }
 
-    /// Build assets section from valuations.
-    fn build_assets_section(valuations: &[ValuationInfo]) -> AssetsSection {
-        // Aggregate by category
+    /// Build assets and liabilities sections from valuations.
+    ///
+    /// Non-liability categories with positive aggregate → assets section.
+    /// Non-liability categories with negative aggregate → liabilities section (positive magnitude).
+    /// Explicit Liability items → liabilities section as individual items.
+    fn build_balance_sheet_sections(
+        valuations: &[ValuationInfo],
+    ) -> (AssetsSection, LiabilitiesSection) {
+        // Aggregate non-liability items by category
         let mut category_totals: HashMap<AssetCategory, Decimal> = HashMap::new();
-
         for val in valuations {
             if val.category != AssetCategory::Liability {
                 *category_totals.entry(val.category).or_insert(Decimal::ZERO) +=
@@ -166,48 +180,60 @@ impl NetWorthService {
             }
         }
 
-        // Build breakdown items - only include categories with non-zero values
-        let mut breakdown: Vec<BreakdownItem> = category_totals
-            .into_iter()
-            .filter(|(_, value)| *value > Decimal::ZERO)
-            .map(|(category, value)| BreakdownItem {
-                category: Self::category_key(category).to_string(),
-                name: Self::category_display_name(category).to_string(),
-                value,
-                asset_id: None,
-            })
-            .collect();
+        // Split categories: positive → assets, negative → liabilities
+        let mut asset_breakdown: Vec<BreakdownItem> = Vec::new();
+        let mut liability_breakdown: Vec<BreakdownItem> = Vec::new();
 
-        // Sort by value descending for better display
-        breakdown.sort_by_key(|b| std::cmp::Reverse(b.value));
+        for (category, value) in &category_totals {
+            if *value > Decimal::ZERO {
+                asset_breakdown.push(BreakdownItem {
+                    category: Self::category_key(*category).to_string(),
+                    name: Self::category_display_name(*category).to_string(),
+                    value: *value,
+                    asset_id: None,
+                });
+            } else if *value < Decimal::ZERO {
+                // Negative non-liability category (e.g., negative cash from unlinked loans)
+                // routes to liabilities with positive magnitude
+                liability_breakdown.push(BreakdownItem {
+                    category: Self::category_key(*category).to_string(),
+                    name: format!("Negative {}", Self::category_display_name(*category)),
+                    value: value.abs(),
+                    asset_id: None,
+                });
+            }
+        }
 
-        // Calculate total
-        let total = breakdown.iter().map(|item| item.value).sum();
-
-        AssetsSection { total, breakdown }
-    }
-
-    /// Build liabilities section from valuations - includes individual liability items.
-    fn build_liabilities_section(valuations: &[ValuationInfo]) -> LiabilitiesSection {
-        // Get individual liabilities
-        let mut breakdown: Vec<BreakdownItem> = valuations
+        // Explicit liability items (individual breakdown)
+        for val in valuations
             .iter()
             .filter(|v| v.category == AssetCategory::Liability)
-            .map(|v| BreakdownItem {
+        {
+            liability_breakdown.push(BreakdownItem {
                 category: "liability".to_string(),
-                name: v.name.clone().unwrap_or_else(|| v.asset_id.clone()),
-                value: v.market_value_base,
-                asset_id: Some(v.asset_id.clone()),
-            })
-            .collect();
+                name: val.name.clone().unwrap_or_else(|| val.asset_id.clone()),
+                value: val.market_value_base,
+                asset_id: Some(val.asset_id.clone()),
+            });
+        }
 
-        // Sort by value descending
-        breakdown.sort_by_key(|b| std::cmp::Reverse(b.value));
+        // Sort both by value descending
+        asset_breakdown.sort_by(|a, b| b.value.cmp(&a.value));
+        liability_breakdown.sort_by(|a, b| b.value.cmp(&a.value));
 
-        // Calculate total
-        let total = breakdown.iter().map(|item| item.value).sum();
+        let asset_total = asset_breakdown.iter().map(|item| item.value).sum();
+        let liability_total = liability_breakdown.iter().map(|item| item.value).sum();
 
-        LiabilitiesSection { total, breakdown }
+        (
+            AssetsSection {
+                total: asset_total,
+                breakdown: asset_breakdown,
+            },
+            LiabilitiesSection {
+                total: liability_total,
+                breakdown: liability_breakdown,
+            },
+        )
     }
 
     /// Calculate staleness info for valuations.
@@ -263,7 +289,21 @@ impl NetWorthServiceTrait for NetWorthService {
         // Get account IDs
         let account_ids: Vec<String> = accounts.iter().map(|a| a.id.clone()).collect();
 
-        // Get latest snapshots for all accounts as of the target date
+        // Security positions: read from lots table, then replay activities to
+        // get correct point-in-time quantities.
+        let raw_lots = self
+            .lot_repository
+            .get_lots_as_of_date(&account_ids, date)
+            .await?;
+        let activities = self
+            .activity_repository
+            .get_activities_by_account_ids(&account_ids)?;
+        let lots = crate::lots::replay_lots_to_date(raw_lots, &activities, date);
+
+        // Cash balances: still read from snapshots.
+        // NOTE: snapshots are fetched here only for cash_balances; security positions
+        // now come from the lots table. This snapshot dependency will be removed once
+        // cash is tracked independently of snapshots.
         let snapshots = self
             .snapshot_repository
             .get_latest_snapshots_before_date(&account_ids, date)?;
@@ -277,8 +317,53 @@ impl NetWorthServiceTrait for NetWorthService {
 
         let mut valuations: Vec<ValuationInfo> = Vec::new();
 
-        // Process each account's snapshot
-        for (account_id, snapshot) in &snapshots {
+        // Aggregate effective lot quantities and cost basis by (account_id, asset_id).
+        // Effective shares = remaining_quantity (as-acquired units) * split_ratio
+        // (cumulative post-acquisition split factor). cost_basis is split-invariant.
+        let mut lots_by_account: HashMap<String, HashMap<String, (Decimal, Decimal)>> =
+            HashMap::new();
+        for lot in &lots {
+            let qty = lot
+                .remaining_quantity
+                .parse::<Decimal>()
+                .unwrap_or_else(|e| {
+                    log::error!(
+                        "Lot {} has malformed remaining_quantity '{}': {}",
+                        lot.id,
+                        lot.remaining_quantity,
+                        e
+                    );
+                    Decimal::ZERO
+                });
+            let split_ratio = lot
+                .split_ratio
+                .parse::<Decimal>()
+                .ok()
+                .filter(|r| !r.is_zero())
+                .unwrap_or(Decimal::ONE);
+            let effective_qty = qty * split_ratio;
+            let cost = lot.total_cost_basis.parse::<Decimal>().unwrap_or_else(|e| {
+                log::error!(
+                    "Lot {} has malformed total_cost_basis '{}': {}",
+                    lot.id,
+                    lot.total_cost_basis,
+                    e
+                );
+                Decimal::ZERO
+            });
+            lots_by_account
+                .entry(lot.account_id.clone())
+                .or_default()
+                .entry(lot.asset_id.clone())
+                .and_modify(|(q, c)| {
+                    *q += effective_qty;
+                    *c += cost;
+                })
+                .or_insert((effective_qty, cost));
+        }
+
+        // Process security positions from lots.
+        for (account_id, asset_totals) in &lots_by_account {
             let account = match account_map.get(account_id) {
                 Some(acc) => acc,
                 None => {
@@ -286,16 +371,13 @@ impl NetWorthServiceTrait for NetWorthService {
                     continue;
                 }
             };
-
             let account_category = Self::categorize_by_account_type(&account.account_type);
 
-            // Process positions (securities, alternative assets)
-            for (asset_id, position) in &snapshot.positions {
-                if position.quantity.is_zero() {
+            for (asset_id, (quantity, total_cost_basis)) in asset_totals {
+                if quantity.is_zero() {
                     continue;
                 }
 
-                // Get asset info to determine category more precisely
                 let asset = asset_map.get(asset_id);
                 let asset_name = asset.and_then(|a| {
                     a.name
@@ -310,21 +392,18 @@ impl NetWorthServiceTrait for NetWorthService {
                 } else {
                     account_category
                 };
+                let asset_currency = asset.map(|a| a.quote_ccy.clone()).unwrap_or_default();
+                let contract_multiplier = asset
+                    .map(|a| a.contract_multiplier())
+                    .unwrap_or(Decimal::ONE);
 
-                // Get the latest quote for this asset as of the date
                 let (price, quote_currency, valuation_date) =
                     match self.get_latest_quote_as_of(asset_id, date) {
                         Some((p, c, d)) => (p, c, d),
                         None => {
-                            // No quote found, use cost basis as fallback
-                            if position.quantity > Decimal::ZERO {
-                                let implied_price = position.total_cost_basis / position.quantity;
-                                // Use snapshot date as valuation date; cost basis is in position.currency (major unit)
-                                (
-                                    implied_price,
-                                    position.currency.clone(),
-                                    snapshot.snapshot_date,
-                                )
+                            if *quantity > Decimal::ZERO {
+                                let implied_price = *total_cost_basis / *quantity;
+                                (implied_price, asset_currency, date)
                             } else {
                                 warn!(
                                     "No quote found for {} and cannot derive from cost basis",
@@ -335,15 +414,13 @@ impl NetWorthServiceTrait for NetWorthService {
                         }
                     };
 
-                // Normalize minor-currency quotes (e.g. GBp → GBP, ZAc → ZAR) before valuation.
                 let (normalized_price, normalized_currency) =
                     normalize_amount(price, &quote_currency);
 
-                // Calculate market value in base currency
                 let market_value_base = match self.calculate_market_value(
-                    position.quantity,
+                    *quantity,
                     normalized_price,
-                    position.contract_multiplier,
+                    contract_multiplier,
                     normalized_currency,
                     &base_currency,
                     date,
@@ -354,7 +431,7 @@ impl NetWorthServiceTrait for NetWorthService {
                             "Failed to calculate market value for {}: {}. Using local value.",
                             asset_id, e
                         );
-                        position.quantity * price * position.contract_multiplier
+                        *quantity * price * contract_multiplier
                     }
                 };
 
@@ -366,14 +443,15 @@ impl NetWorthServiceTrait for NetWorthService {
                     category,
                 });
             }
+        }
 
-            // Process cash balances
+        // Process cash balances from snapshots.
+        for snapshot in snapshots.values() {
             for (currency, &amount) in &snapshot.cash_balances {
                 if amount.is_zero() {
                     continue;
                 }
 
-                // Convert cash to base currency
                 let cash_base = if currency == &base_currency {
                     amount
                 } else {
@@ -474,8 +552,7 @@ impl NetWorthServiceTrait for NetWorthService {
         }
 
         // Build assets and liabilities sections
-        let assets = Self::build_assets_section(&valuations);
-        let liabilities = Self::build_liabilities_section(&valuations);
+        let (assets, liabilities) = Self::build_balance_sheet_sections(&valuations);
 
         // Calculate net worth
         let net_worth = assets.total - liabilities.total;
@@ -517,7 +594,7 @@ impl NetWorthServiceTrait for NetWorthService {
         // The TOTAL account has aggregated values already converted to base currency.
         // Fields: total_value, net_contribution, fx_rate_to_base (always 1 for TOTAL)
         let total_valuations = self.valuation_repository.get_historical_valuations(
-            "TOTAL",
+            PORTFOLIO_TOTAL_ACCOUNT_ID,
             Some(start_date),
             Some(end_date),
         )?;
@@ -734,5 +811,174 @@ impl NetWorthServiceTrait for NetWorthService {
         );
 
         Ok(history)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal_macros::dec;
+
+    fn make_valuation(
+        asset_id: &str,
+        name: Option<&str>,
+        value: Decimal,
+        category: AssetCategory,
+    ) -> ValuationInfo {
+        ValuationInfo {
+            asset_id: asset_id.to_string(),
+            name: name.map(|s| s.to_string()),
+            market_value_base: value,
+            valuation_date: NaiveDate::from_ymd_opt(2026, 3, 30).unwrap(),
+            category,
+        }
+    }
+
+    #[test]
+    fn positive_categories_go_to_assets() {
+        let valuations = vec![
+            make_valuation("inv1", None, dec!(100000), AssetCategory::Investment),
+            make_valuation("inv2", None, dec!(50000), AssetCategory::Investment),
+            make_valuation(
+                "cash1",
+                Some("Cash (USD)"),
+                dec!(25000),
+                AssetCategory::Cash,
+            ),
+        ];
+
+        let (assets, liabilities) = NetWorthService::build_balance_sheet_sections(&valuations);
+
+        assert_eq!(assets.total, dec!(175000));
+        assert_eq!(assets.breakdown.len(), 2); // Investment + Cash
+        assert_eq!(liabilities.total, Decimal::ZERO);
+        assert!(liabilities.breakdown.is_empty());
+    }
+
+    #[test]
+    fn liability_items_go_to_liabilities_section() {
+        let valuations = vec![
+            make_valuation("inv1", None, dec!(500000), AssetCategory::Investment),
+            make_valuation(
+                "loan1",
+                Some("Mortgage"),
+                dec!(200000),
+                AssetCategory::Liability,
+            ),
+            make_valuation(
+                "loan2",
+                Some("Margin Loan"),
+                dec!(50000),
+                AssetCategory::Liability,
+            ),
+        ];
+
+        let (assets, liabilities) = NetWorthService::build_balance_sheet_sections(&valuations);
+
+        assert_eq!(assets.total, dec!(500000));
+        assert_eq!(liabilities.total, dec!(250000));
+        assert_eq!(liabilities.breakdown.len(), 2);
+        assert_eq!(liabilities.breakdown[0].name, "Mortgage");
+        assert_eq!(liabilities.breakdown[0].value, dec!(200000));
+        assert!(liabilities.breakdown[0].asset_id.is_some());
+    }
+
+    #[test]
+    fn negative_category_routes_to_liabilities() {
+        let valuations = vec![
+            make_valuation("inv1", None, dec!(100000), AssetCategory::Investment),
+            make_valuation("cash1", Some("Cash (USD)"), dec!(5000), AssetCategory::Cash),
+            make_valuation(
+                "cash2",
+                Some("Cash (CHF)"),
+                dec!(-20000),
+                AssetCategory::Cash,
+            ),
+        ];
+
+        let (assets, liabilities) = NetWorthService::build_balance_sheet_sections(&valuations);
+
+        // Cash nets to -15000, so no cash in assets
+        assert_eq!(assets.total, dec!(100000));
+        assert_eq!(assets.breakdown.len(), 1); // Investment only
+
+        // Negative cash appears in liabilities
+        assert_eq!(liabilities.total, dec!(15000));
+        assert_eq!(liabilities.breakdown.len(), 1);
+        assert_eq!(liabilities.breakdown[0].name, "Negative Cash");
+        assert_eq!(liabilities.breakdown[0].value, dec!(15000));
+        assert!(liabilities.breakdown[0].asset_id.is_none());
+    }
+
+    #[test]
+    fn mixed_liabilities_and_negative_categories() {
+        let valuations = vec![
+            make_valuation("inv1", None, dec!(1000000), AssetCategory::Investment),
+            make_valuation(
+                "cash1",
+                Some("Cash (CHF)"),
+                dec!(-50000),
+                AssetCategory::Cash,
+            ),
+            make_valuation(
+                "loan1",
+                Some("CHF Loan 4M"),
+                dec!(4000000),
+                AssetCategory::Liability,
+            ),
+        ];
+
+        let (assets, liabilities) = NetWorthService::build_balance_sheet_sections(&valuations);
+
+        assert_eq!(assets.total, dec!(1000000));
+        // Liabilities: 4M loan + 50K negative cash
+        assert_eq!(liabilities.total, dec!(4050000));
+        assert_eq!(liabilities.breakdown.len(), 2);
+    }
+
+    #[test]
+    fn zero_category_excluded_from_both() {
+        let valuations = vec![
+            make_valuation("inv1", None, dec!(100000), AssetCategory::Investment),
+            make_valuation("cash1", Some("Cash (USD)"), dec!(5000), AssetCategory::Cash),
+            make_valuation(
+                "cash2",
+                Some("Cash (EUR)"),
+                dec!(-5000),
+                AssetCategory::Cash,
+            ),
+        ];
+
+        let (assets, liabilities) = NetWorthService::build_balance_sheet_sections(&valuations);
+
+        assert_eq!(assets.total, dec!(100000));
+        assert_eq!(assets.breakdown.len(), 1); // Investment only, cash nets to zero
+        assert_eq!(liabilities.total, Decimal::ZERO);
+        assert!(liabilities.breakdown.is_empty());
+    }
+
+    #[test]
+    fn empty_valuations() {
+        let (assets, liabilities) = NetWorthService::build_balance_sheet_sections(&[]);
+
+        assert_eq!(assets.total, Decimal::ZERO);
+        assert!(assets.breakdown.is_empty());
+        assert_eq!(liabilities.total, Decimal::ZERO);
+        assert!(liabilities.breakdown.is_empty());
+    }
+
+    #[test]
+    fn breakdown_sorted_by_value_descending() {
+        let valuations = vec![
+            make_valuation("p1", Some("House"), dec!(500000), AssetCategory::Property),
+            make_valuation("inv1", None, dec!(1000000), AssetCategory::Investment),
+            make_valuation("cash1", Some("Cash"), dec!(25000), AssetCategory::Cash),
+        ];
+
+        let (assets, _) = NetWorthService::build_balance_sheet_sections(&valuations);
+
+        assert_eq!(assets.breakdown[0].value, dec!(1000000));
+        assert_eq!(assets.breakdown[1].value, dec!(500000));
+        assert_eq!(assets.breakdown[2].value, dec!(25000));
     }
 }

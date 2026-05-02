@@ -65,6 +65,12 @@ async fn main() -> anyhow::Result<()> {
     init_tracing();
     let state = build_state(&config).await?;
 
+    // Backfill lots table on first launch (or after migration) — non-blocking.
+    let backfill_state = state.clone();
+    tokio::spawn(async move {
+        scheduler::backfill_lots_if_needed(&backfill_state).await;
+    });
+
     #[cfg(feature = "device-sync")]
     #[allow(clippy::collapsible_if)]
     if features::device_sync_enabled() {
