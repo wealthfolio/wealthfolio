@@ -294,6 +294,7 @@ diesel::table! {
         holding_period -> Nullable<Text>,
         created_at -> Text,
         updated_at -> Text,
+        split_ratio -> Text,
     }
 }
 

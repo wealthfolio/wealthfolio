@@ -573,6 +573,14 @@ impl ValuationServiceTrait for ValuationService {
                         log::error!("Lot {} has malformed remaining_quantity '{}': {}", lot.id, lot.remaining_quantity, e);
                         Decimal::ZERO
                     });
+                    let split_ratio = lot
+                        .split_ratio
+                        .parse::<Decimal>()
+                        .ok()
+                        .filter(|r| !r.is_zero())
+                        .unwrap_or(Decimal::ONE);
+                    // Effective shares = as-acquired remaining * cumulative split factor.
+                    let effective_qty = qty * split_ratio;
                     let cost = lot.total_cost_basis.parse::<Decimal>().unwrap_or_else(|e| {
                         log::error!("Lot {} has malformed total_cost_basis '{}': {}", lot.id, lot.total_cost_basis, e);
                         Decimal::ZERO
@@ -580,10 +588,10 @@ impl ValuationServiceTrait for ValuationService {
                     aggregated
                         .entry(lot.asset_id.clone())
                         .and_modify(|(q, c)| {
-                            *q += qty;
+                            *q += effective_qty;
                             *c += cost;
                         })
-                        .or_insert((qty, cost));
+                        .or_insert((effective_qty, cost));
                 }
 
                 let positions_from_lots: HashMap<String, Position> = aggregated

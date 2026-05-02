@@ -171,12 +171,15 @@ single `lots ⨝ quotes ⨝ assets` pipeline. Portfolio-level aggregation
 lives in its own table. Liabilities are first-class assets with a
 nullable link back to an account.
 
-Lots also preserve `original_quantity` (as-acquired, pre-split share
-count) and reconstruct historical state by replaying activities forward
-through `replay_lots_to_date`. Sequential splits compound multiplicatively
-in this replay — a 3:1 followed by a 1:2 is correctly handled as a net
-1.5× factor, with `total_cost_basis` invariant. The Phase D tax layer
-inherits this behavior and does not re-solve splits.
+Lots preserve `original_quantity` and use `replay_lots_to_date` to
+reconstruct historical state. A correctness defect in this replay path was
+discovered in production: lot rows store **post-split** quantities (the
+snapshot recalc rewrites `remaining_quantity *= ratio` after each SPLIT),
+but `replay_lots_to_date` resets to `original_quantity` and re-applies the
+SPLIT activity, double-counting on every read. A 2:1 split observed in
+production produced 2× the correct share count, propagating to a
+correspondingly inflated value in `/api/v1/net-worth`. §3.5 describes
+the corrected design.
 
 The original five problems from §1:
 
@@ -187,6 +190,153 @@ The original five problems from §1:
 | Four inconsistent valuation paths | Resolved. Single read pipeline; portfolio TOTAL row in `daily_account_valuation` is now aggregated from per-account rows instead of recomputed from lots. |
 | Liabilities as negative cash | Resolved. `assets.kind = LIABILITY`, optional `account_id` link. |
 | No tax classification | **Still open** — Phase D proposal follows. |
+
+---
+
+## 3.5. Split handling — defect and corrected design (proposed)
+
+### Defect
+
+Phase A's lot model records each SPLIT activity in two places: the `lots`
+row (via `remaining_quantity *= ratio` and `cost_per_unit /= ratio`) and
+the `activities` row (the SPLIT entry itself, which is never deleted).
+The schema does not declare whether `original_quantity` and
+`remaining_quantity` are in pre-split or post-split units. After a full
+recalc, both are in post-split units. `replay_lots_to_date` reads the lot
+row, resets `remaining_quantity = original_quantity`, then replays SPLIT
+activities ≤ the target date — multiplying the already-post-split
+quantity again.
+
+The bug requires only that the snapshot recalc has run once after a
+SPLIT exists. Manual lot repairs accelerate the symptom but don't cause
+it.
+
+### Corrected schema
+
+The fix targets exactly the columns the defect touched: `cost_per_unit`
+becomes immutable (Phase A had it mutating on SPLIT), and a new
+`split_ratio` column carries the cumulative effect of post-acquisition
+splits as a denormalized cache. Other columns retain their existing
+Phase A semantics.
+
+| Column                             | Mutability                | Units / meaning                                       |
+| ---------------------------------- | ------------------------- | ----------------------------------------------------- |
+| `original_quantity`                | **immutable**             | as-acquired share count                               |
+| `cost_per_unit`                    | **immutable**             | as-acquired unit price (Phase A mutated on SPLIT)     |
+| `fee_allocated`                    | **immutable**             | acquisition fee total                                 |
+| `remaining_quantity`               | mutable (SELL/TRANSFER)   | in **as-acquired** units                              |
+| `total_cost_basis`                 | mutable (SELL/TRANSFER)   | open cost basis = `remaining × cpu + (rem/orig)×fee`  |
+| `split_ratio` *(new, default 1.0)* | mutable (SPLIT)           | cumulative ratio for splits since open_date           |
+
+Splits never touch `original_quantity`, `cost_per_unit`, or
+`total_cost_basis`. SELL and TRANSFER_OUT decrement
+`remaining_quantity` (in as-acquired units) and `total_cost_basis`
+proportionally, leaving `cost_per_unit` and `original_quantity`
+untouched. SELL converts at the boundary:
+`units_consumed = sale_qty_current / split_ratio`. That conversion is
+the only place SELL handlers must know about `split_ratio` — every
+other read path is a pure multiplication.
+
+Read-time derivations:
+
+| Display value                   | Formula                                            |
+| ------------------------------- | -------------------------------------------------- |
+| Effective shares held now       | `remaining_quantity × split_ratio`                 |
+| Adjusted cost per current share | `cost_per_unit / split_ratio`                      |
+| Open cost basis                 | `total_cost_basis` (already net of past SELLs)     |
+| Initial as-acquired cost basis  | `original_quantity × cost_per_unit + fee_allocated` |
+| Realized cost basis (past SELLs)| `initial − total_cost_basis`                       |
+| Market value                    | `remaining_quantity × split_ratio × current_price` |
+
+`split_ratio` is a denormalized cache of
+`Π activities.qty WHERE asset_id = lot.asset_id AND activity_date > lot.open_date AND activity_type = 'SPLIT'`.
+It can be recomputed from the activities table at any time
+(`O(splits × lots)` per asset). Activity insert/edit/delete on a SPLIT
+triggers a recompute for affected lots. No day-by-day replay is needed
+for split state; the full recalc engine still exists for cash and
+lot-creation events but stops mutating split state on lot rows.
+
+### Fractional cashouts
+
+Reverse splits (1:N) and odd ratios (e.g. 7:3) produce fractional
+effective shares that brokers liquidate. Two ingestion patterns:
+
+- **SPLIT + SELL** (broker reports the fractional sale). No special
+  code — SELL's `current_units / split_ratio` conversion handles it.
+  Cost basis consumed and realized P&L are correct by construction.
+- **SPLIT + cash-in-lieu** (broker reports cash without a SELL). The
+  importer must detect the cash-in-lieu ledger code per broker and
+  synthesize the SELL before the lot engine sees the data. By the time
+  the lot layer is reached, the SPLIT-and-SELL pair is always present.
+
+Decimal precision: `rust_decimal` (96-bit, 28 digits) round-trips ratios
+like 7/3 cleanly. After SELL processing, snap `remaining_quantity` to
+zero if its absolute value is below ~1e-10 original units, to absorb
+rounding drift on non-exact ratios.
+
+### Display affordance
+
+A lot row with `split_ratio ≠ 1.0` is presenting numbers in
+original-acquisition units while the user normally expects post-split.
+UI rows label such lots visibly — a small "as-purchased" badge, a
+tooltip, or paired columns showing both original and effective. The
+badge doubles as a debugging surface: a `split_ratio = 10` on a lot the
+user knows shouldn't have a split is visible state, not hidden
+corruption.
+
+### Migration
+
+For each existing lot, compute
+`cumulative_ratio = Π activities.qty WHERE asset_id = lot.asset_id AND activity_date > lot.open_date AND activity_type = 'SPLIT'`,
+then:
+
+```
+new_original_quantity  = original_quantity  / cumulative_ratio
+new_remaining_quantity = remaining_quantity / cumulative_ratio
+new_cost_per_unit      = cost_per_unit      × cumulative_ratio
+new_split_ratio        = cumulative_ratio
+total_cost_basis, fee_allocated unchanged
+```
+
+`total_cost_basis` is preserved by construction: `remaining × cpu`
+is invariant under the (1/r, ×r) transform on its two factors. The
+backfill therefore needs no post-migration verification of cost
+basis — any discrepancy in the stored value is pre-existing data
+corruption (e.g. an old FIFO bug that mis-attributed cost-basis
+removal across lots) and is independent of the split refactor.
+
+After migration, `replay_lots_to_date` is removed (or rewritten as a
+thin wrapper that recomputes `split_ratio` from activities and applies
+it as a read-time multiplier). Net-worth and per-account valuation read
+paths use `remaining_quantity × split_ratio` directly without replaying
+activities.
+
+### Deferred test coverage
+
+The split refactor ships with the existing calculator + snapshot
+service tests (805 total, 803 passing — the 2 failures are pre-existing
+and unrelated to splits) and two replay-specific tests rewritten for
+the new model. The following targeted scenarios are not yet covered
+and should land as a follow-up:
+
+- **Backfill integration test**: drive `backfill_split_ratios` against
+  an in-memory SQLite DB with seeded post-split lot rows and SPLIT
+  activities; assert that the rewrite preserves `remaining × cpu` and
+  populates `split_ratio`.
+- **Fractional cashout (SPLIT + SELL pattern)**: verify a 1:N reverse
+  split followed by a fractional SELL produces the expected cash
+  proceeds and zero residual `remaining_quantity` after epsilon snap.
+- **Compound splits**: lot opened pre-split-A, between A and B, and
+  post-split-B; assert each lot's `split_ratio` reflects only the
+  splits with `activity_date > lot.open_date`.
+- **Reverse split** (ratio < 1): `lot.split_ratio` becomes < 1; effective
+  remaining decreases proportionally; `total_cost_basis` unchanged.
+- **Post-split BUY mixed with pre-split lots**: aggregation across
+  same-asset lots with different `split_ratio` values yields the right
+  effective total.
+- **HOLDINGS-mode (Phase C) lot persistence path**: snapshot positions
+  produce lot rows with `split_ratio = 1` (HOLDINGS positions are
+  reported in current units; no SPLIT activities ever fire for them).
 
 ---
 

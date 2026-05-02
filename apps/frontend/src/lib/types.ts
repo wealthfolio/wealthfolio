@@ -541,11 +541,33 @@ export interface LotView {
   id: string;
   accountId: string;
   acquisitionDate: string;
+  /**
+   * As-acquired (pre-split) original quantity. Immutable once the lot is opened.
+   * Effective shares acquired = `originalQuantity * splitRatio`.
+   */
   originalQuantity: number;
+  /**
+   * Remaining quantity in **as-acquired (pre-split) units**. Decremented by
+   * SELL/TRANSFER_OUT activities. Effective shares held now =
+   * `remainingQuantity * splitRatio`.
+   */
   remainingQuantity: number;
+  /**
+   * Cost per unit in as-acquired terms. Adjusted per-current-share basis =
+   * `costPerUnit / splitRatio`.
+   */
   costPerUnit: number;
+  /** Total cost basis (split-invariant). */
   totalCostBasis: number;
   fees: number;
+  /**
+   * Cumulative product of post-acquisition SPLIT activity ratios for this lot.
+   * Defaults to 1 (no splits since acquisition). When `splitRatio !== 1`, the
+   * row is presenting pre-split numbers — UI surfaces should label such lots
+   * as "as-purchased" so the user is not confused about why the displayed
+   * quantity differs from their broker's current statement.
+   */
+  splitRatio: number;
   isClosed: boolean;
   closeDate?: string;
 }

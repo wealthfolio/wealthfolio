@@ -136,16 +136,31 @@ function AccountLotGroup({
               </TableHeader>
               <TableBody>
                 {lots.map((lot) => {
-                  const marketValue = lot.remainingQuantity * marketPrice;
+                  // remainingQuantity is in as-acquired (pre-split) units;
+                  // effective shares for market valuation use splitRatio.
+                  const effectiveRemaining = lot.remainingQuantity * lot.splitRatio;
+                  const marketValue = effectiveRemaining * marketPrice;
                   const gainLoss = marketValue - lot.totalCostBasis;
                   const gainPct = lot.totalCostBasis !== 0 ? gainLoss / lot.totalCostBasis : 0;
+                  const hasSplit = lot.splitRatio !== 1;
 
                   return (
                     <TableRow key={lot.id} className={lot.isClosed ? "opacity-50" : ""}>
                       <TableCell>
-                        <Badge variant={lot.isClosed ? "secondary" : "outline"} className="text-xs">
-                          {lot.isClosed ? "Closed" : "Open"}
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <Badge variant={lot.isClosed ? "secondary" : "outline"} className="text-xs">
+                            {lot.isClosed ? "Closed" : "Open"}
+                          </Badge>
+                          {hasSplit && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs"
+                              title={`Quantities and unit price shown as-purchased (pre-split). Effective shares = displayed × ${lot.splitRatio}.`}
+                            >
+                              {`${lot.splitRatio}:1 split`}
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="font-medium">
                         {formatDate(lot.acquisitionDate)}
@@ -197,20 +212,31 @@ function AccountLotGroup({
           {/* Mobile card list */}
           <div className="divide-y md:hidden">
             {lots.map((lot) => {
-              const marketValue = lot.remainingQuantity * marketPrice;
+              const effectiveRemaining = lot.remainingQuantity * lot.splitRatio;
+              const marketValue = effectiveRemaining * marketPrice;
               const gainLoss = marketValue - lot.totalCostBasis;
               const gainPct = lot.totalCostBasis !== 0 ? gainLoss / lot.totalCostBasis : 0;
+              const hasSplit = lot.splitRatio !== 1;
 
               return (
                 <div key={lot.id} className={`space-y-2 p-4 ${lot.isClosed ? "opacity-50" : ""}`}>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Badge
                         variant={lot.isClosed ? "secondary" : "outline"}
                         className="text-xs"
                       >
                         {lot.isClosed ? "Closed" : "Open"}
                       </Badge>
+                      {hasSplit && (
+                        <Badge
+                          variant="outline"
+                          className="text-xs"
+                          title={`As-purchased (pre-split). Effective = displayed × ${lot.splitRatio}.`}
+                        >
+                          {`${lot.splitRatio}:1 split`}
+                        </Badge>
+                      )}
                       <span className="text-sm font-medium">
                         {formatDate(lot.acquisitionDate)}
                       </span>

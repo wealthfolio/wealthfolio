@@ -5,7 +5,7 @@ use crate::activities::{
     Activity, ActivityCompiler, ActivityRepositoryTrait, DefaultActivityCompiler,
 };
 use crate::assets::AssetRepositoryTrait;
-use crate::constants::{DECIMAL_PRECISION, PORTFOLIO_TOTAL_ACCOUNT_ID};
+use crate::constants::PORTFOLIO_TOTAL_ACCOUNT_ID;
 use crate::errors::{CalculatorError, Error, Result};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::fx::FxServiceTrait;
@@ -555,20 +555,18 @@ impl SnapshotService {
         let compiler = DefaultActivityCompiler::new();
         let compiled_activities = compiler.compile_all(all_activities)?;
 
-        // Perform split adjustments on the compiled activity list
-        let split_factors = self.calculate_split_factors(
-            &compiled_activities,
-            min_activity_date,
-            calculation_end_date,
-        );
-        let adjusted_activities =
-            self.adjust_activities_for_splits(&compiled_activities, &split_factors);
+        // Splits are no longer applied to historical activities. The calculator's
+        // SPLIT handler updates each lot's `split_ratio` in place when the
+        // activity is replayed; pre-split lots therefore retain their as-acquired
+        // quantity/price, and effective shares are derived at read time
+        // (see docs/architecture/data_model.md §3.5).
+        let _ = (min_activity_date, calculation_end_date); // formerly bounded the split window
 
-        // Group adjusted activities by original account ID and date
+        // Group activities by original account ID and date
         let mut activities_by_account_date: ActivitiesByAccount = HashMap::new();
         let mut account_ids_with_activity: HashSet<String> = HashSet::new();
 
-        for activity in &adjusted_activities {
+        for activity in &compiled_activities {
             activities_by_account_date
                 .entry(activity.account_id.clone())
                 .or_default()
@@ -914,128 +912,15 @@ impl SnapshotService {
     }
 
     // (Helper function group_activities_by_account_and_date moved inside preprocess_data)
-
-    fn calculate_split_factors(
-        &self,
-        activities: &[Activity],
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-    ) -> HashMap<String, Vec<(NaiveDate, Decimal)>> {
-        use crate::activities::ACTIVITY_TYPE_SPLIT;
-        let mut split_factors: HashMap<String, Vec<(NaiveDate, Decimal)>> = HashMap::new();
-        for activity in activities.iter().filter(|a| {
-            a.activity_type == ACTIVITY_TYPE_SPLIT
-                && self.user_date(a.activity_date) >= start_date
-                && self.user_date(a.activity_date) <= end_date
-        }) {
-            // Check if the activity amount exists and represents a valid positive split ratio
-            let asset_id = match &activity.asset_id {
-                Some(id) => id,
-                None => {
-                    warn!(
-                        "Missing asset_id for Split activity {} on {}. Ignoring split.",
-                        activity.id, activity.activity_date
-                    );
-                    continue;
-                }
-            };
-            if let Some(split_ratio) = activity.amount {
-                if split_ratio.is_sign_positive() && !split_ratio.is_zero() {
-                    // Collect valid splits (date, ratio) for the asset
-                    split_factors
-                        .entry(asset_id.clone())
-                        .or_default() // Get the Vec, create if needed
-                        .push((self.user_date(activity.activity_date), split_ratio));
-                // Push (date, ratio) tuple
-                } else {
-                    // Log warning for invalid ratio (e.g., zero or negative)
-                    warn!(
-                        "Invalid split ratio {} for Split activity {} on {}. Ignoring split.",
-                        split_ratio, activity.id, activity.activity_date
-                    );
-                }
-            } else {
-                // Log warning if amount is missing for a split activity
-                warn!(
-                    "Missing amount for Split activity {} for asset {} on {}. Ignoring split.",
-                    activity.id, asset_id, activity.activity_date
-                );
-            }
-        }
-        for splits in split_factors.values_mut() {
-            splits.sort_by_key(|k| k.0);
-            // Splits are stored per-account but are asset-level events; deduplicate by date
-            // so that assets held in multiple accounts don't over-apply the same split.
-            splits.dedup_by_key(|k| k.0);
-        }
-        split_factors
-    }
-
-    fn adjust_activities_for_splits(
-        &self,
-        activities: &[Activity],
-        split_factors: &HashMap<String, Vec<(NaiveDate, Decimal)>>,
-    ) -> Vec<Activity> {
-        use crate::activities::ACTIVITY_TYPE_SPLIT;
-
-        let mut adjusted_activities = Vec::with_capacity(activities.len());
-        for activity in activities {
-            let mut adj_activity = activity.clone();
-            let asset_id = match &activity.asset_id {
-                Some(id) => id,
-                None => {
-                    // No asset_id, just push the activity as-is
-                    adjusted_activities.push(adj_activity);
-                    continue;
-                }
-            };
-            if let Some(splits) = split_factors.get(asset_id) {
-                // Do not adjust the SPLIT activity itself, only others
-                if adj_activity.activity_type != ACTIVITY_TYPE_SPLIT {
-                    let mut cumulative_factor = Decimal::ONE;
-                    // Apply splits that happened *after* the activity date
-                    for (split_date, split_ratio) in splits.iter() {
-                        // Iterate chronologically
-                        if *split_date > self.user_date(activity.activity_date) {
-                            // Split happened after this activity, need to adjust past quantity/price
-                            cumulative_factor *= split_ratio;
-                        }
-                    }
-
-                    if cumulative_factor != Decimal::ONE {
-                        debug!(
-                            "Adjusting activity {} on {} for asset {} due to future splits. Factor: {}",
-                            adj_activity.id, self.user_date(activity.activity_date), asset_id, cumulative_factor
-                        );
-                        // Adjust quantity
-                        // Use correct field name 'quantity'
-                        adj_activity.quantity =
-                            Some((activity.qty() * cumulative_factor).round_dp(DECIMAL_PRECISION));
-
-                        // Adjust unit price (inverse factor)
-                        // Use correct field name 'unit_price'
-                        let unit_price = activity.price();
-                        if !unit_price.is_zero() {
-                            if !cumulative_factor.is_zero() {
-                                // Avoid division by zero
-                                // Use correct field name 'unit_price'
-                                adj_activity.unit_price = Some(
-                                    (unit_price / cumulative_factor).round_dp(DECIMAL_PRECISION),
-                                );
-                            } else {
-                                warn!("Cumulative split factor is zero for activity {}. Cannot adjust unit price.", adj_activity.id);
-                                // Use correct field name 'unit_price'
-                                adj_activity.unit_price = Some(Decimal::ZERO); // Or handle as error?
-                            }
-                        }
-                    }
-                }
-            }
-            adjusted_activities.push(adj_activity);
-        }
-        adjusted_activities
-    }
-
+    //
+    // Splits used to be applied here by retroactively rewriting historical
+    // activity quantities/prices (see `adjust_activities_for_splits` and
+    // `calculate_split_factors`, deleted 2026-04-30). That approach baked
+    // post-split values into lot rows, which caused `replay_lots_to_date` to
+    // double-apply splits at read time. Splits are now applied to each lot's
+    // `split_ratio` cache by `holdings_calculator::handle_split` when the SPLIT
+    // activity is replayed, leaving lot quantity/price/cost-basis immutable.
+    // See docs/architecture/data_model.md §3.5.
 }
 
 #[async_trait]
@@ -1300,6 +1185,7 @@ impl SnapshotServiceTrait for SnapshotService {
                         cost_per_unit: p.average_cost.to_string(),
                         total_cost_basis: p.total_cost_basis.to_string(),
                         fee_allocated: "0".to_string(),
+                        split_ratio: "1".to_string(),
                         disposal_method: DisposalMethod::Fifo,
                         is_closed: false,
                         close_date: None,
@@ -1392,6 +1278,7 @@ impl SnapshotServiceTrait for SnapshotService {
                         cost_per_unit: p.average_cost.to_string(),
                         total_cost_basis: p.total_cost_basis.to_string(),
                         fee_allocated: "0".to_string(),
+                        split_ratio: "1".to_string(),
                         disposal_method: DisposalMethod::Fifo,
                         is_closed: false,
                         close_date: None,

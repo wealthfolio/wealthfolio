@@ -8,6 +8,13 @@ use crate::lots::LotRecord;
 
 /// Display-oriented lot view for the API response.
 /// Converted directly from LotRecord, independent of the calculation Lot struct.
+///
+/// Quantity and price fields are reported in **as-acquired** (original) units.
+/// `split_ratio` carries the cumulative post-acquisition split factor; the UI
+/// can compute effective current shares as `remaining_quantity * split_ratio`
+/// and adjusted per-current-share basis as `cost_per_unit / split_ratio`. A
+/// `split_ratio` other than 1 means the row is presenting pre-split numbers
+/// and the UI should label it accordingly (badge, tooltip, paired column).
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LotView {
@@ -19,12 +26,20 @@ pub struct LotView {
     pub cost_per_unit: Decimal,
     pub total_cost_basis: Decimal,
     pub fees: Decimal,
+    /// Cumulative post-acquisition SPLIT factor. Defaults to 1 (no splits).
+    pub split_ratio: Decimal,
     pub is_closed: bool,
     pub close_date: Option<String>,
 }
 
 impl LotView {
     pub fn from_record(r: &LotRecord) -> Option<Self> {
+        let split_ratio: Decimal = r
+            .split_ratio
+            .parse()
+            .ok()
+            .filter(|v: &Decimal| !v.is_zero())
+            .unwrap_or(Decimal::ONE);
         Some(LotView {
             id: r.id.clone(),
             account_id: r.account_id.clone(),
@@ -34,6 +49,7 @@ impl LotView {
             cost_per_unit: r.cost_per_unit.parse().ok()?,
             total_cost_basis: r.total_cost_basis.parse().ok()?,
             fees: r.fee_allocated.parse().unwrap_or_default(),
+            split_ratio,
             is_closed: r.is_closed,
             close_date: r.close_date.clone(),
         })
@@ -186,6 +202,7 @@ mod tests {
             cost_per_unit: "150.50".to_string(),
             total_cost_basis: "11287.50".to_string(),
             fee_allocated: "12.50".to_string(),
+            split_ratio: "1".to_string(),
             disposal_method: DisposalMethod::Fifo,
             is_closed,
             close_date: if is_closed {

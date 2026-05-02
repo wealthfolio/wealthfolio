@@ -317,7 +317,9 @@ impl NetWorthServiceTrait for NetWorthService {
 
         let mut valuations: Vec<ValuationInfo> = Vec::new();
 
-        // Aggregate lot quantities and cost basis by (account_id, asset_id).
+        // Aggregate effective lot quantities and cost basis by (account_id, asset_id).
+        // Effective shares = remaining_quantity (as-acquired units) * split_ratio
+        // (cumulative post-acquisition split factor). cost_basis is split-invariant.
         let mut lots_by_account: HashMap<String, HashMap<String, (Decimal, Decimal)>> =
             HashMap::new();
         for lot in &lots {
@@ -333,6 +335,13 @@ impl NetWorthServiceTrait for NetWorthService {
                     );
                     Decimal::ZERO
                 });
+            let split_ratio = lot
+                .split_ratio
+                .parse::<Decimal>()
+                .ok()
+                .filter(|r| !r.is_zero())
+                .unwrap_or(Decimal::ONE);
+            let effective_qty = qty * split_ratio;
             let cost = lot.total_cost_basis.parse::<Decimal>().unwrap_or_else(|e| {
                 log::error!(
                     "Lot {} has malformed total_cost_basis '{}': {}",
@@ -347,10 +356,10 @@ impl NetWorthServiceTrait for NetWorthService {
                 .or_default()
                 .entry(lot.asset_id.clone())
                 .and_modify(|(q, c)| {
-                    *q += qty;
+                    *q += effective_qty;
                     *c += cost;
                 })
-                .or_insert((qty, cost));
+                .or_insert((effective_qty, cost));
         }
 
         // Process security positions from lots.

@@ -206,9 +206,19 @@ impl HoldingsService {
                 continue;
             };
 
+            // Effective shares = sum(remaining_quantity * split_ratio).
             let quantity: Decimal = asset_lots
                 .iter()
-                .filter_map(|l| l.remaining_quantity.parse::<Decimal>().ok())
+                .map(|l| {
+                    let rem = l.remaining_quantity.parse::<Decimal>().unwrap_or(Decimal::ZERO);
+                    let ratio = l
+                        .split_ratio
+                        .parse::<Decimal>()
+                        .ok()
+                        .filter(|r| !r.is_zero())
+                        .unwrap_or(Decimal::ONE);
+                    rem * ratio
+                })
                 .sum();
 
             if quantity == Decimal::ZERO {
@@ -624,16 +634,27 @@ impl HoldingsServiceTrait for HoldingsService {
                 .collect();
 
             for (asset_id, asset_lots) in &lots_by_asset {
+                // Effective shares = sum(remaining_quantity * split_ratio).
+                // remaining_quantity is in as-acquired (pre-split) units;
+                // split_ratio scales each lot independently because lots opened
+                // at different times have seen different cumulative splits.
                 let quantity: Decimal = asset_lots
                     .iter()
                     .map(|l| {
-                        l.remaining_quantity.parse::<Decimal>().unwrap_or_else(|e| {
+                        let rem = l.remaining_quantity.parse::<Decimal>().unwrap_or_else(|e| {
                             error!(
                                 "Lot {} has malformed remaining_quantity '{}': {}",
                                 l.id, l.remaining_quantity, e
                             );
                             Decimal::ZERO
-                        })
+                        });
+                        let ratio = l
+                            .split_ratio
+                            .parse::<Decimal>()
+                            .ok()
+                            .filter(|r| !r.is_zero())
+                            .unwrap_or(Decimal::ONE);
+                        rem * ratio
                     })
                     .sum();
                 if quantity.is_zero() {
@@ -819,6 +840,7 @@ mod tests {
                 cost_per_unit: dec!(3000),
                 total_cost_basis: dec!(3000),
                 fees: dec!(0),
+                split_ratio: dec!(1),
                 is_closed: false,
                 close_date: None,
             }]),

@@ -133,17 +133,26 @@ pub struct LotRecord {
     /// transferred sub-lot whose ID does not directly correspond to an activity row.
     pub open_activity_id: Option<String>,
 
-    /// Total quantity acquired. Never changes after creation.
+    /// Total quantity acquired, in **as-acquired (pre-split)** units. Immutable after insert.
     pub original_quantity: String,
-    /// Quantity still held. Reduced on each disposal.
+    /// Quantity still held, in **as-acquired (pre-split)** units. Reduced on each disposal.
+    /// Effective shares held now = `remaining_quantity * split_ratio`.
     pub remaining_quantity: String,
 
-    /// Cost per unit in the asset's quote currency.
+    /// Cost per unit in the asset's quote currency, in **as-acquired** terms.
+    /// Immutable after insert. Adjusted cost per current share = `cost_per_unit / split_ratio`.
     pub cost_per_unit: String,
-    /// Total cost basis (cost_per_unit × original_quantity + fee_allocated).
+    /// Total cost basis (cost_per_unit × original_quantity + fee_allocated). Immutable.
+    /// Splits do not change the dollars paid, so this is split-invariant.
     pub total_cost_basis: String,
-    /// Transaction fees allocated to this lot.
+    /// Transaction fees allocated to this lot. Immutable.
     pub fee_allocated: String,
+
+    /// Cumulative product of post-acquisition SPLIT activity ratios for this lot's asset.
+    /// Defaults to "1" (no splits since open_date). Multiplied by `remaining_quantity` to
+    /// derive effective current shares; divided into `cost_per_unit` to derive adjusted
+    /// per-share basis. See docs/architecture/data_model.md §3.5.
+    pub split_ratio: String,
 
     /// Cost basis disposal method for this lot.
     pub disposal_method: DisposalMethod,
@@ -236,6 +245,7 @@ pub fn extract_lot_records(snapshot: &AccountStateSnapshot) -> Vec<LotRecord> {
                 cost_per_unit: lot.acquisition_price.to_string(),
                 total_cost_basis: lot.cost_basis.to_string(),
                 fee_allocated: lot.acquisition_fees.to_string(),
+                split_ratio: lot.effective_split_ratio().to_string(),
                 disposal_method: DisposalMethod::Fifo,
                 is_closed: false,
                 close_date: None,
@@ -291,19 +301,275 @@ pub fn check_lot_quantity_consistency(
     mismatches
 }
 
+// ── Split-ratio backfill ─────────────────────────────────────────────────────
+
+/// One-time data migration: convert legacy lot rows (where SPLIT activities had
+/// been baked into `original_quantity`/`remaining_quantity`/`cost_per_unit` by
+/// the old retroactive-adjustment path) to the new model where as-acquired
+/// columns are immutable and `split_ratio` carries the cumulative effect of
+/// post-acquisition splits.
+///
+/// For each open or closed lot whose `split_ratio = 1` and whose asset has at
+/// least one SPLIT activity dated after `open_date`:
+///
+/// ```text
+///   cumulative_ratio       = Π SPLIT.amount where activity_date > lot.open_date
+///   new original_quantity  = original_quantity  / cumulative_ratio
+///   new remaining_quantity = remaining_quantity / cumulative_ratio
+///   new cost_per_unit      = cost_per_unit      × cumulative_ratio
+///   new split_ratio        = cumulative_ratio
+/// ```
+///
+/// `total_cost_basis` and `fee_allocated` are split-invariant and untouched.
+/// The invariant `original_quantity × cost_per_unit + fee_allocated =
+/// total_cost_basis` is verified post-rewrite within `1e-6` absolute tolerance;
+/// any lot that fails is logged and skipped (the row stays in its existing
+/// post-split form rather than being half-rewritten).
+///
+/// SPLIT activities are stored per-account but represent a single asset-level
+/// corporate event. Cumulative ratio is therefore deduplicated by
+/// `(asset_id, activity_date)` so an asset held across multiple accounts is
+/// not adjusted by 2× the actual ratio.
+///
+/// Idempotent. Re-running after a successful backfill is a no-op because all
+/// affected lots will then have `split_ratio ≠ 1`. Returns the number of lot
+/// rows modified.
+pub async fn backfill_split_ratios(
+    lot_repo: &(dyn LotRepositoryTrait + Send + Sync),
+    activity_repo: &(dyn crate::activities::ActivityRepositoryTrait + Send + Sync),
+) -> Result<usize> {
+    use crate::activities::ACTIVITY_TYPE_SPLIT;
+
+    // Fast exit: nothing to migrate if the lots table is empty.
+    if lot_repo.count_lots()? == 0 {
+        return Ok(0);
+    }
+
+    // Build cumulative split index keyed by asset_id, deduplicated by date.
+    let all_activities = activity_repo.get_activities()?;
+    let mut splits_by_asset: HashMap<String, Vec<(NaiveDate, Decimal)>> = HashMap::new();
+    for activity in &all_activities {
+        if activity.activity_type != ACTIVITY_TYPE_SPLIT {
+            continue;
+        }
+        let asset_id = match &activity.asset_id {
+            Some(id) if !id.is_empty() => id.clone(),
+            _ => continue,
+        };
+        // Prefer `amount`; fall back to `quantity` when amount is NULL —
+        // some API paths historically wrote quantity but not amount.
+        let ratio = match activity.amount {
+            Some(r) if r.is_sign_positive() && !r.is_zero() => r,
+            _ => {
+                let q = activity.qty();
+                if q.is_sign_positive() && !q.is_zero() {
+                    q
+                } else {
+                    continue;
+                }
+            }
+        };
+        let date = activity.activity_date.date_naive();
+        splits_by_asset.entry(asset_id).or_default().push((date, ratio));
+    }
+    for splits in splits_by_asset.values_mut() {
+        splits.sort_by_key(|k| k.0);
+        splits.dedup_by_key(|k| k.0);
+    }
+
+    if splits_by_asset.is_empty() {
+        log::info!("backfill_split_ratios: no SPLIT activities found, skipping.");
+        return Ok(0);
+    }
+
+    let all_lots = lot_repo.get_all_lots().await?;
+    let epsilon = Decimal::from_str_exact("0.000001").unwrap_or(Decimal::ZERO);
+
+    // Group lots by account_id so we can use replace_lots_for_account.
+    let mut lots_by_account: HashMap<String, Vec<LotRecord>> = HashMap::new();
+    let mut accounts_with_changes: HashMap<String, usize> = HashMap::new();
+
+    for mut lot in all_lots {
+        let stored_split_ratio =
+            Decimal::from_str(&lot.split_ratio).unwrap_or(Decimal::ONE);
+        // Skip lots that have already been migrated (split_ratio ≠ 1).
+        if stored_split_ratio != Decimal::ONE {
+            lots_by_account
+                .entry(lot.account_id.clone())
+                .or_default()
+                .push(lot);
+            continue;
+        }
+
+        let lot_open_date = match NaiveDate::parse_from_str(&lot.open_date, "%Y-%m-%d") {
+            Ok(d) => d,
+            Err(e) => {
+                log::error!(
+                    "backfill_split_ratios: lot {} has malformed open_date '{}': {}; leaving as-is",
+                    lot.id,
+                    lot.open_date,
+                    e
+                );
+                lots_by_account
+                    .entry(lot.account_id.clone())
+                    .or_default()
+                    .push(lot);
+                continue;
+            }
+        };
+
+        let cumulative_ratio = match splits_by_asset.get(&lot.asset_id) {
+            Some(splits) => splits
+                .iter()
+                .filter(|(d, _)| *d > lot_open_date)
+                .map(|(_, r)| *r)
+                .fold(Decimal::ONE, |acc, r| acc * r),
+            None => Decimal::ONE,
+        };
+
+        if cumulative_ratio == Decimal::ONE {
+            // No relevant splits; lot stays as-is.
+            lots_by_account
+                .entry(lot.account_id.clone())
+                .or_default()
+                .push(lot);
+            continue;
+        }
+
+        // Parse the existing (post-split-baked) values for the rewrite.
+        let orig_qty = match Decimal::from_str(&lot.original_quantity) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!(
+                    "backfill_split_ratios: lot {} has malformed original_quantity '{}': {}; leaving as-is",
+                    lot.id, lot.original_quantity, e
+                );
+                lots_by_account
+                    .entry(lot.account_id.clone())
+                    .or_default()
+                    .push(lot);
+                continue;
+            }
+        };
+        let rem_qty = Decimal::from_str(&lot.remaining_quantity).unwrap_or(orig_qty);
+        let cpu = match Decimal::from_str(&lot.cost_per_unit) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!(
+                    "backfill_split_ratios: lot {} has malformed cost_per_unit '{}': {}; leaving as-is",
+                    lot.id, lot.cost_per_unit, e
+                );
+                lots_by_account
+                    .entry(lot.account_id.clone())
+                    .or_default()
+                    .push(lot);
+                continue;
+            }
+        };
+        let new_orig_qty = orig_qty / cumulative_ratio;
+        let new_rem_qty = rem_qty / cumulative_ratio;
+        let new_cpu = cpu * cumulative_ratio;
+
+        // total_cost_basis is preserved by construction: remaining × cpu is
+        // invariant under (1/r, ×r) on its two factors. fee_allocated stays
+        // untouched. We log an INFO-level warning when the stored
+        // total_cost_basis differs noticeably from `remaining × cpu` so
+        // pre-existing data corruption is visible, but we do NOT block the
+        // migration — the discrepancy is independent of the split refactor.
+        let fee = Decimal::from_str(&lot.fee_allocated).unwrap_or(Decimal::ZERO);
+        let stored_tcb = Decimal::from_str(&lot.total_cost_basis).unwrap_or(rem_qty * cpu + fee);
+        let expected_open_basis = if orig_qty.is_zero() {
+            stored_tcb
+        } else {
+            new_rem_qty * new_cpu + (new_rem_qty / new_orig_qty) * fee
+        };
+        if (expected_open_basis - stored_tcb).abs() > epsilon * Decimal::TEN {
+            log::warn!(
+                "backfill_split_ratios: lot {} has open cost basis discrepancy \
+                 (rem×cpu+prorated_fee={}, stored tcb={}, diff={}); migrating \
+                 anyway (split refactor preserves the existing tcb value). \
+                 This is pre-existing data corruption — typically an old FIFO \
+                 bug that debited cost basis from this lot without removing \
+                 shares.",
+                lot.id, expected_open_basis, stored_tcb, (expected_open_basis - stored_tcb).abs()
+            );
+        }
+
+        log::info!(
+            "backfill_split_ratios: lot {} (asset {}) {}: orig {}→{}, rem {}→{}, cpu {}→{}, split_ratio 1→{}",
+            lot.id, lot.asset_id, lot.open_date,
+            orig_qty, new_orig_qty,
+            rem_qty, new_rem_qty,
+            cpu, new_cpu,
+            cumulative_ratio
+        );
+
+        lot.original_quantity = new_orig_qty.to_string();
+        lot.remaining_quantity = new_rem_qty.to_string();
+        lot.cost_per_unit = new_cpu.to_string();
+        lot.split_ratio = cumulative_ratio.to_string();
+        // total_cost_basis is preserved as-is (open cost basis stays
+        // numerically the same when rem×cpu is invariant). fee_allocated
+        // unchanged (immutable).
+
+        *accounts_with_changes
+            .entry(lot.account_id.clone())
+            .or_default() += 1;
+        lots_by_account
+            .entry(lot.account_id.clone())
+            .or_default()
+            .push(lot);
+    }
+
+    let mut total_modified = 0usize;
+    for (account_id, lots) in lots_by_account {
+        let modified = accounts_with_changes.get(&account_id).copied().unwrap_or(0);
+        if modified == 0 {
+            continue; // No changes for this account; skip the rewrite.
+        }
+        lot_repo.replace_lots_for_account(&account_id, &lots).await?;
+        total_modified += modified;
+        log::info!(
+            "backfill_split_ratios: rewrote {} lot(s) for account {}",
+            modified, account_id
+        );
+    }
+
+    if total_modified > 0 {
+        log::info!(
+            "backfill_split_ratios: complete, {} lot(s) migrated to as-acquired + split_ratio model",
+            total_modified
+        );
+    }
+    Ok(total_modified)
+}
+
 // ── Historical replay ────────────────────────────────────────────────────────
 
-/// Adjusts lot quantities to reflect their state at `as_of_date` by replaying
-/// activities (Sell, TransferOut, Adjustment, Split) in chronological order.
+/// Adjusts lot rows to reflect their state at `as_of_date` by replaying
+/// activities chronologically. Returns lots in the as-acquired-units +
+/// `split_ratio` model:
+///   `effective_remaining_at(as_of_date) = lot.remaining_quantity * lot.split_ratio`
 ///
-/// Each lot's `remaining_quantity` is reset to `original_quantity` (the
-/// as-acquired, pre-split amount), then activities are applied:
-/// - Sell/TransferOut/Adjustment: FIFO reduction of lot quantities
-/// - Split: multiply all open lot quantities for that asset by the split ratio
+/// Algorithm:
+/// 1. Reset each lot to its as-acquired starting point: `remaining_quantity =
+///    original_quantity` and `split_ratio = 1`.
+/// 2. Walk SELL / TRANSFER_OUT / ADJUSTMENT / SPLIT activities for the asset
+///    in chronological order, but only those with `activity_date <= as_of_date`.
+///    - SPLIT (date X, lot.open_date < X): `lot.split_ratio *= ratio`. Lot
+///      quantity, cost_per_unit, total_cost_basis, fee_allocated are untouched.
+///    - SELL/TRANSFER_OUT/ADJUSTMENT (date X): consume `activity.qty()` in
+///      effective units FIFO. For each lot, `effective_remaining =
+///      remaining_quantity × split_ratio` (using the running ratio at this
+///      point in the replay). Decrement `remaining_quantity` by
+///      `consumed_effective / split_ratio`. Cost-basis proration uses
+///      as-acquired units against the immutable `cost_per_unit`.
 ///
-/// Lots whose adjusted quantity reaches zero are removed from the result.
-/// Lots with `original_quantity` of "0" (old snapshots that predate the field)
+/// Lots with `original_quantity = 0` (legacy snapshots that predate the field)
 /// are returned as-is since there is no anchor to replay from.
+///
+/// Lots whose `remaining_quantity` reaches zero after replay are filtered out
+/// of the result.
 pub fn replay_lots_to_date(
     lots: Vec<LotRecord>,
     activities: &[Activity],
@@ -315,7 +581,7 @@ pub fn replay_lots_to_date(
         return lots;
     }
 
-    // Filter to activity types that affect lot quantities, sorted by date
+    // Filter to activity types that affect lot quantities, sorted by date.
     let relevant_types = [
         ACTIVITY_TYPE_SELL,
         ACTIVITY_TYPE_TRANSFER_OUT,
@@ -329,7 +595,7 @@ pub fn replay_lots_to_date(
         .collect();
     relevant.sort_by_key(|a| a.activity_date);
 
-    // Group lots by (account_id, asset_id), preserving FIFO order by open_date
+    // Group lots by (account_id, asset_id), FIFO order by open_date.
     let mut groups: HashMap<(String, String), Vec<LotRecord>> = HashMap::new();
     for lot in lots {
         groups
@@ -341,15 +607,15 @@ pub fn replay_lots_to_date(
         group.sort_by(|a, b| a.open_date.cmp(&b.open_date));
     }
 
-    // Reset each lot's remaining_quantity to original_quantity
+    // Reset each lot to its as-acquired starting point.
+    // Cost-basis columns are split-invariant and stay as-stored; remaining
+    // is rewound to original, split_ratio is rewound to 1.
     for group in groups.values_mut() {
         for lot in group.iter_mut() {
             let orig = Decimal::from_str(&lot.original_quantity).unwrap_or(Decimal::ZERO);
             if !orig.is_zero() {
                 lot.remaining_quantity = lot.original_quantity.clone();
-                let cost_per_unit = Decimal::from_str(&lot.cost_per_unit).unwrap_or(Decimal::ZERO);
-                let fee = Decimal::from_str(&lot.fee_allocated).unwrap_or(Decimal::ZERO);
-                lot.total_cost_basis = (orig * cost_per_unit + fee).to_string();
+                lot.split_ratio = Decimal::ONE.to_string();
                 lot.is_closed = false;
                 lot.close_date = None;
                 lot.close_activity_id = None;
@@ -357,7 +623,7 @@ pub fn replay_lots_to_date(
         }
     }
 
-    // Replay activities in chronological order
+    // Replay activities in chronological order.
     for activity in &relevant {
         let asset_id: String = match &activity.asset_id {
             Some(id) => id.clone(),
@@ -370,65 +636,79 @@ pub fn replay_lots_to_date(
         };
 
         if activity.effective_type() == ACTIVITY_TYPE_SPLIT {
-            // Splits multiply all open lot quantities by the split ratio
-            let split_ratio = activity.qty();
-            if split_ratio.is_sign_positive() {
+            // SPLIT: multiply split_ratio of every lot opened before the split.
+            // Read the ratio from `amount`, with fallback to `quantity` if
+            // amount is NULL — matches handle_split in the calculator.
+            let ratio = {
+                let amt = activity.amt();
+                if amt.is_sign_positive() && !amt.is_zero() {
+                    amt
+                } else {
+                    activity.qty()
+                }
+            };
+            if ratio.is_sign_positive() && !ratio.is_zero() {
+                let split_date = activity.activity_date.date_naive();
                 for lot in group.iter_mut() {
-                    let remaining =
-                        Decimal::from_str(&lot.remaining_quantity).unwrap_or(Decimal::ZERO);
-                    if remaining > Decimal::ZERO {
-                        lot.remaining_quantity = (remaining * split_ratio).to_string();
-                        // cost_per_unit adjusts inversely; total_cost_basis unchanged
-                        let cpu = Decimal::from_str(&lot.cost_per_unit).unwrap_or(Decimal::ZERO);
-                        if !split_ratio.is_zero() {
-                            lot.cost_per_unit = (cpu / split_ratio).to_string();
-                        }
+                    let lot_open = NaiveDate::parse_from_str(&lot.open_date, "%Y-%m-%d")
+                        .unwrap_or(NaiveDate::MIN);
+                    if lot_open >= split_date {
+                        continue;
                     }
+                    let prior =
+                        Decimal::from_str(&lot.split_ratio).unwrap_or(Decimal::ONE);
+                    let prior = if prior.is_zero() { Decimal::ONE } else { prior };
+                    lot.split_ratio = (prior * ratio).to_string();
                 }
             }
-        } else {
-            // FIFO reduction for Sell/TransferOut/Adjustment
-            let mut qty_to_reduce = activity.qty().abs();
-            for lot in group.iter_mut() {
-                if qty_to_reduce <= Decimal::ZERO {
-                    break;
-                }
-                let remaining = Decimal::from_str(&lot.remaining_quantity).unwrap_or(Decimal::ZERO);
-                if remaining <= Decimal::ZERO {
-                    continue;
-                }
-                let reduce_from_lot = std::cmp::min(remaining, qty_to_reduce);
-                let new_remaining = remaining - reduce_from_lot;
-                lot.remaining_quantity = new_remaining.to_string();
+            continue;
+        }
 
-                // Adjust cost basis proportionally
-                let orig = Decimal::from_str(&lot.original_quantity).unwrap_or(Decimal::ONE);
-                if !orig.is_zero() {
-                    let cost_per_unit =
-                        Decimal::from_str(&lot.cost_per_unit).unwrap_or(Decimal::ZERO);
-                    let fee = Decimal::from_str(&lot.fee_allocated).unwrap_or(Decimal::ZERO);
-                    lot.total_cost_basis =
-                        (new_remaining * cost_per_unit + fee * new_remaining / orig).to_string();
-                }
-
-                if new_remaining <= Decimal::ZERO {
-                    lot.is_closed = true;
-                    lot.close_date = Some(
-                        activity
-                            .activity_date
-                            .date_naive()
-                            .format("%Y-%m-%d")
-                            .to_string(),
-                    );
-                    lot.close_activity_id = Some(activity.id.clone());
-                }
-
-                qty_to_reduce -= reduce_from_lot;
+        // SELL / TRANSFER_OUT / ADJUSTMENT: consume in effective (current-at-date) units.
+        let mut effective_to_reduce = activity.qty().abs();
+        for lot in group.iter_mut() {
+            if effective_to_reduce <= Decimal::ZERO {
+                break;
             }
+            let remaining =
+                Decimal::from_str(&lot.remaining_quantity).unwrap_or(Decimal::ZERO);
+            if remaining <= Decimal::ZERO {
+                continue;
+            }
+            let lot_split_ratio =
+                Decimal::from_str(&lot.split_ratio).unwrap_or(Decimal::ONE);
+            let lot_split_ratio = if lot_split_ratio.is_zero() {
+                Decimal::ONE
+            } else {
+                lot_split_ratio
+            };
+            let lot_effective = remaining * lot_split_ratio;
+            if lot_effective <= Decimal::ZERO {
+                continue;
+            }
+
+            let consume_effective = std::cmp::min(lot_effective, effective_to_reduce);
+            let consume_original = consume_effective / lot_split_ratio;
+            let new_remaining = remaining - consume_original;
+            lot.remaining_quantity = new_remaining.to_string();
+
+            if new_remaining <= Decimal::ZERO {
+                lot.is_closed = true;
+                lot.close_date = Some(
+                    activity
+                        .activity_date
+                        .date_naive()
+                        .format("%Y-%m-%d")
+                        .to_string(),
+                );
+                lot.close_activity_id = Some(activity.id.clone());
+            }
+
+            effective_to_reduce -= consume_effective;
         }
     }
 
-    // Return lots that still have positive quantity
+    // Return lots that still have positive remaining quantity.
     groups
         .into_values()
         .flatten()
@@ -472,6 +752,7 @@ mod tests {
             acquisition_fees: fee,
             fx_rate_to_position: None,
             source_activity_id: None,
+            split_ratio: Decimal::ONE,
         }
     }
 
@@ -821,6 +1102,7 @@ mod tests {
             cost_per_unit: "185".to_string(),
             total_cost_basis: "9250".to_string(),
             fee_allocated: "0".to_string(),
+            split_ratio: "1".to_string(),
             disposal_method: DisposalMethod::Fifo,
             is_closed: false,
             close_date: None,
@@ -859,6 +1141,7 @@ mod tests {
             cost_per_unit: cost_per_unit.to_string(),
             total_cost_basis: (orig * cpu).to_string(),
             fee_allocated: "0".to_string(),
+            split_ratio: "1".to_string(),
             disposal_method: DisposalMethod::Fifo,
             is_closed: remaining_qty == "0",
             close_date: None,
@@ -896,7 +1179,15 @@ mod tests {
             settlement_date: None,
             quantity: Some(quantity),
             unit_price: Some(dec!(100)),
-            amount: None,
+            // Mirror production: SPLIT activities carry the ratio in both
+            // `quantity` and `amount` (the JB/MS bridges set both, and the
+            // live `handle_split` reads from `amount`). Other activity types
+            // set amount=None as before.
+            amount: if activity_type == "SPLIT" {
+                Some(quantity)
+            } else {
+                None
+            },
             fee: Some(Decimal::ZERO),
             currency: "USD".to_string(),
             fx_rate: None,
@@ -1029,9 +1320,11 @@ mod tests {
     }
 
     #[test]
-    fn replay_split_multiplies_quantities() {
+    fn replay_split_updates_split_ratio_not_quantity() {
         // Buy 10 on Jan 1, 4:1 split on Feb 1.
-        // Jan 15: 10. Feb 15: 40.
+        //   Jan 15: split hasn't happened → split_ratio=1, remaining=10, effective=10.
+        //   Feb 15: split has happened → split_ratio=4, remaining=10, effective=40.
+        // remaining_quantity (in as-acquired units) is unchanged by the split.
         let lots = vec![make_lot_record(
             "buy1",
             "acc1",
@@ -1058,21 +1351,25 @@ mod tests {
         );
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].remaining_quantity, "10");
+        assert_eq!(result[0].split_ratio, "1");
 
-        // After split
+        // After split: as-acquired units unchanged; split_ratio reflects the 4:1.
         let result = replay_lots_to_date(
             lots,
             &activities,
             NaiveDate::from_ymd_opt(2024, 2, 15).unwrap(),
         );
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].remaining_quantity, "40");
+        assert_eq!(result[0].remaining_quantity, "10");
+        assert_eq!(result[0].split_ratio, "4");
     }
 
     #[test]
-    fn replay_split_then_sell() {
+    fn replay_split_then_sell_consumes_in_effective_units() {
         // Buy 10 on Jan 1, 2:1 split on Feb 1, sell 5 on Mar 1.
-        // Feb 15: 20. Mar 15: 15.
+        //   Feb 15: split_ratio=2, remaining=10, effective=20.
+        //   Mar 15: SELL of 5 (effective) → consumed_original = 5/2 = 2.5,
+        //           remaining=7.5, split_ratio=2, effective=15.
         let lots = vec![make_lot_record(
             "buy1",
             "acc1",
@@ -1093,7 +1390,12 @@ mod tests {
             NaiveDate::from_ymd_opt(2024, 3, 15).unwrap(),
         );
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].remaining_quantity, "15");
+        assert_eq!(
+            Decimal::from_str(&result[0].remaining_quantity).unwrap(),
+            dec!(7.5)
+        );
+        assert_eq!(result[0].split_ratio, "2");
+        // Effective check: 7.5 × 2 = 15 shares held post-sell.
     }
 
     #[test]

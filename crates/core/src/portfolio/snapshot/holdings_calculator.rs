@@ -291,9 +291,9 @@ impl HoldingsCalculator {
             ActivityType::TransferOut => {
                 self.handle_transfer_out(activity, state, account_currency, asset_cache)
             }
-            // Split activities are NO-OPs here: the snapshot service retroactively
-            // adjusts historical activity quantities/prices before the calculator runs.
-            ActivityType::Split => Ok(()),
+            ActivityType::Split => {
+                self.handle_split(activity, state, asset_cache)
+            }
             ActivityType::Adjustment => self.handle_adjustment(activity, state, asset_cache),
             ActivityType::Unknown => {
                 warn!(
@@ -889,6 +889,71 @@ impl HoldingsCalculator {
                     asset_id, activity.id
                 );
             }
+        }
+        Ok(())
+    }
+
+    /// Handle SPLIT activity.
+    ///
+    /// Multiplies the cumulative `split_ratio` of every open lot whose
+    /// `acquisition_date < activity.activity_date`, leaving `quantity`,
+    /// `acquisition_price`, `cost_basis`, and `acquisition_fees` unchanged.
+    /// Lots opened on or after the split date are not affected (their as-acquired
+    /// units are already post-split). See positions_model::Position::apply_split
+    /// and docs/architecture/data_model.md §3.5.
+    ///
+    /// SPLIT has no cash effect. Fractional cashouts must be reported by the
+    /// importer as a paired SELL activity; this handler does not synthesize one.
+    ///
+    /// The ratio is read from `activity.amount` (JB/MS bridge convention) with
+    /// a fallback to `activity.quantity` if amount is NULL or zero — the API's
+    /// import paths historically wrote quantity but not amount in some cases,
+    /// and a SPLIT row whose amount column is NULL would otherwise be silently
+    /// skipped. Both fields carry the same number when both are set.
+    fn handle_split(
+        &self,
+        activity: &Activity,
+        state: &mut AccountStateSnapshot,
+        _asset_cache: &mut HashMap<String, (String, bool, Decimal)>,
+    ) -> Result<()> {
+        let asset_id = match activity.asset_id.as_deref() {
+            Some(id) if !id.is_empty() => id,
+            _ => {
+                warn!(
+                    "SPLIT activity {} has no asset_id; skipping.",
+                    activity.id
+                );
+                return Ok(());
+            }
+        };
+
+        let ratio = {
+            let amt = activity.amt();
+            if amt.is_sign_positive() && !amt.is_zero() {
+                amt
+            } else {
+                activity.qty()
+            }
+        };
+        if !ratio.is_sign_positive() || ratio.is_zero() {
+            warn!(
+                "SPLIT activity {} on {} has non-positive ratio (amount={:?}, quantity={:?}); skipping.",
+                activity.id, activity.activity_date, activity.amount, activity.quantity
+            );
+            return Ok(());
+        }
+
+        if let Some(position) = state.positions.get_mut(asset_id) {
+            position.apply_split(ratio, activity.activity_date, &activity.id)?;
+        } else {
+            // Position not yet open in this account — split is a no-op for now.
+            // If a TRANSFER_IN later brings lots whose acquisition_date predates
+            // this split, the cumulative ratio recompute path (lots/mod.rs) will
+            // pick it up.
+            debug!(
+                "SPLIT activity {} for asset {} on {}: no open position, skipping.",
+                activity.id, asset_id, activity.activity_date
+            );
         }
         Ok(())
     }

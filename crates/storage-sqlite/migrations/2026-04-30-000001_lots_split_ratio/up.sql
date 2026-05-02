@@ -1,0 +1,34 @@
+-- ----------------------------------------------------------------------------
+-- lots.split_ratio — denormalized cumulative split factor per lot
+-- ----------------------------------------------------------------------------
+--
+-- Background. The previous design recorded each SPLIT activity in two places:
+-- the lots row (via remaining_quantity *= ratio and cost_per_unit /= ratio)
+-- and the activities row. The schema did not declare whether the lot
+-- quantities and cost columns were in pre-split or post-split units, leading
+-- to read paths that re-applied splits on top of already-post-split rows
+-- (e.g. replay_lots_to_date). See docs/architecture/data_model.md §3.5.
+--
+-- New invariant.
+--   - original_quantity, cost_per_unit, fee_allocated, total_cost_basis are
+--     immutable after insert. They store as-acquired values.
+--   - remaining_quantity is in original-acquisition units. SELL/TRANSFER_OUT
+--     decrement it after converting from broker-reported current units via
+--     `units_consumed = sale_qty_current / split_ratio`.
+--   - split_ratio carries the cumulative product of post-acquisition SPLIT
+--     activity ratios for the lot's asset. Default 1.0 means no splits since
+--     the lot was opened.
+--
+-- Effective shares held now = remaining_quantity * split_ratio.
+-- Effective cost per current share = cost_per_unit / split_ratio.
+-- Total cost basis is split-invariant.
+--
+-- Backfill. Existing rows have post-split values baked in. The companion data
+-- migration (run separately by snapshot_service on first startup) divides
+-- original_quantity and remaining_quantity by cumulative_ratio, multiplies
+-- cost_per_unit by cumulative_ratio, and writes split_ratio = cumulative_ratio.
+-- Until that runs, all rows have split_ratio = 1.0 and the read path returns
+-- the same values it did before.
+
+ALTER TABLE lots
+    ADD COLUMN split_ratio TEXT NOT NULL DEFAULT '1';

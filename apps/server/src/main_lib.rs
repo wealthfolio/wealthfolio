@@ -237,6 +237,23 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
     );
     let lots_repository = Arc::new(LotsRepository::new(pool.clone(), writer.clone()));
 
+    // One-time backfill: legacy lot rows had post-split values baked into
+    // original_quantity / remaining_quantity / cost_per_unit. Convert them to
+    // as-acquired columns + split_ratio. Idempotent — re-running after a
+    // successful backfill is a no-op.
+    if let Err(e) = wealthfolio_core::lots::backfill_split_ratios(
+        lots_repository.as_ref(),
+        activity_repository.as_ref(),
+    )
+    .await
+    {
+        error!(
+            "backfill_split_ratios failed at startup: {}. Continuing — lots will be \
+             re-migrated on next start.",
+            e
+        );
+    }
+
     let snapshot_service = Arc::new(
         SnapshotService::new_with_timezone(
             base_currency.clone(),

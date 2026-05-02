@@ -1215,6 +1215,7 @@ fn lots_from_snapshots(snapshots: &[AccountStateSnapshot]) -> Vec<crate::lots::L
                 cost_per_unit: pos.average_cost.to_string(),
                 total_cost_basis: pos.total_cost_basis.to_string(),
                 fee_allocated: "0".to_string(),
+                split_ratio: "1".to_string(),
                 disposal_method: crate::lots::DisposalMethod::Fifo,
                 is_closed: false,
                 close_date: None,

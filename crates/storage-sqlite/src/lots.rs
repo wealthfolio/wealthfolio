@@ -38,6 +38,7 @@ struct LotRecordDB {
     holding_period: Option<String>,
     created_at: String,
     updated_at: String,
+    split_ratio: String,
 }
 
 impl From<LotRecordDB> for LotRecord {
@@ -53,6 +54,7 @@ impl From<LotRecordDB> for LotRecord {
             cost_per_unit: r.cost_per_unit,
             total_cost_basis: r.total_cost_basis,
             fee_allocated: r.fee_allocated,
+            split_ratio: r.split_ratio,
             disposal_method: match r.disposal_method.as_str() {
                 "LIFO" => wealthfolio_core::lots::DisposalMethod::Lifo,
                 "HIFO" => wealthfolio_core::lots::DisposalMethod::Hifo,
@@ -88,6 +90,7 @@ impl From<&LotRecord> for LotRecordDB {
             cost_per_unit: r.cost_per_unit.clone(),
             total_cost_basis: r.total_cost_basis.clone(),
             fee_allocated: r.fee_allocated.clone(),
+            split_ratio: r.split_ratio.clone(),
             disposal_method: r.disposal_method.as_str().to_string(),
             is_closed: r.is_closed as i32,
             close_date: r.close_date.clone(),
@@ -252,8 +255,12 @@ impl LotRepositoryTrait for LotsRepository {
                                 .eq(diesel::upsert::excluded(dsl::original_quantity)),
                             dsl::remaining_quantity
                                 .eq(diesel::upsert::excluded(dsl::remaining_quantity)),
+                            dsl::cost_per_unit
+                                .eq(diesel::upsert::excluded(dsl::cost_per_unit)),
                             dsl::total_cost_basis
                                 .eq(diesel::upsert::excluded(dsl::total_cost_basis)),
+                            dsl::split_ratio
+                                .eq(diesel::upsert::excluded(dsl::split_ratio)),
                             dsl::is_closed.eq(diesel::upsert::excluded(dsl::is_closed)),
                             dsl::close_date.eq(diesel::upsert::excluded(dsl::close_date)),
                             dsl::close_activity_id
@@ -282,6 +289,7 @@ impl LotRepositoryTrait for LotsRepository {
                         cost_per_unit: closure.cost_per_unit.clone(),
                         total_cost_basis: closure.total_cost_basis.clone(),
                         fee_allocated: closure.fee_allocated.clone(),
+                        split_ratio: "1".to_string(),
                         disposal_method: "FIFO".to_string(),
                         is_closed: 1,
                         close_date: Some(closure.close_date.clone()),
@@ -462,6 +470,7 @@ mod tests {
             cost_per_unit: "150".to_string(),
             total_cost_basis: "15000".to_string(),
             fee_allocated: "0".to_string(),
+            split_ratio: "1".to_string(),
             disposal_method: DisposalMethod::Fifo,
             is_closed: false,
             close_date: None,
