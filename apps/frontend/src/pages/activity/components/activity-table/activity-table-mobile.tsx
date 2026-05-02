@@ -67,6 +67,7 @@ export const ActivityTableMobile = ({
           : isCashActivity(activityType) && !isAssetBackedIncome;
         const hasAsset = Boolean(activity.assetId?.trim());
         const isOptionActivity = activity.instrumentType === "OPTION";
+        const isMetalActivity = activity.instrumentType === "METAL";
         const parsedOption = isOptionActivity ? parseOccSymbol(symbol) : null;
         const displaySymbol = isCash ? "Cash" : parsedOption ? parsedOption.underlying : symbol;
         const avatarSymbol = isCash ? "$CASH" : symbol;
@@ -110,7 +111,12 @@ export const ActivityTableMobile = ({
                               <>
                                 <span>•</span>
                                 <span>
-                                  {activity.quantity} {isOptionActivity ? "contracts" : "shares"}
+                                  {activity.quantity}{" "}
+                                  {isOptionActivity
+                                    ? "contracts"
+                                    : isMetalActivity
+                                      ? "units"
+                                      : "shares"}
                                 </span>
                               </>
                             )}
@@ -207,7 +213,7 @@ export const ActivityTableMobile = ({
                   activity.quantity && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">
-                        {isOptionActivity ? "Contracts" : "Shares"}
+                        {isOptionActivity ? "Contracts" : isMetalActivity ? "Units" : "Shares"}
                       </span>
                       <span className="font-medium">{activity.quantity}</span>
                     </div>

@@ -41,6 +41,20 @@ import { HoldingsEditMode } from "@/pages/holdings/components/holdings-edit-mode
 interface AssetAccountHoldingsProps {
   assetId: string;
   baseCurrency: string;
+  instrumentType?: string | null;
+}
+
+function quantityLabel(instrumentType?: string | null): string {
+  switch (instrumentType) {
+    case "BOND":
+      return "bonds";
+    case "OPTION":
+      return "contracts";
+    case "METAL":
+      return "units";
+    default:
+      return "shares";
+  }
 }
 
 /** Returns true if any HOLDINGS-mode account has actual non-calculated snapshots */
@@ -76,7 +90,11 @@ export function useHasManualSnapshots(assetId: string): boolean {
 }
 
 /** Holdings table - per-account breakdown for an asset */
-export function AssetAccountHoldings({ assetId, baseCurrency }: AssetAccountHoldingsProps) {
+export function AssetAccountHoldings({
+  assetId,
+  baseCurrency,
+  instrumentType,
+}: AssetAccountHoldingsProps) {
   const { isBalanceHidden } = useBalancePrivacy();
   const { accounts } = useAccounts();
   const isMobile = useIsMobileViewport();
@@ -111,7 +129,8 @@ export function AssetAccountHoldings({ assetId, baseCurrency }: AssetAccountHold
                   )}
                 </div>
                 <p className="text-muted-foreground text-xs">
-                  <QuantityDisplay value={h.quantity} isHidden={isBalanceHidden} /> shares
+                  <QuantityDisplay value={h.quantity} isHidden={isBalanceHidden} />{" "}
+                  {quantityLabel(instrumentType)}
                 </p>
               </div>
               <div className="shrink-0 text-right">
@@ -144,7 +163,7 @@ export function AssetAccountHoldings({ assetId, baseCurrency }: AssetAccountHold
         <TableHeader className="bg-muted/50">
           <TableRow>
             <TableHead>Account</TableHead>
-            <TableHead className="text-right">Shares</TableHead>
+            <TableHead className="text-right capitalize">{quantityLabel(instrumentType)}</TableHead>
             <TableHead className="text-right">Market Value</TableHead>
             <TableHead className="text-right">Cost Basis</TableHead>
             <TableHead className="text-right">Gain/Loss</TableHead>
@@ -216,9 +235,11 @@ interface EnrichedSnapshot extends SnapshotInfo {
 export function AssetSnapshotHistory({
   assetId,
   baseCurrency,
+  instrumentType,
 }: {
   assetId: string;
   baseCurrency: string;
+  instrumentType?: string | null;
 }) {
   const { isBalanceHidden } = useBalancePrivacy();
   const queryClient = useQueryClient();
@@ -461,7 +482,9 @@ export function AssetSnapshotHistory({
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Account</TableHead>
-                <TableHead className="text-right">Shares</TableHead>
+                <TableHead className="text-right capitalize">
+                  {quantityLabel(instrumentType)}
+                </TableHead>
                 <TableHead className="text-right">Avg Cost</TableHead>
                 <TableHead>Source</TableHead>
                 <TableHead className="w-[80px]" />

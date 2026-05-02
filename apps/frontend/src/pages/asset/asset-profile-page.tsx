@@ -107,6 +107,7 @@ interface AssetDetailData {
     strike?: number | null;
     expiration?: string | null;
   } | null;
+  instrumentType?: string | null;
 }
 
 type AssetTab = "overview" | "lots" | "history";
@@ -489,8 +490,9 @@ export const AssetProfilePage = () => {
       quote: quoteData?.quote ?? null,
       bondSpec: bondSpec ?? null,
       optionSpec: optionSpec ?? null,
+      instrumentType: assetProfile?.instrumentType ?? null,
     };
-  }, [holding, quote, bondSpec, optionSpec]);
+  }, [holding, quote, bondSpec, optionSpec, assetProfile]);
 
   // Build toggle items dynamically based on available data
   const toggleItems = useMemo(() => {
@@ -612,11 +614,19 @@ export const AssetProfilePage = () => {
             )}
 
             {overviewSubTab === "holdings" && (
-              <AssetAccountHoldings assetId={assetId} baseCurrency={baseCurrency} />
+              <AssetAccountHoldings
+                assetId={assetId}
+                baseCurrency={baseCurrency}
+                instrumentType={assetProfile?.instrumentType}
+              />
             )}
 
             {overviewSubTab === "snapshots" && (
-              <AssetSnapshotHistory assetId={assetId} baseCurrency={baseCurrency} />
+              <AssetSnapshotHistory
+                assetId={assetId}
+                baseCurrency={baseCurrency}
+                instrumentType={assetProfile?.instrumentType}
+              />
             )}
           </div>
         ),
@@ -1236,11 +1246,19 @@ export const AssetProfilePage = () => {
                 )}
 
                 {overviewSubTab === "holdings" && (
-                  <AssetAccountHoldings assetId={assetId} baseCurrency={baseCurrency} />
+                  <AssetAccountHoldings
+                    assetId={assetId}
+                    baseCurrency={baseCurrency}
+                    instrumentType={assetProfile?.instrumentType}
+                  />
                 )}
 
                 {overviewSubTab === "snapshots" && (
-                  <AssetSnapshotHistory assetId={assetId} baseCurrency={baseCurrency} />
+                  <AssetSnapshotHistory
+                    assetId={assetId}
+                    baseCurrency={baseCurrency}
+                    instrumentType={assetProfile?.instrumentType}
+                  />
                 )}
               </TabsContent>
             )}

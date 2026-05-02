@@ -122,6 +122,7 @@ export function MobileDetailsStep({ accounts, activityType, isEditing }: MobileD
   const assetType = isBuyOrSell ? ((watch("assetType" as any) as string) ?? "stock") : "stock";
   const isOption = assetType === "option";
   const isBond = assetType === "bond";
+  const isMetal = assetType === "metal";
   const isManualForType = isManualAsset && !isBond;
 
   // Option fields for total calculation
@@ -319,7 +320,9 @@ export function MobileDetailsStep({ accounts, activityType, isEditing }: MobileD
       ? "Contracts"
       : isBond
         ? "Bonds"
-        : "Shares";
+        : isMetal
+          ? "Units"
+          : "Shares";
   const priceLabel = isAssetBackedIncome
     ? subtype === ACTIVITY_SUBTYPES.DRIP
       ? "Reinvestment price"

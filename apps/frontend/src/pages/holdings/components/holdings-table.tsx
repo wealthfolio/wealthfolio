@@ -276,11 +276,12 @@ const getColumns = (
         assetTypeKey.startsWith("BOND_") ||
         assetTypeKey === "DEBT_SECURITY" ||
         assetTypeKey === "MONEY_MARKET_DEBT";
+      const isMetal = /^X(AU|AG|PT|PD)\b/.test(symbol);
       return (
         <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
           <QuantityDisplay value={row.original.quantity} isHidden={isHidden} />
           <span className="text-muted-foreground text-xs">
-            {isOption ? "contracts" : isBond ? "bonds" : "shares"}
+            {isOption ? "contracts" : isBond ? "bonds" : isMetal ? "units" : "shares"}
           </span>
         </div>
       );

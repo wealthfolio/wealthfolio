@@ -37,12 +37,26 @@ interface AssetDetail {
     strike?: number | null;
     expiration?: string | null;
   } | null;
+  instrumentType?: string | null;
   className?: string;
 }
 
 interface AssetDetailProps {
   assetData: AssetDetail;
   className?: string;
+}
+
+function quantityLabel(instrumentType?: string | null): string {
+  switch (instrumentType) {
+    case "BOND":
+      return "bonds";
+    case "OPTION":
+      return "contracts";
+    case "METAL":
+      return "units";
+    default:
+      return "shares";
+  }
 }
 
 const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) => {
@@ -113,7 +127,9 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
             <div>
               <QuantityDisplay value={numShares} isHidden={isBalanceHidden} />
             </div>
-            <div className="text-muted-foreground text-sm font-normal">shares</div>
+            <div className="text-muted-foreground text-sm font-normal">
+              {quantityLabel(assetData.instrumentType)}
+            </div>
           </div>
           <div>
             <div className="text-xl font-extrabold">

@@ -29,6 +29,11 @@ export function PortfolioUpdateTrigger({
   const recalculatePortfolioMutation = useRecalculatePortfolioMutation();
   const formattedLastCalculatedAt = lastCalculatedAt ? formatDateTime(lastCalculatedAt) : null;
 
+  // Show a visible staleness indicator when data is > 1 day old
+  const isStale = lastCalculatedAt
+    ? Date.now() - new Date(lastCalculatedAt).getTime() > 24 * 60 * 60 * 1000
+    : false;
+
   // Define handlers internally
   const handleUpdate = () => {
     updatePortfolioMutation.mutate();
@@ -40,8 +45,14 @@ export function PortfolioUpdateTrigger({
 
   return (
     <HoverCard>
-      <HoverCardTrigger className="inline-flex cursor-pointer items-center">
+      <HoverCardTrigger className="inline-flex cursor-pointer items-center gap-2">
         {children}
+        {isStale && (
+          <Badge variant="outline" className="text-muted-foreground gap-1 text-xs font-normal">
+            <Icons.AlertTriangle className="h-3 w-3" />
+            {formattedLastCalculatedAt ? `As of ${formattedLastCalculatedAt.date}` : "Stale"}
+          </Badge>
+        )}
       </HoverCardTrigger>
       <HoverCardContent align="start" className="w-80 shadow-none">
         <div className="flex flex-col space-y-4">
