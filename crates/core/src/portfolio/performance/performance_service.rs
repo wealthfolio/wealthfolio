@@ -754,11 +754,25 @@ impl PerformanceService {
         previous: Option<&DailyAccountValuation>,
         total_portfolio_value_base: Option<Decimal>,
     ) -> SimplePerformanceMetrics {
-        // Use self for the current valuation data
-        let total_gain_loss_amount = current.total_value - current.net_contribution;
-        let denominator_cumulative_return = current.net_contribution;
-        let cumulative_return_percent = if !denominator_cumulative_return.is_zero() {
-            Some((total_gain_loss_amount / denominator_cumulative_return).round_dp(4))
+        // "Cumulative gain" here means unrealized P&L on currently-held lots:
+        // (market value of holdings) - (cost basis of those holdings). Cash is
+        // included in market value but contributes nothing to cost basis, so
+        // for a pure-cash account the percentage is undefined (None).
+        //
+        // The previous formula divided by `net_contribution`, which treats
+        // internal account-to-account transfers as external deposits/
+        // withdrawals. Accounts that received holdings via transfer-out from
+        // a sibling end up with negative net_contribution, producing
+        // nonsensical percentages (e.g. -4637%). Cost-basis is invariant
+        // under internal transfers, so this denominator stays well-behaved.
+        //
+        // Trade-off: this metric does NOT include realized gains from past
+        // sales — closed lots' cost basis is gone. A lifetime "total return"
+        // metric requires implementing realized P&L separately.
+        let cost_basis = current.cost_basis;
+        let total_gain_loss_amount = current.investment_market_value - cost_basis;
+        let cumulative_return_percent = if !cost_basis.is_zero() {
+            Some((total_gain_loss_amount / cost_basis).round_dp(4))
         } else if total_gain_loss_amount.is_zero() {
             Some(Decimal::ZERO)
         } else {
@@ -959,5 +973,184 @@ impl PerformanceServiceTrait for PerformanceService {
         }
 
         Ok(results)
+    }
+}
+
+#[cfg(test)]
+mod simple_performance_tests {
+    use super::*;
+    use chrono::{NaiveDate, TimeZone, Utc};
+    use rust_decimal_macros::dec;
+
+    fn val(
+        total_value: Decimal,
+        investment_market_value: Decimal,
+        cost_basis: Decimal,
+        net_contribution: Decimal,
+    ) -> DailyAccountValuation {
+        DailyAccountValuation {
+            id: "id".to_string(),
+            account_id: "acc".to_string(),
+            valuation_date: NaiveDate::from_ymd_opt(2026, 5, 1).unwrap(),
+            account_currency: "USD".to_string(),
+            base_currency: "USD".to_string(),
+            fx_rate_to_base: Decimal::ONE,
+            cash_balance: total_value - investment_market_value,
+            investment_market_value,
+            total_value,
+            cost_basis,
+            net_contribution,
+            calculated_at: Utc.with_ymd_and_hms(2026, 5, 1, 0, 0, 0).unwrap(),
+            alternative_market_value: Decimal::ZERO,
+        }
+    }
+
+    /// Holdings appreciated 10% above their cost basis.
+    #[test]
+    fn unrealized_gain_uses_cost_basis_denominator() {
+        let v = val(dec!(110_000), dec!(110_000), dec!(100_000), dec!(100_000));
+        let m = PerformanceService::calculate_simple_performance(&v, None, None);
+
+        assert_eq!(m.total_gain_loss_amount, Some(dec!(10_000)));
+        assert_eq!(m.cumulative_return_percent, Some(dec!(0.1000)));
+    }
+
+    /// Negative `net_contribution` (paired internal transfers leaving the
+    /// account) used to produce wildly negative percentages like -4637% via
+    /// `gain / net_contribution`. Cost-basis-based formula is invariant under
+    /// internal transfers — the receiving account inherits the cost basis,
+    /// the sending account loses it.
+    #[test]
+    fn negative_net_contribution_does_not_break_percentage() {
+        // Real prod data: MS-7687 Triantos Trust Parametric on 2026-05-01.
+        // total_value=785,239, IMV=782,956, cost_basis=453,816,
+        // net_contribution=-17,305 (account had ~$17K of net transfers out).
+        // Old formula: 802,544 / -17,305 = -4637%.
+        // New formula: (782,956 - 453,816) / 453,816 ≈ +72.5%.
+        let v = val(
+            dec!(785_239.20),
+            dec!(782_956.24),
+            dec!(453_816.13),
+            dec!(-17_305.00),
+        );
+        let m = PerformanceService::calculate_simple_performance(&v, None, None);
+
+        let pct = m.cumulative_return_percent.expect("percent should be defined");
+        assert!(
+            pct > dec!(0.5) && pct < dec!(1.0),
+            "expected 50%-100% range, got {}",
+            pct
+        );
+        // Sanity: gain is positive and bounded by IMV (no inflation from net_cash_flow).
+        let gain = m.total_gain_loss_amount.expect("gain present");
+        assert!(gain > Decimal::ZERO);
+        assert!(gain <= v.investment_market_value);
+    }
+
+    /// Pure-cash account (e.g. an old IRA that was rolled out): cost basis
+    /// is zero, only residual cash remains. Old formula gave -100% via
+    /// `cash / negative_net_contribution`. New formula reports 0% — there
+    /// are no held positions to appreciate or depreciate. Critically, it
+    /// does NOT inflate gain by `cash - net_contribution` like the old
+    /// formula did.
+    #[test]
+    fn pure_cash_account_with_negative_nc_reports_zero_pct() {
+        // Real prod data: MS-7257 Nick IRA Rollover after rollout.
+        let v = val(dec!(144.56), Decimal::ZERO, Decimal::ZERO, dec!(-1_813_194));
+        let m = PerformanceService::calculate_simple_performance(&v, None, None);
+
+        assert_eq!(m.total_gain_loss_amount, Some(Decimal::ZERO));
+        assert_eq!(m.cumulative_return_percent, Some(Decimal::ZERO));
+    }
+
+    /// Empty account (no holdings, no cash, no contributions): no data,
+    /// no percent. Should not crash or report a return.
+    #[test]
+    fn empty_account_returns_zero_pct() {
+        let v = val(Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO);
+        let m = PerformanceService::calculate_simple_performance(&v, None, None);
+
+        assert_eq!(m.total_gain_loss_amount, Some(Decimal::ZERO));
+        assert_eq!(m.cumulative_return_percent, Some(Decimal::ZERO));
+    }
+
+    /// Holdings worth less than cost basis → loss expressed as a negative
+    /// percentage (this is a real loss, not a calculation artifact).
+    #[test]
+    fn position_at_a_loss_reports_negative_pct() {
+        let v = val(dec!(80_000), dec!(80_000), dec!(100_000), dec!(100_000));
+        let m = PerformanceService::calculate_simple_performance(&v, None, None);
+
+        assert_eq!(m.total_gain_loss_amount, Some(dec!(-20_000)));
+        assert_eq!(m.cumulative_return_percent, Some(dec!(-0.2000)));
+    }
+
+    /// Account that received holdings via internal transfer (paired
+    /// TRANSFER_OUT/TRANSFER_IN). Receiving side: net_contribution = 0
+    /// (no external cash), but cost basis arrived with the lots. Should
+    /// report the unrealized gain on those inherited lots correctly.
+    #[test]
+    fn transfer_in_recipient_reports_correct_pct() {
+        // 100 shares @ $50 cost transferred in, now worth $80/share.
+        // Receiving account: external net_contribution=0, cost_basis=5_000,
+        // IMV=8_000. Old formula: gain/0 → None. New formula: 60% gain.
+        let v = val(dec!(8_000), dec!(8_000), dec!(5_000), Decimal::ZERO);
+        let m = PerformanceService::calculate_simple_performance(&v, None, None);
+
+        assert_eq!(m.total_gain_loss_amount, Some(dec!(3_000)));
+        assert_eq!(m.cumulative_return_percent, Some(dec!(0.6000)));
+    }
+
+    /// Account that transferred holdings out (paired TRANSFER_OUT). Sending
+    /// side: lots are gone (cost_basis=0), but net_contribution went
+    /// strongly negative because TRANSFER_OUT is treated as a withdrawal.
+    /// Old formula: gain/negative_nc → wild negative %. New formula: 0%
+    /// (no held positions, regardless of how negative net_contribution got).
+    #[test]
+    fn transfer_out_sender_with_residual_cash_reports_zero_pct() {
+        // Account emptied via transfer; small residual cash sweep remains.
+        let v = val(dec!(50.81), Decimal::ZERO, Decimal::ZERO, dec!(-471_086));
+        let m = PerformanceService::calculate_simple_performance(&v, None, None);
+
+        assert_eq!(m.total_gain_loss_amount, Some(Decimal::ZERO));
+        assert_eq!(m.cumulative_return_percent, Some(Decimal::ZERO));
+    }
+
+    /// Cost basis is zero but somehow market value is positive (data
+    /// integrity edge — e.g. an asset received via transfer with no cost
+    /// basis recorded). Percent is genuinely undefined; gain is the full
+    /// market value.
+    #[test]
+    fn imv_without_cost_basis_returns_none_pct() {
+        let v = val(dec!(5_000), dec!(5_000), Decimal::ZERO, Decimal::ZERO);
+        let m = PerformanceService::calculate_simple_performance(&v, None, None);
+
+        assert_eq!(m.total_gain_loss_amount, Some(dec!(5_000)));
+        assert_eq!(m.cumulative_return_percent, None);
+    }
+
+    /// `total_gain_loss_amount` and `cumulative_return_percent` must be
+    /// derived from the same denominator (cost_basis). Mixing them — e.g.
+    /// reporting `gain = value - net_contribution` while denominator is
+    /// `cost_basis` — produces inconsistent gain / (gain ÷ %) ≠ %·denom
+    /// relations. Lock that invariant down.
+    #[test]
+    fn gain_and_pct_share_denominator() {
+        // Mismatched scenario the old code allowed: nc and cost_basis differ.
+        let v = val(
+            dec!(150_000), // value
+            dec!(150_000), // imv
+            dec!(80_000),  // cost_basis
+            dec!(120_000), // net_contribution (different from cost_basis)
+        );
+        let m = PerformanceService::calculate_simple_performance(&v, None, None);
+
+        let gain = m.total_gain_loss_amount.expect("gain present");
+        let pct = m.cumulative_return_percent.expect("pct present");
+        // Both must be cost-basis-relative.
+        assert_eq!(gain, dec!(70_000)); // 150k - 80k cost_basis (NOT 150k - 120k nc)
+        assert_eq!(pct, dec!(0.8750)); // 70k / 80k
+        // Algebraic consistency: pct * cost_basis == gain.
+        assert_eq!((pct * v.cost_basis).round_dp(2), gain.round_dp(2));
     }
 }
