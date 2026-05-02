@@ -435,20 +435,27 @@ impl ValuationServiceTrait for ValuationService {
                 .await?
         };
 
-        // Pre-fetch asset metadata for all assets referenced by lots.
-        let lot_asset_ids: Vec<String> = all_lots
+        // Pre-fetch asset metadata for all assets referenced by lots and by
+        // any per-snapshot positions (HOLDINGS-mode snapshots populate
+        // `positions` from `snapshot_positions`; historical snapshots may
+        // reference assets no longer present in the current lot row).
+        let mut all_asset_ids: HashSet<String> = all_lots
             .iter()
             .map(|l| l.asset_id.clone())
-            .collect::<HashSet<_>>()
-            .into_iter()
             .collect();
-        let assets = self.asset_repository.list_by_asset_ids(&lot_asset_ids)?;
+        for snap in &snapshots_to_process {
+            for asset_id in snap.positions.keys() {
+                all_asset_ids.insert(asset_id.clone());
+            }
+        }
+        let asset_id_vec: Vec<String> = all_asset_ids.iter().cloned().collect();
+        let assets = self.asset_repository.list_by_asset_ids(&asset_id_vec)?;
         let asset_map: HashMap<String, _> = assets
             .into_iter()
             .map(|a| (a.id.clone(), a))
             .collect();
 
-        let mut required_asset_ids: HashSet<String> = lot_asset_ids.into_iter().collect();
+        let mut required_asset_ids: HashSet<String> = all_asset_ids;
         let mut required_fx_pairs = HashSet::new();
         let base_curr = {
             let base_guard = self.base_currency.read().unwrap();
@@ -522,30 +529,6 @@ impl ValuationServiceTrait for ValuationService {
             map
         };
 
-        // Security positions: fetch all lots for this account once so we can filter per date
-        // in memory rather than issuing one query per day in the range.
-        // For the TOTAL pseudo-account, aggregate lots across all accounts.
-        let all_lots = if account_id == PORTFOLIO_TOTAL_ACCOUNT_ID {
-            self.lot_repository.get_all_lots().await?
-        } else {
-            self.lot_repository
-                .get_all_lots_for_account(account_id)
-                .await?
-        };
-
-        // Pre-fetch asset metadata for all assets referenced by lots.
-        let lot_asset_ids: Vec<String> = all_lots
-            .iter()
-            .map(|l| l.asset_id.clone())
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect();
-        let assets = self.asset_repository.list_by_asset_ids(&lot_asset_ids)?;
-        let asset_map: HashMap<String, _> = assets
-            .into_iter()
-            .map(|a| (a.id.clone(), a))
-            .collect();
-
         let newly_calculated_valuations: Vec<DailyAccountValuation> = snapshots_to_process
             .into_iter()
             .filter_map(|holdings_snapshot| {
@@ -553,6 +536,76 @@ impl ValuationServiceTrait for ValuationService {
                 let account_id_clone = account_id.to_string();
                 let base_curr_clone = base_curr.clone();
                 let date_str = current_date.format("%Y-%m-%d").to_string();
+
+                // For HOLDINGS-mode accounts, the snapshot returned by
+                // `get_daily_holdings_snapshots` is already enriched with
+                // per-snapshot positions from `snapshot_positions` (and
+                // carried forward to non-keyframe days). Use them directly
+                // — the lot table for HOLDINGS accounts holds only the
+                // single synthetic lot stamped at the latest snapshot date
+                // and would zero out historical IMV.
+                if !holdings_snapshot.positions.is_empty() {
+                    let snapshot_with_positions = holdings_snapshot;
+
+                    let quotes_for_current_date =
+                        quotes_by_date.get(&current_date).cloned().unwrap_or_default();
+                    let fx_for_current_date = fx_rates_by_date
+                        .get(&current_date)
+                        .cloned()
+                        .unwrap_or_default();
+
+                    let quotable_positions: Vec<_> = snapshot_with_positions
+                        .positions
+                        .iter()
+                        .filter(|(_, position)| !position.quantity.is_zero())
+                        .map(|(symbol, _)| symbol)
+                        .filter(|symbol| assets_with_quotes.contains(*symbol))
+                        .cloned()
+                        .collect();
+                    let missing_quotes: Vec<_> = quotable_positions
+                        .iter()
+                        .filter(|symbol| !quotes_for_current_date.contains_key(*symbol))
+                        .cloned()
+                        .collect();
+                    if !quotable_positions.is_empty()
+                        && missing_quotes.len() == quotable_positions.len()
+                    {
+                        debug!(
+                            "No quotes for any quotable position on {} (account '{}'). Skipping day.",
+                            current_date, account_id_clone
+                        );
+                        return None;
+                    }
+
+                    let account_curr = &snapshot_with_positions.currency;
+                    if account_curr != &base_curr_clone
+                        && !fx_for_current_date
+                            .contains_key(&(account_curr.clone(), base_curr_clone.clone()))
+                    {
+                        warn!(
+                            "Base currency FX rate ({}->{}) missing for {} (account '{}'). Skipping day.",
+                            account_curr, base_curr_clone, current_date, account_id_clone
+                        );
+                        return None;
+                    }
+
+                    return match calculate_valuation(
+                        &snapshot_with_positions,
+                        &quotes_for_current_date,
+                        &fx_for_current_date,
+                        current_date,
+                        &base_curr_clone,
+                    ) {
+                        Ok(v) => Some(v),
+                        Err(e) => {
+                            error!(
+                                "Failed to calculate valuation for account {} on date {}: {}. Skipping this date.",
+                                account_id, current_date, e
+                            );
+                            None
+                        }
+                    };
+                }
 
                 // Build security positions from lots active on current_date.
                 let mut aggregated: HashMap<String, (Decimal, Decimal)> = HashMap::new();

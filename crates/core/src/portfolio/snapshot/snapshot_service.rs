@@ -14,7 +14,7 @@ use crate::lots::{
     LotRepositoryTrait,
 };
 use crate::portfolio::snapshot::{
-    AccountStateSnapshot, HoldingsCalculationWarning, SnapshotSource,
+    AccountStateSnapshot, HoldingsCalculationWarning, Position, SnapshotSource,
 };
 use crate::utils::time_utils::{
     activity_date_in_tz, get_days_between, parse_user_timezone_or_default, user_today,
@@ -135,6 +135,14 @@ pub trait SnapshotServiceTrait: Send + Sync {
     /// each account's latest snapshot. Called during startup backfill because
     /// `recalculate_holdings_snapshots` only processes TRANSACTIONS-mode accounts.
     async fn backfill_lots_for_holdings_accounts(&self) -> Result<usize>;
+
+    /// Batch-load per-snapshot positions from `snapshot_positions`.
+    /// Only HOLDINGS-mode snapshots (BROKER_IMPORTED / MANUAL / CSV / SYNTHETIC)
+    /// have rows here; CALCULATED snapshots return an empty map for that id.
+    fn get_snapshot_positions_batch(
+        &self,
+        snapshot_ids: &[String],
+    ) -> Result<HashMap<String, HashMap<String, Position>>>;
 }
 
 // --- Service Implementation ---
@@ -1011,17 +1019,56 @@ impl SnapshotServiceTrait for SnapshotService {
             Some(start_date), // Fetch keyframes from start_date...
             Some(end_date),   // ...to end_date inclusive
         )?;
-        let keyframes_map: BTreeMap<NaiveDate, AccountStateSnapshot> = keyframes_in_range
-            .into_iter()
-            .map(|kf| (kf.snapshot_date, kf))
-            .collect();
 
         // Try to get the state from the day before the loop starts.
         let initial_state_result = self
             .snapshot_repository
             .get_latest_snapshot_before_date(account_id, start_date);
 
-        let mut current_state = match initial_state_result? {
+        let mut initial_keyframe_opt = initial_state_result?;
+
+        // Enrich keyframes (and the pre-range initial keyframe) with their
+        // per-asset positions from `snapshot_positions`. The serialized
+        // `positions` JSON on each row is intentionally empty post-Phase-C;
+        // the relational table is the source of truth for HOLDINGS-mode
+        // accounts. Carry-forward in the loop below will propagate the
+        // populated `positions` map to non-keyframe days. CALCULATED
+        // (TRANSACTIONS-mode) snapshots have no rows in snapshot_positions,
+        // so their `positions` stays empty and downstream consumers fall
+        // back to the lots table.
+        let mut all_ids: Vec<String> =
+            keyframes_in_range.iter().map(|kf| kf.id.clone()).collect();
+        if let Some(ref init) = initial_keyframe_opt {
+            all_ids.push(init.id.clone());
+        }
+        let mut positions_by_snapshot = self
+            .snapshot_repository
+            .get_snapshot_positions_batch(&all_ids)
+            .unwrap_or_default();
+        let enriched_keyframes: Vec<AccountStateSnapshot> = keyframes_in_range
+            .into_iter()
+            .map(|mut kf| {
+                if let Some(pos) = positions_by_snapshot.remove(&kf.id) {
+                    if !pos.is_empty() {
+                        kf.positions = pos;
+                    }
+                }
+                kf
+            })
+            .collect();
+        if let Some(ref mut init) = initial_keyframe_opt {
+            if let Some(pos) = positions_by_snapshot.remove(&init.id) {
+                if !pos.is_empty() {
+                    init.positions = pos;
+                }
+            }
+        }
+        let keyframes_map: BTreeMap<NaiveDate, AccountStateSnapshot> = enriched_keyframes
+            .into_iter()
+            .map(|kf| (kf.snapshot_date, kf))
+            .collect();
+
+        let mut current_state = match initial_keyframe_opt {
             Some(initial_snapshot) => initial_snapshot,
             None => {
                 // No snapshot found before start date.
@@ -1473,6 +1520,14 @@ impl SnapshotServiceTrait for SnapshotService {
             holdings_accounts.len()
         );
         Ok(total_lots)
+    }
+
+    fn get_snapshot_positions_batch(
+        &self,
+        snapshot_ids: &[String],
+    ) -> Result<HashMap<String, HashMap<String, Position>>> {
+        self.snapshot_repository
+            .get_snapshot_positions_batch(snapshot_ids)
     }
 }
 
