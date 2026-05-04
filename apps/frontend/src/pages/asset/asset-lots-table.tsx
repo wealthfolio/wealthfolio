@@ -17,9 +17,15 @@ interface AssetLotsTableProps {
   lots: Lot[];
   currency: string;
   marketPrice: number;
+  instrumentType?: string | null;
 }
 
-export const AssetLotsTable = ({ lots, currency, marketPrice }: AssetLotsTableProps) => {
+export const AssetLotsTable = ({
+  lots,
+  currency,
+  marketPrice,
+  instrumentType,
+}: AssetLotsTableProps) => {
   if (!lots || lots.length === 0) {
     return null;
   }
@@ -56,7 +62,12 @@ export const AssetLotsTable = ({ lots, currency, marketPrice }: AssetLotsTablePr
                     <TableCell className="font-medium">{formatDate(lot.acquisitionDate)}</TableCell>
                     <TableCell className="text-right">{formatQuantity(lot.quantity)}</TableCell>
                     <TableCell className="text-right">
-                      {formatAmount(lot.acquisitionPrice, currency)}
+                      {formatAmount(
+                        lot.acquisitionPrice,
+                        currency,
+                        true,
+                        instrumentType === "BOND" ? 4 : undefined,
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       {formatAmount(lot.acquisitionFees, currency)}

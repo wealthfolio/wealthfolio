@@ -1016,7 +1016,12 @@ export function AssetEditSheet({
                         <div className="grid grid-cols-3 gap-4 text-center">
                           <div>
                             <p className="text-xl font-semibold">
-                              {formatAmount(latestQuote.close, latestQuote.currency)}
+                              {formatAmount(
+                                latestQuote.close,
+                                latestQuote.currency,
+                                true,
+                                asset?.instrumentType === "BOND" ? 4 : undefined,
+                              )}
                             </p>
                             <p className="text-muted-foreground text-xs">Latest price</p>
                           </div>

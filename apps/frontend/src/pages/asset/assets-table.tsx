@@ -232,7 +232,12 @@ export function AssetsTable({
                   </Tooltip>
                 ) : null}
                 <span className="font-semibold tabular-nums">
-                  {formatAmount(quote.close, quote.currency ?? asset.quoteCcy ?? baseCurrency)}
+                  {formatAmount(
+                    quote.close,
+                    quote.currency ?? asset.quoteCcy ?? baseCurrency,
+                    true,
+                    asset.instrumentType === "BOND" ? 4 : undefined,
+                  )}
                 </span>
               </div>
               <div className="text-muted-foreground text-[11px]">{formatDate(quote.timestamp)}</div>

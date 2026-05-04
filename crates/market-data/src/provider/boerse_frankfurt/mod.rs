@@ -354,24 +354,32 @@ impl MarketDataProvider for BoerseFrankfurtProvider {
                 message: "No lastPrice in response".to_string(),
             })?;
 
-        let price = if body.traded_in_percent {
-            raw_price / 100.0
+        let close =
+            Decimal::try_from(raw_price).map_err(|_| MarketDataError::ValidationFailed {
+                message: format!("Failed to convert price {} to decimal", raw_price),
+            })?;
+        let close = if body.traded_in_percent {
+            close / Decimal::from(100)
         } else {
-            raw_price
+            close
         };
 
-        let close = Decimal::try_from(price).map_err(|_| MarketDataError::ValidationFailed {
-            message: format!("Failed to convert price {} to decimal", price),
-        })?;
-
         let high = body.day_high.and_then(|v| {
-            let v = if body.traded_in_percent { v / 100.0 } else { v };
-            Decimal::try_from(v).ok()
+            let d = Decimal::try_from(v).ok()?;
+            Some(if body.traded_in_percent {
+                d / Decimal::from(100)
+            } else {
+                d
+            })
         });
 
         let low = body.day_low.and_then(|v| {
-            let v = if body.traded_in_percent { v / 100.0 } else { v };
-            Decimal::try_from(v).ok()
+            let d = Decimal::try_from(v).ok()?;
+            Some(if body.traded_in_percent {
+                d / Decimal::from(100)
+            } else {
+                d
+            })
         });
 
         let currency = body
@@ -454,25 +462,33 @@ impl MarketDataProvider for BoerseFrankfurtProvider {
             let ts = body.t[i];
             let timestamp = DateTime::from_timestamp(ts, 0).unwrap_or_else(Utc::now);
 
-            let divisor = if bond { 100.0 } else { 1.0 };
+            let divisor = if bond {
+                Decimal::from(100)
+            } else {
+                Decimal::ONE
+            };
 
-            let close = Decimal::try_from(body.c.get(i).copied().unwrap_or(0.0) / divisor)
-                .map_err(|_| MarketDataError::ValidationFailed {
+            let close = Decimal::try_from(body.c.get(i).copied().unwrap_or(0.0)).map_err(|_| {
+                MarketDataError::ValidationFailed {
                     message: format!("Failed to convert close to decimal at index {}", i),
-                })?;
+                }
+            })? / divisor;
 
             let open = body
                 .o
                 .get(i)
-                .and_then(|&v| Decimal::try_from(v / divisor).ok());
+                .and_then(|&v| Decimal::try_from(v).ok())
+                .map(|d| d / divisor);
             let high = body
                 .h
                 .get(i)
-                .and_then(|&v| Decimal::try_from(v / divisor).ok());
+                .and_then(|&v| Decimal::try_from(v).ok())
+                .map(|d| d / divisor);
             let low = body
                 .l
                 .get(i)
-                .and_then(|&v| Decimal::try_from(v / divisor).ok());
+                .and_then(|&v| Decimal::try_from(v).ok())
+                .map(|d| d / divisor);
             let volume = body.v.get(i).and_then(|&v| Decimal::try_from(v).ok());
 
             quotes.push(Quote {
@@ -755,9 +771,16 @@ mod tests {
 
         // Verify /100 conversion
         let raw = resp.last_price.unwrap();
-        let converted = raw / 100.0;
-        let dec = Decimal::try_from(converted).unwrap();
+        let dec = Decimal::try_from(raw).unwrap() / Decimal::from(100);
         assert_eq!(dec.to_string(), "0.97025");
+    }
+
+    #[test]
+    fn historical_bond_close_preserves_precision() {
+        let raw = 91.92_f64;
+        let divisor = Decimal::from(100);
+        let d = Decimal::try_from(raw).unwrap() / divisor;
+        assert_eq!(d.to_string(), "0.9192");
     }
 
     #[test]

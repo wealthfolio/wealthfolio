@@ -253,6 +253,31 @@ const DECIMAL_FORMAT_OPTIONS: Intl.NumberFormatOptions = {
 
 const decimalFormatter = new Intl.NumberFormat("en-US", DECIMAL_FORMAT_OPTIONS);
 const currencyFormatterCache = new Map<string, Intl.NumberFormat>();
+const precisionFormatterCache = new Map<string, Intl.NumberFormat>();
+
+const getPrecisionFormatter = (
+  precision: number,
+  currency?: string,
+  displayCurrency?: boolean,
+): Intl.NumberFormat => {
+  const key = `${currency ?? ""}|${displayCurrency}|${precision}`;
+  if (precisionFormatterCache.has(key)) return precisionFormatterCache.get(key)!;
+  const opts: Intl.NumberFormatOptions = {
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision,
+  };
+  let formatter: Intl.NumberFormat;
+  try {
+    formatter =
+      displayCurrency && currency
+        ? new Intl.NumberFormat("en-US", { style: "currency", currency, ...opts })
+        : new Intl.NumberFormat("en-US", opts);
+  } catch {
+    formatter = new Intl.NumberFormat("en-US", opts);
+  }
+  precisionFormatterCache.set(key, formatter);
+  return formatter;
+};
 
 const getCurrencyFormatter = (currency: string) => {
   const normalizedCurrency = currency?.toUpperCase?.() ?? "USD";
@@ -304,6 +329,7 @@ export function formatAmount(
   amount: number | string | null | undefined,
   currency: string,
   displayCurrency = true,
+  precision?: number,
 ) {
   if (amount == null) return "-";
   const numericAmount = typeof amount === "string" ? Number(amount) : amount;
@@ -311,6 +337,13 @@ export function formatAmount(
   const displayAmount = Math.abs(numericAmount) < 0.005 ? 0 : numericAmount;
   const rawCurrency = currency ?? "USD";
   const isPenceCurrency = rawCurrency === "GBp" || rawCurrency === "GBX";
+
+  if (precision != null && precision !== DISPLAY_DECIMAL_PRECISION) {
+    const showCcy = displayCurrency && !isPenceCurrency;
+    const formatter = getPrecisionFormatter(precision, showCcy ? rawCurrency : undefined, showCcy);
+    const result = formatter.format(numericAmount);
+    return isPenceCurrency && displayCurrency ? `${result}p` : result;
+  }
 
   if (isPenceCurrency) {
     const formattedNumber = decimalFormatter.format(displayAmount);

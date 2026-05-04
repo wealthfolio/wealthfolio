@@ -1,4 +1,4 @@
-import { Quote } from "@/lib/types";
+import { AssetKind, Quote } from "@/lib/types";
 import { format } from "date-fns";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -54,11 +54,22 @@ import {
 
 interface QuoteHistoryTableProps {
   data: Quote[];
+  assetKind?: AssetKind | null;
+  instrumentType?: string | null;
   isManualDataSource?: boolean;
   onSaveQuote?: (quote: Quote) => void;
   onDeleteQuote?: (quoteId: string) => void;
   onChangeDataSource?: (isManual: boolean) => void;
 }
+
+const getDecimalPrecision = (
+  assetKind?: AssetKind | null,
+  instrumentType?: string | null,
+): number => {
+  if (assetKind === "FX") return 6;
+  if (instrumentType === "BOND") return 4;
+  return 2;
+};
 
 const ITEMS_PER_PAGE = 10;
 
@@ -74,11 +85,14 @@ const emptyQuote: Partial<Quote> = {
 
 export const QuoteHistoryTable: React.FC<QuoteHistoryTableProps> = ({
   data,
+  assetKind,
+  instrumentType,
   isManualDataSource = false,
   onSaveQuote,
   onDeleteQuote,
   onChangeDataSource,
 }) => {
+  const decimalPrecision = getDecimalPrecision(assetKind, instrumentType);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editedValues, setEditedValues] = useState<Partial<Quote>>({});
   const [isAddingQuote, setIsAddingQuote] = useState(false);
@@ -197,7 +211,7 @@ export const QuoteHistoryTable: React.FC<QuoteHistoryTableProps> = ({
               onChange={(e) => handleInputChange("open", e.target.value)}
             />
           ) : (
-            formatAmount(value, info.row.original.currency, false)
+            formatAmount(value, info.row.original.currency, false, decimalPrecision)
           );
         },
         enableSorting: false,
@@ -215,7 +229,7 @@ export const QuoteHistoryTable: React.FC<QuoteHistoryTableProps> = ({
               autoFocus={true}
             />
           ) : (
-            formatAmount(value, info.row.original.currency, false)
+            formatAmount(value, info.row.original.currency, false, decimalPrecision)
           );
         },
         enableSorting: false,
@@ -232,7 +246,7 @@ export const QuoteHistoryTable: React.FC<QuoteHistoryTableProps> = ({
               onChange={(e) => handleInputChange("low", e.target.value)}
             />
           ) : (
-            formatAmount(value, info.row.original.currency, false)
+            formatAmount(value, info.row.original.currency, false, decimalPrecision)
           );
         },
         enableSorting: false,
@@ -249,7 +263,7 @@ export const QuoteHistoryTable: React.FC<QuoteHistoryTableProps> = ({
               onChange={(e) => handleInputChange("close", e.target.value)}
             />
           ) : (
-            formatAmount(value, info.row.original.currency, false)
+            formatAmount(value, info.row.original.currency, false, decimalPrecision)
           );
         },
         enableSorting: false,

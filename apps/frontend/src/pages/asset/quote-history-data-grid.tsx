@@ -20,14 +20,14 @@ const normalizeDate = (value: Date | string): Date => {
   return new Date(value);
 };
 
-// Get decimal precision based on asset kind
-const getDecimalPrecision = (assetKind?: AssetKind | null): number => {
-  switch (assetKind) {
-    case "FX":
-      return 6; // FX rates need high precision
-    default:
-      return 2; // Standard precision for stocks, ETFs, etc.
-  }
+// Get decimal precision based on asset kind and instrument type
+const getDecimalPrecision = (
+  assetKind?: AssetKind | null,
+  instrumentType?: string | null,
+): number => {
+  if (assetKind === "FX") return 6;
+  if (instrumentType === "BOND") return 4;
+  return 2;
 };
 
 // Round number to specified decimal places
@@ -60,6 +60,8 @@ interface QuoteHistoryDataGridProps {
   currency: string;
   /** Asset kind for decimal precision */
   assetKind?: AssetKind | null;
+  /** Instrument type for decimal precision (e.g. "BOND") */
+  instrumentType?: string | null;
   /** Whether manual tracking is enabled */
   isManualDataSource?: boolean;
   /** Callback to save a quote */
@@ -126,14 +128,14 @@ export function QuoteHistoryDataGrid({
   assetId,
   currency,
   assetKind,
+  instrumentType,
   isManualDataSource = false,
   onSaveQuote,
   onDeleteQuote,
   onChangeDataSource,
 }: QuoteHistoryDataGridProps) {
   const isMobile = useIsMobileViewport();
-  // Get decimal precision based on asset kind
-  const decimalPrecision = getDecimalPrecision(assetKind);
+  const decimalPrecision = getDecimalPrecision(assetKind, instrumentType);
 
   // Convert quotes to local entries with rounding
   const initialEntries = useMemo(
