@@ -4,7 +4,7 @@ import { useIsMobileViewport } from "@/hooks/use-platform";
 import { debounce } from "@/lib/debounce";
 import { ActivityType } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
-import { Account, ActivityDetails } from "@/lib/types";
+import { Account, ActivityDetails, AlternativeAssetKind } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import type { SortingState } from "@tanstack/react-table";
 import { Button, Icons, Page, PageContent, PageHeader } from "@wealthfolio/ui";
@@ -33,6 +33,14 @@ const ActivityPage = () => {
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
   const [showBulkHoldingsForm, setShowBulkHoldingsForm] = useState(false);
   const [showAlternativeAssetModal, setShowAlternativeAssetModal] = useState(false);
+  // Mortgage-chaining state: when the user checks "Create and link a mortgage"
+  // on the property/asset modal, the modal closes and we re-open it with
+  // these defaults to create the mortgage liability linked to the new asset.
+  const [pendingMortgage, setPendingMortgage] = useState<{
+    linkedAssetId: string;
+    defaultName: string;
+    defaultOriginationDate?: Date;
+  } | null>(null);
   const [showActionPalette, setShowActionPalette] = useState(false);
 
   // Filter and search state
@@ -386,7 +394,23 @@ const ActivityPage = () => {
         />
         <AlternativeAssetQuickAddModal
           open={showAlternativeAssetModal}
-          onOpenChange={setShowAlternativeAssetModal}
+          onOpenChange={(open) => {
+            setShowAlternativeAssetModal(open);
+            if (!open) setPendingMortgage(null);
+          }}
+          defaultKind={pendingMortgage ? AlternativeAssetKind.LIABILITY : undefined}
+          linkedAssetId={pendingMortgage?.linkedAssetId}
+          defaultName={pendingMortgage?.defaultName}
+          defaultOriginationDate={pendingMortgage?.defaultOriginationDate}
+          defaultLiabilityType={pendingMortgage ? "mortgage" : undefined}
+          onOpenLiabilityQuickAdd={(linkedAssetId, originationDate, propertyName) => {
+            setPendingMortgage({
+              linkedAssetId,
+              defaultName: propertyName ? `${propertyName} Mortgage` : "Mortgage",
+              defaultOriginationDate: originationDate,
+            });
+            setShowAlternativeAssetModal(true);
+          }}
         />
       </PageContent>
     </Page>
