@@ -130,6 +130,10 @@ export const getAssetHoldings = async (assetId: string): Promise<Holding[]> => {
   return invoke<Holding[]>("get_asset_holdings", { assetId });
 };
 
+export const getDerivativeHoldingsForAsset = async (assetId: string): Promise<Holding[]> => {
+  return invoke<Holding[]>("get_derivative_holdings_for_asset", { assetId });
+};
+
 export const getPortfolioAllocations = async (accountId: string): Promise<PortfolioAllocations> => {
   return invoke<PortfolioAllocations>("get_portfolio_allocations", { accountId });
 };

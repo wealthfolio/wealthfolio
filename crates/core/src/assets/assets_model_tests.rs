@@ -182,7 +182,7 @@ mod tests {
         asset.instrument_type = Some(InstrumentType::Option);
         asset.metadata = Some(json!({
             "option": {
-                "underlyingAssetId": "AAPL",
+                "underlyingAssetSymbol": "AAPL",
                 "expiration": "2024-12-20",
                 "right": "CALL",
                 "strike": "150.00",
@@ -194,7 +194,8 @@ mod tests {
         let spec = asset.option_spec();
         assert!(spec.is_some());
         let spec = spec.unwrap();
-        assert_eq!(spec.underlying_asset_id, "AAPL");
+        assert_eq!(spec.underlying_asset_symbol, "AAPL");
+        assert_eq!(spec.underlying_resolved_id, None);
         assert_eq!(spec.right, "CALL");
         assert_eq!(spec.strike, dec!(150.00));
         assert_eq!(spec.multiplier, dec!(100));
@@ -204,7 +205,8 @@ mod tests {
     #[test]
     fn test_option_spec_serialization() {
         let spec = OptionSpec {
-            underlying_asset_id: "AAPL".to_string(),
+            underlying_asset_symbol: "AAPL".to_string(),
+            underlying_resolved_id: Some("asset-123".to_string()),
             expiration: chrono::NaiveDate::from_ymd_opt(2024, 12, 20).unwrap(),
             right: "CALL".to_string(),
             strike: dec!(150.00),
@@ -213,7 +215,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&spec).unwrap();
-        assert!(json.contains("\"underlyingAssetId\":\"AAPL\""));
+        assert!(json.contains("\"underlyingAssetSymbol\":\"AAPL\""));
+        assert!(json.contains("\"underlyingResolvedId\":\"asset-123\""));
         assert!(json.contains("\"right\":\"CALL\""));
     }
 

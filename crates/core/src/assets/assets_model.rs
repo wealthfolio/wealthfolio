@@ -119,7 +119,12 @@ impl InstrumentType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OptionSpec {
-    pub underlying_asset_id: String,
+    /// Underlying ticker symbol (e.g. "MU"). Always present from OCC parsing.
+    pub underlying_asset_symbol: String,
+    /// Resolved asset_id of the underlying when it exists in the user's DB.
+    /// Populated lazily when the underlying asset is created or via migration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub underlying_resolved_id: Option<String>,
     pub expiration: chrono::NaiveDate,
     pub right: String, // CALL or PUT
     pub strike: Decimal,
@@ -154,7 +159,8 @@ pub fn build_asset_metadata(
         InstrumentType::Option => {
             let parsed = crate::utils::occ_symbol::parse_occ_symbol(symbol).ok()?;
             let spec = OptionSpec {
-                underlying_asset_id: parsed.underlying.clone(),
+                underlying_asset_symbol: parsed.underlying.clone(),
+                underlying_resolved_id: None,
                 expiration: parsed.expiration,
                 right: parsed.option_type.as_str().to_string(),
                 strike: parsed.strike_price,
@@ -190,7 +196,8 @@ pub fn build_asset_metadata(
 pub fn build_option_metadata(symbol: &str, multiplier: Decimal) -> Option<serde_json::Value> {
     let parsed = crate::utils::occ_symbol::parse_occ_symbol(symbol).ok()?;
     let spec = OptionSpec {
-        underlying_asset_id: parsed.underlying.clone(),
+        underlying_asset_symbol: parsed.underlying.clone(),
+        underlying_resolved_id: None,
         expiration: parsed.expiration,
         right: parsed.option_type.as_str().to_string(),
         strike: parsed.strike_price,
@@ -670,11 +677,11 @@ impl NewAsset {
     pub fn new_option_contract(spec: &OptionSpec, currency: &str) -> Self {
         let occ = spec.occ_symbol.clone().unwrap_or_else(|| {
             // Build from components if OCC symbol not provided
-            spec.underlying_asset_id.clone()
+            spec.underlying_asset_symbol.clone()
         });
         let name = format!(
             "{} {} ${} {}",
-            spec.underlying_asset_id,
+            spec.underlying_asset_symbol,
             spec.right,
             spec.strike,
             spec.expiration.format("%Y-%m-%d")

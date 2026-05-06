@@ -42,6 +42,7 @@ import {
   AssetSnapshotHistory,
   useHasManualSnapshots,
 } from "./asset-account-holdings";
+import { AssetDerivativesTable, useHasDerivatives } from "./asset-derivatives-table";
 import AssetLotsTable from "./asset-lots-table";
 import { useAssetProfile } from "./hooks/use-asset-profile";
 import { useAssetProfileMutations } from "./hooks/use-asset-profile-mutations";
@@ -106,6 +107,8 @@ interface AssetDetailData {
     right?: string | null;
     strike?: number | null;
     expiration?: string | null;
+    underlyingAssetSymbol?: string | null;
+    underlyingResolvedId?: string | null;
   } | null;
   instrumentType?: string | null;
 }
@@ -129,6 +132,7 @@ export const AssetProfilePage = () => {
   type OverviewSubTab = "about" | "holdings" | "snapshots";
   const [overviewSubTab, setOverviewSubTab] = useState<OverviewSubTab>("about");
   const hasManualSnapshots = useHasManualSnapshots(assetId);
+  const hasDerivatives = useHasDerivatives(assetId);
   const overviewSubTabs = useMemo(() => {
     const items: { value: OverviewSubTab; label: string }[] = [
       { value: "about", label: "About" },
@@ -339,7 +343,13 @@ export const AssetProfilePage = () => {
   const optionSpec = useMemo(() => {
     if (assetProfile?.instrumentType !== "OPTION" || !assetProfile?.metadata) return null;
     const option = assetProfile.metadata.option as
-      | { right?: string | null; strike?: number | null; expiration?: string | null }
+      | {
+          right?: string | null;
+          strike?: number | null;
+          expiration?: string | null;
+          underlyingAssetSymbol?: string | null;
+          underlyingResolvedId?: string | null;
+        }
       | undefined;
     if (!option || (!option.right && option.strike == null && !option.expiration)) return null;
     return option;
@@ -614,11 +624,19 @@ export const AssetProfilePage = () => {
             )}
 
             {overviewSubTab === "holdings" && (
-              <AssetAccountHoldings
-                assetId={assetId}
-                baseCurrency={baseCurrency}
-                instrumentType={assetProfile?.instrumentType}
-              />
+              <>
+                {assetProfile?.instrumentType === "EQUITY" && hasDerivatives && (
+                  <h3 className="mb-2 text-sm font-medium">Shares</h3>
+                )}
+                <AssetAccountHoldings
+                  assetId={assetId}
+                  baseCurrency={baseCurrency}
+                  instrumentType={assetProfile?.instrumentType}
+                />
+                {assetProfile?.instrumentType === "EQUITY" && (
+                  <AssetDerivativesTable assetId={assetId} baseCurrency={baseCurrency} />
+                )}
+              </>
             )}
 
             {overviewSubTab === "snapshots" && (
@@ -1246,11 +1264,19 @@ export const AssetProfilePage = () => {
                 )}
 
                 {overviewSubTab === "holdings" && (
-                  <AssetAccountHoldings
-                    assetId={assetId}
-                    baseCurrency={baseCurrency}
-                    instrumentType={assetProfile?.instrumentType}
-                  />
+                  <>
+                    {assetProfile?.instrumentType === "EQUITY" && hasDerivatives && (
+                      <h3 className="mb-2 text-sm font-medium">Shares</h3>
+                    )}
+                    <AssetAccountHoldings
+                      assetId={assetId}
+                      baseCurrency={baseCurrency}
+                      instrumentType={assetProfile?.instrumentType}
+                    />
+                    {assetProfile?.instrumentType === "EQUITY" && (
+                      <AssetDerivativesTable assetId={assetId} baseCurrency={baseCurrency} />
+                    )}
+                  </>
                 )}
 
                 {overviewSubTab === "snapshots" && (

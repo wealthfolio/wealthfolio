@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
@@ -36,6 +37,8 @@ interface AssetDetail {
     right?: string | null;
     strike?: number | null;
     expiration?: string | null;
+    underlyingAssetSymbol?: string | null;
+    underlyingResolvedId?: string | null;
   } | null;
   instrumentType?: string | null;
   className?: string;
@@ -285,6 +288,21 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
                 </div>
               )}
             </div>
+            {(optionSpec.underlyingResolvedId || optionSpec.underlyingAssetSymbol) && (
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-muted-foreground text-xs">Underlying asset</span>
+                {optionSpec.underlyingResolvedId ? (
+                  <Link
+                    to={`/holdings/${encodeURIComponent(optionSpec.underlyingResolvedId)}`}
+                    className="text-primary text-sm font-medium hover:underline"
+                  >
+                    {optionSpec.underlyingAssetSymbol ?? optionSpec.underlyingResolvedId} →
+                  </Link>
+                ) : (
+                  <span className="text-sm font-medium">{optionSpec.underlyingAssetSymbol}</span>
+                )}
+              </div>
+            )}
           </>
         )}
       </CardContent>

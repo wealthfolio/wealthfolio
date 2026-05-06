@@ -82,6 +82,29 @@ impl AssetService {
         None
     }
 
+    /// Common US-listed exchange MICs to probe when resolving the underlying
+    /// equity for an OCC-formatted option symbol. OCC symbols don't carry MIC
+    /// info, so we try the major venues in priority order.
+    const US_EQUITY_MIC_CANDIDATES: &'static [&'static str] =
+        &["XNAS", "XNYS", "XASE", "ARCX", "BATS"];
+
+    /// Looks up the asset_id of the EQUITY whose `instrument_symbol` matches
+    /// `symbol`. Tries common US MICs first, then a no-MIC fallback. Returns
+    /// None if no equity record exists.
+    fn resolve_underlying_equity(&self, symbol: &str) -> Option<String> {
+        for mic in Self::US_EQUITY_MIC_CANDIDATES {
+            let key = format!("EQUITY:{}@{}", symbol, mic);
+            if let Ok(Some(asset)) = self.asset_repository.find_by_instrument_key(&key) {
+                return Some(asset.id);
+            }
+        }
+        let key = format!("EQUITY:{}", symbol);
+        if let Ok(Some(asset)) = self.asset_repository.find_by_instrument_key(&key) {
+            return Some(asset.id);
+        }
+        None
+    }
+
     #[allow(clippy::too_many_arguments)]
     async fn resolve_quote_ccy(
         &self,
@@ -461,6 +484,32 @@ impl AssetServiceTrait for AssetService {
             );
         }
 
+        // For options, try to resolve the underlying equity now so the link is
+        // available immediately on first read. Failure is silent — back-fill
+        // happens later when the underlying gets added to the user's DB.
+        if matches!(new_asset.instrument_type, Some(InstrumentType::Option)) {
+            if let Some(meta) = new_asset.metadata.as_mut() {
+                if let Some(symbol) = meta
+                    .get("option")
+                    .and_then(|o| o.get("underlyingAssetSymbol"))
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+                {
+                    if let Some(resolved_id) = self.resolve_underlying_equity(&symbol) {
+                        if let Some(option_obj) = meta
+                            .get_mut("option")
+                            .and_then(|o| o.as_object_mut())
+                        {
+                            option_obj.insert(
+                                "underlyingResolvedId".to_string(),
+                                serde_json::Value::String(resolved_id),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
         // Pre-check: return existing asset if instrument_key already exists (avoids unique constraint error)
         let key_spec = AssetSpec {
             id: None,
@@ -488,6 +537,23 @@ impl AssetServiceTrait for AssetService {
         // Auto-classify the newly created asset
         self.classify_new_asset(&asset.id, instrument_type.as_ref(), &kind)
             .await;
+
+        // If a new EQUITY just landed, back-fill any options that were waiting
+        // for an underlying with this symbol.
+        if matches!(instrument_type.as_ref(), Some(InstrumentType::Equity)) {
+            if let Some(symbol) = asset.instrument_symbol.as_deref() {
+                if let Err(e) = self
+                    .asset_repository
+                    .link_options_to_underlying(symbol, &asset.id)
+                    .await
+                {
+                    warn!(
+                        "Failed to back-fill option underlying links for {}: {}",
+                        symbol, e
+                    );
+                }
+            }
+        }
 
         // Emit event for newly created asset
         self.event_sink
@@ -731,6 +797,16 @@ impl AssetServiceTrait for AssetService {
 
     async fn get_assets_by_asset_ids(&self, asset_ids: &[String]) -> Result<Vec<Asset>> {
         self.asset_repository.list_by_asset_ids(asset_ids)
+    }
+
+    fn get_options_for_underlying(&self, equity_asset_id: &str) -> Result<Vec<Asset>> {
+        let asset = self.asset_repository.get_by_id(equity_asset_id)?;
+        let symbol = match asset.instrument_symbol.as_deref() {
+            Some(s) if !s.is_empty() => s,
+            _ => return Ok(Vec::new()),
+        };
+        self.asset_repository
+            .list_options_for_underlying(equity_asset_id, symbol)
     }
 
     /// Enriches an existing asset's profile with data from market data provider.

@@ -89,6 +89,37 @@ pub async fn get_asset_holdings(
     Ok(Json(result))
 }
 
+/// Returns open option holdings whose underlying resolves to the given equity
+/// asset_id. Used by the equity profile page to render a "Derivatives"
+/// sub-table next to the share holdings.
+pub async fn get_derivative_holdings_for_asset(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<AssetHoldingsQuery>,
+) -> ApiResult<Json<Vec<Holding>>> {
+    let base = state.base_currency.read().unwrap().clone();
+    let options = state.asset_service.get_options_for_underlying(&q.asset_id)?;
+    if options.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
+
+    let accounts = state.account_service.get_active_accounts()?;
+    let mut result = Vec::new();
+    for option in options {
+        for account in &accounts {
+            if let Ok(Some(holding)) = state
+                .holdings_service
+                .get_holding(&account.id, &option.id, &base)
+                .await
+            {
+                if holding.quantity > Decimal::ZERO {
+                    result.push(holding);
+                }
+            }
+        }
+    }
+    Ok(Json(result))
+}
+
 pub async fn get_historical_valuations(
     State(state): State<Arc<AppState>>,
     Query(q): Query<HistoryQuery>,

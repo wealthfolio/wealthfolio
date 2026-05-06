@@ -39,6 +39,14 @@ pub trait AssetServiceTrait: Send + Sync {
         self.update_quote_mode(asset_id, quote_mode).await
     }
     async fn get_assets_by_asset_ids(&self, asset_ids: &[String]) -> Result<Vec<Asset>>;
+
+    /// Returns OPTION assets whose underlying resolves to the given equity
+    /// asset_id (resolved match preferred, falls back to symbol match for
+    /// options that haven't been migrated yet).
+    fn get_options_for_underlying(&self, equity_asset_id: &str) -> Result<Vec<Asset>> {
+        let _ = equity_asset_id;
+        Ok(Vec::new())
+    }
     /// Enriches an existing asset's profile with data from market data provider.
     /// Updates the profile JSON (sectors, countries, website) and notes fields.
     async fn enrich_asset_profile(&self, asset_id: &str) -> Result<Asset>;
@@ -207,6 +215,28 @@ pub trait AssetRepositoryTrait: Send + Sync {
     /// Finds INVESTMENT assets with no remaining activities and deactivates them.
     /// Returns the IDs of deactivated assets.
     async fn deactivate_orphaned_investments(&self) -> Result<Vec<String>>;
+
+    /// Sets `metadata.option.underlyingResolvedId` to `equity_asset_id` for every
+    /// OPTION asset whose `metadata.option.underlyingAssetSymbol` matches `symbol`
+    /// and whose resolved id is currently null. Returns the number of rows updated.
+    async fn link_options_to_underlying(
+        &self,
+        _symbol: &str,
+        _equity_asset_id: &str,
+    ) -> Result<usize> {
+        Ok(0)
+    }
+
+    /// Returns OPTION assets whose underlying resolves to the given equity asset_id.
+    /// Match preference: `metadata.option.underlyingResolvedId == asset_id`,
+    /// fallback to `metadata.option.underlyingAssetSymbol == symbol`.
+    fn list_options_for_underlying(
+        &self,
+        _equity_asset_id: &str,
+        _underlying_symbol: &str,
+    ) -> Result<Vec<Asset>> {
+        Ok(Vec::new())
+    }
 }
 
 #[cfg(test)]

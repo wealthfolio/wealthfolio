@@ -144,6 +144,43 @@ pub async fn get_asset_holdings(
 }
 
 #[tauri::command]
+pub async fn get_derivative_holdings_for_asset(
+    state: State<'_, Arc<ServiceContext>>,
+    asset_id: String,
+) -> Result<Vec<Holding>, String> {
+    debug!("Get derivative holdings for underlying asset {}", asset_id);
+    let base_currency = state.get_base_currency();
+    let options = state
+        .asset_service()
+        .get_options_for_underlying(&asset_id)
+        .map_err(|e| format!("Failed to get options for underlying: {}", e))?;
+    if options.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let accounts = state
+        .account_service()
+        .get_active_accounts()
+        .map_err(|e| format!("Failed to get accounts: {}", e))?;
+
+    let mut result = Vec::new();
+    for option in options {
+        for account in &accounts {
+            if let Ok(Some(holding)) = state
+                .holdings_service()
+                .get_holding(&account.id, &option.id, &base_currency)
+                .await
+            {
+                if holding.quantity > rust_decimal::Decimal::ZERO {
+                    result.push(holding);
+                }
+            }
+        }
+    }
+    Ok(result)
+}
+
+#[tauri::command]
 pub async fn get_portfolio_allocations(
     state: State<'_, Arc<ServiceContext>>,
     account_id: String,

@@ -540,6 +540,84 @@ impl AssetRepositoryTrait for AssetRepository {
             })
             .await
     }
+
+    async fn link_options_to_underlying(
+        &self,
+        symbol: &str,
+        equity_asset_id: &str,
+    ) -> Result<usize> {
+        let symbol = symbol.to_string();
+        let equity_asset_id = equity_asset_id.to_string();
+        self.writer
+            .exec_tx(move |tx| -> Result<usize> {
+                // Find option assets whose underlyingAssetSymbol matches and resolved id is missing.
+                let candidate_ids: Vec<String> = assets::table
+                    .select(assets::id)
+                    .filter(assets::instrument_type.eq("OPTION"))
+                    .filter(diesel::dsl::sql::<diesel::sql_types::Bool>(&format!(
+                        "json_extract(metadata, '$.option.underlyingAssetSymbol') = '{}' \
+                         AND (json_extract(metadata, '$.option.underlyingResolvedId') IS NULL \
+                              OR json_extract(metadata, '$.option.underlyingResolvedId') = '')",
+                        symbol.replace('\'', "''")
+                    )))
+                    .load::<String>(tx.conn())
+                    .map_err(StorageError::from)?;
+
+                if candidate_ids.is_empty() {
+                    return Ok(0);
+                }
+
+                let updated = diesel::sql_query(
+                    "UPDATE assets \
+                     SET metadata = json_set(metadata, '$.option.underlyingResolvedId', ?) \
+                     WHERE id IN (SELECT value FROM json_each(?))",
+                )
+                .bind::<diesel::sql_types::Text, _>(equity_asset_id.clone())
+                .bind::<diesel::sql_types::Text, _>(
+                    serde_json::to_string(&candidate_ids).unwrap_or_else(|_| "[]".to_string()),
+                )
+                .execute(tx.conn())
+                .map_err(StorageError::from)?;
+
+                // Notify sync layer about the changed rows.
+                let updated_rows = assets::table
+                    .filter(assets::id.eq_any(&candidate_ids))
+                    .select(AssetDB::as_select())
+                    .load::<AssetDB>(tx.conn())
+                    .map_err(StorageError::from)?;
+                for updated in updated_rows {
+                    tx.update(&updated)?;
+                }
+
+                Ok(updated)
+            })
+            .await
+    }
+
+    fn list_options_for_underlying(
+        &self,
+        equity_asset_id: &str,
+        underlying_symbol: &str,
+    ) -> Result<Vec<Asset>> {
+        let mut conn = get_connection(&self.pool)?;
+        let asset_id_lit = equity_asset_id.replace('\'', "''");
+        let symbol_lit = underlying_symbol.replace('\'', "''");
+
+        // Match by resolved id first; for any options not yet resolved, also match by symbol.
+        let results = assets::table
+            .select(AssetDB::as_select())
+            .filter(assets::instrument_type.eq("OPTION"))
+            .filter(diesel::dsl::sql::<diesel::sql_types::Bool>(&format!(
+                "json_extract(metadata, '$.option.underlyingResolvedId') = '{}' \
+                 OR (json_extract(metadata, '$.option.underlyingResolvedId') IS NULL \
+                     AND json_extract(metadata, '$.option.underlyingAssetSymbol') = '{}')",
+                asset_id_lit, symbol_lit
+            )))
+            .load::<AssetDB>(&mut conn)
+            .map_err(StorageError::from)?;
+
+        Ok(results.into_iter().map(Asset::from).collect())
+    }
 }
 
 #[cfg(test)]
