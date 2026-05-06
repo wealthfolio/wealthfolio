@@ -14,7 +14,7 @@
 //! Supports both real-time (latest) and historical (timeframe) quotes.
 
 use async_trait::async_trait;
-use chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, NaiveDate, TimeZone, Utc};
 use reqwest::Client;
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -60,6 +60,46 @@ struct MetalPriceTimeframeResponse {
     /// Missing when the API returns an error (e.g., plan limit exceeded).
     #[serde(default)]
     rates: HashMap<String, HashMap<String, f64>>,
+    /// Error payload, present when `success` is false.
+    #[serde(default)]
+    error: Option<MetalPriceApiError>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MetalPriceApiError {
+    #[serde(rename = "statusCode")]
+    status_code: Option<u16>,
+    #[allow(dead_code)]
+    message: Option<String>,
+}
+
+/// Plan-limit error codes returned when the requested range exceeds the
+/// caller's tier:
+///   209 — start date older than 30 days (free tier)
+///   421 — total span longer than 5 days (free tier)
+const PLAN_LIMIT_STATUS_CODES: &[u16] = &[209, 421];
+/// Conservative window we fall back to after a plan-limit rejection.
+/// Free tier caps span at 5 days; we use 4 to leave headroom.
+const PLAN_LIMIT_MAX_DAYS: i64 = 4;
+
+enum TimeframeFetchError {
+    PlanLimit,
+    Other { message: String },
+}
+
+impl TimeframeFetchError {
+    fn into_market_data_error(self) -> MarketDataError {
+        match self {
+            TimeframeFetchError::PlanLimit => MarketDataError::ProviderError {
+                provider: PROVIDER_ID.to_string(),
+                message: "Plan limit exceeded even at minimum window".to_string(),
+            },
+            TimeframeFetchError::Other { message } => MarketDataError::ProviderError {
+                provider: PROVIDER_ID.to_string(),
+                message,
+            },
+        }
+    }
 }
 
 /// Metal Price API provider for precious metals market data.
@@ -126,6 +166,87 @@ impl MetalPriceApiProvider {
         Some((base, multiplier))
     }
 
+    /// Issue a single timeframe request and return the parsed response.
+    /// Maps the API's "plan limit exceeded" status to `TimeframeFetchError::PlanLimit`
+    /// so callers can retry with a tighter window.
+    async fn fetch_timeframe(
+        &self,
+        quote_currency: &str,
+        base_code: &str,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        raw_symbol: &str,
+    ) -> Result<MetalPriceTimeframeResponse, TimeframeFetchError> {
+        let start_date = start.format("%Y-%m-%d");
+        let end_date = end.format("%Y-%m-%d");
+
+        let url = format!(
+            "https://api.metalpriceapi.com/v1/timeframe?base={}&currencies={}&start_date={}&end_date={}",
+            quote_currency, base_code, start_date, end_date
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("X-API-KEY", &self.api_key)
+            .send()
+            .await
+            .map_err(|e| TimeframeFetchError::Other {
+                message: e.to_string(),
+            })?;
+
+        let response_text = response
+            .text()
+            .await
+            .map_err(|e| TimeframeFetchError::Other {
+                message: format!("Failed to read response: {}", e),
+            })?;
+
+        let tf_resp: MetalPriceTimeframeResponse = serde_json::from_str(&response_text)
+            .map_err(|e| {
+                warn!(
+                    provider = PROVIDER_ID,
+                    error = %e,
+                    body = %&response_text[..response_text.len().min(300)],
+                    "Failed to parse timeframe response"
+                );
+                TimeframeFetchError::Other {
+                    message: format!("Failed to parse timeframe response: {}", e),
+                }
+            })?;
+
+        if !tf_resp.success || tf_resp.rates.is_empty() {
+            if tf_resp
+                .error
+                .as_ref()
+                .and_then(|e| e.status_code)
+                .is_some_and(|c| PLAN_LIMIT_STATUS_CODES.contains(&c))
+            {
+                warn!(
+                    provider = PROVIDER_ID,
+                    symbol = %raw_symbol,
+                    "Metal Price API plan limit exceeded; will retry with shorter window"
+                );
+                return Err(TimeframeFetchError::PlanLimit);
+            }
+
+            warn!(
+                provider = PROVIDER_ID,
+                symbol = %raw_symbol,
+                body = %&response_text[..response_text.len().min(300)],
+                "Metal Price API timeframe request failed"
+            );
+            return Err(TimeframeFetchError::Other {
+                message: format!(
+                    "Timeframe API request failed (body: {})",
+                    &response_text[..response_text.len().min(300)]
+                ),
+            });
+        }
+
+        Ok(tf_resp)
+    }
+
     /// Convert a rate (1 base_currency = rate troy ounces) to price per troy ounce.
     /// Division is done in Decimal space to avoid f64 precision loss.
     fn rate_to_price(rate: f64) -> Result<Decimal, MarketDataError> {
@@ -156,7 +277,7 @@ impl MarketDataProvider for MetalPriceApiProvider {
     fn capabilities(&self) -> ProviderCapabilities {
         ProviderCapabilities {
             instrument_kinds: &[InstrumentKind::Metal],
-            coverage: Coverage::metals_usd_only(),
+            coverage: Coverage::metals_any_currency(),
             supports_latest: true,
             supports_historical: true,
             supports_search: false,
@@ -282,64 +403,31 @@ impl MarketDataProvider for MetalPriceApiProvider {
         let (base_code, weight_multiplier) = Self::parse_metal_symbol(&raw_symbol)
             .ok_or_else(|| MarketDataError::SymbolNotFound(raw_symbol.clone()))?;
 
-        let start_date = start.format("%Y-%m-%d");
-        let end_date = end.format("%Y-%m-%d");
-
-        let url = format!(
-            "https://api.metalpriceapi.com/v1/timeframe?base={}&currencies={}&start_date={}&end_date={}",
-            quote_currency, base_code, start_date, end_date
-        );
-
-        let response = self
-            .client
-            .get(&url)
-            .header("X-API-KEY", &self.api_key)
-            .send()
+        let tf_resp = match self
+            .fetch_timeframe(&quote_currency, base_code, start, end, &raw_symbol)
             .await
-            .map_err(|e| MarketDataError::ProviderError {
-                provider: PROVIDER_ID.to_string(),
-                message: e.to_string(),
-            })?;
-
-        // Read as text first so we can include the body in error messages
-        // (the API returns error details that don't match the success schema).
-        let response_text = response
-            .text()
-            .await
-            .map_err(|e| MarketDataError::ProviderError {
-                provider: PROVIDER_ID.to_string(),
-                message: format!("Failed to read response: {}", e),
-            })?;
-
-        let tf_resp: MetalPriceTimeframeResponse =
-            serde_json::from_str(&response_text).map_err(|e| {
-                warn!(
-                    provider = PROVIDER_ID,
-                    error = %e,
-                    body = %&response_text[..response_text.len().min(300)],
-                    "Failed to parse timeframe response"
-                );
-                MarketDataError::ProviderError {
-                    provider: PROVIDER_ID.to_string(),
-                    message: format!("Failed to parse timeframe response: {}", e),
-                }
-            })?;
-
-        if !tf_resp.success || tf_resp.rates.is_empty() {
-            warn!(
-                provider = PROVIDER_ID,
-                symbol = %raw_symbol,
-                body = %&response_text[..response_text.len().min(300)],
-                "Metal Price API timeframe request failed"
-            );
-            return Err(MarketDataError::ProviderError {
-                provider: PROVIDER_ID.to_string(),
-                message: format!(
-                    "Timeframe API request failed (body: {})",
-                    &response_text[..response_text.len().min(300)]
-                ),
-            });
-        }
+        {
+            Ok(resp) => resp,
+            Err(TimeframeFetchError::PlanLimit) => {
+                // Free tier caps history; retry with the most recent allowed window.
+                let clamped_start = end - ChronoDuration::days(PLAN_LIMIT_MAX_DAYS);
+                let clamped_start = if clamped_start > start {
+                    clamped_start
+                } else {
+                    start
+                };
+                self.fetch_timeframe(
+                    &quote_currency,
+                    base_code,
+                    clamped_start,
+                    end,
+                    &raw_symbol,
+                )
+                .await
+                .map_err(TimeframeFetchError::into_market_data_error)?
+            }
+            Err(other) => return Err(other.into_market_data_error()),
+        };
 
         let mut quotes = Vec::new();
         for (date_str, rates) in &tf_resp.rates {
