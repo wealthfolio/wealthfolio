@@ -99,3 +99,4 @@ apps/db/
 apps/tauri/db/
 tasks
 **/*.local.md
+sync-from-prod.sh
