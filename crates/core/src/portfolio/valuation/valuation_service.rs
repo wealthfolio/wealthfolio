@@ -435,6 +435,25 @@ impl ValuationServiceTrait for ValuationService {
                 .await?
         };
 
+        // Activities are needed to replay lots back to each historical date —
+        // a lot's stored remaining_quantity reflects its current state, not
+        // the state on any past date. Replay is per-(account, asset) FIFO,
+        // so fetch activities for every account that owns any of the lots.
+        let lot_account_ids: Vec<String> = {
+            let mut set: HashSet<String> =
+                all_lots.iter().map(|l| l.account_id.clone()).collect();
+            if account_id != PORTFOLIO_TOTAL_ACCOUNT_ID {
+                set.insert(account_id.to_string());
+            }
+            set.into_iter().collect()
+        };
+        let all_activities: Vec<crate::activities::Activity> = if lot_account_ids.is_empty() {
+            Vec::new()
+        } else {
+            self.activity_repository
+                .get_activities_by_account_ids(&lot_account_ids)?
+        };
+
         // Pre-fetch asset metadata for all assets referenced by lots and by
         // any per-snapshot positions (HOLDINGS-mode snapshots populate
         // `positions` from `snapshot_positions`; historical snapshots may
@@ -607,21 +626,19 @@ impl ValuationServiceTrait for ValuationService {
                     };
                 }
 
-                // Build security positions from lots active on current_date.
+                // Build security positions from lots replayed back to current_date.
+                // Cloning all_lots per date is intentional: replay_lots_to_date
+                // mutates remaining_quantity in place to reflect activities
+                // applied up to as_of_date. The activities slice and as_of_date
+                // upper-bound mean a lot opened later than current_date is
+                // dropped before any replay work happens.
+                let lots_at_date = crate::lots::replay_lots_to_date(
+                    all_lots.clone(),
+                    &all_activities,
+                    current_date,
+                );
                 let mut aggregated: HashMap<String, (Decimal, Decimal)> = HashMap::new();
-                for lot in &all_lots {
-                    if lot.open_date.as_str() > date_str.as_str() {
-                        continue;
-                    }
-                    if lot.is_closed {
-                        let closed_before_or_on_date = lot
-                            .close_date
-                            .as_deref()
-                            .is_none_or(|d| d <= date_str.as_str());
-                        if closed_before_or_on_date {
-                            continue;
-                        }
-                    }
+                for lot in &lots_at_date {
                     let qty = lot.remaining_quantity.parse::<Decimal>().unwrap_or_else(|e| {
                         log::error!("Lot {} has malformed remaining_quantity '{}': {}", lot.id, lot.remaining_quantity, e);
                         Decimal::ZERO
@@ -634,10 +651,32 @@ impl ValuationServiceTrait for ValuationService {
                         .unwrap_or(Decimal::ONE);
                     // Effective shares = as-acquired remaining * cumulative split factor.
                     let effective_qty = qty * split_ratio;
-                    let cost = lot.total_cost_basis.parse::<Decimal>().unwrap_or_else(|e| {
-                        log::error!("Lot {} has malformed total_cost_basis '{}': {}", lot.id, lot.total_cost_basis, e);
-                        Decimal::ZERO
-                    });
+                    if effective_qty.is_zero() {
+                        continue;
+                    }
+                    // Cost basis is split-invariant. We pro-rate stored
+                    // total_cost_basis by remaining/original to approximate
+                    // remaining open basis. (This is a known coarseness — a
+                    // remaining_cost_basis column will replace it.)
+                    let original_qty = lot
+                        .original_quantity
+                        .parse::<Decimal>()
+                        .unwrap_or(Decimal::ZERO);
+                    let stored_total_cost = lot
+                        .total_cost_basis
+                        .parse::<Decimal>()
+                        .unwrap_or_else(|e| {
+                            log::error!(
+                                "Lot {} has malformed total_cost_basis '{}': {}",
+                                lot.id, lot.total_cost_basis, e
+                            );
+                            Decimal::ZERO
+                        });
+                    let cost = if original_qty > Decimal::ZERO {
+                        stored_total_cost * (qty / original_qty)
+                    } else {
+                        stored_total_cost
+                    };
                     aggregated
                         .entry(lot.asset_id.clone())
                         .and_modify(|(q, c)| {
@@ -646,6 +685,7 @@ impl ValuationServiceTrait for ValuationService {
                         })
                         .or_insert((effective_qty, cost));
                 }
+                let _ = date_str;
 
                 let positions_from_lots: HashMap<String, Position> = aggregated
                     .into_iter()

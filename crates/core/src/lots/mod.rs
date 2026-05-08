@@ -604,9 +604,22 @@ pub fn replay_lots_to_date(
         .collect();
     relevant.sort_by_key(|a| a.activity_date);
 
+    // Drop lots that didn't exist yet at as_of_date. Callers that fetched lots
+    // via storage's date-aware query already filter, but other callers (e.g.
+    // valuation_service::calculate_valuation_history, which iterates all lots
+    // for an account across many dates) rely on this.
+    let in_scope: Vec<LotRecord> = lots
+        .into_iter()
+        .filter(|lot| {
+            NaiveDate::parse_from_str(&lot.open_date, "%Y-%m-%d")
+                .map(|d| d <= as_of_date)
+                .unwrap_or(true)
+        })
+        .collect();
+
     // Group lots by (account_id, asset_id), FIFO order by open_date.
     let mut groups: HashMap<(String, String), Vec<LotRecord>> = HashMap::new();
-    for lot in lots {
+    for lot in in_scope {
         groups
             .entry((lot.account_id.clone(), lot.asset_id.clone()))
             .or_default()
@@ -694,10 +707,20 @@ pub fn replay_lots_to_date(
         }
 
         // SELL / TRANSFER_OUT / ADJUSTMENT: consume in effective (current-at-date) units.
+        let activity_date = activity.activity_date.date_naive();
         let mut effective_to_reduce = activity.qty().abs();
         for lot in group.iter_mut() {
             if effective_to_reduce <= Decimal::ZERO {
                 break;
+            }
+            // Skip lots that didn't exist yet at this activity's date.
+            // The group is FIFO-sorted by open_date, so once we've stopped
+            // we won't encounter an earlier lot — but `continue` keeps the
+            // intent obvious and matches the SPLIT path's pattern.
+            let lot_open = NaiveDate::parse_from_str(&lot.open_date, "%Y-%m-%d")
+                .unwrap_or(NaiveDate::MIN);
+            if lot_open > activity_date {
+                continue;
             }
             let remaining =
                 Decimal::from_str(&lot.remaining_quantity).unwrap_or(Decimal::ZERO);
@@ -1425,6 +1448,67 @@ mod tests {
         );
         assert_eq!(result[0].split_ratio, "2");
         // Effective check: 7.5 × 2 = 15 shares held post-sell.
+    }
+
+    #[test]
+    fn replay_buy_sell_buy_does_not_consume_future_lot() {
+        // Buy 10 on Jan 1, sell 10 on Jan 31 (closes BUY1), buy 5 on Mar 1.
+        // Query as-of Feb 15: BUY1 is closed, BUY2 doesn't exist yet → empty.
+        // Query as-of Mar 15: BUY1 still closed, BUY2 exists with 5.
+        // The bug case: if SELL processing didn't filter by lot.open_date, an
+        // intermediate state could see SELL consume BUY2 (which didn't exist
+        // yet) when both lots are passed to replay together.
+        let lots = vec![
+            make_lot_record("buy1", "acc1", "AAPL", "2024-01-01", "10", "0", "150"),
+            make_lot_record("buy2", "acc1", "AAPL", "2024-03-01", "5", "5", "160"),
+        ];
+        let activities = vec![
+            make_activity("sell1", "acc1", "AAPL", "SELL", "2024-01-31", dec!(10)),
+        ];
+
+        // Between sell and second buy: nothing held.
+        let result = replay_lots_to_date(
+            lots.clone(),
+            &activities,
+            NaiveDate::from_ymd_opt(2024, 2, 15).unwrap(),
+        );
+        assert_eq!(result.len(), 0, "Feb 15: BUY1 closed, BUY2 not yet open");
+
+        // After second buy: only BUY2.
+        let result = replay_lots_to_date(
+            lots,
+            &activities,
+            NaiveDate::from_ymd_opt(2024, 3, 15).unwrap(),
+        );
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].id, "buy2");
+        assert_eq!(result[0].remaining_quantity, "5");
+    }
+
+    #[test]
+    fn replay_sell_does_not_pull_from_future_lot_when_earlier_depleted() {
+        // Buy 4 on Jan 1, sell 5 on Feb 1 (over-sells! could be a corporate
+        // action or import error), buy 10 on Mar 1.
+        // Query Feb 15: BUY1 had 4, sell of 5 fully depletes BUY1 (1 unmatched).
+        // Without the open_date filter, the SELL would pull the 1 extra from
+        // BUY2 (Mar 1) — which doesn't exist on Feb 1.
+        // With the filter: BUY1 → 0 remaining (the 1 extra is silently
+        // dropped by the FIFO loop hitting end-of-group). BUY2 untouched.
+        let lots = vec![
+            make_lot_record("buy1", "acc1", "AAPL", "2024-01-01", "4", "0", "150"),
+            make_lot_record("buy2", "acc1", "AAPL", "2024-03-01", "10", "9", "160"),
+        ];
+        let activities = vec![
+            make_activity("sell1", "acc1", "AAPL", "SELL", "2024-02-01", dec!(5)),
+        ];
+
+        let result = replay_lots_to_date(
+            lots,
+            &activities,
+            NaiveDate::from_ymd_opt(2024, 2, 15).unwrap(),
+        );
+        // BUY1 fully consumed → filtered out. BUY2 not yet open → filtered out.
+        assert_eq!(result.len(), 0);
     }
 
     #[test]
