@@ -183,7 +183,7 @@ pub struct Holding {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lots::{DisposalMethod, HoldingPeriod, LotRecord};
+    use crate::lots::LotRecord;
     use rust_decimal_macros::dec;
 
     fn make_lot_record(id: &str, account_id: &str, asset_id: &str, is_closed: bool) -> LotRecord {
@@ -203,7 +203,6 @@ mod tests {
             total_cost_basis: "11287.50".to_string(),
             fee_allocated: "12.50".to_string(),
             split_ratio: "1".to_string(),
-            disposal_method: DisposalMethod::Fifo,
             is_closed,
             close_date: if is_closed {
                 Some("2026-01-10".to_string())
@@ -211,8 +210,6 @@ mod tests {
                 None
             },
             close_activity_id: None,
-            is_wash_sale: false,
-            holding_period: Some(HoldingPeriod::LongTerm),
             created_at: "2025-06-15T00:00:00Z".to_string(),
             updated_at: "2025-06-15T00:00:00Z".to_string(),
         }

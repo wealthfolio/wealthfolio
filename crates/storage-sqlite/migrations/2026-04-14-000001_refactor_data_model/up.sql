@@ -42,19 +42,15 @@ CREATE TABLE lots (
     close_date          TEXT,
     close_activity_id   TEXT,
 
-    -- Tax-relevant flags (populated during shadow-write / future tax phase).
-    disposal_method     TEXT    NOT NULL DEFAULT 'FIFO',
-    is_wash_sale        INTEGER NOT NULL DEFAULT 0,
-    holding_period      TEXT,   -- SHORT_TERM | LONG_TERM | NULL (still open)
-
     -- Audit
     created_at          TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at          TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 
-    CHECK (disposal_method IN ('FIFO', 'LIFO', 'SPECIFIC_ID', 'AVG_COST', 'HIFO')),
     CHECK (is_closed    IN (0, 1)),
-    CHECK (is_wash_sale IN (0, 1)),
-    CHECK (holding_period IS NULL OR holding_period IN ('SHORT_TERM', 'LONG_TERM')),
+
+    -- Tax conclusions (disposal_method, is_wash_sale, holding_period) live in
+    -- separate tax-overlay tables in a later phase. The neutral lots table
+    -- intentionally stores only inventory facts.
 
     -- open_activity_id is CASCADE (not SET NULL) — deleting the opening
     -- activity removes the lot rather than orphaning it with a NULL ref.

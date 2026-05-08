@@ -12,7 +12,7 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 use wealthfolio_core::errors::Result;
-use wealthfolio_core::lots::{HoldingPeriod, LotClosure, LotRecord, LotRepositoryTrait};
+use wealthfolio_core::lots::{LotClosure, LotRecord, LotRepositoryTrait};
 
 // ── Diesel model ──────────────────────────────────────────────────────────────
 
@@ -30,12 +30,9 @@ struct LotRecordDB {
     cost_per_unit: String,
     total_cost_basis: String,
     fee_allocated: String,
-    disposal_method: String,
     is_closed: i32,
     close_date: Option<String>,
     close_activity_id: Option<String>,
-    is_wash_sale: i32,
-    holding_period: Option<String>,
     created_at: String,
     updated_at: String,
     split_ratio: String,
@@ -55,22 +52,9 @@ impl From<LotRecordDB> for LotRecord {
             total_cost_basis: r.total_cost_basis,
             fee_allocated: r.fee_allocated,
             split_ratio: r.split_ratio,
-            disposal_method: match r.disposal_method.as_str() {
-                "LIFO" => wealthfolio_core::lots::DisposalMethod::Lifo,
-                "HIFO" => wealthfolio_core::lots::DisposalMethod::Hifo,
-                "AVG_COST" => wealthfolio_core::lots::DisposalMethod::AvgCost,
-                "SPECIFIC_ID" => wealthfolio_core::lots::DisposalMethod::SpecificId,
-                _ => wealthfolio_core::lots::DisposalMethod::Fifo,
-            },
             is_closed: r.is_closed != 0,
             close_date: r.close_date,
             close_activity_id: r.close_activity_id,
-            is_wash_sale: r.is_wash_sale != 0,
-            holding_period: r.holding_period.as_deref().and_then(|s| match s {
-                "SHORT_TERM" => Some(HoldingPeriod::ShortTerm),
-                "LONG_TERM" => Some(HoldingPeriod::LongTerm),
-                _ => None,
-            }),
             created_at: r.created_at,
             updated_at: r.updated_at,
         }
@@ -91,15 +75,9 @@ impl From<&LotRecord> for LotRecordDB {
             total_cost_basis: r.total_cost_basis.clone(),
             fee_allocated: r.fee_allocated.clone(),
             split_ratio: r.split_ratio.clone(),
-            disposal_method: r.disposal_method.as_str().to_string(),
             is_closed: r.is_closed as i32,
             close_date: r.close_date.clone(),
             close_activity_id: r.close_activity_id.clone(),
-            is_wash_sale: r.is_wash_sale as i32,
-            holding_period: r.holding_period.map(|hp| match hp {
-                HoldingPeriod::ShortTerm => "SHORT_TERM".to_string(),
-                HoldingPeriod::LongTerm => "LONG_TERM".to_string(),
-            }),
             created_at: r.created_at.clone(),
             updated_at: r.updated_at.clone(),
         }
@@ -290,12 +268,9 @@ impl LotRepositoryTrait for LotsRepository {
                         total_cost_basis: closure.total_cost_basis.clone(),
                         fee_allocated: closure.fee_allocated.clone(),
                         split_ratio: "1".to_string(),
-                        disposal_method: "FIFO".to_string(),
                         is_closed: 1,
                         close_date: Some(closure.close_date.clone()),
                         close_activity_id: closure.close_activity_id.clone(),
-                        is_wash_sale: 0,
-                        holding_period: None,
                         created_at: now.clone(),
                         updated_at: now.clone(),
                     };
@@ -434,7 +409,6 @@ mod tests {
     use super::*;
     use crate::db::{create_pool, run_migrations, write_actor::spawn_writer};
     use tempfile::tempdir;
-    use wealthfolio_core::lots::DisposalMethod;
 
     async fn setup() -> (
         LotsRepository,
@@ -487,12 +461,9 @@ mod tests {
             total_cost_basis: "15000".to_string(),
             fee_allocated: "0".to_string(),
             split_ratio: "1".to_string(),
-            disposal_method: DisposalMethod::Fifo,
             is_closed: false,
             close_date: None,
             close_activity_id: None,
-            is_wash_sale: false,
-            holding_period: None,
             created_at: "2024-01-15T00:00:00.000Z".to_string(),
             updated_at: "2024-01-15T00:00:00.000Z".to_string(),
         }

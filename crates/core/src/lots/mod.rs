@@ -159,9 +159,6 @@ pub struct LotRecord {
     /// per-share basis. See docs/architecture/data_model.md §3.5.
     pub split_ratio: String,
 
-    /// Cost basis disposal method for this lot.
-    pub disposal_method: DisposalMethod,
-
     /// True once remaining_quantity reaches zero.
     pub is_closed: bool,
 
@@ -170,50 +167,13 @@ pub struct LotRecord {
     /// The activity that fully closed this lot. None if still open.
     pub close_activity_id: Option<String>,
 
-    /// Tax flags — not yet populated; reserved for future tax-lot analysis.
-    pub is_wash_sale: bool,
-    pub holding_period: Option<HoldingPeriod>,
-
     pub created_at: String,
     pub updated_at: String,
 }
 
-/// Cost basis disposal method.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum DisposalMethod {
-    /// First in, first out (default).
-    #[default]
-    Fifo,
-    /// Last in, first out.
-    Lifo,
-    /// Highest cost first (tax-loss harvesting).
-    Hifo,
-    /// Weighted average cost (Canada ACB, many international jurisdictions).
-    AvgCost,
-    /// User selects specific lots.
-    SpecificId,
-}
-
-impl DisposalMethod {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Fifo => "FIFO",
-            Self::Lifo => "LIFO",
-            Self::Hifo => "HIFO",
-            Self::AvgCost => "AVG_COST",
-            Self::SpecificId => "SPECIFIC_ID",
-        }
-    }
-}
-
-/// Holding period for capital gains classification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum HoldingPeriod {
-    ShortTerm,
-    LongTerm,
-}
+// Tax-conclusion concepts (disposal method, wash-sale, holding period) live in
+// future tax-overlay tables. The neutral lots table intentionally stores only
+// inventory facts.
 
 // ── Extraction helpers ────────────────────────────────────────────────────────
 
@@ -251,12 +211,9 @@ pub fn extract_lot_records(snapshot: &AccountStateSnapshot) -> Vec<LotRecord> {
                 total_cost_basis: lot.cost_basis.to_string(),
                 fee_allocated: lot.acquisition_fees.to_string(),
                 split_ratio: lot.effective_split_ratio().to_string(),
-                disposal_method: DisposalMethod::Fifo,
                 is_closed: false,
                 close_date: None,
                 close_activity_id: None,
-                is_wash_sale: false,
-                holding_period: None,
                 created_at: now.clone(),
                 updated_at: now.clone(),
             });
@@ -1155,12 +1112,9 @@ mod tests {
             total_cost_basis: "9250".to_string(),
             fee_allocated: "0".to_string(),
             split_ratio: "1".to_string(),
-            disposal_method: DisposalMethod::Fifo,
             is_closed: false,
             close_date: None,
             close_activity_id: None,
-            is_wash_sale: false,
-            holding_period: None,
             created_at: "2024-01-15T00:00:00.000Z".to_string(),
             updated_at: "2024-01-15T00:00:00.000Z".to_string(),
         }];
@@ -1194,12 +1148,9 @@ mod tests {
             total_cost_basis: (orig * cpu).to_string(),
             fee_allocated: "0".to_string(),
             split_ratio: "1".to_string(),
-            disposal_method: DisposalMethod::Fifo,
             is_closed: remaining_qty == "0",
             close_date: None,
             close_activity_id: None,
-            is_wash_sale: false,
-            holding_period: None,
             created_at: "2024-01-01T00:00:00.000Z".to_string(),
             updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         }

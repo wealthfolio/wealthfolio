@@ -10,7 +10,7 @@ use crate::errors::{CalculatorError, Error, Result};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::fx::FxServiceTrait;
 use crate::lots::{
-    check_lot_quantity_consistency, extract_lot_records, DisposalMethod, LotRecord,
+    check_lot_quantity_consistency, extract_lot_records, LotRecord,
     LotRepositoryTrait,
 };
 use crate::portfolio::snapshot::{
@@ -1277,12 +1277,9 @@ impl SnapshotServiceTrait for SnapshotService {
                         total_cost_basis: p.total_cost_basis.to_string(),
                         fee_allocated: "0".to_string(),
                         split_ratio: "1".to_string(),
-                        disposal_method: DisposalMethod::Fifo,
                         is_closed: false,
                         close_date: None,
                         close_activity_id: None,
-                        is_wash_sale: false,
-                        holding_period: None,
                         created_at: now.clone(),
                         updated_at: now.clone(),
                     })
@@ -1370,12 +1367,9 @@ impl SnapshotServiceTrait for SnapshotService {
                         total_cost_basis: p.total_cost_basis.to_string(),
                         fee_allocated: "0".to_string(),
                         split_ratio: "1".to_string(),
-                        disposal_method: DisposalMethod::Fifo,
                         is_closed: false,
                         close_date: None,
                         close_activity_id: None,
-                        is_wash_sale: false,
-                        holding_period: None,
                         created_at: now.clone(),
                         updated_at: now.clone(),
                     })
