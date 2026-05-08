@@ -149,7 +149,6 @@ export const COMMANDS: CommandMap = {
   import_quotes_csv: { method: "POST", path: "/market-data/quotes/import" },
   synch_quotes: { method: "POST", path: "/market-data/sync/history" },
   sync_market_data: { method: "POST", path: "/market-data/sync" },
-  fetch_yahoo_dividends: { method: "GET", path: "/market-data/dividends" },
   // Secrets
   set_secret: { method: "POST", path: "/secrets" },
   get_secret: { method: "GET", path: "/secrets" },
