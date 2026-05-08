@@ -342,11 +342,11 @@ impl NetWorthServiceTrait for NetWorthService {
                 .filter(|r| !r.is_zero())
                 .unwrap_or(Decimal::ONE);
             let effective_qty = qty * split_ratio;
-            let cost = lot.total_cost_basis.parse::<Decimal>().unwrap_or_else(|e| {
+            let cost = lot.remaining_cost_basis.parse::<Decimal>().unwrap_or_else(|e| {
                 log::error!(
-                    "Lot {} has malformed total_cost_basis '{}': {}",
+                    "Lot {} has malformed remaining_cost_basis '{}': {}",
                     lot.id,
-                    lot.total_cost_basis,
+                    lot.remaining_cost_basis,
                     e
                 );
                 Decimal::ZERO

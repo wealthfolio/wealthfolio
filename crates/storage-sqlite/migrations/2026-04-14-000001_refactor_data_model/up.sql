@@ -31,7 +31,12 @@ CREATE TABLE lots (
     open_activity_id    TEXT,
     original_quantity   TEXT    NOT NULL,
     cost_per_unit       TEXT    NOT NULL,
-    total_cost_basis    TEXT    NOT NULL,
+    -- Immutable: the cost basis at lot creation (cost_per_unit × original_quantity
+    -- + fee_allocated, in cost_basis_currency).
+    original_cost_basis TEXT    NOT NULL,
+    -- Mutable: the open cost basis remaining for partial-sell tracking. Reduced
+    -- proportionally as remaining_quantity is consumed.
+    remaining_cost_basis TEXT   NOT NULL,
     fee_allocated       TEXT    NOT NULL DEFAULT '0',
 
     -- Current state — populated over the life of the lot.

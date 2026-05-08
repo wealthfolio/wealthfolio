@@ -654,29 +654,18 @@ impl ValuationServiceTrait for ValuationService {
                     if effective_qty.is_zero() {
                         continue;
                     }
-                    // Cost basis is split-invariant. We pro-rate stored
-                    // total_cost_basis by remaining/original to approximate
-                    // remaining open basis. (This is a known coarseness — a
-                    // remaining_cost_basis column will replace it.)
-                    let original_qty = lot
-                        .original_quantity
-                        .parse::<Decimal>()
-                        .unwrap_or(Decimal::ZERO);
-                    let stored_total_cost = lot
-                        .total_cost_basis
+                    // remaining_cost_basis tracks the open basis directly —
+                    // partial sells reduce it proportionally at write time.
+                    let cost = lot
+                        .remaining_cost_basis
                         .parse::<Decimal>()
                         .unwrap_or_else(|e| {
                             log::error!(
-                                "Lot {} has malformed total_cost_basis '{}': {}",
-                                lot.id, lot.total_cost_basis, e
+                                "Lot {} has malformed remaining_cost_basis '{}': {}",
+                                lot.id, lot.remaining_cost_basis, e
                             );
                             Decimal::ZERO
                         });
-                    let cost = if original_qty > Decimal::ZERO {
-                        stored_total_cost * (qty / original_qty)
-                    } else {
-                        stored_total_cost
-                    };
                     aggregated
                         .entry(lot.asset_id.clone())
                         .and_modify(|(q, c)| {

@@ -140,15 +140,19 @@ function AccountLotGroup({
                   // effective shares for market valuation use splitRatio.
                   const effectiveRemaining = lot.remainingQuantity * lot.splitRatio;
                   const marketValue = effectiveRemaining * marketPrice;
-                  const gainLoss = marketValue - lot.totalCostBasis;
-                  const gainPct = lot.totalCostBasis !== 0 ? gainLoss / lot.totalCostBasis : 0;
+                  const gainLoss = marketValue - lot.remainingCostBasis;
+                  const gainPct =
+                    lot.remainingCostBasis !== 0 ? gainLoss / lot.remainingCostBasis : 0;
                   const hasSplit = lot.splitRatio !== 1;
 
                   return (
                     <TableRow key={lot.id} className={lot.isClosed ? "opacity-50" : ""}>
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-1">
-                          <Badge variant={lot.isClosed ? "secondary" : "outline"} className="text-xs">
+                          <Badge
+                            variant={lot.isClosed ? "secondary" : "outline"}
+                            className="text-xs"
+                          >
                             {lot.isClosed ? "Closed" : "Open"}
                           </Badge>
                           {hasSplit && (
@@ -183,7 +187,7 @@ function AccountLotGroup({
                         {formatAmount(lot.fees, currency)}
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatAmount(lot.totalCostBasis, currency)}
+                        {formatAmount(lot.remainingCostBasis, currency)}
                       </TableCell>
                       <TableCell className="text-right">
                         {lot.isClosed ? "—" : formatAmount(marketValue, currency)}
@@ -214,18 +218,15 @@ function AccountLotGroup({
             {lots.map((lot) => {
               const effectiveRemaining = lot.remainingQuantity * lot.splitRatio;
               const marketValue = effectiveRemaining * marketPrice;
-              const gainLoss = marketValue - lot.totalCostBasis;
-              const gainPct = lot.totalCostBasis !== 0 ? gainLoss / lot.totalCostBasis : 0;
+              const gainLoss = marketValue - lot.remainingCostBasis;
+              const gainPct = lot.remainingCostBasis !== 0 ? gainLoss / lot.remainingCostBasis : 0;
               const hasSplit = lot.splitRatio !== 1;
 
               return (
                 <div key={lot.id} className={`space-y-2 p-4 ${lot.isClosed ? "opacity-50" : ""}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        variant={lot.isClosed ? "secondary" : "outline"}
-                        className="text-xs"
-                      >
+                      <Badge variant={lot.isClosed ? "secondary" : "outline"} className="text-xs">
                         {lot.isClosed ? "Closed" : "Open"}
                       </Badge>
                       {hasSplit && (
@@ -237,17 +238,11 @@ function AccountLotGroup({
                           {`${lot.splitRatio}:1 split`}
                         </Badge>
                       )}
-                      <span className="text-sm font-medium">
-                        {formatDate(lot.acquisitionDate)}
-                      </span>
+                      <span className="text-sm font-medium">{formatDate(lot.acquisitionDate)}</span>
                     </div>
                     {!lot.isClosed && (
                       <div className="flex items-center space-x-2">
-                        <GainAmount
-                          value={gainLoss}
-                          currency={currency}
-                          displayCurrency={false}
-                        />
+                        <GainAmount value={gainLoss} currency={currency} displayCurrency={false} />
                         <GainPercent value={gainPct} variant="badge" />
                       </div>
                     )}
@@ -255,7 +250,8 @@ function AccountLotGroup({
                   <div className="text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                     <span>Remaining</span>
                     <span className="text-foreground text-right">
-                      {formatQuantity(lot.remainingQuantity)} / {formatQuantity(lot.originalQuantity)}
+                      {formatQuantity(lot.remainingQuantity)} /{" "}
+                      {formatQuantity(lot.originalQuantity)}
                     </span>
                     <span>Cost/Unit</span>
                     <span className="text-foreground text-right">
@@ -263,7 +259,7 @@ function AccountLotGroup({
                     </span>
                     <span>Cost Basis</span>
                     <span className="text-foreground text-right">
-                      {formatAmount(lot.totalCostBasis, currency)}
+                      {formatAmount(lot.remainingCostBasis, currency)}
                     </span>
                     {!lot.isClosed && (
                       <>

@@ -126,7 +126,13 @@ impl HoldingsCalculator {
                     open_date: lot.acquisition_date.format("%Y-%m-%d").to_string(),
                     original_quantity: orig_qty.to_string(),
                     cost_per_unit: lot.acquisition_price.to_string(),
-                    total_cost_basis: lot.cost_basis.to_string(),
+                    // lot.cost_basis is the running remaining basis (mutated
+                    // on partial sells). For the closure record we want the
+                    // original/at-acquisition basis, reconstructed from the
+                    // immutable acquisition_price/original_quantity/fees.
+                    original_cost_basis: (lot.acquisition_price * orig_qty
+                        + lot.acquisition_fees)
+                        .to_string(),
                     fee_allocated: lot.acquisition_fees.to_string(),
                 });
         }

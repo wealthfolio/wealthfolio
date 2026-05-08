@@ -956,7 +956,7 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
                 let mut grouped: HashMap<String, (Decimal, Decimal)> = HashMap::new();
                 for lot in &open_lots {
                     let qty = lot.remaining_quantity.parse::<Decimal>().unwrap_or_default();
-                    let cost = lot.total_cost_basis.parse::<Decimal>().unwrap_or_default();
+                    let cost = lot.remaining_cost_basis.parse::<Decimal>().unwrap_or_default();
                     let entry = grouped.entry(lot.asset_id.clone()).or_default();
                     entry.0 += qty;
                     entry.1 += cost;

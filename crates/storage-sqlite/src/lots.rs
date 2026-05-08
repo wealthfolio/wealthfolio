@@ -28,7 +28,8 @@ struct LotRecordDB {
     original_quantity: String,
     remaining_quantity: String,
     cost_per_unit: String,
-    total_cost_basis: String,
+    original_cost_basis: String,
+    remaining_cost_basis: String,
     fee_allocated: String,
     is_closed: i32,
     close_date: Option<String>,
@@ -49,7 +50,8 @@ impl From<LotRecordDB> for LotRecord {
             original_quantity: r.original_quantity,
             remaining_quantity: r.remaining_quantity,
             cost_per_unit: r.cost_per_unit,
-            total_cost_basis: r.total_cost_basis,
+            original_cost_basis: r.original_cost_basis,
+            remaining_cost_basis: r.remaining_cost_basis,
             fee_allocated: r.fee_allocated,
             split_ratio: r.split_ratio,
             is_closed: r.is_closed != 0,
@@ -72,7 +74,8 @@ impl From<&LotRecord> for LotRecordDB {
             original_quantity: r.original_quantity.clone(),
             remaining_quantity: r.remaining_quantity.clone(),
             cost_per_unit: r.cost_per_unit.clone(),
-            total_cost_basis: r.total_cost_basis.clone(),
+            original_cost_basis: r.original_cost_basis.clone(),
+            remaining_cost_basis: r.remaining_cost_basis.clone(),
             fee_allocated: r.fee_allocated.clone(),
             split_ratio: r.split_ratio.clone(),
             is_closed: r.is_closed as i32,
@@ -235,8 +238,10 @@ impl LotRepositoryTrait for LotsRepository {
                                 .eq(diesel::upsert::excluded(dsl::remaining_quantity)),
                             dsl::cost_per_unit
                                 .eq(diesel::upsert::excluded(dsl::cost_per_unit)),
-                            dsl::total_cost_basis
-                                .eq(diesel::upsert::excluded(dsl::total_cost_basis)),
+                            dsl::original_cost_basis
+                                .eq(diesel::upsert::excluded(dsl::original_cost_basis)),
+                            dsl::remaining_cost_basis
+                                .eq(diesel::upsert::excluded(dsl::remaining_cost_basis)),
                             dsl::split_ratio
                                 .eq(diesel::upsert::excluded(dsl::split_ratio)),
                             dsl::is_closed.eq(diesel::upsert::excluded(dsl::is_closed)),
@@ -265,7 +270,11 @@ impl LotRepositoryTrait for LotsRepository {
                         original_quantity: closure.original_quantity.clone(),
                         remaining_quantity: "0".to_string(),
                         cost_per_unit: closure.cost_per_unit.clone(),
-                        total_cost_basis: closure.total_cost_basis.clone(),
+                        original_cost_basis: closure.original_cost_basis.clone(),
+                        // Closure means the lot was fully consumed in one pass — no
+                        // remaining basis. The disposed amount is captured in the
+                        // separate disposal record (when lot_disposals lands).
+                        remaining_cost_basis: "0".to_string(),
                         fee_allocated: closure.fee_allocated.clone(),
                         split_ratio: "1".to_string(),
                         is_closed: 1,
@@ -458,7 +467,8 @@ mod tests {
             original_quantity: qty.to_string(),
             remaining_quantity: qty.to_string(),
             cost_per_unit: "150".to_string(),
-            total_cost_basis: "15000".to_string(),
+            original_cost_basis: "15000".to_string(),
+            remaining_cost_basis: "15000".to_string(),
             fee_allocated: "0".to_string(),
             split_ratio: "1".to_string(),
             is_closed: false,

@@ -60,8 +60,9 @@ pub struct LotClosure {
     pub original_quantity: String,
     /// Cost per unit in the asset's quote currency.
     pub cost_per_unit: String,
-    /// Total cost basis (cost_per_unit × original_quantity + fee).
-    pub total_cost_basis: String,
+    /// Cost basis at lot creation (cost_per_unit × original_quantity + fee).
+    /// Immutable.
+    pub original_cost_basis: String,
     /// Transaction fees allocated to this lot.
     pub fee_allocated: String,
 }
@@ -147,9 +148,13 @@ pub struct LotRecord {
     /// Cost per unit in the asset's quote currency, in **as-acquired** terms.
     /// Immutable after insert. Adjusted cost per current share = `cost_per_unit / split_ratio`.
     pub cost_per_unit: String,
-    /// Total cost basis (cost_per_unit × original_quantity + fee_allocated). Immutable.
-    /// Splits do not change the dollars paid, so this is split-invariant.
-    pub total_cost_basis: String,
+    /// Cost basis at lot creation (cost_per_unit × original_quantity + fee_allocated).
+    /// Immutable. Split-invariant — splits don't change the dollars paid.
+    pub original_cost_basis: String,
+    /// Open cost basis remaining for the lot. Reduced proportionally on
+    /// partial sells: `remaining_cost_basis -= (consumed_qty / original_quantity) × original_cost_basis`.
+    /// Reaches zero on full close.
+    pub remaining_cost_basis: String,
     /// Transaction fees allocated to this lot. Immutable.
     pub fee_allocated: String,
 
@@ -199,6 +204,12 @@ pub fn extract_lot_records(snapshot: &AccountStateSnapshot) -> Vec<LotRecord> {
             } else {
                 lot.original_quantity
             };
+            // Original cost basis (immutable) is reconstructed from at-acquisition
+            // values that the in-memory model preserves: acquisition_price stays
+            // at the as-acquired price, acquisition_fees stays at the original
+            // fee allocation. lot.cost_basis is mutated on partial sells (it's
+            // effectively the remaining_cost_basis).
+            let original_cost_basis = lot.acquisition_price * orig_qty + lot.acquisition_fees;
             records.push(LotRecord {
                 id: lot.id.clone(),
                 account_id: snapshot.account_id.clone(),
@@ -208,7 +219,8 @@ pub fn extract_lot_records(snapshot: &AccountStateSnapshot) -> Vec<LotRecord> {
                 original_quantity: orig_qty.to_string(),
                 remaining_quantity: lot.quantity.to_string(),
                 cost_per_unit: lot.acquisition_price.to_string(),
-                total_cost_basis: lot.cost_basis.to_string(),
+                original_cost_basis: original_cost_basis.to_string(),
+                remaining_cost_basis: lot.cost_basis.to_string(),
                 fee_allocated: lot.acquisition_fees.to_string(),
                 split_ratio: lot.effective_split_ratio().to_string(),
                 is_closed: false,
@@ -443,7 +455,7 @@ pub async fn backfill_split_ratios(
         // pre-existing data corruption is visible, but we do NOT block the
         // migration — the discrepancy is independent of the split refactor.
         let fee = Decimal::from_str(&lot.fee_allocated).unwrap_or(Decimal::ZERO);
-        let stored_tcb = Decimal::from_str(&lot.total_cost_basis).unwrap_or(rem_qty * cpu + fee);
+        let stored_tcb = Decimal::from_str(&lot.remaining_cost_basis).unwrap_or(rem_qty * cpu + fee);
         let expected_open_basis = if orig_qty.is_zero() {
             stored_tcb
         } else {
@@ -612,6 +624,7 @@ pub fn replay_lots_to_date(
             let orig = Decimal::from_str(&lot.original_quantity).unwrap_or(Decimal::ZERO);
             if !orig.is_zero() {
                 lot.remaining_quantity = lot.original_quantity.clone();
+                lot.remaining_cost_basis = lot.original_cost_basis.clone();
                 if reset_split {
                     lot.split_ratio = Decimal::ONE.to_string();
                 }
@@ -700,6 +713,21 @@ pub fn replay_lots_to_date(
             let consume_original = consume_effective / lot_split_ratio;
             let new_remaining = remaining - consume_original;
             lot.remaining_quantity = new_remaining.to_string();
+
+            // Reduce remaining_cost_basis by the same proportion of original.
+            // Cost basis is split-invariant; partial sells deplete it linearly.
+            let original_qty =
+                Decimal::from_str(&lot.original_quantity).unwrap_or(Decimal::ZERO);
+            if original_qty > Decimal::ZERO {
+                let original_cost = Decimal::from_str(&lot.original_cost_basis)
+                    .unwrap_or(Decimal::ZERO);
+                let new_remaining_cost = if new_remaining <= Decimal::ZERO {
+                    Decimal::ZERO
+                } else {
+                    original_cost * (new_remaining / original_qty)
+                };
+                lot.remaining_cost_basis = new_remaining_cost.to_string();
+            }
 
             if new_remaining <= Decimal::ZERO {
                 lot.is_closed = true;
@@ -1109,7 +1137,8 @@ mod tests {
             original_quantity: "50".to_string(),
             remaining_quantity: "50".to_string(),
             cost_per_unit: "185".to_string(),
-            total_cost_basis: "9250".to_string(),
+            original_cost_basis: "9250".to_string(),
+            remaining_cost_basis: "9250".to_string(),
             fee_allocated: "0".to_string(),
             split_ratio: "1".to_string(),
             is_closed: false,
@@ -1145,7 +1174,9 @@ mod tests {
             original_quantity: original_qty.to_string(),
             remaining_quantity: remaining_qty.to_string(),
             cost_per_unit: cost_per_unit.to_string(),
-            total_cost_basis: (orig * cpu).to_string(),
+            original_cost_basis: (orig * cpu).to_string(),
+            remaining_cost_basis: (Decimal::from_str(remaining_qty).unwrap_or(Decimal::ZERO) * cpu)
+                .to_string(),
             fee_allocated: "0".to_string(),
             split_ratio: "1".to_string(),
             is_closed: remaining_qty == "0",

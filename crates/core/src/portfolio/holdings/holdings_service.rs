@@ -227,7 +227,7 @@ impl HoldingsService {
 
             let total_cost_basis: Decimal = asset_lots
                 .iter()
-                .filter_map(|l| l.total_cost_basis.parse::<Decimal>().ok())
+                .filter_map(|l| l.remaining_cost_basis.parse::<Decimal>().ok())
                 .sum();
 
             let inception_date = asset_lots
@@ -441,7 +441,7 @@ fn normalize_holding_currency(holding: &mut Holding) {
         if let Some(lot_details) = holding.lot_details.as_mut() {
             for lot in lot_details {
                 lot.cost_per_unit *= factor;
-                lot.total_cost_basis *= factor;
+                lot.remaining_cost_basis *= factor;
                 lot.fees *= factor;
             }
         }
@@ -663,10 +663,10 @@ impl HoldingsServiceTrait for HoldingsService {
                 let total_cost_basis: Decimal = asset_lots
                     .iter()
                     .map(|l| {
-                        l.total_cost_basis.parse::<Decimal>().unwrap_or_else(|e| {
+                        l.remaining_cost_basis.parse::<Decimal>().unwrap_or_else(|e| {
                             error!(
-                                "Lot {} has malformed total_cost_basis '{}': {}",
-                                l.id, l.total_cost_basis, e
+                                "Lot {} has malformed remaining_cost_basis '{}': {}",
+                                l.id, l.remaining_cost_basis, e
                             );
                             Decimal::ZERO
                         })
@@ -838,7 +838,7 @@ mod tests {
                 original_quantity: dec!(1),
                 remaining_quantity: dec!(1),
                 cost_per_unit: dec!(3000),
-                total_cost_basis: dec!(3000),
+                remaining_cost_basis: dec!(3000),
                 fees: dec!(0),
                 split_ratio: dec!(1),
                 is_closed: false,
@@ -904,7 +904,7 @@ mod tests {
         );
         assert_eq!(holding.prev_close_value.as_ref().unwrap().base, dec!(31.34));
         let lot = &holding.lot_details.as_ref().unwrap()[0];
-        assert_eq!(lot.total_cost_basis, dec!(30));
+        assert_eq!(lot.remaining_cost_basis, dec!(30));
         assert_eq!(lot.cost_per_unit, dec!(30));
     }
 

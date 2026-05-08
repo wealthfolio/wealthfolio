@@ -24,7 +24,9 @@ pub struct LotView {
     pub original_quantity: Decimal,
     pub remaining_quantity: Decimal,
     pub cost_per_unit: Decimal,
-    pub total_cost_basis: Decimal,
+    /// Open cost basis for the remaining_quantity. Reduced proportionally as
+    /// the lot is partially sold. Reaches zero on full close.
+    pub remaining_cost_basis: Decimal,
     pub fees: Decimal,
     /// Cumulative post-acquisition SPLIT factor. Defaults to 1 (no splits).
     pub split_ratio: Decimal,
@@ -47,7 +49,7 @@ impl LotView {
             original_quantity: r.original_quantity.parse().ok()?,
             remaining_quantity: r.remaining_quantity.parse().ok()?,
             cost_per_unit: r.cost_per_unit.parse().ok()?,
-            total_cost_basis: r.total_cost_basis.parse().ok()?,
+            remaining_cost_basis: r.remaining_cost_basis.parse().ok()?,
             fees: r.fee_allocated.parse().unwrap_or_default(),
             split_ratio,
             is_closed: r.is_closed,
@@ -200,7 +202,12 @@ mod tests {
                 "75".to_string()
             },
             cost_per_unit: "150.50".to_string(),
-            total_cost_basis: "11287.50".to_string(),
+            original_cost_basis: "15050.00".to_string(),
+            remaining_cost_basis: if is_closed {
+                "0".to_string()
+            } else {
+                "11287.50".to_string()
+            },
             fee_allocated: "12.50".to_string(),
             split_ratio: "1".to_string(),
             is_closed,

@@ -539,8 +539,9 @@ export interface LotView {
   remainingQuantity: number;
   /** Cost per unit in as-acquired terms. */
   costPerUnit: number;
-  /** Total cost basis (split-invariant). */
-  totalCostBasis: number;
+  /** Open cost basis for the remaining quantity. Reduced proportionally on
+   * partial sells; reaches zero on full close. */
+  remainingCostBasis: number;
   fees: number;
   /**
    * Cumulative product of post-acquisition SPLIT ratios. 1 when no splits.
