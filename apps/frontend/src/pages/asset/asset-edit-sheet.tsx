@@ -6,7 +6,6 @@ import { useCustomProviders } from "@/hooks/use-custom-providers";
 import { useMarketDataProviders } from "@/hooks/use-market-data-providers";
 import { useTaxonomies } from "@/hooks/use-taxonomies";
 import type { Asset, Quote } from "@/lib/types";
-import { formatAmount } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -26,6 +25,7 @@ import {
   SheetHeader,
   SheetTitle,
   Switch,
+  formatAmount,
 } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -51,10 +51,10 @@ import {
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wealthfolio/ui/components/ui/tabs";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
+import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Path, useFieldArray, useForm, useWatch } from "react-hook-form";
 import * as z from "zod";
-import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { serializeProviderConfig } from "./asset-provider-config";
 import { useAssetProfileMutations } from "./hooks/use-asset-profile-mutations";
 

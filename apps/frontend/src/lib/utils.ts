@@ -300,35 +300,39 @@ export function normalizeCurrency(currency: string | undefined): string | undefi
   return MINOR_CURRENCY_MAP[currency] ?? currency;
 }
 
-export function formatAmount(
-  amount: number | string | null | undefined,
-  currency: string,
-  displayCurrency = true,
-) {
-  if (amount == null) return "-";
-  const numericAmount = typeof amount === "string" ? Number(amount) : amount;
-  if (!Number.isFinite(numericAmount)) return "-";
-  const displayAmount = Math.abs(numericAmount) < 0.005 ? 0 : numericAmount;
-  const rawCurrency = currency ?? "USD";
-  const isPenceCurrency = rawCurrency === "GBp" || rawCurrency === "GBX";
-
-  if (isPenceCurrency) {
-    const formattedNumber = decimalFormatter.format(displayAmount);
-    return displayCurrency ? `${formattedNumber}p` : formattedNumber;
-  }
-
-  if (!displayCurrency) {
-    return decimalFormatter.format(displayAmount);
-  }
-
-  return getCurrencyFormatter(rawCurrency).format(displayAmount);
-}
+/*
+ * @deprecated Use formatAmount from @wealthfolio/ui instead.
+ *
+ * export function formatAmount(
+ *   amount: number | string | null | undefined,
+ *   currency: string,
+ *   displayCurrency = true,
+ * ) {
+ *   if (amount == null) return "-";
+ *   const numericAmount = typeof amount === "string" ? Number(amount) : amount;
+ *   if (!Number.isFinite(numericAmount)) return "-";
+ *   const displayAmount = Math.abs(numericAmount) < 0.005 ? 0 : numericAmount;
+ *   const rawCurrency = currency ?? "USD";
+ *   const isPenceCurrency = rawCurrency === "GBp" || rawCurrency === "GBX";
+ *
+ *   if (isPenceCurrency) {
+ *     const formattedNumber = decimalFormatter.format(displayAmount);
+ *     return displayCurrency ? `${formattedNumber}p` : formattedNumber;
+ *   }
+ *
+ *   if (!displayCurrency) {
+ *     return decimalFormatter.format(displayAmount);
+ *   }
+ *
+ *   return getCurrencyFormatter(rawCurrency).format(displayAmount);
+ * }
+ */
 
 export function formatPercent(value: number | null | undefined) {
   if (value == null) return "-";
   try {
     // Use Intl.NumberFormat for correct percentage formatting (handles x100 and % sign)
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat(undefined, {
       style: "percent",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
@@ -354,7 +358,7 @@ export function formatQuantity(quantity: number | string | null | undefined): st
   const numQuantity = typeof quantity === "string" ? parseFloat(quantity) : quantity;
   if (!Number.isFinite(numQuantity)) return "-";
 
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 4,
     useGrouping: true,

@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { TickerAvatar } from "@/components/ticker-avatar";
-import { Badge } from "@wealthfolio/ui";
+import { Badge, formatAmount } from "@wealthfolio/ui";
 import { DataTable } from "@wealthfolio/ui/components/ui/data-table";
 import { DataTableColumnHeader } from "@wealthfolio/ui/components/ui/data-table/data-table-column-header";
 import { DataTableFacetedFilterProps } from "@wealthfolio/ui/components/ui/data-table/data-table-faceted-filter";
@@ -26,10 +26,10 @@ import {
 } from "@wealthfolio/ui/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 
-import { ASSET_KIND_DISPLAY_NAMES, LatestQuoteSnapshot } from "@/lib/types";
 import { parseOccSymbol } from "@/lib/occ-symbol";
-import { formatAmount, formatDate } from "@/lib/utils";
 import { useSettingsContext } from "@/lib/settings-provider";
+import { ASSET_KIND_DISPLAY_NAMES, LatestQuoteSnapshot } from "@/lib/types";
+import { formatDate } from "@/lib/utils";
 import { getNoQuoteReasonText, isStaleQuote, ParsedAsset } from "./asset-utils";
 
 interface AssetsTableProps {
