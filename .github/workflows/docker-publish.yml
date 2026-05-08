@@ -4,6 +4,7 @@ on:
   push:
     # Publish semver tags as releases.
     tags: ["v*.*.*"]
+  workflow_dispatch:        # Actions 탭에서 수동 실행 버튼 활성화
 
 jobs:
   build:
@@ -50,13 +51,14 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            docker.io/wealthfolio/wealthfolio
-            docker.io/afadil/wealthfolio
+            # docker.io/wealthfolio/wealthfolio
+            # docker.io/afadil/wealthfolio
             ghcr.io/${{ github.repository_owner }}/wealthfolio
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
+            # type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
+            type=raw,value=latest  # 수동 실행 시에도 latest 태그가 생성되도록 설정
             type=sha,format=long
 
       # Build and push Docker image with Buildx (don't push on PR)
