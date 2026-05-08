@@ -89,9 +89,17 @@ impl From<AccountStateSnapshot> for AccountStateSnapshotDB {
             account_id: domain.account_id,
             snapshot_date: domain.snapshot_date.format("%Y-%m-%d").to_string(),
             currency: domain.currency,
-            // Positions are now stored in the snapshot_positions table.
-            // JSON column is vestigial — always write empty object.
-            positions: "{}".to_string(),
+            // Primary store is the relational `snapshot_positions` table.
+            // For non-calculated (HOLDINGS-mode) snapshots we ALSO keep the
+            // positions JSON populated so older app versions, rollback
+            // scenarios, and synced devices on prior schema versions can
+            // still read positions. CALCULATED snapshots derive from the
+            // lots table, so the JSON column stays empty for them.
+            positions: if domain.source.is_non_calculated() {
+                serde_json::to_string(&domain.positions).unwrap_or_else(|_| "{}".to_string())
+            } else {
+                "{}".to_string()
+            },
             cash_balances: serde_json::to_string(&domain.cash_balances)
                 .unwrap_or_else(|_| "{}".to_string()),
             cost_basis: domain.cost_basis.round_dp(DECIMAL_PRECISION).to_string(),

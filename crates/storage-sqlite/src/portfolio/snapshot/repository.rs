@@ -792,17 +792,25 @@ impl SnapshotRepository {
             .load(&mut conn)
             .map_err(StorageError::from)?;
 
-        // We need the account_id to reconstruct Position.id. Fetch it from the snapshot.
-        let acct_id: Option<String> = {
+        // Fetch account_id and positions JSON in one query — account_id is
+        // needed to reconstruct Position.id, and positions JSON is the
+        // fallback when snapshot_positions has no rows for this snapshot
+        // (e.g. snapshots written by an older app version that pre-dates
+        // the relational table).
+        let snap_meta: Option<(String, String)> = {
             use crate::schema::holdings_snapshots::dsl as hs;
             hs::holdings_snapshots
-                .select(hs::account_id)
+                .select((hs::account_id, hs::positions))
                 .filter(hs::id.eq(snapshot_id_param))
-                .first::<String>(&mut conn)
+                .first::<(String, String)>(&mut conn)
                 .optional()
                 .map_err(StorageError::from)?
         };
-        let acct_id = acct_id.unwrap_or_default();
+        let (acct_id, positions_json) = snap_meta.unwrap_or_default();
+
+        if rows.is_empty() {
+            return Ok(deserialize_positions_json(&positions_json, &acct_id));
+        }
 
         let mut map = HashMap::new();
         for row in rows {
@@ -830,26 +838,28 @@ impl SnapshotRepository {
             .load(&mut conn)
             .map_err(StorageError::from)?;
 
-        if rows.is_empty() {
-            return Ok(HashMap::new());
-        }
-
-        // Fetch account_ids for the snapshots in one query.
-        let snap_account_map: HashMap<String, String> = {
+        // Fetch (id, account_id, positions JSON) for every requested snapshot
+        // — account_id is needed to reconstruct Position.id, and positions
+        // JSON is the fallback for snapshots without snapshot_positions rows
+        // (older app versions, rollbacks, synced devices on prior schema).
+        let snap_meta: HashMap<String, (String, String)> = {
             use crate::schema::holdings_snapshots::dsl as hs;
-            let pairs: Vec<(String, String)> = hs::holdings_snapshots
-                .select((hs::id, hs::account_id))
+            let triples: Vec<(String, String, String)> = hs::holdings_snapshots
+                .select((hs::id, hs::account_id, hs::positions))
                 .filter(hs::id.eq_any(snapshot_ids_param))
                 .load(&mut conn)
                 .map_err(StorageError::from)?;
-            pairs.into_iter().collect()
+            triples
+                .into_iter()
+                .map(|(sid, acct, pj)| (sid, (acct, pj)))
+                .collect()
         };
 
         let mut result: HashMap<String, HashMap<String, Position>> = HashMap::new();
         for row in rows {
-            let acct_id = snap_account_map
+            let acct_id = snap_meta
                 .get(&row.snapshot_id)
-                .cloned()
+                .map(|(a, _)| a.clone())
                 .unwrap_or_default();
             let snap_id = row.snapshot_id.clone();
             let pos = row.to_position(&acct_id);
@@ -858,6 +868,21 @@ impl SnapshotRepository {
                 .or_default()
                 .insert(pos.asset_id.clone(), pos);
         }
+
+        // Fallback: for any requested snapshot with no rows in
+        // snapshot_positions, deserialize positions JSON.
+        for sid in snapshot_ids_param {
+            if result.contains_key(sid) {
+                continue;
+            }
+            if let Some((acct, pj)) = snap_meta.get(sid) {
+                let map = deserialize_positions_json(pj, acct);
+                if !map.is_empty() {
+                    result.insert(sid.clone(), map);
+                }
+            }
+        }
+
         Ok(result)
     }
 
@@ -891,6 +916,33 @@ impl SnapshotRepository {
             .map_err(StorageError::from)?;
 
         Ok(())
+    }
+}
+
+/// Deserialize the legacy `holdings_snapshots.positions` JSON column into a
+/// position map. Returns empty for "{}" or unparseable input. The `acct_id`
+/// is stamped onto each Position so callers see a consistent account_id even
+/// if older serialized payloads lacked the field.
+fn deserialize_positions_json(json: &str, acct_id: &str) -> HashMap<String, Position> {
+    if json.is_empty() || json == "{}" {
+        return HashMap::new();
+    }
+    match serde_json::from_str::<HashMap<String, Position>>(json) {
+        Ok(mut map) => {
+            for pos in map.values_mut() {
+                if pos.account_id.is_empty() {
+                    pos.account_id = acct_id.to_string();
+                }
+            }
+            map
+        }
+        Err(e) => {
+            warn!(
+                "Failed to parse positions JSON fallback (acct {}): {}",
+                acct_id, e
+            );
+            HashMap::new()
+        }
     }
 }
 
