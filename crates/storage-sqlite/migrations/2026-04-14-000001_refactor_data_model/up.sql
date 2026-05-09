@@ -94,18 +94,7 @@ ALTER TABLE daily_account_valuation
 
 
 -- ----------------------------------------------------------------------------
--- 3. assets — optional account_id FK for liability-style assets
--- ----------------------------------------------------------------------------
--- Links alternative assets (liabilities, property, etc.) to the account
--- they belong to. NULL for unlinked assets (house, gold in a safe) and
--- for investment assets (linked via activities/lots instead).
-
-ALTER TABLE assets
-    ADD COLUMN account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL;
-
-
--- ----------------------------------------------------------------------------
--- 4. holdings_snapshots — drop stale merged-TOTAL rows
+-- 3. holdings_snapshots — drop stale merged-TOTAL rows
 -- ----------------------------------------------------------------------------
 -- The merged-TOTAL-snapshot pipeline is removed. TOTAL holdings are now
 -- synthesized on demand: positions from lots, cash from per-account
@@ -116,7 +105,7 @@ DELETE FROM holdings_snapshots WHERE account_id = 'TOTAL';
 
 
 -- ----------------------------------------------------------------------------
--- 5. snapshot_positions — relational positions for HOLDINGS-mode accounts
+-- 4. snapshot_positions — relational positions for HOLDINGS-mode accounts
 -- ----------------------------------------------------------------------------
 -- Replaces the positions JSON blob in holdings_snapshots. Integer
 -- autoincrement PK; natural key is (snapshot_id, asset_id). Application

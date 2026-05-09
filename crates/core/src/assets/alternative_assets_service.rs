@@ -234,7 +234,6 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             quote_mode: QuoteMode::Manual,
             is_active: true,
             metadata,
-            account_id: request.account_id.clone(),
             ..Default::default()
         };
 
@@ -508,7 +507,6 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                 Some(&display_code),
                 updated_metadata,
                 request.notes.as_deref(),
-                request.account_id.as_deref(),
             )
             .await?;
 
@@ -650,7 +648,6 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                     metadata: asset.metadata,
                     linked_asset_id,
                     notes: asset.notes,
-                    account_id: asset.account_id,
                 })
             })
             .collect();
@@ -708,7 +705,6 @@ mod tests {
             purchase_date: Some(chrono::NaiveDate::from_ymd_opt(2020, 3, 1).unwrap()),
             metadata: Some(json!({"sub_type": "residence"})),
             linked_asset_id: None,
-            account_id: None,
         };
 
         let metadata = AlternativeAssetService::build_asset_metadata(&request);

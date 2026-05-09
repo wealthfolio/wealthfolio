@@ -715,7 +715,6 @@ impl ActivityService {
             instrument_symbol: asset.instrument_symbol.clone(),
             instrument_exchange_mic: asset.instrument_exchange_mic.clone(),
             provider_config: asset.provider_config.clone(),
-            account_id: asset.account_id.clone(),
             notes: asset.notes.clone(),
             metadata: asset.metadata.clone(),
         }
@@ -750,7 +749,6 @@ impl ActivityService {
             instrument_symbol: Some(symbol.to_string()),
             instrument_exchange_mic: activity.exchange_mic.clone(),
             provider_config: None,
-            account_id: None,
             notes: None,
             metadata: None,
         })

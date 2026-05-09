@@ -182,6 +182,5 @@ pub trait AlternativeAssetRepositoryTrait: Send + Sync {
         display_code: Option<&str>,
         metadata: Option<serde_json::Value>,
         notes: Option<&str>,
-        account_id: Option<&str>,
     ) -> Result<()>;
 }

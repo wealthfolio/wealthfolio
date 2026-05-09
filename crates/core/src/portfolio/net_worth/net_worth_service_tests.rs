@@ -1132,7 +1132,6 @@ fn create_test_asset(id: &str, kind: AssetKind, currency: &str) -> Asset {
         instrument_exchange_mic: None,
         instrument_key: None,
         exchange_name: None,
-        account_id: None,
         quote_mode: QuoteMode::Market,
         provider_config: None,
         is_active: true,

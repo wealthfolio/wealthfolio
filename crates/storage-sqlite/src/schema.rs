@@ -145,7 +145,6 @@ diesel::table! {
         instrument_exchange_mic -> Nullable<Text>,
         instrument_key -> Nullable<Text>,
         provider_config -> Nullable<Text>,
-        account_id -> Nullable<Text>,
         created_at -> Text,
         updated_at -> Text,
     }
