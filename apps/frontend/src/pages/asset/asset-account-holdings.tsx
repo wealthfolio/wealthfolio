@@ -1,9 +1,9 @@
 import {
-  getAssetHoldings,
-  getSnapshots,
-  getSnapshotByDate,
-  deleteSnapshot,
-  saveManualHoldings,
+    deleteSnapshot,
+    getAssetHoldings,
+    getSnapshotByDate,
+    getSnapshots,
+    saveManualHoldings,
 } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -11,32 +11,32 @@ import { useIsMobileViewport } from "@/hooks/use-platform";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, Holding, SnapshotInfo } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
+import { HoldingsEditMode } from "@/pages/holdings/components/holdings-edit-mode";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AmountDisplay, GainAmount, GainPercent, QuantityDisplay } from "@wealthfolio/ui";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@wealthfolio/ui/components/ui/alert-dialog";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@wealthfolio/ui/components/ui/table";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@wealthfolio/ui/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
-import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@wealthfolio/ui/components/ui/table";
 import { useCallback, useMemo, useState } from "react";
-import { HoldingsEditMode } from "@/pages/holdings/components/holdings-edit-mode";
 
 interface AssetAccountHoldingsProps {
   assetId: string;

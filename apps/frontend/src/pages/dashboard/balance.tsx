@@ -1,6 +1,6 @@
-import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import NumberFlow from "@number-flow/react";
+import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useMemo } from "react";
 
 const isValidCurrencyCode = (code: string) => /^[A-Za-z]{3}$/.test(code);
@@ -46,8 +46,7 @@ const Balance: React.FC<BalanceProps> = ({
       const formatter = new Intl.NumberFormat(undefined, {
         ...(useCurrencyStyle ? { currency, currencyDisplay: "narrowSymbol" } : {}),
         style: useCurrencyStyle ? "currency" : "decimal",
-        minimumFractionDigits: displayDecimal ? 2 : 0,
-        maximumFractionDigits: displayDecimal ? 2 : 0,
+          ...(!displayDecimal ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {}),
       });
       return formatter.format(targetValue);
     } catch {
@@ -82,8 +81,7 @@ const Balance: React.FC<BalanceProps> = ({
                 ? { currency, currencyDisplay: "narrowSymbol" as const }
                 : {}),
               style: displayCurrency && validCurrency ? "currency" : "decimal",
-              minimumFractionDigits: displayDecimal ? 2 : 0,
-              maximumFractionDigits: displayDecimal ? 2 : 0,
+            ...(!displayDecimal ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {}),
             }}
           />
           <span className="sr-only" data-testid="portfolio-balance-value">

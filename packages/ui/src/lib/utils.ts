@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { DECIMAL_PRECISION, DISPLAY_DECIMAL_PRECISION } from "./constants";
+import { worldCurrencies } from "./currencies";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -14,10 +15,35 @@ const DECIMAL_FORMAT_OPTIONS: Intl.NumberFormatOptions = {
   maximumFractionDigits: DISPLAY_DECIMAL_PRECISION,
 };
 
-const decimalFormatter = new Intl.NumberFormat("en-US", DECIMAL_FORMAT_OPTIONS);
+const decimalFormatter = new Intl.NumberFormat(undefined, DECIMAL_FORMAT_OPTIONS);
 const currencyFormatterCache = new Map<string, Intl.NumberFormat>();
 const compactCurrencyFormatterCache = new Map<string, Intl.NumberFormat>();
 const currencySymbolFormatterCache = new Map<string, Intl.NumberFormat>();
+const decimalFormatterCache = new Map<string, Intl.NumberFormat>();
+
+const getDecimalFormatter = (currency: string) => {
+  const normalizedCurrency = currency?.toUpperCase?.() ?? "USD";
+  if (decimalFormatterCache.has(normalizedCurrency)) {
+    return decimalFormatterCache.get(normalizedCurrency)!;
+  }
+
+  let formatter: Intl.NumberFormat;
+  try {
+    const fractionDigits =
+      worldCurrencies.find((c) => c.value === normalizedCurrency)?.decimals ??
+      DISPLAY_DECIMAL_PRECISION;
+
+  return new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    });
+  } catch {
+    formatter = decimalFormatter;
+  }
+
+  decimalFormatterCache.set(normalizedCurrency, formatter);
+  return formatter;
+};
 
 const getCurrencyFormatter = (currency: string) => {
   const normalizedCurrency = currency?.toUpperCase?.() ?? "USD";
@@ -29,10 +55,15 @@ const getCurrencyFormatter = (currency: string) => {
 
   let formatter: Intl.NumberFormat;
   try {
-    formatter = new Intl.NumberFormat("en-US", {
+    const fractionDigits =
+      worldCurrencies.find((c) => c.value === normalizedCurrency)?.decimals ??
+      DISPLAY_DECIMAL_PRECISION;
+
+    formatter = new Intl.NumberFormat(undefined, {
       style: "currency",
       currency: normalizedCurrency,
-      ...DECIMAL_FORMAT_OPTIONS,
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
     });
   } catch {
     formatter = decimalFormatter;
@@ -52,7 +83,7 @@ const getCompactCurrencyFormatter = (currency: string, maximumFractionDigits: nu
 
   let formatter: Intl.NumberFormat;
   try {
-    formatter = new Intl.NumberFormat("en-US", {
+    formatter = new Intl.NumberFormat(undefined, {
       style: "currency",
       currency: normalizedCurrency,
       notation: "compact",
@@ -79,7 +110,7 @@ export function formatCurrencySymbol(currency: string | null | undefined) {
     if (!currencySymbolFormatterCache.has(normalizedCurrency)) {
       currencySymbolFormatterCache.set(
         normalizedCurrency,
-        new Intl.NumberFormat("en-US", {
+        new Intl.NumberFormat(undefined, {
           style: "currency",
           currency: normalizedCurrency,
           currencyDisplay: "narrowSymbol",
@@ -112,12 +143,12 @@ export function formatAmount(
   const isPenceCurrency = rawCurrency === "GBp" || rawCurrency === "GBX";
 
   if (isPenceCurrency) {
-    const formattedNumber = decimalFormatter.format(displayAmount);
+    const formattedNumber = getDecimalFormatter(rawCurrency).format(displayAmount);
     return displayCurrency ? `${formattedNumber}p` : formattedNumber;
   }
 
   if (!displayCurrency) {
-    return decimalFormatter.format(displayAmount);
+    return getDecimalFormatter(rawCurrency).format(displayAmount);
   }
 
   return getCurrencyFormatter(rawCurrency).format(displayAmount);
@@ -136,7 +167,7 @@ export function formatCompactAmount(
   const maximumFractionDigits = abs >= 1_000_000 ? 2 : abs >= 100_000 ? 0 : abs >= 1_000 ? 1 : 0;
 
   if (!displayCurrency) {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat(undefined, {
       notation: "compact",
       maximumFractionDigits,
     }).format(numericAmount);
@@ -168,7 +199,7 @@ export function formatQuantity(quantity: string | number | null | undefined): st
   if (quantity == null) return "-";
   const numQuantity = parseFloat(String(quantity));
   if (!Number.isFinite(numQuantity)) return "-";
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits: DECIMAL_PRECISION,
     useGrouping: true,

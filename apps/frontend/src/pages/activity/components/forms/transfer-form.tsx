@@ -1,8 +1,8 @@
 import { useSettings } from "@/hooks/use-settings";
 import { isSecuritiesTransfer } from "@/lib/activity-utils";
 import { ActivityType, QuoteMode } from "@/lib/constants";
-import { formatAmount } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { formatAmount } from "@wealthfolio/ui";
 import { AnimatedToggleGroup } from "@wealthfolio/ui/components/ui/animated-toggle-group";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";

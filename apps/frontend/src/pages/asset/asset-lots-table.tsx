@@ -1,3 +1,7 @@
+import { Lot } from "@/lib/types";
+import { formatDate, formatQuantity } from "@/lib/utils";
+import { formatAmount, GainAmount, GainPercent } from "@wealthfolio/ui";
+import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
 import {
   Table,
   TableBody,
@@ -6,12 +10,6 @@ import {
   TableHeader,
   TableRow,
 } from "@wealthfolio/ui/components/ui/table";
-import { Lot } from "@/lib/types";
-import { formatAmount } from "@wealthfolio/ui";
-import { formatDate, formatQuantity } from "@/lib/utils";
-import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
-import { GainAmount } from "@wealthfolio/ui";
-import { GainPercent } from "@wealthfolio/ui";
 
 interface AssetLotsTableProps {
   lots: Lot[];

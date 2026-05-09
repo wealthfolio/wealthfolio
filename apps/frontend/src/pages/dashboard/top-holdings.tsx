@@ -1,6 +1,5 @@
 import { TickerAvatar } from "@/components/ticker-avatar";
-import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
-import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { HoldingType, isAlternativeAssetKind, type AssetKind } from "@/lib/constants";
 import { parseOccSymbol } from "@/lib/occ-symbol";
 import { Holding } from "@/lib/types";
@@ -13,10 +12,11 @@ import {
   Icons,
   usePersistentState,
 } from "@wealthfolio/ui";
+import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
+import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 
 const MAX_DISPLAYED_HOLDINGS = 7;
 const MAX_STACKED_AVATARS = 5;
