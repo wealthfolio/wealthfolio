@@ -41,6 +41,13 @@ CREATE TABLE lots (
 
     -- Current state — populated over the life of the lot.
     remaining_quantity  TEXT    NOT NULL,
+    -- Cumulative product of post-acquisition SPLIT ratios for the lot's
+    -- asset. Default '1' means no splits since the lot was opened. Lot
+    -- columns above (original_quantity, cost_per_unit, original_cost_basis,
+    -- fee_allocated, remaining_quantity) are stored in as-acquired
+    -- (pre-split) units; effective shares held now = remaining_quantity *
+    -- split_ratio. Total cost basis is split-invariant.
+    split_ratio         TEXT    NOT NULL DEFAULT '1',
     is_closed           INTEGER NOT NULL DEFAULT 0,
 
     -- Close state — populated when the lot is fully disposed.
