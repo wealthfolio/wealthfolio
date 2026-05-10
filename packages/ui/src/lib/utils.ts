@@ -1,7 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { DECIMAL_PRECISION, DISPLAY_DECIMAL_PRECISION } from "./constants";
-import { worldCurrencies } from "./currencies";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -21,6 +20,23 @@ const compactCurrencyFormatterCache = new Map<string, Intl.NumberFormat>();
 const currencySymbolFormatterCache = new Map<string, Intl.NumberFormat>();
 const decimalFormatterCache = new Map<string, Intl.NumberFormat>();
 
+function getFractionDigits(currency: string): number {
+  const normalizedCurrency = currency?.toUpperCase?.() ?? "USD";
+  try {
+    // 1. Check ISO standard first (uses browser built-in CLDR data for KRW, JPY, etc.)
+    // The Intl API natively follows the ISO 4217 standard for currency minor units.
+    // ISO 4217 Ref: https://en.wikipedia.org/wiki/ISO_4217#Active_codes (See 'Minor unit' column)
+    // MDN Ref: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/NumberFormat/resolvedOptions
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: normalizedCurrency,
+    }).resolvedOptions().maximumFractionDigits;
+  } catch {
+    // 2. Fallback to default precision for unknown/special currencies
+    return DISPLAY_DECIMAL_PRECISION;
+  }
+}
+
 const getDecimalFormatter = (currency: string) => {
   const normalizedCurrency = currency?.toUpperCase?.() ?? "USD";
   if (decimalFormatterCache.has(normalizedCurrency)) {
@@ -29,11 +45,9 @@ const getDecimalFormatter = (currency: string) => {
 
   let formatter: Intl.NumberFormat;
   try {
-    const fractionDigits =
-      worldCurrencies.find((c) => c.value === normalizedCurrency)?.decimals ??
-      DISPLAY_DECIMAL_PRECISION;
+    const fractionDigits = getFractionDigits(normalizedCurrency);
 
-  return new Intl.NumberFormat("en-US", {
+    formatter = new Intl.NumberFormat("en-US", {
       minimumFractionDigits: fractionDigits,
       maximumFractionDigits: fractionDigits,
     });
@@ -55,9 +69,7 @@ const getCurrencyFormatter = (currency: string) => {
 
   let formatter: Intl.NumberFormat;
   try {
-    const fractionDigits =
-      worldCurrencies.find((c) => c.value === normalizedCurrency)?.decimals ??
-      DISPLAY_DECIMAL_PRECISION;
+    const fractionDigits = getFractionDigits(normalizedCurrency);
 
     formatter = new Intl.NumberFormat(undefined, {
       style: "currency",
@@ -138,8 +150,15 @@ export function formatAmount(
   if (amount == null) return "-";
   const numericAmount = typeof amount === "string" ? Number(amount) : amount;
   if (!Number.isFinite(numericAmount)) return "-";
-  const displayAmount = Math.abs(numericAmount) < 0.005 ? 0 : numericAmount;
   const rawCurrency = currency ?? "USD";
+
+  // Calculate a dynamic threshold based on the currency's decimal precision to prevent
+  // "-0.00" or other rounding artifacts for extremely small values.
+  // e.g., For USD (2 decimals), threshold is 0.005. For KRW/JPY (0 decimals), threshold is 0.5.
+  const fractionDigits = getFractionDigits(rawCurrency);
+  const threshold = Math.pow(10, -fractionDigits) / 2;
+  const displayAmount = Math.abs(numericAmount) < threshold ? 0 : numericAmount;
+
   const isPenceCurrency = rawCurrency === "GBp" || rawCurrency === "GBX";
 
   if (isPenceCurrency) {
