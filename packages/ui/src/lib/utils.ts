@@ -27,10 +27,12 @@ function getFractionDigits(currency: string): number {
     // The Intl API natively follows the ISO 4217 standard for currency minor units.
     // ISO 4217 Ref: https://en.wikipedia.org/wiki/ISO_4217#Active_codes (See 'Minor unit' column)
     // MDN Ref: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/NumberFormat/resolvedOptions
-    return new Intl.NumberFormat("en-US", {
+    const fractionDigits = new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: normalizedCurrency,
     }).resolvedOptions().maximumFractionDigits;
+
+    return fractionDigits ?? DISPLAY_DECIMAL_PRECISION;
   } catch {
     // 2. Fallback to default precision for unknown/special currencies
     return DISPLAY_DECIMAL_PRECISION;
