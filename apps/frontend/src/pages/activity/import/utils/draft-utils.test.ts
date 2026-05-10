@@ -112,6 +112,20 @@ describe("createDraftActivities explicit activity mapping", () => {
     expect(draft.amount).toBe("250.00");
   });
 
+  it("does not serialize stale external flags for non-transfer rows", () => {
+    const draft = createSingleDraftWithMapping(["2024-03-15", "TRANSFER", "250.00", "USD"], {
+      [ActivityType.TRANSFER_IN]: ["TRANSFER"],
+    });
+
+    expect(draft.isExternal).toBe(true);
+    expect(
+      draftToActivityImport({
+        ...draft,
+        activityType: ActivityType.CREDIT,
+      }).isExternal,
+    ).toBeUndefined();
+  });
+
   it("accepts a positive split ratio from the amount column", () => {
     const [draft] = createDraftActivities(
       [["2024-05-15", "SPLIT", "NVDA", "3", "USD"]],

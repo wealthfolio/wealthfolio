@@ -117,6 +117,8 @@ See [ROADMAP.md](./ROADMAP.md).
 ### Quick Links
 
 - 💡 **[Example Addons](addons/)** - Browse sample addons in the repository
+- 🧩 **[Community Addons](addons/community-addons.md)** - Browse addons shared by
+  the community
 - 🛠️ **[Development Tools](packages/addon-dev-tools/)** - CLI tools for addon
   development
 

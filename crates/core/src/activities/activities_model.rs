@@ -799,6 +799,11 @@ pub struct ActivityImport {
     /// DB unique constraint is not violated. Set by the user in the review step.
     #[serde(default)]
     pub force_import: bool,
+    /// True when a TRANSFER_IN/OUT crosses the tracked-account boundary (e.g. RSU grant deposit).
+    /// Persisted as `metadata.flow.is_external` so net-contribution and flow classification work.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_external: Option<bool>,
 }
 
 /// Model for sorting activities
@@ -1666,6 +1671,16 @@ impl From<ActivityImport> for NewActivity {
             Some(ActivityStatus::Posted)
         };
 
+        // Persist `is_external` as flow metadata so net_contribution and flow classification
+        // see this transfer the same way the manual activity form would.
+        let is_transfer = import.activity_type == ACTIVITY_TYPE_TRANSFER_IN
+            || import.activity_type == ACTIVITY_TYPE_TRANSFER_OUT;
+        let metadata = if is_transfer && import.is_external == Some(true) {
+            Some(serde_json::json!({ "flow": { "is_external": true } }).to_string())
+        } else {
+            None
+        };
+
         NewActivity {
             id: import.id,
             account_id: import.account_id.unwrap_or_default(),
@@ -1681,7 +1696,7 @@ impl From<ActivityImport> for NewActivity {
             status,
             notes: import.comment,
             fx_rate: import.fx_rate,
-            metadata: None,
+            metadata,
             needs_review: None,
             source_system: Some("CSV".to_string()),
             source_record_id: None,

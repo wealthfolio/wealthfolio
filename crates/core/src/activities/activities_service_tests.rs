@@ -690,6 +690,10 @@ mod tests {
             use crate::activities::ActivityStatus;
             // Extract asset_id before consuming other fields
             let asset_id = new_activity.get_symbol_id().map(|s| s.to_string());
+            let metadata = new_activity
+                .metadata
+                .as_deref()
+                .and_then(|metadata| serde_json::from_str(metadata).ok());
             let activity = Activity {
                 id: new_activity.id.unwrap_or_else(|| "test-id".to_string()),
                 account_id: new_activity.account_id,
@@ -708,7 +712,7 @@ mod tests {
                 currency: new_activity.currency,
                 fx_rate: new_activity.fx_rate,
                 notes: new_activity.notes,
-                metadata: None,
+                metadata,
                 source_system: None,
                 source_record_id: None,
                 source_group_id: new_activity.source_group_id,
@@ -848,6 +852,10 @@ mod tests {
             let mut count = 0usize;
             for new_activity in _activities {
                 let asset_id = new_activity.get_symbol_id().map(|s| s.to_string());
+                let metadata = new_activity
+                    .metadata
+                    .as_deref()
+                    .and_then(|metadata| serde_json::from_str(metadata).ok());
                 stored.push(Activity {
                     id: new_activity.id.unwrap_or_else(|| "test-id".to_string()),
                     account_id: new_activity.account_id,
@@ -868,7 +876,7 @@ mod tests {
                     currency: new_activity.currency,
                     fx_rate: new_activity.fx_rate,
                     notes: new_activity.notes,
-                    metadata: None,
+                    metadata,
                     source_system: None,
                     source_record_id: None,
                     source_group_id: new_activity.source_group_id,
@@ -3713,6 +3721,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -3794,6 +3803,7 @@ mod tests {
                 asset_id: None,
                 isin: Some("ca82509l1076".to_string()),
                 force_import: false,
+                is_external: None,
             },
             ActivityImport {
                 id: None,
@@ -3825,6 +3835,7 @@ mod tests {
                 asset_id: None,
                 isin: Some("CA82509L1077".to_string()),
                 force_import: false,
+                is_external: None,
             },
         ];
 
@@ -3960,6 +3971,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4030,6 +4042,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4094,6 +4107,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4164,6 +4178,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4242,6 +4257,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4310,6 +4326,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4374,6 +4391,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4444,6 +4462,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4510,6 +4529,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4576,6 +4596,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4642,6 +4663,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4705,6 +4727,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4766,6 +4789,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4832,6 +4856,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4907,6 +4932,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -4977,6 +5003,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -5047,6 +5074,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -5115,6 +5143,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -5132,7 +5161,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_import_links_transfer_pairs_using_offset_local_date() {
+    async fn test_import_links_transfer_pairs_using_offset_local_date_and_clears_external_metadata()
+    {
         let account_service = Arc::new(MockAccountService::new());
         let asset_service = Arc::new(MockAssetService::new());
         let fx_service = Arc::new(MockFxService::new());
@@ -5140,6 +5170,8 @@ mod tests {
 
         let account = create_test_account("acc-1", "USD");
         account_service.add_account(account);
+        let destination_account = create_test_account("acc-2", "USD");
+        account_service.add_account(destination_account);
 
         let quote_service = Arc::new(MockQuoteService);
         let activity_service = ActivityService::new(
@@ -5161,7 +5193,7 @@ mod tests {
             fee: Some(dec!(0)),
             amount: Some(dec!(500)),
             comment: Some("Internal transfer out".to_string()),
-            account_id: Some("acc-1".to_string()),
+            account_id: Some("acc-2".to_string()),
             account_name: None,
             symbol_name: None,
             exchange_mic: None,
@@ -5180,6 +5212,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: Some(true),
         };
 
         let transfer_in = ActivityImport {
@@ -5212,6 +5245,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: Some(true),
         };
 
         let result = activity_service
@@ -5243,6 +5277,309 @@ mod tests {
         assert_eq!(
             transfer_out_stored.source_group_id, transfer_in_stored.source_group_id,
             "paired transfers should share the same source_group_id"
+        );
+        assert_eq!(
+            transfer_out_stored
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.get("flow"))
+                .and_then(|flow| flow.get("is_external"))
+                .and_then(|value| value.as_bool()),
+            Some(false),
+            "auto-linked transfer out should be marked internal"
+        );
+        assert_eq!(
+            transfer_in_stored
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.get("flow"))
+                .and_then(|flow| flow.get("is_external"))
+                .and_then(|value| value.as_bool()),
+            Some(false),
+            "auto-linked transfer in should be marked internal"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_import_does_not_auto_link_transfer_pairs_with_same_account() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let account = create_test_account("acc-1", "USD");
+        account_service.add_account(account);
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let transfer_out = ActivityImport {
+            id: None,
+            date: "2025-12-31".to_string(),
+            symbol: String::new(),
+            activity_type: "TRANSFER_OUT".to_string(),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            amount: Some(dec!(500)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: None,
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: Some(true),
+        };
+
+        let transfer_in = ActivityImport {
+            id: None,
+            date: "2025-12-31".to_string(),
+            symbol: String::new(),
+            activity_type: "TRANSFER_IN".to_string(),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            amount: Some(dec!(500)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(2),
+            fx_rate: None,
+            subtype: None,
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: Some(true),
+        };
+
+        let result = activity_service
+            .import_activities(vec![transfer_out, transfer_in])
+            .await
+            .expect("transfer import should succeed");
+
+        assert!(result.summary.success);
+        assert_eq!(result.summary.imported, 2);
+
+        let stored = activity_repository
+            .get_activities()
+            .expect("stored activities should be readable");
+        assert_eq!(stored.len(), 2);
+
+        for activity in stored {
+            assert!(
+                activity.source_group_id.is_none(),
+                "same-account transfer leg should not be auto-linked"
+            );
+            assert_eq!(
+                activity
+                    .metadata
+                    .as_ref()
+                    .and_then(|metadata| metadata.get("flow"))
+                    .and_then(|flow| flow.get("is_external"))
+                    .and_then(|value| value.as_bool()),
+                Some(true),
+                "unlinked same-account leg should keep its external flag"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_import_does_not_auto_link_transfer_when_matching_leg_is_duplicate() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let account = create_test_account("acc-1", "USD");
+        account_service.add_account(account);
+
+        let date = DateTime::parse_from_rfc3339("2025-12-31T00:00:00Z")
+            .expect("valid date")
+            .with_timezone(&Utc);
+        let existing_transfer_in_key = crate::activities::compute_idempotency_key(
+            "acc-1",
+            "TRANSFER_IN",
+            &date,
+            None,
+            None,
+            None,
+            Some(dec!(500)),
+            "USD",
+            None,
+            None,
+        );
+        activity_repository
+            .activities
+            .lock()
+            .unwrap()
+            .push(Activity {
+                id: "existing-transfer-in".to_string(),
+                account_id: "acc-1".to_string(),
+                asset_id: None,
+                activity_type: "TRANSFER_IN".to_string(),
+                activity_type_override: None,
+                source_type: None,
+                subtype: None,
+                status: ActivityStatus::Posted,
+                activity_date: date,
+                settlement_date: None,
+                quantity: None,
+                unit_price: None,
+                amount: Some(dec!(500)),
+                fee: Some(dec!(0)),
+                currency: "USD".to_string(),
+                fx_rate: None,
+                notes: None,
+                metadata: Some(json!({ "flow": { "is_external": true } })),
+                source_system: Some("CSV".to_string()),
+                source_record_id: None,
+                source_group_id: None,
+                idempotency_key: Some(existing_transfer_in_key),
+                import_run_id: None,
+                is_user_modified: false,
+                needs_review: false,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            });
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let transfer_out = ActivityImport {
+            id: None,
+            date: "2025-12-31".to_string(),
+            symbol: String::new(),
+            activity_type: "TRANSFER_OUT".to_string(),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            amount: Some(dec!(500)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: None,
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: Some(true),
+        };
+
+        let transfer_in_duplicate = ActivityImport {
+            id: None,
+            date: "2025-12-31".to_string(),
+            symbol: String::new(),
+            activity_type: "TRANSFER_IN".to_string(),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            amount: Some(dec!(500)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(2),
+            fx_rate: None,
+            subtype: None,
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: Some(true),
+        };
+
+        let result = activity_service
+            .import_activities(vec![transfer_out, transfer_in_duplicate])
+            .await
+            .expect("transfer import should succeed");
+
+        assert!(result.summary.success);
+        assert_eq!(result.summary.imported, 1);
+        assert_eq!(result.summary.duplicates, 1);
+
+        let stored = activity_repository
+            .get_activities()
+            .expect("stored activities should be readable");
+        let imported_transfer_out = stored
+            .iter()
+            .find(|activity| activity.activity_type == "TRANSFER_OUT")
+            .expect("TRANSFER_OUT should be inserted");
+
+        assert!(
+            imported_transfer_out.source_group_id.is_none(),
+            "single inserted leg should not get an orphan source_group_id"
+        );
+        assert_eq!(
+            imported_transfer_out
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.get("flow"))
+                .and_then(|flow| flow.get("is_external"))
+                .and_then(|value| value.as_bool()),
+            Some(true),
+            "unpaired inserted leg should keep its external flag"
         );
     }
 
@@ -5475,6 +5812,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -5546,6 +5884,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -5679,6 +6018,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: true,
+            is_external: None,
         };
 
         let result = activity_service
@@ -5767,6 +6107,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         // First row: normal import. Second row: identical but force_import=true.
@@ -5776,6 +6117,7 @@ mod tests {
                 ActivityImport {
                     line_number: Some(2),
                     force_import: true,
+                    is_external: None,
                     ..base
                 },
             ])
@@ -5860,6 +6202,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: true, // flag set but no duplicate exists
+            is_external: None,
         };
 
         let result = activity_service
@@ -6224,6 +6567,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -6289,6 +6633,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -6354,6 +6699,7 @@ mod tests {
                 asset_id: None,
                 isin: None,
                 force_import: false,
+                is_external: None,
             };
 
             let result = activity_service
@@ -6431,6 +6777,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -6509,6 +6856,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -6575,6 +6923,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service
@@ -6650,6 +6999,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let result = activity_service

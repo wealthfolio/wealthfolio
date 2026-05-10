@@ -203,6 +203,14 @@ mod mobile {
                     // The frontend will trigger the initial portfolio update after it's mounted
                     emit_app_ready(&handle);
 
+                    // Trigger startup broker sync (async, non-blocking).
+                    // After this, user manually triggers sync via button.
+                    let startup_handle = handle.clone();
+                    let startup_context = Arc::clone(&context);
+                    tauri::async_runtime::spawn(async move {
+                        scheduler::run_startup_sync(&startup_handle, &startup_context).await;
+                    });
+
                     // Start background device sync while the mobile app is active.
                     // The loop self-skips when identity is not configured, and frontend lifecycle
                     // triggers still cover resume/online cases after iOS suspends the process.

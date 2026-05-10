@@ -507,6 +507,8 @@ export function createDraftActivities(
 export function draftToActivityImport(draft: DraftActivity): ActivityImport {
   const activityType = draft.activityType?.trim().toUpperCase();
   const subtype = draft.subtype?.trim().toUpperCase();
+  const isTransfer =
+    activityType === ActivityType.TRANSFER_IN || activityType === ActivityType.TRANSFER_OUT;
 
   return {
     id: undefined,
@@ -536,5 +538,6 @@ export function draftToActivityImport(draft: DraftActivity): ActivityImport {
     isDraft: false,
     comment: draft.comment,
     forceImport: draft.forceImport ?? false,
+    isExternal: isTransfer ? draft.isExternal : undefined,
   };
 }

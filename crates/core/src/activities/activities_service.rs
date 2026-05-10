@@ -3495,6 +3495,7 @@ impl ActivityServiceTrait for ActivityService {
                 asset_id: None,
                 isin: candidate.isin.clone(),
                 force_import: false,
+                is_external: None,
             })
             .collect();
 
@@ -3808,9 +3809,9 @@ impl ActivityServiceTrait for ActivityService {
             });
         }
 
-        // ── 4. Convert to NewActivity + link transfer pairs ──────────────────
-        // source_slice keeps the original ActivityImport values so link_imported_transfer_pairs
-        // can match by (date, currency, symbol, amount) using the pre-normalized data.
+        // ── 4. Convert to NewActivity ────────────────────────────────────────
+        // source_slice keeps the original ActivityImport values for idempotency
+        // and later transfer-pair matching using the pre-normalized data.
         let source_slice: Vec<ActivityImport> = import_activities_indexed
             .iter()
             .map(|(_, a)| a.clone())
@@ -3827,8 +3828,6 @@ impl ActivityServiceTrait for ActivityService {
             Self::normalize_new_activity_economic_signs(new_act);
             new_act.idempotency_key = Self::build_import_idempotency_key(src, &new_act.account_id);
         }
-
-        self.link_imported_transfer_pairs(&source_slice, &mut new_activities);
 
         // ── 5. Partition hard duplicates before insert ───────────────────────
         let mut first_index_by_key: HashMap<String, usize> = HashMap::new();
@@ -3932,6 +3931,14 @@ impl ActivityServiceTrait for ActivityService {
                 insertable_new_activities.push(new_activity);
             }
         }
+
+        let insertable_source_slice: Vec<ActivityImport> = insertable_sources
+            .iter()
+            .map(|(_, activity)| activity.clone())
+            .collect();
+        // Link only rows that will be inserted so a duplicate-skipped leg cannot
+        // leave its counterpart with an orphan source_group_id.
+        self.link_imported_transfer_pairs(&insertable_source_slice, &mut insertable_new_activities);
 
         // ── 6. Ensure FX pairs (one batch call) ──────────────────────────────
         let mut fx_pairs: HashSet<(String, String)> = HashSet::new();
@@ -4812,6 +4819,49 @@ impl ActivityService {
             })
         }
 
+        fn set_transfer_flow_external(
+            metadata: Option<String>,
+            is_external: bool,
+        ) -> Option<String> {
+            let mut value = metadata
+                .and_then(|metadata| serde_json::from_str::<serde_json::Value>(&metadata).ok())
+                .unwrap_or_else(|| serde_json::json!({}));
+
+            if !value.is_object() {
+                value = serde_json::json!({});
+            }
+
+            let object = value
+                .as_object_mut()
+                .expect("transfer metadata value should be an object");
+            let flow = object
+                .entry("flow")
+                .or_insert_with(|| serde_json::json!({}));
+            if !flow.is_object() {
+                *flow = serde_json::json!({});
+            }
+            if let Some(flow_object) = flow.as_object_mut() {
+                flow_object.insert("is_external".to_string(), serde_json::json!(is_external));
+            }
+
+            Some(value.to_string())
+        }
+
+        fn same_account(
+            validated_activities: &[ActivityImport],
+            in_idx: usize,
+            out_idx: usize,
+        ) -> bool {
+            let in_account = validated_activities
+                .get(in_idx)
+                .and_then(|activity| activity.account_id.as_deref());
+            let out_account = validated_activities
+                .get(out_idx)
+                .and_then(|activity| activity.account_id.as_deref());
+
+            matches!((in_account, out_account), (Some(in_account), Some(out_account)) if in_account == out_account)
+        }
+
         let mut transfer_in: HashMap<TransferMatchKey, Vec<usize>> = HashMap::new();
         let mut transfer_out: HashMap<TransferMatchKey, Vec<usize>> = HashMap::new();
 
@@ -4834,16 +4884,25 @@ impl ActivityService {
 
         for (key, in_indices) in transfer_in {
             if let Some(out_indices) = transfer_out.get(&key) {
-                let pair_count = in_indices.len().min(out_indices.len());
-                for i in 0..pair_count {
+                let mut used_out_indices = HashSet::new();
+                for in_idx in in_indices {
+                    let Some(out_idx) = out_indices.iter().copied().find(|out_idx| {
+                        !used_out_indices.contains(out_idx)
+                            && !same_account(validated_activities, in_idx, *out_idx)
+                    }) else {
+                        continue;
+                    };
+                    used_out_indices.insert(out_idx);
                     let group_id = Uuid::new_v4().to_string();
-                    let in_idx = in_indices[i];
-                    let out_idx = out_indices[i];
                     if let Some(activity) = new_activities.get_mut(in_idx) {
                         activity.source_group_id = Some(group_id.clone());
+                        activity.metadata =
+                            set_transfer_flow_external(activity.metadata.take(), false);
                     }
                     if let Some(activity) = new_activities.get_mut(out_idx) {
                         activity.source_group_id = Some(group_id);
+                        activity.metadata =
+                            set_transfer_flow_external(activity.metadata.take(), false);
                     }
                 }
             }

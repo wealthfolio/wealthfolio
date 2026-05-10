@@ -1,8 +1,12 @@
 # Claude worktrees
-.claude/
+.claude/worktrees/
 
 # Local hidden directories
-.*
+.agents/
+.codex/
+.conductor/
+.kiro/
+.ralph-tui/
 
 # Build outputs
 dist/

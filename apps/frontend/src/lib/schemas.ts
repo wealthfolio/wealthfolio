@@ -195,6 +195,9 @@ export const importActivitySchema = z
     fxRate: decimalLikeSchema.nullable().optional(),
     subtype: z.string().optional(),
     forceImport: z.boolean().default(false),
+    /** True when a TRANSFER_IN/OUT crosses the tracked-account boundary
+     * (e.g. RSU grant deposit). Persisted as `metadata.flow.is_external` on the activity. */
+    isExternal: z.boolean().optional(),
   })
   .refine(
     (data) => {

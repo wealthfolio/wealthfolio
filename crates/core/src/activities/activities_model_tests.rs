@@ -830,6 +830,7 @@ mod tests {
             asset_id: None,
             isin: None,
             force_import: false,
+            is_external: None,
         };
 
         let converted = NewActivity::from(import);
@@ -838,5 +839,124 @@ mod tests {
         assert_eq!(asset.instrument_type.as_deref(), Some("EQUITY"));
         assert_eq!(asset.exchange_mic.as_deref(), Some("XLON"));
         assert_eq!(asset.quote_mode.as_deref(), Some("MANUAL"));
+    }
+
+    #[test]
+    fn test_activity_import_to_new_activity_persists_external_flow_metadata() {
+        // Regression: issue #927 — external transfer from CSV import was losing the
+        // `is_external` flag because `From<ActivityImport>` hard-coded `metadata: None`.
+        let import = ActivityImport {
+            id: None,
+            date: "2024-01-15".to_string(),
+            symbol: "AAPL".to_string(),
+            activity_type: "TRANSFER_IN".to_string(),
+            quantity: Some(dec!(10)),
+            unit_price: Some(dec!(150)),
+            currency: "USD".to_string(),
+            fee: None,
+            amount: None,
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: None,
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: Some(true),
+        };
+
+        let converted = NewActivity::from(import);
+        let metadata = converted.metadata.expect("metadata should be set");
+        let parsed: serde_json::Value = serde_json::from_str(&metadata).unwrap();
+        assert_eq!(parsed["flow"]["is_external"], serde_json::Value::Bool(true));
+    }
+
+    #[test]
+    fn test_activity_import_to_new_activity_omits_metadata_when_not_external() {
+        let import = ActivityImport {
+            id: None,
+            date: "2024-01-15".to_string(),
+            symbol: "AAPL".to_string(),
+            activity_type: "TRANSFER_IN".to_string(),
+            quantity: Some(dec!(10)),
+            unit_price: Some(dec!(150)),
+            currency: "USD".to_string(),
+            fee: None,
+            amount: None,
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: None,
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: Some(false),
+        };
+
+        assert!(NewActivity::from(import).metadata.is_none());
+    }
+
+    #[test]
+    fn test_activity_import_to_new_activity_ignores_external_flag_for_non_transfers() {
+        let import = ActivityImport {
+            id: None,
+            date: "2024-01-15".to_string(),
+            symbol: "AAPL".to_string(),
+            activity_type: "BUY".to_string(),
+            quantity: Some(dec!(10)),
+            unit_price: Some(dec!(150)),
+            currency: "USD".to_string(),
+            fee: None,
+            amount: None,
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: None,
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: Some(true),
+        };
+
+        assert!(NewActivity::from(import).metadata.is_none());
     }
 }
