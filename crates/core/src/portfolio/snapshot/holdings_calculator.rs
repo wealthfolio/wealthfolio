@@ -26,6 +26,37 @@ fn add_cash(state: &mut AccountStateSnapshot, currency: &str, delta: Decimal) {
         .or_insert(Decimal::ZERO) += delta;
 }
 
+/// Gross trade value (pre-fee) for a BUY/SELL/TRANSFER lot.
+///
+/// When `activity.amount` is present and non-zero it is authoritative — brokers
+/// report it as the settled cash leg, which is correct for bonds quoted on a
+/// per-$100-face convention (qty=face, price=99.x), in-kind transfers (amount
+/// set, price absent), and any case where `qty * price` disagrees with the
+/// booked cash. Falls back to `qty * price * multiplier` when amount is
+/// missing — required for compiler-generated BUY/TRANSFER_IN legs (DRIP,
+/// staking, dividend-in-kind) where the compiler clears `amount` so the
+/// calculator derives the cash leg from qty * price.
+#[inline]
+fn gross_trade_amount(activity: &Activity, multiplier: Decimal) -> Decimal {
+    match activity.amount {
+        Some(a) if !a.is_zero() => a.abs(),
+        _ => activity.qty() * activity.price() * multiplier,
+    }
+}
+
+/// Per-share/per-contract acquisition price for a lot (multiplier-inclusive).
+///
+/// Mirrors `gross_trade_amount`: if `amount` is authoritative, derive the
+/// per-unit price from it so the lot's cost basis matches the booked cash.
+#[inline]
+fn effective_unit_price(activity: &Activity, multiplier: Decimal) -> Decimal {
+    let qty = activity.qty();
+    match activity.amount {
+        Some(a) if !a.is_zero() && !qty.is_zero() => a.abs() / qty,
+        _ => activity.price() * multiplier,
+    }
+}
+
 /// Calculates the holding state (positions, cash, cost basis, net deposits) based on activities.
 /// It does not calculate market values or base currency conversions related to valuation.
 #[derive(Clone)]
@@ -346,11 +377,14 @@ impl HoldingsCalculator {
             .map(|(_, _, m)| *m)
             .unwrap_or(Decimal::ONE);
 
-        // Get values for lot, converting if needed
-        // Multiply unit price by contract multiplier so lot cost basis reflects true cost
+        // Get values for lot, converting if needed.
+        // Prefer the broker-reported `amount` (settled cash, multiplier-inclusive)
+        // when present so lot cost basis matches the booked cash leg; otherwise
+        // fall back to `price * multiplier`.
+        let lot_unit_price = effective_unit_price(activity, multiplier);
         let (unit_price_for_lot, fee_for_lot, fx_rate_used) = if needs_conversion {
             let (converted_price, converted_fee, fx_rate) = self.convert_to_position_currency(
-                activity.price() * multiplier,
+                lot_unit_price,
                 activity.fee_amt(),
                 activity,
                 &position_currency,
@@ -358,7 +392,7 @@ impl HoldingsCalculator {
             )?;
             (converted_price, converted_fee, fx_rate)
         } else {
-            (activity.price() * multiplier, activity.fee_amt(), None)
+            (lot_unit_price, activity.fee_amt(), None)
         };
 
         // Use add_lot_values to avoid cloning Activity
@@ -372,8 +406,8 @@ impl HoldingsCalculator {
             Some(activity.id.clone()),
         )?;
 
-        // Book cash outflow
-        let total_cost = (activity.qty() * activity.price() * multiplier) + activity.fee_amt();
+        // Book cash outflow — prefer broker-reported `amount` when present
+        let total_cost = gross_trade_amount(activity, multiplier) + activity.fee_amt();
         if activity_currency != account_currency {
             if let Some(fx_rate) = activity.fx_rate.filter(|r| *r != Decimal::ZERO) {
                 // Broker converted at transaction time — book in account currency
@@ -405,12 +439,12 @@ impl HoldingsCalculator {
         // Ensure cache is populated for multiplier lookup
         self.ensure_asset_cached(asset_id, activity_currency, asset_cache);
 
-        // Book cash inflow (proceeds = qty * price * multiplier - fee)
+        // Book cash inflow — prefer broker-reported `amount` when present.
         let multiplier = asset_cache
             .get(asset_id)
             .map(|(_, _, m)| *m)
             .unwrap_or(Decimal::ONE);
-        let total_proceeds = (activity.qty() * activity.price() * multiplier) - activity.fee_amt();
+        let total_proceeds = gross_trade_amount(activity, multiplier) - activity.fee_amt();
         if activity_currency != account_currency {
             if let Some(fx_rate) = activity.fx_rate.filter(|r| *r != Decimal::ZERO) {
                 // Broker converted at transaction time — book in account currency
@@ -721,10 +755,13 @@ impl HoldingsCalculator {
                     .map(|(_, _, m)| *m)
                     .unwrap_or(Decimal::ONE);
 
+                // Prefer broker-reported `amount` when present so the lot cost
+                // basis matches what actually moved.
+                let lot_unit_price = effective_unit_price(activity, multiplier);
                 let (unit_price_for_lot, fee_for_lot, fx_rate_used) = if needs_conversion {
                     let (converted_price, converted_fee, fx_rate) = self
                         .convert_to_position_currency(
-                            activity.price() * multiplier,
+                            lot_unit_price,
                             activity.fee_amt(),
                             activity,
                             &position_currency,
@@ -732,7 +769,7 @@ impl HoldingsCalculator {
                         )?;
                     (converted_price, converted_fee, fx_rate)
                 } else {
-                    (activity.price() * multiplier, activity.fee_amt(), None)
+                    (lot_unit_price, activity.fee_amt(), None)
                 };
 
                 position.add_lot_values(
