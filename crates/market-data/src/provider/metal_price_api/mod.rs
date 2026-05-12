@@ -19,7 +19,9 @@ use reqwest::Client;
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::time::Duration;
+use std::sync::{Arc, Mutex as StdMutex};
+use std::time::{Duration, Instant};
+use tokio::sync::Mutex as AsyncMutex;
 
 use tracing::warn;
 
@@ -73,6 +75,25 @@ struct MetalPriceApiError {
     message: Option<String>,
 }
 
+/// Per-troy-ounce price cached from a prior `/latest` fetch.
+#[derive(Clone, Copy)]
+struct CachedLatest {
+    price_per_oz: Decimal,
+    fetched_at: Instant,
+    timestamp: DateTime<Utc>,
+}
+
+/// How long a cached per-oz latest price is considered fresh. Short enough that
+/// the next scheduled resolver sweep re-fetches, long enough that multiple
+/// weight variants in a single sweep share one API call.
+const LATEST_CACHE_TTL: Duration = Duration::from_secs(300);
+
+/// Cache key for the `/latest` endpoint: (base metal code, quote currency).
+type LatestKey = (String, String);
+
+/// Cache key for a single historical per-oz rate.
+type HistoricalKey = (String, String, NaiveDate);
+
 /// Plan-limit error codes returned when the requested range exceeds the
 /// caller's tier:
 ///   209 — start date older than 30 days (free tier)
@@ -114,6 +135,16 @@ impl TimeframeFetchError {
 pub struct MetalPriceApiProvider {
     client: Client,
     api_key: String,
+    /// Per-troy-ounce latest prices keyed by (base, quote). Shared across all
+    /// weight variants of the same metal/currency pair.
+    latest_cache: Arc<StdMutex<HashMap<LatestKey, CachedLatest>>>,
+    /// Historical per-troy-ounce rates. Past dates never change, so entries
+    /// have no TTL; today's date is not cached (rates may still be moving).
+    historical_cache: Arc<StdMutex<HashMap<HistoricalKey, Decimal>>>,
+    /// Per-key async mutexes used to single-flight in-flight fetches so that
+    /// concurrent requests for the same (base, quote) share one API call.
+    latest_locks: Arc<StdMutex<HashMap<LatestKey, Arc<AsyncMutex<()>>>>>,
+    historical_locks: Arc<StdMutex<HashMap<LatestKey, Arc<AsyncMutex<()>>>>>,
 }
 
 /// Default HTTP request timeout
@@ -127,7 +158,230 @@ impl MetalPriceApiProvider {
             .build()
             .unwrap_or_else(|_| Client::new());
 
-        Self { client, api_key }
+        Self {
+            client,
+            api_key,
+            latest_cache: Arc::new(StdMutex::new(HashMap::new())),
+            historical_cache: Arc::new(StdMutex::new(HashMap::new())),
+            latest_locks: Arc::new(StdMutex::new(HashMap::new())),
+            historical_locks: Arc::new(StdMutex::new(HashMap::new())),
+        }
+    }
+
+    fn key_lock(
+        map: &StdMutex<HashMap<LatestKey, Arc<AsyncMutex<()>>>>,
+        key: &LatestKey,
+    ) -> Arc<AsyncMutex<()>> {
+        let mut guard = map.lock().expect("lock map poisoned");
+        guard.entry(key.clone()).or_insert_with(|| Arc::new(AsyncMutex::new(()))).clone()
+    }
+
+    /// Look up a cached latest per-oz price if it's still within TTL.
+    fn cached_latest(&self, key: &LatestKey) -> Option<CachedLatest> {
+        let cache = self.latest_cache.lock().expect("latest_cache poisoned");
+        cache.get(key).copied().filter(|c| c.fetched_at.elapsed() < LATEST_CACHE_TTL)
+    }
+
+    /// Fetch the per-troy-ounce latest price from the API, using cached values
+    /// when fresh and single-flighting concurrent fetches for the same key.
+    async fn get_or_fetch_latest_per_oz(
+        &self,
+        base_code: &str,
+        quote_currency: &str,
+        raw_symbol: &str,
+    ) -> Result<CachedLatest, MarketDataError> {
+        let key: LatestKey = (base_code.to_string(), quote_currency.to_string());
+
+        if let Some(hit) = self.cached_latest(&key) {
+            return Ok(hit);
+        }
+
+        let lock = Self::key_lock(&self.latest_locks, &key);
+        let _guard = lock.lock().await;
+
+        if let Some(hit) = self.cached_latest(&key) {
+            return Ok(hit);
+        }
+
+        let url = format!(
+            "https://api.metalpriceapi.com/v1/latest?base={}&currencies={}",
+            quote_currency, base_code
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("X-API-KEY", &self.api_key)
+            .send()
+            .await
+            .map_err(|e| MarketDataError::ProviderError {
+                provider: PROVIDER_ID.to_string(),
+                message: e.to_string(),
+            })?;
+
+        let metal_resp: MetalPriceResponse =
+            response.json().await.map_err(|e| MarketDataError::ProviderError {
+                provider: PROVIDER_ID.to_string(),
+                message: e.to_string(),
+            })?;
+
+        if !metal_resp.success {
+            warn!(
+                provider = PROVIDER_ID,
+                symbol = %raw_symbol,
+                "Metal Price API latest request failed"
+            );
+            return Err(MarketDataError::ProviderError {
+                provider: PROVIDER_ID.to_string(),
+                message: "API request failed".to_string(),
+            });
+        }
+
+        let rate = metal_resp
+            .rates
+            .get(base_code)
+            .ok_or_else(|| MarketDataError::SymbolNotFound(raw_symbol.to_string()))?;
+
+        let price_per_oz = Self::rate_to_price(*rate)?;
+        let timestamp = Utc.timestamp_opt(metal_resp.timestamp, 0).single().unwrap_or_else(Utc::now);
+        let entry = CachedLatest {
+            price_per_oz,
+            fetched_at: Instant::now(),
+            timestamp,
+        };
+
+        self.latest_cache
+            .lock()
+            .expect("latest_cache poisoned")
+            .insert(key, entry);
+
+        Ok(entry)
+    }
+
+    /// Iterate inclusive dates `[start_date, end_date]`. Bails out at the
+    /// natural end of representable dates rather than overflowing.
+    fn dates_in_range(start_date: NaiveDate, end_date: NaiveDate) -> Vec<NaiveDate> {
+        let mut out = Vec::new();
+        let mut d = start_date;
+        loop {
+            if d > end_date {
+                break;
+            }
+            out.push(d);
+            match d.succ_opt() {
+                Some(n) => d = n,
+                None => break,
+            }
+        }
+        out
+    }
+
+    /// Return historical per-oz rates for each date in `[start, end]` for which
+    /// the API has a rate. If any past date is missing from the cache (or any
+    /// of today's data is needed), fetch the full range from the API, cache
+    /// past-date results, and return all known rates.
+    async fn get_or_fetch_historical_per_oz(
+        &self,
+        base_code: &str,
+        quote_currency: &str,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        raw_symbol: &str,
+    ) -> Result<HashMap<NaiveDate, Decimal>, MarketDataError> {
+        let start_date = start.date_naive();
+        let end_date = end.date_naive();
+        let today = Utc::now().date_naive();
+        let dates = Self::dates_in_range(start_date, end_date);
+
+        // Today's rate is never considered cached (still moving).
+        let needs_fetch = {
+            let cache = self.historical_cache.lock().expect("historical_cache poisoned");
+            dates.iter().any(|d| {
+                *d >= today
+                    || !cache.contains_key(&(
+                        base_code.to_string(),
+                        quote_currency.to_string(),
+                        *d,
+                    ))
+            })
+        };
+
+        if needs_fetch {
+            let lock_key: LatestKey = (base_code.to_string(), quote_currency.to_string());
+            let lock = Self::key_lock(&self.historical_locks, &lock_key);
+            let _guard = lock.lock().await;
+
+            let tf_resp = match self
+                .fetch_timeframe(quote_currency, base_code, start, end, raw_symbol)
+                .await
+            {
+                Ok(resp) => resp,
+                Err(TimeframeFetchError::PlanLimit) => {
+                    let clamped_start = end - ChronoDuration::days(PLAN_LIMIT_MAX_DAYS);
+                    let clamped_start = if clamped_start > start { clamped_start } else { start };
+                    self.fetch_timeframe(
+                        quote_currency,
+                        base_code,
+                        clamped_start,
+                        end,
+                        raw_symbol,
+                    )
+                    .await
+                    .map_err(TimeframeFetchError::into_market_data_error)?
+                }
+                Err(other) => return Err(other.into_market_data_error()),
+            };
+
+            let mut out: HashMap<NaiveDate, Decimal> = HashMap::new();
+            let mut cache = self.historical_cache.lock().expect("historical_cache poisoned");
+            for (date_str, rates) in &tf_resp.rates {
+                let Some(rate) = rates.get(base_code) else {
+                    continue;
+                };
+                let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|e| {
+                    MarketDataError::ProviderError {
+                        provider: PROVIDER_ID.to_string(),
+                        message: format!("Invalid date '{}': {}", date_str, e),
+                    }
+                })?;
+                let price_per_oz = Self::rate_to_price(*rate)?;
+                out.insert(date, price_per_oz);
+                if date < today {
+                    cache.insert(
+                        (base_code.to_string(), quote_currency.to_string(), date),
+                        price_per_oz,
+                    );
+                }
+            }
+            // Merge in any other cached entries within the range (the API may
+            // have only returned a sub-window after a plan-limit retry).
+            for d in &dates {
+                if out.contains_key(d) {
+                    continue;
+                }
+                if let Some(rate) = cache.get(&(
+                    base_code.to_string(),
+                    quote_currency.to_string(),
+                    *d,
+                )) {
+                    out.insert(*d, *rate);
+                }
+            }
+            return Ok(out);
+        }
+
+        let cache = self.historical_cache.lock().expect("historical_cache poisoned");
+        let mut out = HashMap::new();
+        for d in &dates {
+            if let Some(rate) = cache.get(&(
+                base_code.to_string(),
+                quote_currency.to_string(),
+                *d,
+            )) {
+                out.insert(*d, *rate);
+            }
+        }
+        Ok(out)
     }
 
     /// Parse a metal symbol, returning the base metal code and a troy-ounce
@@ -311,65 +565,17 @@ impl MarketDataProvider for MetalPriceApiProvider {
             }
         };
 
-        // Parse the symbol, extracting the base metal code and weight multiplier
         let (base_code, weight_multiplier) = Self::parse_metal_symbol(&raw_symbol)
             .ok_or_else(|| MarketDataError::SymbolNotFound(raw_symbol.clone()))?;
 
-        // Build the API URL using the base metal code
-        let url = format!(
-            "https://api.metalpriceapi.com/v1/latest?base={}&currencies={}",
-            quote_currency, base_code
-        );
+        let cached = self
+            .get_or_fetch_latest_per_oz(base_code, &quote_currency, &raw_symbol)
+            .await?;
 
-        // Make the API request
-        let response = self
-            .client
-            .get(&url)
-            .header("X-API-KEY", &self.api_key)
-            .send()
-            .await
-            .map_err(|e| MarketDataError::ProviderError {
-                provider: PROVIDER_ID.to_string(),
-                message: e.to_string(),
-            })?;
-
-        // Parse the response
-        let metal_resp: MetalPriceResponse =
-            response
-                .json()
-                .await
-                .map_err(|e| MarketDataError::ProviderError {
-                    provider: PROVIDER_ID.to_string(),
-                    message: e.to_string(),
-                })?;
-
-        // Check if the API request was successful
-        if !metal_resp.success {
-            warn!(
-                provider = PROVIDER_ID,
-                symbol = %raw_symbol,
-                "Metal Price API latest request failed"
-            );
-            return Err(MarketDataError::ProviderError {
-                provider: PROVIDER_ID.to_string(),
-                message: "API request failed".to_string(),
-            });
-        }
-
-        // Get the rate for the base metal code
-        let rate = metal_resp
-            .rates
-            .get(base_code)
-            .ok_or_else(|| MarketDataError::SymbolNotFound(raw_symbol.clone()))?;
-
-        // API returns: 1 base_currency = rate troy ounces of metal
-        // Price per troy ounce = 1 / rate
-        // Price per unit = price_per_oz * weight_multiplier
-        let price_per_oz = Self::rate_to_price(*rate)?;
-        let price = price_per_oz * weight_multiplier;
+        let price = cached.price_per_oz * weight_multiplier;
 
         Ok(Quote::new(
-            Utc::now(),
+            cached.timestamp,
             price,
             quote_currency,
             PROVIDER_ID.to_string(),
@@ -403,56 +609,22 @@ impl MarketDataProvider for MetalPriceApiProvider {
         let (base_code, weight_multiplier) = Self::parse_metal_symbol(&raw_symbol)
             .ok_or_else(|| MarketDataError::SymbolNotFound(raw_symbol.clone()))?;
 
-        let tf_resp = match self
-            .fetch_timeframe(&quote_currency, base_code, start, end, &raw_symbol)
-            .await
-        {
-            Ok(resp) => resp,
-            Err(TimeframeFetchError::PlanLimit) => {
-                // Free tier caps history; retry with the most recent allowed window.
-                let clamped_start = end - ChronoDuration::days(PLAN_LIMIT_MAX_DAYS);
-                let clamped_start = if clamped_start > start {
-                    clamped_start
-                } else {
-                    start
-                };
-                self.fetch_timeframe(
-                    &quote_currency,
-                    base_code,
-                    clamped_start,
-                    end,
-                    &raw_symbol,
+        let rates = self
+            .get_or_fetch_historical_per_oz(base_code, &quote_currency, start, end, &raw_symbol)
+            .await?;
+
+        let mut quotes: Vec<Quote> = rates
+            .into_iter()
+            .map(|(date, price_per_oz)| {
+                let timestamp = Utc.from_utc_datetime(&date.and_hms_opt(12, 0, 0).unwrap());
+                Quote::new(
+                    timestamp,
+                    price_per_oz * weight_multiplier,
+                    quote_currency.clone(),
+                    PROVIDER_ID.to_string(),
                 )
-                .await
-                .map_err(TimeframeFetchError::into_market_data_error)?
-            }
-            Err(other) => return Err(other.into_market_data_error()),
-        };
-
-        let mut quotes = Vec::new();
-        for (date_str, rates) in &tf_resp.rates {
-            let Some(rate) = rates.get(base_code) else {
-                continue;
-            };
-            let price_per_oz = Self::rate_to_price(*rate)?;
-            let price = price_per_oz * weight_multiplier;
-
-            let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|e| {
-                MarketDataError::ProviderError {
-                    provider: PROVIDER_ID.to_string(),
-                    message: format!("Invalid date '{}': {}", date_str, e),
-                }
-            })?;
-
-            let timestamp = Utc.from_utc_datetime(&date.and_hms_opt(12, 0, 0).unwrap());
-
-            quotes.push(Quote::new(
-                timestamp,
-                price,
-                quote_currency.clone(),
-                PROVIDER_ID.to_string(),
-            ));
-        }
+            })
+            .collect();
 
         quotes.sort_by_key(|q| q.timestamp);
         Ok(quotes)
@@ -542,6 +714,78 @@ mod tests {
     fn test_rate_to_price_zero() {
         let result = MetalPriceApiProvider::rate_to_price(0.0);
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn latest_cache_serves_weight_variants_without_network() {
+        // Provider with no real API key. If the cache is used, no request is
+        // made; if it isn't, the call would fail.
+        let provider = MetalPriceApiProvider::new("invalid_key".to_string());
+        let ts = Utc::now();
+        provider.latest_cache.lock().unwrap().insert(
+            ("XAU".to_string(), "USD".to_string()),
+            CachedLatest {
+                price_per_oz: dec!(3000),
+                fetched_at: Instant::now(),
+                timestamp: ts,
+            },
+        );
+
+        let context = QuoteContext {
+            instrument: crate::models::InstrumentId::Metal {
+                code: "XAU".into(),
+                quote: std::borrow::Cow::Borrowed("USD"),
+            },
+            overrides: None,
+            currency_hint: None,
+            preferred_provider: None,
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+
+        let oz_quote = provider
+            .get_latest_quote(
+                &context,
+                ProviderInstrument::MetalSymbol {
+                    symbol: "XAU-1OZ".into(),
+                    quote: "USD".into(),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(oz_quote.close, dec!(3000));
+
+        let kg_quote = provider
+            .get_latest_quote(
+                &context,
+                ProviderInstrument::MetalSymbol {
+                    symbol: "XAU-1KG".into(),
+                    quote: "USD".into(),
+                },
+            )
+            .await
+            .unwrap();
+        // 1 kg / 31.1034768 g/oz ≈ 32.1507 oz; price ≈ 3000 * 32.1507 ≈ 96452
+        assert!(kg_quote.close > dec!(96000) && kg_quote.close < dec!(97000));
+        assert_eq!(kg_quote.timestamp, ts);
+    }
+
+    #[test]
+    fn cached_latest_expires_after_ttl() {
+        let provider = MetalPriceApiProvider::new("invalid_key".to_string());
+        provider.latest_cache.lock().unwrap().insert(
+            ("XAG".to_string(), "USD".to_string()),
+            CachedLatest {
+                price_per_oz: dec!(25),
+                fetched_at: Instant::now()
+                    .checked_sub(LATEST_CACHE_TTL + Duration::from_secs(1))
+                    .unwrap(),
+                timestamp: Utc::now(),
+            },
+        );
+        assert!(provider
+            .cached_latest(&("XAG".to_string(), "USD".to_string()))
+            .is_none());
     }
 
     /// Helper to get API key from environment, or None if not set.
