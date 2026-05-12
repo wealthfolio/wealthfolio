@@ -1,0 +1,57 @@
+{
+  "name": "australia-cgt-addon",
+  "version": "0.1.0",
+  "description": "Australian CGT planning and reconciliation addon for Wealthfolio",
+  "type": "module",
+  "main": "dist/addon.js",
+  "author": "Massimo Raso",
+  "license": "MIT",
+  "homepage": "https://github.com/Mrassimo/wealthfolio",
+  "keywords": [
+    "wealthfolio",
+    "addon",
+    "australia",
+    "cgt",
+    "tax"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "dev:server": "wealthfolio dev",
+    "clean": "rm -rf dist",
+    "package": "mkdir -p dist && zip -r dist/$npm_package_name-$npm_package_version.zip manifest.json dist/ README.md CHANGELOG.md",
+    "bundle": "pnpm clean && pnpm build && pnpm package",
+    "lint": "tsc --noEmit",
+    "test": "node test-runner.mjs",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.20",
+    "@wealthfolio/addon-sdk": "workspace:*",
+    "@wealthfolio/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/node": "^20.19.33",
+    "@types/react": "^19.2.13",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.4",
+    "@wealthfolio/addon-dev-tools": "workspace:*",
+    "rollup-plugin-external-globals": "^0.13.0",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.2"
+  },
+  "files": [
+    "dist/",
+    "manifest.json",
+    "README.md",
+    "CHANGELOG.md"
+  ]
+}

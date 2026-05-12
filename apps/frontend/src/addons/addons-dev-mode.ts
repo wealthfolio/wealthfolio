@@ -1,6 +1,6 @@
 import { logger } from "@/adapters";
 import { reloadAllAddons } from "@/addons/addons-core";
-import { createAddonContext } from "./addons-runtime-context";
+import { createAddonContext } from "@/addons/addons-runtime-context";
 
 interface DevModeConfig {
   enabled: boolean;
@@ -309,7 +309,7 @@ class AddonDevManager {
         logger.info(`✅ Successfully hot-reloaded ${addonId}`);
 
         // Trigger navigation update to refresh the UI
-        const { triggerNavigationUpdate } = await import("./addons-runtime-context");
+        const { triggerNavigationUpdate } = await import("@/addons/addons-runtime-context");
         if (triggerNavigationUpdate) {
           triggerNavigationUpdate();
         }

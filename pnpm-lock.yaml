@@ -57,6 +57,55 @@ importers:
         specifier: ^8.55.0
         version: 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.3)
 
+  addons/australia-cgt-addon:
+    dependencies:
+      '@tanstack/react-query':
+        specifier: ^5.90.20
+        version: 5.90.21(react@19.2.4)
+      '@wealthfolio/addon-sdk':
+        specifier: workspace:*
+        version: link:../../packages/addon-sdk
+      '@wealthfolio/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      react:
+        specifier: ^19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: ^19.2.4
+        version: 19.2.4(react@19.2.4)
+    devDependencies:
+      '@tailwindcss/vite':
+        specifier: ^4.1.18
+        version: 4.2.1(vite@7.3.2(@types/node@20.19.35)(jiti@2.6.1)(lightningcss@1.31.1))
+      '@types/node':
+        specifier: ^20.19.33
+        version: 20.19.35
+      '@types/react':
+        specifier: ^19.2.13
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      '@vitejs/plugin-react':
+        specifier: ^5.1.4
+        version: 5.1.4(vite@7.3.2(@types/node@20.19.35)(jiti@2.6.1)(lightningcss@1.31.1))
+      '@wealthfolio/addon-dev-tools':
+        specifier: workspace:*
+        version: link:../../packages/addon-dev-tools
+      rollup-plugin-external-globals:
+        specifier: ^0.13.0
+        version: 0.13.0(rollup@4.60.3)
+      tailwindcss:
+        specifier: ^4.1.18
+        version: 4.2.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.3.2
+        version: 7.3.2(@types/node@20.19.35)(jiti@2.6.1)(lightningcss@1.31.1)
+
   addons/goal-progress-tracker:
     dependencies:
       '@tanstack/react-query':
@@ -3154,6 +3203,7 @@ packages:
 
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
+    deprecated: Potential CWE-502 - Update to 1.3.1 or higher
 
   '@vitejs/plugin-react@4.7.0':
     resolution: {integrity: sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==}

@@ -1,0 +1,32 @@
+{
+  "id": "australia-cgt-addon",
+  "name": "Australia CGT Planner",
+  "version": "0.1.0",
+  "description": "Planning and reconciliation estimates for simple Australian CGT workflows",
+  "author": "Massimo Raso",
+  "main": "dist/addon.js",
+  "sdkVersion": "3.4.0",
+  "enabled": true,
+  "permissions": [
+    {
+      "category": "activities",
+      "functions": ["getAll"],
+      "purpose": "Read activity history to match acquisition and disposal lots"
+    },
+    {
+      "category": "accounts",
+      "functions": ["getAll"],
+      "purpose": "Read account names and currencies for tax-report grouping"
+    },
+    {
+      "category": "portfolio",
+      "functions": ["getHoldings"],
+      "purpose": "Read current holdings for unrealized capital gains preview"
+    },
+    {
+      "category": "ui",
+      "functions": ["sidebar.addItem", "router.add"],
+      "purpose": "Add the Australia CGT Planner navigation item and report page"
+    }
+  ]
+}

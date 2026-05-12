@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@wealthfolio/addon-sdk": ["../../packages/addon-sdk/src"],
+      "@wealthfolio/ui": ["../../packages/ui/src"],
+      "@wealthfolio/ui/*": ["../../packages/ui/src/*"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "./tsconfig.node.json" },
+    { "path": "../../packages/ui" },
+    { "path": "../../packages/addon-sdk" }
+  ]
+}

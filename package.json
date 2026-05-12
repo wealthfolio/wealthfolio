@@ -27,6 +27,7 @@
     "test:ui": "pnpm --filter frontend test:ui",
     "test:coverage": "pnpm --filter frontend test:coverage",
     "test:e2e": "node scripts/run-e2e.mjs",
+    "test:e2e:australia-cgt-addon": "node scripts/run-australia-cgt-addon-e2e.mjs",
     "test:e2e:ui": "node scripts/run-e2e.mjs --ui",
     "lint": "pnpm --filter frontend lint && pnpm -r lint",
     "lint:fix": "pnpm --filter frontend lint:fix && pnpm -r lint:fix",

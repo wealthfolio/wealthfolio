@@ -1,0 +1,4 @@
+date,symbol,instrumentType,quantity,activityType,unitPrice,currency,fee,amount,fxRate,subtype
+2024-07-01,VAS.AX,EQUITY,10,BUY,100,AUD,10,,,
+2026-03-01,VAS.AX,EQUITY,10,BUY,120,AUD,10,,,
+2026-05-01,VAS.AX,EQUITY,12,SELL,150,AUD,12,,,
