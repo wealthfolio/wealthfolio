@@ -2,7 +2,7 @@
   "id": "australia-cgt-addon",
   "name": "Australia CGT Planner",
   "version": "0.1.0",
-  "description": "Planning and reconciliation estimates for simple Australian CGT workflows",
+  "description": "Community planning and reconciliation estimates for simple Australian CGT workflows",
   "author": "Massimo Raso",
   "main": "dist/addon.js",
   "sdkVersion": "3.4.0",

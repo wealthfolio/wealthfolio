@@ -235,9 +235,9 @@ test("report matches FIFO lots, includes fees, groups by Australian income year,
 
   assert.equal(report.closedLots.length, 2);
   assert.equal(report.closedLots[0].quantity, 10);
-  assert.equal(report.closedLots[0].taxableGain, 240);
+  assert.equal(report.closedLots[0].preLossTaxableGainEstimate, 240);
   assert.equal(report.closedLots[1].quantity, 2);
-  assert.equal(report.closedLots[1].taxableGain, 56);
+  assert.equal(report.closedLots[1].preLossTaxableGainEstimate, 56);
   assert.equal(report.incomeYears[0].incomeYear, "2026-27");
   assert.equal(report.incomeYears[0].taxableGain, 296);
 
@@ -386,7 +386,7 @@ test("AMMA-derived AMIT adjustments change disposal cost base and taxable gain",
 
   assert.equal(report.closedLots[0].amitCostBaseAdjustment, 30);
   assert.equal(report.closedLots[0].costBase, 1030);
-  assert.equal(report.closedLots[0].taxableGain, 235);
+  assert.equal(report.closedLots[0].preLossTaxableGainEstimate, 235);
 });
 
 test("ABS CPI series parses, merges, caches, and produces indexation factor", async () => {
@@ -463,7 +463,7 @@ test("AMIT adjustments alter parcel-level cost base before gain calculation", ()
 
   assert.equal(report.closedLots[0].costBase, 1030);
   assert.equal(report.closedLots[0].amitCostBaseAdjustment, 30);
-  assert.equal(report.closedLots[0].taxableGain, 235);
+  assert.equal(report.closedLots[0].preLossTaxableGainEstimate, 235);
   assert.equal(report.incomeYears[0].amitCostBaseAdjustment, 30);
 });
 
@@ -502,7 +502,7 @@ test("AMIT adjustments after disposal year do not alter past disposals", () => {
 
   assert.equal(report.closedLots[0].costBase, 1000);
   assert.equal(report.closedLots[0].amitCostBaseAdjustment, 0);
-  assert.equal(report.closedLots[0].taxableGain, 250);
+  assert.equal(report.closedLots[0].preLossTaxableGainEstimate, 250);
 });
 
 test("AMIT adjustments after a partial disposal apply to the surviving holding quantity", () => {
@@ -553,7 +553,7 @@ test("AMIT adjustments after a partial disposal apply to the surviving holding q
   assert.equal(report.closedLots[0].amitCostBaseAdjustment, 0);
   assert.equal(report.closedLots[1].amitCostBaseAdjustment, 100);
   assert.equal(report.closedLots[1].costBase, 600);
-  assert.equal(report.closedLots[1].taxableGain, 100);
+  assert.equal(report.closedLots[1].preLossTaxableGainEstimate, 100);
 });
 
 test("transition snapshots produce parcel-level 2027 transition rows", () => {
@@ -800,7 +800,7 @@ test("report accepts API timestamp date strings", () => {
   assert.equal(report.incomeYears[0].incomeYear, "2025-26");
   assert.equal(report.closedLots[0].acquisitionDate, "2024-07-01");
   assert.equal(report.closedLots[0].disposalDate, "2026-05-01");
-  assert.equal(report.closedLots[0].taxableGain, 30);
+  assert.equal(report.closedLots[0].preLossTaxableGainEstimate, 30);
 });
 
 test("report matches FIFO lots within the selling account only", () => {
@@ -847,7 +847,7 @@ test("report matches FIFO lots within the selling account only", () => {
   assert.equal(report.closedLots[0].parcelId, "super-buy");
   assert.equal(report.closedLots[0].account, "Super");
   assert.equal(report.closedLots[0].costBase, 200);
-  assert.equal(report.closedLots[0].taxableGain, 30);
+  assert.equal(report.closedLots[0].preLossTaxableGainEstimate, 30);
   assert.equal(report.transitionLots.length, 0);
 });
 
@@ -1175,7 +1175,7 @@ test("report matches lots by account id when account names duplicate", () => {
   assert.equal(report.closedLots.length, 1);
   assert.equal(report.closedLots[0].parcelId, "account-b-buy");
   assert.equal(report.closedLots[0].costBase, 200);
-  assert.equal(report.closedLots[0].taxableGain, 30);
+  assert.equal(report.closedLots[0].preLossTaxableGainEstimate, 30);
 });
 
 test("report surfaces unmatched sell quantities for review", () => {
@@ -1227,8 +1227,8 @@ test("CSV export labels per-lot losses as lotCapitalLoss", () => {
         costBase: 100,
         amitCostBaseAdjustment: 0,
         grossGain: -40,
-        taxableGain: 0,
-        discountApplied: 0,
+        preLossTaxableGainEstimate: 0,
+        preLossDiscountEstimate: 0,
         discountEligible: false,
         method: "FIFO",
       },
@@ -1243,6 +1243,72 @@ test("CSV export labels per-lot losses as lotCapitalLoss", () => {
 
   assert.match(csv.split("\n")[0], /lotCapitalLoss/);
   assert.doesNotMatch(csv.split("\n")[0], /capitalLossesApplied/);
+});
+
+test("CSV export labels matched-lot taxable values as pre-loss estimates", () => {
+  const csv = exportReportCsv({
+    closedLots: [
+      {
+        parcelId: "gain-buy",
+        symbol: "GAIN.AX",
+        account: "Australian Taxable",
+        incomeYear: "2025-26",
+        acquisitionDate: "2024-07-01",
+        disposalDate: "2026-05-01",
+        quantity: 1,
+        proceeds: 200,
+        costBase: 100,
+        amitCostBaseAdjustment: 0,
+        grossGain: 100,
+        preLossTaxableGainEstimate: 50,
+        preLossDiscountEstimate: 50,
+        discountEligible: true,
+        method: "FIFO",
+      },
+      {
+        parcelId: "loss-buy",
+        symbol: "LOSS.AX",
+        account: "Australian Taxable",
+        incomeYear: "2025-26",
+        acquisitionDate: "2024-07-01",
+        disposalDate: "2026-05-01",
+        quantity: 1,
+        proceeds: 60,
+        costBase: 100,
+        amitCostBaseAdjustment: 0,
+        grossGain: -40,
+        preLossTaxableGainEstimate: 0,
+        preLossDiscountEstimate: 0,
+        discountEligible: false,
+        method: "FIFO",
+      },
+    ],
+    incomeYears: [
+      {
+        incomeYear: "2025-26",
+        proceeds: 260,
+        costBase: 200,
+        amitCostBaseAdjustment: 0,
+        grossGain: 60,
+        grossCapitalGains: 100,
+        capitalLossesApplied: 40,
+        capitalLossCarryForward: 0,
+        discountApplied: 30,
+        taxableGain: 30,
+      },
+    ],
+    unmatchedSells: [],
+    dividends: [],
+    transitionLots: [],
+    unsupportedActivities: [],
+    ignoredActivities: [],
+  });
+
+  const header = csv.split("\n")[0];
+  assert.match(header, /preLossDiscountEstimate/);
+  assert.match(header, /preLossTaxableGainEstimate/);
+  assert.doesNotMatch(header, /(?<!preLoss)discountApplied/);
+  assert.doesNotMatch(header, /(?<!preLoss)taxableGain/);
 });
 
 let failures = 0;

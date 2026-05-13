@@ -1,7 +1,7 @@
 {
   "name": "australia-cgt-addon",
   "version": "0.1.0",
-  "description": "Australian CGT planning and reconciliation addon for Wealthfolio",
+  "description": "Community Australian CGT planning and reconciliation addon for Wealthfolio",
   "type": "module",
   "main": "dist/addon.js",
   "author": "Massimo Raso",

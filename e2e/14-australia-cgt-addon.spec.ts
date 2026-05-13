@@ -1,4 +1,5 @@
 import { expect, Page, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { BASE_URL, createAccount, loginIfNeeded } from "./helpers";
@@ -111,6 +112,9 @@ test.describe("Australia CGT addon", () => {
     const browserErrors: string[] = [];
     page.on("console", (message) => {
       if (message.type() === "error") {
+        if (/^Failed to load resource: .* 404 \(Not Found\)$/.test(message.text())) {
+          return;
+        }
         browserErrors.push(message.text());
       }
     });
@@ -135,9 +139,17 @@ test.describe("Australia CGT addon", () => {
     }
     await expect(cgtHeading).toBeVisible();
 
-    await expect(page.getByText("2025-26")).toBeVisible();
+    const incomeYearSummary = page.locator("section").filter({
+      has: page.getByRole("heading", { name: "Income Year Summary" }),
+    });
+    const matchedLots = page.locator("section").filter({
+      has: page.getByRole("heading", { name: "Matched Lots" }),
+    });
+
+    await expect(incomeYearSummary.getByRole("row", { name: /2025-26/ })).toBeVisible();
     await expect(page.getByText("VAS").first()).toBeVisible();
-    await expect(page.getByText("$296").first()).toBeVisible();
+    await expect(incomeYearSummary.getByRole("row", { name: /2025-26.*\$296/ })).toBeVisible();
+    await expect(matchedLots.getByRole("columnheader", { name: "Pre-loss taxable" })).toBeVisible();
 
     await page.getByRole("button", { name: "Clear local tax data" }).click();
     await expect(page.getByText("AMMA statements: 0")).toBeVisible();
@@ -158,7 +170,7 @@ test.describe("Australia CGT addon", () => {
     await page.getByRole("button", { name: "Save AMMA statement" }).click();
     await expect(page.getByText("AMMA statements: 1")).toBeVisible();
     await expect(page.getByText("AMIT adjustments: 1")).toBeVisible();
-    await expect(page.getByText("$281").first()).toBeVisible();
+    await expect(incomeYearSummary.getByRole("row", { name: /2025-26.*\$281/ })).toBeVisible();
     await expect(page.getByText(/Taxable \$300 · Cash \$280 · Franking \$20/)).toBeVisible();
     await expect(page.getByRole("button", { name: /Delete AMMA .*:2025-26/ })).toBeVisible();
 
@@ -194,12 +206,23 @@ test.describe("Australia CGT addon", () => {
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(cgtHeading).toBeVisible({ timeout: 30000 });
     await expect(page.getByText("AMMA statements: 1")).toBeVisible();
-    await expect(page.getByText("$281").first()).toBeVisible();
+    await expect(incomeYearSummary.getByRole("row", { name: /2025-26.*\$281/ })).toBeVisible();
     await expect(page.getByText("Cached observations: 1")).toBeVisible();
     await expect(page.getByText("2027 snapshots: 1")).toBeVisible();
     await expect(page.getByText("Acquisition overrides: 1")).toBeVisible();
 
     const exportButton = page.getByRole("button", { name: /Export CSV/i });
     await expect(exportButton).toBeEnabled();
+    const downloadPromise = page.waitForEvent("download");
+    await exportButton.click();
+    const download = await downloadPromise;
+    const downloadPath = await download.path();
+    expect(downloadPath).toBeTruthy();
+    const csv = await readFile(downloadPath!, "utf8");
+    expect(csv).toContain("preLossDiscountEstimate,preLossTaxableGainEstimate");
+    expect(csv).toContain('"2025-26","VAS"');
+    expect(csv).toContain('"FIFO"');
+
+    expect(browserErrors).toEqual([]);
   });
 });

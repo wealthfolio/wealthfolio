@@ -1,8 +1,8 @@
 # Australia CGT Planner Addon
 
-Australia CGT Planner is a Wealthfolio addon for Australian capital gains tax
-planning and reconciliation. It is not tax advice and it is not a complete tax
-return engine.
+Australia CGT Planner is a community Wealthfolio addon for Australian capital
+gains tax planning and reconciliation. It is not tax advice and it is not a
+complete tax return engine.
 
 The addon is designed for simple AUD activity review first: it helps users see
 matched parcels, income-year summaries, local AMMA/AMIT adjustments, and records
@@ -39,9 +39,9 @@ that need manual review before an accountant or tax lodgement workflow.
   implement every AMMA/SDS field or every edge case.
 - Franking data is display-only. The addon does not calculate dividend tax,
   franking credit gross-up, or tax offsets.
-- Budget 2026-27 transition support is provisional. The addon stores CPI and
-  30 June 2027 snapshot inputs and reports pre-transition parcels, but it does
-  not yet calculate post-2027 indexed disposals end to end.
+- Budget 2026-27 transition support is provisional. The addon stores CPI and 30
+  June 2027 snapshot inputs and reports pre-transition parcels, but it does not
+  yet calculate post-2027 indexed disposals end to end.
 - ESS, crypto, foreign-resident CGT rules, and non-CGT income-tax outcomes are
   outside the current scope.
 - Opening capital losses from years before the imported Wealthfolio history are

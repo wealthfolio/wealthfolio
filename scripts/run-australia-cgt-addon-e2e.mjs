@@ -1,20 +1,48 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
-import { copyFile, access } from "node:fs/promises";
+import { copyFile, access, readFile } from "node:fs/promises";
 import { setTimeout } from "node:timers/promises";
 import { prepE2eEnv } from "./prep-e2e.mjs";
 
 const FRONTEND_URL = "http://localhost:1420";
 const BACKEND_URL = "http://localhost:8088";
 const ADDON_URL = "http://localhost:3001";
-const TEST_SERVER_ENV = {
+const SHUTDOWN_TIMEOUT_MS = 5_000;
+
+const parseEnvFile = (content) =>
+  Object.fromEntries(
+    content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#"))
+      .map((line) => {
+        const separator = line.indexOf("=");
+        if (separator === -1) return [line, ""];
+        return [line.slice(0, separator), line.slice(separator + 1).replace(/^["']|["']$/g, "")];
+      }),
+  );
+
+const getFreshDbPath = async () => {
+  const env = parseEnvFile(await readFile(".env.web", "utf8"));
+  const dbPath = env.WF_DB_PATH;
+  if (!dbPath?.includes("app-testing-")) {
+    throw new Error(
+      `Australia CGT E2E must run against a fresh app-testing DB; got ${dbPath || "missing WF_DB_PATH"}`,
+    );
+  }
+  console.log(`Australia CGT E2E database path: ${dbPath}`);
+  return dbPath;
+};
+
+const createTestServerEnv = (dbPath) => ({
   WF_LISTEN_ADDR: "127.0.0.1:8088",
   WF_CORS_ALLOW_ORIGINS: FRONTEND_URL,
   WF_SECRET_KEY: randomBytes(32).toString("base64"),
   WF_AUTH_REQUIRED: "false",
+  WF_DB_PATH: dbPath,
   VITE_API_TARGET: BACKEND_URL,
-};
+});
 
 const ensureEnvFile = async () => {
   try {
@@ -83,19 +111,52 @@ const spawnTestProcess = (command, args, env = {}) =>
     env: { ...process.env, ...env },
   });
 
+const waitForExitOrTimeout = async (child, timeoutMs) => {
+  if (child.exitCode !== null || child.signalCode !== null) return true;
+
+  let timeout;
+  try {
+    await Promise.race([
+      once(child, "exit").then(() => true),
+      new Promise((resolve) => {
+        timeout = globalThis.setTimeout(() => resolve(false), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) globalThis.clearTimeout(timeout);
+  }
+
+  return child.exitCode !== null || child.signalCode !== null;
+};
+
+const stopChild = async (child) => {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+
+  child.kill("SIGINT");
+  if (await waitForExitOrTimeout(child, SHUTDOWN_TIMEOUT_MS)) return;
+
+  child.kill("SIGTERM");
+  if (await waitForExitOrTimeout(child, SHUTDOWN_TIMEOUT_MS)) return;
+
+  child.kill("SIGKILL");
+  await waitForExitOrTimeout(child, SHUTDOWN_TIMEOUT_MS);
+};
+
 const run = async () => {
   requireCommand("cargo", ["--version"]);
   await ensureEnvFile();
   await prepE2eEnv();
+  const dbPath = await getFreshDbPath();
+  const testServerEnv = createTestServerEnv(dbPath);
 
   const addonServer = spawnChecked("pnpm", ["--filter", "australia-cgt-addon", "dev:server"]);
   const backendServer = spawnChecked(
     "cargo",
     ["run", "--manifest-path", "apps/server/Cargo.toml"],
-    TEST_SERVER_ENV,
+    testServerEnv,
   );
   const frontendServer = spawnChecked("pnpm", ["--filter", "frontend", "dev"], {
-    ...TEST_SERVER_ENV,
+    ...testServerEnv,
     BUILD_TARGET: "web",
     WF_ENABLE_VITE_PROXY: "true",
     VITE_ENABLE_ADDON_DEV_MODE: "true",
@@ -103,12 +164,7 @@ const run = async () => {
   const children = [addonServer, backendServer, frontendServer];
 
   const cleanup = async () => {
-    for (const child of children) {
-      if (child.exitCode === null && !child.killed) {
-        child.kill("SIGINT");
-      }
-    }
-    await Promise.all(children.map((child) => once(child, "exit").catch(() => {})));
+    await Promise.all(children.map((child) => stopChild(child).catch(() => {})));
   };
 
   process.once("SIGINT", () => cleanup().catch(() => {}));

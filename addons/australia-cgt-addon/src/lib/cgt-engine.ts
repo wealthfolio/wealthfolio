@@ -93,8 +93,8 @@ export interface ClosedLot {
   costBase: number;
   amitCostBaseAdjustment: number;
   grossGain: number;
-  taxableGain: number;
-  discountApplied: number;
+  preLossTaxableGainEstimate: number;
+  preLossDiscountEstimate: number;
   discountEligible: boolean;
   method: "FIFO";
 }
@@ -655,8 +655,8 @@ export function buildCgtReport(
         costBase: adjustedCostBase,
         amitCostBaseAdjustment,
         grossGain,
-        taxableGain: currentLawGain.taxableGain,
-        discountApplied: currentLawGain.discountApplied,
+        preLossTaxableGainEstimate: currentLawGain.taxableGain,
+        preLossDiscountEstimate: currentLawGain.discountApplied,
         discountEligible: currentLawGain.discountEligible,
         method: "FIFO",
       });
@@ -785,8 +785,8 @@ export function exportReportCsv(report: CgtReport): string {
     "amitCostBaseAdjustment",
     "grossGain",
     "lotCapitalLoss",
-    "discountApplied",
-    "taxableGain",
+    "preLossDiscountEstimate",
+    "preLossTaxableGainEstimate",
     "method",
   ];
   const rows = report.closedLots.map((lot) =>
@@ -802,8 +802,8 @@ export function exportReportCsv(report: CgtReport): string {
       lot.amitCostBaseAdjustment,
       lot.grossGain,
       lot.grossGain < 0 ? Math.abs(lot.grossGain) : 0,
-      lot.discountApplied,
-      lot.taxableGain,
+      lot.preLossDiscountEstimate,
+      lot.preLossTaxableGainEstimate,
       lot.method,
     ]
       .map((value) => `"${String(value).replaceAll('"', '""')}"`)
