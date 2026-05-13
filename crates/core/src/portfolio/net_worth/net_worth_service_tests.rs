@@ -976,6 +976,12 @@ impl crate::activities::ActivityRepositoryTrait for MockActivityRepository {
     ) -> Result<HashMap<String, (Option<NaiveDate>, Option<NaiveDate>)>> {
         Ok(HashMap::new())
     }
+    fn get_holdings_snapshot_bounds_for_assets(
+        &self,
+        _: &[String],
+    ) -> Result<HashMap<String, (Option<NaiveDate>, Option<NaiveDate>)>> {
+        Ok(HashMap::new())
+    }
     fn check_existing_duplicates(&self, _: &[String]) -> Result<HashMap<String, String>> {
         Ok(HashMap::new())
     }

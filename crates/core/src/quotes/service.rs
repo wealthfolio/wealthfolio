@@ -3571,7 +3571,8 @@ mod tests {
             instrument_type: Some(InstrumentType::Option),
             metadata: Some(serde_json::json!({
                 "option": crate::assets::OptionSpec {
-                    underlying_asset_id: "underlying_1".to_string(),
+                    underlying_asset_symbol: "underlying_1".to_string(),
+                    underlying_resolved_id: None,
                     expiration: NaiveDate::from_ymd_opt(2000, 1, 1).unwrap(),
                     right: "CALL".to_string(),
                     strike: dec!(100),

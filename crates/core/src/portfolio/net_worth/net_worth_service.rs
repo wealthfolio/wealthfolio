@@ -218,8 +218,8 @@ impl NetWorthService {
         }
 
         // Sort both by value descending
-        asset_breakdown.sort_by(|a, b| b.value.cmp(&a.value));
-        liability_breakdown.sort_by(|a, b| b.value.cmp(&a.value));
+        asset_breakdown.sort_by_key(|b| std::cmp::Reverse(b.value));
+        liability_breakdown.sort_by_key(|b| std::cmp::Reverse(b.value));
 
         let asset_total = asset_breakdown.iter().map(|item| item.value).sum();
         let liability_total = liability_breakdown.iter().map(|item| item.value).sum();

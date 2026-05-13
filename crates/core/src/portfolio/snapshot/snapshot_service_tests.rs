@@ -4157,12 +4157,14 @@ mod tests {
 
     /// Mock snapshot repository that filters by non-archived account IDs
     #[derive(Clone, Debug)]
+    #[allow(dead_code)]
     struct MockArchiveAwareSnapshotRepository {
         snapshots: Arc<RwLock<HashMap<String, Vec<AccountStateSnapshot>>>>,
         saved_snapshots: Arc<RwLock<Vec<AccountStateSnapshot>>>,
         non_archived_account_ids: Arc<RwLock<HashSet<String>>>,
     }
 
+    #[allow(dead_code)]
     impl MockArchiveAwareSnapshotRepository {
         fn new(non_archived_account_ids: HashSet<String>) -> Self {
             Self {
@@ -4442,6 +4444,7 @@ mod tests {
         }
     }
 
+    #[allow(dead_code)]
     fn create_test_account_with_archive_state(
         id: &str,
         currency: &str,

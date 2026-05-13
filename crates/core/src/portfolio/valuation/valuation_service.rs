@@ -110,6 +110,7 @@ pub struct ValuationService {
 }
 
 impl ValuationService {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         base_currency: Arc<RwLock<String>>,
         valuation_repository: Arc<dyn ValuationRepositoryTrait>,
@@ -135,6 +136,7 @@ impl ValuationService {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_timezone(
         base_currency: Arc<RwLock<String>>,
         timezone: Arc<RwLock<String>>,

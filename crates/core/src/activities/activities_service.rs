@@ -3987,7 +3987,15 @@ impl ActivityServiceTrait for ActivityService {
                         continue;
                     }
                     if let Some(prepared) = prep_iter.next() {
-                        insertable_new_activities[*abs_idx] = prepared.activity;
+                        // Preserve the duplicate-decision idempotency_key (in
+                        // particular `None` set by force-import) — the prepare
+                        // step recomputes it from activity data and would
+                        // otherwise overwrite the deliberate clear.
+                        let preserved_key =
+                            insertable_new_activities[*abs_idx].idempotency_key.clone();
+                        let mut updated = prepared.activity;
+                        updated.idempotency_key = preserved_key;
+                        insertable_new_activities[*abs_idx] = updated;
                     }
                 }
             }
