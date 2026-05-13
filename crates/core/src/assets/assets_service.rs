@@ -496,9 +496,8 @@ impl AssetServiceTrait for AssetService {
                     .map(str::to_string)
                 {
                     if let Some(resolved_id) = self.resolve_underlying_equity(&symbol) {
-                        if let Some(option_obj) = meta
-                            .get_mut("option")
-                            .and_then(|o| o.as_object_mut())
+                        if let Some(option_obj) =
+                            meta.get_mut("option").and_then(|o| o.as_object_mut())
                         {
                             option_obj.insert(
                                 "underlyingResolvedId".to_string(),

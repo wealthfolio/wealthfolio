@@ -1152,7 +1152,6 @@ mod tests {
         }
     }
 
-
     #[tokio::test]
     async fn test_calculate_holdings_snapshots_persists() {
         let base_currency_arc = Arc::new(RwLock::new("CAD".to_string()));
@@ -4470,7 +4469,6 @@ mod tests {
         }
     }
 
-
     #[tokio::test]
     async fn test_newly_created_account_has_default_archive_values() {
         // Verify that newly created accounts have is_archived=false by default
@@ -4827,7 +4825,9 @@ mod tests {
             Ok(())
         }
 
-        async fn get_open_position_quantities(&self) -> AppResult<std::collections::HashMap<String, rust_decimal::Decimal>> {
+        async fn get_open_position_quantities(
+            &self,
+        ) -> AppResult<std::collections::HashMap<String, rust_decimal::Decimal>> {
             Ok(std::collections::HashMap::new())
         }
 
@@ -5119,11 +5119,7 @@ mod tests {
         );
         // Parse as Decimal to avoid trailing-zero formatting differences
         let cost_per_unit: Decimal = closures[0].cost_per_unit.parse().unwrap();
-        assert_eq!(
-            cost_per_unit,
-            dec!(185),
-            "cost_per_unit = buy price"
-        );
+        assert_eq!(cost_per_unit, dec!(185), "cost_per_unit = buy price");
     }
 
     // ── get_cash_balances / get_cash_balances_on_date ───────────────────────
@@ -5262,10 +5258,7 @@ mod tests {
         let mut a2_mid = create_blank_snapshot(&acc2.id, "USD", "2026-01-10");
         a2_mid.cash_balances.insert("USD".to_string(), dec!(50));
 
-        let svc = build_cash_test_service(
-            vec![acc1, acc2],
-            vec![a1_early, a1_later, a2_mid],
-        );
+        let svc = build_cash_test_service(vec![acc1, acc2], vec![a1_early, a1_later, a2_mid]);
 
         let cash = svc
             .get_cash_balances_on_date(

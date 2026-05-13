@@ -10,8 +10,7 @@ use crate::errors::{CalculatorError, Error, Result};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::fx::FxServiceTrait;
 use crate::lots::{
-    check_lot_quantity_consistency, extract_lot_records, LotRecord,
-    LotRepositoryTrait,
+    check_lot_quantity_consistency, extract_lot_records, LotRecord, LotRepositoryTrait,
 };
 use crate::portfolio::snapshot::{
     AccountStateSnapshot, HoldingsCalculationWarning, Position, SnapshotSource,
@@ -285,7 +284,6 @@ impl SnapshotService {
             });
         }
     }
-
 
     // --- Core Calculation Logic (Internal Helper) ---
     async fn calculate_holdings_snapshots_internal(
@@ -941,7 +939,6 @@ impl SnapshotService {
         Ok((current_holdings_snapshots, keyframes_to_save, all_warnings))
     }
 
-
     // --- Helpers ---
 
     // create_initial_snapshot creates a snapshot with default values
@@ -1080,8 +1077,7 @@ impl SnapshotServiceTrait for SnapshotService {
         // (TRANSACTIONS-mode) snapshots have no rows in snapshot_positions,
         // so their `positions` stays empty and downstream consumers fall
         // back to the lots table.
-        let mut all_ids: Vec<String> =
-            keyframes_in_range.iter().map(|kf| kf.id.clone()).collect();
+        let mut all_ids: Vec<String> = keyframes_in_range.iter().map(|kf| kf.id.clone()).collect();
         if let Some(ref init) = initial_keyframe_opt {
             all_ids.push(init.id.clone());
         }

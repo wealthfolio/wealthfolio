@@ -383,7 +383,6 @@ async fn run_portfolio_job(
         }
     }
 
-
     // Update position status from lots for quote sync planning
     match deps.lots_repository.get_open_position_quantities().await {
         Ok(current_holdings) => {

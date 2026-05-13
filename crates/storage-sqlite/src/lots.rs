@@ -236,14 +236,12 @@ impl LotRepositoryTrait for LotsRepository {
                                 .eq(diesel::upsert::excluded(dsl::original_quantity)),
                             dsl::remaining_quantity
                                 .eq(diesel::upsert::excluded(dsl::remaining_quantity)),
-                            dsl::cost_per_unit
-                                .eq(diesel::upsert::excluded(dsl::cost_per_unit)),
+                            dsl::cost_per_unit.eq(diesel::upsert::excluded(dsl::cost_per_unit)),
                             dsl::original_cost_basis
                                 .eq(diesel::upsert::excluded(dsl::original_cost_basis)),
                             dsl::remaining_cost_basis
                                 .eq(diesel::upsert::excluded(dsl::remaining_cost_basis)),
-                            dsl::split_ratio
-                                .eq(diesel::upsert::excluded(dsl::split_ratio)),
+                            dsl::split_ratio.eq(diesel::upsert::excluded(dsl::split_ratio)),
                             dsl::is_closed.eq(diesel::upsert::excluded(dsl::is_closed)),
                             dsl::close_date.eq(diesel::upsert::excluded(dsl::close_date)),
                             dsl::close_activity_id

@@ -348,7 +348,10 @@ pub async fn backfill_split_ratios(
             }
         };
         let date = activity.activity_date.date_naive();
-        splits_by_asset.entry(asset_id).or_default().push((date, ratio));
+        splits_by_asset
+            .entry(asset_id)
+            .or_default()
+            .push((date, ratio));
     }
     for splits in splits_by_asset.values_mut() {
         splits.sort_by_key(|k| k.0);
@@ -368,8 +371,7 @@ pub async fn backfill_split_ratios(
     let mut accounts_with_changes: HashMap<String, usize> = HashMap::new();
 
     for mut lot in all_lots {
-        let stored_split_ratio =
-            Decimal::from_str(&lot.split_ratio).unwrap_or(Decimal::ONE);
+        let stored_split_ratio = Decimal::from_str(&lot.split_ratio).unwrap_or(Decimal::ONE);
         // Skip lots that have already been migrated (split_ratio ≠ 1).
         if stored_split_ratio != Decimal::ONE {
             lots_by_account
@@ -455,7 +457,8 @@ pub async fn backfill_split_ratios(
         // pre-existing data corruption is visible, but we do NOT block the
         // migration — the discrepancy is independent of the split refactor.
         let fee = Decimal::from_str(&lot.fee_allocated).unwrap_or(Decimal::ZERO);
-        let stored_tcb = Decimal::from_str(&lot.remaining_cost_basis).unwrap_or(rem_qty * cpu + fee);
+        let stored_tcb =
+            Decimal::from_str(&lot.remaining_cost_basis).unwrap_or(rem_qty * cpu + fee);
         let expected_open_basis = if orig_qty.is_zero() {
             stored_tcb
         } else {
@@ -469,7 +472,10 @@ pub async fn backfill_split_ratios(
                  This is pre-existing data corruption — typically an old FIFO \
                  bug that debited cost basis from this lot without removing \
                  shares.",
-                lot.id, expected_open_basis, stored_tcb, (expected_open_basis - stored_tcb).abs()
+                lot.id,
+                expected_open_basis,
+                stored_tcb,
+                (expected_open_basis - stored_tcb).abs()
             );
         }
 
@@ -505,11 +511,14 @@ pub async fn backfill_split_ratios(
         if modified == 0 {
             continue; // No changes for this account; skip the rewrite.
         }
-        lot_repo.replace_lots_for_account(&account_id, &lots).await?;
+        lot_repo
+            .replace_lots_for_account(&account_id, &lots)
+            .await?;
         total_modified += modified;
         log::info!(
             "backfill_split_ratios: rewrote {} lot(s) for account {}",
-            modified, account_id
+            modified,
+            account_id
         );
     }
 
@@ -667,8 +676,7 @@ pub fn replay_lots_to_date(
                     if lot_open >= split_date {
                         continue;
                     }
-                    let prior =
-                        Decimal::from_str(&lot.split_ratio).unwrap_or(Decimal::ONE);
+                    let prior = Decimal::from_str(&lot.split_ratio).unwrap_or(Decimal::ONE);
                     let prior = if prior.is_zero() { Decimal::ONE } else { prior };
                     lot.split_ratio = (prior * ratio).to_string();
                 }
@@ -687,18 +695,16 @@ pub fn replay_lots_to_date(
             // The group is FIFO-sorted by open_date, so once we've stopped
             // we won't encounter an earlier lot — but `continue` keeps the
             // intent obvious and matches the SPLIT path's pattern.
-            let lot_open = NaiveDate::parse_from_str(&lot.open_date, "%Y-%m-%d")
-                .unwrap_or(NaiveDate::MIN);
+            let lot_open =
+                NaiveDate::parse_from_str(&lot.open_date, "%Y-%m-%d").unwrap_or(NaiveDate::MIN);
             if lot_open > activity_date {
                 continue;
             }
-            let remaining =
-                Decimal::from_str(&lot.remaining_quantity).unwrap_or(Decimal::ZERO);
+            let remaining = Decimal::from_str(&lot.remaining_quantity).unwrap_or(Decimal::ZERO);
             if remaining <= Decimal::ZERO {
                 continue;
             }
-            let lot_split_ratio =
-                Decimal::from_str(&lot.split_ratio).unwrap_or(Decimal::ONE);
+            let lot_split_ratio = Decimal::from_str(&lot.split_ratio).unwrap_or(Decimal::ONE);
             let lot_split_ratio = if lot_split_ratio.is_zero() {
                 Decimal::ONE
             } else {
@@ -716,11 +722,10 @@ pub fn replay_lots_to_date(
 
             // Reduce remaining_cost_basis by the same proportion of original.
             // Cost basis is split-invariant; partial sells deplete it linearly.
-            let original_qty =
-                Decimal::from_str(&lot.original_quantity).unwrap_or(Decimal::ZERO);
+            let original_qty = Decimal::from_str(&lot.original_quantity).unwrap_or(Decimal::ZERO);
             if original_qty > Decimal::ZERO {
-                let original_cost = Decimal::from_str(&lot.original_cost_basis)
-                    .unwrap_or(Decimal::ZERO);
+                let original_cost =
+                    Decimal::from_str(&lot.original_cost_basis).unwrap_or(Decimal::ZERO);
                 let new_remaining_cost = if new_remaining <= Decimal::ZERO {
                     Decimal::ZERO
                 } else {
@@ -1444,9 +1449,14 @@ mod tests {
             make_lot_record("buy1", "acc1", "AAPL", "2024-01-01", "10", "0", "150"),
             make_lot_record("buy2", "acc1", "AAPL", "2024-03-01", "5", "5", "160"),
         ];
-        let activities = vec![
-            make_activity("sell1", "acc1", "AAPL", "SELL", "2024-01-31", dec!(10)),
-        ];
+        let activities = vec![make_activity(
+            "sell1",
+            "acc1",
+            "AAPL",
+            "SELL",
+            "2024-01-31",
+            dec!(10),
+        )];
 
         // Between sell and second buy: nothing held.
         let result = replay_lots_to_date(
@@ -1480,9 +1490,14 @@ mod tests {
             make_lot_record("buy1", "acc1", "AAPL", "2024-01-01", "4", "0", "150"),
             make_lot_record("buy2", "acc1", "AAPL", "2024-03-01", "10", "9", "160"),
         ];
-        let activities = vec![
-            make_activity("sell1", "acc1", "AAPL", "SELL", "2024-02-01", dec!(5)),
-        ];
+        let activities = vec![make_activity(
+            "sell1",
+            "acc1",
+            "AAPL",
+            "SELL",
+            "2024-02-01",
+            dec!(5),
+        )];
 
         let result = replay_lots_to_date(
             lots,

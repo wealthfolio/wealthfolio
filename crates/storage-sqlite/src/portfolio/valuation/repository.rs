@@ -12,9 +12,9 @@ use std::sync::Arc;
 use super::model::DailyAccountValuationDB;
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
-use wealthfolio_core::constants::PORTFOLIO_TOTAL_ACCOUNT_ID;
 use crate::schema::daily_account_valuation;
 use crate::schema::daily_account_valuation::dsl::*;
+use wealthfolio_core::constants::PORTFOLIO_TOTAL_ACCOUNT_ID;
 use wealthfolio_core::errors::Result;
 use wealthfolio_core::portfolio::valuation::{
     DailyAccountValuation, NegativeBalanceInfo, ValuationRepositoryTrait,

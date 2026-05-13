@@ -38,4 +38,3 @@ pub struct DailyAccountValuation {
     /// Investments tab total = total_value - alternative_market_value.
     pub alternative_market_value: Decimal,
 }
-

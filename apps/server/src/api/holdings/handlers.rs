@@ -97,7 +97,9 @@ pub async fn get_derivative_holdings_for_asset(
     Query(q): Query<AssetHoldingsQuery>,
 ) -> ApiResult<Json<Vec<Holding>>> {
     let base = state.base_currency.read().unwrap().clone();
-    let options = state.asset_service.get_options_for_underlying(&q.asset_id)?;
+    let options = state
+        .asset_service
+        .get_options_for_underlying(&q.asset_id)?;
     if options.is_empty() {
         return Ok(Json(Vec::new()));
     }

@@ -46,8 +46,7 @@ pub fn internal_transfer_adjustments_by_date_base(
         }
 
         let activity_type = activity.activity_type.as_str();
-        if activity_type != ACTIVITY_TYPE_TRANSFER_IN
-            && activity_type != ACTIVITY_TYPE_TRANSFER_OUT
+        if activity_type != ACTIVITY_TYPE_TRANSFER_IN && activity_type != ACTIVITY_TYPE_TRANSFER_OUT
         {
             continue;
         }
@@ -125,4 +124,3 @@ pub fn internal_transfer_adjustments_by_date_base(
 
     Ok(adjustments_by_date)
 }
-

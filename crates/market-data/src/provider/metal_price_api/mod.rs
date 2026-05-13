@@ -173,13 +173,19 @@ impl MetalPriceApiProvider {
         key: &LatestKey,
     ) -> Arc<AsyncMutex<()>> {
         let mut guard = map.lock().expect("lock map poisoned");
-        guard.entry(key.clone()).or_insert_with(|| Arc::new(AsyncMutex::new(()))).clone()
+        guard
+            .entry(key.clone())
+            .or_insert_with(|| Arc::new(AsyncMutex::new(())))
+            .clone()
     }
 
     /// Look up a cached latest per-oz price if it's still within TTL.
     fn cached_latest(&self, key: &LatestKey) -> Option<CachedLatest> {
         let cache = self.latest_cache.lock().expect("latest_cache poisoned");
-        cache.get(key).copied().filter(|c| c.fetched_at.elapsed() < LATEST_CACHE_TTL)
+        cache
+            .get(key)
+            .copied()
+            .filter(|c| c.fetched_at.elapsed() < LATEST_CACHE_TTL)
     }
 
     /// Fetch the per-troy-ounce latest price from the API, using cached values
@@ -220,10 +226,13 @@ impl MetalPriceApiProvider {
             })?;
 
         let metal_resp: MetalPriceResponse =
-            response.json().await.map_err(|e| MarketDataError::ProviderError {
-                provider: PROVIDER_ID.to_string(),
-                message: e.to_string(),
-            })?;
+            response
+                .json()
+                .await
+                .map_err(|e| MarketDataError::ProviderError {
+                    provider: PROVIDER_ID.to_string(),
+                    message: e.to_string(),
+                })?;
 
         if !metal_resp.success {
             warn!(
@@ -243,7 +252,10 @@ impl MetalPriceApiProvider {
             .ok_or_else(|| MarketDataError::SymbolNotFound(raw_symbol.to_string()))?;
 
         let price_per_oz = Self::rate_to_price(*rate)?;
-        let timestamp = Utc.timestamp_opt(metal_resp.timestamp, 0).single().unwrap_or_else(Utc::now);
+        let timestamp = Utc
+            .timestamp_opt(metal_resp.timestamp, 0)
+            .single()
+            .unwrap_or_else(Utc::now);
         let entry = CachedLatest {
             price_per_oz,
             fetched_at: Instant::now(),
@@ -295,14 +307,13 @@ impl MetalPriceApiProvider {
 
         // Today's rate is never considered cached (still moving).
         let needs_fetch = {
-            let cache = self.historical_cache.lock().expect("historical_cache poisoned");
+            let cache = self
+                .historical_cache
+                .lock()
+                .expect("historical_cache poisoned");
             dates.iter().any(|d| {
                 *d >= today
-                    || !cache.contains_key(&(
-                        base_code.to_string(),
-                        quote_currency.to_string(),
-                        *d,
-                    ))
+                    || !cache.contains_key(&(base_code.to_string(), quote_currency.to_string(), *d))
             })
         };
 
@@ -318,22 +329,23 @@ impl MetalPriceApiProvider {
                 Ok(resp) => resp,
                 Err(TimeframeFetchError::PlanLimit) => {
                     let clamped_start = end - ChronoDuration::days(PLAN_LIMIT_MAX_DAYS);
-                    let clamped_start = if clamped_start > start { clamped_start } else { start };
-                    self.fetch_timeframe(
-                        quote_currency,
-                        base_code,
-                        clamped_start,
-                        end,
-                        raw_symbol,
-                    )
-                    .await
-                    .map_err(TimeframeFetchError::into_market_data_error)?
+                    let clamped_start = if clamped_start > start {
+                        clamped_start
+                    } else {
+                        start
+                    };
+                    self.fetch_timeframe(quote_currency, base_code, clamped_start, end, raw_symbol)
+                        .await
+                        .map_err(TimeframeFetchError::into_market_data_error)?
                 }
                 Err(other) => return Err(other.into_market_data_error()),
             };
 
             let mut out: HashMap<NaiveDate, Decimal> = HashMap::new();
-            let mut cache = self.historical_cache.lock().expect("historical_cache poisoned");
+            let mut cache = self
+                .historical_cache
+                .lock()
+                .expect("historical_cache poisoned");
             for (date_str, rates) in &tf_resp.rates {
                 let Some(rate) = rates.get(base_code) else {
                     continue;
@@ -359,25 +371,23 @@ impl MetalPriceApiProvider {
                 if out.contains_key(d) {
                     continue;
                 }
-                if let Some(rate) = cache.get(&(
-                    base_code.to_string(),
-                    quote_currency.to_string(),
-                    *d,
-                )) {
+                if let Some(rate) =
+                    cache.get(&(base_code.to_string(), quote_currency.to_string(), *d))
+                {
                     out.insert(*d, *rate);
                 }
             }
             return Ok(out);
         }
 
-        let cache = self.historical_cache.lock().expect("historical_cache poisoned");
+        let cache = self
+            .historical_cache
+            .lock()
+            .expect("historical_cache poisoned");
         let mut out = HashMap::new();
         for d in &dates {
-            if let Some(rate) = cache.get(&(
-                base_code.to_string(),
-                quote_currency.to_string(),
-                *d,
-            )) {
+            if let Some(rate) = cache.get(&(base_code.to_string(), quote_currency.to_string(), *d))
+            {
                 out.insert(*d, *rate);
             }
         }
@@ -456,8 +466,8 @@ impl MetalPriceApiProvider {
                 message: format!("Failed to read response: {}", e),
             })?;
 
-        let tf_resp: MetalPriceTimeframeResponse = serde_json::from_str(&response_text)
-            .map_err(|e| {
+        let tf_resp: MetalPriceTimeframeResponse =
+            serde_json::from_str(&response_text).map_err(|e| {
                 warn!(
                     provider = PROVIDER_ID,
                     error = %e,

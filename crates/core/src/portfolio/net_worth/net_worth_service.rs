@@ -14,9 +14,9 @@ use super::net_worth_model::{
 use super::net_worth_traits::NetWorthServiceTrait;
 use crate::accounts::{account_types, AccountRepositoryTrait};
 use crate::activities::ActivityRepositoryTrait;
-use crate::constants::PORTFOLIO_TOTAL_ACCOUNT_ID;
 use crate::assets::{AssetKind, AssetRepositoryTrait};
 use crate::constants::DECIMAL_PRECISION;
+use crate::constants::PORTFOLIO_TOTAL_ACCOUNT_ID;
 use crate::errors::Result;
 use crate::fx::currency::normalize_amount;
 use crate::fx::FxServiceTrait;
@@ -342,15 +342,18 @@ impl NetWorthServiceTrait for NetWorthService {
                 .filter(|r| !r.is_zero())
                 .unwrap_or(Decimal::ONE);
             let effective_qty = qty * split_ratio;
-            let cost = lot.remaining_cost_basis.parse::<Decimal>().unwrap_or_else(|e| {
-                log::error!(
-                    "Lot {} has malformed remaining_cost_basis '{}': {}",
-                    lot.id,
-                    lot.remaining_cost_basis,
-                    e
-                );
-                Decimal::ZERO
-            });
+            let cost = lot
+                .remaining_cost_basis
+                .parse::<Decimal>()
+                .unwrap_or_else(|e| {
+                    log::error!(
+                        "Lot {} has malformed remaining_cost_basis '{}': {}",
+                        lot.id,
+                        lot.remaining_cost_basis,
+                        e
+                    );
+                    Decimal::ZERO
+                });
             lots_by_account
                 .entry(lot.account_id.clone())
                 .or_default()

@@ -161,8 +161,7 @@ impl HoldingsCalculator {
                     // on partial sells). For the closure record we want the
                     // original/at-acquisition basis, reconstructed from the
                     // immutable acquisition_price/original_quantity/fees.
-                    original_cost_basis: (lot.acquisition_price * orig_qty
-                        + lot.acquisition_fees)
+                    original_cost_basis: (lot.acquisition_price * orig_qty + lot.acquisition_fees)
                         .to_string(),
                     fee_allocated: lot.acquisition_fees.to_string(),
                 });
@@ -329,9 +328,7 @@ impl HoldingsCalculator {
             ActivityType::TransferOut => {
                 self.handle_transfer_out(activity, state, account_currency, asset_cache)
             }
-            ActivityType::Split => {
-                self.handle_split(activity, state, asset_cache)
-            }
+            ActivityType::Split => self.handle_split(activity, state, asset_cache),
             ActivityType::Adjustment => self.handle_adjustment(activity, state, asset_cache),
             ActivityType::Unknown => {
                 warn!(
@@ -461,7 +458,13 @@ impl HoldingsCalculator {
             let reduction = position.reduce_lots_fifo(activity.qty())?;
             let close_date = self.activity_local_date(activity).to_string();
             for lot in &reduction.fully_consumed_lots {
-                self.record_lot_closure(&state.account_id, asset_id, lot, &close_date, &activity.id);
+                self.record_lot_closure(
+                    &state.account_id,
+                    asset_id,
+                    lot,
+                    &close_date,
+                    &activity.id,
+                );
             }
         } else {
             warn!(
@@ -886,7 +889,13 @@ impl HoldingsCalculator {
                 // Record fully consumed lots as closed
                 let close_date = activity_date.to_string();
                 for lot in &reduction.fully_consumed_lots {
-                    self.record_lot_closure(&state.account_id, asset_id, lot, &close_date, &activity.id);
+                    self.record_lot_closure(
+                        &state.account_id,
+                        asset_id,
+                        lot,
+                        &close_date,
+                        &activity.id,
+                    );
                 }
 
                 // Cache removed lots for paired TRANSFER_IN (lot-level transfer)
@@ -963,10 +972,7 @@ impl HoldingsCalculator {
         let asset_id = match activity.asset_id.as_deref() {
             Some(id) if !id.is_empty() => id,
             _ => {
-                warn!(
-                    "SPLIT activity {} has no asset_id; skipping.",
-                    activity.id
-                );
+                warn!("SPLIT activity {} has no asset_id; skipping.", activity.id);
                 return Ok(());
             }
         };

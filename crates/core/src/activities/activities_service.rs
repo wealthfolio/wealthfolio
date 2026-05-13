@@ -3980,8 +3980,7 @@ impl ActivityServiceTrait for ActivityService {
                     .await?;
                 // prep.prepared is in input order, omitting any entries that
                 // errored; prep.errors carries the failed input indices.
-                let errored_inputs: HashSet<usize> =
-                    prep.errors.iter().map(|(i, _)| *i).collect();
+                let errored_inputs: HashSet<usize> = prep.errors.iter().map(|(i, _)| *i).collect();
                 let mut prep_iter = prep.prepared.into_iter();
                 for (rel_idx, abs_idx) in indices.iter().enumerate() {
                     if errored_inputs.contains(&rel_idx) {

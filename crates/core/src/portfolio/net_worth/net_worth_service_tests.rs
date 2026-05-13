@@ -814,7 +814,9 @@ impl crate::lots::LotRepositoryTrait for MockLotRepository {
         Ok(())
     }
 
-    async fn get_open_position_quantities(&self) -> Result<std::collections::HashMap<String, rust_decimal::Decimal>> {
+    async fn get_open_position_quantities(
+        &self,
+    ) -> Result<std::collections::HashMap<String, rust_decimal::Decimal>> {
         Ok(std::collections::HashMap::new())
     }
 
