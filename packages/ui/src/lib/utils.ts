@@ -19,9 +19,14 @@ const currencyFormatterCache = new Map<string, Intl.NumberFormat>();
 const compactCurrencyFormatterCache = new Map<string, Intl.NumberFormat>();
 const currencySymbolFormatterCache = new Map<string, Intl.NumberFormat>();
 const decimalFormatterCache = new Map<string, Intl.NumberFormat>();
+const fractionDigitsCache = new Map<string, number>();
 
 function getFractionDigits(currency: string): number {
   const normalizedCurrency = currency?.toUpperCase?.() ?? "USD";
+  if (fractionDigitsCache.has(normalizedCurrency)) {
+    return fractionDigitsCache.get(normalizedCurrency)!;
+  }
+
   try {
     // 1. Check ISO standard first (uses browser built-in CLDR data for KRW, JPY, etc.)
     // The Intl API natively follows the ISO 4217 standard for currency minor units.
@@ -32,9 +37,12 @@ function getFractionDigits(currency: string): number {
       currency: normalizedCurrency,
     }).resolvedOptions().maximumFractionDigits;
 
-    return fractionDigits ?? DISPLAY_DECIMAL_PRECISION;
+    const result = fractionDigits ?? DISPLAY_DECIMAL_PRECISION;
+    fractionDigitsCache.set(normalizedCurrency, result);
+    return result;
   } catch {
     // 2. Fallback to default precision for unknown/special currencies
+    fractionDigitsCache.set(normalizedCurrency, DISPLAY_DECIMAL_PRECISION);
     return DISPLAY_DECIMAL_PRECISION;
   }
 }
@@ -45,17 +53,11 @@ const getDecimalFormatter = (currency: string) => {
     return decimalFormatterCache.get(normalizedCurrency)!;
   }
 
-  let formatter: Intl.NumberFormat;
-  try {
-    const fractionDigits = getFractionDigits(normalizedCurrency);
-
-    formatter = new Intl.NumberFormat("en-US", {
-      minimumFractionDigits: fractionDigits,
-      maximumFractionDigits: fractionDigits,
-    });
-  } catch {
-    formatter = decimalFormatter;
-  }
+  const fractionDigits = getFractionDigits(normalizedCurrency);
+  const formatter = new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  });
 
   decimalFormatterCache.set(normalizedCurrency, formatter);
   return formatter;
@@ -204,7 +206,7 @@ export function formatPercent(value: number | null | undefined) {
   if (value == null) return "-";
   try {
     // Use Intl.NumberFormat for correct percentage formatting (handles x100 and % sign)
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat(undefined, {
       style: "percent",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,

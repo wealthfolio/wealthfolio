@@ -46,7 +46,9 @@ const Balance: React.FC<BalanceProps> = ({
       const formatter = new Intl.NumberFormat(undefined, {
         ...(useCurrencyStyle ? { currency, currencyDisplay: "narrowSymbol" } : {}),
         style: useCurrencyStyle ? "currency" : "decimal",
-          ...(!displayDecimal ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {}),
+        ...(displayDecimal
+          ? (!useCurrencyStyle ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : {})
+          : { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
       });
       return formatter.format(targetValue);
     } catch {
@@ -81,7 +83,9 @@ const Balance: React.FC<BalanceProps> = ({
                 ? { currency, currencyDisplay: "narrowSymbol" as const }
                 : {}),
               style: displayCurrency && validCurrency ? "currency" : "decimal",
-            ...(!displayDecimal ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {}),
+          ...(displayDecimal
+            ? (!(displayCurrency && validCurrency) ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : {})
+            : { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
             }}
           />
           <span className="sr-only" data-testid="portfolio-balance-value">

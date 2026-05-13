@@ -270,34 +270,6 @@ export function normalizeCurrency(currency: string | undefined): string | undefi
   return MINOR_CURRENCY_MAP[currency] ?? currency;
 }
 
-/*
- * @deprecated Use formatAmount from @wealthfolio/ui instead.
- *
- * export function formatAmount(
- *   amount: number | string | null | undefined,
- *   currency: string,
- *   displayCurrency = true,
- * ) {
- *   if (amount == null) return "-";
- *   const numericAmount = typeof amount === "string" ? Number(amount) : amount;
- *   if (!Number.isFinite(numericAmount)) return "-";
- *   const displayAmount = Math.abs(numericAmount) < 0.005 ? 0 : numericAmount;
- *   const rawCurrency = currency ?? "USD";
- *   const isPenceCurrency = rawCurrency === "GBp" || rawCurrency === "GBX";
- *
- *   if (isPenceCurrency) {
- *     const formattedNumber = decimalFormatter.format(displayAmount);
- *     return displayCurrency ? `${formattedNumber}p` : formattedNumber;
- *   }
- *
- *   if (!displayCurrency) {
- *     return decimalFormatter.format(displayAmount);
- *   }
- *
- *   return getCurrencyFormatter(rawCurrency).format(displayAmount);
- * }
- */
-
 export function formatPercent(value: number | null | undefined) {
   if (value == null) return "-";
   try {

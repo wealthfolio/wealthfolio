@@ -133,7 +133,7 @@ export function DashboardContent() {
                       className="lg:text-md text-sm font-light"
                       value={gainLossAmount}
                       currency={baseCurrency}
-                    displayCurrency={false}
+                      displayCurrency={false}
                     ></GainAmount>
                     <div className="border-secondary my-1 border-r pr-2" />
                     <GainPercent
