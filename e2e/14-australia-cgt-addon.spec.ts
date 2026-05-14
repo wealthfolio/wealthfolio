@@ -13,6 +13,10 @@ test.skip(
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(__dirname, "fixtures", "australia-cgt-addon.csv");
 const ACCOUNT_NAME = "Australian Taxable";
+const EXPECTED_404_URLS = new Set([
+  "http://localhost:3001/addon-updates",
+  `${BASE_URL}/.well-known/appspecific/com.chrome.devtools.json`,
+]);
 
 async function completeAudOnboardingIfNeeded(page: Page) {
   await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
@@ -110,12 +114,22 @@ test.describe("Australia CGT addon", () => {
   test("loads from addon dev mode and reports imported AUD CGT lots", async () => {
     test.setTimeout(240000);
     const browserErrors: string[] = [];
+    const notFoundResponses: string[] = [];
     page.on("console", (message) => {
       if (message.type() === "error") {
-        if (/^Failed to load resource: .* 404 \(Not Found\)$/.test(message.text())) {
+        const text = message.text();
+        if (
+          text ===
+          "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        ) {
           return;
         }
-        browserErrors.push(message.text());
+        browserErrors.push(text);
+      }
+    });
+    page.on("response", (response) => {
+      if (response.status() === 404) {
+        notFoundResponses.push(response.url());
       }
     });
     page.on("pageerror", (error) => {
@@ -155,8 +169,12 @@ test.describe("Australia CGT addon", () => {
     await expect(page.getByText("AMMA statements: 0")).toBeVisible();
     await expect(page.getByText("Cached observations: 0")).toBeVisible();
 
+    // Imported CSV dates are normalized by the web E2E import path before the addon sees them.
+    // Keep this selector deliberate by matching the parcel's symbol, account, and displayed date.
     const firstDisposedParcelId = await page
-      .locator('datalist#australia-cgt-all-parcels option[label*="2024-06-30"]')
+      .locator(
+        'datalist#australia-cgt-all-parcels option[label*="VAS"][label*="Australian Taxable"][label*="2024-06-30"]',
+      )
       .first()
       .getAttribute("value");
     expect(firstDisposedParcelId).toBeTruthy();
@@ -223,6 +241,8 @@ test.describe("Australia CGT addon", () => {
     expect(csv).toContain('"2025-26","VAS"');
     expect(csv).toContain('"FIFO"');
 
+    const expectedNotFoundUrls = notFoundResponses.filter((url) => EXPECTED_404_URLS.has(url));
+    expect(notFoundResponses).toEqual(expectedNotFoundUrls);
     expect(browserErrors).toEqual([]);
   });
 });

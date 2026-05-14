@@ -1,13 +1,29 @@
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
-import type { AddonEnableFunction } from "@wealthfolio/addon-sdk";
+import type { AddonContext, AddonEnableFunction } from "@wealthfolio/addon-sdk";
 import { Icons } from "@wealthfolio/ui";
 import React from "react";
 import { AustraliaCgtPage } from "./pages/australia-cgt-page";
 
+type CleanupTask = () => void;
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function runCleanupTasks(ctx: AddonContext, cleanupTasks: CleanupTask[]) {
+  for (const cleanup of [...cleanupTasks].reverse()) {
+    try {
+      cleanup();
+    } catch (error) {
+      ctx.api.logger.error("Error cleaning up Australia CGT Planner addon: " + errorMessage(error));
+    }
+  }
+}
+
 const enable: AddonEnableFunction = (ctx) => {
   ctx.api.logger.info("Australia CGT Planner addon is being enabled");
 
-  const cleanupTasks: Array<() => void> = [];
+  const cleanupTasks: CleanupTask[] = [];
 
   try {
     const sidebarItem = ctx.sidebar.addItem({
@@ -37,12 +53,13 @@ const enable: AddonEnableFunction = (ctx) => {
       ),
     });
   } catch (error) {
-    [...cleanupTasks].reverse().forEach((cleanup) => cleanup());
+    ctx.api.logger.error("Failed to initialize Australia CGT Planner addon: " + errorMessage(error));
+    runCleanupTasks(ctx, cleanupTasks);
     throw error;
   }
 
   ctx.onDisable(() => {
-    [...cleanupTasks].reverse().forEach((cleanup) => cleanup());
+    runCleanupTasks(ctx, cleanupTasks);
     ctx.api.logger.info("Australia CGT Planner addon disabled");
   });
 };
