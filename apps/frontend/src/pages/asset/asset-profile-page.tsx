@@ -659,6 +659,7 @@ export const AssetProfilePage = () => {
             lotDetails={holding.lotDetails}
             currency={symbolHolding?.currency ?? profile.currency ?? baseCurrency}
             marketPrice={Number(holding.price ?? profile.marketPrice)}
+            contractMultiplier={Number(holding.contractMultiplier ?? 1)}
           />
         ),
       });
@@ -1296,6 +1297,7 @@ export const AssetProfilePage = () => {
                   lotDetails={holding.lotDetails}
                   currency={symbolHolding?.currency ?? profile.currency ?? baseCurrency}
                   marketPrice={Number(holding.price ?? profile.marketPrice)}
+                  contractMultiplier={Number(holding.contractMultiplier ?? 1)}
                 />
               </TabsContent>
             )}

@@ -21,14 +21,27 @@ interface AssetLotsTableProps {
   lotDetails?: LotView[] | null;
   currency: string;
   marketPrice: number;
+  contractMultiplier?: number;
 }
 
-export const AssetLotsTable = ({ lotDetails, currency, marketPrice }: AssetLotsTableProps) => {
+export const AssetLotsTable = ({
+  lotDetails,
+  currency,
+  marketPrice,
+  contractMultiplier = 1,
+}: AssetLotsTableProps) => {
   if (!lotDetails || lotDetails.length === 0) {
     return null;
   }
 
-  return <LotDetailsView lotDetails={lotDetails} currency={currency} marketPrice={marketPrice} />;
+  return (
+    <LotDetailsView
+      lotDetails={lotDetails}
+      currency={currency}
+      marketPrice={marketPrice}
+      contractMultiplier={contractMultiplier}
+    />
+  );
 };
 
 // ─── Rich lot details view with account grouping and open/closed status ───
@@ -37,10 +50,12 @@ function LotDetailsView({
   lotDetails,
   currency,
   marketPrice,
+  contractMultiplier,
 }: {
   lotDetails: LotView[];
   currency: string;
   marketPrice: number;
+  contractMultiplier: number;
 }) {
   const { accounts } = useAccounts();
   const accountMap = new Map(accounts?.map((a) => [a.id, a.name]) ?? []);
@@ -73,6 +88,7 @@ function LotDetailsView({
             lots={groupLots}
             currency={currency}
             marketPrice={marketPrice}
+            contractMultiplier={contractMultiplier}
             collapsible={multiAccount}
           />
         ))}
@@ -86,12 +102,14 @@ function AccountLotGroup({
   lots,
   currency,
   marketPrice,
+  contractMultiplier,
   collapsible,
 }: {
   accountName: string;
   lots: LotView[];
   currency: string;
   marketPrice: number;
+  contractMultiplier: number;
   collapsible: boolean;
 }) {
   const [expanded, setExpanded] = useState(true);
@@ -139,7 +157,7 @@ function AccountLotGroup({
                   // remainingQuantity is in as-acquired (pre-split) units;
                   // effective shares for market valuation use splitRatio.
                   const effectiveRemaining = lot.remainingQuantity * lot.splitRatio;
-                  const marketValue = effectiveRemaining * marketPrice;
+                  const marketValue = effectiveRemaining * marketPrice * contractMultiplier;
                   const gainLoss = marketValue - lot.remainingCostBasis;
                   const gainPct =
                     lot.remainingCostBasis !== 0 ? gainLoss / lot.remainingCostBasis : 0;
@@ -217,7 +235,7 @@ function AccountLotGroup({
           <div className="divide-y md:hidden">
             {lots.map((lot) => {
               const effectiveRemaining = lot.remainingQuantity * lot.splitRatio;
-              const marketValue = effectiveRemaining * marketPrice;
+              const marketValue = effectiveRemaining * marketPrice * contractMultiplier;
               const gainLoss = marketValue - lot.remainingCostBasis;
               const gainPct = lot.remainingCostBasis !== 0 ? gainLoss / lot.remainingCostBasis : 0;
               const hasSplit = lot.splitRatio !== 1;

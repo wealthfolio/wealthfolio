@@ -613,6 +613,8 @@ export interface Holding {
   prevCloseValue?: MonetaryValue | null;
   weight: number;
   asOfDate: string;
+  /** Contract multiplier for derivatives (e.g., 100 for equity options). Defaults to 1. */
+  contractMultiplier?: number | null;
 }
 
 /**
