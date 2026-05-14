@@ -25,7 +25,6 @@ import {
 } from "../lib/parcel-options";
 import {
   buildAmitAdjustmentsFromAmma,
-  mergeCpiSeries,
   refreshCachedAbsCpiSeries,
 } from "../lib/tax-data";
 
@@ -148,20 +147,6 @@ export function AustraliaCgtPage({ ctx }: { ctx: AddonContext }) {
     saveTaxData({
       ...taxData,
       cpiSeries: taxData.cpiSeries.filter((observation) => observation.quarter !== quarter),
-    });
-  };
-
-  const saveCpiSample = () => {
-    saveTaxData({
-      ...taxData,
-      cpiSeries: mergeCpiSeries(taxData.cpiSeries, [
-        {
-          quarter: "2027-Q3",
-          value: 120,
-          source: "MANUAL",
-          fetchedAt: new Date().toISOString(),
-        },
-      ]),
     });
   };
 
@@ -390,7 +375,6 @@ export function AustraliaCgtPage({ ctx }: { ctx: AddonContext }) {
                 cpiSeries={taxData.cpiSeries}
                 refreshError={cpiRefreshError}
                 onRefresh={refreshAbsCpi}
-                onSaveSample={saveCpiSample}
               />
               <TransitionSnapshotForm
                 account={snapshotAccount}

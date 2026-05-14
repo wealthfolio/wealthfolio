@@ -1,4 +1,5 @@
 import { Button } from "@wealthfolio/ui";
+import { useState } from "react";
 import { formatAud } from "../lib/format";
 import type { AustraliaCgtAddonData } from "../lib/tax-data";
 
@@ -19,6 +20,13 @@ export function StoredTaxDataPanel({
   onDeleteSnapshot,
   onDeleteAcquisitionOverride,
 }: StoredTaxDataPanelProps) {
+  const [confirmingClear, setConfirmingClear] = useState(false);
+
+  const confirmClear = () => {
+    onClear();
+    setConfirmingClear(false);
+  };
+
   return (
     <>
       <div className="mt-4 flex flex-wrap gap-3 text-sm">
@@ -26,9 +34,20 @@ export function StoredTaxDataPanel({
         <span>AMIT adjustments: {taxData.amitAdjustments.length}</span>
         <span>2027 snapshots: {taxData.transitionSnapshots.length}</span>
         <span>Acquisition overrides: {taxData.acquisitionOverrides.length}</span>
-        <Button onClick={onClear} size="sm" variant="ghost">
-          Clear local tax data
-        </Button>
+        {confirmingClear ? (
+          <>
+            <Button onClick={confirmClear} size="sm" variant="destructive">
+              Confirm clear local tax data
+            </Button>
+            <Button onClick={() => setConfirmingClear(false)} size="sm" variant="outline">
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <Button onClick={() => setConfirmingClear(true)} size="sm" variant="outline">
+            Clear local tax data
+          </Button>
+        )}
       </div>
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <div className="bg-background rounded-md border p-3">

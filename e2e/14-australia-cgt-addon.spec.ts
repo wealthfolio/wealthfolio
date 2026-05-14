@@ -166,11 +166,14 @@ test.describe("Australia CGT addon", () => {
     await expect(matchedLots.getByRole("columnheader", { name: "Pre-loss taxable" })).toBeVisible();
 
     await page.getByRole("button", { name: "Clear local tax data" }).click();
+    await expect(page.getByRole("button", { name: "Confirm clear local tax data" })).toBeVisible();
+    await page.getByRole("button", { name: "Confirm clear local tax data" }).click();
     await expect(page.getByText("AMMA statements: 0")).toBeVisible();
     await expect(page.getByText("Cached observations: 0")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Insert demo CPI row" })).toHaveCount(0);
 
-    // Imported CSV dates are normalized by the web E2E import path before the addon sees them.
-    // Keep this selector deliberate by matching the parcel's symbol, account, and displayed date.
+    // The Wealthfolio web import fixture reaches the addon with this displayed acquisition date.
+    // Keep this selector deliberate by matching symbol, account, and displayed date.
     const firstDisposedParcelId = await page
       .locator(
         'datalist#australia-cgt-all-parcels option[label*="VAS"][label*="Australian Taxable"][label*="2024-06-30"]',
@@ -191,10 +194,6 @@ test.describe("Australia CGT addon", () => {
     await expect(incomeYearSummary.getByRole("row", { name: /2025-26.*\$281/ })).toBeVisible();
     await expect(page.getByText(/Taxable \$300 · Cash \$280 · Franking \$20/)).toBeVisible();
     await expect(page.getByRole("button", { name: /Delete AMMA .*:2025-26/ })).toBeVisible();
-
-    await page.getByRole("button", { name: "Insert demo CPI row" }).click();
-    await expect(page.getByText("Cached observations: 1")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Delete CPI 2027-Q3/ })).toBeVisible();
 
     const openParcelId = await page
       .locator('datalist#australia-cgt-open-parcels option[label*="VAS"]')
@@ -225,7 +224,7 @@ test.describe("Australia CGT addon", () => {
     await expect(cgtHeading).toBeVisible({ timeout: 30000 });
     await expect(page.getByText("AMMA statements: 1")).toBeVisible();
     await expect(incomeYearSummary.getByRole("row", { name: /2025-26.*\$281/ })).toBeVisible();
-    await expect(page.getByText("Cached observations: 1")).toBeVisible();
+    await expect(page.getByText("Cached observations: 0")).toBeVisible();
     await expect(page.getByText("2027 snapshots: 1")).toBeVisible();
     await expect(page.getByText("Acquisition overrides: 1")).toBeVisible();
 

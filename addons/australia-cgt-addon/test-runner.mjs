@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import ts from "typescript";
 
 const addonRoot = new URL(".", import.meta.url);
@@ -10,6 +12,7 @@ const taxDataUrl = new URL("src/lib/tax-data.ts", addonRoot);
 const tempDir = await mkdtemp(path.join(tmpdir(), "australia-cgt-addon-"));
 const compiledEnginePath = path.join(tempDir, "cgt-engine.mjs");
 const compiledTaxDataPath = path.join(tempDir, "tax-data.mjs");
+const execFileAsync = promisify(execFile);
 
 async function importEngine() {
   const { readFile } = await import("node:fs/promises");
@@ -592,6 +595,43 @@ test("transition snapshots produce parcel-level 2027 transition rows", () => {
   assert.equal(report.transitionLots[0].preCommencementTaxableGain, 300);
 });
 
+test("transition snapshots use saved quantity for corrected parcel apportionment", () => {
+  const report = buildCgtReport(
+    [
+      {
+        id: "buy-1",
+        activityType: "BUY",
+        date: "2024-07-01",
+        quantity: "10",
+        unitPrice: "100",
+        fee: "0",
+        amount: "1000",
+        currency: "AUD",
+        assetSymbol: "VAS.AX",
+        accountName: "Australian Taxable",
+      },
+    ],
+    {
+      transitionSnapshots: [
+        {
+          parcelId: "buy-1",
+          symbol: "VAS.AX",
+          account: "Australian Taxable",
+          acquisitionDate: "2024-07-01",
+          quantity: 5,
+          marketValueAt2027: 800,
+          valuationMethod: "manual",
+        },
+      ],
+    },
+  );
+
+  assert.equal(report.transitionLots.length, 1);
+  assert.equal(report.transitionLots[0].quantity, 5);
+  assert.equal(report.transitionLots[0].costBase, 500);
+  assert.equal(report.transitionLots[0].preCommencementTaxableGain, 150);
+});
+
 test("transition snapshots include aggregated open holding parcels", () => {
   const holdingParcels = buildHoldingParcels(
     [
@@ -741,6 +781,29 @@ test("franking metadata displays fully and partly franked dividend examples", ()
   assert.equal(dividends[1].frankedAmount, 300);
 });
 
+test("report excludes non-AUD dividend rows from AUD franking review", () => {
+  const report = buildCgtReport([
+    {
+      id: "usd-dividend",
+      activityType: "DIVIDEND",
+      date: "2026-09-01",
+      quantity: null,
+      unitPrice: null,
+      amount: "100",
+      fee: null,
+      currency: "USD",
+      assetSymbol: "AAPL",
+      accountName: "Australian Taxable",
+      metadata: withFrankingPercentageMetadata(undefined, 100),
+    },
+  ]);
+
+  assert.equal(report.dividends.length, 0);
+  assert.equal(report.unsupportedActivities.length, 1);
+  assert.equal(report.unsupportedActivities[0].activityId, "usd-dividend");
+  assert.equal(report.unsupportedActivities[0].reason, "NON_AUD_CURRENCY");
+});
+
 test("parcel acquisition overrides cover aggregated holdings without lots", () => {
   const parcels = buildHoldingParcels(
     [
@@ -801,6 +864,55 @@ test("report accepts API timestamp date strings", () => {
   assert.equal(report.closedLots[0].acquisitionDate, "2024-07-01");
   assert.equal(report.closedLots[0].disposalDate, "2026-05-01");
   assert.equal(report.closedLots[0].preLossTaxableGainEstimate, 30);
+});
+
+test("report keeps timestamp ledger dates stable across client timezones", async () => {
+  const script = `
+    import { buildCgtReport } from ${JSON.stringify(`file://${compiledEnginePath}`)};
+    const report = buildCgtReport([
+      {
+        id: "buy-boundary",
+        activityType: "BUY",
+        date: new Date("2024-07-01T00:00:00.000Z"),
+        quantity: "1",
+        unitPrice: "100",
+        fee: "0",
+        amount: "100",
+        currency: "AUD",
+        assetSymbol: "TZ.AX",
+        accountName: "Australian Taxable",
+      },
+      {
+        id: "sell-boundary",
+        activityType: "SELL",
+        date: new Date("2025-07-01T00:00:00.000Z"),
+        quantity: "1",
+        unitPrice: "160",
+        fee: "0",
+        amount: "160",
+        currency: "AUD",
+        assetSymbol: "TZ.AX",
+        accountName: "Australian Taxable",
+      },
+    ]);
+    console.log(JSON.stringify({
+      incomeYear: report.incomeYears[0]?.incomeYear,
+      acquisitionDate: report.closedLots[0]?.acquisitionDate,
+      disposalDate: report.closedLots[0]?.disposalDate
+    }));
+  `;
+  const { stdout } = await execFileAsync(process.execPath, ["--input-type=module", "-e", script], {
+    env: {
+      ...process.env,
+      TZ: "America/Los_Angeles",
+    },
+  });
+
+  assert.deepEqual(JSON.parse(stdout), {
+    incomeYear: "2025-26",
+    acquisitionDate: "2024-07-01",
+    disposalDate: "2025-07-01",
+  });
 });
 
 test("report matches FIFO lots within the selling account only", () => {

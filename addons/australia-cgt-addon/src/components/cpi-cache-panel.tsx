@@ -5,14 +5,12 @@ interface CpiCachePanelProps {
   cpiSeries: CpiObservation[];
   refreshError: string | null;
   onRefresh(): void;
-  onSaveSample(): void;
 }
 
 export function CpiCachePanel({
   cpiSeries,
   refreshError,
   onRefresh,
-  onSaveSample,
 }: CpiCachePanelProps) {
   return (
     <div className="rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-900">
@@ -22,13 +20,7 @@ export function CpiCachePanel({
         <Button onClick={onRefresh} variant="outline">
           Refresh ABS CPI
         </Button>
-        <Button onClick={onSaveSample} variant="ghost">
-          Insert demo CPI row
-        </Button>
       </div>
-      <p className="text-muted-foreground mt-2 text-xs">
-        Demo CPI is synthetic test data. Use Refresh ABS CPI for real cache values.
-      </p>
       {refreshError ? <p className="text-destructive mt-2">{refreshError}</p> : null}
     </div>
   );

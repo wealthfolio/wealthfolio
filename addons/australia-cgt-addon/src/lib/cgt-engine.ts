@@ -227,8 +227,14 @@ export interface HoldingParcel {
 }
 
 function toDate(value: string | Date): Date {
-  if (value instanceof Date) return value;
-  return new Date(`${value.slice(0, 10)}T00:00:00`);
+  if (value instanceof Date) {
+    return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+  }
+  const [year, month, day] = value
+    .slice(0, 10)
+    .split("-")
+    .map((part) => Number.parseInt(part, 10));
+  return new Date(Date.UTC(year, month - 1, day));
 }
 
 function roundCurrency(value: number): number {
@@ -308,16 +314,16 @@ function buildAmitAdjustmentsByParcel(
 
 function isoDate(value: string | Date): string {
   if (typeof value === "string") return value.slice(0, 10);
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
+  const year = value.getUTCFullYear();
+  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(value.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
 function getAustralianIncomeYear(date: string | Date): string {
   const parsed = toDate(date);
-  const year = parsed.getFullYear();
-  const month = parsed.getMonth() + 1;
+  const year = parsed.getUTCFullYear();
+  const month = parsed.getUTCMonth() + 1;
   const startYear = month >= 7 ? year : year - 1;
   const endYearShort = String(startYear + 1).slice(-2);
   return `${startYear}-${endYearShort}`;
@@ -329,7 +335,7 @@ function isHeldAtLeastTwelveMonths(acquisitionDate: string | Date, disposalDate:
   const acquisition = toDate(acquisitionDate);
   const disposal = toDate(disposalDate);
   const threshold = new Date(acquisition);
-  threshold.setMonth(threshold.getMonth() + 12);
+  threshold.setUTCMonth(threshold.getUTCMonth() + 12);
   return disposal.getTime() > threshold.getTime();
 }
 
@@ -406,7 +412,7 @@ export function extractDividendTaxDetails(
   activities: WealthfolioCgtActivity[],
 ): DividendTaxDetail[] {
   return activities
-    .filter((activity) => activity.activityType === "DIVIDEND")
+    .filter((activity) => activity.activityType === "DIVIDEND" && isAudCurrency(activity.currency))
     .map((activity) => {
       const amount = positive(numberValue(activity.amount));
       const frankingPercentage = getFrankingPercentage(activity.metadata);
@@ -435,11 +441,13 @@ export function buildTransitionLots(
   const transitionLots = openLots.flatMap((lot) => {
     const snapshot = snapshotsByParcel.get(lot.parcelId);
     if (!snapshot) return [];
-    const remainingCostBase = roundCurrency(lot.remainingQuantity * lot.unitCostBase);
+    const transitionQuantity = Math.min(positive(snapshot.quantity), lot.remainingQuantity);
+    if (transitionQuantity <= 0) return [];
+    const remainingCostBase = roundCurrency(transitionQuantity * lot.unitCostBase);
     const adjustment = sumAmitAdjustment(
       lot.parcelId,
       PRE_TRANSITION_INCOME_YEAR,
-      lot.remainingQuantity,
+      transitionQuantity,
       lot.originalQuantity,
       lot.disposals,
       adjustmentsByParcel,
@@ -459,7 +467,7 @@ export function buildTransitionLots(
         symbol: lot.symbol,
         account: lot.account,
         acquisitionDate: lot.acquisitionDate,
-        quantity: lot.remainingQuantity,
+        quantity: transitionQuantity,
         costBase: adjustedCostBase,
         marketValueAt2027: snapshot.marketValueAt2027,
         preCommencementTaxableGain: preCommencement.taxableGain,
@@ -473,15 +481,19 @@ export function buildTransitionLots(
     if (coveredParcelIds.has(parcel.parcelId) || parcel.quantity <= 0) return [];
     const snapshot = snapshotsByParcel.get(parcel.parcelId);
     if (!snapshot) return [];
+    const transitionQuantity = Math.min(positive(snapshot.quantity), parcel.quantity);
+    if (transitionQuantity <= 0) return [];
+    const unitCostBase = parcel.quantity > 0 ? parcel.costBase / parcel.quantity : 0;
+    const transitionCostBase = roundCurrency(transitionQuantity * unitCostBase);
     const adjustment = sumAmitAdjustment(
       parcel.parcelId,
       PRE_TRANSITION_INCOME_YEAR,
-      parcel.quantity,
+      transitionQuantity,
       parcel.quantity,
       [],
       adjustmentsByParcel,
     );
-    const adjustedCostBase = roundCurrency(parcel.costBase + adjustment);
+    const adjustedCostBase = roundCurrency(transitionCostBase + adjustment);
     const preCommencement = calculateCurrentLawTaxableGain({
       grossGain: snapshot.marketValueAt2027 - adjustedCostBase,
       capitalLosses: 0,
@@ -496,7 +508,7 @@ export function buildTransitionLots(
         symbol: parcel.symbol,
         account: parcel.account,
         acquisitionDate: parcel.acquisitionDate,
-        quantity: parcel.quantity,
+        quantity: transitionQuantity,
         costBase: adjustedCostBase,
         marketValueAt2027: snapshot.marketValueAt2027,
         preCommencementTaxableGain: preCommencement.taxableGain,
@@ -562,16 +574,29 @@ export function buildCgtReport(
   const ignoredActivities: IgnoredActivity[] = [];
 
   for (const activity of sortedActivities) {
-    if (activity.activityType !== "BUY" && activity.activityType !== "SELL") {
-      if (activity.activityType !== "DIVIDEND") {
-        ignoredActivities.push({
+    if (activity.activityType === "DIVIDEND") {
+      if (!isAudCurrency(activity.currency)) {
+        unsupportedActivities.push({
           activityId: activity.id,
           activityType: activity.activityType,
           symbol: activity.assetSymbol,
           account: activity.accountName,
           date: isoDate(activity.date),
+          currency: activity.currency,
+          reason: "NON_AUD_CURRENCY",
         });
       }
+      continue;
+    }
+
+    if (activity.activityType !== "BUY" && activity.activityType !== "SELL") {
+      ignoredActivities.push({
+        activityId: activity.id,
+        activityType: activity.activityType,
+        symbol: activity.assetSymbol,
+        account: activity.accountName,
+        date: isoDate(activity.date),
+      });
       continue;
     }
 
