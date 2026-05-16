@@ -37,8 +37,8 @@ fn get_rules() -> &'static HashMap<&'static str, CurrencyNormalizationRule> {
             "KWF",
             CurrencyNormalizationRule {
                 major_code: "KWD",
-                factor: dec!(0.01),
-                label: "SA Cents",
+                factor: dec!(0.001),
+                label: "Kuwaiti Fils",
             },
         );
         map.insert(
@@ -65,6 +65,15 @@ fn get_rules() -> &'static HashMap<&'static str, CurrencyNormalizationRule> {
                 major_code: "ILS",
                 factor: dec!(0.01),
                 label: "Agorot",
+            },
+        );
+
+        map.insert(
+            "USX",
+            CurrencyNormalizationRule {
+                major_code: "USD",
+                factor: dec!(0.01),
+                label: "US Cents",
             },
         );
 
@@ -114,4 +123,39 @@ pub fn resolve_currency(candidates: &[&str]) -> String {
         .find(|c| !c.trim().is_empty())
         .map(|c| c.to_string())
         .unwrap_or_else(|| "USD".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_ila_to_ils() {
+        let (amount, currency) = normalize_amount(dec!(12345), "ILA");
+
+        assert_eq!(amount, dec!(123.45));
+        assert_eq!(currency, "ILS");
+        assert_eq!(normalize_currency_code("ILA"), "ILS");
+        assert_eq!(denormalization_multiplier("ILA"), dec!(100));
+    }
+
+    #[test]
+    fn normalizes_kwf_to_kwd() {
+        let (amount, currency) = normalize_amount(dec!(987), "KWF");
+
+        assert_eq!(amount, dec!(0.987));
+        assert_eq!(currency, "KWD");
+        assert_eq!(normalize_currency_code("KWF"), "KWD");
+        assert_eq!(denormalization_multiplier("KWF"), dec!(1000));
+    }
+
+    #[test]
+    fn normalizes_usx_to_usd() {
+        let (amount, currency) = normalize_amount(dec!(9876), "USX");
+
+        assert_eq!(amount, dec!(98.76));
+        assert_eq!(currency, "USD");
+        assert_eq!(normalize_currency_code("USX"), "USD");
+        assert_eq!(denormalization_multiplier("USX"), dec!(100));
+    }
 }

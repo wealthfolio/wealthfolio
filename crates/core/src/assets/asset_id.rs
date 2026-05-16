@@ -132,6 +132,10 @@ mod tests {
         assert_eq!(symbol, "SHOP");
         assert_eq!(mic, Some("XTSE"));
 
+        let (symbol, mic) = parse_symbol_with_exchange_suffix("APC.DE");
+        assert_eq!(symbol, "APC");
+        assert_eq!(mic, Some("XETR"));
+
         let (symbol, mic) = parse_symbol_with_exchange_suffix("shop.to");
         assert_eq!(symbol, "shop");
         assert_eq!(mic, Some("XTSE"));
@@ -139,6 +143,14 @@ mod tests {
         let (symbol, mic) = parse_symbol_with_exchange_suffix("VOD.L");
         assert_eq!(symbol, "VOD");
         assert_eq!(mic, Some("XLON"));
+
+        let (symbol, mic) = parse_symbol_with_exchange_suffix("WSLV.MI");
+        assert_eq!(symbol, "WSLV");
+        assert_eq!(mic, Some("XMIL"));
+
+        let (symbol, mic) = parse_symbol_with_exchange_suffix("BRK.B.TO");
+        assert_eq!(symbol, "BRK.B");
+        assert_eq!(mic, Some("XTSE"));
 
         let (symbol, mic) = parse_symbol_with_exchange_suffix("vwrpl.xc");
         assert_eq!(symbol, "vwrpl");

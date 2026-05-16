@@ -248,26 +248,14 @@ export function formatDateTimeDisplay(date: Date | string | undefined): string {
 }
 
 /**
- * Minor currency normalization rules.
- * Maps minor currency codes to their major equivalents.
- */
-const MINOR_CURRENCY_MAP: Record<string, string> = {
-  GBp: "GBP", // British pence
-  GBX: "GBP", // British pence (alternative code)
-  ZAc: "ZAR", // South African cents
-  ZAC: "ZAR", // South African cents (uppercase)
-  ILA: "ILS", // Israeli agorot
-  KWF: "KWD", // Kuwaiti fils
-};
-
-/**
  * Normalizes a minor currency code to its major equivalent.
  * E.g., "GBp" -> "GBP", "ZAc" -> "ZAR"
- * If no normalization rule exists, returns the input unchanged.
+ * If no normalization rule exists, returns the uppercased input.
  */
 export function normalizeCurrency(currency: string | undefined): string | undefined {
   if (!currency) return currency;
-  return MINOR_CURRENCY_MAP[currency] ?? currency;
+  const trimmed = currency.trim();
+  return getQuoteUnitCurrency(trimmed)?.major ?? trimmed.toUpperCase();
 }
 
 export function formatPercent(value: number | null | undefined) {

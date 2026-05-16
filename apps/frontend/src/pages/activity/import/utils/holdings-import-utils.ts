@@ -17,6 +17,10 @@ export interface ParseOptions {
 export interface HoldingsRowResolution {
   symbol?: string;
   exchangeMic?: string;
+  quoteCcy?: string;
+  instrumentType?: string;
+  providerId?: string;
+  providerSymbol?: string;
   assetId?: string;
 }
 
@@ -34,12 +38,26 @@ export function buildHoldingsRowResolutionMap(
       (draft.importAssetKey ? assetIdByKey[draft.importAssetKey] : undefined) ||
       (draft.assetCandidateKey ? assetIdByKey[draft.assetCandidateKey] : undefined);
 
-    if (!draft.symbol && !draft.exchangeMic && !resolvedAssetId) continue;
+    if (
+      !draft.symbol &&
+      !draft.exchangeMic &&
+      !draft.quoteCcy &&
+      !draft.instrumentType &&
+      !draft.providerId &&
+      !draft.providerSymbol &&
+      !resolvedAssetId
+    ) {
+      continue;
+    }
 
     resolutions[draft.rowIndex] = {
-      symbol: draft.symbol,
-      exchangeMic: draft.exchangeMic,
-      assetId: resolvedAssetId,
+      ...(draft.symbol ? { symbol: draft.symbol } : {}),
+      ...(draft.exchangeMic ? { exchangeMic: draft.exchangeMic } : {}),
+      ...(draft.quoteCcy ? { quoteCcy: draft.quoteCcy } : {}),
+      ...(draft.instrumentType ? { instrumentType: draft.instrumentType } : {}),
+      ...(draft.providerId ? { providerId: draft.providerId } : {}),
+      ...(draft.providerSymbol ? { providerSymbol: draft.providerSymbol } : {}),
+      ...(resolvedAssetId ? { assetId: resolvedAssetId } : {}),
     };
   }
 
@@ -175,7 +193,16 @@ export function parseHoldingsSnapshots(
   mapping: Record<string, string>,
   parseOptions: ParseOptions,
   symbolMappings?: Record<string, string>,
-  symbolMeta?: Record<string, { exchangeMic?: string }>,
+  symbolMeta?: Record<
+    string,
+    {
+      exchangeMic?: string;
+      quoteCcy?: string;
+      instrumentType?: string;
+      providerId?: string;
+      providerSymbol?: string;
+    }
+  >,
   rowResolutions?: Record<number, HoldingsRowResolution>,
 ): HoldingsSnapshotInput[] {
   const { dateFormat, decimalSeparator, thousandsSeparator, defaultCurrency } = parseOptions;
@@ -232,6 +259,22 @@ export function parseHoldingsSnapshots(
         rowResolution?.exchangeMic ??
         symbolMeta?.[rawSymbol]?.exchangeMic ??
         symbolMeta?.[symbol]?.exchangeMic;
+      const quoteCcy =
+        rowResolution?.quoteCcy ??
+        symbolMeta?.[rawSymbol]?.quoteCcy ??
+        symbolMeta?.[symbol]?.quoteCcy;
+      const instrumentType =
+        rowResolution?.instrumentType ??
+        symbolMeta?.[rawSymbol]?.instrumentType ??
+        symbolMeta?.[symbol]?.instrumentType;
+      const providerId =
+        rowResolution?.providerId ??
+        symbolMeta?.[rawSymbol]?.providerId ??
+        symbolMeta?.[symbol]?.providerId;
+      const providerSymbol =
+        rowResolution?.providerSymbol ??
+        symbolMeta?.[rawSymbol]?.providerSymbol ??
+        symbolMeta?.[symbol]?.providerSymbol;
       const assetId = rowResolution?.assetId;
       snapshot.positions.push({
         symbol,
@@ -239,6 +282,10 @@ export function parseHoldingsSnapshots(
         avgCost: avgCost || undefined,
         currency: currency || defaultCurrency,
         ...(exchangeMic ? { exchangeMic } : {}),
+        ...(quoteCcy ? { quoteCcy } : {}),
+        ...(instrumentType ? { instrumentType } : {}),
+        ...(providerId ? { providerId } : {}),
+        ...(providerSymbol ? { providerSymbol } : {}),
         ...(assetId ? { assetId } : {}),
       });
     }

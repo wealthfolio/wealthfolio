@@ -6,7 +6,7 @@ use log::debug;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
-use crate::assets::{AssetKind, AssetMetadata, AssetServiceTrait, QuoteMode};
+use crate::assets::{AssetKind, AssetMetadata, AssetServiceTrait, InstrumentType, QuoteMode};
 use crate::errors::Result;
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::fx::FxServiceTrait;
@@ -30,6 +30,14 @@ pub struct ManualHoldingInput {
     pub data_source: Option<String>,
     /// Asset kind string (e.g., "INVESTMENT", "OTHER")
     pub asset_kind: Option<String>,
+    /// Quote currency resolved during search/review (e.g., GBp)
+    pub quote_ccy: Option<String>,
+    /// Instrument type resolved during search/review (e.g., EQUITY, CRYPTO)
+    pub instrument_type: Option<String>,
+    /// Market data provider that resolved this holding, if selected.
+    pub provider_id: Option<String>,
+    /// Provider-native symbol/code selected by search/import.
+    pub provider_symbol: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -108,6 +116,14 @@ impl ManualSnapshotService {
                 display_code: Some(holding.symbol.clone()),
                 name: holding.name.clone(),
                 kind,
+                instrument_type: holding
+                    .instrument_type
+                    .as_deref()
+                    .and_then(InstrumentType::from_external_str),
+                requested_quote_ccy: holding.quote_ccy.clone(),
+                provider_config: None,
+                provider_id: holding.provider_id.clone(),
+                provider_symbol: holding.provider_symbol.clone(),
                 ..Default::default()
             };
 

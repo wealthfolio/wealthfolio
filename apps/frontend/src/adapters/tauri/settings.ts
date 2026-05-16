@@ -2,7 +2,7 @@
 import type { Settings, UpdateInfo } from "@/lib/types";
 import type { AppInfo, PlatformInfo } from "../types";
 
-import { invoke, logger, tauriInvoke } from "./core";
+import { invoke, logger } from "./core";
 
 export const getSettings = async (): Promise<Settings> => {
   try {
@@ -31,16 +31,30 @@ export const isAutoUpdateCheckEnabled = async (): Promise<boolean> => {
   }
 };
 
-export const backupDatabase = async (): Promise<{ filename: string; data: Uint8Array }> => {
+export const backupDatabase = async (): Promise<{ filename: string }> => {
   try {
-    // Desktop (Tauri) returns a tuple [filename, data[]], transform internally to object
-    const result = await tauriInvoke<[string, number[]]>("backup_database");
-    const [filename, data] = result;
-    return { filename, data: new Uint8Array(data) };
+    const filename = await invoke<string>("backup_database");
+    return { filename };
   } catch (error) {
     logger.error("Error backing up database.");
     throw error;
   }
+};
+
+export interface DatabaseBackup {
+  filename: string;
+  sizeBytes: number;
+  modifiedAt: string;
+}
+
+export const listDatabaseBackups = (): Promise<DatabaseBackup[]> =>
+  Promise.reject(new Error("Server backup listing is only supported in web mode"));
+
+export const deleteDatabaseBackup = (_filename: string): Promise<void> =>
+  Promise.reject(new Error("Server backup deletion is only supported in web mode"));
+
+export const getDatabaseBackupDownloadUrl = (_filename: string): string => {
+  throw new Error("Server backup downloads are only supported in web mode");
 };
 
 export const backupDatabaseToPath = async (backupDir: string): Promise<string> => {
@@ -48,6 +62,20 @@ export const backupDatabaseToPath = async (backupDir: string): Promise<string> =
     return await invoke<string>("backup_database_to_path", { backupDir });
   } catch (error) {
     logger.error("Error backing up database to path.");
+    throw error;
+  }
+};
+
+export interface BackupExport {
+  relativePath: string;
+  filename: string;
+}
+
+export const backupDatabaseToPendingExport = async (): Promise<BackupExport> => {
+  try {
+    return await invoke<BackupExport>("backup_database_to_pending_export");
+  } catch (error) {
+    logger.error("Error backing up database to pending export.");
     throw error;
   }
 };

@@ -478,7 +478,7 @@ export interface SettingsAPI {
    * Create database backup
    * @returns Promise resolving to backup file information
    */
-  backupDatabase(): Promise<{ filename: string; data: Uint8Array }>;
+  backupDatabase(): Promise<{ filename: string }>;
 }
 
 /**

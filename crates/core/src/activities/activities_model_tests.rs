@@ -818,6 +818,8 @@ mod tests {
             quote_ccy: Some("GBp".to_string()),
             instrument_type: Some("EQUITY".to_string()),
             quote_mode: Some("MANUAL".to_string()),
+            provider_id: Some("YAHOO".to_string()),
+            provider_symbol: Some("AZN.L".to_string()),
             errors: None,
             warnings: None,
             duplicate_of_id: None,
@@ -839,6 +841,8 @@ mod tests {
         assert_eq!(asset.instrument_type.as_deref(), Some("EQUITY"));
         assert_eq!(asset.exchange_mic.as_deref(), Some("XLON"));
         assert_eq!(asset.quote_mode.as_deref(), Some("MANUAL"));
+        assert_eq!(asset.provider_id.as_deref(), Some("YAHOO"));
+        assert_eq!(asset.provider_symbol.as_deref(), Some("AZN.L"));
     }
 
     #[test]
@@ -863,6 +867,8 @@ mod tests {
             quote_ccy: None,
             instrument_type: None,
             quote_mode: None,
+            provider_id: None,
+            provider_symbol: None,
             errors: None,
             warnings: None,
             duplicate_of_id: None,
@@ -904,6 +910,8 @@ mod tests {
             quote_ccy: None,
             instrument_type: None,
             quote_mode: None,
+            provider_id: None,
+            provider_symbol: None,
             errors: None,
             warnings: None,
             duplicate_of_id: None,
@@ -942,6 +950,8 @@ mod tests {
             quote_ccy: None,
             instrument_type: None,
             quote_mode: None,
+            provider_id: None,
+            provider_symbol: None,
             errors: None,
             warnings: None,
             duplicate_of_id: None,

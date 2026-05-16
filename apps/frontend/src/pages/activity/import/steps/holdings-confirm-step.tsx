@@ -25,6 +25,8 @@ interface PersistedSymbolResolution {
   quoteCcy?: string;
   instrumentType?: string;
   symbolName?: string;
+  providerId?: string;
+  providerSymbol?: string;
 }
 
 function isSamePersistedResolution(
@@ -36,7 +38,9 @@ function isSamePersistedResolution(
     (left.exchangeMic ?? "") === (right.exchangeMic ?? "") &&
     (left.quoteCcy ?? "") === (right.quoteCcy ?? "") &&
     (left.instrumentType ?? "") === (right.instrumentType ?? "") &&
-    (left.symbolName ?? "") === (right.symbolName ?? "")
+    (left.symbolName ?? "") === (right.symbolName ?? "") &&
+    (left.providerId ?? "") === (right.providerId ?? "") &&
+    (left.providerSymbol ?? "") === (right.providerSymbol ?? "")
   );
 }
 
@@ -86,6 +90,8 @@ export function HoldingsConfirmStep() {
         quoteCcy?: string;
         instrumentType?: string;
         symbolName?: string;
+        providerId?: string;
+        providerSymbol?: string;
       }
     > = { ...(mapping?.symbolMappingMeta || {}) };
     const resolutionsByRawSymbol = new Map<string, PersistedSymbolResolution[]>();
@@ -101,6 +107,8 @@ export function HoldingsConfirmStep() {
           quoteCcy: draft.quoteCcy,
           instrumentType: draft.instrumentType,
           symbolName: draft.symbolName,
+          providerId: draft.providerId,
+          providerSymbol: draft.providerSymbol,
         };
         const existing = resolutionsByRawSymbol.get(rawSym) || [];
         if (!existing.some((entry) => isSamePersistedResolution(entry, nextResolution))) {
@@ -128,13 +136,17 @@ export function HoldingsConfirmStep() {
         resolution.exchangeMic ||
         resolution.quoteCcy ||
         resolution.instrumentType ||
-        resolution.symbolName
+        resolution.symbolName ||
+        resolution.providerId ||
+        resolution.providerSymbol
       ) {
         mergedSymbolMeta[rawSym] = {
           exchangeMic: resolution.exchangeMic,
           quoteCcy: resolution.quoteCcy,
           instrumentType: resolution.instrumentType,
           symbolName: resolution.symbolName,
+          providerId: resolution.providerId,
+          providerSymbol: resolution.providerSymbol,
         };
       } else {
         delete mergedSymbolMeta[rawSym];

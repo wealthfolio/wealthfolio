@@ -141,6 +141,90 @@ pub fn yahoo_suffix_to_mic(suffix: &str) -> Option<&'static str> {
         .copied()
 }
 
+fn split_known_yahoo_suffix(symbol: &str) -> (&str, Option<&'static str>, Option<&'static str>) {
+    let trimmed = symbol.trim();
+    for suffix in yahoo_exchange_suffixes() {
+        if trimmed.len() >= suffix.len()
+            && trimmed[trimmed.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+        {
+            let suffix_code = suffix.strip_prefix('.').unwrap_or(suffix);
+            return (
+                &trimmed[..trimmed.len() - suffix.len()],
+                yahoo_suffix_to_mic(suffix_code),
+                Some(*suffix),
+            );
+        }
+    }
+    (trimmed, None, None)
+}
+
+/// Format an equity ticker base for Yahoo.
+///
+/// Yahoo uses dotted suffixes for exchanges (`SHOP.TO`, `VOD.L`) but hyphens
+/// for share-class separators in the base ticker (`BRK-B`). Callers must strip
+/// known exchange suffixes before formatting the base.
+pub fn yahoo_equity_base_to_provider(base: &str) -> String {
+    base.trim().replace('.', "-")
+}
+
+/// Convert a Yahoo equity provider symbol into the app's canonical ticker form.
+///
+/// Known exchange suffixes are preserved for the canonicalizer to strip into MIC.
+/// For unsuffixed Yahoo equity symbols, a trailing one-letter hyphen class maps
+/// back to the app's dotted share-class notation.
+pub fn yahoo_equity_provider_symbol_to_canonical(symbol: &str) -> String {
+    let trimmed = symbol.trim();
+    let (base, _suffix_mic, known_suffix) = split_known_yahoo_suffix(trimmed);
+    if known_suffix.is_some() {
+        let suffix = &trimmed[base.len()..];
+        return format!(
+            "{}{}",
+            yahoo_equity_provider_base_to_canonical(base),
+            suffix
+        );
+    }
+
+    yahoo_equity_provider_base_to_canonical(trimmed)
+}
+
+fn yahoo_equity_provider_base_to_canonical(base: &str) -> String {
+    let trimmed = base.trim();
+    let Some((base, class)) = trimmed.rsplit_once('-') else {
+        return trimmed.to_string();
+    };
+    if base.is_empty() || class.len() != 1 || !class.chars().all(|c| c.is_ascii_alphabetic()) {
+        return trimmed.to_string();
+    }
+
+    format!("{}.{}", base, class)
+}
+
+/// Build Yahoo search queries for an equity-like user query.
+///
+/// This keeps known exchange suffixes intact (`SHOP.TO` stays `SHOP.TO`) while
+/// trying Yahoo's base share-class notation first (`BRK.B` -> `BRK-B`).
+pub fn yahoo_equity_search_queries(query: &str) -> Vec<String> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return vec![];
+    }
+
+    let (base, _suffix_mic, known_suffix) = split_known_yahoo_suffix(trimmed);
+    let provider_base = yahoo_equity_base_to_provider(base);
+    let provider_query = if known_suffix.is_some() {
+        let suffix = &trimmed[base.len()..];
+        format!("{provider_base}{suffix}")
+    } else {
+        provider_base
+    };
+
+    let mut queries = vec![provider_query];
+    if !queries[0].eq_ignore_ascii_case(trimmed) {
+        queries.push(trimmed.to_string());
+    }
+    queries
+}
+
 /// Extract canonical ticker from Yahoo provider symbol.
 ///
 /// Uses a whitelist approach to safely strip exchange suffixes while preserving
@@ -216,6 +300,11 @@ mod tests {
             Some("GBp")
         );
 
+        assert_eq!(
+            map.get_currency(&Cow::Borrowed("XTAE"), &Cow::Borrowed("YAHOO")),
+            Some("ILA")
+        );
+
         // Cboe UK (Yahoo .XC) - provider reports GBP for this venue
         assert_eq!(
             map.get_suffix(&Cow::Borrowed("CXE"), &Cow::Borrowed("YAHOO")),
@@ -243,6 +332,20 @@ mod tests {
         assert_eq!(
             yahoo_exchange_to_mic("NGM"),
             Some(Cow::Owned("XNAS".to_string()))
+        );
+        assert_eq!(
+            yahoo_exchange_to_mic("NYQ"),
+            Some(Cow::Owned("XNYS".to_string()))
+        );
+
+        // Yahoo uses PCX for NYSE Arca ETFs; ASE is NYSE American.
+        assert_eq!(
+            yahoo_exchange_to_mic("PCX"),
+            Some(Cow::Owned("ARCX".to_string()))
+        );
+        assert_eq!(
+            yahoo_exchange_to_mic("ASE"),
+            Some(Cow::Owned("XASE".to_string()))
         );
 
         // Toronto
@@ -295,6 +398,39 @@ mod tests {
         assert_eq!(strip_yahoo_suffix("eurusd=x"), "eurusd");
         assert_eq!(strip_yahoo_suffix("GC=F"), "GC");
         assert_eq!(strip_yahoo_suffix("gc=f"), "gc");
+    }
+
+    #[test]
+    fn test_yahoo_share_class_aliases_are_explicit() {
+        assert_eq!(yahoo_equity_base_to_provider("BRK.B"), "BRK-B");
+        assert_eq!(yahoo_equity_base_to_provider("brk.a"), "brk-a");
+        assert_eq!(yahoo_equity_search_queries("BRK.B"), vec!["BRK-B", "BRK.B"]);
+        assert_eq!(yahoo_equity_search_queries("SHOP.TO"), vec!["SHOP.TO"]);
+        assert_eq!(yahoo_equity_search_queries("VOD.L"), vec!["VOD.L"]);
+        assert_eq!(yahoo_equity_provider_symbol_to_canonical("BRK-B"), "BRK.B");
+        assert_eq!(
+            yahoo_equity_provider_symbol_to_canonical("BRK-B.TO"),
+            "BRK.B.TO"
+        );
+        assert_eq!(
+            yahoo_equity_provider_symbol_to_canonical("SHOP.TO"),
+            "SHOP.TO"
+        );
+    }
+
+    #[test]
+    fn test_yahoo_exchange_suffixes_are_never_share_classes() {
+        for suffix in yahoo_exchange_suffixes() {
+            let query = format!("ABC{}", suffix);
+            assert_eq!(yahoo_equity_search_queries(&query), vec![query]);
+
+            let provider_symbol = format!("BRK-B{}", suffix);
+            let canonical_symbol = format!("BRK.B{}", suffix);
+            assert_eq!(
+                yahoo_equity_provider_symbol_to_canonical(&provider_symbol),
+                canonical_symbol
+            );
+        }
     }
 
     #[test]

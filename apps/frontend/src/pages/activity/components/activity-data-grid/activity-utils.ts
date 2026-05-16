@@ -539,6 +539,8 @@ export function buildSavePayload(
             quoteMode: normalizeOptionalString(transaction.assetQuoteMode),
             quoteCcy: normalizeOptionalString(transaction.pendingQuoteCcy),
             instrumentType: normalizeOptionalString(transaction.pendingInstrumentType),
+            providerId: transaction.pendingProviderId,
+            providerSymbol: transaction.pendingProviderSymbol,
           });
         }
       }
@@ -573,8 +575,14 @@ export function buildSavePayload(
         const exchangeChanged = currentExchangeMic !== originalExchangeMic;
         const instrumentTypeChanged = currentInstrumentType !== originalInstrumentType;
         const hasPendingQuoteCcy = !!normalizeOptionalString(transaction.pendingQuoteCcy);
+        const hasPendingProviderRef =
+          !!transaction.pendingProviderId || !!transaction.pendingProviderSymbol;
         const identityChanged =
-          symbolChanged || exchangeChanged || instrumentTypeChanged || hasPendingQuoteCcy;
+          symbolChanged ||
+          exchangeChanged ||
+          instrumentTypeChanged ||
+          hasPendingQuoteCcy ||
+          hasPendingProviderRef;
 
         if (identityChanged && currentSymbol) {
           // Asset identity changed: send id + natural identity for backend verification/re-resolution.
@@ -589,6 +597,8 @@ export function buildSavePayload(
             instrumentType:
               normalizeOptionalString(transaction.pendingInstrumentType) ??
               normalizeOptionalString(transaction.instrumentType),
+            providerId: transaction.pendingProviderId,
+            providerSymbol: transaction.pendingProviderSymbol,
           });
         } else if (transaction._originalAssetId) {
           // Asset identity unchanged: send id-only, with quoteMode to allow mode updates.

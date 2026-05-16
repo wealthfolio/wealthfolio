@@ -23,18 +23,28 @@ export function ActivityDeleteModal({
   onConfirm,
   onCancel,
 }: ActivityDeleteModalProps) {
-  // const MemoizedAlertDialogContent = React.memo(AlertDialogContent);
-  // const MemoizedAlertDialogFooter = React.memo(AlertDialogFooter);
   return (
     <AlertDialog open={isOpen} onOpenChange={onCancel}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Are you sure you want to delete this activity?</AlertDialogTitle>
-          <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+      <AlertDialogContent className="max-sm:gap-5 max-sm:p-5">
+        <AlertDialogHeader className="max-sm:items-center max-sm:space-y-3 max-sm:text-center">
+          <div className="bg-destructive/10 text-destructive flex size-12 items-center justify-center rounded-full sm:hidden">
+            <Icons.Trash className="size-5" />
+          </div>
+          <AlertDialogTitle className="leading-tight max-sm:text-xl">
+            Delete activity?
+          </AlertDialogTitle>
+          <AlertDialogDescription className="max-sm:text-[15px]">
+            This activity will be permanently deleted. This action cannot be undone.
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <Button onClick={() => onConfirm()} className="bg-red-600 focus:ring-red-600">
+          <Button
+            variant="destructive"
+            onClick={() => onConfirm()}
+            disabled={isDeleting}
+            className="max-sm:h-12"
+          >
             {isDeleting ? (
               <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
             ) : (

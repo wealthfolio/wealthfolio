@@ -1,14 +1,13 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { DECIMAL_PRECISION, DISPLAY_DECIMAL_PRECISION } from "./constants";
+import { getQuoteUnitCurrency } from "./currencies";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/**
- * Format amount with currency support, including special handling for pence (GBp/GBX)
- */
+/** Format amount with currency support, including quote units such as GBp and ILA. */
 const DECIMAL_FORMAT_OPTIONS: Intl.NumberFormatOptions = {
   minimumFractionDigits: DISPLAY_DECIMAL_PRECISION,
   maximumFractionDigits: DISPLAY_DECIMAL_PRECISION,
@@ -115,9 +114,10 @@ const getCompactCurrencyFormatter = (currency: string, maximumFractionDigits: nu
 
 export function formatCurrencySymbol(currency: string | null | undefined) {
   const rawCurrency = currency || "USD";
+  const quoteUnit = getQuoteUnitCurrency(rawCurrency);
 
-  if (rawCurrency === "GBp" || rawCurrency === "GBX") {
-    return "p";
+  if (quoteUnit) {
+    return quoteUnit.symbol;
   }
 
   const normalizedCurrency = rawCurrency.toUpperCase();
@@ -188,12 +188,21 @@ export function formatCompactAmount(
   const rawCurrency = currency ?? "USD";
   const abs = Math.abs(numericAmount);
   const maximumFractionDigits = abs >= 1_000_000 ? 2 : abs >= 100_000 ? 0 : abs >= 1_000 ? 1 : 0;
+  const quoteUnit = getQuoteUnitCurrency(rawCurrency);
 
   if (!displayCurrency) {
     return new Intl.NumberFormat(undefined, {
       notation: "compact",
       maximumFractionDigits,
     }).format(numericAmount);
+  }
+
+  if (quoteUnit) {
+    const formattedNumber = new Intl.NumberFormat("en-US", {
+      notation: "compact",
+      maximumFractionDigits,
+    }).format(numericAmount);
+    return `${formattedNumber}${quoteUnit.symbol}`;
   }
 
   return getCompactCurrencyFormatter(rawCurrency, maximumFractionDigits).format(numericAmount);

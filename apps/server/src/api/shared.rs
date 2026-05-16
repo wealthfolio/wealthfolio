@@ -39,11 +39,6 @@ pub fn parse_date_optional(
     date_str.map(|s| parse_date(&s, field_name)).transpose()
 }
 
-/// Normalize file paths by stripping file:// prefix
-pub fn normalize_file_path(path: &str) -> String {
-    path.strip_prefix("file://").unwrap_or(path).to_string()
-}
-
 #[derive(Debug, Default, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PortfolioRequestBody {

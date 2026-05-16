@@ -1,7 +1,6 @@
 use chrono;
 use serde::Serialize;
-use std::fs::File;
-use std::io::Read;
+use std::fs;
 use std::path::Path;
 use tauri::Manager;
 use tauri::{AppHandle, Emitter};
@@ -10,6 +9,8 @@ use wealthfolio_storage_sqlite::db;
 use crate::context::ServiceContext;
 #[cfg(desktop)]
 use crate::updater::{check_for_update, install_update};
+
+const PENDING_EXPORTS_DIR: &str = "pending-exports";
 
 /// Normalize file path by removing file:// URI prefix if present (iOS/Android compatibility)
 fn normalize_file_path(path: &str) -> String {
@@ -26,6 +27,13 @@ pub struct AppInfo {
     version: String,
     db_path: String,
     logs_dir: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupExport {
+    relative_path: String,
+    filename: String,
 }
 
 #[tauri::command]
@@ -87,7 +95,7 @@ pub async fn install_app_update(app_handle: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn backup_database(app_handle: AppHandle) -> Result<(String, Vec<u8>), String> {
+pub async fn backup_database(app_handle: AppHandle) -> Result<String, String> {
     let app_data_dir = app_handle
         .path()
         .app_data_dir()
@@ -98,21 +106,52 @@ pub async fn backup_database(app_handle: AppHandle) -> Result<(String, Vec<u8>),
 
     let backup_path = db::backup_database(&app_data_dir).map_err(|e| e.to_string())?;
 
-    // Read the backup file
-    let mut file =
-        File::open(&backup_path).map_err(|e| format!("Failed to open backup file: {}", e))?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)
-        .map_err(|e| format!("Failed to read backup file: {}", e))?;
-
-    // Get the filename
-    let filename = Path::new(&backup_path)
+    Ok(Path::new(&backup_path)
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| "Failed to get backup filename".to_string())?
+        .to_string())
+}
+
+#[tauri::command]
+pub async fn backup_database_to_pending_export(
+    app_handle: AppHandle,
+) -> Result<BackupExport, String> {
+    let app_data_dir_path = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
+    let app_data_dir = app_data_dir_path
+        .to_str()
+        .ok_or_else(|| "Failed to convert app data dir to string".to_string())?
         .to_string();
 
-    Ok((filename, buffer))
+    let filename = format!(
+        "wealthfolio_backup_{}.db",
+        chrono::Local::now().format("%Y%m%d_%H%M%S_%3f")
+    );
+    let export_dir = app_data_dir_path.join(PENDING_EXPORTS_DIR);
+    if export_dir.exists() {
+        fs::remove_dir_all(&export_dir)
+            .map_err(|e| format!("Failed to clean pending export directory: {}", e))?;
+    }
+    fs::create_dir_all(&export_dir)
+        .map_err(|e| format!("Failed to create pending export directory: {}", e))?;
+
+    let backup_path = export_dir.join(&filename);
+    let backup_path_str = backup_path
+        .to_str()
+        .ok_or_else(|| "Failed to convert backup export path to string".to_string())?
+        .to_string();
+
+    db::backup_database_to_file(&app_data_dir, &backup_path_str)
+        .map_err(|e| format!("Failed to create backup export: {}", e))?;
+
+    Ok(BackupExport {
+        relative_path: format!("{}/{}", PENDING_EXPORTS_DIR, filename),
+        filename,
+    })
 }
 
 #[tauri::command]

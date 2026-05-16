@@ -1,24 +1,42 @@
 import {
   backupDatabase,
   backupDatabaseToPath,
+  backupDatabaseToPendingExport,
+  deleteDatabaseBackup,
+  getDatabaseBackupDownloadUrl,
   isWeb,
+  listDatabaseBackups,
   logger,
   openDatabaseFileDialog,
-  openFileSaveDialog,
   openFolderDialog,
   restoreDatabase,
+  saveAppDataFileViaPicker,
 } from "@/adapters";
 import { getPlatform as getRuntimePlatform, usePlatform } from "@/hooks/use-platform";
-import { useMutation } from "@tanstack/react-query";
+import { QueryKeys } from "@/lib/query-keys";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 
 export function useBackupRestore() {
   const { platform } = usePlatform();
+  const queryClient = useQueryClient();
   const platformMode: "desktop" | "mobile" | "web" = isWeb
     ? "web"
     : platform?.is_mobile
       ? "mobile"
       : "desktop";
+
+  const {
+    data: webBackups = [],
+    isLoading: isLoadingWebBackups,
+    isFetching: isFetchingWebBackups,
+    isError: hasWebBackupsError,
+    error: webBackupsError,
+  } = useQuery({
+    queryKey: [QueryKeys.DATABASE_BACKUPS],
+    queryFn: listDatabaseBackups,
+    enabled: isWeb,
+  });
 
   const { mutateAsync: backupWithDirectorySelection, isPending: isBackingUp } = useMutation<{
     location: "local" | "server";
@@ -45,9 +63,13 @@ export function useBackupRestore() {
         return { location: "local" as const, value: backupPath };
       }
 
-      // Mobile: create backup and let user choose file destination.
-      const { filename, data } = await backupDatabase();
-      const saved = await openFileSaveDialog(data, filename);
+      if (runtimePlatform.os !== "ios") {
+        throw new Error("Backup export is currently supported on desktop, web, and iOS only");
+      }
+
+      // iOS: create backup and let user choose file destination.
+      const { relativePath, filename } = await backupDatabaseToPendingExport();
+      const saved = await saveAppDataFileViaPicker(relativePath, filename);
       if (!saved) {
         return null;
       }
@@ -69,11 +91,34 @@ export function useBackupRestore() {
         description,
         variant: "success",
       });
+
+      if (result.location === "server") {
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.DATABASE_BACKUPS] });
+      }
     },
     onError: (error) => {
       logger.error(`Error during backup: ${String(error)}`);
       toast({
         title: "Backup failed",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const { mutateAsync: deleteWebBackup, isPending: isDeletingWebBackup } = useMutation({
+    mutationFn: deleteDatabaseBackup,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.DATABASE_BACKUPS] });
+      toast({
+        title: "Backup deleted",
+        variant: "success",
+      });
+    },
+    onError: (error) => {
+      logger.error(`Error deleting backup: ${String(error)}`);
+      toast({
+        title: "Delete failed",
         description: error instanceof Error ? error.message : "An unknown error occurred",
         variant: "destructive",
       });
@@ -147,12 +192,25 @@ export function useBackupRestore() {
   return {
     performBackup,
     performRestore,
+    deleteWebBackup,
+    getWebBackupDownloadUrl: getDatabaseBackupDownloadUrl,
     isBackingUp,
     isRestoring,
+    isDeletingWebBackup,
+    isLoadingWebBackups,
+    isFetchingWebBackups,
+    webBackupsError: hasWebBackupsError
+      ? webBackupsError instanceof Error
+        ? webBackupsError.message
+        : "Unable to load database backups"
+      : null,
+    canBackup: platformMode !== "mobile" || platform?.os === "ios",
     canRestore: platformMode === "desktop" || platform?.os === "ios",
+    isIOS: platform?.os === "ios",
     isDesktop: platformMode === "desktop",
     isMobile: platformMode === "mobile",
     isWeb,
+    webBackups,
     platformMode,
   };
 }

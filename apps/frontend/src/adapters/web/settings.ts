@@ -1,6 +1,6 @@
 // Web adapter - Settings, App Info, Updater Commands
 
-import { invoke, logger } from "./core";
+import { API_PREFIX, invoke, logger } from "./core";
 import type { Settings, UpdateInfo } from "@/lib/types";
 import type { AppInfo, PlatformInfo } from "../types";
 
@@ -35,33 +35,57 @@ export const isAutoUpdateCheckEnabled = async (): Promise<boolean> => {
   }
 };
 
-export const backupDatabase = async (): Promise<{ filename: string; data: Uint8Array }> => {
+export interface DatabaseBackup {
+  filename: string;
+  sizeBytes: number;
+  modifiedAt: string;
+}
+
+export const backupDatabase = async (): Promise<{ filename: string }> => {
   try {
-    // Web backend returns { filename, data } object directly (transformed in invoke)
-    return await invoke<{ filename: string; data: Uint8Array }>("backup_database");
+    return await invoke<{ filename: string }>("backup_database");
   } catch (error) {
     logger.error("Error backing up database.");
     throw error;
   }
 };
 
-export const backupDatabaseToPath = async (backupDir: string): Promise<string> => {
+export const listDatabaseBackups = async (): Promise<DatabaseBackup[]> => {
   try {
-    return await invoke<string>("backup_database_to_path", { backupDir });
+    return await invoke<DatabaseBackup[]>("list_database_backups");
   } catch (error) {
-    logger.error("Error backing up database to path.");
+    logger.error("Error listing database backups.");
     throw error;
   }
 };
 
-export const restoreDatabase = async (backupFilePath: string): Promise<void> => {
+export const deleteDatabaseBackup = async (filename: string): Promise<void> => {
   try {
-    await invoke<void>("restore_database", { backupFilePath });
+    await invoke<void>("delete_database_backup", { filename });
   } catch (error) {
-    logger.error("Error restoring database.");
+    logger.error("Error deleting database backup.");
     throw error;
   }
 };
+
+export const getDatabaseBackupDownloadUrl = (filename: string): string =>
+  `${API_PREFIX}/utilities/database/backups/${encodeURIComponent(filename)}/download`;
+
+export const backupDatabaseToPath = (_backupDir: string): Promise<string> =>
+  Promise.reject(new Error("Backing up to a local path is only supported in the Tauri app"));
+
+export interface BackupExport {
+  relativePath: string;
+  filename: string;
+}
+
+export const backupDatabaseToPendingExport = (): Promise<BackupExport> =>
+  Promise.reject(new Error("Pending backup exports are only supported in the Tauri app"));
+
+export const restoreDatabase = (_backupFilePath: string): Promise<void> =>
+  Promise.reject(
+    new Error("Restore in web mode requires stopping Wealthfolio and replacing app.db"),
+  );
 
 // ============================================================================
 // App Commands

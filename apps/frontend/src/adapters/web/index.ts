@@ -341,22 +341,28 @@ export {
   openDatabaseFileDialog,
   openFileSaveDialog,
   openFolderDialog,
+  saveAppDataFileViaPicker,
   openUrlInBrowser,
 } from "./files";
 
 // Settings Commands (web-specific API for backups and updates)
 export {
   backupDatabase,
+  backupDatabaseToPendingExport,
   backupDatabaseToPath,
   checkForUpdates,
+  deleteDatabaseBackup,
   getAppInfo,
+  getDatabaseBackupDownloadUrl,
   getPlatform,
   getSettings,
   installUpdate,
   isAutoUpdateCheckEnabled,
+  listDatabaseBackups,
   restoreDatabase,
   updateSettings,
 } from "./settings";
+export type { DatabaseBackup } from "./settings";
 
 // Addon Commands (web-specific implementations)
 export {

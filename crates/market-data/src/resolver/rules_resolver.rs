@@ -11,6 +11,7 @@ use crate::models::{Currency, InstrumentId, ProviderId, ProviderInstrument, Quot
 
 use super::exchange_suffixes::ExchangeMap;
 use super::traits::{ResolutionSource, ResolvedInstrument, Resolver};
+use super::yahoo_equity_base_to_provider;
 
 /// Resolves provider instruments from deterministic MIC->suffix rules.
 ///
@@ -68,20 +69,26 @@ impl RulesResolver {
             });
         }
 
+        let provider_ticker = if provider.as_ref() == "YAHOO" {
+            yahoo_equity_base_to_provider(ticker)
+        } else {
+            ticker.to_string()
+        };
+
         let symbol = match mic {
             Some(mic) => {
                 // Look up suffix for this MIC and provider, fallback to ticker only if not found
                 match self.exchange_map.get_suffix(mic, provider) {
-                    Some(suffix) => Arc::from(format!("{}{}", ticker, suffix)),
+                    Some(suffix) => Arc::from(format!("{}{}", provider_ticker, suffix)),
                     None => {
                         // No mapping found - try ticker only (works for many US/global symbols)
-                        ticker.clone()
+                        Arc::from(provider_ticker)
                     }
                 }
             }
             None => {
                 // No MIC = assume US market, no suffix needed
-                ticker.clone()
+                Arc::from(provider_ticker)
             }
         };
 
@@ -346,6 +353,78 @@ mod tests {
     }
 
     #[test]
+    fn test_resolve_yahoo_share_class_uses_provider_hyphen() {
+        let resolver = RulesResolver::new();
+        let context = make_equity_context("BRK.B", None);
+
+        let result = resolver.resolve(&"YAHOO".into(), &context);
+
+        assert!(result.is_some());
+        let resolved = result.unwrap().unwrap();
+
+        match resolved.instrument {
+            ProviderInstrument::EquitySymbol { symbol } => {
+                assert_eq!(symbol.as_ref(), "BRK-B");
+            }
+            _ => panic!("Expected EquitySymbol"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_yahoo_known_exchange_suffix_keeps_dot() {
+        let resolver = RulesResolver::new();
+        let context = make_equity_context("VOD", Some("XLON"));
+
+        let result = resolver.resolve(&"YAHOO".into(), &context);
+
+        assert!(result.is_some());
+        let resolved = result.unwrap().unwrap();
+
+        match resolved.instrument {
+            ProviderInstrument::EquitySymbol { symbol } => {
+                assert_eq!(symbol.as_ref(), "VOD.L");
+            }
+            _ => panic!("Expected EquitySymbol"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_yahoo_share_class_with_exchange_suffix_formats_base_then_suffix() {
+        let resolver = RulesResolver::new();
+        let context = make_equity_context("BRK.B", Some("XTSE"));
+
+        let result = resolver.resolve(&"YAHOO".into(), &context);
+
+        assert!(result.is_some());
+        let resolved = result.unwrap().unwrap();
+
+        match resolved.instrument {
+            ProviderInstrument::EquitySymbol { symbol } => {
+                assert_eq!(symbol.as_ref(), "BRK-B.TO");
+            }
+            _ => panic!("Expected EquitySymbol"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_alphavantage_share_class_keeps_dot() {
+        let resolver = RulesResolver::new();
+        let context = make_equity_context("BRK.B", None);
+
+        let result = resolver.resolve(&"ALPHA_VANTAGE".into(), &context);
+
+        assert!(result.is_some());
+        let resolved = result.unwrap().unwrap();
+
+        match resolved.instrument {
+            ProviderInstrument::EquitySymbol { symbol } => {
+                assert_eq!(symbol.as_ref(), "BRK.B");
+            }
+            _ => panic!("Expected EquitySymbol"),
+        }
+    }
+
+    #[test]
     fn test_resolve_canadian_equity_alphavantage() {
         let resolver = RulesResolver::new();
         let context = make_equity_context("SHOP", Some("XTSE"));
@@ -507,6 +586,10 @@ mod tests {
         // London (Yahoo returns prices in pence, so currency is GBp)
         let currency = resolver.get_equity_currency(&Some("XLON".into()), &"YAHOO".into());
         assert_eq!(currency.as_deref(), Some("GBp"));
+
+        // Tel Aviv fallback quote unit for listed securities.
+        let currency = resolver.get_equity_currency(&Some("XTAE".into()), &"YAHOO".into());
+        assert_eq!(currency.as_deref(), Some("ILA"));
 
         // No MIC
         let currency = resolver.get_equity_currency(&None, &"YAHOO".into());

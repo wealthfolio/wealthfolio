@@ -5,6 +5,9 @@
 use log::debug;
 use rand::Rng;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
+use reqwest::{Method, RequestBuilder, StatusCode};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
@@ -18,10 +21,11 @@ use crate::types::*;
 
 /// Default timeout for API requests.
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
-const MAX_LOG_BODY_CHARS: usize = 512;
 const SNAPSHOT_UPLOAD_MAX_ATTEMPTS: usize = 5;
 const SNAPSHOT_UPLOAD_BASE_BACKOFF_MS: u64 = 250;
 const SNAPSHOT_UPLOAD_MAX_BACKOFF_MS: u64 = 8_000;
+const CLIENT_REQUEST_ID_HEADER: &str = "x-wf-client-request-id";
+const SERVER_REQUEST_ID_HEADER: &str = "x-request-id";
 
 static SNAPSHOT_UPLOAD_IN_FLIGHT: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
 
@@ -68,6 +72,146 @@ fn snapshot_backoff_with_jitter(attempt: usize) -> Duration {
         .min(SNAPSHOT_UPLOAD_MAX_BACKOFF_MS);
     let jitter = rand::thread_rng().gen_range(0..=(backoff / 5).max(1));
     Duration::from_millis(backoff.saturating_add(jitter))
+}
+
+#[derive(Debug, Clone)]
+struct CloudRequestContext {
+    method: String,
+    path: String,
+    client_request_id: String,
+    device_id: Option<String>,
+}
+
+impl CloudRequestContext {
+    fn new(method: &str, path: impl Into<String>, device_id: Option<&str>) -> Self {
+        Self {
+            method: method.to_string(),
+            path: path.into(),
+            client_request_id: generate_client_request_id(device_id),
+            device_id: device_id.map(str::to_string),
+        }
+    }
+}
+
+fn generate_client_request_id(device_id: Option<&str>) -> String {
+    let uuid = Uuid::new_v4();
+    if let Some(device_id) = device_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .filter(|value| is_log_safe_request_id(value))
+    {
+        let candidate = format!("{}:{}", device_id, uuid);
+        if is_log_safe_request_id(&candidate) {
+            return candidate;
+        }
+    }
+    format!("app:{}", uuid)
+}
+
+fn is_log_safe_request_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b':' | b'-'))
+}
+
+fn server_request_id(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get(SERVER_REQUEST_ID_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| is_log_safe_request_id(value))
+        .map(str::to_string)
+}
+
+fn request_metadata_suffix(
+    context: &CloudRequestContext,
+    server_request_id: Option<&str>,
+) -> String {
+    match server_request_id {
+        Some(request_id) => format!(
+            "clientRequestId={}, requestId={}",
+            context.client_request_id, request_id
+        ),
+        None => format!(
+            "clientRequestId={}, requestId=none",
+            context.client_request_id
+        ),
+    }
+}
+
+fn with_request_metadata(
+    message: impl Into<String>,
+    context: &CloudRequestContext,
+    server_request_id: Option<&str>,
+) -> String {
+    format!(
+        "{} ({})",
+        message.into(),
+        request_metadata_suffix(context, server_request_id)
+    )
+}
+
+fn fallback_api_error_message(body: &str) -> String {
+    let body = body.trim();
+    if body.is_empty() {
+        "Request failed".to_string()
+    } else {
+        format!("Request failed: {}", body)
+    }
+}
+
+fn details_with_request_metadata(
+    details: Option<serde_json::Value>,
+    context: &CloudRequestContext,
+    server_request_id: Option<&str>,
+) -> Option<serde_json::Value> {
+    let mut metadata = serde_json::Map::new();
+    metadata.insert(
+        "clientRequestId".to_string(),
+        serde_json::Value::String(context.client_request_id.clone()),
+    );
+    if let Some(request_id) = server_request_id {
+        metadata.insert(
+            "requestId".to_string(),
+            serde_json::Value::String(request_id.to_string()),
+        );
+    }
+
+    match details {
+        Some(serde_json::Value::Object(mut object)) => {
+            object.extend(metadata);
+            Some(serde_json::Value::Object(object))
+        }
+        Some(value) => {
+            metadata.insert("apiDetails".to_string(), value);
+            Some(serde_json::Value::Object(metadata))
+        }
+        None => Some(serde_json::Value::Object(metadata)),
+    }
+}
+
+fn log_failed_cloud_request(
+    context: &CloudRequestContext,
+    status: Option<StatusCode>,
+    server_request_id: Option<&str>,
+) {
+    let status = status
+        .map(|status| status.as_u16().to_string())
+        .unwrap_or_else(|| "no_response".to_string());
+    let request_id = server_request_id.unwrap_or("none");
+    let device_id = context.device_id.as_deref().unwrap_or("none");
+
+    log::warn!(
+        "[DeviceSync] Cloud request failed method={} path={} status={} clientRequestId={} requestId={} deviceId={}",
+        context.method,
+        context.path,
+        status,
+        context.client_request_id,
+        request_id,
+        device_id
+    );
 }
 
 /// Client for the Wealthfolio device sync cloud API.
@@ -123,19 +267,6 @@ impl DeviceSyncClient {
             }
         }
         true
-    }
-
-    fn log_response(status: reqwest::StatusCode, body: &str) {
-        if status.is_success() {
-            debug!("API response status: {}", status);
-            return;
-        }
-
-        let mut preview = body.chars().take(MAX_LOG_BODY_CHARS).collect::<String>();
-        if body.chars().count() > MAX_LOG_BODY_CHARS {
-            preview.push_str("...");
-        }
-        debug!("API response error ({}): {}", status, preview);
     }
 
     fn snapshot_from_cursor_latest(value: SyncLatestSnapshotRef) -> SnapshotLatestResponse {
@@ -224,19 +355,24 @@ impl DeviceSyncClient {
         }
     }
 
-    /// Create headers for an API request.
-    fn headers(&self, token: &str) -> Result<HeaderMap> {
-        self.headers_with_device(token, None)
-    }
-
     /// Create headers for an API request with optional device ID.
-    fn headers_with_device(&self, token: &str, device_id: Option<&str>) -> Result<HeaderMap> {
+    fn headers_with_device(
+        &self,
+        token: &str,
+        device_id: Option<&str>,
+        context: &CloudRequestContext,
+    ) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
         let auth_value = HeaderValue::from_str(&format!("Bearer {}", token))
             .map_err(|_| DeviceSyncError::auth("Invalid access token format"))?;
         headers.insert(AUTHORIZATION, auth_value);
+        headers.insert(
+            CLIENT_REQUEST_ID_HEADER,
+            HeaderValue::from_str(&context.client_request_id)
+                .map_err(|_| DeviceSyncError::auth("Invalid client request ID format"))?,
+        );
 
         if let Some(device_id) = device_id {
             let device_id_value = HeaderValue::from_str(device_id)
@@ -247,15 +383,70 @@ impl DeviceSyncClient {
         Ok(headers)
     }
 
+    async fn send_json_no_body<T: DeserializeOwned>(
+        &self,
+        method: Method,
+        path: String,
+        token: &str,
+        device_id: Option<&str>,
+    ) -> Result<T> {
+        let context = CloudRequestContext::new(method.as_str(), path.clone(), device_id);
+        let url = format!("{}{}", self.base_url, path);
+        let headers = self.headers_with_device(token, device_id, &context)?;
+        let response = self
+            .send_request(&context, self.client.request(method, &url).headers(headers))
+            .await?;
+        Self::parse_response(response, &context).await
+    }
+
+    async fn send_json_body<T: DeserializeOwned, B: Serialize + ?Sized>(
+        &self,
+        method: Method,
+        path: String,
+        token: &str,
+        device_id: Option<&str>,
+        body: &B,
+    ) -> Result<T> {
+        let context = CloudRequestContext::new(method.as_str(), path.clone(), device_id);
+        let url = format!("{}{}", self.base_url, path);
+        let headers = self.headers_with_device(token, device_id, &context)?;
+        let response = self
+            .send_request(
+                &context,
+                self.client
+                    .request(method, &url)
+                    .headers(headers)
+                    .json(body),
+            )
+            .await?;
+        Self::parse_response(response, &context).await
+    }
+
+    async fn send_request(
+        &self,
+        context: &CloudRequestContext,
+        request: RequestBuilder,
+    ) -> Result<reqwest::Response> {
+        request.send().await.map_err(|err| {
+            log_failed_cloud_request(context, None, None);
+            DeviceSyncError::Http(err)
+        })
+    }
+
     /// Parse a JSON response body.
-    async fn parse_response<T: serde::de::DeserializeOwned>(
+    async fn parse_response<T: DeserializeOwned>(
         response: reqwest::Response,
+        context: &CloudRequestContext,
     ) -> Result<T> {
         let status = response.status();
-        let body = response.text().await?;
-        Self::log_response(status, &body);
+        let request_id = server_request_id(response.headers());
+        let body = response.text().await.map_err(|err| {
+            log_failed_cloud_request(context, Some(status), request_id.as_deref());
+            DeviceSyncError::Http(err)
+        })?;
 
         if !status.is_success() {
+            log_failed_cloud_request(context, Some(status), request_id.as_deref());
             if let Ok(error) = serde_json::from_str::<ApiErrorResponse>(&body) {
                 let code = if error.code.is_empty() {
                     error.error
@@ -265,35 +456,54 @@ impl DeviceSyncClient {
                 return Err(DeviceSyncError::api_structured(
                     status.as_u16(),
                     code,
-                    error.message,
-                    error.details,
+                    with_request_metadata(error.message, context, request_id.as_deref()),
+                    details_with_request_metadata(error.details, context, request_id.as_deref()),
                 ));
             }
             return Err(DeviceSyncError::api(
                 status.as_u16(),
-                format!("Request failed: {}", body),
+                with_request_metadata(
+                    fallback_api_error_message(&body),
+                    context,
+                    request_id.as_deref(),
+                ),
             ));
         }
 
         serde_json::from_str(&body).map_err(|e| {
+            log_failed_cloud_request(context, Some(status), request_id.as_deref());
             log::error!(
-                "Failed to deserialize response. Body: {}, Error: {}",
-                body,
-                e
+                "Failed to deserialize cloud response: {} ({})",
+                e,
+                request_metadata_suffix(context, request_id.as_deref())
             );
-            DeviceSyncError::api(status.as_u16(), format!("Failed to parse response: {}", e))
+            DeviceSyncError::api(
+                status.as_u16(),
+                with_request_metadata(
+                    format!("Failed to parse response: {}", e),
+                    context,
+                    request_id.as_deref(),
+                ),
+            )
         })
     }
 
     /// Parse a binary response body while preserving API error handling.
-    async fn parse_binary_response(response: reqwest::Response) -> Result<reqwest::Response> {
+    async fn parse_binary_response(
+        response: reqwest::Response,
+        context: &CloudRequestContext,
+    ) -> Result<reqwest::Response> {
         let status = response.status();
         if status.is_success() {
             return Ok(response);
         }
 
-        let body = response.text().await?;
-        Self::log_response(status, &body);
+        let request_id = server_request_id(response.headers());
+        let body = response.text().await.map_err(|err| {
+            log_failed_cloud_request(context, Some(status), request_id.as_deref());
+            DeviceSyncError::Http(err)
+        })?;
+        log_failed_cloud_request(context, Some(status), request_id.as_deref());
         if let Ok(error) = serde_json::from_str::<ApiErrorResponse>(&body) {
             let code = if error.code.is_empty() {
                 error.error
@@ -303,14 +513,18 @@ impl DeviceSyncClient {
             return Err(DeviceSyncError::api_structured(
                 status.as_u16(),
                 code,
-                error.message,
-                error.details,
+                with_request_metadata(error.message, context, request_id.as_deref()),
+                details_with_request_metadata(error.details, context, request_id.as_deref()),
             ));
         }
 
         Err(DeviceSyncError::api(
             status.as_u16(),
-            format!("Request failed: {}", body),
+            with_request_metadata(
+                fallback_api_error_message(&body),
+                context,
+                request_id.as_deref(),
+            ),
         ))
     }
 
@@ -350,55 +564,43 @@ impl DeviceSyncClient {
         token: &str,
         info: RegisterDeviceRequest,
     ) -> Result<EnrollDeviceResponse> {
-        let url = format!("{}/api/v1/sync/team/devices", self.base_url);
         debug!("Enrolling device: {:?}", info);
 
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers(token)?)
-            .json(&info)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_body(
+            Method::POST,
+            "/api/v1/sync/team/devices".to_string(),
+            token,
+            None,
+            &info,
+        )
+        .await
     }
 
     /// Get device info by ID.
     ///
     /// GET /api/v1/sync/team/devices/{deviceId}
     pub async fn get_device(&self, token: &str, device_id: &str) -> Result<Device> {
-        let url = format!("{}/api/v1/sync/team/devices/{}", self.base_url, device_id);
-
-        let response = self
-            .client
-            .get(&url)
-            .headers(self.headers(token)?)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_no_body(
+            Method::GET,
+            format!("/api/v1/sync/team/devices/{}", device_id),
+            token,
+            None,
+        )
+        .await
     }
 
     /// List all devices.
     ///
     /// GET /api/v1/sync/team/devices?scope=my|team
     pub async fn list_devices(&self, token: &str, scope: Option<&str>) -> Result<Vec<Device>> {
-        let mut url = format!("{}/api/v1/sync/team/devices", self.base_url);
+        let mut path = "/api/v1/sync/team/devices".to_string();
         if let Some(s) = scope {
-            url = format!("{}?scope={}", url, s);
+            path = format!("{}?scope={}", path, s);
         }
 
-        debug!("[DeviceSync] list_devices URL: {}", url);
+        debug!("[DeviceSync] list_devices path: {}", path);
 
-        let response = self
-            .client
-            .get(&url)
-            .headers(self.headers(token)?)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_no_body(Method::GET, path, token, None).await
     }
 
     /// Update a device (e.g., rename).
@@ -410,52 +612,40 @@ impl DeviceSyncClient {
         device_id: &str,
         update: UpdateDeviceRequest,
     ) -> Result<SuccessResponse> {
-        let url = format!("{}/api/v1/sync/team/devices/{}", self.base_url, device_id);
-
-        let response = self
-            .client
-            .patch(&url)
-            .headers(self.headers(token)?)
-            .json(&update)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_body(
+            Method::PATCH,
+            format!("/api/v1/sync/team/devices/{}", device_id),
+            token,
+            None,
+            &update,
+        )
+        .await
     }
 
     /// Delete a device.
     ///
     /// DELETE /api/v1/sync/team/devices/{deviceId}
     pub async fn delete_device(&self, token: &str, device_id: &str) -> Result<SuccessResponse> {
-        let url = format!("{}/api/v1/sync/team/devices/{}", self.base_url, device_id);
-
-        let response = self
-            .client
-            .delete(&url)
-            .headers(self.headers(token)?)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_no_body(
+            Method::DELETE,
+            format!("/api/v1/sync/team/devices/{}", device_id),
+            token,
+            None,
+        )
+        .await
     }
 
     /// Revoke a device's trust.
     ///
     /// POST /api/v1/sync/team/devices/{deviceId}/revoke
     pub async fn revoke_device(&self, token: &str, device_id: &str) -> Result<SuccessResponse> {
-        let url = format!(
-            "{}/api/v1/sync/team/devices/{}/revoke",
-            self.base_url, device_id
-        );
-
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers(token)?)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_no_body(
+            Method::POST,
+            format!("/api/v1/sync/team/devices/{}/revoke", device_id),
+            token,
+            None,
+        )
+        .await
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -475,17 +665,14 @@ impl DeviceSyncClient {
         token: &str,
         device_id: &str,
     ) -> Result<InitializeKeysResult> {
-        let url = format!("{}/api/v1/sync/team/keys/initialize", self.base_url);
-
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers_with_device(token, Some(device_id))?)
-            .json(&serde_json::json!({ "device_id": device_id }))
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_body(
+            Method::POST,
+            "/api/v1/sync/team/keys/initialize".to_string(),
+            token,
+            Some(device_id),
+            &serde_json::json!({ "device_id": device_id }),
+        )
+        .await
     }
 
     /// Commit team key initialization (Phase 2).
@@ -497,18 +684,16 @@ impl DeviceSyncClient {
         token: &str,
         req: CommitInitializeKeysRequest,
     ) -> Result<CommitInitializeKeysResponse> {
-        let url = format!("{}/api/v1/sync/team/keys/initialize/commit", self.base_url);
         let device_id = req.device_id.clone();
 
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers_with_device(token, Some(&device_id))?)
-            .json(&req)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_body(
+            Method::POST,
+            "/api/v1/sync/team/keys/initialize/commit".to_string(),
+            token,
+            Some(&device_id),
+            &req,
+        )
+        .await
     }
 
     /// Start key rotation (Phase 1).
@@ -519,17 +704,14 @@ impl DeviceSyncClient {
         token: &str,
         initiator_device_id: &str,
     ) -> Result<RotateKeysResponse> {
-        let url = format!("{}/api/v1/sync/team/keys/rotate", self.base_url);
-
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers_with_device(token, Some(initiator_device_id))?)
-            .json(&serde_json::json!({ "initiator_device_id": initiator_device_id }))
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_body(
+            Method::POST,
+            "/api/v1/sync/team/keys/rotate".to_string(),
+            token,
+            Some(initiator_device_id),
+            &serde_json::json!({ "initiator_device_id": initiator_device_id }),
+        )
+        .await
     }
 
     /// Commit key rotation (Phase 2).
@@ -541,17 +723,14 @@ impl DeviceSyncClient {
         device_id: &str,
         req: CommitRotateKeysRequest,
     ) -> Result<CommitRotateKeysResponse> {
-        let url = format!("{}/api/v1/sync/team/keys/rotate/commit", self.base_url);
-
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers_with_device(token, Some(device_id))?)
-            .json(&req)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_body(
+            Method::POST,
+            "/api/v1/sync/team/keys/rotate/commit".to_string(),
+            token,
+            Some(device_id),
+            &req,
+        )
+        .await
     }
 
     /// Reset team sync (destructive).
@@ -563,23 +742,20 @@ impl DeviceSyncClient {
         token: &str,
         reason: Option<&str>,
     ) -> Result<ResetTeamSyncResponse> {
-        let url = format!("{}/api/v1/sync/team/keys/reset", self.base_url);
-
         // Build body - only include reason if provided (API rejects null)
         let body = match reason {
             Some(r) => serde_json::json!({ "reason": r }),
             None => serde_json::json!({}),
         };
 
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers(token)?)
-            .json(&body)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_body(
+            Method::POST,
+            "/api/v1/sync/team/keys/reset".to_string(),
+            token,
+            None,
+            &body,
+        )
+        .await
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -595,15 +771,14 @@ impl DeviceSyncClient {
         device_id: &str,
         req: SyncPushRequest,
     ) -> Result<SyncPushResponse> {
-        let url = format!("{}/api/v1/sync/events/push", self.base_url);
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers_with_device(token, Some(device_id))?)
-            .json(&req)
-            .send()
-            .await?;
-        Self::parse_response(response).await
+        self.send_json_body(
+            Method::POST,
+            "/api/v1/sync/events/push".to_string(),
+            token,
+            Some(device_id),
+            &req,
+        )
+        .await
     }
 
     /// Pull remote events after a cursor.
@@ -616,24 +791,20 @@ impl DeviceSyncClient {
         since: Option<i64>,
         limit: Option<i32>,
     ) -> Result<SyncPullResponse> {
-        let url = format!("{}/api/v1/sync/events/pull", self.base_url);
-        let mut query: Vec<(&str, String)> = Vec::new();
+        let mut path = "/api/v1/sync/events/pull".to_string();
+        let mut query = Vec::new();
         if let Some(value) = since {
-            query.push(("since", value.to_string()));
+            query.push(format!("since={}", value));
         }
         if let Some(value) = limit {
-            query.push(("limit", value.to_string()));
+            query.push(format!("limit={}", value));
+        }
+        if !query.is_empty() {
+            path = format!("{}?{}", path, query.join("&"));
         }
 
-        let mut request = self
-            .client
-            .get(&url)
-            .headers(self.headers_with_device(token, Some(device_id))?);
-        if !query.is_empty() {
-            request = request.query(&query);
-        }
-        let response = request.send().await?;
-        Self::parse_response(response).await
+        self.send_json_no_body(Method::GET, path, token, Some(device_id))
+            .await
     }
 
     /// Get the reconcile-ready-state for this device.
@@ -644,14 +815,13 @@ impl DeviceSyncClient {
         token: &str,
         device_id: &str,
     ) -> Result<ReconcileReadyStateResponse> {
-        let url = format!("{}/api/v1/sync/events/reconcile-ready-state", self.base_url);
-        let response = self
-            .client
-            .get(url)
-            .headers(self.headers_with_device(token, Some(device_id))?)
-            .send()
-            .await?;
-        Self::parse_response(response).await
+        self.send_json_no_body(
+            Method::GET,
+            "/api/v1/sync/events/reconcile-ready-state".to_string(),
+            token,
+            Some(device_id),
+        )
+        .await
     }
 
     /// Get lightweight current server cursor.
@@ -662,14 +832,13 @@ impl DeviceSyncClient {
         token: &str,
         device_id: &str,
     ) -> Result<SyncCursorResponse> {
-        let url = format!("{}/api/v1/sync/events/cursor", self.base_url);
-        let response = self
-            .client
-            .get(url)
-            .headers(self.headers_with_device(token, Some(device_id))?)
-            .send()
-            .await?;
-        Self::parse_response(response).await
+        self.send_json_no_body(
+            Method::GET,
+            "/api/v1/sync/events/cursor".to_string(),
+            token,
+            Some(device_id),
+        )
+        .await
     }
 
     /// Get metadata for the latest available snapshot.
@@ -680,14 +849,13 @@ impl DeviceSyncClient {
         token: &str,
         device_id: &str,
     ) -> Result<SnapshotLatestResponse> {
-        let url = format!("{}/api/v1/sync/snapshots/latest", self.base_url);
-        let response = self
-            .client
-            .get(url)
-            .headers(self.headers_with_device(token, Some(device_id))?)
-            .send()
-            .await?;
-        Self::parse_response(response).await
+        self.send_json_no_body(
+            Method::GET,
+            "/api/v1/sync/snapshots/latest".to_string(),
+            token,
+            Some(device_id),
+        )
+        .await
     }
 
     /// Resolve latest snapshot with server-bug fallback to /events/cursor.latest_snapshot.
@@ -742,13 +910,20 @@ impl DeviceSyncClient {
         snapshot_id: &str,
     ) -> Result<(SnapshotDownloadHeaders, Vec<u8>)> {
         let url = self.snapshot_download_url(snapshot_id)?;
+        let path = url.path().to_string();
+        let context = CloudRequestContext::new("GET", path, Some(device_id));
+        let headers = self.headers_with_device(token, Some(device_id), &context)?;
         let response = self
             .client
             .get(url)
-            .headers(self.headers_with_device(token, Some(device_id))?)
+            .headers(headers)
             .send()
-            .await?;
-        let response = Self::parse_binary_response(response).await?;
+            .await
+            .map_err(|err| {
+                log_failed_cloud_request(&context, None, None);
+                DeviceSyncError::Http(err)
+            })?;
+        let response = Self::parse_binary_response(response, &context).await?;
         let headers = response.headers().clone();
         let body = response.bytes().await?.to_vec();
 
@@ -866,7 +1041,8 @@ impl DeviceSyncClient {
         payload: Vec<u8>,
         cancel_flag: Option<&AtomicBool>,
     ) -> Result<SnapshotUploadResponse> {
-        let url = format!("{}/api/v1/sync/snapshots/upload", self.base_url);
+        let path = "/api/v1/sync/snapshots/upload";
+        let url = format!("{}{}", self.base_url, path);
         let mut attempt = 0usize;
 
         loop {
@@ -880,7 +1056,8 @@ impl DeviceSyncClient {
             }
 
             attempt = attempt.saturating_add(1);
-            let mut headers = self.headers_with_device(token, Some(device_id))?;
+            let context = CloudRequestContext::new("POST", path, Some(device_id));
+            let mut headers = self.headers_with_device(token, Some(device_id), &context)?;
             headers.insert(
                 CONTENT_TYPE,
                 HeaderValue::from_static("application/octet-stream"),
@@ -948,33 +1125,47 @@ impl DeviceSyncClient {
                 Ok(response) => {
                     let status = response.status();
                     if status.is_success() {
-                        return Self::parse_response(response).await;
+                        return Self::parse_response(response, &context).await;
                     }
 
-                    let body = response.text().await?;
-                    Self::log_response(status, &body);
+                    let request_id = server_request_id(response.headers());
+                    let body = response.text().await.map_err(|err| {
+                        log_failed_cloud_request(&context, Some(status), request_id.as_deref());
+                        DeviceSyncError::Http(err)
+                    })?;
+                    log_failed_cloud_request(&context, Some(status), request_id.as_deref());
                     let mut parsed_error_code: Option<String> = None;
                     let mut parsed_error_message: Option<String> = None;
-                    let error = if let Ok(api_error) =
-                        serde_json::from_str::<ApiErrorResponse>(&body)
-                    {
-                        let message = api_error.message;
-                        let code = if api_error.code.is_empty() {
-                            api_error.error
+                    let error =
+                        if let Ok(api_error) = serde_json::from_str::<ApiErrorResponse>(&body) {
+                            let message = api_error.message;
+                            let code = if api_error.code.is_empty() {
+                                api_error.error
+                            } else {
+                                api_error.code
+                            };
+                            parsed_error_code = Some(code.clone());
+                            parsed_error_message = Some(message.clone());
+                            DeviceSyncError::api_structured(
+                                status.as_u16(),
+                                code,
+                                with_request_metadata(message, &context, request_id.as_deref()),
+                                details_with_request_metadata(
+                                    api_error.details,
+                                    &context,
+                                    request_id.as_deref(),
+                                ),
+                            )
                         } else {
-                            api_error.code
+                            DeviceSyncError::api(
+                                status.as_u16(),
+                                with_request_metadata(
+                                    fallback_api_error_message(&body),
+                                    &context,
+                                    request_id.as_deref(),
+                                ),
+                            )
                         };
-                        parsed_error_code = Some(code.clone());
-                        parsed_error_message = Some(message.clone());
-                        DeviceSyncError::api_structured(
-                            status.as_u16(),
-                            code,
-                            message,
-                            api_error.details,
-                        )
-                    } else {
-                        DeviceSyncError::api(status.as_u16(), format!("Request failed: {}", body))
-                    };
 
                     if is_retryable_snapshot_error(
                         status.as_u16(),
@@ -997,6 +1188,7 @@ impl DeviceSyncClient {
                     return Err(error);
                 }
                 Err(err) => {
+                    log_failed_cloud_request(&context, None, None);
                     if is_retryable_transport_error(&err) && attempt < SNAPSHOT_UPLOAD_MAX_ATTEMPTS
                     {
                         let backoff = snapshot_backoff_with_jitter(attempt);
@@ -1029,20 +1221,14 @@ impl DeviceSyncClient {
         device_id: &str,
         req: CreatePairingRequest,
     ) -> Result<CreatePairingResponse> {
-        let url = format!(
-            "{}/api/v1/sync/team/devices/{}/pairings",
-            self.base_url, device_id
-        );
-
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers_with_device(token, Some(device_id))?)
-            .json(&req)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_body(
+            Method::POST,
+            format!("/api/v1/sync/team/devices/{}/pairings", device_id),
+            token,
+            Some(device_id),
+            &req,
+        )
+        .await
     }
 
     /// Get pairing session details.
@@ -1054,19 +1240,16 @@ impl DeviceSyncClient {
         device_id: &str,
         pairing_id: &str,
     ) -> Result<GetPairingResponse> {
-        let url = format!(
-            "{}/api/v1/sync/team/devices/{}/pairings/{}",
-            self.base_url, device_id, pairing_id
-        );
-
-        let response = self
-            .client
-            .get(&url)
-            .headers(self.headers_with_device(token, Some(device_id))?)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_no_body(
+            Method::GET,
+            format!(
+                "/api/v1/sync/team/devices/{}/pairings/{}",
+                device_id, pairing_id
+            ),
+            token,
+            Some(device_id),
+        )
+        .await
     }
 
     /// Approve a pairing session.
@@ -1078,19 +1261,16 @@ impl DeviceSyncClient {
         device_id: &str,
         pairing_id: &str,
     ) -> Result<SuccessResponse> {
-        let url = format!(
-            "{}/api/v1/sync/team/devices/{}/pairings/{}/approve",
-            self.base_url, device_id, pairing_id
-        );
-
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers_with_device(token, Some(device_id))?)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_no_body(
+            Method::POST,
+            format!(
+                "/api/v1/sync/team/devices/{}/pairings/{}/approve",
+                device_id, pairing_id
+            ),
+            token,
+            Some(device_id),
+        )
+        .await
     }
 
     /// Complete a pairing session with key bundle.
@@ -1103,20 +1283,17 @@ impl DeviceSyncClient {
         pairing_id: &str,
         req: CompletePairingRequest,
     ) -> Result<CompletePairingResponse> {
-        let url = format!(
-            "{}/api/v1/sync/team/devices/{}/pairings/{}/complete",
-            self.base_url, device_id, pairing_id
-        );
-
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers_with_device(token, Some(device_id))?)
-            .json(&req)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_body(
+            Method::POST,
+            format!(
+                "/api/v1/sync/team/devices/{}/pairings/{}/complete",
+                device_id, pairing_id
+            ),
+            token,
+            Some(device_id),
+            &req,
+        )
+        .await
     }
 
     /// Cancel a pairing session.
@@ -1128,19 +1305,16 @@ impl DeviceSyncClient {
         device_id: &str,
         pairing_id: &str,
     ) -> Result<SuccessResponse> {
-        let url = format!(
-            "{}/api/v1/sync/team/devices/{}/pairings/{}/cancel",
-            self.base_url, device_id, pairing_id
-        );
-
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers_with_device(token, Some(device_id))?)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_no_body(
+            Method::POST,
+            format!(
+                "/api/v1/sync/team/devices/{}/pairings/{}/cancel",
+                device_id, pairing_id
+            ),
+            token,
+            Some(device_id),
+        )
+        .await
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1159,20 +1333,17 @@ impl DeviceSyncClient {
         claimer_device_id: &str,
         req: ClaimPairingRequest,
     ) -> Result<ClaimPairingResponse> {
-        let url = format!(
-            "{}/api/v1/sync/team/devices/{}/pairings/claim",
-            self.base_url, claimer_device_id
-        );
-
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers_with_device(token, Some(claimer_device_id))?)
-            .json(&req)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_body(
+            Method::POST,
+            format!(
+                "/api/v1/sync/team/devices/{}/pairings/claim",
+                claimer_device_id
+            ),
+            token,
+            Some(claimer_device_id),
+            &req,
+        )
+        .await
     }
 
     /// Poll for messages/key bundle from the issuer (claimer side).
@@ -1187,19 +1358,16 @@ impl DeviceSyncClient {
         claimer_device_id: &str,
         pairing_id: &str,
     ) -> Result<PairingMessagesResponse> {
-        let url = format!(
-            "{}/api/v1/sync/team/devices/{}/pairings/{}/messages",
-            self.base_url, claimer_device_id, pairing_id
-        );
-
-        let response = self
-            .client
-            .get(&url)
-            .headers(self.headers_with_device(token, Some(claimer_device_id))?)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_no_body(
+            Method::GET,
+            format!(
+                "/api/v1/sync/team/devices/{}/pairings/{}/messages",
+                claimer_device_id, pairing_id
+            ),
+            token,
+            Some(claimer_device_id),
+        )
+        .await
     }
 
     /// Confirm pairing and become trusted (claimer side).
@@ -1216,20 +1384,17 @@ impl DeviceSyncClient {
         pairing_id: &str,
         req: ConfirmPairingRequest,
     ) -> Result<ConfirmPairingResponse> {
-        let url = format!(
-            "{}/api/v1/sync/team/devices/{}/pairings/{}/confirm",
-            self.base_url, claimer_device_id, pairing_id
-        );
-
-        let response = self
-            .client
-            .post(&url)
-            .headers(self.headers_with_device(token, Some(claimer_device_id))?)
-            .json(&req)
-            .send()
-            .await?;
-
-        Self::parse_response(response).await
+        self.send_json_body(
+            Method::POST,
+            format!(
+                "/api/v1/sync/team/devices/{}/pairings/{}/confirm",
+                claimer_device_id, pairing_id
+            ),
+            token,
+            Some(claimer_device_id),
+            &req,
+        )
+        .await
     }
 }
 
@@ -1265,6 +1430,9 @@ mod tests {
     #[derive(Debug, Clone)]
     struct CapturedUploadRequest {
         event_id: Option<String>,
+        client_request_id: Option<String>,
+        request_id: Option<String>,
+        device_id: Option<String>,
         content_length: Option<String>,
         snapshot_size_bytes: Option<String>,
     }
@@ -1414,10 +1582,16 @@ mod tests {
                         return;
                     };
                     let event_id = headers.get("x-snapshot-event-id").cloned();
+                    let client_request_id = headers.get(CLIENT_REQUEST_ID_HEADER).cloned();
+                    let request_id = headers.get(SERVER_REQUEST_ID_HEADER).cloned();
+                    let device_id = headers.get("x-wf-device-id").cloned();
                     let content_length = headers.get("content-length").cloned();
                     let snapshot_size_bytes = headers.get("x-snapshot-size-bytes").cloned();
                     captured_inner.lock().await.push(CapturedUploadRequest {
                         event_id,
+                        client_request_id,
+                        request_id,
+                        device_id,
                         content_length,
                         snapshot_size_bytes,
                     });
@@ -1491,6 +1665,26 @@ mod tests {
         );
     }
 
+    #[test]
+    fn fallback_error_preserves_snapshot_validation_body_with_metadata() {
+        let context = CloudRequestContext::new(
+            "GET",
+            "/api/v1/sync/snapshots/not-a-uuid",
+            Some("019bb9fe-f707-71e9-a40d-733575f4f246"),
+        );
+        let body = r#"{"path":["snapshotId"],"message":"Invalid UUID"}"#;
+        let err = DeviceSyncError::api(
+            400,
+            with_request_metadata(
+                fallback_api_error_message(body),
+                &context,
+                Some("server-req-1"),
+            ),
+        );
+
+        assert!(err.is_snapshot_id_validation_error());
+    }
+
     #[tokio::test]
     async fn snapshot_upload_retry_reuses_same_generated_event_id() {
         let (base_url, captured, server) = start_mock_upload_server(vec![
@@ -1526,6 +1720,24 @@ mod tests {
         let second_id = requests[1].event_id.clone().expect("second event id");
         assert_eq!(first_id, second_id);
         assert!(Uuid::parse_str(&first_id).is_ok());
+        let first_client_request_id = requests[0]
+            .client_request_id
+            .clone()
+            .expect("first client request id");
+        let second_client_request_id = requests[1]
+            .client_request_id
+            .clone()
+            .expect("second client request id");
+        assert!(first_client_request_id.starts_with("019bb9fe-f707-71e9-a40d-733575f4f246:"));
+        assert!(second_client_request_id.starts_with("019bb9fe-f707-71e9-a40d-733575f4f246:"));
+        assert!(is_log_safe_request_id(&first_client_request_id));
+        assert!(is_log_safe_request_id(&second_client_request_id));
+        assert_ne!(first_client_request_id, second_client_request_id);
+        assert_eq!(
+            requests[0].device_id.as_deref(),
+            Some("019bb9fe-f707-71e9-a40d-733575f4f246")
+        );
+        assert!(requests[0].request_id.is_none());
         assert_eq!(requests[0].content_length, requests[0].snapshot_size_bytes);
         assert_eq!(requests[1].content_length, requests[1].snapshot_size_bytes);
 

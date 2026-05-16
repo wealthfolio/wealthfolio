@@ -71,15 +71,17 @@ pub use models::{
 // Re-export resolver types
 pub use resolver::{
     exchanges_for_currency, get_exchange_list, mic_to_currency, mic_to_exchange_name,
-    strip_yahoo_suffix, yahoo_exchange_suffixes, yahoo_exchange_to_mic, yahoo_suffix_to_mic,
-    AssetResolver, ExchangeInfo, ExchangeMap, ExchangeSuffix, ResolutionSource, ResolvedInstrument,
-    Resolver, ResolverChain, RulesResolver, SymbolResolver,
+    strip_yahoo_suffix, yahoo_equity_base_to_provider, yahoo_equity_provider_symbol_to_canonical,
+    yahoo_equity_search_queries, yahoo_exchange_suffixes, yahoo_exchange_to_mic,
+    yahoo_suffix_to_mic, AssetResolver, ExchangeInfo, ExchangeMap, ExchangeSuffix,
+    ResolutionSource, ResolvedInstrument, Resolver, ResolverChain, RulesResolver, SymbolResolver,
 };
 
 // Re-export provider types
 pub use provider::alpha_vantage::AlphaVantageProvider;
 pub use provider::boerse_frankfurt::BoerseFrankfurtProvider;
 pub use provider::finnhub::FinnhubProvider;
+pub use provider::fixture::FixtureProvider;
 pub use provider::marketdata_app::MarketDataAppProvider;
 pub use provider::metal_price_api::MetalPriceApiProvider;
 pub use provider::openfigi::OpenFigiProvider;

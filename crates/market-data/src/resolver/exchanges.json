@@ -27,7 +27,7 @@
       "currency": "USD",
       "timezone": "America/New_York",
       "close": [16, 0],
-      "yahoo": { "suffix": "", "codes": ["PCX", "ASE"] },
+      "yahoo": { "suffix": "", "codes": ["ASE"] },
       "alpha_vantage": { "suffix": "", "currency": "USD" }
     },
     {
@@ -37,7 +37,7 @@
       "currency": "USD",
       "timezone": "America/New_York",
       "close": [16, 0],
-      "yahoo": { "suffix": "", "codes": ["ARC"] },
+      "yahoo": { "suffix": "", "codes": ["PCX", "ARC"] },
       "alpha_vantage": { "suffix": "", "currency": "USD" }
     },
     {
@@ -645,7 +645,7 @@
       "mic": "XTAE",
       "name": "TASE",
       "long_name": "Tel Aviv Stock Exchange",
-      "currency": "ILS",
+      "currency": "ILA",
       "timezone": "Asia/Jerusalem",
       "close": [17, 25],
       "yahoo": { "suffix": ".TA", "codes": ["TLV"] }
@@ -728,6 +728,7 @@
     "NOK": ["XOSL"],
     "PLN": ["XWAR"],
     "ILS": ["XTAE"],
+    "ILA": ["XTAE"],
     "ZAR": ["XJSE"],
     "TWD": ["XTAI", "XTAI_OTC"]
   }

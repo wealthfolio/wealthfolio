@@ -146,6 +146,7 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
         index: "MANUAL",
         typeDisplay: "Custom Asset",
         dataSource: "MANUAL",
+        quoteMode: "MANUAL",
         score: 0,
         currency: customCurrency,
         assetKind: customAssetType === "OTHER" ? "OTHER" : "INVESTMENT",

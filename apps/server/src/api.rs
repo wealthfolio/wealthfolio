@@ -28,6 +28,7 @@ mod assets;
 #[cfg(any(feature = "connect-sync", feature = "device-sync"))]
 pub mod connect;
 mod custom_providers;
+mod database_backups;
 #[cfg(feature = "device-sync")]
 mod device_sync;
 #[cfg(feature = "device-sync")]
@@ -89,6 +90,7 @@ pub fn app_router(state: Arc<AppState>, config: &Config) -> Router {
     let mut protected_api = Router::new()
         .merge(accounts::router())
         .merge(settings::router())
+        .merge(database_backups::router())
         .merge(portfolio::router())
         .merge(holdings::router())
         .merge(performance::router())

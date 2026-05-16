@@ -513,7 +513,8 @@ impl FinnhubProvider {
             .map(|item| {
                 let asset_type = map_security_type(&item.security_type);
                 let mut result =
-                    SearchResult::new(&item.symbol, &item.description, "", &asset_type);
+                    SearchResult::new(&item.symbol, &item.description, "", &asset_type)
+                        .with_data_source(PROVIDER_ID);
                 // Derive MIC from Finnhub symbol suffix (same convention as Yahoo)
                 if let Some(dot_pos) = item.symbol.rfind('.') {
                     let suffix = &item.symbol[dot_pos + 1..];

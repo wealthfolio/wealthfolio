@@ -1,7 +1,7 @@
-import { debounce } from "lodash";
 import { useEffect, useMemo, useState } from "react";
 
 import { ActivityType, ActivityTypeNames, INSTRUMENT_TYPE_OPTIONS } from "@/lib/constants";
+import { debounce } from "@/lib/debounce";
 import { Account } from "@/lib/types";
 import {
   AnimatedToggleGroup,

@@ -130,6 +130,8 @@ export function mapSymbol(
       quoteCcy?: string;
       instrumentType?: string;
       quoteMode?: string;
+      providerId?: string;
+      providerSymbol?: string;
     }
   >,
 ): {
@@ -139,6 +141,8 @@ export function mapSymbol(
   quoteCcy?: string;
   instrumentType?: string;
   quoteMode?: string;
+  providerId?: string;
+  providerSymbol?: string;
 } {
   if (!csvSymbol) return { symbol: undefined };
 
@@ -152,6 +156,8 @@ export function mapSymbol(
     quoteCcy: meta?.quoteCcy,
     instrumentType: meta?.instrumentType,
     quoteMode: meta?.quoteMode,
+    providerId: meta?.providerId,
+    providerSymbol: meta?.providerSymbol,
   };
 }
 
@@ -334,7 +340,15 @@ export function createDraftActivities(
     accountMappings: Record<string, string>;
     symbolMappingMeta?: Record<
       string,
-      { exchangeMic?: string; symbolName?: string; quoteCcy?: string; instrumentType?: string }
+      {
+        exchangeMic?: string;
+        symbolName?: string;
+        quoteCcy?: string;
+        instrumentType?: string;
+        quoteMode?: string;
+        providerId?: string;
+        providerSymbol?: string;
+      }
     >;
   },
   parseConfig: {
@@ -408,6 +422,8 @@ export function createDraftActivities(
       quoteCcy: mappedQuoteCcy,
       instrumentType: mappedInstrumentType,
       quoteMode: mappedQuoteMode,
+      providerId: mappedProviderId,
+      providerSymbol: mappedProviderSymbol,
     } = mapSymbol(rawSymbol, symbolMappings, symbolMappingMeta);
 
     // Parse typed symbol prefixes (e.g., "bond:US037833DU14")
@@ -465,6 +481,8 @@ export function createDraftActivities(
       quoteCcy: mappedQuoteCcy,
       instrumentType: resolvedInstrumentType,
       quoteMode: mappedQuoteMode,
+      providerId: mappedProviderId,
+      providerSymbol: mappedProviderSymbol,
       assetCandidateKey:
         symbol && activityType
           ? buildImportAssetCandidateKey({
@@ -529,6 +547,8 @@ export function draftToActivityImport(draft: DraftActivity): ActivityImport {
     quoteCcy: draft.quoteCcy,
     instrumentType: draft.instrumentType,
     quoteMode: draft.quoteMode as ActivityImport["quoteMode"],
+    providerId: draft.providerId,
+    providerSymbol: draft.providerSymbol,
     errors: draft.errors,
     isValid:
       draft.status === "valid" ||

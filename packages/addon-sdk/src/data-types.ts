@@ -282,6 +282,8 @@ export interface AssetResolutionInput {
   quoteMode?: QuoteMode;
   quoteCcy?: string;
   instrumentType?: string;
+  providerId?: string;
+  providerSymbol?: string;
 }
 
 /** @deprecated Use AssetResolutionInput. */
@@ -376,6 +378,10 @@ export interface ActivityImport {
   instrumentType?: string;
   /** Resolved quote mode hint (e.g., MANUAL, MARKET) */
   quoteMode?: string;
+  /** Market data provider that resolved this import row, if selected. */
+  providerId?: string;
+  /** Provider-native symbol/code selected by search/import. */
+  providerSymbol?: string;
   errors?: Record<string, string[]>;
   warnings?: Record<string, string[]>;
   duplicateOfId?: string;
@@ -414,6 +420,14 @@ export interface SymbolSearchResult {
   exchange: string;
   /** Canonical exchange MIC code (e.g., "XNAS", "XTSE") */
   exchangeMic?: string;
+  /** Canonical asset symbol used for persistence (e.g., "SHOP" for "SHOP.TO") */
+  canonicalSymbol?: string;
+  /** Canonical exchange MIC used for persistence */
+  canonicalExchangeMic?: string;
+  /** Market data provider that returned or resolved this symbol */
+  providerId?: string;
+  /** Provider-native symbol/code (e.g., Yahoo "BRK-B") */
+  providerSymbol?: string;
   /** Friendly exchange name (e.g., "NASDAQ" instead of "NMS" or "XNAS") */
   exchangeName?: string;
   /** Currency derived from exchange (e.g., "USD", "CAD") */
@@ -949,6 +963,10 @@ export interface SnapshotHoldingInput {
   currency: string;
   averageCost?: string;
   exchangeMic?: string;
+  quoteCcy?: string;
+  instrumentType?: string;
+  providerId?: string;
+  providerSymbol?: string;
   name?: string;
   dataSource?: string;
   assetKind?: string;
@@ -960,6 +978,10 @@ export interface SnapshotPositionInput {
   avgCost?: string;
   currency: string;
   exchangeMic?: string;
+  quoteCcy?: string;
+  instrumentType?: string;
+  providerId?: string;
+  providerSymbol?: string;
 }
 
 export interface SnapshotInput {

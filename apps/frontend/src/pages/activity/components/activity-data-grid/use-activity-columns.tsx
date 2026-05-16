@@ -82,22 +82,7 @@ export function useActivityColumns({
   );
 
   const handleSymbolSearch = useCallback(async (query: string): Promise<SymbolSearchResult[]> => {
-    const results = await searchTicker(query);
-    return results.map((result) => ({
-      symbol: result.symbol,
-      shortName: result.shortName,
-      longName: result.longName,
-      exchange: result.exchange,
-      exchangeMic: result.exchangeMic,
-      currency: result.currency,
-      currencySource: result.currencySource,
-      quoteType: result.quoteType,
-      score: result.score,
-      dataSource: result.dataSource,
-      assetKind: result.assetKind,
-      isExisting: result.isExisting,
-      existingAssetId: result.existingAssetId,
-    }));
+    return searchTicker(query);
   }, []);
 
   const columns = useMemo<ColumnDef<LocalTransaction>[]>(

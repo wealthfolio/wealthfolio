@@ -29,7 +29,7 @@ use crate::models::{
     SplitEvent,
 };
 use crate::provider::{MarketDataProvider, ProviderCapabilities, RateLimit};
-use crate::resolver::{yahoo_exchange_to_mic, ResolverChain};
+use crate::resolver::{yahoo_equity_search_queries, yahoo_exchange_to_mic, ResolverChain};
 
 use models::{YahooQuoteSummaryResponse, YahooQuoteSummaryResult};
 
@@ -440,7 +440,8 @@ impl YahooProvider {
         let exchange = item.exchange.unwrap_or_default();
         let quote_type = item.quote_type.unwrap_or_else(|| "UNKNOWN".to_string());
 
-        let mut result = SearchResult::new(symbol.to_string(), name, &exchange, quote_type);
+        let mut result = SearchResult::new(symbol.to_string(), name, &exchange, quote_type)
+            .with_data_source("YAHOO");
 
         // Derive MIC from Yahoo exchange code (e.g., NMS→XNAS, TOR→XTSE)
         if let Some(mic) = yahoo_exchange_to_mic(&exchange) {
@@ -838,6 +839,55 @@ impl YahooProvider {
 
         Ok(profile)
     }
+
+    async fn search_single(&self, query: &str) -> Result<Vec<SearchResult>, MarketDataError> {
+        let encoded_query = encode(query);
+
+        debug!("Searching Yahoo for '{}'", query);
+
+        // First try raw endpoint parsing so we can preserve currency (e.g., GBP vs GBp on LSE ETFs).
+        match self.search_raw_with_currency(&encoded_query).await {
+            Ok(results) if !results.is_empty() => return Ok(results),
+            Ok(_) => debug!(
+                "Yahoo raw search returned no quotes for '{}', falling back to connector API",
+                query
+            ),
+            Err(e) => debug!(
+                "Yahoo raw search failed for '{}': {}. Falling back to connector API",
+                query, e
+            ),
+        }
+
+        let result = self
+            .connector
+            .search_ticker(&encoded_query)
+            .await
+            .map_err(|e| MarketDataError::ProviderError {
+                provider: "YAHOO".to_string(),
+                message: e.to_string(),
+            })?;
+
+        let search_results = result
+            .quotes
+            .iter()
+            .map(|item| {
+                let mut r = SearchResult::new(
+                    &item.symbol,
+                    &item.long_name,
+                    &item.exchange,
+                    &item.quote_type,
+                )
+                .with_score(item.score)
+                .with_data_source("YAHOO");
+                if let Some(mic) = yahoo_exchange_to_mic(&item.exchange) {
+                    r = r.with_exchange_mic(mic.into_owned());
+                }
+                r
+            })
+            .collect();
+
+        Ok(search_results)
+    }
 }
 
 // ============================================================================
@@ -1022,51 +1072,21 @@ impl MarketDataProvider for YahooProvider {
     }
 
     async fn search(&self, query: &str) -> Result<Vec<SearchResult>, MarketDataError> {
-        let encoded_query = encode(query);
+        let mut last_error = None;
 
-        debug!("Searching Yahoo for '{}'", query);
-
-        // First try raw endpoint parsing so we can preserve currency (e.g., GBP vs GBp on LSE ETFs).
-        match self.search_raw_with_currency(&encoded_query).await {
-            Ok(results) if !results.is_empty() => return Ok(results),
-            Ok(_) => debug!(
-                "Yahoo raw search returned no quotes for '{}', falling back to connector API",
-                query
-            ),
-            Err(e) => debug!(
-                "Yahoo raw search failed for '{}': {}. Falling back to connector API",
-                query, e
-            ),
+        for provider_query in yahoo_equity_search_queries(query) {
+            match self.search_single(&provider_query).await {
+                Ok(results) if !results.is_empty() => return Ok(results),
+                Ok(_) => {}
+                Err(e) => last_error = Some(e),
+            }
         }
 
-        let result = self
-            .connector
-            .search_ticker(&encoded_query)
-            .await
-            .map_err(|e| MarketDataError::ProviderError {
-                provider: "YAHOO".to_string(),
-                message: e.to_string(),
-            })?;
-
-        let search_results = result
-            .quotes
-            .iter()
-            .map(|item| {
-                let mut r = SearchResult::new(
-                    &item.symbol,
-                    &item.long_name,
-                    &item.exchange,
-                    &item.quote_type,
-                )
-                .with_score(item.score);
-                if let Some(mic) = yahoo_exchange_to_mic(&item.exchange) {
-                    r = r.with_exchange_mic(mic.into_owned());
-                }
-                r
-            })
-            .collect();
-
-        Ok(search_results)
+        if let Some(error) = last_error {
+            Err(error)
+        } else {
+            Ok(vec![])
+        }
     }
 
     async fn get_profile(&self, symbol: &str) -> Result<AssetProfile, MarketDataError> {
@@ -1432,6 +1452,26 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name, "BARC.L");
         assert_eq!(results[0].currency, None);
+    }
+
+    #[test]
+    fn test_yahoo_search_queries_prefers_share_class_alias() {
+        assert_eq!(
+            yahoo_equity_search_queries("BRK.B"),
+            vec!["BRK-B".to_string(), "BRK.B".to_string()]
+        );
+        assert_eq!(
+            yahoo_equity_search_queries("SHOP.TO"),
+            vec!["SHOP.TO".to_string()]
+        );
+        assert_eq!(
+            yahoo_equity_search_queries("VOD.L"),
+            vec!["VOD.L".to_string()]
+        );
+        assert_eq!(
+            yahoo_equity_search_queries("AAPL"),
+            vec!["AAPL".to_string()]
+        );
     }
 
     #[test]

@@ -122,13 +122,18 @@ export {
   updateSettings,
   isAutoUpdateCheckEnabled,
   backupDatabase,
+  deleteDatabaseBackup,
+  getDatabaseBackupDownloadUrl,
+  listDatabaseBackups,
   backupDatabaseToPath,
+  backupDatabaseToPendingExport,
   restoreDatabase,
   getAppInfo,
   checkForUpdates,
   installUpdate,
   getPlatform,
 } from "./settings";
+export type { DatabaseBackup } from "./settings";
 
 // Addon Commands (platform-specific)
 export {
@@ -184,6 +189,7 @@ export {
   openFolderDialog,
   openDatabaseFileDialog,
   openFileSaveDialog,
+  saveAppDataFileViaPicker,
   openUrlInBrowser,
 } from "./files";
 

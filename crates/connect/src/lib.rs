@@ -8,6 +8,7 @@ pub mod broker;
 pub mod broker_ingest;
 pub mod client;
 pub mod platform;
+mod request_metadata;
 pub mod token_lifecycle;
 
 // Re-export commonly used types

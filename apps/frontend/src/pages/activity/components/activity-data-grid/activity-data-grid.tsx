@@ -9,6 +9,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { resolveSymbolQuote } from "@/adapters";
 import { CreateCustomAssetDialog } from "@/components/create-custom-asset-dialog";
 import { ActivityType } from "@/lib/constants";
+import { isManualSearchResult, quoteModeFromSearchResult } from "@/lib/asset-utils";
 import { generateId } from "@/lib/id";
 import { LinkTransferModal } from "../link-transfer-modal";
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
@@ -44,22 +45,11 @@ interface ActivityDataGridProps {
   onPageSizeChange: (pageSize: number) => void;
 }
 
-function shouldApplyResolvedQuoteCurrency(result: SymbolSearchResult): boolean {
-  if (result.isExisting || result.dataSource === "MANUAL") {
+function canUseResolvedCurrency(result: SymbolSearchResult): boolean {
+  if (result.isExisting || isManualSearchResult(result)) {
     return false;
   }
-  return (
-    !result.currency?.trim() ||
-    result.currencySource === "exchange_inferred" ||
-    !result.currencySource
-  );
-}
-
-function shouldApplyResolvedActivityCurrency(result: SymbolSearchResult): boolean {
-  if (result.isExisting || result.dataSource === "MANUAL") {
-    return false;
-  }
-  return !result.currency?.trim() || result.currencySource === "exchange_inferred";
+  return true;
 }
 
 const ACTIVITY_GRID_COLUMN_VISIBILITY_KEY = "activity-datagrid-column-visibility";
@@ -206,6 +196,8 @@ export function ActivityDataGrid({
 
       // Currency fallback: search result (from exchange) → account → base
       const provisionalCurrency = result.currency;
+      const canonicalSymbol = (result.canonicalSymbol || result.symbol).trim().toUpperCase();
+      const canonicalExchangeMic = result.canonicalExchangeMic || result.exchangeMic;
       let dirtyId: string | undefined;
 
       setLocalTransactions((prev) => {
@@ -216,9 +208,9 @@ export function ActivityDataGrid({
           const currency = provisionalCurrency ?? row.accountCurrency ?? fallbackCurrency;
           updated[rowIndex] = {
             ...row,
-            assetSymbol: result.symbol,
-            exchangeMic: result.exchangeMic,
-            assetQuoteMode: result.dataSource === "MANUAL" ? "MANUAL" : "MARKET",
+            assetSymbol: canonicalSymbol,
+            exchangeMic: canonicalExchangeMic,
+            assetQuoteMode: quoteModeFromSearchResult(result),
             currency,
             instrumentType: result.quoteType,
             pendingAssetId: result.existingAssetId,
@@ -227,6 +219,8 @@ export function ActivityDataGrid({
             pendingAssetKind: result.assetKind,
             pendingQuoteCcy: result.currency,
             pendingInstrumentType: result.quoteType,
+            pendingProviderId: result.providerId,
+            pendingProviderSymbol: result.providerSymbol,
           };
         }
         return updated;
@@ -237,13 +231,12 @@ export function ActivityDataGrid({
 
       // Resolve quote to confirm currency and get latest price
       if (result.dataSource !== "MANUAL") {
-        const shouldUseResolvedQuoteCurrency = shouldApplyResolvedQuoteCurrency(result);
-        const shouldUseResolvedActivityCurrency = shouldApplyResolvedActivityCurrency(result);
+        const shouldUseResolvedCurrency = canUseResolvedCurrency(result);
         resolveSymbolQuote(
-          result.symbol,
-          result.exchangeMic,
+          canonicalSymbol,
+          canonicalExchangeMic,
           result.quoteType,
-          undefined,
+          result.providerId,
           result.currency,
         ).then((resolved) => {
           if (requestId !== latestResolveRequestId.current) return;
@@ -259,13 +252,10 @@ export function ActivityDataGrid({
 
             const changes: Partial<LocalTransaction> = {};
 
-            // Update currency from resolved quote to correct exchange-inferred values
-            // (e.g., search returns "GBp" inferred, resolve confirms "GBP")
-            // Only overwrite if user hasn't manually changed it since selection
-            if (resolved.currency && shouldUseResolvedQuoteCurrency) {
+            // Update currency from resolved quote only if the user has not edited it since selection.
+            if (resolved.currency && shouldUseResolvedCurrency) {
               const confirmedCurrency = resolved.currency.trim();
               if (
-                shouldUseResolvedActivityCurrency &&
                 confirmedCurrency &&
                 row.currency !== confirmedCurrency &&
                 row.currency === (provisionalCurrency ?? row.accountCurrency ?? fallbackCurrency)
@@ -309,6 +299,8 @@ export function ActivityDataGrid({
       if (rowIndex < 0) return;
 
       // Update the transaction with the symbol and asset metadata
+      const canonicalSymbol = (result.canonicalSymbol || result.symbol).trim().toUpperCase();
+      const canonicalExchangeMic = result.canonicalExchangeMic || result.exchangeMic;
       let dirtyId: string | undefined;
       setLocalTransactions((prev) => {
         const updated = [...prev];
@@ -318,8 +310,8 @@ export function ActivityDataGrid({
           const currency = result.currency ?? row.accountCurrency ?? fallbackCurrency;
           updated[rowIndex] = {
             ...row,
-            assetSymbol: result.symbol,
-            exchangeMic: result.exchangeMic,
+            assetSymbol: canonicalSymbol,
+            exchangeMic: canonicalExchangeMic,
             assetQuoteMode: "MANUAL",
             currency,
             instrumentType: result.quoteType,
@@ -328,6 +320,8 @@ export function ActivityDataGrid({
             pendingAssetKind: result.assetKind,
             pendingQuoteCcy: result.currency,
             pendingInstrumentType: result.quoteType,
+            pendingProviderId: result.providerId,
+            pendingProviderSymbol: result.providerSymbol,
           };
         }
         return updated;

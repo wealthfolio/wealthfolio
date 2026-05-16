@@ -7,28 +7,19 @@ use std::{
 use tokio::sync::Mutex;
 
 use crate::{
-    api::shared::{normalize_file_path, process_portfolio_job, PortfolioJobConfig},
+    api::shared::{process_portfolio_job, PortfolioJobConfig},
     error::ApiResult,
     main_lib::AppState,
 };
-use anyhow::Context;
-use axum::{
-    extract::State,
-    http::StatusCode,
-    routing::{get, post},
-    Json, Router,
-};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use axum::{extract::State, routing::get, Json, Router};
 use reqwest::StatusCode as HttpStatusCode;
 use semver::Version;
 use serde::Deserialize;
-use tokio::{fs, task};
 use wealthfolio_core::{
     portfolio::{snapshot::SnapshotRecalcMode, valuation::ValuationRecalcMode},
     quotes::MarketSyncMode,
     settings::{Settings, SettingsServiceTrait, SettingsUpdate},
 };
-use wealthfolio_storage_sqlite::db;
 
 async fn get_settings(State(state): State<Arc<AppState>>) -> ApiResult<Json<Settings>> {
     let s = state.settings_service.get_settings()?;
@@ -275,101 +266,6 @@ async fn check_update(
     Ok(Json(result))
 }
 
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct BackupDatabaseResponse {
-    filename: String,
-    data_b64: String,
-}
-
-async fn backup_database_route(
-    State(state): State<Arc<AppState>>,
-) -> ApiResult<Json<BackupDatabaseResponse>> {
-    let data_root = state.data_root.clone();
-    let backup_path = task::spawn_blocking(move || db::backup_database(&data_root))
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to execute backup task: {}", e))??;
-
-    let filename = StdPath::new(&backup_path)
-        .file_name()
-        .and_then(|f| f.to_str())
-        .ok_or_else(|| anyhow::anyhow!("Invalid backup filename"))?
-        .to_string();
-
-    let bytes = fs::read(&backup_path)
-        .await
-        .with_context(|| format!("Failed to read backup file {}", backup_path))?;
-
-    let data_b64 = BASE64.encode(&bytes);
-    Ok(Json(BackupDatabaseResponse { filename, data_b64 }))
-}
-
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct BackupToPathBody {
-    #[serde(rename = "backupDir")]
-    backup_dir: String,
-}
-
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct BackupToPathResponse {
-    path: String,
-}
-
-async fn backup_database_to_path_route(
-    State(state): State<Arc<AppState>>,
-    Json(body): Json<BackupToPathBody>,
-) -> ApiResult<Json<BackupToPathResponse>> {
-    let data_root = state.data_root.clone();
-    let target_dir = body.backup_dir.clone();
-
-    let backup_path = task::spawn_blocking(move || -> anyhow::Result<String> {
-        let normalized_backup_dir = normalize_file_path(&target_dir);
-
-        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-        let backup_filename = format!("wealthfolio_backup_{}.db", timestamp);
-        let backup_path = StdPath::new(&normalized_backup_dir).join(&backup_filename);
-
-        let backup_path_str = backup_path
-            .to_str()
-            .ok_or_else(|| anyhow::anyhow!("Invalid backup path"))?
-            .to_string();
-
-        db::backup_database_to_file(&data_root, &backup_path_str)
-            .with_context(|| format!("Failed to create backup file {}", backup_path_str))?;
-
-        Ok(backup_path_str)
-    })
-    .await
-    .map_err(|e| anyhow::anyhow!("Failed to execute backup-to-path task: {}", e))??;
-
-    Ok(Json(BackupToPathResponse { path: backup_path }))
-}
-
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RestoreBody {
-    #[serde(rename = "backupFilePath")]
-    backup_file_path: String,
-}
-
-async fn restore_database_route(
-    State(state): State<Arc<AppState>>,
-    Json(body): Json<RestoreBody>,
-) -> ApiResult<StatusCode> {
-    let data_root = state.data_root.clone();
-    task::spawn_blocking(move || {
-        let normalized_path = normalize_file_path(&body.backup_file_path);
-        db::restore_database_safe(&data_root, &normalized_path)
-            .with_context(|| format!("Failed to restore database from {}", normalized_path))
-    })
-    .await
-    .map_err(|e| anyhow::anyhow!("Failed to execute restore task: {}", e))??;
-
-    Ok(StatusCode::NO_CONTENT)
-}
-
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/settings", get(get_settings).put(update_settings))
@@ -379,10 +275,4 @@ pub fn router() -> Router<Arc<AppState>> {
         )
         .route("/app/info", get(get_app_info))
         .route("/app/check-update", get(check_update))
-        .route("/utilities/database/backup", post(backup_database_route))
-        .route(
-            "/utilities/database/backup-to-path",
-            post(backup_database_to_path_route),
-        )
-        .route("/utilities/database/restore", post(restore_database_route))
 }

@@ -2,7 +2,16 @@
 // Main component that orchestrates the pairing flow (issuer and claimer)
 // =====================================================================
 
-import { backupDatabase, logger, openFileSaveDialog } from "@/adapters";
+import {
+  backupDatabase,
+  backupDatabaseToPath,
+  backupDatabaseToPendingExport,
+  isWeb,
+  logger,
+  openFolderDialog,
+  saveAppDataFileViaPicker,
+} from "@/adapters";
+import { getPlatform as getRuntimePlatform } from "@/hooks/use-platform";
 import { Icons } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { useEffect, useRef, useCallback, useState } from "react";
@@ -194,9 +203,25 @@ function ClaimerFlow({ onComplete, onCancel, title, description }: PairingFlowPr
     setIsBackingUp(true);
     setBackupError(null);
     try {
-      const { filename, data } = await backupDatabase();
-      const saved = await openFileSaveDialog(data, filename);
-      if (!saved) return;
+      if (isWeb) {
+        await backupDatabase();
+      } else {
+        const runtimePlatform = await getRuntimePlatform();
+        if (runtimePlatform.is_desktop) {
+          const selectedDir = await openFolderDialog();
+          if (!selectedDir) return;
+          await backupDatabaseToPath(selectedDir);
+        } else {
+          if (runtimePlatform.os !== "ios") {
+            throw new Error(
+              "Backup before device sync is currently supported on desktop, web, and iOS only",
+            );
+          }
+          const { relativePath, filename } = await backupDatabaseToPendingExport();
+          const saved = await saveAppDataFileViaPicker(relativePath, filename);
+          if (!saved) return;
+        }
+      }
       await approveOverwrite();
     } catch (err) {
       setBackupError(err instanceof Error ? err.message : "Backup failed");

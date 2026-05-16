@@ -14,6 +14,10 @@ export interface LocalTransaction extends ActivityDetails {
   pendingQuoteCcy?: string;
   /** Pending symbol instrument type hint from search/provider (e.g., "EQUITY") */
   pendingInstrumentType?: string;
+  /** Pending provider that resolved this symbol. */
+  pendingProviderId?: string;
+  /** Pending provider-native symbol/code from search/provider. */
+  pendingProviderSymbol?: string;
   /** Persisted asset id selected from symbol search, if the result already exists */
   pendingAssetId?: string;
   /** Whether this transfer is external (from/to outside tracked accounts). Stored in metadata.flow.is_external */

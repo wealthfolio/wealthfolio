@@ -26,16 +26,19 @@ use super::sync_state::{QuoteSyncState, SymbolSyncPlan, SyncCategory, SyncMode, 
 use super::types::{quote_id, AssetId, Day, QuoteSource};
 use crate::activities::ActivityRepositoryTrait;
 use crate::assets::{
-    canonicalize_market_identity, normalize_quote_ccy_code, parse_crypto_pair_symbol,
-    symbol_resolution_candidates, Asset, AssetKind, AssetRepositoryTrait, AssetSpec,
-    InstrumentType, ProviderProfile, QuoteMode,
+    asset_provider_alias_symbols, canonicalize_market_identity, normalize_quote_ccy_code,
+    parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix, symbol_resolution_candidates,
+    Asset, AssetKind, AssetRepositoryTrait, AssetSpec, InstrumentType, ProviderProfile, QuoteMode,
 };
 use crate::errors::Result;
 use crate::fx::currency::{get_normalization_rule, normalize_currency_code};
 use crate::portfolio::snapshot::is_quantity_significant;
 use crate::secrets::SecretStore;
 
-use wealthfolio_market_data::{exchanges_for_currency, mic_to_exchange_name};
+use wealthfolio_market_data::{
+    exchanges_for_currency, mic_to_exchange_name, yahoo_equity_provider_symbol_to_canonical,
+    ExchangeMap,
+};
 
 /// Provider information combining static info with settings.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -112,8 +115,14 @@ fn instrument_key_from_search_result(result: &SymbolSearchResult) -> Option<Stri
     let instrument_type = instrument_type_from_search_result(&result.quote_type)?;
     let canonical = canonicalize_market_identity(
         Some(instrument_type.clone()),
-        Some(result.symbol.as_str()),
-        result.exchange_mic.as_deref(),
+        result
+            .canonical_symbol
+            .as_deref()
+            .or(Some(result.symbol.as_str())),
+        result
+            .canonical_exchange_mic
+            .as_deref()
+            .or(result.exchange_mic.as_deref()),
         result.currency.as_deref(),
     );
 
@@ -128,9 +137,83 @@ fn instrument_key_from_search_result(result: &SymbolSearchResult) -> Option<Stri
         kind: AssetKind::Investment,
         quote_mode: None,
         name: None,
+        provider_config: None,
+        provider_id: None,
+        provider_symbol: None,
         metadata: None,
     }
     .instrument_key()
+}
+
+fn local_search_identity(query: &str) -> Option<(String, Option<&'static str>)> {
+    let query = query.trim();
+    if query.is_empty() {
+        return None;
+    }
+
+    let (base_symbol, suffix_mic) = parse_symbol_with_exchange_suffix(query);
+    let canonical_symbol = yahoo_equity_provider_symbol_to_canonical(base_symbol);
+    let canonical_symbol = canonical_symbol.trim();
+    if canonical_symbol.is_empty() {
+        return None;
+    }
+
+    Some((canonical_symbol.to_string(), suffix_mic))
+}
+
+fn asset_matches_local_search_identity(
+    asset: &Asset,
+    canonical_symbol: &str,
+    exchange_mic: Option<&str>,
+) -> bool {
+    let Some(asset_symbol) = asset.instrument_symbol.as_deref() else {
+        return false;
+    };
+    if !asset_symbol.eq_ignore_ascii_case(canonical_symbol) {
+        return false;
+    }
+
+    match exchange_mic {
+        Some(expected) => asset
+            .instrument_exchange_mic
+            .as_deref()
+            .is_some_and(|actual| actual.eq_ignore_ascii_case(expected)),
+        None => true,
+    }
+}
+
+fn asset_search_display_symbol(asset: &Asset) -> String {
+    let stored_display = asset
+        .display_code
+        .clone()
+        .or_else(|| asset.instrument_symbol.clone())
+        .unwrap_or_default();
+    let Some(instrument_symbol) = asset.instrument_symbol.as_deref().map(str::trim) else {
+        return stored_display;
+    };
+    if !matches!(asset.instrument_type.as_ref(), Some(InstrumentType::Equity))
+        || instrument_symbol.is_empty()
+        || !stored_display
+            .trim()
+            .eq_ignore_ascii_case(instrument_symbol)
+    {
+        return stored_display;
+    }
+
+    let suffix = asset.instrument_exchange_mic.as_deref().and_then(|mic| {
+        ExchangeMap::new()
+            .get_suffix(
+                &std::borrow::Cow::Owned(mic.to_string()),
+                &std::borrow::Cow::Borrowed("YAHOO"),
+            )
+            .filter(|suffix| !suffix.is_empty())
+            .map(str::to_string)
+    });
+
+    match suffix {
+        Some(suffix) => format!("{instrument_symbol}{suffix}"),
+        None => stored_display,
+    }
 }
 
 fn extract_provider_id_from_sync_error(error: &str) -> Option<&'static str> {
@@ -687,16 +770,21 @@ where
             None => "OTHER",
         };
 
-        let display = asset
+        let stored_display = asset
             .display_code
             .clone()
             .or_else(|| asset.instrument_symbol.clone())
             .unwrap_or_default();
+        let display = asset_search_display_symbol(asset);
 
         SymbolSearchResult {
             symbol: display.clone(),
-            short_name: asset.name.clone().unwrap_or_else(|| display.clone()),
-            long_name: asset.name.clone().unwrap_or(display),
+            canonical_symbol: asset.instrument_symbol.clone(),
+            canonical_exchange_mic: asset.instrument_exchange_mic.clone(),
+            provider_id: asset.preferred_provider(),
+            provider_symbol: None,
+            short_name: asset.name.clone().unwrap_or_else(|| stored_display.clone()),
+            long_name: asset.name.clone().unwrap_or(stored_display),
             exchange: exchange_name.clone().unwrap_or_default(),
             exchange_mic: asset.instrument_exchange_mic.clone(),
             exchange_name,
@@ -704,9 +792,12 @@ where
             type_display: quote_type.to_string(),
             currency: Some(asset.quote_ccy.clone()),
             currency_source: None,
-            data_source: asset
-                .preferred_provider()
-                .or_else(|| Some(DATA_SOURCE_MANUAL.to_string())),
+            data_source: if asset.quote_mode == QuoteMode::Manual {
+                Some(DATA_SOURCE_MANUAL.to_string())
+            } else {
+                asset.preferred_provider()
+            },
+            quote_mode: Some(asset.quote_mode.as_db_str().to_string()),
             is_existing: true,
             existing_asset_id: Some(asset.id.clone()),
             index: String::new(),
@@ -1104,7 +1195,51 @@ where
         account_currency: Option<&str>,
     ) -> Result<Vec<SymbolSearchResult>> {
         // 1. Search existing assets in user's database
-        let existing_assets = self.asset_repo.search_by_symbol(query).unwrap_or_default();
+        let mut existing_assets = self.asset_repo.search_by_symbol(query).unwrap_or_default();
+        if let Some((canonical_symbol, exchange_mic)) = local_search_identity(query) {
+            let query_trimmed = query.trim();
+            if !canonical_symbol.eq_ignore_ascii_case(query_trimmed) || exchange_mic.is_some() {
+                let mut seen_asset_ids: HashSet<String> = existing_assets
+                    .iter()
+                    .map(|asset| asset.id.clone())
+                    .collect();
+                for asset in self
+                    .asset_repo
+                    .search_by_symbol(&canonical_symbol)
+                    .unwrap_or_default()
+                {
+                    if seen_asset_ids.contains(&asset.id)
+                        || !asset_matches_local_search_identity(
+                            &asset,
+                            &canonical_symbol,
+                            exchange_mic,
+                        )
+                    {
+                        continue;
+                    }
+                    seen_asset_ids.insert(asset.id.clone());
+                    existing_assets.push(asset);
+                }
+            }
+        }
+        let query_trimmed = query.trim();
+        if !query_trimmed.is_empty() {
+            let mut seen_asset_ids: HashSet<String> = existing_assets
+                .iter()
+                .map(|asset| asset.id.clone())
+                .collect();
+            for asset in self.asset_repo.list().unwrap_or_default() {
+                if seen_asset_ids.contains(&asset.id)
+                    || !asset_provider_alias_symbols(&asset)
+                        .iter()
+                        .any(|alias| alias.eq_ignore_ascii_case(query_trimmed))
+                {
+                    continue;
+                }
+                seen_asset_ids.insert(asset.id.clone());
+                existing_assets.push(asset);
+            }
+        }
 
         // 2. Search provider for external results
         let provider_results = self
@@ -2079,82 +2214,14 @@ where
 ///
 /// # Returns
 /// The Yahoo Finance suffix without the dot (e.g., "TO") if known, or None.
-fn mic_to_yahoo_suffix(mic: &str) -> Option<&'static str> {
-    match mic {
-        // North America
-        "XTSE" => Some("TO"), // Toronto Stock Exchange
-        "XTSX" => Some("V"),  // TSX Venture
-        "XCNQ" => Some("CN"), // Canadian Securities Exchange
-        "XMEX" => Some("MX"), // Mexican Stock Exchange
-        // UK & Ireland
-        "XLON" => Some("L"),  // London Stock Exchange
-        "XDUB" => Some("IR"), // Dublin
-        // Germany
-        "XETR" => Some("DE"), // XETRA
-        "XFRA" => Some("F"),  // Frankfurt
-        "XSTU" => Some("SG"), // Stuttgart
-        "XHAM" => Some("HM"), // Hamburg
-        "XDUS" => Some("DU"), // Dusseldorf
-        "XMUN" => Some("MU"), // Munich
-        "XBER" => Some("BE"), // Berlin
-        "XHAN" => Some("HA"), // Hanover
-        // Euronext
-        "XPAR" => Some("PA"), // Paris
-        "XAMS" => Some("AS"), // Amsterdam
-        "XBRU" => Some("BR"), // Brussels
-        "XLIS" => Some("LS"), // Lisbon
-        // Southern Europe
-        "XMIL" => Some("MI"), // Milan
-        "XMAD" => Some("MC"), // Madrid
-        "XATH" => Some("AT"), // Athens
-        // Nordic
-        "XSTO" => Some("ST"), // Stockholm
-        "XHEL" => Some("HE"), // Helsinki
-        "XCSE" => Some("CO"), // Copenhagen
-        "XOSL" => Some("OL"), // Oslo
-        "XICE" => Some("IC"), // Iceland
-        // Central/Eastern Europe
-        "XSWX" => Some("SW"), // Swiss Exchange
-        "XWBO" => Some("VI"), // Vienna
-        "XWAR" => Some("WA"), // Warsaw
-        "XPRA" => Some("PR"), // Prague
-        "XBUD" => Some("BD"), // Budapest
-        "XIST" => Some("IS"), // Istanbul
-        // Asia - China & Hong Kong
-        "XSHG" => Some("SS"), // Shanghai
-        "XSHE" => Some("SZ"), // Shenzhen
-        "XHKG" => Some("HK"), // Hong Kong
-        // Asia - Japan & Korea
-        "XTKS" => Some("T"),  // Tokyo
-        "XKRX" => Some("KS"), // Korea (KOSPI)
-        "XKOS" => Some("KQ"), // Korea (KOSDAQ)
-        // Southeast Asia
-        "XSES" => Some("SI"), // Singapore
-        "XBKK" => Some("BK"), // Bangkok
-        "XIDX" => Some("JK"), // Jakarta
-        "XKLS" => Some("KL"), // Kuala Lumpur
-        // India
-        "XBOM" => Some("BO"), // Bombay
-        "XNSE" => Some("NS"), // National Stock Exchange India
-        // Taiwan
-        "XTAI" => Some("TW"), // Taiwan
-        // Oceania
-        "XASX" => Some("AX"), // Australia
-        "XNZE" => Some("NZ"), // New Zealand
-        // South America
-        "BVMF" => Some("SA"), // Brazil (B3)
-        "XBUE" => Some("BA"), // Buenos Aires
-        "XSGO" => Some("SN"), // Santiago
-        // Middle East
-        "XTAE" => Some("TA"),  // Tel Aviv
-        "XSAU" => Some("SAU"), // Saudi Arabia
-        "XDFM" => Some("AE"),  // Dubai Financial Market
-        "DSMD" => Some("QA"),  // Qatar
-        // Africa
-        "XJSE" => Some("JO"), // Johannesburg
-        "XCAI" => Some("CA"), // Cairo
-        _ => None,
-    }
+fn mic_to_yahoo_suffix(mic: &str) -> Option<String> {
+    ExchangeMap::new()
+        .get_suffix(
+            &std::borrow::Cow::Owned(mic.to_string()),
+            &std::borrow::Cow::Borrowed("YAHOO"),
+        )
+        .and_then(|suffix| suffix.strip_prefix('.'))
+        .map(str::to_string)
 }
 
 // =============================================================================
@@ -2335,6 +2402,159 @@ mod tests {
             instrument_key_from_search_result(&result).as_deref(),
             Some("EQUITY:SHOP@XTSE")
         );
+    }
+
+    #[test]
+    fn test_local_search_identity_canonicalizes_provider_symbols() {
+        assert_eq!(
+            local_search_identity("SHOP.TO"),
+            Some(("SHOP".to_string(), Some("XTSE")))
+        );
+        assert_eq!(
+            local_search_identity("BRK-B"),
+            Some(("BRK.B".to_string(), None))
+        );
+    }
+
+    #[test]
+    fn test_local_search_identity_matches_canonical_asset_exchange() {
+        let shop_tsx = Asset {
+            instrument_symbol: Some("SHOP".to_string()),
+            instrument_exchange_mic: Some("XTSE".to_string()),
+            ..Default::default()
+        };
+        let shop_nyse = Asset {
+            instrument_symbol: Some("SHOP".to_string()),
+            instrument_exchange_mic: Some("XNYS".to_string()),
+            ..Default::default()
+        };
+        let (canonical_symbol, exchange_mic) = local_search_identity("SHOP.TO").unwrap();
+
+        assert!(asset_matches_local_search_identity(
+            &shop_tsx,
+            &canonical_symbol,
+            exchange_mic
+        ));
+        assert!(!asset_matches_local_search_identity(
+            &shop_nyse,
+            &canonical_symbol,
+            exchange_mic
+        ));
+    }
+
+    #[test]
+    fn test_mic_to_yahoo_suffix_uses_market_data_registry() {
+        assert_eq!(mic_to_yahoo_suffix("CXE").as_deref(), Some("XC"));
+        assert_eq!(mic_to_yahoo_suffix("XETR").as_deref(), Some("DE"));
+    }
+
+    #[test]
+    fn test_asset_search_summary_displays_exchange_qualified_symbol() {
+        let asset = Asset {
+            id: "shop-tsx".to_string(),
+            name: Some("Shopify Inc.".to_string()),
+            display_code: Some("SHOP".to_string()),
+            instrument_symbol: Some("SHOP".to_string()),
+            instrument_exchange_mic: Some("XTSE".to_string()),
+            instrument_type: Some(InstrumentType::Equity),
+            quote_ccy: "CAD".to_string(),
+            provider_config: Some(serde_json::json!({ "preferred_provider": "YAHOO" })),
+            ..Default::default()
+        };
+
+        let result = QuoteService::<
+            NoopQuoteStore,
+            MockSyncStateStore,
+            MockProviderSettingsStore,
+            NoopAssetRepository,
+            NoopActivityRepository,
+        >::asset_to_quote_summary(&asset);
+
+        assert_eq!(result.symbol, "SHOP.TO");
+        assert_eq!(result.canonical_symbol.as_deref(), Some("SHOP"));
+        assert_eq!(result.canonical_exchange_mic.as_deref(), Some("XTSE"));
+        assert_eq!(result.provider_id.as_deref(), Some("YAHOO"));
+
+        let metal = Asset {
+            id: "gold-spot".to_string(),
+            name: Some("Gold".to_string()),
+            display_code: Some("XAU".to_string()),
+            instrument_symbol: Some("XAU".to_string()),
+            instrument_exchange_mic: None,
+            instrument_type: Some(InstrumentType::Metal),
+            quote_ccy: "USD".to_string(),
+            provider_config: Some(serde_json::json!({
+                "preferred_provider": "METAL_PRICE_API",
+                "overrides": {
+                    "METAL_PRICE_API": {
+                        "type": "metal_symbol",
+                        "symbol": "XAU-1KG",
+                        "quote": "USD"
+                    }
+                }
+            })),
+            ..Default::default()
+        };
+
+        let result = QuoteService::<
+            NoopQuoteStore,
+            MockSyncStateStore,
+            MockProviderSettingsStore,
+            NoopAssetRepository,
+            NoopActivityRepository,
+        >::asset_to_quote_summary(&metal);
+
+        assert_eq!(result.symbol, "XAU");
+        assert_eq!(result.canonical_symbol.as_deref(), Some("XAU"));
+        assert_eq!(result.canonical_exchange_mic, None);
+    }
+
+    #[test]
+    fn test_market_asset_without_provider_stays_market_in_search_summary() {
+        let asset = Asset {
+            id: "aapl".to_string(),
+            name: Some("Apple Inc.".to_string()),
+            display_code: Some("AAPL".to_string()),
+            instrument_symbol: Some("AAPL".to_string()),
+            instrument_exchange_mic: Some("XNAS".to_string()),
+            instrument_type: Some(InstrumentType::Equity),
+            quote_mode: QuoteMode::Market,
+            quote_ccy: "USD".to_string(),
+            provider_config: None,
+            ..Default::default()
+        };
+
+        let result = QuoteService::<
+            NoopQuoteStore,
+            MockSyncStateStore,
+            MockProviderSettingsStore,
+            NoopAssetRepository,
+            NoopActivityRepository,
+        >::asset_to_quote_summary(&asset);
+
+        assert_eq!(result.data_source, None);
+        assert_eq!(result.quote_mode.as_deref(), Some("MARKET"));
+    }
+
+    #[test]
+    fn test_asset_provider_alias_symbols_include_provider_overrides() {
+        let asset = Asset {
+            instrument_symbol: Some("ACME".to_string()),
+            instrument_exchange_mic: Some("XNYS".to_string()),
+            instrument_type: Some(InstrumentType::Equity),
+            quote_ccy: "USD".to_string(),
+            provider_config: Some(serde_json::json!({
+                "preferred_provider": "YAHOO",
+                "overrides": {
+                    "YAHOO": { "type": "equity_symbol", "symbol": "ACME-OLD" }
+                }
+            })),
+            ..Default::default()
+        };
+
+        let aliases = asset_provider_alias_symbols(&asset);
+
+        assert!(aliases.iter().any(|alias| alias == "ACME-OLD"));
     }
 
     #[derive(Default)]
@@ -2717,7 +2937,7 @@ mod tests {
         }
 
         fn list(&self) -> Result<Vec<Asset>> {
-            unimplemented!("unused in this test")
+            Ok(Vec::new())
         }
 
         fn list_by_asset_ids(&self, _asset_ids: &[String]) -> Result<Vec<Asset>> {

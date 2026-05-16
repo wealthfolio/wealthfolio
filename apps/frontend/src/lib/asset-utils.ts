@@ -1,4 +1,5 @@
 import type { SymbolSearchResult } from "./types";
+import { DataSource, QuoteMode } from "./constants";
 
 /**
  * Common crypto symbols for heuristic detection
@@ -20,6 +21,34 @@ const COMMON_CRYPTO_SYMBOLS = new Set([
   "XLM",
   "ALGO",
 ]);
+
+export function quoteModeFromSearchResult(
+  searchResult: Pick<SymbolSearchResult, "quoteMode" | "dataSource"> | undefined,
+): QuoteMode {
+  const explicitMode = searchResult?.quoteMode?.trim().toUpperCase();
+  if (explicitMode === QuoteMode.MANUAL) return QuoteMode.MANUAL;
+  if (explicitMode === QuoteMode.MARKET) return QuoteMode.MARKET;
+  return searchResult?.dataSource === DataSource.MANUAL ? QuoteMode.MANUAL : QuoteMode.MARKET;
+}
+
+export function isManualSearchResult(
+  searchResult: Pick<SymbolSearchResult, "quoteMode" | "dataSource"> | undefined,
+): boolean {
+  return quoteModeFromSearchResult(searchResult) === QuoteMode.MANUAL;
+}
+
+export function stripCryptoQuoteSuffix(symbol: string, currencyHint?: string): string {
+  const trimmed = symbol.trim().toUpperCase();
+  const match = /^(.*)-([A-Z]{3,5})$/.exec(trimmed);
+  if (!match) return trimmed;
+  const base = match[1]?.trim();
+  const quote = match[2]?.trim().toUpperCase();
+  const hint = currencyHint?.trim().toUpperCase();
+  if (hint && quote !== hint) {
+    return trimmed;
+  }
+  return base || trimmed;
+}
 
 /**
  * Infers whether a search result is equity, crypto, or other.
@@ -77,23 +106,25 @@ export function getAssetIdFromSearchResult(
 
   // Legacy fallback: build a prefix-based ID for assets not yet in the DB
   const currency = searchResult.currency ?? defaultCurrency;
+  const identitySymbol = (searchResult.canonicalSymbol || searchResult.symbol).trim().toUpperCase();
+  const identityExchangeMic = searchResult.canonicalExchangeMic || searchResult.exchangeMic;
   const type = inferInstrumentType(
-    searchResult.symbol,
+    identitySymbol,
     searchResult.quoteType,
     searchResult.assetKind,
-    searchResult.exchangeMic,
+    identityExchangeMic,
   );
 
-  const normalizedSymbol = searchResult.symbol.trim().toUpperCase();
   switch (type) {
     case "CRYPTO": {
       const normalizedCurrency = currency.trim().toUpperCase();
+      const normalizedSymbol = stripCryptoQuoteSuffix(identitySymbol, normalizedCurrency);
       return `CRYPTO:${normalizedSymbol}:${normalizedCurrency}`;
     }
     case "EQUITY":
     default: {
-      const mic = searchResult.exchangeMic?.trim().toUpperCase() || "INDEX";
-      return `SEC:${normalizedSymbol}:${mic}`;
+      const mic = identityExchangeMic?.trim().toUpperCase() || "INDEX";
+      return `SEC:${identitySymbol}:${mic}`;
     }
   }
 }

@@ -1,6 +1,7 @@
 import {
   backupDatabase,
   backupDatabaseToPath,
+  backupDatabaseToPendingExport,
   getAccounts,
   getActivities,
   getGoals,
@@ -9,6 +10,7 @@ import {
   logger,
   openFileSaveDialog,
   openFolderDialog,
+  saveAppDataFileViaPicker,
 } from "@/adapters";
 import { getPlatform as getRuntimePlatform } from "@/hooks/use-platform";
 import { formatData } from "@/lib/export-utils";
@@ -87,9 +89,13 @@ export function useExportData() {
           return { mode: "sqlite", target: "local" as const, value: backupPath };
         }
 
-        // Mobile: create backup and let user pick destination file.
-        const { filename, data } = await backupDatabase();
-        const saved = await openFileSaveDialog(data, filename);
+        if (runtimePlatform.os !== "ios") {
+          throw new Error("SQLite export is currently supported on desktop, web, and iOS only");
+        }
+
+        // iOS: create backup and let user pick destination file.
+        const { relativePath, filename } = await backupDatabaseToPendingExport();
+        const saved = await saveAppDataFileViaPicker(relativePath, filename);
         if (!saved) {
           return null;
         }

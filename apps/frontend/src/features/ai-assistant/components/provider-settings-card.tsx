@@ -714,6 +714,16 @@ export function ProviderSettingsCard({
                       What data the AI can access
                     </span>
                   </div>
+                  <div className="border-border/70 bg-background/60 flex gap-2 rounded-md border px-3 py-2.5">
+                    <Icons.Info className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium">AI data sharing</p>
+                      <p className="text-muted-foreground text-xs leading-relaxed">
+                        Enabled AI tools may share relevant portfolio data and attachments with your
+                        selected AI provider when used in chat.
+                      </p>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {DATA_ACCESS_OPTIONS.map((option) => {
                       const isEnabled = isToolGroupEnabled(option.toolIds);

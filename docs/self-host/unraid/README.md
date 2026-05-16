@@ -1,8 +1,13 @@
 # Wealthfolio on Unraid
 
 Wealthfolio runs as a standard Docker container managed through Unraid's Docker
-tab. The Community Apps (CA) template lives next to this README at
-[`template.xml`](./template.xml). CA fetches it directly from the repo.
+tab.
+
+The Community Apps (CA) template is maintained in a dedicated repository so the
+CA scanner picks it up cleanly and doesn't see two competing copies:
+
+👉
+**[github.com/wealthfolio/wealthfolio-unraid](https://github.com/wealthfolio/wealthfolio-unraid)**
 
 📘 **Full setup guide:**
 [wealthfolio.app/docs/guide/self-hosting](https://wealthfolio.app/docs/guide/self-hosting)
@@ -16,13 +21,13 @@ tab. The Community Apps (CA) template lives next to this README at
 
 ### Manual sideload
 
-If CA hasn't picked up the latest template yet, sideload it from this repo. SSH
-into Unraid (or use the WebTerminal) and run:
+If CA hasn't picked up the latest template yet, sideload it directly. SSH into
+Unraid (or use the WebTerminal) and run:
 
 ```bash
 mkdir -p /boot/config/plugins/dockerMan/templates-user
 curl -fsSL \
-  https://raw.githubusercontent.com/wealthfolio/wealthfolio/main/docs/self-host/unraid/template.xml \
+  https://raw.githubusercontent.com/wealthfolio/wealthfolio-unraid/main/templates/wealthfolio.xml \
   -o /boot/config/plugins/dockerMan/templates-user/my-wealthfolio.xml
 ```
 

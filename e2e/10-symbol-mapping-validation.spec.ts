@@ -15,7 +15,10 @@ test.describe("Symbol Mapping Validation", () => {
   });
 
   test.afterAll(async () => {
-    await page.close();
+    if (!page.isClosed()) {
+      await resetTestAssetToManual().catch(() => {});
+      await page.close();
+    }
   });
 
   // ── helpers ──────────────────────────────────────────────────────────────
@@ -141,6 +144,49 @@ test.describe("Symbol Mapping Validation", () => {
     }
   }
 
+  async function findTestAssetId() {
+    const response = await page.request.get(`${BASE_URL}/api/v1/assets`);
+    if (!response.ok()) {
+      throw new Error(`Failed to load assets for cleanup: ${response.status()}`);
+    }
+
+    const assets = (await response.json()) as Array<{
+      id: string;
+      displayCode?: string | null;
+      instrumentSymbol?: string | null;
+    }>;
+
+    return assets.find(
+      (asset) => asset.displayCode === ASSET_SYMBOL || asset.instrumentSymbol === ASSET_SYMBOL,
+    )?.id;
+  }
+
+  async function resetTestAssetToManual() {
+    const assetId = await findTestAssetId();
+    if (!assetId) return;
+
+    const response = await page.request.put(`${BASE_URL}/api/v1/assets/pricing-mode/${assetId}`, {
+      data: { quoteMode: "MANUAL" },
+    });
+    if (!response.ok()) {
+      throw new Error(`Failed to reset ${ASSET_SYMBOL} to manual pricing: ${response.status()}`);
+    }
+  }
+
+  async function setOpenSheetToManualPricing() {
+    const editSheet = page.getByRole("dialog").first();
+    const pricingSwitch = editSheet.getByRole("switch").first();
+    if (!(await pricingSwitch.isVisible({ timeout: 2000 }).catch(() => false))) return;
+
+    const isAutomatic = (await pricingSwitch.getAttribute("aria-checked")) === "true";
+    if (!isAutomatic) return;
+
+    await pricingSwitch.click();
+    const confirmBtn = page.getByRole("button", { name: "Confirm" });
+    await expect(confirmBtn).toBeVisible({ timeout: 3000 });
+    await confirmBtn.click();
+  }
+
   async function addMappingRow(provider: string, symbol: string) {
     // Scope to the mapping table (contains "Provider" column header)
     const mappingTable = page.locator("table").filter({
@@ -215,8 +261,11 @@ test.describe("Symbol Mapping Validation", () => {
     }
     if (!found) throw new Error(`Mapping row for symbol "${symbol}" not found`);
 
-    // Save the removal
+    await setOpenSheetToManualPricing();
+
+    // Save the removal and manual pricing change together so the asset is not synced unmapped.
     await saveChanges();
+    await resetTestAssetToManual();
   }
 
   // ── setup ─────────────────────────────────────────────────────────────────

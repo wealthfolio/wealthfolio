@@ -50,7 +50,7 @@ jobs:
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: pnpm Setup
-        run: npm install -g pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -136,7 +136,7 @@ jobs:
           key: prebuild-server-linux-amd64
 
       - name: pnpm setup
-        run: npm install -g pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Sync node version and setup cache
         uses: actions/setup-node@v4

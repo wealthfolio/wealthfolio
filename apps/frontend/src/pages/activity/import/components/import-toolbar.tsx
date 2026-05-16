@@ -10,6 +10,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Icons,
+  quoteCurrencies,
+  quoteUnitCurrencies,
   worldCurrencies,
 } from "@wealthfolio/ui";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -54,7 +56,7 @@ export function ImportToolbar({
 
   // Filter currencies based on search
   const filteredCurrencies = currencySearch
-    ? worldCurrencies.filter(
+    ? quoteCurrencies.filter(
         (c) =>
           c.value.toLowerCase().includes(currencySearch.toLowerCase()) ||
           c.label.toLowerCase().includes(currencySearch.toLowerCase()),
@@ -160,6 +162,24 @@ export function ImportToolbar({
                     }}
                   >
                     <span className="font-mono">{code}</span>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <div className="text-muted-foreground px-2 py-1 text-xs font-medium">
+                  Quote Units
+                </div>
+                {quoteUnitCurrencies.map((currency) => (
+                  <DropdownMenuItem
+                    key={currency.value}
+                    onSelect={() => {
+                      onSetCurrency(currency.value);
+                      setCurrencySearch("");
+                    }}
+                  >
+                    <span className="font-mono">{currency.value}</span>
+                    <span className="text-muted-foreground ml-2 truncate text-xs">
+                      {currency.label.replace(` (${currency.value})`, "")}
+                    </span>
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />

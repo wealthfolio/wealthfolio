@@ -47,6 +47,14 @@ interface EditableHolding {
   dataSource?: string;
   /** Asset kind (e.g., "INVESTMENT", "OTHER") */
   assetKind?: string;
+  /** Quote currency returned by search/provider for the canonical asset */
+  quoteCcy?: string;
+  /** Instrument type returned by search/provider for the canonical asset */
+  instrumentType?: string;
+  /** Market data provider that resolved this symbol, if selected. */
+  providerId?: string;
+  /** Provider-native symbol/code selected by search/import. */
+  providerSymbol?: string;
   isNew?: boolean;
 }
 
@@ -214,17 +222,26 @@ export const HoldingsEditMode = ({
         return;
       }
 
+      const canonicalSymbol = (searchResult.canonicalSymbol || searchResult.symbol)
+        .trim()
+        .toUpperCase();
+      const canonicalExchangeMic = searchResult.canonicalExchangeMic || searchResult.exchangeMic;
+
       const newHolding: EditableHolding = {
         assetId,
-        symbol: searchResult.symbol,
+        symbol: canonicalSymbol,
         name: searchResult.longName || searchResult.shortName,
         quantity: "",
         averageCost: "",
         currency: searchResult.currency ?? account.currency,
-        exchangeMic: searchResult.exchangeMic,
+        exchangeMic: canonicalExchangeMic,
         dataSource: searchResult.dataSource,
         assetKind: searchResult.assetKind,
-        isNew: true,
+        quoteCcy: searchResult.currency,
+        instrumentType: searchResult.quoteType,
+        providerId: searchResult.providerId,
+        providerSymbol: searchResult.providerSymbol,
+        isNew: !searchResult.existingAssetId,
       };
       pendingHoldingSharesFocusAssetIdRef.current = assetId;
       setEditableHoldings((prev) => [...prev, newHolding]);
@@ -297,6 +314,10 @@ export const HoldingsEditMode = ({
           currency: h.currency,
           averageCost: h.averageCost || undefined,
           exchangeMic: h.isNew ? h.exchangeMic : undefined,
+          quoteCcy: h.isNew ? h.quoteCcy : undefined,
+          instrumentType: h.isNew ? h.instrumentType : undefined,
+          providerId: h.isNew ? h.providerId : undefined,
+          providerSymbol: h.isNew ? h.providerSymbol : undefined,
           name: h.isNew ? h.name : undefined,
           dataSource: h.isNew ? h.dataSource : undefined,
           assetKind: h.isNew ? h.assetKind : undefined,

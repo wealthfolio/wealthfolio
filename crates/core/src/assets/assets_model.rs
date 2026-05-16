@@ -428,12 +428,23 @@ impl Asset {
         match inst_type {
             InstrumentType::Equity => {
                 let symbol = self.instrument_symbol.as_ref()?;
+                let canonical = canonicalize_market_identity(
+                    Some(InstrumentType::Equity),
+                    Some(symbol.as_str()),
+                    self.instrument_exchange_mic.as_deref(),
+                    Some(self.quote_ccy.as_str()),
+                );
                 Some(InstrumentId::Equity {
-                    ticker: Arc::from(symbol.as_str()),
-                    mic: self
+                    ticker: Arc::from(
+                        canonical
+                            .instrument_symbol
+                            .as_deref()
+                            .unwrap_or(symbol.as_str()),
+                    ),
+                    mic: canonical
                         .instrument_exchange_mic
-                        .as_ref()
-                        .map(|s| Cow::Owned(s.clone())),
+                        .or_else(|| self.instrument_exchange_mic.clone())
+                        .map(Cow::Owned),
                 })
             }
             InstrumentType::Crypto => {
@@ -564,6 +575,10 @@ pub struct NewAsset {
 
     // Provider configuration
     pub provider_config: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_symbol: Option<String>,
 
     // Metadata
     pub notes: Option<String>,
@@ -770,6 +785,8 @@ impl From<ProviderProfile> for NewAsset {
             instrument_symbol: canonical.instrument_symbol,
             instrument_exchange_mic: canonical.instrument_exchange_mic,
             provider_config,
+            provider_id: None,
+            provider_symbol: None,
             notes: profile.notes,
             metadata,
             is_active: true,
@@ -807,6 +824,13 @@ pub struct AssetMetadata {
     pub display_code: Option<String>,
     /// Input quote currency provided by caller/search/provider (e.g. "GBp").
     pub requested_quote_ccy: Option<String>,
+    /// Explicit asset-level provider config. Keep this asset-owned; import/activity
+    /// payloads should normally pass provider_id/provider_symbol instead.
+    pub provider_config: Option<Value>,
+    /// Provider that resolved this asset, if selected by search/import.
+    pub provider_id: Option<String>,
+    /// Provider-native symbol/code selected by search/import.
+    pub provider_symbol: Option<String>,
     /// Structured metadata (e.g. OptionSpec under "option", BondSpec under "bond").
     pub asset_metadata: Option<Value>,
 }
@@ -1046,12 +1070,44 @@ pub struct AssetSpec {
     pub quote_mode: Option<QuoteMode>,
     /// User-provided name
     pub name: Option<String>,
+    /// Provider routing config captured from search/resolution.
+    pub provider_config: Option<serde_json::Value>,
+    /// Provider that resolved this spec, if selected by search/import.
+    pub provider_id: Option<String>,
+    /// Provider-native symbol/code selected by search/import.
+    pub provider_symbol: Option<String>,
     /// Pre-built asset metadata (e.g. OptionSpec with custom multiplier).
     /// When set, `new_asset_from_spec` uses this instead of calling `build_asset_metadata`.
     pub metadata: Option<serde_json::Value>,
 }
 
 impl AssetSpec {
+    /// Builds a market instrument spec with the required canonical identity.
+    pub fn market_instrument(
+        display_code: String,
+        instrument_symbol: String,
+        instrument_exchange_mic: Option<String>,
+        instrument_type: InstrumentType,
+        quote_ccy: String,
+    ) -> Self {
+        Self {
+            id: None,
+            display_code: Some(display_code),
+            instrument_symbol: Some(instrument_symbol),
+            instrument_exchange_mic,
+            instrument_type: Some(instrument_type),
+            quote_ccy: quote_ccy.clone(),
+            requested_quote_ccy: Some(quote_ccy),
+            kind: AssetKind::Investment,
+            quote_mode: None,
+            name: None,
+            provider_config: None,
+            provider_id: None,
+            provider_symbol: None,
+            metadata: None,
+        }
+    }
+
     /// Extracts the option contract multiplier from pre-built metadata, if present.
     /// Handles both numeric (serde-float) and string serialization of Decimal.
     pub fn option_multiplier(&self) -> Option<Decimal> {

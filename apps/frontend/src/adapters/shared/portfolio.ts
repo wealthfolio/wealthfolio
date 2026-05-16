@@ -167,6 +167,14 @@ export interface HoldingInput {
   averageCost?: string;
   /** Exchange MIC code for new holdings (e.g., "XNAS", "XTSE"). Required for symbols without Yahoo suffixes. */
   exchangeMic?: string;
+  /** Quote currency resolved from search/provider (e.g., GBp). */
+  quoteCcy?: string;
+  /** Instrument type resolved from search/provider (e.g., EQUITY, CRYPTO). */
+  instrumentType?: string;
+  /** Market data provider that resolved this holding, if selected. */
+  providerId?: string;
+  /** Provider-native symbol/code selected by search/import. */
+  providerSymbol?: string;
   /** Asset name for new custom assets */
   name?: string;
   /** Data source (e.g., "MANUAL" for custom assets) — sets quote mode to manual */

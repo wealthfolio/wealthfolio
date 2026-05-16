@@ -416,6 +416,7 @@ pub fn run() {
             commands::utilities::check_for_updates,
             commands::utilities::install_app_update,
             commands::utilities::backup_database,
+            commands::utilities::backup_database_to_pending_export,
             commands::utilities::backup_database_to_path,
             commands::utilities::restore_database,
             // Asset commands

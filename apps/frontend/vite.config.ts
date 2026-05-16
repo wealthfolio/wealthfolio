@@ -31,7 +31,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   publicDir: "public",
   optimizeDeps: {
-    include: ["lucide-react", "recharts", "lodash"],
+    include: ["lucide-react", "recharts"],
   },
   define: {
     __BUILD_TARGET__: JSON.stringify(buildTarget),

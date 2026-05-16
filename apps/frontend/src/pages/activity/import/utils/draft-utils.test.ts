@@ -47,6 +47,53 @@ function createSingleDraftWithMapping(row: string[], activityMappings: Record<st
 }
 
 describe("createDraftActivities explicit activity mapping", () => {
+  it("carries provider config from symbol mapping into the final import payload", () => {
+    const [draft] = createDraftActivities(
+      [["2024-03-15", "BUY", "SHOP.TO", "1", "100", "CAD"]],
+      [
+        ImportFormat.DATE,
+        ImportFormat.ACTIVITY_TYPE,
+        ImportFormat.SYMBOL,
+        ImportFormat.QUANTITY,
+        ImportFormat.UNIT_PRICE,
+        ImportFormat.CURRENCY,
+      ],
+      {
+        ...baseMapping,
+        fieldMappings: {
+          [ImportFormat.DATE]: ImportFormat.DATE,
+          [ImportFormat.ACTIVITY_TYPE]: ImportFormat.ACTIVITY_TYPE,
+          [ImportFormat.SYMBOL]: ImportFormat.SYMBOL,
+          [ImportFormat.QUANTITY]: ImportFormat.QUANTITY,
+          [ImportFormat.UNIT_PRICE]: ImportFormat.UNIT_PRICE,
+          [ImportFormat.CURRENCY]: ImportFormat.CURRENCY,
+        },
+        activityMappings: {
+          [ActivityType.BUY]: ["BUY"],
+        },
+        symbolMappings: {
+          "SHOP.TO": "SHOP",
+        },
+        symbolMappingMeta: {
+          "SHOP.TO": {
+            exchangeMic: "XTSE",
+            quoteCcy: "CAD",
+            instrumentType: "EQUITY",
+            providerId: "YAHOO",
+            providerSymbol: "SHOP.TO",
+          },
+        },
+      },
+      parseConfig,
+      "account-1",
+    );
+
+    expect(draft.providerId).toBe("YAHOO");
+    expect(draft.providerSymbol).toBe("SHOP.TO");
+    expect(draftToActivityImport(draft).providerId).toBe("YAHOO");
+    expect(draftToActivityImport(draft).providerSymbol).toBe("SHOP.TO");
+  });
+
   it("falls back to the selected account when a CSV account value is not valid", () => {
     const [draft] = createDraftActivities(
       [["2024-03-15", "DEPOSIT", "1000.00", "USD", "stale-account"]],

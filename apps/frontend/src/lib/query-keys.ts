@@ -33,6 +33,7 @@ export const QueryKeys = {
 
   // Settings related keys
   SETTINGS: "settings",
+  DATABASE_BACKUPS: "databaseBackups",
   EXCHANGE_RATES: "exchangeRates",
 
   // New keys for exchange rates

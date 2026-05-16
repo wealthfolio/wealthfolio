@@ -357,6 +357,20 @@ mod tests {
     }
 
     #[test]
+    fn test_canonicalize_market_identity_uses_tase_minor_unit_as_fallback() {
+        let canonical = canonicalize_market_identity(
+            Some(InstrumentType::Equity),
+            Some("1159029"),
+            Some("XTAE"),
+            None,
+        );
+
+        assert_eq!(canonical.instrument_symbol.as_deref(), Some("1159029"));
+        assert_eq!(canonical.instrument_exchange_mic.as_deref(), Some("XTAE"));
+        assert_eq!(canonical.quote_ccy.as_deref(), Some("ILA"));
+    }
+
+    #[test]
     fn test_resolve_quote_ccy_precedence_prefers_explicit_quote_ccy() {
         let resolved = resolve_quote_ccy_precedence(
             Some("GBp"),

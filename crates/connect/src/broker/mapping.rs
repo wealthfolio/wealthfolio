@@ -433,6 +433,7 @@ pub fn map_broker_activity(
                 } else {
                     None
                 },
+                ..Default::default()
             }
         })
     };

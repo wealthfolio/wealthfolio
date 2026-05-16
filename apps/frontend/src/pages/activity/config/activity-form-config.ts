@@ -177,6 +177,8 @@ export const ACTIVITY_FORM_CONFIG: Record<
               name: d.assetMetadata.name ?? undefined,
               kind: d.assetMetadata.kind ?? undefined,
               exchangeMic: d.assetMetadata.exchangeMic ?? undefined,
+              providerId: d.assetMetadata.providerId ?? undefined,
+              providerSymbol: d.assetMetadata.providerSymbol ?? undefined,
             }
           : undefined,
         ...(d.symbolInstrumentType === InstrumentType.OPTION &&
@@ -260,6 +262,8 @@ export const ACTIVITY_FORM_CONFIG: Record<
               name: d.assetMetadata.name ?? undefined,
               kind: d.assetMetadata.kind ?? undefined,
               exchangeMic: d.assetMetadata.exchangeMic ?? undefined,
+              providerId: d.assetMetadata.providerId ?? undefined,
+              providerSymbol: d.assetMetadata.providerSymbol ?? undefined,
             }
           : undefined,
         ...(d.symbolInstrumentType === InstrumentType.OPTION &&
@@ -417,6 +421,8 @@ export const ACTIVITY_FORM_CONFIG: Record<
               name: d.assetMetadata.name ?? undefined,
               kind: d.assetMetadata.kind ?? undefined,
               exchangeMic: d.assetMetadata.exchangeMic ?? undefined,
+              providerId: d.assetMetadata.providerId ?? undefined,
+              providerSymbol: d.assetMetadata.providerSymbol ?? undefined,
             }
           : undefined,
         ...(d.isExternal && { metadata: { flow: { is_external: true } } }),

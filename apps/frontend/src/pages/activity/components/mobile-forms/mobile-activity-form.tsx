@@ -442,6 +442,8 @@ export function MobileActivityForm({ accounts, activity, open, onClose }: Mobile
                 instrumentType: symbolInstrumentType as string | undefined,
                 name: (assetMetadata as { name?: string })?.name,
                 kind: (assetMetadata as { kind?: string })?.kind,
+                providerId: (assetMetadata as { providerId?: string })?.providerId,
+                providerSymbol: (assetMetadata as { providerSymbol?: string })?.providerSymbol,
               })
             : undefined;
 

@@ -37,8 +37,8 @@ export const COMMANDS: CommandMap = {
   get_app_info: { method: "GET", path: "/app/info" },
   check_update: { method: "GET", path: "/app/check-update" },
   backup_database: { method: "POST", path: "/utilities/database/backup" },
-  backup_database_to_path: { method: "POST", path: "/utilities/database/backup-to-path" },
-  restore_database: { method: "POST", path: "/utilities/database/restore" },
+  list_database_backups: { method: "GET", path: "/utilities/database/backups" },
+  delete_database_backup: { method: "DELETE", path: "/utilities/database/backups" },
   get_holdings: { method: "GET", path: "/holdings" },
   get_holding: { method: "GET", path: "/holdings/item" },
   get_asset_holdings: { method: "GET", path: "/holdings/by-asset" },
@@ -350,18 +350,6 @@ export function toBase64(data: Uint8Array | number[]): string {
 }
 
 /**
- * Convert base64 string to Uint8Array
- */
-export function fromBase64(value: string): Uint8Array {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
-/**
  * Invoke a command via REST API (internal - use typed adapter functions instead)
  */
 export const invoke = async <T>(command: string, payload?: Record<string, unknown>): Promise<T> => {
@@ -387,14 +375,9 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       body = JSON.stringify(data.account);
       break;
     }
-    case "backup_database_to_path": {
-      const { backupDir } = payload as { backupDir: string };
-      body = JSON.stringify({ backupDir });
-      break;
-    }
-    case "restore_database": {
-      const { backupFilePath } = payload as { backupFilePath: string };
-      body = JSON.stringify({ backupFilePath });
+    case "delete_database_backup": {
+      const { filename } = payload as { filename: string };
+      url += `/${encodeURIComponent(filename)}`;
       break;
     }
     case "update_settings": {
@@ -1490,17 +1473,6 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     }
     console.error(`[Invoke] Command "${command}" failed: ${msg}`);
     throw new Error(msg);
-  }
-  if (command === "backup_database") {
-    const parsed = (await res.json()) as { filename: string; dataB64: string };
-    return {
-      filename: parsed.filename,
-      data: fromBase64(parsed.dataB64),
-    } as T;
-  }
-  if (command === "backup_database_to_path") {
-    const parsed = (await res.json()) as { path: string };
-    return parsed.path as T;
   }
   // Handle responses with no body (204 No Content, 202 Accepted, or empty 200)
   if (res.status === 204 || res.status === 202) {

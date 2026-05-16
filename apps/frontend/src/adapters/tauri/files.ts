@@ -1,6 +1,13 @@
 // File Dialogs
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
+import {
+  BaseDirectory,
+  copyFile,
+  remove,
+  startAccessingSecurityScopedResource,
+  stopAccessingSecurityScopedResource,
+  writeFile,
+} from "@tauri-apps/plugin-fs";
 
 const isIOS = (): boolean => {
   if (typeof window === "undefined") {
@@ -21,6 +28,20 @@ const toBase64 = (bytes: Uint8Array): string => {
   }
 
   return btoa(binary);
+};
+
+const describeError = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
 };
 
 const shareFileOnIOS = async (content: Uint8Array, fileName: string): Promise<boolean> => {
@@ -105,6 +126,56 @@ export const openFileSaveDialog = async (
   }
 
   throw lastError;
+};
+
+export const saveAppDataFileViaPicker = async (
+  relativePath: string,
+  fileName: string,
+): Promise<boolean> => {
+  if (!/^pending-exports\/[^/\\]+$/.test(relativePath)) {
+    throw new Error("Only pending export files can be saved with the native file picker");
+  }
+
+  let filePath: string | null = null;
+  try {
+    try {
+      filePath = await save({
+        defaultPath: fileName,
+        filters: [
+          {
+            name: "SQLite Database",
+            extensions: ["db"],
+          },
+        ],
+      });
+    } catch (error) {
+      throw new Error(`save picker failed: ${describeError(error)}`);
+    }
+
+    if (filePath === null) {
+      return false;
+    }
+
+    let didStartScopedAccess = false;
+    try {
+      await startAccessingSecurityScopedResource(filePath);
+      didStartScopedAccess = true;
+      await copyFile(relativePath, filePath, {
+        fromPathBaseDir: BaseDirectory.AppData,
+      });
+    } catch (error) {
+      throw new Error(
+        `copyFile failed from ${relativePath} to ${filePath}: ${describeError(error)}`,
+      );
+    } finally {
+      if (didStartScopedAccess) {
+        await stopAccessingSecurityScopedResource(filePath).catch(() => undefined);
+      }
+    }
+    return true;
+  } finally {
+    await remove(relativePath, { baseDir: BaseDirectory.AppData }).catch(() => undefined);
+  }
 };
 
 // ============================================================================

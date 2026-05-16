@@ -30,6 +30,8 @@ const assetMetadataSchema = z
     name: z.string().nullable().optional(),
     kind: z.string().nullable().optional(),
     exchangeMic: z.string().nullable().optional(),
+    providerId: z.string().nullable().optional(),
+    providerSymbol: z.string().nullable().optional(),
   })
   .optional();
 

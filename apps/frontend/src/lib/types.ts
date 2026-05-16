@@ -215,6 +215,8 @@ export interface AssetResolutionInput {
   quoteMode?: QuoteMode;
   quoteCcy?: string; // Optional quote currency hint from search/provider (e.g., "GBp")
   instrumentType?: string; // Optional instrument type hint (e.g., "EQUITY", "CRYPTO")
+  providerId?: string;
+  providerSymbol?: string;
 }
 
 /** @deprecated Use AssetResolutionInput. */
@@ -309,6 +311,8 @@ export interface ImportTemplateData {
       quoteCcy?: string;
       instrumentType?: string;
       quoteMode?: QuoteMode;
+      providerId?: string;
+      providerSymbol?: string;
     }
   >;
   parseConfig?: ParseConfig;
@@ -333,6 +337,8 @@ export interface BrokerSyncProfileData {
       symbolName?: string;
       quoteCcy?: string;
       instrumentType?: string;
+      providerId?: string;
+      providerSymbol?: string;
     }
   >;
 }
@@ -350,6 +356,8 @@ export interface SaveBrokerSyncProfileRulesRequest {
       symbolName?: string;
       quoteCcy?: string;
       instrumentType?: string;
+      providerId?: string;
+      providerSymbol?: string;
     }
   >;
 }
@@ -403,6 +411,14 @@ export interface SymbolSearchResult {
   exchange: string;
   /** Canonical exchange MIC code (e.g., "XNAS", "XTSE") */
   exchangeMic?: string;
+  /** Canonical asset symbol used for persistence (e.g., "SHOP" for "SHOP.TO") */
+  canonicalSymbol?: string;
+  /** Canonical exchange MIC used for persistence */
+  canonicalExchangeMic?: string;
+  /** Market data provider that returned or resolved this symbol */
+  providerId?: string;
+  /** Provider-native symbol/code (e.g., Yahoo "BRK-B") */
+  providerSymbol?: string;
   /** Friendly exchange name (e.g., "NASDAQ" instead of "NMS" or "XNAS") */
   exchangeName?: string;
   /** Currency derived from exchange (e.g., "USD", "CAD") */
@@ -417,6 +433,7 @@ export interface SymbolSearchResult {
   typeDisplay: string;
   longName: string;
   dataSource?: string;
+  quoteMode?: QuoteMode;
   /** Asset kind for custom assets (e.g., "SECURITY", "CRYPTO", "OTHER") */
   assetKind?: string;
   /** True if this asset already exists in user's database */
@@ -961,6 +978,9 @@ export interface NewAsset {
   instrumentType?: string;
   instrumentSymbol?: string;
   instrumentExchangeMic?: string;
+  providerId?: string;
+  providerSymbol?: string;
+  providerConfig?: Record<string, unknown> | null;
   notes?: string;
 }
 
@@ -974,6 +994,8 @@ export interface ImportAssetCandidate {
   quoteMode?: string;
   exchangeMic?: string;
   isin?: string;
+  providerId?: string;
+  providerSymbol?: string;
 }
 
 export type ImportAssetPreviewStatus =
@@ -985,6 +1007,7 @@ export interface ImportAssetPreviewItem {
   key: string;
   status: ImportAssetPreviewStatus;
   resolutionSource: string;
+  reviewSymbol?: string;
   assetId?: string;
   draft?: NewAsset;
   errors?: Record<string, string[]>;
@@ -1933,6 +1956,14 @@ export interface HoldingsPositionInput {
   currency: string;
   /** Exchange MIC code (e.g., "XNAS", "XTSE") resolved during check step */
   exchangeMic?: string;
+  /** Quote currency resolved during asset review/search (e.g., GBp). */
+  quoteCcy?: string;
+  /** Instrument type resolved during asset review/search (e.g., EQUITY, CRYPTO). */
+  instrumentType?: string;
+  /** Market data provider that resolved this position, if selected. */
+  providerId?: string;
+  /** Provider-native symbol/code selected by search/import. */
+  providerSymbol?: string;
   /** Resolved asset ID from asset review step */
   assetId?: string;
 }
