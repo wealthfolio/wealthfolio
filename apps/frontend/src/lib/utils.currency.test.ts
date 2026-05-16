@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { formatAmount, normalizeCurrency } from "./utils";
+import { formatAmount } from "@wealthfolio/ui";
+import { normalizeCurrency } from "./utils";
 
 describe("currency utilities", () => {
   it("does not treat GBP as the GBp quote unit", () => {
