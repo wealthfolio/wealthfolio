@@ -76,7 +76,7 @@ easy-to-use tool to track their investments and goals.
 
 ### Phase 5: Budgeting and Spend Tracking
 
-- [] Budgeting and Sprend tracking Module
+- [ ] Budgeting and Sprend tracking Module
 
 ### Always Doing
 
