@@ -1,8 +1,9 @@
-# Claude worktrees
-.claude/worktrees/
+# Claude local config (entire directory — rules, skills, settings are not project source)
+.claude/
 
 # Local hidden directories
 .agents/
+.air/
 .codex/
 .conductor/
 .kiro/

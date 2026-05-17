@@ -60,10 +60,11 @@ pnpm run dev:web
 Wait until you see Vite's "ready in Xms" and the Rust server binding messages,
 then move on to Step 3 in a separate terminal.
 
-**Option B — redirect output to a log file and use the wait script:**
+**Option B — run web app with redirect output to a log file and use the wait
+script:**
 
 ```bash
-pnpm run dev:web > /tmp/wealthfolio-dev2.log 2>&1 &
+pnpm run dev:web:log 2>&1 &
 ./scripts/wait-for-both-servers-to-be-ready.sh
 ```
 

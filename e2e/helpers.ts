@@ -228,6 +228,91 @@ export async function completeOnboardingIfNeeded(page: Page) {
   await page.waitForURL(new RegExp(`${BASE_URL}/settings/accounts`), { timeout: 15000 });
 }
 
+// Maps column IDs to the display name shown in the "Toggle columns" menu.
+// Derived from COLUMN_DISPLAY_NAMES in activity-data-grid-toolbar.tsx.
+const COLUMN_DISPLAY_NAMES: Record<string, string> = {
+  activityType: "Type",
+  subtype: "Subtype",
+  activityStatus: "Status",
+  date: "Date & Time",
+  assetSymbol: "Symbol",
+  quantity: "Quantity",
+  unitPrice: "Price",
+  amount: "Amount",
+  fee: "Fee",
+  fxRate: "FX Rate",
+  accountName: "Account",
+  currency: "Currency",
+  instrumentType: "Instrument",
+  comment: "Comment",
+};
+
+/**
+ * Opens the "Toggle columns" dropdown in the data-grid (edit mode) and enables
+ * the column identified by its id.
+ * Column IDs are mapped to display names via COLUMN_DISPLAY_NAMES (matching the toolbar).
+ * If the column is already visible, this is a no-op.
+ */
+export async function enableDataGridColumn(page: Page, columnId: string) {
+  const displayName = COLUMN_DISPLAY_NAMES[columnId] ?? columnId;
+
+  const toggleBtn = page.getByRole("button", { name: /Toggle columns/i });
+  await expect(toggleBtn).toBeVisible({ timeout: 5000 });
+  await toggleBtn.click();
+
+  const item = page.getByRole("menuitemcheckbox", { name: displayName });
+  await expect(item).toBeVisible({ timeout: 3000 });
+  const isChecked = (await item.getAttribute("aria-checked")) === "true";
+  if (!isChecked) {
+    await item.click();
+  }
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu"))
+    .toBeHidden({ timeout: 3000 })
+    .catch((err) =>
+      console.warn(`enableDataGridColumn: menu did not close after enabling "${columnId}"`, err),
+    );
+
+  // Verify the column is rendered — catches COLUMN_DISPLAY_NAMES desync with the toolbar
+  await expect(page.locator(`[data-column-id="${columnId}"]`).first()).toBeVisible({
+    timeout: 3000,
+  });
+}
+
+/**
+ * In the data-grid (edit mode), filters the activity list by `commentMarker` via
+ * the page-level search box, finds the matching row, asserts the specified column
+ * cells, then clears the search.
+ *
+ * This avoids virtual-scroll issues: with many activities the grid virtualises and
+ * only renders visible rows; filtering ensures the target row is in the DOM.
+ *
+ * @param expectations - map of columnId → expected partial text
+ */
+export async function assertDataGridRow(
+  page: Page,
+  commentMarker: string,
+  expectations: Record<string, string>,
+) {
+  // Filter to the target row via the activity search box
+  const searchBox = page.getByPlaceholder("Search ...");
+  await expect(searchBox).toBeVisible({ timeout: 5000 });
+  await searchBox.fill(commentMarker);
+
+  const row = page.locator('[data-slot="grid-row"]').filter({
+    has: page.locator('[data-column-id="comment"]', { hasText: commentMarker }),
+  });
+  await expect(row).toBeVisible({ timeout: 15000 });
+
+  for (const [columnId, expectedText] of Object.entries(expectations)) {
+    const cell = row.locator(`[data-column-id="${columnId}"]`);
+    await expect(cell).toContainText(expectedText, { timeout: 5000 });
+  }
+
+  // Clear search so the next assertion starts from a clean state
+  await searchBox.clear();
+}
+
 export async function loginIfNeeded(page: Page) {
   await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
 
