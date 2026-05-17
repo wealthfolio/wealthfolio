@@ -218,6 +218,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
     let app_sync_repository = Arc::new(AppSyncRepository::new(pool.clone(), writer.clone()));
     let quote_sync_state_repository =
         Arc::new(QuoteSyncStateRepository::new(pool.clone(), writer.clone()));
+    let valuation_repository = Arc::new(ValuationRepository::new(pool.clone(), writer.clone()));
 
     let account_service = Arc::new(AccountService::new(
         account_repo.clone(),
@@ -226,6 +227,8 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         domain_event_sink.clone(),
         asset_repository.clone(),
         quote_sync_state_repository.clone(),
+        snapshot_repository.clone(),
+        valuation_repository.clone(),
     ));
     let custom_provider_repository = Arc::new(
         wealthfolio_storage_sqlite::custom_provider::CustomProviderSqliteRepository::new(
@@ -282,7 +285,6 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         .with_event_sink(domain_event_sink.clone()),
     );
 
-    let valuation_repository = Arc::new(ValuationRepository::new(pool.clone(), writer.clone()));
     let valuation_service = Arc::new(ValuationService::new(
         base_currency.clone(),
         valuation_repository.clone(),

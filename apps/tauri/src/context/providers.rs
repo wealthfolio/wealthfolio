@@ -181,6 +181,8 @@ pub async fn initialize_context(
         domain_event_sink.clone(),
         asset_repository.clone(),
         quote_sync_state_repository.clone(),
+        snapshot_repository.clone(),
+        valuation_repository.clone(),
     ));
 
     // Import run repository for tracking CSV imports

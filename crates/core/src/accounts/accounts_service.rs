@@ -9,6 +9,8 @@ use crate::assets::AssetRepositoryTrait;
 use crate::errors::Result;
 use crate::events::{CurrencyChange, DomainEvent, DomainEventSink};
 use crate::fx::FxServiceTrait;
+use crate::portfolio::snapshot::SnapshotRepositoryTrait;
+use crate::portfolio::valuation::ValuationRepositoryTrait;
 use crate::quotes::sync_state::SyncStateStore;
 
 /// Service for managing accounts.
@@ -19,10 +21,13 @@ pub struct AccountService {
     event_sink: Arc<dyn DomainEventSink>,
     asset_repository: Arc<dyn AssetRepositoryTrait>,
     sync_state_store: Arc<dyn SyncStateStore>,
+    snapshot_repository: Arc<dyn SnapshotRepositoryTrait>,
+    valuation_repository: Arc<dyn ValuationRepositoryTrait>,
 }
 
 impl AccountService {
     /// Creates a new AccountService instance.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         repository: Arc<dyn AccountRepositoryTrait>,
         fx_service: Arc<dyn FxServiceTrait>,
@@ -30,6 +35,8 @@ impl AccountService {
         event_sink: Arc<dyn DomainEventSink>,
         asset_repository: Arc<dyn AssetRepositoryTrait>,
         sync_state_store: Arc<dyn SyncStateStore>,
+        snapshot_repository: Arc<dyn SnapshotRepositoryTrait>,
+        valuation_repository: Arc<dyn ValuationRepositoryTrait>,
     ) -> Self {
         Self {
             repository,
@@ -38,6 +45,8 @@ impl AccountService {
             event_sink,
             asset_repository,
             sync_state_store,
+            snapshot_repository,
+            valuation_repository,
         }
     }
 }
@@ -178,6 +187,28 @@ impl AccountServiceTrait for AccountService {
     /// Deletes an account by its ID.
     async fn delete_account(&self, account_id: &str) -> Result<()> {
         self.repository.delete(account_id).await?;
+
+        // Clean up snapshots and valuations (no FK CASCADE on these tables)
+        if let Err(e) = self
+            .snapshot_repository
+            .delete_snapshots_by_account_ids(&[account_id.to_string()])
+            .await
+        {
+            warn!(
+                "Failed to delete snapshots for account {}: {}",
+                account_id, e
+            );
+        }
+        if let Err(e) = self
+            .valuation_repository
+            .delete_valuations_for_account(account_id, None)
+            .await
+        {
+            warn!(
+                "Failed to delete valuations for account {}: {}",
+                account_id, e
+            );
+        }
 
         // Clean up orphaned assets (activities are already CASCADE-deleted)
         match self
