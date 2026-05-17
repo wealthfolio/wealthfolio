@@ -1,5 +1,7 @@
 //! Account domain models.
 
+use std::str::FromStr;
+
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +18,45 @@ pub enum TrackingMode {
     /// Tracking mode has not been set yet
     #[default]
     NotSet,
+}
+
+/// Tax treatment for an account - determines tax categorization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum TaxTreatment {
+    /// Account gains are taxable
+    #[default]
+    Taxable,
+    /// Account gains are not taxed
+    TaxFree,
+    /// Account gains are taxed when withdrawn
+    TaxDeferred,
+}
+
+impl TaxTreatment {
+    pub fn as_str(&self) -> &str {
+        match self {
+            TaxTreatment::Taxable => "TAXABLE",
+            TaxTreatment::TaxFree => "TAX_FREE",
+            TaxTreatment::TaxDeferred => "TAX_DEFERRED",
+        }
+    }
+}
+
+impl FromStr for TaxTreatment {
+    type Err = ValidationError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "TAXABLE" => Ok(TaxTreatment::Taxable),
+            "TAX_FREE" => Ok(TaxTreatment::TaxFree),
+            "TAX_DEFERRED" => Ok(TaxTreatment::TaxDeferred),
+            other => Err(ValidationError::InvalidInput(format!(
+                "Unknown tax treatment value: {}",
+                other
+            ))),
+        }
+    }
 }
 
 /// Domain model representing an account in the system.
@@ -44,6 +85,8 @@ pub struct Account {
     pub is_archived: bool,
     /// Tracking mode for the account
     pub tracking_mode: TrackingMode,
+    /// Tax treatment classification
+    pub tax_treatment: TaxTreatment,
 }
 
 /// Input model for creating a new account.
@@ -67,6 +110,8 @@ pub struct NewAccount {
     pub is_archived: bool,
     #[serde(default)]
     pub tracking_mode: TrackingMode,
+    #[serde(default)]
+    pub tax_treatment: TaxTreatment,
 }
 
 impl NewAccount {
@@ -103,6 +148,7 @@ pub struct AccountUpdate {
     pub provider_account_id: Option<String>,
     pub is_archived: Option<bool>,
     pub tracking_mode: Option<TrackingMode>,
+    pub tax_treatment: Option<TaxTreatment>,
 }
 
 impl AccountUpdate {

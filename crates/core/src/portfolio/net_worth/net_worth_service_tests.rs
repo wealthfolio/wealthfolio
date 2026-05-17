@@ -830,6 +830,7 @@ fn create_test_account(id: &str, account_type: &str, currency: &str) -> Account 
         provider_account_id: None,
         is_archived: false,
         tracking_mode: crate::accounts::TrackingMode::NotSet,
+        tax_treatment: crate::accounts::TaxTreatment::Taxable,
     }
 }
 
@@ -1728,6 +1729,7 @@ fn create_test_account_with_archive_state(
         provider_account_id: None,
         is_archived,
         tracking_mode: crate::accounts::TrackingMode::NotSet,
+        tax_treatment: crate::accounts::TaxTreatment::Taxable,
     }
 }
 

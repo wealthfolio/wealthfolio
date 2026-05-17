@@ -20,7 +20,9 @@ use chrono::{DateTime, Months, NaiveDate, Utc};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
-use wealthfolio_core::accounts::{Account, AccountServiceTrait, NewAccount, TrackingMode};
+use wealthfolio_core::accounts::{
+    Account, AccountServiceTrait, NewAccount, TaxTreatment, TrackingMode,
+};
 use wealthfolio_core::activities::{
     compute_idempotency_key, ActivityRepositoryTrait, ActivityServiceTrait, ActivityUpsert,
     NewActivity, ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_SELL,
@@ -238,6 +240,7 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
                 provider_account_id: Some(provider_account_id.clone()),
                 is_archived: false,
                 tracking_mode: TrackingMode::Holdings,
+                tax_treatment: TaxTreatment::Taxable,
             };
 
             // Create the account via AccountService (handles FX rate registration)

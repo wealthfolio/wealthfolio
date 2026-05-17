@@ -27,7 +27,10 @@ export const createAccount = async (account: NewAccount): Promise<Account> => {
 
 export const updateAccount = async (account: NewAccount): Promise<Account> => {
   try {
-    // Platform-aware: desktop strips currency (immutable after creation)
+    // Platform-aware: desktop strips currency (immutable after creation).
+    // `taxTreatment` is Option-typed on the backend; when the caller omits it,
+    // JSON.stringify drops the undefined key and the repository preserves
+    // the existing value.
     const payload = isDesktop
       ? (() => {
           const { currency: _, ...rest } = account;

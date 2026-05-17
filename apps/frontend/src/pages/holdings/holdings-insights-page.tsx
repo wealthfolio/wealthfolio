@@ -3,6 +3,7 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useCallback, useMemo, useState } from "react";
 
+import { useAccounts } from "@/hooks/use-accounts";
 import { useHoldings } from "@/hooks/use-holdings";
 import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
 import { PORTFOLIO_ACCOUNT_ID, isAlternativeAssetKind, type AssetKind } from "@/lib/constants";
@@ -18,6 +19,7 @@ import { DrillableAccountChart } from "./components/drillable-account-chart";
 import { DrillableDonutChart } from "./components/drillable-donut-chart";
 import { SectorsChart } from "./components/sectors-chart";
 import { SegmentedAllocationBar } from "./components/segmented-allocation-bar";
+import { TaxTreatmentDonutChart } from "./components/tax-treatment-chart";
 
 interface HoldingsInsightsPageProps {
   accountId?: string;
@@ -29,6 +31,10 @@ export const HoldingsInsightsPage = ({ accountId: accountIdProp }: HoldingsInsig
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
   const accountId = accountIdProp ?? PORTFOLIO_ACCOUNT_ID;
+  const { accounts, isLoading: accountsLoading } = useAccounts({
+    filterActive: false,
+    includeArchived: true,
+  });
   const { holdings, isLoading: holdingsLoading } = useHoldings(accountId);
   const { allocations, isLoading: allocationsLoading } = usePortfolioAllocations(accountId);
 
@@ -189,6 +195,16 @@ export const HoldingsInsightsPage = ({ accountId: accountIdProp }: HoldingsInsig
               )
             }
             onCardClick={() => openAllocationSheet(allocations?.regions)}
+          />
+        </div>
+
+        {/* Tax Treatment breakdown */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <TaxTreatmentDonutChart
+            holdings={[...cashHoldings, ...nonCashHoldings]}
+            accounts={accounts ?? []}
+            baseCurrency={baseCurrency}
+            isLoading={isLoading || accountsLoading}
           />
         </div>
 

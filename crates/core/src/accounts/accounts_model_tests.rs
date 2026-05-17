@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::accounts::{Account, TrackingMode};
+    use crate::accounts::{Account, TaxTreatment, TrackingMode};
     use chrono::NaiveDateTime;
 
     // ==================== TrackingMode Serialization Tests ====================
@@ -91,6 +91,7 @@ mod tests {
             provider_account_id: None,
             is_archived: false,
             tracking_mode,
+            tax_treatment: TaxTreatment::Taxable,
         }
     }
 }

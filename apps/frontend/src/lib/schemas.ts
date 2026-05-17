@@ -77,6 +77,8 @@ export const importMappingSchema = z.object({
 
 export const trackingModeSchema = z.enum(["TRANSACTIONS", "HOLDINGS", "NOT_SET"]);
 
+export const taxTreatmentSchema = z.enum(["TAXABLE", "TAX_FREE", "TAX_DEFERRED"]);
+
 export const newAccountSchema = z.object({
   id: z.string().uuid().optional(),
   name: z
@@ -94,6 +96,7 @@ export const newAccountSchema = z.object({
   accountType: accountTypeSchema,
   currency: z.string({ required_error: "Please select a currency." }),
   trackingMode: trackingModeSchema.optional().default("NOT_SET"),
+  taxTreatment: taxTreatmentSchema.optional(),
   meta: z.string().nullable().optional(),
 });
 

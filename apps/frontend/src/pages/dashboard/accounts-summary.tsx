@@ -29,6 +29,7 @@ interface AccountSummaryDisplayData {
   accountId?: string;
   accountType?: string;
   accountGroup?: string | null;
+  taxTreatment?: "TAXABLE" | "TAX_FREE" | "TAX_DEFERRED";
   isGroup?: boolean;
   accountCount?: number;
   accounts?: AccountSummaryDisplayData[];
@@ -256,6 +257,60 @@ const AccountSummaryComponent = React.memo(
 );
 AccountSummaryComponent.displayName = "AccountSummaryComponent";
 
+const TAX_TREATMENT_LABELS: Record<"TAXABLE" | "TAX_FREE" | "TAX_DEFERRED", string> = {
+  TAXABLE: "Taxable",
+  TAX_DEFERRED: "Tax Deferred",
+  TAX_FREE: "Tax Free",
+};
+
+const TAX_TREATMENT_ORDER: Array<"TAXABLE" | "TAX_DEFERRED" | "TAX_FREE"> = [
+  "TAXABLE",
+  "TAX_DEFERRED",
+  "TAX_FREE",
+];
+
+const GroupTaxTreatmentSummary = React.memo(
+  ({ accounts, baseCurrency }: { accounts: AccountSummaryDisplayData[]; baseCurrency: string }) => {
+    const totals = useMemo(() => {
+      const map = new Map<"TAXABLE" | "TAX_FREE" | "TAX_DEFERRED", number>();
+      for (const account of accounts) {
+        const treatment = account.taxTreatment ?? "TAXABLE";
+        map.set(treatment, (map.get(treatment) ?? 0) + Number(account.totalValueBaseCurrency ?? 0));
+      }
+      return map;
+    }, [accounts]);
+
+    const entries = TAX_TREATMENT_ORDER.map((treatment) => ({
+      treatment,
+      value: totals.get(treatment) ?? 0,
+    })).filter((entry) => entry.value > 0);
+
+    if (entries.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="border-border/50 bg-muted/20 border-t px-4 py-3 md:px-5 md:py-3">
+        <p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wider">
+          Tax Treatment Breakdown
+        </p>
+        <div className="flex flex-col gap-1">
+          {entries.map((entry) => (
+            <div
+              key={entry.treatment}
+              className="flex items-center justify-between gap-2 text-xs md:text-sm"
+            >
+              <span className="text-muted-foreground">{TAX_TREATMENT_LABELS[entry.treatment]}</span>
+              <PrivacyAmount value={entry.value} currency={baseCurrency} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  },
+);
+GroupTaxTreatmentSummary.displayName = "GroupTaxTreatmentSummary";
+
 export const AccountsSummary = React.memo(
   ({ dateRange, isAllTime }: { dateRange?: DateRange; isAllTime?: boolean }) => {
     const { accountsGrouped, setAccountsGrouped, settings } = useSettingsContext();
@@ -329,6 +384,10 @@ export const AccountsSummary = React.memo(
             accountId: acc.id,
             accountType: acc.accountType,
             accountGroup: acc.group ?? null,
+            taxTreatment: (acc.taxTreatment ?? "TAXABLE") as
+              | "TAXABLE"
+              | "TAX_FREE"
+              | "TAX_DEFERRED",
             isGroup: false,
           };
         }
@@ -355,6 +414,7 @@ export const AccountsSummary = React.memo(
           accountId: acc.id,
           accountType: acc.accountType,
           accountGroup: acc.group ?? null,
+          taxTreatment: (acc.taxTreatment ?? "TAXABLE") as "TAXABLE" | "TAX_FREE" | "TAX_DEFERRED",
           isGroup: false,
         };
       });
@@ -543,20 +603,26 @@ export const AccountsSummary = React.memo(
                     />
                   </div>
                   {isExpanded && (
-                    <div className="border-border/50 border-t">
-                      <div className="divide-border/50 divide-y">
-                        {sortedAccounts.map((account) => (
-                          <div key={account.accountId} className="px-4 py-3 md:px-5 md:py-4">
-                            <AccountSummaryComponent
-                              item={account}
-                              isLoadingValuation={isLoadingPerformance}
-                              displayInAccountCurrency
-                              isNested
-                            />
-                          </div>
-                        ))}
+                    <>
+                      <div className="border-border/50 border-t">
+                        <div className="divide-border/50 divide-y">
+                          {sortedAccounts.map((account) => (
+                            <div key={account.accountId} className="px-4 py-3 md:px-5 md:py-4">
+                              <AccountSummaryComponent
+                                item={account}
+                                isLoadingValuation={isLoadingPerformance}
+                                displayInAccountCurrency
+                                isNested
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                      <GroupTaxTreatmentSummary
+                        accounts={sortedAccounts}
+                        baseCurrency={group.baseCurrency}
+                      />
+                    </>
                   )}
                 </div>
               );

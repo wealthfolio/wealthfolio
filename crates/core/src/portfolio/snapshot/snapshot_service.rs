@@ -222,6 +222,7 @@ impl SnapshotService {
             provider_account_id: None,
             is_archived: false,
             tracking_mode: crate::accounts::TrackingMode::NotSet,
+            tax_treatment: crate::accounts::TaxTreatment::Taxable,
         }
     }
 
