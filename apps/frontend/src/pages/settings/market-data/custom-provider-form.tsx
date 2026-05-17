@@ -543,6 +543,7 @@ function CustomProviderFormContent({
 
             {/* Step 1 + 2 */}
             <SourceConfigPanel
+              key={activePrefix}
               form={form}
               prefix={activePrefix}
               runtime={activeRuntime}
@@ -648,7 +649,12 @@ function CustomProviderFormContent({
 
           {/* RIGHT pane */}
           <div className="min-h-0 overflow-hidden">
-            <LivePreviewPane form={form} prefix={activePrefix} runtime={activeRuntime} />
+            <LivePreviewPane
+              key={activePrefix}
+              form={form}
+              prefix={activePrefix}
+              runtime={activeRuntime}
+            />
           </div>
         </div>
 
