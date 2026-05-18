@@ -86,6 +86,13 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
       setDesktopSearchQuery("");
     };
 
+    const getCustomCurrencyValue = (query: string) => {
+      const trimmed = query.trim();
+      if (!allowCustom || !trimmed) return undefined;
+      if (worldCurrencies.some((currency) => currency.value === trimmed)) return undefined;
+      return trimmed;
+    };
+
     const handleOpenAutoFocus = useCallback(
       (e: Event) => {
         if (!autoFocusSearch) return;
@@ -105,6 +112,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
           curr.value.toLowerCase().includes(searchQuery.toLowerCase()) ||
           curr.label.toLowerCase().includes(searchQuery.toLowerCase()),
       );
+      const customCurrencyValue = getCustomCurrencyValue(searchQuery);
       const mobileDisplayText = selectedCurrency
         ? valueDisplay === "code"
           ? selectedCurrency.value
@@ -216,17 +224,25 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
                           {value === curr.value && <Icons.Check className="text-primary h-5 w-5 flex-shrink-0" />}
                         </button>
                       ))}
+                      {customCurrencyValue && (
+                        <button
+                          onClick={() => handleSelect(customCurrencyValue)}
+                          className="text-primary w-full py-2 text-center text-sm font-medium hover:underline"
+                        >
+                          Use &quot;{customCurrencyValue}&quot; as custom currency
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-center text-sm">
                       <Icons.Search className="h-12 w-12 opacity-20" />
                       <span>No currencies found for &quot;{searchQuery}&quot;.</span>
-                      {allowCustom && searchQuery.trim() && (
+                      {customCurrencyValue && (
                         <button
-                          onClick={() => handleSelect(searchQuery.trim())}
+                          onClick={() => handleSelect(customCurrencyValue)}
                           className="text-primary mt-2 text-sm font-medium hover:underline"
                         >
-                          Use &quot;{searchQuery.trim()}&quot; as custom currency
+                          Use &quot;{customCurrencyValue}&quot; as custom currency
                         </button>
                       )}
                     </div>
@@ -238,6 +254,8 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
         </>
       );
     }
+
+    const desktopCustomCurrencyValue = getCustomCurrencyValue(desktopSearchQuery);
 
     return (
       <Popover open={open} onOpenChange={setOpen} modal={true}>
@@ -270,12 +288,12 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
             />
             <CommandList>
               <CommandEmpty>
-                {allowCustom && desktopSearchQuery.trim() ? (
+                {desktopCustomCurrencyValue ? (
                   <button
                     className="text-primary w-full py-1 text-sm font-medium hover:underline"
-                    onClick={() => handleSelect(desktopSearchQuery.trim())}
+                    onClick={() => handleSelect(desktopCustomCurrencyValue)}
                   >
-                    Use &quot;{desktopSearchQuery.trim()}&quot; as custom currency
+                    Use &quot;{desktopCustomCurrencyValue}&quot; as custom currency
                   </button>
                 ) : (
                   "No currency found."
@@ -283,6 +301,14 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
               </CommandEmpty>
               <CommandGroup>
                 <ScrollArea className="max-h-96 overflow-y-auto">
+                  {desktopCustomCurrencyValue && (
+                    <CommandItem
+                      value={desktopCustomCurrencyValue}
+                      onSelect={() => handleSelect(desktopCustomCurrencyValue)}
+                    >
+                      Use &quot;{desktopCustomCurrencyValue}&quot; as custom currency
+                    </CommandItem>
+                  )}
                   {worldCurrencies.map((currency) => (
                     <CommandItem
                       value={currency.label}

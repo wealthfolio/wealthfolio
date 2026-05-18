@@ -1,14 +1,41 @@
 // File Dialogs
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
+import {
+  BaseDirectory,
+  copyFile,
+  remove,
+  startAccessingSecurityScopedResource,
+  stopAccessingSecurityScopedResource,
+} from "@tauri-apps/plugin-fs";
 
-const isIOS = (): boolean => {
+import { invoke } from "./core";
+
+interface PendingExport {
+  relativePath: string;
+  filename: string;
+}
+
+const isIOSUserAgent = (): boolean => {
   if (typeof window === "undefined") {
     return false;
   }
 
   const userAgent = window.navigator.userAgent.toLowerCase();
   return /iphone|ipad|ipod/.test(userAgent);
+};
+
+const isIOSRuntime = async (): Promise<boolean> => {
+  try {
+    const platform = await invoke<{ os: string }>("get_platform");
+    return platform.os === "ios";
+  } catch {
+    return isIOSUserAgent();
+  }
+};
+
+const fileExtension = (fileName: string): string | null => {
+  const extension = fileName.split(".").pop();
+  return extension && extension !== fileName ? extension : null;
 };
 
 const toBase64 = (bytes: Uint8Array): string => {
@@ -23,19 +50,17 @@ const toBase64 = (bytes: Uint8Array): string => {
   return btoa(binary);
 };
 
-const shareFileOnIOS = async (content: Uint8Array, fileName: string): Promise<boolean> => {
+const describeError = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
   try {
-    const { shareBinary } = await import("tauri-plugin-mobile-share");
-
-    const extensionIndex = fileName.lastIndexOf(".");
-    const hasExtension = extensionIndex > 0 && extensionIndex < fileName.length - 1;
-    const name = hasExtension ? fileName.slice(0, extensionIndex) : fileName;
-    const ext = hasExtension ? fileName.slice(extensionIndex + 1) : "db";
-
-    await shareBinary(toBase64(content), { name, ext });
-    return true;
+    return JSON.stringify(error);
   } catch {
-    return false;
+    return String(error);
   }
 };
 
@@ -59,52 +84,100 @@ export const openFileSaveDialog = async (
   fileContent: string | Blob | Uint8Array,
   fileName: string,
 ): Promise<boolean> => {
-  let contentToSave: Uint8Array;
   if (typeof fileContent === "string") {
-    contentToSave = new TextEncoder().encode(fileContent);
-  } else if (fileContent instanceof Blob) {
+    if (await isIOSRuntime()) {
+      const { relativePath, filename } = await invoke<PendingExport>(
+        "write_pending_export_text_file",
+        {
+          fileName,
+          content: fileContent,
+        },
+      );
+      return saveAppDataFileViaPicker(relativePath, filename);
+    }
+
+    return invoke<boolean>("save_text_file_with_dialog", {
+      fileName,
+      content: fileContent,
+    });
+  }
+
+  let contentToSave: Uint8Array;
+  if (fileContent instanceof Blob) {
     const arrayBuffer = await fileContent.arrayBuffer();
     contentToSave = new Uint8Array(arrayBuffer);
   } else {
     contentToSave = fileContent;
   }
 
-  if (isIOS()) {
-    return await shareFileOnIOS(contentToSave, fileName);
+  const contentBase64 = toBase64(contentToSave);
+  if (await isIOSRuntime()) {
+    const { relativePath, filename } = await invoke<PendingExport>("write_pending_export_file", {
+      fileName,
+      contentBase64,
+    });
+    return saveAppDataFileViaPicker(relativePath, filename);
   }
 
-  const filePath = await save({
-    defaultPath: fileName,
-    filters: [
-      {
-        name: fileName,
-        extensions: [fileName.split(".").pop() ?? ""],
-      },
-    ],
+  return invoke<boolean>("save_file_with_dialog", {
+    fileName,
+    contentBase64,
   });
+};
 
-  if (filePath === null) {
-    return false;
+export const saveAppDataFileViaPicker = async (
+  relativePath: string,
+  fileName: string,
+): Promise<boolean> => {
+  if (!/^pending-exports\/[^/\\]+\/[^/\\]+$/.test(relativePath)) {
+    throw new Error("Only pending export files can be saved with the native file picker");
   }
 
-  const candidatePaths = [filePath];
-  if (filePath.startsWith("file://")) {
-    candidatePaths.push(decodeURI(filePath.replace("file://", "")));
-  } else {
-    candidatePaths.push(`file://${filePath}`);
-  }
-
-  let lastError: unknown;
-  for (const candidatePath of candidatePaths) {
+  let filePath: string | null = null;
+  const pendingDir = relativePath.slice(0, relativePath.lastIndexOf("/"));
+  try {
     try {
-      await writeFile(candidatePath, contentToSave);
-      return true;
+      const extension = fileExtension(fileName);
+      filePath = await save({
+        defaultPath: fileName,
+        filters: extension
+          ? [
+              {
+                name: extension === "db" ? "SQLite Database" : `${extension.toUpperCase()} File`,
+                extensions: [extension],
+              },
+            ]
+          : undefined,
+      });
     } catch (error) {
-      lastError = error;
+      throw new Error(`save picker failed: ${describeError(error)}`);
     }
-  }
 
-  throw lastError;
+    if (filePath === null) {
+      return false;
+    }
+
+    let didStartScopedAccess = false;
+    try {
+      await startAccessingSecurityScopedResource(filePath);
+      didStartScopedAccess = true;
+      await copyFile(relativePath, filePath, {
+        fromPathBaseDir: BaseDirectory.AppData,
+      });
+    } catch (error) {
+      throw new Error(
+        `copyFile failed from ${relativePath} to ${filePath}: ${describeError(error)}`,
+      );
+    } finally {
+      if (didStartScopedAccess) {
+        await stopAccessingSecurityScopedResource(filePath).catch(() => undefined);
+      }
+    }
+    return true;
+  } finally {
+    await remove(relativePath, { baseDir: BaseDirectory.AppData }).catch(() => undefined);
+    await remove(pendingDir, { baseDir: BaseDirectory.AppData }).catch(() => undefined);
+  }
 };
 
 // ============================================================================
@@ -112,6 +185,5 @@ export const openFileSaveDialog = async (
 // ============================================================================
 
 export const openUrlInBrowser = async (url: string): Promise<void> => {
-  const { open: openShell } = await import("@tauri-apps/plugin-shell");
-  await openShell(url);
+  await invoke("open_external_url", { url });
 };

@@ -66,6 +66,8 @@ export const importMappingSchema = z.object({
         quoteCcy: z.string().optional(),
         instrumentType: z.string().optional(),
         quoteMode: quoteModeSchema.optional(),
+        providerId: z.string().optional(),
+        providerSymbol: z.string().optional(),
       }),
     )
     .optional(),
@@ -181,6 +183,10 @@ export const importActivitySchema = z
     instrumentType: z.string().optional(),
     /** Optional quote mode hint (e.g., MANUAL, MARKET). */
     quoteMode: quoteModeSchema.optional(),
+    /** Market data provider that resolved this import row, if selected. */
+    providerId: z.string().optional(),
+    /** Provider-native symbol/code selected by search/import. */
+    providerSymbol: z.string().optional(),
     /** ISIN identifier from the CSV (e.g. GB0007188757). Used for unambiguous exchange resolution. */
     isin: z.string().optional(),
     errors: z.record(z.string(), z.array(z.string())).optional(),

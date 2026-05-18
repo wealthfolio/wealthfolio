@@ -112,6 +112,7 @@ export function CreateCustomAssetDialog({
       index: "MANUAL",
       typeDisplay: "Custom Asset",
       dataSource: "MANUAL",
+      quoteMode: "MANUAL",
       score: 0,
       // Include currency so SymbolSearch can set it in the form
       currency: values.currency,

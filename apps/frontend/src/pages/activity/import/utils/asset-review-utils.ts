@@ -1,4 +1,5 @@
 import { isCashSymbol, needsImportAssetResolution } from "@/lib/activity-utils";
+import { quoteModeFromSearchResult } from "@/lib/asset-utils";
 import { ActivityType } from "@/lib/constants";
 import type {
   ImportAssetCandidate,
@@ -27,6 +28,8 @@ export function applyAssetResolution(
       quoteCcy: draft.quoteCcy || row.quoteCcy,
       instrumentType: draft.instrumentType || row.instrumentType,
       quoteMode: draft.quoteMode || row.quoteMode,
+      providerId: draft.providerId,
+      providerSymbol: draft.providerSymbol,
       assetId: options.assetId,
       importAssetKey: options.importAssetKey,
     };
@@ -119,6 +122,8 @@ export function buildImportAssetCandidateFromDraft(
     quoteMode: draft.quoteMode,
     exchangeMic: draft.exchangeMic,
     isin: draft.isin,
+    providerId: draft.providerId,
+    providerSymbol: draft.providerSymbol,
   };
 }
 
@@ -128,18 +133,22 @@ export function buildNewAssetFromSearchResult(
 ): NewAsset {
   const instrumentType = mapQuoteTypeToInstrumentType(result.quoteType);
   const kind = instrumentType === "FX" ? "FX" : "INVESTMENT";
-  const quoteMode = result.dataSource === "MANUAL" ? "MANUAL" : "MARKET";
+  const quoteMode = quoteModeFromSearchResult(result);
+  const canonicalSymbol = result.canonicalSymbol || result.symbol;
+  const canonicalExchangeMic = result.canonicalExchangeMic || result.exchangeMic;
 
   return {
     kind,
     name: result.longName || result.shortName || result.symbol,
-    displayCode: result.symbol,
+    displayCode: canonicalSymbol,
     isActive: true,
     quoteMode,
     quoteCcy: result.currency || fallbackCurrency,
     instrumentType,
-    instrumentSymbol: result.symbol,
-    instrumentExchangeMic: result.exchangeMic,
+    instrumentSymbol: canonicalSymbol,
+    instrumentExchangeMic: canonicalExchangeMic,
+    providerId: result.providerId,
+    providerSymbol: result.providerSymbol,
   };
 }
 
@@ -161,6 +170,8 @@ export function buildNewAssetFromDraft(draft: DraftActivity): NewAsset | null {
     instrumentType: draft.instrumentType,
     instrumentSymbol: draft.symbol,
     instrumentExchangeMic: draft.exchangeMic,
+    providerId: draft.providerId,
+    providerSymbol: draft.providerSymbol,
   };
 }
 
@@ -222,6 +233,8 @@ export function buildSyntheticDraftsFromHoldings(
       quoteCcy: meta.quoteCcy,
       instrumentType: meta.instrumentType,
       symbolName: meta.symbolName,
+      providerId: meta.providerId,
+      providerSymbol: meta.providerSymbol,
       assetCandidateKey: key,
       status: "valid",
       errors: {},

@@ -21,7 +21,7 @@ wealthfolio-ai = { workspace = true }
 
 # Tauri
 tauri = { version = "2.10", features = [] }
-tauri-plugin-fs = "2"
+tauri-plugin-fs = "2.5"
 tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-log = "2"

@@ -8,29 +8,34 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@wealthfolio/ui/components/ui/sheet";
-import { createPortfolioAccount, PORTFOLIO_ACCOUNT_ID } from "@/lib/constants";
-import type { Account } from "@/lib/types";
+import type { AccountFilter } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { useSettingsContext } from "@/lib/settings-provider";
 import { ScrollArea } from "@wealthfolio/ui";
 import { useAccounts } from "@/hooks/use-accounts";
+import { usePortfolios } from "@/hooks/use-portfolios";
 
 interface IncomeMobileFilterSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  selectedAccount: Account | null;
-  onAccountChange: (account: Account) => void;
+  accountFilter: AccountFilter;
+  onAccountFilterChange: (filter: AccountFilter) => void;
 }
 
 export const IncomeMobileFilterSheet = ({
   open,
   onOpenChange,
-  selectedAccount,
-  onAccountChange,
+  accountFilter,
+  onAccountFilterChange,
 }: IncomeMobileFilterSheetProps) => {
-  const { settings } = useSettingsContext();
-  const baseCurrency = settings?.baseCurrency ?? "USD";
   const { accounts } = useAccounts();
+  const { data: portfolios = [] } = usePortfolios();
+
+  const select = (filter: AccountFilter) => {
+    onAccountFilterChange(filter);
+    onOpenChange(false);
+  };
+
+  const isAll = accountFilter.type === "all";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -50,46 +55,54 @@ export const IncomeMobileFilterSheet = ({
               <div
                 className={cn(
                   "flex cursor-pointer items-center justify-between p-3 text-sm transition-colors",
-                  selectedAccount?.id === PORTFOLIO_ACCOUNT_ID
-                    ? "bg-accent/50 font-medium"
-                    : "hover:bg-muted/50",
+                  isAll ? "bg-accent/50 font-medium" : "hover:bg-muted/50",
                 )}
-                onClick={() => {
-                  onAccountChange(createPortfolioAccount(baseCurrency) as Account);
-                  onOpenChange(false);
-                }}
+                onClick={() => select({ type: "all" })}
               >
                 <span className="flex items-center gap-2">
                   <Icons.LayoutDashboard className="text-muted-foreground h-4 w-4" />
-                  All Portfolio
+                  All Accounts
                 </span>
-                {selectedAccount?.id === PORTFOLIO_ACCOUNT_ID && (
-                  <Icons.Check className="text-primary h-4 w-4" />
-                )}
+                {isAll && <Icons.Check className="text-primary h-4 w-4" />}
               </div>
-              {accounts.map((account) => (
-                <div
-                  key={account.id}
-                  className={cn(
-                    "flex cursor-pointer items-center justify-between border-t p-3 text-sm transition-colors",
-                    selectedAccount?.id === account.id
-                      ? "bg-accent/50 font-medium"
-                      : "hover:bg-muted/50",
-                  )}
-                  onClick={() => {
-                    onAccountChange(account);
-                    onOpenChange(false);
-                  }}
-                >
-                  <span className="flex items-center gap-2">
-                    <Icons.Wallet className="text-muted-foreground h-4 w-4" />
-                    {account.name}
-                  </span>
-                  {selectedAccount?.id === account.id && (
-                    <Icons.Check className="text-primary h-4 w-4" />
-                  )}
-                </div>
-              ))}
+
+              {portfolios.map((p) => {
+                return (
+                  <div
+                    key={p.id}
+                    className={cn(
+                      "text-muted-foreground flex cursor-not-allowed items-center justify-between border-t p-3 text-sm opacity-75",
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icons.Folder className="text-muted-foreground h-4 w-4" />
+                      {p.name}
+                    </span>
+                    <span className="text-xs">Coming soon</span>
+                  </div>
+                );
+              })}
+
+              {accounts.map((account) => {
+                const isSelected =
+                  accountFilter.type === "account" && accountFilter.accountId === account.id;
+                return (
+                  <div
+                    key={account.id}
+                    className={cn(
+                      "flex cursor-pointer items-center justify-between border-t p-3 text-sm transition-colors",
+                      isSelected ? "bg-accent/50 font-medium" : "hover:bg-muted/50",
+                    )}
+                    onClick={() => select({ type: "account", accountId: account.id })}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icons.Wallet className="text-muted-foreground h-4 w-4" />
+                      {account.name}
+                    </span>
+                    {isSelected && <Icons.Check className="text-primary h-4 w-4" />}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </ScrollArea>

@@ -90,6 +90,14 @@ pub struct HoldingInput {
     pub average_cost: Option<String>,
     /// Exchange MIC code for new holdings (e.g., "XNAS", "XTSE"). Used when asset_id is not provided.
     pub exchange_mic: Option<String>,
+    /// Quote currency resolved during search/review (e.g., GBp)
+    pub quote_ccy: Option<String>,
+    /// Instrument type resolved during search/review (e.g., EQUITY, CRYPTO)
+    pub instrument_type: Option<String>,
+    /// Market data provider that resolved this holding, if selected.
+    pub provider_id: Option<String>,
+    /// Provider-native symbol/code selected by search/import.
+    pub provider_symbol: Option<String>,
     /// Asset name for new custom assets
     pub name: Option<String>,
     /// Data source (e.g., "MANUAL" for custom assets) — sets quote mode to manual
@@ -122,6 +130,14 @@ pub struct HoldingsPositionInput {
     pub currency: String,
     /// Exchange MIC code (e.g., "XNAS", "XTSE") resolved during check step
     pub exchange_mic: Option<String>,
+    /// Quote currency resolved during asset review/search
+    pub quote_ccy: Option<String>,
+    /// Instrument type resolved during asset review/search
+    pub instrument_type: Option<String>,
+    /// Market data provider that resolved this position, if selected.
+    pub provider_id: Option<String>,
+    /// Provider-native symbol/code selected by search/import.
+    pub provider_symbol: Option<String>,
     /// Resolved asset ID from asset review step
     pub asset_id: Option<String>,
 }

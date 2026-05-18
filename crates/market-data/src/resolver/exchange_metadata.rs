@@ -58,6 +58,7 @@ mod tests {
         assert_eq!(mic_to_currency("XTSE"), Some("CAD"));
         assert_eq!(mic_to_currency("XLON"), Some("GBp")); // LSE quotes in pence
         assert_eq!(mic_to_currency("CXE"), Some("GBP"));
+        assert_eq!(mic_to_currency("XTAE"), Some("ILA"));
         assert_eq!(mic_to_currency("XETR"), Some("EUR"));
         assert_eq!(mic_to_currency("XTKS"), Some("JPY"));
         assert_eq!(mic_to_currency("UNKNOWN"), None);
@@ -75,5 +76,8 @@ mod tests {
 
         let unknown = exchanges_for_currency("XYZ");
         assert!(unknown.is_empty());
+
+        let ila_exchanges = exchanges_for_currency("ILA");
+        assert!(ila_exchanges.contains(&"XTAE"));
     }
 }

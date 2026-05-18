@@ -19,6 +19,9 @@ use crate::errors::StorageError;
 
 // Keep this invocation in sync with the on-disk migrations directory.
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
+const BACKUP_FILENAME_PREFIX: &str = "wealthfolio_backup_";
+const BACKUP_FILENAME_SUFFIX: &str = ".db";
+const BACKUP_FILENAME_TIMESTAMP_FORMAT: &str = "%Y%m%d_%H%M%S";
 
 pub type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 pub type DbConnection = PooledConnection<ConnectionManager<SqliteConnection>>;
@@ -153,6 +156,40 @@ pub fn get_db_path(input: &str) -> String {
     }
 }
 
+fn create_backup_filename(timestamp: chrono::DateTime<Local>) -> String {
+    format!(
+        "{}{}{}",
+        BACKUP_FILENAME_PREFIX,
+        timestamp.format(BACKUP_FILENAME_TIMESTAMP_FORMAT),
+        BACKUP_FILENAME_SUFFIX
+    )
+}
+
+pub fn is_valid_backup_filename(filename: &str) -> bool {
+    const EXPECTED_LEN: usize =
+        BACKUP_FILENAME_PREFIX.len() + "YYYYMMDD_HHMMSS".len() + BACKUP_FILENAME_SUFFIX.len();
+
+    if filename.len() != EXPECTED_LEN
+        || !filename.starts_with(BACKUP_FILENAME_PREFIX)
+        || !filename.ends_with(BACKUP_FILENAME_SUFFIX)
+    {
+        return false;
+    }
+
+    let timestamp =
+        &filename[BACKUP_FILENAME_PREFIX.len()..filename.len() - BACKUP_FILENAME_SUFFIX.len()];
+    if timestamp.as_bytes().get(8) != Some(&b'_') {
+        return false;
+    }
+
+    let compact = timestamp.replace('_', "");
+    if compact.len() != 14 || !compact.bytes().all(|b| b.is_ascii_digit()) {
+        return false;
+    }
+
+    chrono::NaiveDateTime::parse_from_str(timestamp, BACKUP_FILENAME_TIMESTAMP_FORMAT).is_ok()
+}
+
 pub fn create_backup_path(app_data_dir: &str) -> Result<String> {
     let backup_dir = Path::new(app_data_dir).join("backups");
     fs::create_dir_all(&backup_dir).map_err(|e| {
@@ -160,8 +197,7 @@ pub fn create_backup_path(app_data_dir: &str) -> Result<String> {
         Error::Database(DatabaseError::BackupFailed(e.to_string()))
     })?;
 
-    let timestamp = Local::now().format("%Y%m%d_%H%M%S");
-    let backup_file = format!("wealthfolio_backup_{}.db", timestamp);
+    let backup_file = create_backup_filename(Local::now());
     let backup_path = backup_dir.join(backup_file);
 
     Ok(backup_path.to_str().unwrap().to_string())
@@ -506,5 +542,61 @@ impl DbTransactionExecutor for Arc<DbPool> {
         E: Into<Error>,
     {
         (**self).execute(f)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+    use tempfile::tempdir;
+
+    #[test]
+    fn validates_backup_filename_contract() {
+        assert!(is_valid_backup_filename(
+            "wealthfolio_backup_20260514_150409.db"
+        ));
+
+        for filename in [
+            "../wealthfolio_backup_20260514_150409.db",
+            "wealthfolio_backup_20260514_150409.db\0",
+            "wealthfolio_backup_20260514_150409.sqlite",
+            "wealthfolio_backup_20260514_150409_123.db",
+            "wealthfolio_backup_20260514150409.db",
+            "wealthfolio_backup_20260514_15040x.db",
+            "wealthfolio_backup_20260231_150409.db",
+            "other_backup_20260514_150409.db",
+        ] {
+            assert!(
+                !is_valid_backup_filename(filename),
+                "expected {filename} to be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn generated_backup_filename_matches_validator() {
+        let timestamp = Local
+            .with_ymd_and_hms(2026, 5, 14, 15, 4, 9)
+            .single()
+            .unwrap();
+
+        assert_eq!(
+            create_backup_filename(timestamp),
+            "wealthfolio_backup_20260514_150409.db"
+        );
+        assert!(is_valid_backup_filename(&create_backup_filename(timestamp)));
+    }
+
+    #[test]
+    fn create_backup_path_uses_valid_backup_filename() {
+        let app_data = tempdir().unwrap();
+        let backup_path = create_backup_path(app_data.path().to_str().unwrap()).unwrap();
+        let filename = Path::new(&backup_path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap();
+
+        assert!(is_valid_backup_filename(filename));
     }
 }

@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { ImportFormat, ImportMappingData, type SymbolSearchResult } from "@/lib/types";
+import { quoteModeFromSearchResult } from "@/lib/asset-utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { saveAccountImportMapping, logger } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
@@ -440,22 +441,27 @@ export function useImportMapping({
 
   const handleSymbolMapping = useCallback(
     (csvSymbol: string, newSymbol: string, searchResult?: SymbolSearchResult) => {
+      const canonicalSymbol = searchResult?.canonicalSymbol || newSymbol;
+      const canonicalExchangeMic = searchResult?.canonicalExchangeMic || searchResult?.exchangeMic;
+
       setMapping((prev) => ({
         ...prev,
         symbolMappings: {
           ...prev.symbolMappings,
-          [csvSymbol.trim()]: newSymbol.trim(),
+          [csvSymbol.trim()]: canonicalSymbol.trim(),
         },
         symbolMappingMeta: {
           ...prev.symbolMappingMeta,
           ...(searchResult
             ? {
                 [csvSymbol.trim()]: {
-                  exchangeMic: searchResult.exchangeMic,
+                  exchangeMic: canonicalExchangeMic,
                   symbolName: searchResult.longName,
                   quoteCcy: searchResult.currency,
                   instrumentType: searchResult.quoteType,
-                  quoteMode: searchResult.dataSource === "MANUAL" ? "MANUAL" : undefined,
+                  quoteMode: quoteModeFromSearchResult(searchResult),
+                  providerId: searchResult.providerId,
+                  providerSymbol: searchResult.providerSymbol,
                 },
               }
             : {}),

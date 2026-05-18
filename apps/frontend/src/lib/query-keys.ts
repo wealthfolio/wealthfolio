@@ -1,4 +1,7 @@
 export const QueryKeys = {
+  // Portfolios (saved reporting scopes)
+  PORTFOLIOS: "portfolios",
+
   // Account related keys
   ACCOUNTS: "accounts",
   ACCOUNTS_SUMMARY: "accounts_summary",
@@ -33,6 +36,7 @@ export const QueryKeys = {
 
   // Settings related keys
   SETTINGS: "settings",
+  DATABASE_BACKUPS: "databaseBackups",
   EXCHANGE_RATES: "exchangeRates",
 
   // New keys for exchange rates

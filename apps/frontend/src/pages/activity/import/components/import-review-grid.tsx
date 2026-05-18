@@ -19,6 +19,7 @@ import {
   SUBTYPE_DISPLAY_NAMES,
 } from "@/lib/constants";
 import { needsImportAssetResolution } from "@/lib/activity-utils";
+import { quoteModeFromSearchResult } from "@/lib/asset-utils";
 import { ActivityTypeBadge } from "../../components/activity-type-badge";
 import type { DraftActivity, DraftActivityStatus } from "../context";
 import { ImportToolbar, ImportContextMenu } from "./import-toolbar";
@@ -596,14 +597,18 @@ export function ImportReviewGrid({
 
       // Currency fallback: search result → current draft currency → fallback
       const currency = result.currency ?? draft.currency ?? fallbackCurrency;
+      const canonicalSymbol = (result.canonicalSymbol || result.symbol).trim().toUpperCase();
+      const canonicalExchangeMic = result.canonicalExchangeMic || result.exchangeMic;
 
       onDraftUpdate(rowIndex, {
-        symbol: result.symbol,
+        symbol: canonicalSymbol,
         currency,
-        exchangeMic: result.exchangeMic,
+        exchangeMic: canonicalExchangeMic,
         quoteCcy: result.currency ?? draft.quoteCcy,
         instrumentType: result.quoteType,
-        quoteMode: result.dataSource === "MANUAL" ? "MANUAL" : undefined,
+        quoteMode: quoteModeFromSearchResult(result),
+        providerId: result.providerId,
+        providerSymbol: result.providerSymbol,
         symbolName: result.longName || result.shortName || draft.symbolName,
         assetId: undefined,
         importAssetKey: undefined,
@@ -628,14 +633,18 @@ export function ImportReviewGrid({
       if (!draft) return;
 
       const currency = result.currency ?? draft.currency ?? fallbackCurrency;
+      const canonicalSymbol = (result.canonicalSymbol || result.symbol).trim().toUpperCase();
+      const canonicalExchangeMic = result.canonicalExchangeMic || result.exchangeMic;
 
       onDraftUpdate(rowIndex, {
-        symbol: result.symbol,
+        symbol: canonicalSymbol,
         currency,
-        exchangeMic: result.exchangeMic,
+        exchangeMic: canonicalExchangeMic,
         quoteCcy: result.currency ?? draft.quoteCcy,
         instrumentType: result.quoteType,
-        quoteMode: result.dataSource === "MANUAL" ? "MANUAL" : undefined,
+        quoteMode: quoteModeFromSearchResult(result),
+        providerId: result.providerId,
+        providerSymbol: result.providerSymbol,
         symbolName: result.longName || result.shortName || draft.symbolName,
         assetId: undefined,
         importAssetKey: undefined,

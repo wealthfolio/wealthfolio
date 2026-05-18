@@ -4,6 +4,7 @@ mod alternative_assets_model;
 mod alternative_assets_service;
 mod alternative_assets_traits;
 mod asset_id;
+mod asset_resolution;
 mod assets_constants;
 mod assets_model;
 mod assets_service;
@@ -28,6 +29,8 @@ pub use asset_id::{
     parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix, symbol_resolution_candidates,
     unknown_dotted_suffix_fallback,
 };
+pub(crate) use asset_resolution::asset_provider_alias_symbols;
+pub use asset_resolution::{AssetResolutionInput, AssetResolutionOutput};
 pub use assets_model::{
     build_asset_metadata, build_option_metadata, canonicalize_market_identity,
     normalize_quote_ccy_code, resolve_quote_ccy_precedence, Asset, AssetKind, AssetMetadata,

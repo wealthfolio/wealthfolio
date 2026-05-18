@@ -156,70 +156,6 @@ fn map_sector_to_gics(sector: &str) -> Option<&'static str> {
     }
 }
 
-/// Maps exchange MIC to country name for fallback region classification.
-/// Used when provider doesn't return country data (e.g., ETFs).
-fn mic_to_country(mic: &str) -> Option<&'static str> {
-    match mic {
-        // North America
-        "XNYS" | "XNAS" | "XASE" | "ARCX" | "BATS" => Some("United States"),
-        "XTSE" | "XTSX" | "XCNQ" => Some("Canada"),
-        "XMEX" => Some("Mexico"),
-
-        // UK & Ireland
-        "XLON" => Some("United Kingdom"),
-        "XDUB" => Some("Ireland"),
-
-        // Germany
-        "XETR" | "XFRA" | "XSTU" | "XHAM" | "XDUS" | "XMUN" | "XBER" | "XHAN" => Some("Germany"),
-
-        // Euronext
-        "XPAR" => Some("France"),
-        "XAMS" => Some("Netherlands"),
-        "XBRU" => Some("Belgium"),
-        "XLIS" => Some("Portugal"),
-
-        // Southern Europe
-        "XMIL" => Some("Italy"),
-        "XMAD" => Some("Spain"),
-        "XATH" => Some("Greece"),
-
-        // Nordic
-        "XSTO" => Some("Sweden"),
-        "XHEL" => Some("Finland"),
-        "XCSE" => Some("Denmark"),
-        "XOSL" => Some("Norway"),
-
-        // Central/Eastern Europe
-        "XSWX" => Some("Switzerland"),
-        "XWBO" => Some("Austria"),
-        "XWAR" => Some("Poland"),
-
-        // Asia
-        "XSHG" | "XSHE" => Some("China"),
-        "XHKG" => Some("Hong Kong"),
-        "XTKS" => Some("Japan"),
-        "XKRX" | "XKOS" => Some("South Korea"),
-        "XSES" => Some("Singapore"),
-        "XBOM" | "XNSE" => Some("India"),
-        "XTAI" => Some("Taiwan"),
-
-        // Oceania
-        "XASX" => Some("Australia"),
-        "XNZE" => Some("New Zealand"),
-
-        // South America
-        "BVMF" => Some("Brazil"),
-
-        // Middle East
-        "XTAE" => Some("Israel"),
-
-        // Africa
-        "XJSE" => Some("South Africa"),
-
-        _ => None,
-    }
-}
-
 /// Maps country name to regions taxonomy category ID
 /// Uses specific country codes where available, falls back to regional groupings
 /// Regions hierarchy: R10=Europe, R20=Americas, R2010=North America, R2040=South America,
@@ -302,7 +238,9 @@ impl ClassificationInput {
     /// For country, handles both:
     /// - Single country (for stocks): `country` = "United States"
     /// - Multiple countries (for ETFs): `countries_json` = `[{"name": "United States", "weight": 0.60}, ...]`
-    /// - Fallback: `exchange_mic` used to infer fund domicile when provider returns no country
+    ///
+    /// Exchange MIC is intentionally not used as a region fallback: trading venue
+    /// is not issuer domicile or portfolio exposure.
     pub fn from_provider_profile(
         quote_type: Option<&str>,
         name: Option<&str>,
@@ -310,7 +248,7 @@ impl ClassificationInput {
         sectors_json: Option<&str>,
         country: Option<&str>,
         countries_json: Option<&str>,
-        exchange_mic: Option<&str>,
+        _exchange_mic: Option<&str>,
     ) -> Self {
         let mut input = ClassificationInput {
             quote_type: quote_type.map(String::from),
@@ -359,20 +297,6 @@ impl ClassificationInput {
         if input.country.is_none() {
             if let Some(country_name) = country {
                 if !country_name.is_empty() {
-                    input.country = Some(country_name.to_string());
-                }
-            }
-        }
-
-        // Fallback: use exchange MIC to infer fund domicile
-        // This is useful for ETFs where Yahoo doesn't return country data
-        if input.country.is_none() {
-            if let Some(mic) = exchange_mic {
-                if let Some(country_name) = mic_to_country(mic) {
-                    debug!(
-                        "Using exchange MIC {} to infer country: {}",
-                        mic, country_name
-                    );
                     input.country = Some(country_name.to_string());
                 }
             }
@@ -754,8 +678,7 @@ mod tests {
     }
 
     #[test]
-    fn test_exchange_mic_fallback_for_country() {
-        // For ETFs: no country from provider, use exchange MIC
+    fn test_exchange_mic_does_not_fallback_to_country() {
         let input = ClassificationInput::from_provider_profile(
             Some("ETF"),
             None,
@@ -763,8 +686,8 @@ mod tests {
             None,
             None,         // no country from provider
             None,         // no countries JSON
-            Some("XTSE"), // Canadian exchange
+            Some("XETR"), // German trading venue
         );
-        assert_eq!(input.country, Some("Canada".to_string()));
+        assert_eq!(input.country, None);
     }
 }

@@ -22,7 +22,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { useBadgeOverflow } from "../../hooks/use-badge-overflow";
 import { useDebouncedCallback } from "../../hooks/use-debounced-callback";
-import { worldCurrencies } from "../../lib/currencies";
+import { quoteCurrencies } from "../../lib/currencies";
 import { generateId } from "../../lib/id";
 import { cn } from "../../lib/utils";
 import { DataGridCellWrapper } from "./data-grid-cell-wrapper";
@@ -2493,14 +2493,6 @@ export function SymbolCell<TData>({
   readOnly,
   cellState,
 }: DataGridCellProps<TData>) {
-  const stripYahooExchangeSuffix = React.useCallback((symbol: string) => {
-    // Common exchange suffixes from Yahoo Finance (e.g., "VFV.TO" -> "VFV").
-    // Share class suffixes like "BRK.B" are preserved (not in the allowlist).
-    const suffixPattern =
-      /\.(TO|L|PA|DE|SW|AS|MI|MC|BR|HK|T|SI|AX|NZ|TA|JO|SA|SN|MX|VI|ST|OL|CO|HE|IC|PR|WA|AT|LI|LS|IR|KQ|KS|TW|TWO|V|CN|F|BE|DU|HA|HM|MU|SG)$/i;
-    return symbol.replace(suffixPattern, "");
-  }, []);
-
   const normalizeCryptoPairSymbol = React.useCallback((symbol: string, currencyHint?: string) => {
     // Provider may return a pair symbol like "BTC-USD". Canonical crypto IDs use the base symbol.
     const trimmed = symbol.trim();
@@ -2577,12 +2569,12 @@ export function SymbolCell<TData>({
   const handleSelect = React.useCallback(
     (symbol: string, result?: SymbolSearchResult) => {
       const trimmed = symbol.trim();
-      const withoutExchangeSuffix = result?.exchangeMic ? stripYahooExchangeSuffix(trimmed) : trimmed;
-      const withoutCryptoQuote =
-        result?.assetKind?.toUpperCase() === "CRYPTO"
-          ? normalizeCryptoPairSymbol(withoutExchangeSuffix, result?.currency)
-          : withoutExchangeSuffix;
-      const normalized = withoutCryptoQuote.trim().toUpperCase();
+      const canonicalSymbol =
+        result?.canonicalSymbol ||
+        (result?.assetKind?.toUpperCase() === "CRYPTO"
+          ? normalizeCryptoPairSymbol(trimmed, result?.currency)
+          : trimmed);
+      const normalized = canonicalSymbol.trim().toUpperCase();
       setValue(normalized);
       tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: normalized });
       onSelectCallback?.(rowIndex, normalized, result);
@@ -2590,7 +2582,7 @@ export function SymbolCell<TData>({
       setOptions([]);
       tableMeta?.onCellEditingStop?.();
     },
-    [tableMeta, rowIndex, columnId, onSelectCallback, stripYahooExchangeSuffix, normalizeCryptoPairSymbol],
+    [tableMeta, rowIndex, columnId, onSelectCallback, normalizeCryptoPairSymbol],
   );
 
   const handleCustomSymbol = React.useCallback(() => {
@@ -2737,13 +2729,11 @@ export function SymbolCell<TData>({
                   <CommandGroup>
                     {options.map((option) =>
                       (() => {
-                        const withoutExchangeSuffix = option.exchangeMic
-                          ? stripYahooExchangeSuffix(option.symbol)
-                          : option.symbol;
                         const normalizedOptionSymbol =
-                          option.assetKind?.toUpperCase() === "CRYPTO"
-                            ? normalizeCryptoPairSymbol(withoutExchangeSuffix, option.currency)
-                            : withoutExchangeSuffix;
+                          option.canonicalSymbol ||
+                          (option.assetKind?.toUpperCase() === "CRYPTO"
+                            ? normalizeCryptoPairSymbol(option.symbol, option.currency)
+                            : option.symbol);
 
                         return (
                           <CommandItem
@@ -2832,10 +2822,10 @@ export function CurrencyCell<TData>({
 
   const filteredCurrencies = React.useMemo(() => {
     if (!searchQuery.trim()) {
-      return worldCurrencies;
+      return quoteCurrencies;
     }
     const query = searchQuery.toLowerCase();
-    return worldCurrencies.filter(
+    return quoteCurrencies.filter(
       (currency) => currency.value.toLowerCase().includes(query) || currency.label.toLowerCase().includes(query),
     );
   }, [searchQuery]);

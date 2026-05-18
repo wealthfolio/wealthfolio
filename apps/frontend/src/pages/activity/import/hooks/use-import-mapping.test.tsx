@@ -92,4 +92,38 @@ describe("useImportMapping activity type mappings", () => {
       "TRANSFER_OUT",
     ]);
   });
+
+  it("preserves provider metadata when mapping a CSV symbol from search", () => {
+    const { result } = renderHook(() => useImportMapping(), {
+      wrapper: createWrapper(),
+    });
+
+    act(() => {
+      result.current.handleSymbolMapping("SHOP.TO", "SHOP", {
+        symbol: "SHOP.TO",
+        canonicalSymbol: "SHOP",
+        canonicalExchangeMic: "XTSE",
+        exchange: "TOR",
+        exchangeMic: "XTSE",
+        currency: "CAD",
+        shortName: "Shopify",
+        longName: "Shopify Inc.",
+        quoteType: "EQUITY",
+        index: "quotes",
+        score: 100,
+        typeDisplay: "Equity",
+        providerId: "YAHOO",
+        providerSymbol: "SHOP.TO",
+      });
+    });
+
+    expect(result.current.mapping.symbolMappings["SHOP.TO"]).toBe("SHOP");
+    expect(result.current.mapping.symbolMappingMeta?.["SHOP.TO"]).toMatchObject({
+      exchangeMic: "XTSE",
+      quoteCcy: "CAD",
+      instrumentType: "EQUITY",
+      providerId: "YAHOO",
+      providerSymbol: "SHOP.TO",
+    });
+  });
 });

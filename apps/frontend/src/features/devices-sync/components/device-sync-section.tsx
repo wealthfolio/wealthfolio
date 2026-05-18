@@ -3,7 +3,15 @@
 // State Machine: FRESH → REGISTERED → READY (+ STALE, RECOVERY)
 // ==================================================================
 
-import { backupDatabase, openFileSaveDialog } from "@/adapters";
+import {
+  backupDatabase,
+  backupDatabaseToPath,
+  backupDatabaseToPendingExport,
+  isWeb,
+  openFolderDialog,
+  saveAppDataFileViaPicker,
+} from "@/adapters";
+import { getPlatform as getRuntimePlatform } from "@/hooks/use-platform";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icons, Skeleton } from "@wealthfolio/ui";
 import {
@@ -144,13 +152,36 @@ export function DeviceSyncSection() {
   const handleBackupBeforeBootstrap = useCallback(async (): Promise<boolean> => {
     setIsBackingUpBeforeBootstrap(true);
     try {
-      const { filename, data } = await backupDatabase();
-      const saved = await openFileSaveDialog(data, filename);
-      if (!saved) {
-        return false;
+      let backupLocation: string;
+
+      if (isWeb) {
+        const { filename } = await backupDatabase();
+        backupLocation = filename;
+      } else {
+        const runtimePlatform = await getRuntimePlatform();
+        if (runtimePlatform.is_desktop) {
+          const selectedDir = await openFolderDialog();
+          if (!selectedDir) {
+            return false;
+          }
+          backupLocation = await backupDatabaseToPath(selectedDir);
+        } else {
+          if (runtimePlatform.os !== "ios") {
+            throw new Error(
+              "Backup before device sync is currently supported on desktop, web, and iOS only",
+            );
+          }
+          const { relativePath, filename } = await backupDatabaseToPendingExport();
+          const saved = await saveAppDataFileViaPicker(relativePath, filename);
+          if (!saved) {
+            return false;
+          }
+          backupLocation = filename;
+        }
       }
+
       toast.success("Backup saved", {
-        description: `A local backup was saved as ${filename}.`,
+        description: `A backup was saved as ${backupLocation}.`,
       });
       return true;
     } catch (err) {

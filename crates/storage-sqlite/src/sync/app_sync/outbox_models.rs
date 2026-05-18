@@ -9,6 +9,7 @@ use crate::goals::{GoalDB, GoalPlanDB, GoalsAllocationDB};
 use crate::limits::ContributionLimitDB;
 use crate::market_data::QuoteDB;
 use crate::portfolio::snapshot::AccountStateSnapshotDB;
+use crate::portfolios::{PortfolioAccountDB, PortfolioDB};
 use crate::sync::import_run::ImportRunDB;
 use crate::sync::platform::PlatformDB;
 use crate::sync::SyncOutboxModel;
@@ -211,6 +212,22 @@ impl SyncOutboxModel for AccountStateSnapshotDB {
 
 impl SyncOutboxModel for CustomProviderDB {
     const ENTITY: SyncEntity = SyncEntity::CustomProvider;
+
+    fn sync_entity_id(&self) -> &str {
+        &self.id
+    }
+}
+
+impl SyncOutboxModel for PortfolioDB {
+    const ENTITY: SyncEntity = SyncEntity::Portfolio;
+
+    fn sync_entity_id(&self) -> &str {
+        &self.id
+    }
+}
+
+impl SyncOutboxModel for PortfolioAccountDB {
+    const ENTITY: SyncEntity = SyncEntity::PortfolioAccount;
 
     fn sync_entity_id(&self) -> &str {
         &self.id

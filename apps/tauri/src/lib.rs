@@ -385,6 +385,12 @@ pub fn run() {
             commands::goal::get_retirement_overview,
             commands::goal::get_save_up_overview,
             commands::goal::preview_save_up_overview,
+            // Portfolios (saved reporting scopes)
+            commands::portfolios::get_portfolios,
+            commands::portfolios::get_portfolio,
+            commands::portfolios::create_portfolio,
+            commands::portfolios::update_portfolio_entry,
+            commands::portfolios::delete_portfolio_entry,
             // Portfolio commands
             commands::portfolio::get_holdings,
             commands::portfolio::get_holding,
@@ -412,10 +418,17 @@ pub fn run() {
             commands::limits::delete_contribution_limit,
             commands::limits::calculate_deposits_for_contribution_limit,
             // Utility commands
+            commands::utilities::save_text_file_with_dialog,
+            commands::utilities::save_file_with_dialog,
+            commands::utilities::write_pending_export_text_file,
+            commands::utilities::write_pending_export_file,
+            commands::utilities::export_data_file,
+            commands::utilities::open_external_url,
             commands::utilities::get_app_info,
             commands::utilities::check_for_updates,
             commands::utilities::install_app_update,
             commands::utilities::backup_database,
+            commands::utilities::backup_database_to_pending_export,
             commands::utilities::backup_database_to_path,
             commands::utilities::restore_database,
             // Asset commands

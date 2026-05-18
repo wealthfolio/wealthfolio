@@ -13,6 +13,14 @@ export interface CellSelectOption {
 
 export interface SymbolSearchResult {
   symbol: string;
+  /** Canonical asset symbol used for persistence (e.g., "SHOP" for "SHOP.TO") */
+  canonicalSymbol?: string;
+  /** Canonical exchange MIC used for persistence */
+  canonicalExchangeMic?: string;
+  /** Market data provider that returned or resolved this symbol */
+  providerId?: string;
+  /** Provider-native symbol/code (e.g., Yahoo "BRK-B") */
+  providerSymbol?: string;
   shortName?: string;
   longName?: string;
   exchange?: string;
@@ -26,6 +34,7 @@ export interface SymbolSearchResult {
   quoteType?: string;
   score: number;
   dataSource?: string;
+  quoteMode?: "MARKET" | "MANUAL";
   /** Asset kind for custom assets (e.g., "SECURITY", "CRYPTO", "OTHER") */
   assetKind?: string;
   /** True when this result maps to an existing persisted asset. */

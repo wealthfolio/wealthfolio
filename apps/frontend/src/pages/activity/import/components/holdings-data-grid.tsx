@@ -23,6 +23,8 @@ export interface HoldingsRow {
   quantity: string;
   avgCost: string;
   currency: string;
+  providerId?: string;
+  providerSymbol?: string;
 }
 
 export interface HoldingsDataGridProps {
@@ -146,17 +148,7 @@ export function HoldingsDataGrid({
 
   // Symbol search handler
   const handleSymbolSearch = useCallback(async (query: string): Promise<SymbolSearchResult[]> => {
-    const results = await searchTicker(query);
-    return results.map((result) => ({
-      symbol: result.symbol,
-      shortName: result.shortName,
-      longName: result.longName,
-      exchange: result.exchange,
-      exchangeMic: result.exchangeMic,
-      currency: result.currency,
-      score: result.score,
-      dataSource: result.dataSource,
-    }));
+    return searchTicker(query);
   }, []);
 
   // Symbol selection handler
@@ -167,11 +159,18 @@ export function HoldingsDataGrid({
       if (!row) return;
 
       const currency = result.currency ?? row.currency ?? fallbackCurrency;
-      onSymbolSelect?.(row.rowIndex, result.symbol, result);
+      const canonicalSymbol = (result.canonicalSymbol || result.symbol).trim().toUpperCase();
+      onSymbolSelect?.(row.rowIndex, canonicalSymbol, result);
 
       // Also update currency from search result
       const nextRows = [...rows];
-      nextRows[rowIndex] = { ...nextRows[rowIndex], symbol: result.symbol, currency };
+      nextRows[rowIndex] = {
+        ...nextRows[rowIndex],
+        symbol: canonicalSymbol,
+        currency,
+        providerId: result.providerId,
+        providerSymbol: result.providerSymbol,
+      };
       onDataChange(nextRows);
     },
     [rows, fallbackCurrency, onSymbolSelect, onDataChange],
@@ -190,10 +189,17 @@ export function HoldingsDataGrid({
       if (!row) return;
 
       const currency = result.currency ?? row.currency ?? fallbackCurrency;
-      onSymbolSelect?.(row.rowIndex, result.symbol, result);
+      const canonicalSymbol = (result.canonicalSymbol || result.symbol).trim().toUpperCase();
+      onSymbolSelect?.(row.rowIndex, canonicalSymbol, result);
 
       const nextRows = [...rows];
-      nextRows[rowIndex] = { ...nextRows[rowIndex], symbol: result.symbol, currency };
+      nextRows[rowIndex] = {
+        ...nextRows[rowIndex],
+        symbol: canonicalSymbol,
+        currency,
+        providerId: result.providerId,
+        providerSymbol: result.providerSymbol,
+      };
       onDataChange(nextRows);
 
       setCustomAssetDialog({ open: false, rowIndex: -1, symbol: "" });

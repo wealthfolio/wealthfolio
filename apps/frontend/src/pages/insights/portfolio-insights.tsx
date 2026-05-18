@@ -1,7 +1,7 @@
-import { AccountSelector } from "@/components/account-selector";
+import { AccountFilterSelector } from "@/components/account-filter-selector";
 import { SwipablePage, SwipablePageView } from "@/components/page";
 import { PORTFOLIO_ACCOUNT_ID } from "@/lib/constants";
-import type { Account } from "@/lib/types";
+import type { AccountFilter } from "@/lib/types";
 import IncomePage from "@/pages/income/income-page";
 import PerformancePage from "@/pages/performance/performance-page";
 import { Icons } from "@wealthfolio/ui";
@@ -34,32 +34,15 @@ const DashboardLoader = () => (
 );
 
 export default function PortfolioInsightsPage() {
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>({
-    id: PORTFOLIO_ACCOUNT_ID,
-    name: "All Portfolio",
-    accountType: "PORTFOLIO" as unknown as Account["accountType"],
-    balance: 0,
-    currency: "USD",
-    isDefault: false,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as Account);
+  const [accountFilter, setAccountFilter] = useState<AccountFilter>({ type: "all" });
 
-  const accountId = selectedAccount?.id ?? PORTFOLIO_ACCOUNT_ID;
+  // Portfolio-level holdings aggregation is a follow-up; portfolio filter uses all accounts.
+  const accountId =
+    accountFilter.type === "account" ? accountFilter.accountId : PORTFOLIO_ACCOUNT_ID;
 
   const holdingsActions = useMemo(
-    () => (
-      <AccountSelector
-        selectedAccount={selectedAccount}
-        setSelectedAccount={setSelectedAccount}
-        variant="dropdown"
-        includePortfolio={true}
-        iconOnly={true}
-        icon={Icons.ListFilter}
-      />
-    ),
-    [selectedAccount],
+    () => <AccountFilterSelector value={accountFilter} onChange={setAccountFilter} />,
+    [accountFilter],
   );
 
   // Define the views with icons

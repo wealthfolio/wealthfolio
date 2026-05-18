@@ -8,18 +8,23 @@ const ACCOUNT_CURRENCY = "USD";
 
 /** Search for a symbol in an open ticker search popover, wait for results, and click the match. */
 async function searchAndSelectTicker(page: Page, query: string) {
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const exactQueryPattern = new RegExp(`^${escapedQuery}$`, "i");
   const searchInput = page.getByPlaceholder("Search for symbol");
+  await expect(searchInput).toBeVisible({ timeout: 5000 });
   await searchInput.fill(query);
-  await page.waitForTimeout(1000);
-  await expect(page.getByRole("progressbar"))
-    .toBeHidden({ timeout: 15000 })
-    .catch(() => {});
-  await page.waitForTimeout(500);
 
-  const option = page.getByRole("option", { name: new RegExp(query, "i") }).first();
-  await expect(option).toBeVisible({ timeout: 10000 });
+  const suggestions = page.getByRole("listbox", { name: /Suggestions/i });
+  await expect(suggestions).toBeVisible({ timeout: 10000 });
+  const option = suggestions
+    .getByRole("option")
+    .filter({
+      has: page.locator("span.font-mono").filter({ hasText: exactQueryPattern }),
+      hasNotText: /Create custom|manual/i,
+    })
+    .first();
+  await expect(option).toBeVisible({ timeout: 30000 });
   await option.click();
-  await page.waitForTimeout(300);
 }
 
 test.describe("Bulk Holdings (Add Existing Holdings)", () => {

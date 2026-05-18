@@ -94,8 +94,9 @@ pub use exchange_metadata::{
 };
 pub use exchange_registry::{get_exchange_list, ExchangeInfo};
 pub use exchange_suffixes::{
-    strip_yahoo_suffix, yahoo_exchange_suffixes, yahoo_exchange_to_mic, yahoo_suffix_to_mic,
-    ExchangeMap, ExchangeSuffix,
+    strip_yahoo_suffix, yahoo_equity_base_to_provider, yahoo_equity_provider_symbol_to_canonical,
+    yahoo_equity_search_queries, yahoo_exchange_suffixes, yahoo_exchange_to_mic,
+    yahoo_suffix_to_mic, ExchangeMap, ExchangeSuffix,
 };
 pub use rules_resolver::RulesResolver;
 pub use traits::{ResolutionSource, ResolvedInstrument, Resolver, SymbolResolver};

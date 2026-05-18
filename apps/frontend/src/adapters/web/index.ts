@@ -26,6 +26,7 @@ export type {
   BackendSyncReconcileReadyResult,
   BackendSyncSnapshotUploadResult,
   BackendSyncStateResult,
+  DataExportResult,
   EphemeralKeyPair,
   EventCallback,
   ExtractedAddon,
@@ -68,6 +69,14 @@ export const RUN_ENV: RunEnv = RunEnvs.WEB;
 // ============================================================================
 // Shared domain modules (identical logic for both platforms)
 // ============================================================================
+
+// Portfolio Commands
+export {
+  createPortfolio,
+  deletePortfolio,
+  getPortfolios,
+  updatePortfolioEntry,
+} from "../shared/portfolios";
 
 // Account Commands
 export { createAccount, deleteAccount, getAccounts, updateAccount } from "../shared/accounts";
@@ -309,6 +318,9 @@ export {
   updateHealthConfig,
 } from "../shared/health";
 
+// Data Export Commands
+export { exportDataFile } from "./exports";
+
 // ============================================================================
 // Platform-specific modules (different implementations for web vs desktop)
 // ============================================================================
@@ -341,22 +353,28 @@ export {
   openDatabaseFileDialog,
   openFileSaveDialog,
   openFolderDialog,
+  saveAppDataFileViaPicker,
   openUrlInBrowser,
 } from "./files";
 
 // Settings Commands (web-specific API for backups and updates)
 export {
   backupDatabase,
+  backupDatabaseToPendingExport,
   backupDatabaseToPath,
   checkForUpdates,
+  deleteDatabaseBackup,
   getAppInfo,
+  getDatabaseBackupDownloadUrl,
   getPlatform,
   getSettings,
   installUpdate,
   isAutoUpdateCheckEnabled,
+  listDatabaseBackups,
   restoreDatabase,
   updateSettings,
 } from "./settings";
+export type { DatabaseBackup } from "./settings";
 
 // Addon Commands (web-specific implementations)
 export {

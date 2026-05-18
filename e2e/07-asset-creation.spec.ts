@@ -98,18 +98,26 @@ test.describe("Asset Creation", () => {
     // Click the search combobox trigger to open the search popover
     const searchTrigger = page.getByRole("combobox", { name: /search/i });
     await searchTrigger.click();
-    await page.waitForTimeout(300);
 
     // Fill the actual CommandInput inside the popover
+    const escapedSymbol = "AAPL".replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const exactSymbolPattern = new RegExp(`^${escapedSymbol}$`, "i");
     const searchInput = page.getByPlaceholder("Search for symbol");
+    await expect(searchInput).toBeVisible({ timeout: 5000 });
     await searchInput.fill("AAPL");
-    await page.waitForTimeout(500);
 
     // Wait for search results to appear and select AAPL
-    const aaplOption = page.getByRole("option", { name: /AAPL/i }).first();
-    await expect(aaplOption).toBeVisible({ timeout: 15000 });
+    const suggestions = page.getByRole("listbox", { name: /Suggestions/i });
+    await expect(suggestions).toBeVisible({ timeout: 10000 });
+    const aaplOption = suggestions
+      .getByRole("option")
+      .filter({
+        has: page.locator("span.font-mono").filter({ hasText: exactSymbolPattern }),
+        hasNotText: /Create custom|manual/i,
+      })
+      .first();
+    await expect(aaplOption).toBeVisible({ timeout: 30000 });
     await aaplOption.click();
-    await page.waitForTimeout(300);
 
     // Verify symbol field got auto-filled
     const symbolInput = page.getByPlaceholder("e.g., AAPL");

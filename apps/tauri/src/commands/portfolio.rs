@@ -383,6 +383,14 @@ pub struct HoldingInput {
     pub average_cost: Option<String>,
     /// Exchange MIC code for new holdings (e.g., "XNAS", "XTSE"). Used when asset_id is not provided.
     pub exchange_mic: Option<String>,
+    /// Quote currency resolved during search/review (e.g., GBp)
+    pub quote_ccy: Option<String>,
+    /// Instrument type resolved during search/review (e.g., EQUITY, CRYPTO)
+    pub instrument_type: Option<String>,
+    /// Market data provider that resolved this holding, if selected.
+    pub provider_id: Option<String>,
+    /// Provider-native symbol/code selected by search/import.
+    pub provider_symbol: Option<String>,
     /// Asset name for new custom assets
     pub name: Option<String>,
     /// Data source (e.g., "MANUAL" for custom assets) — sets quote mode to manual
@@ -451,6 +459,10 @@ pub async fn save_manual_holdings(
             name: holding.name,
             data_source: holding.data_source,
             asset_kind: holding.asset_kind,
+            quote_ccy: holding.quote_ccy,
+            instrument_type: holding.instrument_type,
+            provider_id: holding.provider_id,
+            provider_symbol: holding.provider_symbol,
         });
     }
 
@@ -658,6 +670,14 @@ pub struct HoldingsPositionInput {
     pub currency: String,
     /// Exchange MIC code (e.g., "XNAS", "XTSE") resolved during check step
     pub exchange_mic: Option<String>,
+    /// Quote currency resolved during asset review/search
+    pub quote_ccy: Option<String>,
+    /// Instrument type resolved during asset review/search
+    pub instrument_type: Option<String>,
+    /// Market data provider that resolved this position, if selected.
+    pub provider_id: Option<String>,
+    /// Provider-native symbol/code selected by search/import.
+    pub provider_symbol: Option<String>,
     /// Resolved asset ID from asset review step
     pub asset_id: Option<String>,
 }
@@ -824,6 +844,10 @@ async fn import_single_snapshot(
             name: None,
             data_source: None,
             asset_kind: None,
+            quote_ccy: pos_input.quote_ccy.clone(),
+            instrument_type: pos_input.instrument_type.clone(),
+            provider_id: pos_input.provider_id.clone(),
+            provider_symbol: pos_input.provider_symbol.clone(),
         });
     }
 

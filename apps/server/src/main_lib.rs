@@ -37,6 +37,7 @@ use wealthfolio_core::{
         snapshot::{SnapshotService, SnapshotServiceTrait},
         valuation::{ValuationService, ValuationServiceTrait},
     },
+    portfolios::{PortfolioService, PortfolioServiceTrait},
     quotes::{QuoteService, QuoteServiceTrait},
     secrets::SecretStore,
     settings::{SettingsRepositoryTrait, SettingsService, SettingsServiceTrait},
@@ -55,6 +56,7 @@ use wealthfolio_storage_sqlite::{
     limits::ContributionLimitRepository,
     market_data::{MarketDataRepository, QuoteSyncStateRepository},
     portfolio::{snapshot::SnapshotRepository, valuation::ValuationRepository},
+    portfolios::PortfolioRepository,
     settings::SettingsRepository,
     sync::{AppSyncRepository, BrokerSyncStateRepository, ImportRunRepository, PlatformRepository},
     taxonomies::TaxonomyRepository,
@@ -103,6 +105,7 @@ pub struct AppState {
     pub health_service: Arc<dyn HealthServiceTrait + Send + Sync>,
     pub token_lifecycle: Arc<TokenLifecycleState>,
     pub custom_provider_service: Arc<wealthfolio_core::custom_provider::CustomProviderService>,
+    pub portfolio_service: Arc<dyn PortfolioServiceTrait + Send + Sync>,
 }
 
 pub fn init_tracing() {
@@ -247,6 +250,11 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
             custom_provider_repository.clone(),
             secret_store.clone(),
         ),
+    );
+
+    let portfolio_repository = Arc::new(PortfolioRepository::new(pool.clone(), writer.clone()));
+    let portfolio_service: Arc<dyn PortfolioServiceTrait + Send + Sync> = Arc::new(
+        PortfolioService::new(portfolio_repository, account_repo.clone()),
     );
 
     // Create taxonomy service for auto-classification
@@ -531,6 +539,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         health_service,
         token_lifecycle,
         custom_provider_service,
+        portfolio_service,
     });
 
     #[cfg(feature = "device-sync")]

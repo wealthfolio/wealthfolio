@@ -91,5 +91,13 @@ pub fn default_adapter_descriptors() -> Vec<EntityAdapterDescriptor> {
             entity: SyncEntity::CustomTaxonomy,
             table_name: "taxonomies",
         },
+        EntityAdapterDescriptor {
+            entity: SyncEntity::Portfolio,
+            table_name: "portfolios",
+        },
+        EntityAdapterDescriptor {
+            entity: SyncEntity::PortfolioAccount,
+            table_name: "portfolio_accounts",
+        },
     ]
 }

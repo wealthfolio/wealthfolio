@@ -43,7 +43,13 @@ export function useActivityMutations(
     exchangeMic?: string;
     quoteMode?: string;
     assetKind?: string;
-    assetMetadata?: { name?: string; kind?: string; exchangeMic?: string };
+    assetMetadata?: {
+      name?: string;
+      kind?: string;
+      exchangeMic?: string;
+      providerId?: string | null;
+      providerSymbol?: string | null;
+    };
     symbolQuoteCcy?: string;
     symbolInstrumentType?: string;
     includeId: boolean;
@@ -70,6 +76,8 @@ export function useActivityMutations(
       quoteMode: normalizedAssetId ? quoteMode : undefined,
       quoteCcy: normalizedAssetId ? symbolQuoteCcy : undefined,
       instrumentType: normalizedAssetId ? normalizedInstrumentType : undefined,
+      providerId: normalizedAssetId ? assetMetadata?.providerId : undefined,
+      providerSymbol: normalizedAssetId ? assetMetadata?.providerSymbol : undefined,
     });
   };
 
@@ -115,7 +123,13 @@ export function useActivityMutations(
         assetId?: string;
         exchangeMic?: string;
         metadata?: Record<string, unknown>;
-        assetMetadata?: { name?: string; kind?: string; exchangeMic?: string };
+        assetMetadata?: {
+          name?: string;
+          kind?: string;
+          exchangeMic?: string;
+          providerId?: string | null;
+          providerSymbol?: string | null;
+        };
         existingAssetId?: string;
         quoteMode?: string;
         assetKind?: string;
@@ -185,7 +199,13 @@ export function useActivityMutations(
         currentAssetId?: string;
         exchangeMic?: string;
         metadata?: Record<string, unknown>;
-        assetMetadata?: { name?: string; kind?: string; exchangeMic?: string };
+        assetMetadata?: {
+          name?: string;
+          kind?: string;
+          exchangeMic?: string;
+          providerId?: string | null;
+          providerSymbol?: string | null;
+        };
         existingAssetId?: string;
         quoteMode?: string;
         assetKind?: string;

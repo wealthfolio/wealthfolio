@@ -46,6 +46,7 @@ export type {
   BackendSyncBackgroundEngineResult,
   BackendSyncSnapshotUploadResult,
   EphemeralKeyPair,
+  DataExportResult,
 } from "../types";
 
 // Re-export AI types from features/ai-assistant
@@ -65,6 +66,14 @@ export type {
 // ============================================================================
 // Shared domain modules (identical logic for both platforms)
 // ============================================================================
+
+// Portfolio Commands
+export {
+  createPortfolio,
+  deletePortfolio,
+  getPortfolios,
+  updatePortfolioEntry,
+} from "../shared/portfolios";
 
 // Account Commands
 export * from "../shared/accounts";
@@ -112,6 +121,9 @@ export * from "../shared/ai-threads";
 // Health Center Commands
 export * from "../shared/health";
 
+// Data Export Commands
+export { exportDataFile } from "./exports";
+
 // ============================================================================
 // Platform-specific modules (different implementations)
 // ============================================================================
@@ -122,13 +134,18 @@ export {
   updateSettings,
   isAutoUpdateCheckEnabled,
   backupDatabase,
+  deleteDatabaseBackup,
+  getDatabaseBackupDownloadUrl,
+  listDatabaseBackups,
   backupDatabaseToPath,
+  backupDatabaseToPendingExport,
   restoreDatabase,
   getAppInfo,
   checkForUpdates,
   installUpdate,
   getPlatform,
 } from "./settings";
+export type { DatabaseBackup } from "./settings";
 
 // Addon Commands (platform-specific)
 export {
@@ -184,6 +201,7 @@ export {
   openFolderDialog,
   openDatabaseFileDialog,
   openFileSaveDialog,
+  saveAppDataFileViaPicker,
   openUrlInBrowser,
 } from "./files";
 

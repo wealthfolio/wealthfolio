@@ -79,22 +79,26 @@ export async function selectActivityType(page: Page, type: string) {
 }
 
 export async function searchAndSelectSymbol(page: Page, symbol: string) {
+  const escapedSymbol = symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const exactSymbolPattern = new RegExp(`^${escapedSymbol}$`, "i");
   const symbolCombobox = page.getByRole("combobox").filter({ hasText: /Select symbol/i });
   await symbolCombobox.click();
-  await page.waitForTimeout(200);
 
   const searchInput = page.getByPlaceholder("Search for symbol");
+  await expect(searchInput).toBeVisible({ timeout: 5000 });
   await searchInput.fill(symbol);
-  await page.waitForTimeout(500);
 
-  await expect(page.getByRole("progressbar", { name: "Loading..." })).toBeHidden({
-    timeout: 15000,
-  });
-
-  const symbolOption = page.getByRole("option", { name: new RegExp(symbol, "i") }).first();
-  await expect(symbolOption).toBeVisible({ timeout: 5000 });
+  const suggestions = page.getByRole("listbox", { name: /Suggestions/i });
+  await expect(suggestions).toBeVisible({ timeout: 10000 });
+  const symbolOption = suggestions
+    .getByRole("option")
+    .filter({
+      has: page.locator("span.font-mono").filter({ hasText: exactSymbolPattern }),
+      hasNotText: /Create custom|manual/i,
+    })
+    .first();
+  await expect(symbolOption).toBeVisible({ timeout: 30000 });
   await symbolOption.click();
-  await page.waitForTimeout(200);
 }
 
 export async function expandAdvancedOptions(page: Page) {

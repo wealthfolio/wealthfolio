@@ -877,7 +877,8 @@ impl HoldingsServiceTrait for HoldingsService {
 #[cfg(test)]
 mod tests {
     use crate::assets::{
-        AssetMetadata, AssetSpec, EnsureAssetsResult, NewAsset, QuoteMode, UpdateAssetProfile,
+        AssetMetadata, AssetResolutionInput, AssetResolutionOutput, AssetSpec, EnsureAssetsResult,
+        NewAsset, QuoteMode, UpdateAssetProfile,
     };
     use crate::errors::Error;
     use crate::portfolio::snapshot::{AccountStateSnapshot, Position, SnapshotRecalcMode};
@@ -987,6 +988,13 @@ mod tests {
             _specs: Vec<AssetSpec>,
             _activity_repository: &dyn crate::activities::ActivityRepositoryTrait,
         ) -> Result<EnsureAssetsResult> {
+            unimplemented!("unused in holdings service tests")
+        }
+
+        async fn resolve_import_asset_inputs(
+            &self,
+            _inputs: Vec<AssetResolutionInput>,
+        ) -> Result<Vec<AssetResolutionOutput>> {
             unimplemented!("unused in holdings service tests")
         }
     }

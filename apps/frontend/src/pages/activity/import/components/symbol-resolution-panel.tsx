@@ -27,6 +27,7 @@ function createManualSymbol(csvSymbol: string): SymbolSearchResult {
     typeDisplay: "Custom Asset",
     longName: csvSymbol,
     dataSource: "MANUAL",
+    quoteMode: "MANUAL",
   };
 }
 

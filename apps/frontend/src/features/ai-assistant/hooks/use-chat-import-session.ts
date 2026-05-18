@@ -430,6 +430,8 @@ function applyBackendValidation(
       exchangeMic: backendResult.exchangeMic,
       quoteCcy: backendResult.quoteCcy,
       instrumentType: backendResult.instrumentType,
+      providerId: backendResult.providerId,
+      providerSymbol: backendResult.providerSymbol,
       status: newStatus,
       // Preserve forceImport if the user explicitly set it. Clearing it
       // only when status changes away from "duplicate" would force the
@@ -457,6 +459,8 @@ function buildActivitiesToValidate(
           quoteCcy: draft.quoteCcy,
           instrumentType: draft.instrumentType,
           quoteMode: draft.quoteMode as ActivityImport["quoteMode"],
+          providerId: draft.providerId,
+          providerSymbol: draft.providerSymbol,
           isin: draft.isin,
           quantity: draft.quantity,
           unitPrice: draft.unitPrice,

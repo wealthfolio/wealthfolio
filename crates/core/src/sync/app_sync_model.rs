@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Canonical list of local tables that participate in app-side device sync.
 /// Order matters: parent tables before children (FK dependencies).
-pub const APP_SYNC_TABLES: [&str; 20] = [
+pub const APP_SYNC_TABLES: [&str; 22] = [
     // Base tables (no FK deps)
     "platforms",
     "assets",
@@ -40,6 +40,10 @@ pub const APP_SYNC_TABLES: [&str; 20] = [
     "ai_thread_tags",
     // No FK deps (account_id has no FK constraint)
     "holdings_snapshots",
+    // No FK deps
+    "portfolios",
+    // Depends on: portfolios, accounts
+    "portfolio_accounts",
 ];
 
 /// Entity names used by incremental sync events.
@@ -65,6 +69,8 @@ pub enum SyncEntity {
     CustomProvider,
     CustomTaxonomy,
     ImportRun,
+    Portfolio,
+    PortfolioAccount,
 }
 
 /// Supported sync operations.
@@ -287,6 +293,8 @@ mod tests {
             SyncEntity::CustomProvider,
             SyncEntity::CustomTaxonomy,
             SyncEntity::ImportRun,
+            SyncEntity::Portfolio,
+            SyncEntity::PortfolioAccount,
         ]
         .iter()
         .map(|entity| serde_json::to_string(entity).expect("serialize sync entity"))
@@ -311,6 +319,8 @@ mod tests {
             "\"custom_provider\"",
             "\"custom_taxonomy\"",
             "\"import_run\"",
+            "\"portfolio\"",
+            "\"portfolio_account\"",
         ];
 
         assert_eq!(actual, expected);

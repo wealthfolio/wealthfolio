@@ -378,27 +378,28 @@ test.describe("Onboarding And Main Flow", () => {
       await fillDateField(page, 20 - i); // 20, 19, 18, 17 days ago
 
       // Fill Symbol - click the combobox trigger to open search
+      const escapedSymbol = trade.symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const exactSymbolPattern = new RegExp(`^${escapedSymbol}$`, "i");
       const symbolCombobox = page.getByRole("combobox").filter({ hasText: /Select symbol/i });
       await symbolCombobox.click();
-      await page.waitForTimeout(200);
 
       // Type the symbol in the search input
       const searchInput = page.getByPlaceholder("Search for symbol");
+      await expect(searchInput).toBeVisible({ timeout: 5000 });
       await searchInput.fill(trade.symbol);
-      await page.waitForTimeout(500);
-
-      // Wait for search results to load before looking for the option
-      await expect(page.getByRole("progressbar", { name: "Loading..." })).toBeHidden({
-        timeout: 15000,
-      });
 
       // Wait for and click the matching option from the dropdown
-      const symbolOption = page
-        .getByRole("option", { name: new RegExp(trade.symbol, "i") })
+      const suggestions = page.getByRole("listbox", { name: /Suggestions/i });
+      await expect(suggestions).toBeVisible({ timeout: 10000 });
+      const symbolOption = suggestions
+        .getByRole("option")
+        .filter({
+          has: page.locator("span.font-mono").filter({ hasText: exactSymbolPattern }),
+          hasNotText: /Create custom|manual/i,
+        })
         .first();
-      await expect(symbolOption).toBeVisible({ timeout: 5000 });
+      await expect(symbolOption).toBeVisible({ timeout: 30000 });
       await symbolOption.click();
-      await page.waitForTimeout(200);
 
       // Fill Quantity and blur to trigger validation
       const quantityInput = page.getByTestId("quantity-input");

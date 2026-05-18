@@ -346,6 +346,10 @@ pub async fn save_manual_holdings_handler(
             name: holding.name,
             data_source: holding.data_source,
             asset_kind: holding.asset_kind,
+            quote_ccy: holding.quote_ccy,
+            instrument_type: holding.instrument_type,
+            provider_id: holding.provider_id,
+            provider_symbol: holding.provider_symbol,
         });
     }
 
@@ -598,6 +602,10 @@ async fn import_single_snapshot_impl(
             name: None,
             data_source: None,
             asset_kind: None,
+            quote_ccy: pos_input.quote_ccy.clone(),
+            instrument_type: pos_input.instrument_type.clone(),
+            provider_id: pos_input.provider_id.clone(),
+            provider_symbol: pos_input.provider_symbol.clone(),
         });
     }
 

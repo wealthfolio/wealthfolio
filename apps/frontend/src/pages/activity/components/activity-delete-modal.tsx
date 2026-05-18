@@ -30,7 +30,9 @@ export function ActivityDeleteModal({
           <div className="bg-destructive/10 text-destructive flex size-12 items-center justify-center rounded-full sm:hidden">
             <Icons.Trash className="size-5" />
           </div>
-          <AlertDialogTitle className="leading-tight max-sm:text-xl">Delete activity?</AlertDialogTitle>
+          <AlertDialogTitle className="leading-tight max-sm:text-xl">
+            Delete activity?
+          </AlertDialogTitle>
           <AlertDialogDescription className="max-sm:text-[15px]">
             This activity will be permanently deleted. This action cannot be undone.
           </AlertDialogDescription>

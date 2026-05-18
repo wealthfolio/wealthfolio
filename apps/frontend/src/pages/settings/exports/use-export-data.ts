@@ -1,27 +1,16 @@
 import {
   backupDatabase,
   backupDatabaseToPath,
-  getAccounts,
-  getActivities,
-  getGoals,
-  getHistoricalValuations,
+  backupDatabaseToPendingExport,
+  exportDataFile,
   isWeb,
   logger,
-  openFileSaveDialog,
   openFolderDialog,
+  saveAppDataFileViaPicker,
 } from "@/adapters";
 import { getPlatform as getRuntimePlatform } from "@/hooks/use-platform";
-import { formatData } from "@/lib/export-utils";
-import { QueryKeys } from "@/lib/query-keys";
-import {
-  Account,
-  AccountValuation,
-  ActivityDetails,
-  ExportDataType,
-  ExportedFileFormat,
-  Goal,
-} from "@/lib/types";
-import { QueryObserverResult, useMutation, useQuery } from "@tanstack/react-query";
+import { ExportDataType, ExportedFileFormat } from "@/lib/types";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 
 interface ExportParams {
@@ -35,30 +24,21 @@ interface SQLiteBackupResult {
   value: string;
 }
 
-type ExportMutationResult = SQLiteBackupResult | boolean | null;
+interface FileExportResult {
+  mode: "file";
+  filename?: string;
+}
+
+type ExportMutationResult = SQLiteBackupResult | FileExportResult | null;
+
+const datasetLabels: Record<ExportDataType, string> = {
+  accounts: "accounts",
+  activities: "activities",
+  goals: "goals",
+  "portfolio-history": "portfolio history records",
+};
 
 export function useExportData() {
-  const { refetch: fetchAccounts } = useQuery<Account[], Error>({
-    queryKey: [QueryKeys.ACCOUNTS],
-    queryFn: () => getAccounts(),
-    enabled: false,
-  });
-  const { refetch: fetchActivities } = useQuery<ActivityDetails[], Error>({
-    queryKey: [QueryKeys.ACTIVITIES],
-    queryFn: () => getActivities(),
-    enabled: false,
-  });
-  const { refetch: fetchGoals } = useQuery<Goal[], Error>({
-    queryKey: [QueryKeys.GOALS],
-    queryFn: getGoals,
-    enabled: false,
-  });
-  const { refetch: fetchPortfolioHistory } = useQuery<AccountValuation[], Error>({
-    queryKey: [QueryKeys.HISTORY_VALUATION],
-    queryFn: () => getHistoricalValuations("TOTAL"),
-    enabled: false,
-  });
-
   const {
     mutateAsync: exportDataMutation,
     isPending: isExporting,
@@ -87,55 +67,33 @@ export function useExportData() {
           return { mode: "sqlite", target: "local" as const, value: backupPath };
         }
 
-        // Mobile: create backup and let user pick destination file.
-        const { filename, data } = await backupDatabase();
-        const saved = await openFileSaveDialog(data, filename);
+        if (runtimePlatform.os !== "ios") {
+          throw new Error("SQLite export is currently supported on desktop, web, and iOS only");
+        }
+
+        // iOS: create backup and let user pick destination file.
+        const { relativePath, filename } = await backupDatabaseToPendingExport();
+        const saved = await saveAppDataFileViaPicker(relativePath, filename);
         if (!saved) {
           return null;
         }
         return { mode: "sqlite", target: "local" as const, value: filename };
-      } else {
-        let exportedData: string | undefined;
-        let fileName: string;
-        let datasetLabel: string | null = null;
+      }
 
-        const currentDate = new Date().toISOString().split("T")[0];
-        switch (desiredData) {
-          case "accounts":
-            exportedData = await fetchAndFormatData(fetchAccounts, format);
-            fileName = `accounts_${currentDate}.${format.toLowerCase()}`;
-            datasetLabel = "accounts";
-            break;
-          case "activities":
-            exportedData = await fetchAndFormatData(fetchActivities, format);
-            fileName = `activities_${currentDate}.${format.toLowerCase()}`;
-            datasetLabel = "activities";
-            break;
-          case "goals":
-            exportedData = await fetchAndFormatData(fetchGoals, format);
-            fileName = `goals_${currentDate}.${format.toLowerCase()}`;
-            datasetLabel = "goals";
-            break;
-          case "portfolio-history":
-            exportedData = await fetchAndFormatData(fetchPortfolioHistory, format);
-            fileName = `portfolio-history_${currentDate}.${format.toLowerCase()}`;
-            datasetLabel = "portfolio history records";
-            break;
-        }
-
-        if (exportedData) {
-          return openFileSaveDialog(exportedData, fileName);
-        }
-
-        if (datasetLabel) {
-          toast({
-            title: "Nothing to export.",
-            description: `No ${datasetLabel} available to export right now.`,
-          });
-        }
-
+      const result = await exportDataFile(format, desiredData);
+      if (result.status === "empty") {
+        toast({
+          title: "Nothing to export.",
+          description: `No ${datasetLabels[desiredData]} available to export right now.`,
+        });
         return null;
       }
+
+      if (result.status === "canceled") {
+        return null;
+      }
+
+      return { mode: "file", filename: result.filename };
     },
     onSuccess: (result) => {
       if (!result) {
@@ -143,7 +101,7 @@ export function useExportData() {
         return;
       }
 
-      if (result && typeof result === "object" && "mode" in result && result.mode === "sqlite") {
+      if (result.mode === "sqlite") {
         const description =
           result.target === "server"
             ? `Backup created on the server as ${result.value}`
@@ -166,7 +124,8 @@ export function useExportData() {
     onError: (e) => {
       logger.error(`Error while exporting: ${String(e)}`);
       toast({
-        title: "Something went wrong.",
+        title: "Export failed.",
+        description: e.message || "The export could not be completed.",
         variant: "destructive",
       });
     },
@@ -186,15 +145,4 @@ export function useExportData() {
     exportingFormat: isExporting ? mutationVariables?.format : null,
     exportingData: isExporting ? mutationVariables?.data : null,
   };
-}
-
-async function fetchAndFormatData(
-  queryFn: () => Promise<QueryObserverResult<unknown[], Error>>,
-  format: ExportedFileFormat,
-): Promise<string | undefined> {
-  const response = await queryFn();
-
-  // Handle empty data gracefully - export empty file instead of error
-  const data = response.data ?? [];
-  return formatData(data, format);
 }

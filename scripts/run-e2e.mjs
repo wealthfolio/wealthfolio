@@ -1,10 +1,15 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { dirname, join } from "node:path";
 import { setTimeout } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
 import { prepE2eEnv } from "./prep-e2e.mjs";
 
 const DEV_SERVER_URL = process.env.WF_E2E_BASE_URL || "http://localhost:1420";
 const BACKEND_URL = process.env.WF_E2E_BACKEND_URL || "http://localhost:8088";
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const QUOTE_FIXTURE_DIR = join(REPO_ROOT, "e2e", "fixtures", "quotes");
+const DEFAULT_RUST_LOG = ["error", "wealthfolio_core::quotes::sync=warn"].join(",");
 const cliArgs = process.argv.slice(2);
 const shouldUseUi = cliArgs.includes("--ui");
 
@@ -35,7 +40,11 @@ const waitForServer = async (url, serverProcess, { timeout = 60_000, interval = 
   throw new Error(`Timed out waiting for ${url}`);
 };
 
-const spawnCommand = (command, args) => spawn(command, args, { stdio: "inherit" });
+const spawnCommand = (command, args, extraEnv = {}) =>
+  spawn(command, args, {
+    stdio: "inherit",
+    env: { ...process.env, ...extraEnv },
+  });
 
 const runPlaywrightTests = (extraArgs = []) =>
   new Promise((resolve, reject) => {
@@ -53,7 +62,12 @@ const runPlaywrightTests = (extraArgs = []) =>
 const run = async () => {
   await prepE2eEnv();
 
-  const devServer = spawnCommand("pnpm", ["run", "dev:web"]);
+  const devServer = spawnCommand("pnpm", ["run", "dev:web"], {
+    WEALTHFOLIO_E2E: "1",
+    WEALTHFOLIO_FIXTURE_DIR: QUOTE_FIXTURE_DIR,
+    WEALTHFOLIO_FIXTURE_AS_OF: process.env.WEALTHFOLIO_FIXTURE_AS_OF || "2026-05-12",
+    RUST_LOG: process.env.WF_E2E_RUST_LOG || DEFAULT_RUST_LOG,
+  });
 
   const cleanup = async () => {
     if (devServer.exitCode === null && !devServer.killed) {

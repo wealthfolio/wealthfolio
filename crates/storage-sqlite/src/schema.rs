@@ -481,6 +481,30 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    portfolios (id) {
+        id -> Text,
+        name -> Text,
+        description -> Nullable<Text>,
+        sort_order -> Integer,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    portfolio_accounts (id) {
+        id -> Text,
+        portfolio_id -> Text,
+        account_id -> Text,
+        sort_order -> Integer,
+        created_at -> Text,
+    }
+}
+
+diesel::joinable!(portfolio_accounts -> portfolios (portfolio_id));
+diesel::joinable!(portfolio_accounts -> accounts (account_id));
+
 diesel::joinable!(accounts -> platforms (platform_id));
 diesel::joinable!(activities -> accounts (account_id));
 diesel::joinable!(activities -> assets (asset_id));
@@ -502,6 +526,8 @@ diesel::joinable!(import_account_templates -> import_templates (template_id));
 diesel::allow_tables_to_appear_in_same_query!(
     import_account_templates,
     accounts,
+    portfolios,
+    portfolio_accounts,
     activities,
     ai_messages,
     ai_thread_tags,

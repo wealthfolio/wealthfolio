@@ -60,6 +60,15 @@ export const openFileSaveDialog = (
   }
 };
 
+export const saveAppDataFileViaPicker = (
+  _relativePath: string,
+  _fileName: string,
+): Promise<boolean> => {
+  return Promise.reject(
+    new Error("App data file picker export is only supported in the Tauri app"),
+  );
+};
+
 // ============================================================================
 // Shell & Browser
 // ============================================================================

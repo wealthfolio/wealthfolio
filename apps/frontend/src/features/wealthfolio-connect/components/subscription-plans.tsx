@@ -20,6 +20,7 @@ import { WEALTHFOLIO_CONNECT_PORTAL_URL } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { getDisplayablePlans } from "../lib/plan-visibility";
 
 // Helper to detect if error is an auth/token issue
 function isAuthError(error: Error | null): boolean {
@@ -184,6 +185,7 @@ export function SubscriptionPlans({
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
   const { data, isLoading, error } = useSubscriptionPlans(enabled);
   const { signOut, isLoading: isSigningOut } = useWealthfolioConnect();
+  const plans = getDisplayablePlans(data?.plans);
 
   // Handle auth errors - session expired or token sync issue
   if (error && isAuthError(error)) {
@@ -345,7 +347,7 @@ export function SubscriptionPlans({
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {data?.plans.map((plan) => (
+            {plans.map((plan) => (
               <PlanCard
                 key={plan.id}
                 plan={plan}

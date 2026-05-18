@@ -161,3 +161,39 @@ export const worldCurrencies = [
   { label: "Zambian kwacha (ZMK)", value: "ZMK" },
   { label: "Zimbabwean dollar (ZWR)", value: "ZWR" },
 ];
+
+export const quoteUnitCurrencies = [
+  { label: "British pence (GBp)", value: "GBp", major: "GBP", symbol: "p" },
+  { label: "British pence (GBX)", value: "GBX", major: "GBP", symbol: "p" },
+  { label: "Israeli agorot (ILA)", value: "ILA", major: "ILS", symbol: "ag" },
+  { label: "US cents (USX)", value: "USX", major: "USD", symbol: "c" },
+  {
+    label: "South African cents (ZAc)",
+    value: "ZAc",
+    major: "ZAR",
+    symbol: "c",
+    aliases: ["ZAC"],
+  },
+  { label: "Kuwaiti fils (KWF)", value: "KWF", major: "KWD", symbol: "fils" },
+] as const;
+
+export const quoteCurrencies = [...worldCurrencies, ...quoteUnitCurrencies];
+
+export function getQuoteUnitCurrency(currency: string | null | undefined) {
+  const trimmed = currency?.trim();
+  if (!trimmed) return undefined;
+
+  const normalized = trimmed.toUpperCase();
+
+  return quoteUnitCurrencies.find((quoteUnit) => {
+    if (quoteUnit.value === trimmed) return true;
+    if (
+      "aliases" in quoteUnit &&
+      quoteUnit.aliases.some((alias) => alias.toUpperCase() === normalized)
+    ) {
+      return true;
+    }
+    if (quoteUnit.value !== quoteUnit.value.toUpperCase()) return false;
+    return quoteUnit.value === normalized;
+  });
+}

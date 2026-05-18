@@ -70,6 +70,8 @@ export interface DraftActivity {
   quoteCcy?: string;
   instrumentType?: string;
   quoteMode?: string;
+  providerId?: string;
+  providerSymbol?: string;
 
   // Asset resolution (set during asset-review step)
   assetCandidateKey?: string;
@@ -254,6 +256,8 @@ function importReducer(state: ImportState, action: ImportAction): ImportState {
       "quoteCcy",
       "instrumentType",
       "quoteMode",
+      "providerId",
+      "providerSymbol",
       "isin",
       "accountId",
       "assetCandidateKey",
@@ -535,6 +539,8 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
                 quoteCcy: draft.quoteCcy,
                 instrumentType: draft.instrumentType,
                 quoteMode: draft.quoteMode as ActivityImport["quoteMode"],
+                providerId: draft.providerId,
+                providerSymbol: draft.providerSymbol,
                 isin: draft.isin,
                 quantity: draft.quantity,
                 unitPrice: draft.unitPrice,
@@ -614,6 +620,8 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
               exchangeMic: backendResult.exchangeMic,
               quoteCcy: backendResult.quoteCcy,
               instrumentType: backendResult.instrumentType,
+              providerId: backendResult.providerId,
+              providerSymbol: backendResult.providerSymbol,
               status: newStatus,
               // Clear forceImport when the row is no longer a duplicate
               // (e.g. user edited the row after marking it "import anyway").

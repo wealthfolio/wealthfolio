@@ -71,6 +71,8 @@ fn sync_entity_name(entity: &SyncEntity) -> &'static str {
         SyncEntity::CustomProvider => "custom_provider",
         SyncEntity::CustomTaxonomy => "custom_taxonomy",
         SyncEntity::ImportRun => "import_run",
+        SyncEntity::Portfolio => "portfolio",
+        SyncEntity::PortfolioAccount => "portfolio_account",
     }
 }
 

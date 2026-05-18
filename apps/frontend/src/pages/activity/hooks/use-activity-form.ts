@@ -122,7 +122,13 @@ export function useActivityForm({
               quoteMode?: string;
               symbolQuoteCcy?: string;
               symbolInstrumentType?: string;
-              assetMetadata?: { name?: string; kind?: string; exchangeMic?: string };
+              assetMetadata?: {
+                name?: string;
+                kind?: string;
+                exchangeMic?: string;
+                providerId?: string | null;
+                providerSymbol?: string | null;
+              };
             } & Record<string, unknown>;
 
             // Build the nested asset object with all metadata
@@ -136,6 +142,8 @@ export function useActivityForm({
                   instrumentType: symbolInstrumentType,
                   name: assetMetadata?.name,
                   kind: assetMetadata?.kind,
+                  providerId: assetMetadata?.providerId,
+                  providerSymbol: assetMetadata?.providerSymbol,
                 })
               : undefined;
 

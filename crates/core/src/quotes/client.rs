@@ -29,7 +29,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use log::{debug, info, warn};
 
-use crate::assets::{Asset, ProviderProfile};
+use crate::assets::{canonicalize_market_identity, Asset, InstrumentType, ProviderProfile};
 use crate::errors::Result;
 use crate::quotes::constants::*;
 use crate::quotes::model::SymbolSearchResult;
@@ -37,9 +37,10 @@ use crate::quotes::Quote;
 use crate::secrets::SecretStore;
 
 use wealthfolio_market_data::{
-    mic_to_currency, mic_to_exchange_name, yahoo_exchange_to_mic, yahoo_suffix_to_mic,
-    AlphaVantageProvider, AssetProfile as MarketAssetProfile, BoerseFrankfurtProvider,
-    BondQuoteMetadata, FinnhubProvider, MarketDataAppProvider, MetalPriceApiProvider,
+    mic_to_currency, mic_to_exchange_name, yahoo_equity_provider_symbol_to_canonical,
+    yahoo_exchange_to_mic, yahoo_suffix_to_mic, AlphaVantageProvider,
+    AssetProfile as MarketAssetProfile, BoerseFrankfurtProvider, BondQuoteMetadata, ExchangeMap,
+    FinnhubProvider, FixtureProvider, MarketDataAppProvider, MetalPriceApiProvider,
     OpenFigiProvider, ProviderId, ProviderRegistry, Quote as MarketQuote, QuoteContext,
     ResolverChain, SearchResult as MarketSearchResult, SplitEvent, UsTreasuryCalcProvider,
     YahooProvider,
@@ -150,10 +151,19 @@ impl MarketDataClient {
             }
         }
 
-        // Append extra providers (e.g., CustomScraperProvider)
-        for ep in extra_providers {
-            info!("Registered extra provider: {}", ep.id());
-            providers.push(ep);
+        if Self::is_e2e_mode() {
+            if !extra_providers.is_empty() {
+                warn!(
+                    "Skipping {} extra market data provider(s) because WEALTHFOLIO_E2E=1",
+                    extra_providers.len()
+                );
+            }
+        } else {
+            // Append extra providers (e.g., CustomScraperProvider)
+            for ep in extra_providers {
+                info!("Registered extra provider: {}", ep.id());
+                providers.push(ep);
+            }
         }
 
         if providers.is_empty() {
@@ -178,11 +188,60 @@ impl MarketDataClient {
         Ok(Self { registry })
     }
 
+    fn is_e2e_mode() -> bool {
+        matches!(std::env::var("WEALTHFOLIO_E2E").as_deref(), Ok("1"))
+    }
+
+    fn e2e_fixture_dir() -> Result<String> {
+        std::env::var("WEALTHFOLIO_FIXTURE_DIR").map_err(|_| {
+            MarketDataClientError::InvalidData(
+                "WEALTHFOLIO_FIXTURE_DIR must be set when WEALTHFOLIO_E2E=1".to_string(),
+            )
+            .into()
+        })
+    }
+
+    fn create_e2e_provider(
+        provider_id: &str,
+    ) -> Result<Option<Arc<dyn wealthfolio_market_data::MarketDataProvider>>> {
+        let fixture_dir = Self::e2e_fixture_dir()?;
+
+        match provider_id {
+            DATA_SOURCE_YAHOO => Ok(Some(Arc::new(FixtureProvider::new(fixture_dir)))),
+            DATA_SOURCE_BOERSE_FRANKFURT => Ok(Some(Arc::new(FixtureProvider::new_for_provider(
+                fixture_dir,
+                DATA_SOURCE_BOERSE_FRANKFURT,
+            )))),
+            DATA_SOURCE_MARKET_DATA_APP
+            | DATA_SOURCE_ALPHA_VANTAGE
+            | DATA_SOURCE_METAL_PRICE_API
+            | DATA_SOURCE_FINNHUB
+            | DATA_SOURCE_OPENFIGI
+            | DATA_SOURCE_US_TREASURY_CALC
+            | DATA_SOURCE_CUSTOM_SCRAPER => {
+                warn!(
+                    "Provider {} is disabled because WEALTHFOLIO_E2E=1; add fixture support before using it in e2e",
+                    provider_id
+                );
+                Ok(None)
+            }
+            DATA_SOURCE_MANUAL | DATA_SOURCE_CALCULATED | DATA_SOURCE_BROKER => Ok(None),
+            _ => {
+                warn!("Unknown provider ID: {}", provider_id);
+                Ok(None)
+            }
+        }
+    }
+
     /// Create a provider by ID with its API key.
     async fn create_provider(
         provider_id: &str,
         secret_store: &Arc<dyn SecretStore>,
     ) -> Result<Option<Arc<dyn wealthfolio_market_data::MarketDataProvider>>> {
+        if Self::is_e2e_mode() {
+            return Self::create_e2e_provider(provider_id);
+        }
+
         match provider_id {
             DATA_SOURCE_YAHOO => {
                 // Yahoo doesn't need an API key
@@ -560,6 +619,40 @@ impl MarketDataClient {
     /// 2. Try extracting MIC from symbol suffix (e.g., "SHOP.TO" -> "XTSE")
     /// 3. Look up friendly exchange name from MIC
     /// 4. Preserve provider-reported currency only (do NOT infer from MIC)
+    fn yahoo_suffix_for_mic(mic: &str) -> Option<String> {
+        ExchangeMap::new()
+            .get_suffix(&Cow::Owned(mic.to_string()), &Cow::Borrowed("YAHOO"))
+            .filter(|suffix| !suffix.is_empty())
+            .map(str::to_string)
+    }
+
+    fn search_result_instrument_type(
+        result: &MarketSearchResult,
+        exchange_mic: Option<&str>,
+    ) -> Option<InstrumentType> {
+        let instrument_type = InstrumentType::from_external_str(&result.asset_type)?;
+        if instrument_type == InstrumentType::Metal && exchange_mic.is_some() {
+            return Some(InstrumentType::Equity);
+        }
+
+        Some(instrument_type)
+    }
+
+    fn search_result_quote_type(
+        provider_quote_type: &str,
+        instrument_type: Option<&InstrumentType>,
+    ) -> String {
+        match instrument_type {
+            Some(InstrumentType::Metal) => "COMMODITY".to_string(),
+            Some(InstrumentType::Equity)
+                if provider_quote_type.eq_ignore_ascii_case("COMMODITY") =>
+            {
+                "EQUITY".to_string()
+            }
+            _ => provider_quote_type.to_string(),
+        }
+    }
+
     fn convert_search_result(result: MarketSearchResult) -> SymbolSearchResult {
         // Prefer provider-supplied MIC (e.g., BF sets this directly).
         // Fall back to Yahoo-specific helpers when the provider didn't set it.
@@ -583,7 +676,7 @@ impl MarketDataClient {
 
         // Determine currency and its provenance
         let (currency, currency_source) = if result.currency.is_some() {
-            (result.currency, Some("provider".to_string()))
+            (result.currency.clone(), Some("provider".to_string()))
         } else {
             let inferred = exchange_mic
                 .as_ref()
@@ -597,18 +690,63 @@ impl MarketDataClient {
             (inferred, source)
         };
 
+        let instrument_type = Self::search_result_instrument_type(&result, exchange_mic.as_deref());
+        let quote_type =
+            Self::search_result_quote_type(&result.asset_type, instrument_type.as_ref());
+        let provider_id = result
+            .data_source
+            .clone()
+            .or_else(|| Some("YAHOO".to_string()));
+        let provider_symbol = Some(result.symbol.clone());
+        let symbol_for_identity = if provider_id.as_deref() == Some("YAHOO")
+            && instrument_type.as_ref() == Some(&InstrumentType::Equity)
+        {
+            yahoo_equity_provider_symbol_to_canonical(&result.symbol)
+        } else {
+            result.symbol.clone()
+        };
+        let canonical_identity = canonicalize_market_identity(
+            instrument_type.clone(),
+            Some(symbol_for_identity.as_str()),
+            exchange_mic.as_deref(),
+            currency.as_deref(),
+        );
+        let review_symbol = if provider_id.as_deref() == Some("YAHOO")
+            && instrument_type.as_ref() == Some(&InstrumentType::Equity)
+        {
+            let display_symbol = canonical_identity
+                .instrument_symbol
+                .as_deref()
+                .unwrap_or(symbol_for_identity.as_str());
+            match canonical_identity
+                .instrument_exchange_mic
+                .as_deref()
+                .and_then(Self::yahoo_suffix_for_mic)
+            {
+                Some(suffix) if !suffix.is_empty() => format!("{display_symbol}{suffix}"),
+                _ => display_symbol.to_string(),
+            }
+        } else {
+            result.symbol.clone()
+        };
+
         SymbolSearchResult {
-            symbol: result.symbol,
+            symbol: review_symbol,
+            canonical_symbol: canonical_identity.instrument_symbol,
+            canonical_exchange_mic: canonical_identity.instrument_exchange_mic,
+            provider_id: provider_id.clone(),
+            provider_symbol,
             short_name: result.name.clone(),
             long_name: result.name,
             exchange: result.exchange,
             exchange_mic,
             exchange_name,
-            quote_type: result.asset_type,
+            quote_type,
             type_display: String::new(),
             currency,
             currency_source,
-            data_source: result.data_source.or_else(|| Some("YAHOO".to_string())),
+            data_source: provider_id,
+            quote_mode: Some("MARKET".to_string()),
             is_existing: false,
             existing_asset_id: None,
             index: String::new(),
@@ -867,6 +1005,78 @@ mod tests {
 
         let result = MarketDataClient::convert_search_result(provider_result);
         assert_eq!(result.exchange_mic.as_deref(), Some("CXE"));
+    }
+
+    #[test]
+    fn test_convert_search_result_carries_canonical_and_provider_symbols() {
+        let provider_result = MarketSearchResult::new("SHOP.TO", "Shopify Inc.", "TOR", "EQUITY")
+            .with_currency("CAD")
+            .with_data_source("YAHOO");
+
+        let result = MarketDataClient::convert_search_result(provider_result);
+
+        assert_eq!(result.symbol, "SHOP.TO");
+        assert_eq!(result.canonical_symbol.as_deref(), Some("SHOP"));
+        assert_eq!(result.canonical_exchange_mic.as_deref(), Some("XTSE"));
+        assert_eq!(result.provider_id.as_deref(), Some("YAHOO"));
+        assert_eq!(result.provider_symbol.as_deref(), Some("SHOP.TO"));
+    }
+
+    #[test]
+    fn test_convert_search_result_treats_exchange_traded_commodity_as_equity() {
+        let provider_result = MarketSearchResult::new("4GLD.DE", "Xetra-Gold", "GER", "COMMODITY")
+            .with_currency("EUR")
+            .with_data_source("YAHOO");
+
+        let result = MarketDataClient::convert_search_result(provider_result);
+
+        assert_eq!(result.symbol, "4GLD.DE");
+        assert_eq!(result.canonical_symbol.as_deref(), Some("4GLD"));
+        assert_eq!(result.canonical_exchange_mic.as_deref(), Some("XETR"));
+        assert_eq!(result.quote_type, "EQUITY");
+    }
+
+    #[test]
+    fn test_convert_search_result_maps_yahoo_share_class_provider_symbol() {
+        let provider_result =
+            MarketSearchResult::new("BRK-B", "Berkshire Hathaway Inc.", "NYQ", "EQUITY")
+                .with_currency("USD")
+                .with_data_source("YAHOO");
+
+        let result = MarketDataClient::convert_search_result(provider_result);
+
+        assert_eq!(result.symbol, "BRK.B");
+        assert_eq!(result.canonical_symbol.as_deref(), Some("BRK.B"));
+        assert_eq!(result.canonical_exchange_mic.as_deref(), Some("XNYS"));
+        assert_eq!(result.provider_symbol.as_deref(), Some("BRK-B"));
+    }
+
+    #[test]
+    fn test_convert_search_result_exchange_suffix_wins_over_share_class_dot() {
+        let provider_result =
+            MarketSearchResult::new("BRK-B.TO", "Berkshire Hathaway Inc.", "TOR", "EQUITY")
+                .with_currency("CAD")
+                .with_data_source("YAHOO");
+
+        let result = MarketDataClient::convert_search_result(provider_result);
+
+        assert_eq!(result.symbol, "BRK.B.TO");
+        assert_eq!(result.canonical_symbol.as_deref(), Some("BRK.B"));
+        assert_eq!(result.canonical_exchange_mic.as_deref(), Some("XTSE"));
+        assert_eq!(result.provider_symbol.as_deref(), Some("BRK-B.TO"));
+    }
+
+    #[test]
+    fn test_convert_search_result_keeps_gold_miners_as_equity() {
+        let provider_result =
+            MarketSearchResult::new("GOLD", "Barrick Gold Corporation", "NYQ", "EQUITY")
+                .with_currency("USD")
+                .with_data_source("YAHOO");
+
+        let result = MarketDataClient::convert_search_result(provider_result);
+
+        assert_eq!(result.quote_type, "EQUITY");
+        assert_eq!(result.canonical_symbol.as_deref(), Some("GOLD"));
     }
 
     // =========================================================================

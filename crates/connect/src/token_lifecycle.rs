@@ -5,6 +5,11 @@ use serde::Deserialize;
 use tokio::sync::{Mutex, RwLock};
 use wealthfolio_core::secrets::SecretStore;
 
+use crate::request_metadata::{
+    log_failed_cloud_request, request_metadata_suffix, server_request_id, CloudRequestContext,
+    CLIENT_REQUEST_ID_HEADER,
+};
+
 pub const CLOUD_REFRESH_TOKEN_KEY: &str = "sync_refresh_token";
 pub const CLOUD_ACCESS_TOKEN_KEY: &str = "sync_access_token";
 
@@ -250,22 +255,43 @@ async fn refresh_access_token(
         })?;
 
     let token_url = format!("{}/auth/v1/token?grant_type=refresh_token", config.auth_url);
+    let context = CloudRequestContext::new("POST", "/auth/v1/token?grant_type=refresh_token", None);
     let response = client
         .post(&token_url)
         .header("apikey", &config.publishable_key)
         .header("Content-Type", "application/json")
+        .header(CLIENT_REQUEST_ID_HEADER, context.client_request_id.as_str())
         .json(&serde_json::json!({ "refresh_token": refresh_token }))
         .send()
         .await
-        .map_err(|e| RefreshRequestError::new(false, format!("Failed to refresh token: {}", e)))?;
+        .map_err(|e| {
+            log_failed_cloud_request("ConnectAuth", &context, None, None);
+            RefreshRequestError::new(
+                false,
+                format!(
+                    "Failed to refresh token: {} ({})",
+                    e,
+                    request_metadata_suffix(&context, None)
+                ),
+            )
+        })?;
 
     let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|e| RefreshRequestError::new(false, format!("Failed to read response: {}", e)))?;
+    let request_id = server_request_id(response.headers());
+    let body = response.text().await.map_err(|e| {
+        log_failed_cloud_request("ConnectAuth", &context, Some(status), request_id.as_deref());
+        RefreshRequestError::new(
+            false,
+            format!(
+                "Failed to read response: {} ({})",
+                e,
+                request_metadata_suffix(&context, request_id.as_deref())
+            ),
+        )
+    })?;
 
     if !status.is_success() {
+        log_failed_cloud_request("ConnectAuth", &context, Some(status), request_id.as_deref());
         let parsed = serde_json::from_str::<RefreshErrorResponse>(&body).ok();
         let error_code = parsed
             .as_ref()
@@ -274,14 +300,38 @@ async fn refresh_access_token(
         let error_message = parsed
             .as_ref()
             .and_then(|value| value.error_description.clone().or(value.error.clone()))
-            .unwrap_or_else(|| format!("HTTP {}: {}", status, body));
+            .unwrap_or_else(|| fallback_refresh_error_message(status.as_u16(), &body));
         let invalid = is_session_invalid(status.as_u16(), &error_code, &error_message);
-        return Err(RefreshRequestError::new(invalid, error_message));
+        return Err(RefreshRequestError::new(
+            invalid,
+            format!(
+                "{} ({})",
+                error_message,
+                request_metadata_suffix(&context, request_id.as_deref())
+            ),
+        ));
     }
 
     serde_json::from_str::<RefreshTokenResponse>(&body).map_err(|e| {
-        RefreshRequestError::new(false, format!("Failed to parse token response: {}", e))
+        log_failed_cloud_request("ConnectAuth", &context, Some(status), request_id.as_deref());
+        RefreshRequestError::new(
+            false,
+            format!(
+                "Failed to parse token response: {} ({})",
+                e,
+                request_metadata_suffix(&context, request_id.as_deref())
+            ),
+        )
     })
+}
+
+fn fallback_refresh_error_message(status: u16, body: &str) -> String {
+    let body = body.trim();
+    if body.is_empty() {
+        format!("HTTP {}", status)
+    } else {
+        body.to_string()
+    }
 }
 
 fn is_session_invalid(status: u16, error_code: &str, message: &str) -> bool {
@@ -368,5 +418,13 @@ mod tests {
             "Invalid refresh token"
         ));
         assert!(is_session_invalid(401, "", "unauthorized"));
+    }
+
+    #[test]
+    fn fallback_refresh_error_preserves_invalid_session_body() {
+        let message =
+            fallback_refresh_error_message(400, "non-json response: invalid refresh token");
+
+        assert!(is_session_invalid(400, "", &message));
     }
 }

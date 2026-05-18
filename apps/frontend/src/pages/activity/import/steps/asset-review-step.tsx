@@ -4,6 +4,7 @@ import { TickerAvatar } from "@/components/ticker-avatar";
 import { CreateSecurityDialog } from "@/pages/asset/create-security-dialog";
 import type { ImportAssetPreviewItem, NewAsset, SymbolSearchResult } from "@/lib/types";
 import { getExchangeDisplayName } from "@/lib/constants";
+import { normalizeCurrency } from "@/lib/utils";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { ProgressIndicator } from "@wealthfolio/ui/components/ui/progress-indicator";
@@ -53,6 +54,8 @@ function buildEditableAssetDraft(
       item.draft?.instrumentSymbol || item.draft?.displayCode || candidateDraft?.symbol,
     instrumentExchangeMic:
       item.draft?.instrumentExchangeMic || candidateDraft?.exchangeMic || undefined,
+    providerId: item.draft?.providerId,
+    providerSymbol: item.draft?.providerSymbol,
     notes: item.draft?.notes,
   };
 }
@@ -86,7 +89,10 @@ function NeedsFixingRow({
     .filter((msg) => !REDUNDANT_ERROR_PATTERNS.some((re) => re.test(msg)));
 
   return (
-    <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 sm:grid-cols-[12rem_1fr_auto] sm:px-4 sm:py-3.5">
+    <div
+      className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 sm:grid-cols-[12rem_1fr_auto] sm:px-4 sm:py-3.5"
+      data-testid="asset-review-row"
+    >
       {/* Col 1: avatar + symbol + count */}
       <div className="flex items-center gap-2.5">
         <TickerAvatar symbol={symbol} className="size-7 shrink-0" />
@@ -152,14 +158,6 @@ function NeedsFixingRow({
 
 // ─── Auto-Resolved Row ────────────────────────────────────────────────────────
 
-/** Collapse pence/cent variants to their parent currency for mismatch detection. */
-function normalizeCurrency(c: string): string {
-  const u = c.toUpperCase();
-  if (u === "GBX" || u === "GBP" || u === "GBP") return "GBP";
-  if (u === "ZAC") return "ZAR";
-  return u;
-}
-
 interface AutoResolvedRowProps {
   item: ImportAssetPreviewItem;
   symbol: string;
@@ -192,7 +190,10 @@ function AutoResolvedRow({
   const metaPills = [asset?.instrumentType, asset?.quoteCcy, exchangeDisplay].filter(Boolean);
 
   return (
-    <div className="hover:bg-muted/30 grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 transition-colors sm:grid-cols-[12rem_1fr_auto] sm:px-4 sm:py-3.5">
+    <div
+      className="hover:bg-muted/30 grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 transition-colors sm:grid-cols-[12rem_1fr_auto] sm:px-4 sm:py-3.5"
+      data-testid="asset-review-row"
+    >
       {/* Col 1: avatar + symbol + name */}
       <div className="flex items-center gap-2.5">
         <TickerAvatar symbol={symbol} className="size-7 shrink-0" />
@@ -212,7 +213,7 @@ function AutoResolvedRow({
       {/* Col 2: metadata pills OR search input */}
       {isSearchOpen ? (
         <TickerSearchInput
-          defaultValue={asset?.instrumentSymbol || asset?.displayCode || symbol}
+          defaultValue={symbol}
           placeholder="Search by ticker, name or ISIN…"
           onSelectResult={(_sym, result) => onSearch(item, result)}
           className="h-8 w-full py-1 text-xs"
@@ -300,7 +301,10 @@ function ReadyAssetRow({
   const metaPills = [asset?.instrumentType, asset?.quoteCcy, exchangeDisplay].filter(Boolean);
 
   return (
-    <div className="hover:bg-muted/30 grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 transition-colors sm:grid-cols-[12rem_1fr_auto] sm:px-4 sm:py-3.5">
+    <div
+      className="hover:bg-muted/30 grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 transition-colors sm:grid-cols-[12rem_1fr_auto] sm:px-4 sm:py-3.5"
+      data-testid="asset-review-row"
+    >
       {/* Col 1: avatar + symbol + name */}
       <div className="flex items-center gap-2.5">
         <TickerAvatar symbol={symbol} className="size-7 shrink-0" />
@@ -320,7 +324,7 @@ function ReadyAssetRow({
       {/* Col 2: metadata pills OR search input */}
       {isSearchOpen ? (
         <TickerSearchInput
-          defaultValue={asset?.instrumentSymbol || asset?.displayCode || symbol}
+          defaultValue={symbol}
           placeholder="Search by ticker, name or ISIN…"
           onSelectResult={(_sym, result) => onSearch(item, result)}
           className="h-8 w-full py-1 text-xs"
@@ -441,6 +445,7 @@ export function AssetReviewStep() {
             resolutionSource: "manual_search_existing",
             assetId: result.existingAssetId,
             draft: { ...assetDraft, id: result.existingAssetId },
+            reviewSymbol: result.symbol,
             errors: undefined,
           });
         }
@@ -457,6 +462,7 @@ export function AssetReviewStep() {
           resolutionSource: "manual_search_new",
           assetId: undefined,
           draft: assetDraft,
+          reviewSymbol: result.symbol,
           errors: undefined,
         });
       }
@@ -482,6 +488,7 @@ export function AssetReviewStep() {
           score: 0,
           typeDisplay: "Custom Asset",
           dataSource: "MANUAL",
+          quoteMode: "MANUAL",
         },
         fallbackCurrency,
       );
@@ -498,6 +505,7 @@ export function AssetReviewStep() {
         resolutionSource: "mark_custom",
         assetId: undefined,
         draft: assetDraft,
+        reviewSymbol: undefined,
         errors: undefined,
       });
     },
@@ -522,6 +530,7 @@ export function AssetReviewStep() {
           score: 0,
           typeDisplay: "Custom Asset",
           dataSource: "MANUAL",
+          quoteMode: "MANUAL",
         },
         fallbackCurrency,
       );
@@ -538,6 +547,7 @@ export function AssetReviewStep() {
         resolutionSource: "mark_custom",
         assetId: undefined,
         draft: assetDraft,
+        reviewSymbol: undefined,
         errors: undefined,
       };
     });
@@ -563,6 +573,8 @@ export function AssetReviewStep() {
         instrumentType: created.instrumentType || payload.instrumentType,
         instrumentSymbol: created.instrumentSymbol || payload.instrumentSymbol,
         instrumentExchangeMic: created.instrumentExchangeMic || payload.instrumentExchangeMic,
+        providerId: payload.providerId,
+        providerSymbol: payload.providerSymbol,
       };
 
       const nextDrafts = applyAssetResolution(draftActivities, assetDialog.key, assetDraft, {
@@ -575,6 +587,7 @@ export function AssetReviewStep() {
         resolutionSource: "manual_created",
         assetId: created.id,
         draft: assetDraft,
+        reviewSymbol: undefined,
         errors: undefined,
       });
       setActiveSearchKey(null);
@@ -599,6 +612,7 @@ export function AssetReviewStep() {
         resolutionSource: "manual_edit",
         assetId: undefined,
         draft: payload,
+        reviewSymbol: undefined,
         errors: undefined,
       });
       setActiveSearchKey(null);
@@ -714,7 +728,7 @@ export function AssetReviewStep() {
             <div className="divide-border divide-y">
               {needsFixing.map((item) => {
                 const candidate = candidateMap.get(item.key);
-                const symbol = candidate?.draft.symbol || item.key;
+                const symbol = item.reviewSymbol || candidate?.draft.symbol || item.key;
                 const symbolName = item.draft?.name || candidate?.draft.symbolName;
                 const count = candidate?.count ?? 0;
                 return (
@@ -801,6 +815,7 @@ export function AssetReviewStep() {
                   {sortedItems.map((item) => {
                     const candidate = candidateMap.get(item.key);
                     const symbol =
+                      item.reviewSymbol ||
                       item.draft?.displayCode ||
                       item.draft?.instrumentSymbol ||
                       candidate?.draft.symbol ||
@@ -880,6 +895,7 @@ export function AssetReviewStep() {
               {existingItems.map((item) => {
                 const candidate = candidateMap.get(item.key);
                 const symbol =
+                  item.reviewSymbol ||
                   item.draft?.displayCode ||
                   item.draft?.instrumentSymbol ||
                   candidate?.draft.symbol ||

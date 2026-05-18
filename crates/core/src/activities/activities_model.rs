@@ -241,6 +241,10 @@ pub struct AssetResolutionInput {
     pub quote_ccy: Option<String>,
     /// Optional instrument type from symbol search/provider (e.g., "EQUITY", "CRYPTO").
     pub instrument_type: Option<String>,
+    /// Market data provider that resolved this symbol, if selected.
+    pub provider_id: Option<String>,
+    /// Provider-native symbol/code selected by search/import.
+    pub provider_symbol: Option<String>,
 }
 
 /// Input model for creating a new activity
@@ -768,6 +772,14 @@ pub struct ActivityImport {
     pub instrument_type: Option<String>,
     /// Optional quote mode (e.g., "MANUAL", "MARKET")
     pub quote_mode: Option<String>,
+    /// Market data provider that resolved this import row, if selected.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    /// Provider-native symbol/code selected by search/import.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_symbol: Option<String>,
     pub errors: Option<std::collections::HashMap<String, Vec<String>>>,
     pub warnings: Option<std::collections::HashMap<String, Vec<String>>>,
     #[serde(default)]
@@ -972,6 +984,10 @@ pub struct ImportAssetCandidate {
     pub exchange_mic: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub isin: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_symbol: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -988,6 +1004,8 @@ pub struct ImportAssetPreviewItem {
     pub key: String,
     pub status: ImportAssetPreviewStatus,
     pub resolution_source: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review_symbol: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1651,6 +1669,8 @@ impl From<ActivityImport> for NewActivity {
                     quote_mode: import.quote_mode.clone(),
                     quote_ccy: import.quote_ccy.clone(),
                     instrument_type: import.instrument_type.clone(),
+                    provider_id: import.provider_id.clone(),
+                    provider_symbol: import.provider_symbol.clone(),
                 })
         } else {
             Some(AssetResolutionInput {
@@ -1662,6 +1682,8 @@ impl From<ActivityImport> for NewActivity {
                 quote_mode: import.quote_mode.clone(),
                 quote_ccy: import.quote_ccy,
                 instrument_type: import.instrument_type,
+                provider_id: import.provider_id,
+                provider_symbol: import.provider_symbol,
             })
         };
 

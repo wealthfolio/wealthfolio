@@ -70,6 +70,58 @@ describe("holdings review helpers", () => {
     });
   });
 
+  it("carries provider refs through row resolutions and snapshots", () => {
+    const resolutions = buildHoldingsRowResolutionMap([
+      createDraft({
+        rowIndex: 0,
+        symbol: "SHOP",
+        exchangeMic: "XTSE",
+        quoteCcy: "CAD",
+        instrumentType: "EQUITY",
+        providerId: "YAHOO",
+        providerSymbol: "SHOP.TO",
+      }),
+    ]);
+
+    expect(resolutions[0]).toEqual({
+      symbol: "SHOP",
+      exchangeMic: "XTSE",
+      quoteCcy: "CAD",
+      instrumentType: "EQUITY",
+      providerId: "YAHOO",
+      providerSymbol: "SHOP.TO",
+    });
+
+    const snapshots = parseHoldingsSnapshots(
+      ["date", "symbol", "quantity", "currency"],
+      [["2026-01-02", "SHOP.TO", "10", "CAD"]],
+      {
+        [HoldingsFormat.DATE]: "date",
+        [HoldingsFormat.SYMBOL]: "symbol",
+        [HoldingsFormat.QUANTITY]: "quantity",
+        [HoldingsFormat.CURRENCY]: "currency",
+      },
+      {
+        dateFormat: "YYYY-MM-DD",
+        decimalSeparator: ".",
+        thousandsSeparator: ",",
+        defaultCurrency: "USD",
+      },
+      undefined,
+      undefined,
+      resolutions,
+    );
+
+    expect(snapshots[0].positions[0]).toMatchObject({
+      symbol: "SHOP",
+      exchangeMic: "XTSE",
+      quoteCcy: "CAD",
+      instrumentType: "EQUITY",
+      providerId: "YAHOO",
+      providerSymbol: "SHOP.TO",
+    });
+  });
+
   it("keeps row-level resolutions distinct for duplicate raw symbols", () => {
     const snapshots = parseHoldingsSnapshots(
       ["date", "symbol", "quantity", "currency"],

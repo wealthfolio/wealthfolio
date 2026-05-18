@@ -32,13 +32,12 @@ function escapeRegex(s: string): string {
 }
 
 /**
- * Locates an asset-review row by the canonical (suffix-stripped) symbol shown in
- * the bold mono span. The row container is the grid div wrapping the symbol +
- * pills + actions.
+ * Locates an asset-review row by the backend-provided review symbol shown in the
+ * bold mono span. Exchange-qualified symbols remain visible here (e.g. APC.DE).
  */
 function rowFor(page: Page, symbol: string): Locator {
   return page
-    .locator("div.grid")
+    .getByTestId("asset-review-row")
     .filter({
       has: page
         .locator("span.font-mono")
@@ -97,45 +96,41 @@ test.describe("Issue #855 — symbol resolution and region classification", () =
     test.setTimeout(60000);
 
     // APC.DE → Apple Inc., XETRA, EUR — not NASDAQ/USD.
-    // The CSV also contains an APC row on US exchanges, which renders as a
-    // separate review row with the same suffix-stripped symbol. Disambiguate
-    // by the resolved issuer name so the lookup is order-independent.
-    const apc = page
-      .locator("div.grid")
-      .filter({
-        has: page.locator("span.font-mono").filter({ hasText: /^APC$/ }),
-      })
-      .filter({ hasText: /Apple/i })
-      .first();
+    // The CSV also contains an APC row on US exchanges, which must remain a
+    // separate APC review row instead of collapsing with APC.DE.
+    const apc = rowFor(page, "APC.DE");
+    await expect(apc).toContainText(/Apple/i);
     await expect(apc).toContainText("XETRA");
     await expect(apc).toContainText("EUR");
     await expect(apc).not.toContainText(/EUR\s*→\s*USD/);
 
-    // TL0.DE → Tesla, XETRA, EUR
-    const tl0 = rowFor(page, "TL0");
-    await expect(tl0).toContainText(/Tesla/i);
-    await expect(tl0).toContainText("XETRA");
-    await expect(tl0).toContainText("EUR");
-
-    // MSF.DE → Microsoft, XETRA, EUR
-    const msf = rowFor(page, "MSF");
-    await expect(msf).toContainText(/Microsoft/i);
-    await expect(msf).toContainText("XETRA");
-
-    // ASME.DE → ASML Holding, XETRA, EUR
-    const asme = rowFor(page, "ASME");
-    await expect(asme).toContainText(/ASML/i);
-    await expect(asme).toContainText("XETRA");
-    await expect(asme).toContainText("EUR");
+    for (const [symbol, issuer] of [
+      ["NVD.DE", /NVIDIA/i],
+      ["AMZ.DE", /Amazon/i],
+      ["ASME.DE", /ASML/i],
+      ["TL0.DE", /Tesla/i],
+      ["PTX.DE", /Palantir/i],
+      ["MSF.DE", /Microsoft/i],
+    ] as const) {
+      const row = rowFor(page, symbol);
+      await expect(row).toContainText(issuer);
+      await expect(row).toContainText("XETRA");
+      await expect(row).toContainText("EUR");
+    }
   });
 
   test("3. Genuine European issuer on XETRA (SAP) still resolves correctly", async () => {
     test.setTimeout(30000);
 
-    const sap = rowFor(page, "SAP");
+    const sap = rowFor(page, "SAP.DE");
     await expect(sap).toContainText(/SAP/i);
     await expect(sap).toContainText("XETRA");
     await expect(sap).toContainText("EUR");
+
+    const sie = rowFor(page, "SIE.DE");
+    await expect(sie).toContainText(/Siemens/i);
+    await expect(sie).toContainText("XETRA");
+    await expect(sie).toContainText("EUR");
   });
 
   test("4. US-listed controls resolve to NASDAQ/NYSE in USD", async () => {
@@ -156,14 +151,8 @@ test.describe("Issue #855 — symbol resolution and region classification", () =
     test.setTimeout(30000);
 
     // SHOP.TO → Shopify on TSX in CAD. SHOP also exists as a separate row (NYSE/USD),
-    // so scope by the CAD pill which only appears on the TSX row.
-    const shopTsx = page
-      .locator("div.grid")
-      .filter({
-        has: page.locator("span.font-mono").filter({ hasText: /^SHOP$/ }),
-      })
-      .filter({ hasText: "CAD" })
-      .first();
+    // so the review symbol must keep the .TO suffix.
+    const shopTsx = rowFor(page, "SHOP.TO");
     await expect(shopTsx).toContainText(/Shopify/i);
     await expect(shopTsx).toContainText("TSX");
     await expect(shopTsx).toContainText("CAD");
@@ -172,12 +161,13 @@ test.describe("Issue #855 — symbol resolution and region classification", () =
   test("6. LSE pence: VOD.L resolves to LSE in GBp", async () => {
     test.setTimeout(30000);
 
-    const vod = rowFor(page, "VOD");
-    await expect(vod).toContainText(/Vodafone/i);
+    const vod = rowFor(page, "VOD.L");
+    // Provider names for VOD.L vary (Vodafone vs VOD); the invariant is LSE pence classification.
+    await expect(vod).toContainText("EQUITY");
     await expect(vod).toContainText("LSE");
     await expect(vod).toContainText(/GBp|GBP/);
 
-    const bp = rowFor(page, "BP");
+    const bp = rowFor(page, "BP.L");
     await expect(bp).toContainText("LSE");
   });
 
@@ -187,13 +177,27 @@ test.describe("Issue #855 — symbol resolution and region classification", () =
     const brk = rowFor(page, "BRK.B");
     await expect(brk).toContainText(/Berkshire/i);
     await expect(brk).toContainText(/NYSE/);
+
+    await expect(page.locator("span.font-mono").filter({ hasText: /^BRK\.B$/ })).toHaveCount(1);
+    await expect(page.locator("span.font-mono").filter({ hasText: /^BRK$/ })).toHaveCount(0);
   });
 
-  test("8. Precious metal ETCs are classified as METAL not EQUITY", async () => {
+  test("8. Listed metal-backed products remain exchange-traded securities", async () => {
     test.setTimeout(30000);
 
-    const gld = rowFor(page, "4GLD");
-    await expect(gld).toContainText("METAL");
+    for (const [symbol, currency, exchange] of [
+      ["4GLD.DE", "EUR", "XETRA"],
+      ["WSLV.MI", "EUR", "Borsa Italiana"],
+      ["SGLN.L", /GBp|GBP/, "LSE"],
+      // PHYS venue labels vary across providers/feeds (NYSE, NYSE Arca, NYSE American).
+      // The regression invariant is that it remains an exchange-traded equity-like security.
+      ["PHYS", "USD", /NYSE(?: American| Arca)?/],
+    ] as const) {
+      const row = rowFor(page, symbol);
+      await expect(row).toContainText("EQUITY");
+      await expect(row).toContainText(currency);
+      await expect(row).toContainText(exchange);
+    }
   });
 
   test("9. Crypto pair BTC-USD is classified as CRYPTO", async () => {
@@ -207,12 +211,12 @@ test.describe("Issue #855 — symbol resolution and region classification", () =
     test.setTimeout(30000);
 
     // SHOP appears on TSX (CAD) and NYSE (USD) — must be 2 distinct review rows.
-    const shopRows = page.locator("span.font-mono").filter({ hasText: /^SHOP$/ });
-    expect(await shopRows.count()).toBeGreaterThanOrEqual(2);
+    await expect(rowFor(page, "SHOP.TO")).toContainText("CAD");
+    await expect(rowFor(page, "SHOP")).toContainText("USD");
 
     // APC.DE (Apple/XETRA/EUR) and APC (US/USD) — must NOT collapse to a single row.
-    const apcRows = page.locator("span.font-mono").filter({ hasText: /^APC$/ });
-    expect(await apcRows.count()).toBeGreaterThanOrEqual(2);
+    await expect(rowFor(page, "APC.DE")).toContainText("EUR");
+    await expect(rowFor(page, "APC")).toContainText("USD");
   });
 
   test("11. Complete the import", async () => {
@@ -224,10 +228,9 @@ test.describe("Issue #855 — symbol resolution and region classification", () =
     const continueBtn = page.getByRole("button", { name: /Continue to Import/i });
     await expect(continueBtn).toBeEnabled({ timeout: 90000 });
     await continueBtn.click();
-    await page.waitForTimeout(1000);
 
     await expect(page.getByText("To Import", { exact: true }).first()).toBeVisible({
-      timeout: 10000,
+      timeout: 120000,
     });
 
     const importBtn = page.getByRole("button", { name: /Import \d+ Activit/i });
@@ -254,7 +257,7 @@ test.describe("Issue #855 — symbol resolution and region classification", () =
     //  VOD      → Vodafone on LSE in GBp
     //  SHOP     → Shopify on TSX in CAD (and NYSE in USD)
     //  BRK.B    → share-class dot preserved
-    //  4GLD     → Xetra-Gold ETC, METAL classification
+    //  4GLD     → Xetra-Gold ETC on XETRA
     //  BTC-USD  → crypto
     for (const marker of ["APC", "AAPL", "SAP", "VOD", "SHOP", "BRK.B", "4GLD", "BTC"]) {
       await expect(

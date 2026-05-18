@@ -25,6 +25,7 @@ mod traits;
 pub mod alpha_vantage;
 pub mod boerse_frankfurt;
 pub mod finnhub;
+pub mod fixture;
 pub mod marketdata_app;
 pub mod metal_price_api;
 pub mod openfigi;

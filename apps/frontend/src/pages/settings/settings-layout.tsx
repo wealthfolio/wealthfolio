@@ -32,6 +32,12 @@ const settingsSections = [
         icon: <Icons.CreditCard className="size-5" />,
       },
       {
+        title: "Portfolios",
+        href: "portfolios",
+        subtitle: "Named reporting scopes",
+        icon: <Icons.Folder className="size-5" />,
+      },
+      {
         title: "Contribution Limits",
         href: "contribution-limits",
         subtitle: "Limits by year and account",

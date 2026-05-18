@@ -1,5 +1,6 @@
-import { getExchanges } from "@/adapters";
+import { getExchanges, resolveSymbolQuote } from "@/adapters";
 import TickerSearchInput from "@/components/ticker-search";
+import { quoteModeFromSearchResult } from "@/lib/asset-utils";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { NewAsset, SymbolSearchResult } from "@/lib/types";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,7 +33,7 @@ import {
   SelectValue,
 } from "@wealthfolio/ui/components/ui/select";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -114,6 +115,10 @@ export function CreateSecurityDialog({
   const { settings } = useSettingsContext();
   const defaultCurrency = settings?.baseCurrency || "USD";
   const [selectedResult, setSelectedResult] = useState<SymbolSearchResult | undefined>();
+  const [isResolvingSubmit, setIsResolvingSubmit] = useState(false);
+  const resolveRequestSeq = useRef(0);
+  const selectedCurrencyBaselineRef = useRef<string | undefined>(undefined);
+  const quoteCcyUserEditedAfterSelectionRef = useRef(false);
 
   const { data: exchanges = [] } = useQuery({
     queryKey: ["exchanges"],
@@ -149,6 +154,9 @@ export function CreateSecurityDialog({
   });
 
   useEffect(() => {
+    resolveRequestSeq.current += 1;
+    selectedCurrencyBaselineRef.current = undefined;
+    quoteCcyUserEditedAfterSelectionRef.current = false;
     if (open) {
       setSelectedResult(undefined);
       form.reset(defaultValues);
@@ -159,8 +167,17 @@ export function CreateSecurityDialog({
     (_symbol: string, result?: SymbolSearchResult) => {
       if (!result) return;
 
+      const requestId = ++resolveRequestSeq.current;
+      const previousCurrency = form.getValues("quoteCcy")?.trim();
+      const canonicalSymbol = result.canonicalSymbol || result.symbol;
+      const canonicalExchangeMic = result.canonicalExchangeMic || result.exchangeMic;
+      const provisionalCurrency = result.currency?.trim();
+      const expectedCurrency = provisionalCurrency || previousCurrency;
+
       setSelectedResult(result);
-      form.setValue("symbol", result.symbol.toUpperCase(), { shouldValidate: true });
+      selectedCurrencyBaselineRef.current = expectedCurrency;
+      quoteCcyUserEditedAfterSelectionRef.current = false;
+      form.setValue("symbol", canonicalSymbol.toUpperCase(), { shouldValidate: true });
       form.setValue("name", result.longName || result.shortName || "", { shouldValidate: true });
 
       const mappedType = result.quoteType ? mapQuoteTypeToInstrumentType(result.quoteType) : null;
@@ -168,27 +185,116 @@ export function CreateSecurityDialog({
       if (mappedType) {
         form.setValue("instrumentType", mappedType);
       }
-      if (result.currency) {
-        form.setValue("quoteCcy", result.currency, { shouldValidate: true });
+      if (provisionalCurrency) {
+        form.setValue("quoteCcy", provisionalCurrency, { shouldValidate: true });
       }
-      if (result.exchangeMic) {
-        form.setValue("instrumentExchangeMic", normalizeMic(result.exchangeMic));
+      if (canonicalExchangeMic) {
+        form.setValue("instrumentExchangeMic", normalizeMic(canonicalExchangeMic));
       }
+
+      const selectedQuoteMode = mappedType ? quoteModeFromSearchResult(result) : "MANUAL";
 
       // If the type is unrecognized, fall back to manual mode.
       // Otherwise auto-sync unless the result is from MANUAL source.
-      if (!mappedType) {
-        form.setValue("quoteMode", "MANUAL");
-      } else {
-        const isManual = result.dataSource === "MANUAL";
-        form.setValue("quoteMode", isManual ? "MANUAL" : "MARKET");
+      form.setValue("quoteMode", selectedQuoteMode);
+
+      if (selectedQuoteMode !== "MARKET") {
+        return;
       }
+
+      resolveSymbolQuote(
+        canonicalSymbol,
+        canonicalExchangeMic,
+        result.quoteType,
+        result.providerId,
+        provisionalCurrency,
+      )
+        .then((resolved) => {
+          if (requestId !== resolveRequestSeq.current) return;
+
+          const currentSymbol = form.getValues("symbol")?.trim().toUpperCase();
+          const currentMic = normalizeMic(form.getValues("instrumentExchangeMic"));
+          if (
+            currentSymbol !== canonicalSymbol.toUpperCase() ||
+            currentMic !== normalizeMic(canonicalExchangeMic) ||
+            (mappedType && form.getValues("instrumentType") !== mappedType)
+          ) {
+            return;
+          }
+
+          const confirmedCurrency = resolved?.currency?.trim();
+          if (!confirmedCurrency) return;
+
+          const currentCurrency = form.getValues("quoteCcy")?.trim();
+          if (
+            !quoteCcyUserEditedAfterSelectionRef.current &&
+            (!currentCurrency || currentCurrency === expectedCurrency)
+          ) {
+            form.setValue("quoteCcy", confirmedCurrency, { shouldValidate: true });
+          }
+        })
+        .catch(() => {
+          // Search selection remains usable even if quote confirmation fails.
+        });
     },
     [form],
   );
 
-  const handleSubmit = (values: CreateSecurityFormValues) => {
+  const handleSubmit = async (values: CreateSecurityFormValues) => {
     const kind = values.instrumentType === "FX" ? "FX" : "INVESTMENT";
+    const selectedCanonicalSymbol = selectedResult?.canonicalSymbol || selectedResult?.symbol;
+    const selectedCanonicalMic = normalizeMic(
+      selectedResult?.canonicalExchangeMic || selectedResult?.exchangeMic,
+    );
+    const selectedInstrumentType = selectedResult?.quoteType
+      ? mapQuoteTypeToInstrumentType(selectedResult.quoteType)
+      : null;
+    const initialSymbol = (
+      initialAsset?.instrumentSymbol || initialAsset?.displayCode
+    )?.toUpperCase();
+    const initialMic = normalizeMic(initialAsset?.instrumentExchangeMic);
+    const initialInstrumentType = initialAsset?.instrumentType;
+    const selectedProviderRef =
+      selectedResult &&
+      selectedCanonicalSymbol?.toUpperCase() === values.symbol &&
+      selectedCanonicalMic === normalizeMic(values.instrumentExchangeMic) &&
+      (!selectedInstrumentType || selectedInstrumentType === values.instrumentType)
+        ? {
+            providerId: selectedResult.providerId,
+            providerSymbol: selectedResult.providerSymbol,
+          }
+        : undefined;
+    const initialProviderConfig =
+      !selectedResult &&
+      initialAsset?.providerConfig &&
+      initialSymbol === values.symbol &&
+      initialMic === normalizeMic(values.instrumentExchangeMic) &&
+      (!initialInstrumentType || initialInstrumentType === values.instrumentType)
+        ? initialAsset.providerConfig
+        : undefined;
+    let resolvedQuoteCcy = values.quoteCcy;
+
+    if (selectedResult && selectedProviderRef && values.quoteMode === "MARKET") {
+      setIsResolvingSubmit(true);
+      try {
+        const resolved = await resolveSymbolQuote(
+          values.symbol,
+          normalizeMic(values.instrumentExchangeMic) || undefined,
+          selectedResult.quoteType,
+          selectedResult.providerId,
+          values.quoteCcy,
+        );
+        const confirmedCurrency = resolved?.currency?.trim();
+        if (confirmedCurrency && !quoteCcyUserEditedAfterSelectionRef.current) {
+          resolvedQuoteCcy = confirmedCurrency;
+          form.setValue("quoteCcy", confirmedCurrency, { shouldValidate: true });
+        }
+      } catch {
+        // Continue with the selected/provided currency when confirmation is unavailable.
+      } finally {
+        setIsResolvingSubmit(false);
+      }
+    }
 
     const payload: NewAsset = {
       kind,
@@ -196,10 +302,13 @@ export function CreateSecurityDialog({
       displayCode: values.symbol,
       isActive: true,
       quoteMode: values.quoteMode,
-      quoteCcy: values.quoteCcy,
+      quoteCcy: resolvedQuoteCcy,
       instrumentType: values.instrumentType,
       instrumentSymbol: values.symbol,
       instrumentExchangeMic: values.instrumentExchangeMic || undefined,
+      providerId: selectedProviderRef?.providerId,
+      providerSymbol: selectedProviderRef?.providerSymbol,
+      providerConfig: selectedProviderRef ? undefined : initialProviderConfig,
       notes: values.notes || undefined,
     };
     onSubmit(payload);
@@ -207,6 +316,7 @@ export function CreateSecurityDialog({
 
   const handleDialogKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "Enter") return;
+    if (isPending || isResolvingSubmit) return;
     if ((e.target as HTMLElement).tagName === "TEXTAREA") return;
     // Don't submit when interacting with the ticker search popover
     const inPopover = (e.target as HTMLElement).closest("[data-radix-popper-content-wrapper]");
@@ -252,10 +362,15 @@ export function CreateSecurityDialog({
                         {...field}
                         onChange={(e) => {
                           const next = e.target.value.toUpperCase();
+                          const selectedCanonicalSymbol =
+                            selectedResult?.canonicalSymbol || selectedResult?.symbol;
                           if (
                             selectedResult &&
-                            next.trim() !== selectedResult.symbol.toUpperCase()
+                            next.trim() !== selectedCanonicalSymbol?.toUpperCase()
                           ) {
+                            resolveRequestSeq.current += 1;
+                            selectedCurrencyBaselineRef.current = undefined;
+                            quoteCcyUserEditedAfterSelectionRef.current = false;
                             setSelectedResult(undefined);
                           }
                           field.onChange(next);
@@ -318,7 +433,12 @@ export function CreateSecurityDialog({
                     <FormControl>
                       <CurrencyInput
                         value={field.value}
-                        onChange={field.onChange}
+                        onChange={(nextCurrency) => {
+                          if (selectedResult) {
+                            quoteCcyUserEditedAfterSelectionRef.current = true;
+                          }
+                          field.onChange(nextCurrency);
+                        }}
                         placeholder="Select currency"
                         valueDisplay="code"
                         allowCustom
@@ -398,16 +518,16 @@ export function CreateSecurityDialog({
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={isPending}
+                disabled={isPending || isResolvingSubmit}
               >
                 Cancel
               </Button>
               <Button
                 type="button"
                 onClick={() => void form.handleSubmit(handleSubmit)()}
-                disabled={isPending}
+                disabled={isPending || isResolvingSubmit}
               >
-                {isPending ? (
+                {isPending || isResolvingSubmit ? (
                   <span className="flex items-center gap-2">
                     <Icons.Spinner className="h-4 w-4 animate-spin" /> Creating...
                   </span>

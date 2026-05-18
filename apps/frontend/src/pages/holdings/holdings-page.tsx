@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { SwipablePage, SwipablePageView } from "@/components/page";
-import { AccountSelector } from "@/components/account-selector";
+import { AccountFilterSelector } from "@/components/account-filter-selector";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useHoldings } from "@/hooks/use-holdings";
@@ -21,7 +21,13 @@ import {
   HOLDING_CATEGORY_FILTERS,
   apiKindToAlternativeAssetKind,
 } from "@/lib/constants";
-import { Account, HoldingType, AlternativeAssetHolding, AlternativeAssetKind } from "@/lib/types";
+import {
+  Account,
+  AccountFilter,
+  HoldingType,
+  AlternativeAssetHolding,
+  AlternativeAssetKind,
+} from "@/lib/types";
 import { canAddHoldings } from "@/lib/activity-restrictions";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { HoldingsMobileFilterSheet } from "./components/holdings-mobile-filter-sheet";
@@ -54,19 +60,16 @@ export const HoldingsPage = () => {
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>({
-    id: PORTFOLIO_ACCOUNT_ID,
-    name: "All Portfolio",
-    accountType: "PORTFOLIO" as unknown as Account["accountType"],
-    balance: 0,
-    currency: baseCurrency,
-    isDefault: false,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as Account);
+  const [accountFilter, setAccountFilter] = useState<AccountFilter>({ type: "all" });
 
-  const { holdings, isLoading } = useHoldings(selectedAccount?.id ?? PORTFOLIO_ACCOUNT_ID);
+  // Derive accountId for holdings: portfolio filter falls back to TOTAL (follow-up PR adds aggregation).
+  const holdingsAccountId =
+    accountFilter.type === "account" ? accountFilter.accountId : PORTFOLIO_ACCOUNT_ID;
+
+  // Keep selectedAccount for edit/add functionality when a specific account is selected.
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+
+  const { holdings, isLoading } = useHoldings(holdingsAccountId);
   const { accounts, isLoading: isAccountsLoading } = useAccounts();
   const { data: alternativeHoldings, isLoading: isAlternativeHoldingsLoading } =
     useAlternativeHoldings();
@@ -119,11 +122,29 @@ export const HoldingsPage = () => {
   );
   const updatePortfolioMutation = useUpdatePortfolioMutation();
 
-  const handleAccountSelect = (account: Account) => {
+  const handleAccountSelect = useCallback((account: Account) => {
     setSelectedAccount(account);
-    // Exit edit mode when switching accounts
     setIsEditMode(false);
-  };
+    // Sync AccountFilter when mobile filter sheet selects an account.
+    if (account.id === PORTFOLIO_ACCOUNT_ID) {
+      setAccountFilter({ type: "all" });
+    } else {
+      setAccountFilter({ type: "account", accountId: account.id });
+    }
+  }, []);
+
+  const handleAccountFilterChange = useCallback(
+    (filter: AccountFilter) => {
+      setAccountFilter(filter);
+      setIsEditMode(false);
+      setSelectedAccount(
+        filter.type === "account"
+          ? (accounts.find((account) => account.id === filter.accountId) ?? null)
+          : null,
+      );
+    },
+    [accounts],
+  );
 
   // Check if the selected account supports manual holdings editing
   const canEditHoldings = useMemo(() => {
@@ -573,14 +594,7 @@ export const HoldingsPage = () => {
             <Icons.ListFilter className="h-4 w-4" />
           </Button>
         ) : (
-          <AccountSelector
-            selectedAccount={selectedAccount}
-            setSelectedAccount={handleAccountSelect}
-            variant="dropdown"
-            includePortfolio={true}
-            iconOnly={true}
-            icon={Icons.ListFilter}
-          />
+          <AccountFilterSelector value={accountFilter} onChange={handleAccountFilterChange} />
         )}
         {/* Show Update button for HOLDINGS-mode manual accounts (only on investments tab) */}
         {canEditHoldings && !isEditMode && currentTab === "investments" && (
@@ -599,8 +613,8 @@ export const HoldingsPage = () => {
     [
       isMobileViewport,
       setIsFilterSheetOpen,
-      selectedAccount,
-      handleAccountSelect,
+      accountFilter,
+      handleAccountFilterChange,
       canEditHoldings,
       isEditMode,
       currentTab,

@@ -121,7 +121,7 @@ export interface InternalHostAPI {
   // Settings
   getSettings(): Promise<Settings>;
   updateSettings(settingsUpdate: Partial<Settings>): Promise<Settings>;
-  backupDatabase(): Promise<{ filename: string; data: Uint8Array }>;
+  backupDatabase(): Promise<{ filename: string }>;
 
   // Account management
   createAccount(account: unknown): Promise<Account>;

@@ -34,6 +34,11 @@ export interface Logger {
   trace: (...args: unknown[]) => void;
 }
 
+export interface DataExportResult {
+  status: "saved" | "empty" | "canceled";
+  filename?: string;
+}
+
 // Addon types from SDK, re-exported with Tauri serialization adjustments
 import type {
   AddonInstallResult,
