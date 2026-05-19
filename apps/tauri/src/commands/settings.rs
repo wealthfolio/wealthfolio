@@ -116,6 +116,8 @@ pub async fn update_settings(
         state.health_service().clear_cache().await;
     }
 
+    state.update_private_assets_enabled(updated_settings.private_assets_enabled);
+
     if let Some(market_sync_mode) =
         recalculate_mode_for_settings_change(base_currency_changed, timezone_changed)
     {

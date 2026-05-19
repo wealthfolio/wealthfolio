@@ -1,12 +1,16 @@
+import { listPrivateAssetRows } from "@/adapters";
+import { DashboardCard } from "@/components/dashboard-card";
 import { useNetWorth, useNetWorthHistory } from "@/hooks/use-alternative-assets";
 import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
 import { useIsMobileViewport } from "@/hooks/use-platform";
+import { usePrivateAssetsEnabled } from "@/hooks/use-private-assets-enabled";
+import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { DateRange } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
 import Balance from "@/pages/dashboard/balance";
 import { AllocationDetailSheet } from "@/pages/holdings/components/allocation-detail-sheet";
-import { DashboardCard } from "@/components/dashboard-card";
+import { useQuery } from "@tanstack/react-query";
 import {
   GainAmount,
   GainPercent,
@@ -48,8 +52,14 @@ const MS_PER_DAY = 86_400_000;
 
 export function NetWorthContent() {
   const { settings } = useSettingsContext();
+  const privateAssetsEnabled = usePrivateAssetsEnabled();
   const { data: netWorthData, isLoading, isError, error } = useNetWorth();
   const isMobile = useIsMobileViewport();
+  const privateRowsQuery = useQuery({
+    queryKey: QueryKeys.privateAssetRows(false),
+    queryFn: () => listPrivateAssetRows(false),
+    enabled: privateAssetsEnabled,
+  });
 
   const [intervalCode] = usePersistentState<TimePeriod>(INTERVAL_STORAGE_KEY, DEFAULT_INTERVAL);
 
@@ -94,6 +104,38 @@ export function NetWorthContent() {
     enabled: !!longHistoryDates,
   });
 
+  const chartHistoryData = useMemo(() => {
+    if (privateAssetsEnabled || !historyData) {
+      return historyData;
+    }
+
+    return historyData.map((point) => {
+      const privateAssetsValue = parseFloat(point.privateAssetsValue) || 0;
+      return {
+        ...point,
+        privateAssetsValue: "0",
+        totalAssets: String((parseFloat(point.totalAssets) || 0) - privateAssetsValue),
+        netWorth: String((parseFloat(point.netWorth) || 0) - privateAssetsValue),
+      };
+    });
+  }, [historyData, privateAssetsEnabled]);
+
+  const longChartHistoryData = useMemo(() => {
+    if (privateAssetsEnabled || !longHistoryData) {
+      return longHistoryData;
+    }
+
+    return longHistoryData.map((point) => {
+      const privateAssetsValue = parseFloat(point.privateAssetsValue) || 0;
+      return {
+        ...point,
+        privateAssetsValue: "0",
+        totalAssets: String((parseFloat(point.totalAssets) || 0) - privateAssetsValue),
+        netWorth: String((parseFloat(point.netWorth) || 0) - privateAssetsValue),
+      };
+    });
+  }, [longHistoryData, privateAssetsEnabled]);
+
   const handleIntervalSelect = (
     code: TimePeriod,
     description: string,
@@ -106,22 +148,35 @@ export function NetWorthContent() {
 
   const parsedData = useMemo((): ParsedNetWorth | null => {
     if (!netWorthData) return null;
-    return {
-      netWorth: parseFloat(netWorthData.netWorth) || 0,
-      assets: {
-        total: parseFloat(netWorthData.assets.total) || 0,
-        breakdown: (netWorthData.assets.breakdown || []).map((item) => ({
-          category: item.category,
-          name: item.name,
-          value: parseFloat(item.value) || 0,
-          assetId: item.assetId,
-          children: (item.children ?? []).map((child) => ({
-            category: child.category,
-            name: child.name,
-            value: parseFloat(child.value) || 0,
-            assetId: child.assetId,
-          })),
+    const assetBreakdown = (netWorthData.assets.breakdown || [])
+      .map((item) => ({
+        category: item.category,
+        name: item.name,
+        value: parseFloat(item.value) || 0,
+        assetId: item.assetId,
+        children: (item.children ?? []).map((child) => ({
+          category: child.category,
+          name: child.name,
+          value: parseFloat(child.value) || 0,
+          assetId: child.assetId,
         })),
+      }))
+      .filter((item) => privateAssetsEnabled || item.category !== "privateAssets");
+    const privateAssetsValue = privateAssetsEnabled
+      ? 0
+      : (netWorthData.assets.breakdown || [])
+          .filter((item) => item.category === "privateAssets")
+          .reduce((sum, item) => sum + (parseFloat(item.value) || 0), 0);
+    const assetsTotal = Math.max(
+      (parseFloat(netWorthData.assets.total) || 0) - privateAssetsValue,
+      0,
+    );
+
+    return {
+      netWorth: (parseFloat(netWorthData.netWorth) || 0) - privateAssetsValue,
+      assets: {
+        total: assetsTotal,
+        breakdown: assetBreakdown,
       },
       liabilities: {
         total: parseFloat(netWorthData.liabilities.total) || 0,
@@ -133,10 +188,10 @@ export function NetWorthContent() {
         })),
       },
     };
-  }, [netWorthData]);
+  }, [netWorthData, privateAssetsEnabled]);
 
-  const parsedHistory = useMemo(() => parseHistory(historyData), [historyData]);
-  const longHistory = useMemo(() => parseHistory(longHistoryData), [longHistoryData]);
+  const parsedHistory = useMemo(() => parseHistory(chartHistoryData), [chartHistoryData]);
+  const longHistory = useMemo(() => parseHistory(longChartHistoryData), [longChartHistoryData]);
 
   const velocity = useMemo(() => computeVelocity(parsedHistory), [parsedHistory]);
   const trailingYearMonthly = useMemo(() => {
@@ -162,6 +217,11 @@ export function NetWorthContent() {
   const currency = netWorthData?.currency || settings?.baseCurrency || "USD";
   const hasStaleValuations = netWorthData && netWorthData.staleAssets.length > 0;
   const periodLabel = periodCode;
+  const privateAssetIds = useMemo(
+    () =>
+      new Set(privateAssetsEnabled ? (privateRowsQuery.data ?? []).map((row) => row.assetId) : []),
+    [privateAssetsEnabled, privateRowsQuery.data],
+  );
 
   // Breakdown row → detail drawer. Investments open the existing asset-class
   // allocation sheet; every other row opens the category detail sheet.
@@ -280,15 +340,15 @@ export function NetWorthContent() {
             <div className="flex h-full items-center justify-center">
               <Skeleton className="h-full w-full" />
             </div>
-          ) : historyData && historyData.length > 0 ? (
-            <NetWorthChart data={historyData} isLoading={isHistoryLoading} />
+          ) : chartHistoryData && chartHistoryData.length > 0 ? (
+            <NetWorthChart data={chartHistoryData} isLoading={isHistoryLoading} />
           ) : (
             <div className="flex h-full flex-col items-center justify-center">
               <Icons.TrendingUp className="text-muted-foreground/30 mb-3 h-12 w-12" />
               <p className="text-muted-foreground text-sm">No history data available</p>
             </div>
           )}
-          {historyData && historyData.length > 0 && (
+          {chartHistoryData && chartHistoryData.length > 0 && (
             <div className="flex w-full justify-center">
               <IntervalSelector
                 className="pointer-events-auto relative z-20 w-full max-w-screen-sm sm:max-w-screen-md md:max-w-2xl lg:max-w-3xl"
@@ -375,7 +435,11 @@ export function NetWorthContent() {
                     {netWorthData?.staleAssets.map((asset) => (
                       <Link
                         key={asset.assetId}
-                        to={`/holdings/${encodeURIComponent(asset.assetId)}?tab=history`}
+                        to={
+                          privateAssetIds.has(asset.assetId)
+                            ? `/settings/private-assets/${asset.assetId}`
+                            : `/holdings/${encodeURIComponent(asset.assetId)}?tab=history`
+                        }
                         className="hover:bg-warning/10 -mx-2 flex items-center justify-between rounded-md px-2 py-1.5 transition-colors"
                       >
                         <span className="truncate text-xs font-medium">

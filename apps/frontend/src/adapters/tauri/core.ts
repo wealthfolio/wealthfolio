@@ -51,7 +51,8 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     ]);
     return result;
   } catch (err) {
-    logger.error(`[Invoke] Command "${command}" failed: ${err}`);
+    const payloadKeys = payload ? Object.keys(payload).sort().join(", ") : "none";
+    logger.error(`[Invoke] Command "${command}" failed (payload keys: ${payloadKeys}): ${err}`);
     throw err;
   }
 };

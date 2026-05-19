@@ -102,6 +102,8 @@ See [ROADMAP.md](./ROADMAP.md).
 
 - **[Adapter System](docs/architecture/adapters.md)** - Compile-time environment
   detection for Desktop/Web builds
+- **[Private Assets](docs/architecture/private-assets.md)** - Manual-entry
+  private investment ledger design
 
 ### Addon Development
 

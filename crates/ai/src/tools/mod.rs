@@ -9,6 +9,7 @@
 //! - SearchActivitiesTool: Search transactions
 //! - GetIncomeTool: Fetch income summaries (dividends, interest, other income)
 //! - GetGoalsTool: Fetch investment goals with progress
+//! - Private-assets read tools: list rows, detail, totals, and history
 //! - RecordActivityTool: Create activity drafts from natural language
 //! - RecordActivitiesTool: Create multiple activity drafts from natural language
 //!
@@ -27,6 +28,7 @@ pub mod import_csv;
 pub mod income;
 pub mod list_categorization_context;
 pub mod performance;
+pub mod private_assets;
 pub mod propose_categories;
 pub mod record_activities;
 pub mod record_activity;
@@ -48,6 +50,10 @@ pub use import_csv::ImportCsvTool;
 pub use income::GetIncomeTool;
 pub use list_categorization_context::ListCategorizationContextTool;
 pub use performance::GetPerformanceTool;
+pub use private_assets::{
+    GetPrivateAssetCurrentTotalsTool, GetPrivateAssetDetailTool,
+    GetPrivateAssetHistoricalSeriesTool, ListPrivateAssetRowsTool,
+};
 pub use propose_categories::{
     AiProposal, CategoryExample, CategoryOption, Proposal, ProposeCategoriesTool, TaxonomySummary,
     UnproposedActivity,
@@ -71,6 +77,10 @@ pub struct ToolSet<E: AiEnvironment> {
     pub valuation: GetValuationHistoryTool<E>,
     pub goals: GetGoalsTool<E>,
     pub performance: GetPerformanceTool<E>,
+    pub private_asset_rows: ListPrivateAssetRowsTool<E>,
+    pub private_asset_detail: GetPrivateAssetDetailTool<E>,
+    pub private_asset_current_totals: GetPrivateAssetCurrentTotalsTool<E>,
+    pub private_asset_historical_series: GetPrivateAssetHistoricalSeriesTool<E>,
     pub record_activity: RecordActivityTool<E>,
     pub record_activities: RecordActivitiesTool<E>,
     pub import_csv: ImportCsvTool<E>,
@@ -93,6 +103,10 @@ impl<E: AiEnvironment> ToolSet<E> {
             valuation: GetValuationHistoryTool::new(env.clone(), base_currency.clone()),
             goals: GetGoalsTool::new(env.clone()),
             performance: GetPerformanceTool::new(env.clone(), base_currency.clone()),
+            private_asset_rows: ListPrivateAssetRowsTool::new(env.clone()),
+            private_asset_detail: GetPrivateAssetDetailTool::new(env.clone()),
+            private_asset_current_totals: GetPrivateAssetCurrentTotalsTool::new(env.clone()),
+            private_asset_historical_series: GetPrivateAssetHistoricalSeriesTool::new(env.clone()),
             record_activity: RecordActivityTool::new(env.clone()),
             record_activities: RecordActivitiesTool::new(env.clone()),
             import_csv: ImportCsvTool::new(env.clone(), base_currency),
@@ -138,6 +152,10 @@ mod tests {
             <GetValuationHistoryTool<MockEnvironment> as Tool>::NAME,
             <GetGoalsTool<MockEnvironment> as Tool>::NAME,
             <GetPerformanceTool<MockEnvironment> as Tool>::NAME,
+            <ListPrivateAssetRowsTool<MockEnvironment> as Tool>::NAME,
+            <GetPrivateAssetDetailTool<MockEnvironment> as Tool>::NAME,
+            <GetPrivateAssetCurrentTotalsTool<MockEnvironment> as Tool>::NAME,
+            <GetPrivateAssetHistoricalSeriesTool<MockEnvironment> as Tool>::NAME,
             <RecordActivityTool<MockEnvironment> as Tool>::NAME,
             <RecordActivitiesTool<MockEnvironment> as Tool>::NAME,
             <ImportCsvTool<MockEnvironment> as Tool>::NAME,

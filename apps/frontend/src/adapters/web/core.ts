@@ -371,6 +371,23 @@ export const COMMANDS: CommandMap = {
   unlink_liability: { method: "DELETE", path: "/alternative-assets" },
   update_alternative_asset_metadata: { method: "PUT", path: "/alternative-assets" },
   get_alternative_holdings: { method: "GET", path: "/alternative-holdings" },
+  // Private Assets
+  list_private_asset_rows: { method: "GET", path: "/private-assets" },
+  get_private_asset_detail: { method: "GET", path: "/private-assets" },
+  get_private_asset_current_totals: { method: "GET", path: "/private-assets/totals" },
+  get_private_asset_historical_series: { method: "GET", path: "/private-assets/history" },
+  list_fund_managers: { method: "GET", path: "/fund-managers" },
+  create_fund_manager: { method: "POST", path: "/fund-managers" },
+  update_fund_manager: { method: "PUT", path: "/fund-managers" },
+  create_private_asset: { method: "POST", path: "/private-assets" },
+  update_private_asset: { method: "PUT", path: "/private-assets" },
+  list_private_sub_assets: { method: "GET", path: "/private-assets" },
+  create_private_sub_asset: { method: "POST", path: "/private-sub-assets" },
+  update_private_sub_asset: { method: "PUT", path: "/private-sub-assets" },
+  list_private_snapshots: { method: "GET", path: "/private-assets" },
+  get_latest_private_snapshot: { method: "GET", path: "/private-assets" },
+  create_private_snapshot: { method: "POST", path: "/private-snapshots" },
+  update_private_snapshot: { method: "PUT", path: "/private-snapshots" },
 };
 
 /**
@@ -1744,6 +1761,97 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     }
     case "get_alternative_holdings":
       break;
+    // Private Assets
+    case "list_private_asset_rows":
+    case "get_private_asset_current_totals":
+    case "get_private_asset_historical_series": {
+      const { includeArchived } = (payload ?? {}) as { includeArchived?: boolean };
+      const params = new URLSearchParams();
+      if (includeArchived !== undefined) {
+        params.set("includeArchived", String(includeArchived));
+      }
+      const qs = params.toString();
+      if (qs) url += `?${qs}`;
+      break;
+    }
+    case "list_fund_managers":
+      break;
+    case "get_private_asset_detail": {
+      const { privateAssetId } = payload as { privateAssetId: string };
+      url += `/${encodeURIComponent(privateAssetId)}`;
+      break;
+    }
+    case "create_fund_manager": {
+      const { payload: bodyPayload } = payload as { payload: Record<string, unknown> };
+      body = JSON.stringify(bodyPayload);
+      break;
+    }
+    case "update_fund_manager": {
+      const { fundManagerId, payload: bodyPayload } = payload as {
+        fundManagerId: string;
+        payload: Record<string, unknown>;
+      };
+      url += `/${encodeURIComponent(fundManagerId)}`;
+      body = JSON.stringify(bodyPayload);
+      break;
+    }
+    case "create_private_asset": {
+      const { payload: bodyPayload } = payload as { payload: Record<string, unknown> };
+      body = JSON.stringify(bodyPayload);
+      break;
+    }
+    case "update_private_asset": {
+      const { privateAssetId, payload: bodyPayload } = payload as {
+        privateAssetId: string;
+        payload: Record<string, unknown>;
+      };
+      url += `/${encodeURIComponent(privateAssetId)}`;
+      body = JSON.stringify(bodyPayload);
+      break;
+    }
+    case "list_private_sub_assets": {
+      const { privateAssetId } = payload as { privateAssetId: string };
+      url += `/${encodeURIComponent(privateAssetId)}/sub-assets`;
+      break;
+    }
+    case "create_private_sub_asset": {
+      const { payload: bodyPayload } = payload as { payload: Record<string, unknown> };
+      body = JSON.stringify(bodyPayload);
+      break;
+    }
+    case "update_private_sub_asset": {
+      const { privateSubAssetId, payload: bodyPayload } = payload as {
+        privateSubAssetId: string;
+        payload: Record<string, unknown>;
+      };
+      url += `/${encodeURIComponent(privateSubAssetId)}`;
+      body = JSON.stringify(bodyPayload);
+      break;
+    }
+    case "list_private_snapshots": {
+      const { privateAssetId } = payload as { privateAssetId: string };
+      url += `/${encodeURIComponent(privateAssetId)}/snapshots`;
+      break;
+    }
+    case "get_latest_private_snapshot": {
+      const { privateAssetId } = payload as { privateAssetId: string };
+      url += `/${encodeURIComponent(privateAssetId)}/snapshots/latest`;
+      break;
+    }
+    case "create_private_snapshot": {
+      const { payload: bodyPayload } = payload as { payload: Record<string, unknown> };
+      body = JSON.stringify(bodyPayload);
+      break;
+    }
+    case "update_private_snapshot": {
+      const { privateSnapshotId, payload: bodyPayload } = payload as {
+        privateSnapshotId: string;
+        payload: Record<string, unknown>;
+      };
+      url += `/${encodeURIComponent(privateSnapshotId)}`;
+      body = JSON.stringify(bodyPayload);
+      break;
+    }
     // AI Providers
     case "get_ai_providers":
       break;

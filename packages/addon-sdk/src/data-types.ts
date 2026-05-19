@@ -660,6 +660,7 @@ export interface Settings {
   autoUpdateCheckEnabled: boolean;
   menuBarVisible: boolean;
   syncEnabled: boolean;
+  privateAssetsEnabled: boolean;
 }
 
 export type GoalType =

@@ -10,9 +10,9 @@ use wealthfolio_core::{
     accounts::AccountServiceTrait, activities::ActivityServiceTrait,
     allocation::AllocationServiceTrait, goals::GoalServiceTrait, health::HealthServiceTrait,
     holdings::HoldingsServiceTrait, income::IncomeServiceTrait,
-    performance::PerformanceServiceTrait, quotes::QuoteServiceTrait, secrets::SecretStore,
-    settings::SettingsServiceTrait, taxonomies::TaxonomyServiceTrait,
-    valuation::ValuationServiceTrait,
+    performance::PerformanceServiceTrait, private_assets::PrivateAssetProjectionServiceTrait,
+    quotes::QuoteServiceTrait, secrets::SecretStore, settings::SettingsServiceTrait,
+    taxonomies::TaxonomyServiceTrait, valuation::ValuationServiceTrait,
 };
 use wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignmentService;
 use wealthfolio_spending::cash_activities::CashActivityService;
@@ -41,6 +41,7 @@ pub struct ServerAiEnvironment {
     cash_activity_service: Arc<CashActivityService>,
     activity_taxonomy_assignment_service: Arc<ActivityTaxonomyAssignmentService>,
     categorization_rules_service: Arc<CategorizationRulesService>,
+    private_asset_projection_service: Arc<dyn PrivateAssetProjectionServiceTrait + Send + Sync>,
 }
 
 impl ServerAiEnvironment {
@@ -65,6 +66,7 @@ impl ServerAiEnvironment {
         cash_activity_service: Arc<CashActivityService>,
         activity_taxonomy_assignment_service: Arc<ActivityTaxonomyAssignmentService>,
         categorization_rules_service: Arc<CategorizationRulesService>,
+        private_asset_projection_service: Arc<dyn PrivateAssetProjectionServiceTrait + Send + Sync>,
     ) -> Self {
         Self {
             base_currency,
@@ -85,6 +87,7 @@ impl ServerAiEnvironment {
             cash_activity_service,
             activity_taxonomy_assignment_service,
             categorization_rules_service,
+            private_asset_projection_service,
         }
     }
 }
@@ -160,5 +163,9 @@ impl AiEnvironment for ServerAiEnvironment {
 
     fn categorization_rules_service(&self) -> Arc<CategorizationRulesService> {
         self.categorization_rules_service.clone()
+    }
+
+    fn private_asset_projection_service(&self) -> Arc<dyn PrivateAssetProjectionServiceTrait> {
+        self.private_asset_projection_service.clone()
     }
 }

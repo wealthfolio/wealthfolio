@@ -784,6 +784,7 @@ export interface Settings {
   autoUpdateCheckEnabled: boolean;
   menuBarVisible: boolean;
   syncEnabled: boolean;
+  privateAssetsEnabled: boolean;
 }
 
 export interface SettingsContextType {
@@ -1386,11 +1387,13 @@ export interface NetWorthHistoryPoint {
   portfolioValue: string;
   /** Alternative assets value (properties, vehicles, collectibles, etc.) as decimal string */
   alternativeAssetsValue: string;
+  /** Private assets value from the private-assets projection layer as decimal string */
+  privateAssetsValue: string;
   /** Total liabilities as decimal string (positive magnitude, subtracted for net worth) */
   totalLiabilities: string;
 
   // Totals
-  /** Total assets = portfolio_value + alternative_assets_value as decimal string */
+  /** Total assets = portfolio_value + alternative_assets_value + private_assets_value as decimal string */
   totalAssets: string;
   /** Net worth (assets - liabilities) as decimal string */
   netWorth: string;
@@ -1444,6 +1447,194 @@ export interface AlternativeAssetHolding {
   linkedAssetId?: string;
   /** Asset notes */
   notes?: string | null;
+}
+
+// ============================================================================
+// Private Assets Types
+// ============================================================================
+
+export type PrivateAssetStatus = "ACTIVE" | "REALIZED" | "ARCHIVED";
+
+export type PrivateAssetVehicleKind = "FUND" | "CO_INVESTMENT" | "DIRECT" | "REAL_ESTATE" | "OTHER";
+
+export type PrivateAssetStrategyType =
+  | "VENTURE"
+  | "PRIVATE_EQUITY"
+  | "HEDGE_FUND"
+  | "PRIVATE_CREDIT"
+  | "FUND_OF_FUNDS"
+  | "ENERGY"
+  | "REAL_ESTATE"
+  | "OTHER";
+
+export type PrivateSubAssetReportingBasis = "UNKNOWN" | "GROSS" | "NET";
+
+export type PrivateSnapshotValueSourceType = "MANUAL" | "STATEMENT" | "ESTIMATED";
+export type PrivateSnapshotCashFlowType = "TOTAL_TO_DATE" | "PERIOD_ONLY";
+
+export type PrivateAssetFreshnessState = "CURRENT" | "STALE" | "ESTIMATED" | "MISSING";
+
+export interface FundManager {
+  id: string;
+  name: string;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewFundManager {
+  id?: string;
+  name: string;
+  notes?: string | null;
+}
+
+export interface UpdateFundManager {
+  name?: string;
+  notes?: string | null;
+}
+
+export interface PrivateAsset {
+  id: string;
+  name: string;
+  fundManagerId?: string | null;
+  vehicleKind: PrivateAssetVehicleKind;
+  strategyType: PrivateAssetStrategyType;
+  currency: string;
+  status: PrivateAssetStatus;
+  commitmentAmount?: number | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewPrivateAsset {
+  id?: string;
+  name: string;
+  fundManagerId?: string | null;
+  vehicleKind: PrivateAssetVehicleKind;
+  strategyType: PrivateAssetStrategyType;
+  currency: string;
+  status: PrivateAssetStatus;
+  commitmentAmount?: number | null;
+  notes?: string | null;
+}
+
+export interface UpdatePrivateAsset {
+  name?: string;
+  fundManagerId?: string | null;
+  vehicleKind?: PrivateAssetVehicleKind;
+  strategyType?: PrivateAssetStrategyType;
+  currency?: string;
+  status?: PrivateAssetStatus;
+  commitmentAmount?: number | null;
+  notes?: string | null;
+}
+
+export interface PrivateSubAsset {
+  id: string;
+  privateAssetId: string;
+  name: string;
+  reportingBasis: PrivateSubAssetReportingBasis;
+  strategyType?: PrivateAssetStrategyType | null;
+  costBasis?: number | null;
+  currentValue?: number | null;
+  ownershipPercent?: number | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewPrivateSubAsset {
+  id?: string;
+  privateAssetId: string;
+  name: string;
+  reportingBasis: PrivateSubAssetReportingBasis;
+  strategyType?: PrivateAssetStrategyType | null;
+  costBasis?: number | null;
+  currentValue?: number | null;
+  ownershipPercent?: number | null;
+  notes?: string | null;
+}
+
+export interface UpdatePrivateSubAsset {
+  name?: string;
+  reportingBasis?: PrivateSubAssetReportingBasis;
+  strategyType?: PrivateAssetStrategyType | null;
+  costBasis?: number | null;
+  currentValue?: number | null;
+  ownershipPercent?: number | null;
+  notes?: string | null;
+}
+
+export interface PrivateSnapshot {
+  id: string;
+  privateAssetId: string;
+  contributedAmount: number;
+  distributedAmount: number;
+  cashFlowType: PrivateSnapshotCashFlowType;
+  currentValue: number;
+  asOfDate: string;
+  valueSourceType: PrivateSnapshotValueSourceType;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface NewPrivateSnapshot {
+  id?: string;
+  privateAssetId: string;
+  contributedAmount: number;
+  distributedAmount: number;
+  cashFlowType: PrivateSnapshotCashFlowType;
+  currentValue: number;
+  asOfDate: string;
+  valueSourceType: PrivateSnapshotValueSourceType;
+  notes?: string | null;
+}
+
+export interface UpdatePrivateSnapshot {
+  contributedAmount: number;
+  distributedAmount: number;
+  cashFlowType: PrivateSnapshotCashFlowType;
+  currentValue: number;
+  asOfDate: string;
+  valueSourceType: PrivateSnapshotValueSourceType;
+  notes?: string | null;
+}
+
+export interface PrivateAssetListRow {
+  assetId: string;
+  name: string;
+  fundManagerName?: string | null;
+  vehicleKind: PrivateAssetVehicleKind;
+  strategyType: PrivateAssetStrategyType;
+  currency: string;
+  status: PrivateAssetStatus;
+  commitmentAmount?: number | null;
+  latestSnapshot?: PrivateSnapshot | null;
+  freshnessState: PrivateAssetFreshnessState;
+}
+
+export interface PrivateAssetDetail {
+  asset: PrivateAsset;
+  fundManager?: FundManager | null;
+  subAssets: PrivateSubAsset[];
+  latestSnapshot?: PrivateSnapshot | null;
+  snapshots: PrivateSnapshot[];
+  freshnessState: PrivateAssetFreshnessState;
+}
+
+export interface PrivateAssetCurrentTotals {
+  totalCurrentValue: number;
+  totalContributed: number;
+  totalDistributed: number;
+  latestAsOfDate?: string | null;
+}
+
+export interface PrivateAssetHistoricalPoint {
+  asOfDate: string;
+  totalCurrentValue: number;
+  totalContributed: number;
+  totalDistributed: number;
 }
 
 /**

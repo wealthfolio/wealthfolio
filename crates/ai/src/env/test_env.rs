@@ -35,6 +35,10 @@ use wealthfolio_core::{
     portfolio::fire::RetirementOverview,
     portfolio::income::{IncomeServiceTrait, IncomeSummary},
     portfolio::performance::{PerformanceMetrics, PerformanceServiceTrait, ReturnMethod},
+    private_assets::{
+        PrivateAssetCurrentTotals, PrivateAssetDetail, PrivateAssetHistoricalPoint,
+        PrivateAssetListRow, PrivateAssetProjectionServiceTrait,
+    },
     quotes::{
         LatestQuotePair, LatestQuoteSnapshot, ProviderInfo, Quote, QuoteImport, QuoteServiceTrait,
         QuoteSyncState, SymbolSearchResult, SymbolSyncPlan, SyncMode, SyncResult,
@@ -1247,6 +1251,7 @@ pub struct MockEnvironment {
     pub performance_service: Arc<dyn PerformanceServiceTrait>,
     pub income_service: Arc<dyn IncomeServiceTrait>,
     pub health_service: Arc<dyn HealthServiceTrait>,
+    pub private_asset_projection_service: Arc<dyn PrivateAssetProjectionServiceTrait>,
 }
 
 impl Default for MockEnvironment {
@@ -1272,6 +1277,7 @@ impl MockEnvironment {
             performance_service: Arc::new(MockPerformanceService),
             income_service: Arc::new(MockIncomeService),
             health_service: Arc::new(MockHealthService::default()),
+            private_asset_projection_service: Arc::new(MockPrivateAssetProjectionService),
         }
     }
 
@@ -1339,6 +1345,10 @@ impl AiEnvironment for MockEnvironment {
         self.health_service.clone()
     }
 
+    fn private_asset_projection_service(&self) -> Arc<dyn PrivateAssetProjectionServiceTrait> {
+        self.private_asset_projection_service.clone()
+    }
+
     fn taxonomy_service(&self) -> Arc<dyn wealthfolio_core::taxonomies::TaxonomyServiceTrait> {
         unimplemented!("taxonomy_service not used in AI mock environment")
     }
@@ -1359,6 +1369,43 @@ impl AiEnvironment for MockEnvironment {
         &self,
     ) -> Arc<wealthfolio_spending::categorization_rules::CategorizationRulesService> {
         unimplemented!("categorization_rules_service not used in AI mock environment")
+    }
+}
+
+struct MockPrivateAssetProjectionService;
+
+impl PrivateAssetProjectionServiceTrait for MockPrivateAssetProjectionService {
+    fn list_private_asset_rows(
+        &self,
+        _include_archived: bool,
+    ) -> CoreResult<Vec<PrivateAssetListRow>> {
+        Ok(Vec::new())
+    }
+
+    fn get_private_asset_detail(
+        &self,
+        _private_asset_id: &str,
+    ) -> CoreResult<Option<PrivateAssetDetail>> {
+        Ok(None)
+    }
+
+    fn get_private_asset_current_totals(
+        &self,
+        _include_archived: bool,
+    ) -> CoreResult<PrivateAssetCurrentTotals> {
+        Ok(PrivateAssetCurrentTotals {
+            total_current_value: rust_decimal::Decimal::ZERO,
+            total_contributed: rust_decimal::Decimal::ZERO,
+            total_distributed: rust_decimal::Decimal::ZERO,
+            latest_as_of_date: None,
+        })
+    }
+
+    fn get_private_asset_historical_series(
+        &self,
+        _include_archived: bool,
+    ) -> CoreResult<Vec<PrivateAssetHistoricalPoint>> {
+        Ok(Vec::new())
     }
 }
 

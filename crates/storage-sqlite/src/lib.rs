@@ -43,6 +43,7 @@ pub mod lots;
 pub mod market_data;
 pub mod portfolio;
 pub mod portfolios;
+pub mod private_assets;
 pub mod settings;
 pub mod spending;
 pub mod sync;

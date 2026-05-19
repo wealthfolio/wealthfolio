@@ -16,6 +16,7 @@ function rawPoint(overrides: Partial<NetWorthHistoryPoint>): NetWorthHistoryPoin
     date: "2024-01-01",
     portfolioValue: "0",
     alternativeAssetsValue: "0",
+    privateAssetsValue: "0",
     totalLiabilities: "0",
     totalAssets: "0",
     netWorth: "0",
