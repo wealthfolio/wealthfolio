@@ -2766,6 +2766,14 @@ mod tests {
             unimplemented!()
         }
 
+        fn get_latest_quotes_as_of(
+            &self,
+            _symbols: &[String],
+            _as_of: chrono::NaiveDate,
+        ) -> Result<HashMap<String, Quote>> {
+            Ok(HashMap::new())
+        }
+
         fn get_latest_quotes_snapshot(
             &self,
             _asset_ids: &[String],

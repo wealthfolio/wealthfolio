@@ -585,4 +585,5 @@ operations
 
 - Check the [API Reference](./addon-api-reference.md)
 - Review the [Architecture Guide](./addon-architecture.md)
-- See example addons in the `addons/` directory
+- See official addon examples in the
+  [wealthfolio-addons repository](https://github.com/wealthfolio/wealthfolio-addons/tree/main/official)

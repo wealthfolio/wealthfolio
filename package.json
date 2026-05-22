@@ -6,8 +6,7 @@
   "type": "module",
   "workspaces": [
     "apps/frontend",
-    "packages/*",
-    "addons/*"
+    "packages/*"
   ],
   "scripts": {
     "dev": "pnpm --filter frontend dev",
@@ -19,8 +18,6 @@
     "build:tauri": "pnpm --filter frontend build:tauri",
     "build:types": "pnpm -r run build:types",
     "hooks:install": "git config core.hooksPath .githooks",
-    "build:addons": "pnpm -r --filter './addons/*' build",
-    "bundle:addons": "pnpm -r --filter './addons/*' bundle",
     "preview": "pnpm --filter frontend preview",
     "tauri": "tauri",
     "test": "pnpm --filter frontend test",

@@ -1,7 +1,6 @@
 packages:
   - "apps/frontend"
   - "packages/*"
-  - "addons/*"
 
 ignoredBuiltDependencies:
   - "@tailwindcss/oxide"

@@ -116,9 +116,10 @@ See [ROADMAP.md](./ROADMAP.md).
 
 ### Quick Links
 
-- 💡 **[Example Addons](addons/)** - Browse sample addons in the repository
-- 🧩 **[Community Addons](addons/community-addons.md)** - Browse addons shared
-  by the community
+- 💡 **Official Addons** - Browse maintained addon examples in the
+  [official addon repository](https://github.com/wealthfolio/wealthfolio-addons/tree/main/official)
+- 🧩 **Community Addons** - Browse addons shared by the community in the
+  [community addon directory](https://github.com/wealthfolio/wealthfolio-addons/tree/main/community)
 - 🛠️ **[Development Tools](packages/addon-dev-tools/)** - CLI tools for addon
   development
 
@@ -572,12 +573,15 @@ Your addon will be automatically discovered and loaded with hot reload support!
 - **⚡ Hot Reload**: Seamless development experience
 - **🔒 Permission System**: Transparent security with user consent
 
-### Example Addons
+### Official Addons
 
-Check out the [addons/](addons/) directory for sample addons including:
+Check out the
+[official addon repository](https://github.com/wealthfolio/wealthfolio-addons/tree/main/official)
+for maintained addon examples including:
 
 - **Goal Progress Tracker**: Visual goal tracking with calendar like interface
 - **Investment Fees Tracker**: Track and analyze investment fees
+- **Swingfolio**: Track swing trading performance and open positions
 
 ### Resources
 
@@ -650,10 +654,6 @@ wealthfolio/
 │   ├── market-data/             # Market data providers
 │   ├── connect/                 # External service integrations
 │   └── device-sync/             # Device sync functionality
-├── addons/                      # Example addons
-│   ├── goal-progress-tracker/   # Goal tracking addon
-│   ├── investment-fees-tracker/ # Fees tracking addon
-│   └── swingfolio/              # Trading addon
 ├── packages/                    # Shared TypeScript packages
 │   ├── addon-sdk/               # Addon SDK for developers
 │   ├── addon-dev-tools/         # CLI and dev server for addons
@@ -669,6 +669,10 @@ wealthfolio/
 ├── pnpm-workspace.yaml          # pnpm workspace config
 └── tsconfig.json                # TypeScript config
 ```
+
+Official and community addon source lives in the separate
+[wealthfolio-addons](https://github.com/wealthfolio/wealthfolio-addons)
+repository.
 
 ### Security & Data Storage
 

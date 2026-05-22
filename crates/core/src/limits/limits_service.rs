@@ -432,7 +432,10 @@ mod tests {
         fn calculate_average_cost(&self, _: &str, _: &str) -> Result<Decimal> {
             unimplemented!()
         }
-        fn get_income_activities_data(&self, _account_id: Option<&str>) -> Result<Vec<IncomeData>> {
+        fn get_income_activities_data(
+            &self,
+            _account_ids: Option<&[String]>,
+        ) -> Result<Vec<IncomeData>> {
             unimplemented!()
         }
         fn get_first_activity_date_overall(&self) -> Result<DateTime<Utc>> {

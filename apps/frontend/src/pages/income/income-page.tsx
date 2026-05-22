@@ -11,8 +11,8 @@ import { EmptyPlaceholder } from "@wealthfolio/ui/components/ui/empty-placeholde
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { AccountFilterSelector } from "@/components/account-filter-selector";
-import type { AccountFilter } from "@/lib/types";
+import { AccountScopeSelector } from "@/components/account-filter-selector";
+import type { AccountScope } from "@/lib/types";
 
 import { QueryKeys } from "@/lib/query-keys";
 import type { IncomeSummary } from "@/lib/types";
@@ -66,18 +66,17 @@ export default function IncomePage() {
   const { isBalanceHidden } = useBalancePrivacy();
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
-  const [accountFilter, setAccountFilter] = useState<AccountFilter>({ type: "all" });
+  const [accountFilter, setAccountScope] = useState<AccountScope>({ type: "all" });
 
-  // Portfolio-level income aggregation is a follow-up; portfolio filter falls back to all accounts.
-  const accountId = accountFilter.type === "account" ? accountFilter.accountId : undefined;
+  const incomeFilter = accountFilter.type === "all" ? undefined : accountFilter;
 
   const {
     data: incomeData,
     isLoading,
     error,
   } = useQuery<IncomeSummary[], Error>({
-    queryKey: [QueryKeys.INCOME_SUMMARY, accountId ?? "ALL"],
-    queryFn: () => getIncomeSummary(accountId),
+    queryKey: [QueryKeys.INCOME_SUMMARY, incomeFilter ?? "ALL"],
+    queryFn: () => getIncomeSummary(incomeFilter),
   });
 
   if (isLoading) {
@@ -95,7 +94,7 @@ export default function IncomePage() {
     return (
       <>
         <div className="pointer-events-auto fixed right-2 top-4 z-20 hidden items-center gap-2 md:flex lg:right-4">
-          <AccountFilterSelector value={accountFilter} onChange={setAccountFilter} />
+          <AccountScopeSelector value={accountFilter} onChange={setAccountScope} />
           <IncomePeriodSelector
             selectedPeriod={selectedPeriod}
             onPeriodSelect={setSelectedPeriod}
@@ -128,7 +127,7 @@ export default function IncomePage() {
           open={isFilterSheetOpen}
           onOpenChange={setIsFilterSheetOpen}
           accountFilter={accountFilter}
-          onAccountFilterChange={setAccountFilter}
+          onAccountScopeChange={setAccountScope}
         />
       </>
     );
@@ -199,7 +198,7 @@ export default function IncomePage() {
     <>
       {/* Desktop: fixed header with account selector + period toggle */}
       <div className="pointer-events-auto fixed right-2 top-4 z-20 hidden items-center gap-2 md:flex lg:right-4">
-        <AccountFilterSelector value={accountFilter} onChange={setAccountFilter} />
+        <AccountScopeSelector value={accountFilter} onChange={setAccountScope} />
         <IncomePeriodSelector selectedPeriod={selectedPeriod} onPeriodSelect={setSelectedPeriod} />
       </div>
 
@@ -490,7 +489,7 @@ export default function IncomePage() {
         open={isFilterSheetOpen}
         onOpenChange={setIsFilterSheetOpen}
         accountFilter={accountFilter}
-        onAccountFilterChange={setAccountFilter}
+        onAccountScopeChange={setAccountScope}
       />
     </>
   );

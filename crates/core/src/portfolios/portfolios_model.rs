@@ -105,17 +105,35 @@ impl PortfolioUpdate {
     }
 }
 
+/// The resolved form of an `AccountScope` after service-layer resolution.
+/// Makes the "use precomputed TOTAL snapshot" path explicit instead of
+/// leaking the fake account ID `"TOTAL"` through downstream code.
+#[derive(Debug, Clone)]
+pub enum ResolvedAccountScope {
+    /// Use the precomputed all-accounts snapshot (fast path).
+    TotalSnapshot,
+    /// A single real account.
+    Account(String),
+    /// Multiple accounts — requires on-read aggregation.
+    Accounts(Vec<String>),
+}
+
 /// Typed account scope filter — resolved once at the service boundary.
 ///
 /// Repositories receive `&[String]` account IDs and must not parse
 /// encoded strings like `MULTI:id,id` or `PORTFOLIO`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum AccountFilter {
+pub enum AccountScope {
     /// All active, non-archived accounts.
     All,
     /// A single specific account.
+    #[serde(rename_all = "camelCase")]
     Account { account_id: String },
     /// A saved portfolio — resolved to its member account IDs.
+    #[serde(rename_all = "camelCase")]
     Portfolio { portfolio_id: String },
+    /// Ad-hoc list of account IDs (e.g. activity page multi-select).
+    #[serde(rename_all = "camelCase")]
+    Accounts { account_ids: Vec<String> },
 }

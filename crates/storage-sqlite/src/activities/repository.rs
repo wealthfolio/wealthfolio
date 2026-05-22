@@ -1326,7 +1326,10 @@ impl ActivityRepositoryTrait for ActivityRepository {
         Ok(activities)
     }
 
-    fn get_income_activities_data(&self, account_id: Option<&str>) -> Result<Vec<IncomeData>> {
+    fn get_income_activities_data(
+        &self,
+        account_ids: Option<&[String]>,
+    ) -> Result<Vec<IncomeData>> {
         let mut conn = get_connection(&self.pool)?;
 
         // For income reporting, we need to handle different subtypes:
@@ -1334,9 +1337,17 @@ impl ActivityRepositoryTrait for ActivityRepository {
         // - Valid asset-backed income pairs: if amount is 0, calculate from:
         //   1. quantity * unit_price (if unit_price is available)
         //   2. quantity * market_price from quotes table (fallback)
-        let account_filter = match account_id {
-            Some(_) => "AND a.account_id = ?",
-            None => "",
+        // IDs are internal UUIDs — safe to interpolate directly; escape single quotes defensively.
+        let account_filter = match account_ids {
+            Some(ids) if !ids.is_empty() => {
+                let escaped = ids
+                    .iter()
+                    .map(|id| format!("'{}'", id.replace('\'', "''")))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("AND a.account_id IN ({escaped})")
+            }
+            _ => String::new(),
         };
 
         let query = format!(
@@ -1400,16 +1411,9 @@ impl ActivityRepositoryTrait for ActivityRepository {
             pub amount: String,
         }
 
-        let raw_results = if let Some(id) = account_id {
-            diesel::sql_query(&query)
-                .bind::<diesel::sql_types::Text, _>(id)
-                .load::<RawIncomeData>(&mut conn)
-                .map_err(ActivityError::from)?
-        } else {
-            diesel::sql_query(&query)
-                .load::<RawIncomeData>(&mut conn)
-                .map_err(ActivityError::from)?
-        };
+        let raw_results = diesel::sql_query(&query)
+            .load::<RawIncomeData>(&mut conn)
+            .map_err(ActivityError::from)?;
 
         // Transform raw results into IncomeData
         let results = raw_results
@@ -2304,7 +2308,7 @@ mod tests {
         .expect("zero income amounts");
 
         let rows = repo
-            .get_income_activities_data(Some("acc-income"))
+            .get_income_activities_data(Some(&[String::from("acc-income")]))
             .expect("income data");
         let staking_amount = rows
             .iter()

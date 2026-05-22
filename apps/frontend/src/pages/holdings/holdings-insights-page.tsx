@@ -5,9 +5,10 @@ import { useCallback, useMemo, useState } from "react";
 
 import { useHoldings } from "@/hooks/use-holdings";
 import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
-import { PORTFOLIO_ACCOUNT_ID, isAlternativeAssetKind, type AssetKind } from "@/lib/constants";
+import { usePortfolios } from "@/hooks/use-portfolios";
+import { isAlternativeAssetKind, type AssetKind } from "@/lib/constants";
 import { useSettingsContext } from "@/lib/settings-provider";
-import type { TaxonomyAllocation } from "@/lib/types";
+import type { AccountScope, TaxonomyAllocation } from "@/lib/types";
 import { useNavigate } from "react-router-dom";
 import { AllocationDetailSheet } from "./components/allocation-detail-sheet";
 import { CashHoldingsWidget } from "./components/cash-holdings-widget";
@@ -21,16 +22,31 @@ import { SegmentedAllocationBar } from "./components/segmented-allocation-bar";
 
 interface HoldingsInsightsPageProps {
   accountId?: string;
+  filter?: AccountScope;
 }
 
-export const HoldingsInsightsPage = ({ accountId: accountIdProp }: HoldingsInsightsPageProps) => {
+export const HoldingsInsightsPage = ({
+  accountId: accountIdProp,
+  filter: filterProp,
+}: HoldingsInsightsPageProps) => {
   const navigate = useNavigate();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
-  const accountId = accountIdProp ?? PORTFOLIO_ACCOUNT_ID;
-  const { holdings, isLoading: holdingsLoading } = useHoldings(accountId);
-  const { allocations, isLoading: allocationsLoading } = usePortfolioAllocations(accountId);
+  const accountFilter: AccountScope =
+    filterProp ?? (accountIdProp ? { type: "account", accountId: accountIdProp } : { type: "all" });
+  const { holdings, isLoading: holdingsLoading } = useHoldings(accountFilter);
+  const { allocations, isLoading: allocationsLoading } = usePortfolioAllocations(accountFilter);
+
+  const { data: portfolios = [] } = usePortfolios();
+  const filteredAccountIds = useMemo(() => {
+    if (accountFilter.type === "account") return [accountFilter.accountId];
+    if (accountFilter.type === "accounts") return accountFilter.accountIds;
+    if (accountFilter.type === "portfolio") {
+      return portfolios.find((p) => p.id === accountFilter.portfolioId)?.accountIds ?? [];
+    }
+    return undefined; // "all" → DrillableAccountChart shows every account
+  }, [accountFilter, portfolios]);
 
   const isLoading = holdingsLoading || allocationsLoading;
 
@@ -157,7 +173,7 @@ export const HoldingsInsightsPage = ({ accountId: accountIdProp }: HoldingsInsig
             }
           />
 
-          <DrillableAccountChart isLoading={isLoading} />
+          <DrillableAccountChart isLoading={isLoading} accountIds={filteredAccountIds} />
 
           <DrillableDonutChart
             title="Classes"
@@ -293,7 +309,7 @@ export const HoldingsInsightsPage = ({ accountId: accountIdProp }: HoldingsInsig
         isOpen={isSheetOpen}
         onOpenChange={setIsSheetOpen}
         allocation={selectedAllocation}
-        accountId={accountId}
+        accountFilter={accountFilter}
         baseCurrency={baseCurrency}
         initialCategoryId={initialCategoryId}
       />

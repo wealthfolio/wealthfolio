@@ -1,10 +1,11 @@
 import { getAccounts } from "@/adapters";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import { usePortfolios } from "@/hooks/use-portfolios";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { debounce } from "@/lib/debounce";
 import { ActivityType } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
-import { Account, ActivityDetails } from "@/lib/types";
+import { Account, AccountScope, ActivityDetails } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import type { SortingState } from "@tanstack/react-table";
 import { Button, Icons, Page, PageContent, PageHeader } from "@wealthfolio/ui";
@@ -36,10 +37,11 @@ const ActivityPage = () => {
   const [showActionPalette, setShowActionPalette] = useState(false);
 
   // Filter and search state
-  const [selectedAccounts, setSelectedAccounts] = usePersistentState<string[]>(
-    "activity-filter-accounts",
-    [],
+  const [accountScope, setAccountScope] = usePersistentState<AccountScope>(
+    "activity-filter-scope",
+    { type: "all" },
   );
+  const { data: portfolios = [] } = usePortfolios();
   const [selectedActivityTypes, setSelectedActivityTypes] = usePersistentState<ActivityType[]>(
     "activity-filter-types",
     [],
@@ -106,11 +108,21 @@ const ActivityPage = () => {
 
   const isDatagridView = viewMode === "datagrid";
 
+  // Resolve the typed scope to a flat account ID list for the activity search.
+  const effectiveAccountIds = useMemo<string[] | undefined>(() => {
+    if (accountScope.type === "account") return [accountScope.accountId];
+    if (accountScope.type === "accounts") return accountScope.accountIds;
+    if (accountScope.type === "portfolio") {
+      return portfolios.find((p) => p.id === accountScope.portfolioId)?.accountIds ?? [];
+    }
+    return undefined; // "all" → no filter
+  }, [accountScope, portfolios]);
+
   // Infinite scroll search for table view
   const infiniteSearch = useActivitySearch({
     mode: "infinite",
     filters: {
-      accountIds: selectedAccounts,
+      accountIds: effectiveAccountIds,
       activityTypes: selectedActivityTypes,
       instrumentTypes: selectedInstrumentTypes,
       status: statusFilter,
@@ -123,7 +135,7 @@ const ActivityPage = () => {
   const paginatedSearch = useActivitySearch({
     mode: "paginated",
     filters: {
-      accountIds: selectedAccounts,
+      accountIds: effectiveAccountIds,
       activityTypes: selectedActivityTypes,
       instrumentTypes: selectedInstrumentTypes,
       status: statusFilter,
@@ -141,7 +153,7 @@ const ActivityPage = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    selectedAccounts,
+    effectiveAccountIds,
     selectedActivityTypes,
     selectedInstrumentTypes,
     statusFilter,
@@ -253,14 +265,14 @@ const ActivityPage = () => {
       <PageHeader heading="Activity" actions={headerActions} />
       <PageContent className="pb-2 md:pb-4 lg:pb-5">
         <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden">
-          {/* Unified Controls */}
           {isMobileViewport ? (
             <ActivityMobileControls
               accounts={accounts}
+              portfolios={portfolios}
               searchQuery={searchInput}
               onSearchQueryChange={handleSearchChange}
-              selectedAccountIds={selectedAccounts}
-              onAccountIdsChange={setSelectedAccounts}
+              accountScope={accountScope}
+              onAccountScopeChange={setAccountScope}
               selectedActivityTypes={selectedActivityTypes}
               onActivityTypesChange={setSelectedActivityTypes}
               isCompactView={isCompactView}
@@ -268,11 +280,10 @@ const ActivityPage = () => {
             />
           ) : (
             <ActivityViewControls
-              accounts={accounts}
               searchQuery={searchInput}
               onSearchQueryChange={handleSearchChange}
-              selectedAccountIds={selectedAccounts}
-              onAccountIdsChange={setSelectedAccounts}
+              accountScope={accountScope}
+              onAccountScopeChange={setAccountScope}
               selectedActivityTypes={selectedActivityTypes}
               onActivityTypesChange={setSelectedActivityTypes}
               selectedInstrumentTypes={selectedInstrumentTypes}

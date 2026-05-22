@@ -91,6 +91,10 @@ pub async fn initialize_context(
     ));
     let fx_repository = Arc::new(FxRepository::new(pool.clone(), writer.clone()));
     let snapshot_repository = Arc::new(SnapshotRepository::new(pool.clone(), writer.clone()));
+    let lots_repository = Arc::new(wealthfolio_storage_sqlite::lots::LotsRepository::new(
+        pool.clone(),
+        writer.clone(),
+    ));
     let app_sync_repository = Arc::new(AppSyncRepository::new(pool.clone(), writer.clone()));
     let valuation_repository = Arc::new(ValuationRepository::new(pool.clone(), writer.clone()));
     let platform_repository = Arc::new(PlatformRepository::new(pool.clone(), writer.clone()));
@@ -226,7 +230,8 @@ pub async fn initialize_context(
             asset_repository.clone(),
             fx_service.clone(),
         )
-        .with_event_sink(domain_event_sink.clone()),
+        .with_event_sink(domain_event_sink.clone())
+        .with_lot_repository(lots_repository.clone()),
     );
 
     let holdings_valuation_service = Arc::new(HoldingsValuationService::new_with_timezone(
@@ -381,6 +386,7 @@ pub async fn initialize_context(
             income_service,
             snapshot_service,
             snapshot_repository,
+            lots_repository,
             app_sync_repository,
             holdings_service,
             allocation_service,

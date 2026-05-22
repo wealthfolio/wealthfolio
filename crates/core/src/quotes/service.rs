@@ -294,6 +294,13 @@ pub trait QuoteServiceTrait: Send + Sync {
     /// Get the latest quotes for multiple symbols.
     fn get_latest_quotes(&self, symbols: &[String]) -> Result<HashMap<String, Quote>>;
 
+    /// Get the latest quotes for multiple symbols, restricted to rows with `day <= as_of`.
+    fn get_latest_quotes_as_of(
+        &self,
+        symbols: &[String],
+        as_of: chrono::NaiveDate,
+    ) -> Result<HashMap<String, Quote>>;
+
     /// Get latest quotes with backend-computed staleness metadata.
     fn get_latest_quotes_snapshot(
         &self,
@@ -904,6 +911,27 @@ where
 
     fn get_latest_quotes(&self, symbols: &[String]) -> Result<HashMap<String, Quote>> {
         let mut quotes = self.quote_store.get_latest_quotes(symbols)?;
+        let assets = self.asset_repo.list_by_asset_ids(symbols)?;
+        let assets_by_id: HashMap<String, Asset> = assets
+            .into_iter()
+            .map(|asset| (asset.id.clone(), asset))
+            .collect();
+
+        for (asset_id, quote) in quotes.iter_mut() {
+            if let Some(asset) = assets_by_id.get(asset_id) {
+                reconcile_quote_currency(quote, asset);
+            }
+        }
+
+        Ok(quotes)
+    }
+
+    fn get_latest_quotes_as_of(
+        &self,
+        symbols: &[String],
+        as_of: chrono::NaiveDate,
+    ) -> Result<HashMap<String, Quote>> {
+        let mut quotes = self.quote_store.get_latest_quotes_as_of(symbols, as_of)?;
         let assets = self.asset_repo.list_by_asset_ids(symbols)?;
         let assets_by_id: HashMap<String, Asset> = assets
             .into_iter()
@@ -2631,6 +2659,14 @@ mod tests {
             unimplemented!("unused in this test")
         }
 
+        fn get_latest_quotes_as_of(
+            &self,
+            _symbols: &[String],
+            _as_of: chrono::NaiveDate,
+        ) -> Result<HashMap<String, Quote>> {
+            Ok(HashMap::new())
+        }
+
         fn get_latest_quotes_pair(
             &self,
             _symbols: &[String],
@@ -2747,6 +2783,14 @@ mod tests {
                         .map(|quote| (symbol.clone(), quote))
                 })
                 .collect())
+        }
+
+        fn get_latest_quotes_as_of(
+            &self,
+            _symbols: &[String],
+            _as_of: chrono::NaiveDate,
+        ) -> Result<HashMap<String, Quote>> {
+            Ok(HashMap::new())
         }
 
         fn get_latest_quotes_pair(
@@ -3235,7 +3279,10 @@ mod tests {
             unimplemented!("unused in this test")
         }
 
-        fn get_income_activities_data(&self, _account_id: Option<&str>) -> Result<Vec<IncomeData>> {
+        fn get_income_activities_data(
+            &self,
+            _account_ids: Option<&[String]>,
+        ) -> Result<Vec<IncomeData>> {
             unimplemented!("unused in this test")
         }
 

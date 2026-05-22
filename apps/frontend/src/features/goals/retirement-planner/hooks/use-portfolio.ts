@@ -28,7 +28,9 @@ export function usePortfolioData(accountIds?: string[]) {
     queryKey: [QueryKeys.HOLDINGS, activeAccountIds],
     queryFn: async (): Promise<Holding[]> => {
       if (activeAccountIds.length === 0) return [];
-      const perAccount = await Promise.all(activeAccountIds.map((id) => getHoldings(id)));
+      const perAccount = await Promise.all(
+        activeAccountIds.map((id) => getHoldings({ type: "account", accountId: id })),
+      );
       // Aggregate by symbol so drift analysis sees combined weights across all FIRE accounts.
       const bySymbol = new Map<string, Holding>();
       for (const holdings of perAccount) {

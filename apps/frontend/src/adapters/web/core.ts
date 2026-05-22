@@ -43,13 +43,14 @@ export const COMMANDS: CommandMap = {
   backup_database: { method: "POST", path: "/utilities/database/backup" },
   list_database_backups: { method: "GET", path: "/utilities/database/backups" },
   delete_database_backup: { method: "DELETE", path: "/utilities/database/backups" },
-  get_holdings: { method: "GET", path: "/holdings" },
+  get_holdings: { method: "POST", path: "/holdings/query" },
   get_holding: { method: "GET", path: "/holdings/item" },
   get_asset_holdings: { method: "GET", path: "/holdings/by-asset" },
+  get_asset_lots: { method: "GET", path: "/holdings/lots" },
   get_historical_valuations: { method: "GET", path: "/valuations/history" },
   get_latest_valuations: { method: "GET", path: "/valuations/latest" },
-  get_portfolio_allocations: { method: "GET", path: "/allocations" },
-  get_holdings_by_allocation: { method: "GET", path: "/allocations/holdings" },
+  get_portfolio_allocations: { method: "POST", path: "/allocations/query" },
+  get_holdings_by_allocation: { method: "POST", path: "/allocations/holdings/query" },
   // Snapshot management
   get_snapshots: { method: "GET", path: "/snapshots" },
   get_snapshot_by_date: { method: "GET", path: "/snapshots/holdings" },
@@ -63,7 +64,7 @@ export const COMMANDS: CommandMap = {
   calculate_accounts_simple_performance: { method: "POST", path: "/performance/accounts/simple" },
   calculate_performance_history: { method: "POST", path: "/performance/history" },
   calculate_performance_summary: { method: "POST", path: "/performance/summary" },
-  get_income_summary: { method: "GET", path: "/income/summary" },
+  get_income_summary: { method: "POST", path: "/income/summary/query" },
   // Goals
   get_goals: { method: "GET", path: "/goals" },
   get_goal: { method: "GET", path: "/goals" },
@@ -360,6 +361,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
   const config = COMMANDS[command];
   if (!config) throw new Error(`Unsupported command ${command}`);
   let url = `${API_PREFIX}${config.path}`;
+  let method = config.method;
   let body: BodyInit | undefined;
 
   switch (command) {
@@ -406,8 +408,13 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "get_holdings": {
-      const p = payload as { accountId: string };
-      url += `?accountId=${encodeURIComponent(p.accountId)}`;
+      const p = payload as { filter: { type: string; accountId?: string } };
+      if (p.filter?.type === "account" && p.filter.accountId) {
+        url = `${API_PREFIX}/holdings?accountId=${encodeURIComponent(p.filter.accountId)}`;
+        method = "GET";
+      } else {
+        body = JSON.stringify({ filter: p.filter });
+      }
       break;
     }
     case "get_holding": {
@@ -421,6 +428,16 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     case "get_asset_holdings": {
       const p = payload as { assetId: string };
       url += `?assetId=${encodeURIComponent(p.assetId)}`;
+      break;
+    }
+    case "get_asset_lots": {
+      const p = payload as { assetId: string; includeSnapshotPositions?: boolean };
+      const params = new URLSearchParams();
+      params.set("assetId", p.assetId);
+      if (p.includeSnapshotPositions !== undefined) {
+        params.set("includeSnapshotPositions", String(p.includeSnapshotPositions));
+      }
+      url += `?${params.toString()}`;
       break;
     }
     case "get_historical_valuations": {
@@ -444,23 +461,35 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "get_portfolio_allocations": {
-      const { accountId } = payload as { accountId: string };
-      const params = new URLSearchParams();
-      params.set("accountId", accountId);
-      url += `?${params.toString()}`;
+      const p = payload as { filter: { type: string; accountId?: string } };
+      if (p.filter?.type === "account" && p.filter.accountId) {
+        url = `${API_PREFIX}/allocations?accountId=${encodeURIComponent(p.filter.accountId)}`;
+        method = "GET";
+      } else {
+        body = JSON.stringify({ filter: p.filter });
+      }
       break;
     }
     case "get_holdings_by_allocation": {
-      const { accountId, taxonomyId, categoryId } = payload as {
-        accountId: string;
+      const p = payload as {
+        filter: { type: string; accountId?: string };
         taxonomyId: string;
         categoryId: string;
       };
-      const params = new URLSearchParams();
-      params.set("accountId", accountId);
-      params.set("taxonomyId", taxonomyId);
-      params.set("categoryId", categoryId);
-      url += `?${params.toString()}`;
+      if (p.filter?.type === "account" && p.filter.accountId) {
+        const params = new URLSearchParams();
+        params.set("accountId", p.filter.accountId);
+        params.set("taxonomyId", p.taxonomyId);
+        params.set("categoryId", p.categoryId);
+        url = `${API_PREFIX}/allocations/holdings?${params.toString()}`;
+        method = "GET";
+      } else {
+        body = JSON.stringify({
+          filter: p.filter,
+          taxonomyId: p.taxonomyId,
+          categoryId: p.categoryId,
+        });
+      }
       break;
     }
     //79d1bfa7 fix(web): add fetch_yahoo_dividends endpoint for SDK compatibility
@@ -571,9 +600,12 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "get_income_summary": {
-      const { accountId: incomeAccountId } = payload as { accountId?: string };
-      if (incomeAccountId) {
-        url += `?accountId=${encodeURIComponent(incomeAccountId)}`;
+      const p = payload as { filter?: { type: string; accountId?: string } };
+      if (p?.filter?.type === "account" && p.filter.accountId) {
+        url = `${API_PREFIX}/income/summary?accountId=${encodeURIComponent(p.filter.accountId)}`;
+        method = "GET";
+      } else {
+        body = JSON.stringify({ filter: p?.filter ?? null });
       }
       break;
     }
@@ -1477,7 +1509,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
   }
 
   const res = await fetch(url, {
-    method: config.method,
+    method,
     headers,
     body,
     credentials: "same-origin",

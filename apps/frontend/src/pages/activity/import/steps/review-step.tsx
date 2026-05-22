@@ -95,7 +95,7 @@ export function ReviewStep() {
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
   const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set());
-  const [accountFilter, setAccountFilter] = useState<Set<string>>(new Set());
+  const [accountFilter, setAccountScope] = useState<Set<string>>(new Set());
   const [symbolFilter, setSymbolFilter] = useState<Set<string>>(new Set());
 
   // Calculate filter stats (counts by status)
@@ -177,7 +177,7 @@ export function ReviewStep() {
 
   const clearAllFilters = useCallback(() => {
     setTypeFilter(new Set());
-    setAccountFilter(new Set());
+    setAccountScope(new Set());
     setSymbolFilter(new Set());
     setStatusFilter(new Set());
   }, []);
@@ -426,7 +426,7 @@ export function ReviewStep() {
             title="Account"
             options={facetedOptions.accounts}
             selectedValues={accountFilter}
-            onFilterChange={setAccountFilter}
+            onFilterChange={setAccountScope}
           />
           <FacetedFilter
             title="Status"

@@ -218,7 +218,7 @@ export function createAddonContext(addonId: string): AddonContext {
       const baseAPI = createSDKHostAPIBridge(
         {
           // Core data access
-          getHoldings: getHoldings,
+          getHoldings: (accountId: string) => getHoldings({ type: "account", accountId }),
           getActivities: getActivities,
           getAccounts: getAccounts,
 
@@ -255,7 +255,7 @@ export function createAddonContext(addonId: string): AddonContext {
           // Portfolio
           updatePortfolio,
           recalculatePortfolio,
-          getIncomeSummary,
+          getIncomeSummary: () => getIncomeSummary(undefined),
           getHistoricalValuations,
           getLatestValuations,
           calculatePerformanceHistory,

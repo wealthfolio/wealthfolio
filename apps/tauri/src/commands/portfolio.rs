@@ -18,14 +18,64 @@ use wealthfolio_core::{
     allocation::{AllocationHoldings, PortfolioAllocations},
     holdings::Holding,
     income::IncomeSummary,
+    lots::AssetLotView,
     performance::{PerformanceMetrics, SimplePerformanceMetrics},
     portfolio::snapshot::{
         CashBalanceInput, ManualHoldingInput, ManualSnapshotRequest, ManualSnapshotService,
         SnapshotSource,
     },
+    portfolios::{AccountScope, ResolvedAccountScope},
     quotes::MarketSyncMode,
     valuation::DailyAccountValuation,
 };
+
+// ============================================================================
+// AccountScope IPC boundary struct
+// ============================================================================
+
+/// Flat struct that mirrors the TypeScript `AccountScope` discriminated union.
+/// Used only at the Tauri IPC boundary because serde internally-tagged enums
+/// fail deserialization in Tauri v2 (all variant fields are required simultaneously).
+/// The frontend sends `{ type: "account", accountId: "X" }` unchanged — this struct
+/// deserializes that format and converts to the internal `AccountScope` enum.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountScopeInput {
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub account_id: Option<String>,
+    pub portfolio_id: Option<String>,
+    pub account_ids: Option<Vec<String>>,
+}
+
+impl AccountScopeInput {
+    fn into_account_filter(self) -> Result<AccountScope, String> {
+        match self.kind.as_str() {
+            "all" => Ok(AccountScope::All),
+            "account" => {
+                let id = self
+                    .account_id
+                    .filter(|s| !s.is_empty())
+                    .ok_or_else(|| "accountId required for filter type 'account'".to_string())?;
+                Ok(AccountScope::Account { account_id: id })
+            }
+            "portfolio" => {
+                let id = self.portfolio_id.filter(|s| !s.is_empty()).ok_or_else(|| {
+                    "portfolioId required for filter type 'portfolio'".to_string()
+                })?;
+                Ok(AccountScope::Portfolio { portfolio_id: id })
+            }
+            "adHoc" | "accounts" => {
+                let ids = self.account_ids.filter(|v| !v.is_empty()).ok_or_else(|| {
+                    "accountIds required and must be non-empty for filter type 'accounts'"
+                        .to_string()
+                })?;
+                Ok(AccountScope::Accounts { account_ids: ids })
+            }
+            other => Err(format!("unknown filter type: '{other}'")),
+        }
+    }
+}
 
 // ============================================================================
 // Snapshot Info Types
@@ -72,18 +122,45 @@ pub async fn update_portfolio(handle: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Resolves an `AccountScope` to a `ResolvedAccountScope`.
+/// `All` → `TotalSnapshot` (fast precomputed path, no TOTAL string leak).
+/// `Account` → `Account(id)`.
+/// `Portfolio`/`Accounts` → `Accounts(ids)` via membership resolution.
+async fn resolve_scope(
+    filter: &AccountScope,
+    state: &ServiceContext,
+) -> Result<ResolvedAccountScope, String> {
+    state
+        .portfolio_service()
+        .resolve_account_scope(filter)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn get_holdings(
     state: State<'_, Arc<ServiceContext>>,
-    account_id: String,
+    filter: AccountScopeInput,
 ) -> Result<Vec<Holding>, String> {
     debug!("Get holdings...");
     let base_currency = state.get_base_currency();
-    state
-        .holdings_service()
-        .get_holdings(&account_id, &base_currency)
-        .await
-        .map_err(|e| e.to_string())
+    let filter = filter.into_account_filter()?;
+    match resolve_scope(&filter, &state).await? {
+        ResolvedAccountScope::TotalSnapshot => state
+            .holdings_service()
+            .get_holdings("TOTAL", &base_currency)
+            .await
+            .map_err(|e| e.to_string()),
+        ResolvedAccountScope::Account(id) => state
+            .holdings_service()
+            .get_holdings(&id, &base_currency)
+            .await
+            .map_err(|e| e.to_string()),
+        ResolvedAccountScope::Accounts(ids) => state
+            .holdings_service()
+            .get_holdings_for_accounts(&ids, &base_currency, "")
+            .await
+            .map_err(|e| e.to_string()),
+    }
 }
 
 #[tauri::command]
@@ -130,36 +207,77 @@ pub async fn get_asset_holdings(
 }
 
 #[tauri::command]
-pub async fn get_portfolio_allocations(
+pub async fn get_asset_lots(
     state: State<'_, Arc<ServiceContext>>,
-    account_id: String,
-) -> Result<PortfolioAllocations, String> {
-    debug!("Get portfolio allocations for account: {}", account_id);
-    let base_currency = state.get_base_currency();
+    asset_id: String,
+    include_snapshot_positions: bool,
+) -> Result<Vec<AssetLotView>, String> {
+    debug!("Get lot view rows for asset {}", asset_id);
     state
-        .allocation_service()
-        .get_portfolio_allocations(&account_id, &base_currency)
+        .lots_repository
+        .get_asset_lot_view(&asset_id, include_snapshot_positions)
         .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
+pub async fn get_portfolio_allocations(
+    state: State<'_, Arc<ServiceContext>>,
+    filter: AccountScopeInput,
+) -> Result<PortfolioAllocations, String> {
+    let base_currency = state.get_base_currency();
+    let filter = filter.into_account_filter()?;
+    match resolve_scope(&filter, &state).await? {
+        ResolvedAccountScope::TotalSnapshot => state
+            .allocation_service()
+            .get_portfolio_allocations("TOTAL", &base_currency)
+            .await
+            .map_err(|e| e.to_string()),
+        ResolvedAccountScope::Account(id) => state
+            .allocation_service()
+            .get_portfolio_allocations(&id, &base_currency)
+            .await
+            .map_err(|e| e.to_string()),
+        ResolvedAccountScope::Accounts(ids) => state
+            .allocation_service()
+            .get_portfolio_allocations_for_accounts(&ids, &base_currency, "")
+            .await
+            .map_err(|e| e.to_string()),
+    }
+}
+
+#[tauri::command]
 pub async fn get_holdings_by_allocation(
     state: State<'_, Arc<ServiceContext>>,
-    account_id: String,
+    filter: AccountScopeInput,
     taxonomy_id: String,
     category_id: String,
 ) -> Result<AllocationHoldings, String> {
-    debug!(
-        "Get holdings for category {} in taxonomy {} for account {}",
-        category_id, taxonomy_id, account_id
-    );
     let base_currency = state.get_base_currency();
-    state
-        .allocation_service()
-        .get_holdings_by_allocation(&account_id, &base_currency, &taxonomy_id, &category_id)
-        .await
-        .map_err(|e| e.to_string())
+    let filter = filter.into_account_filter()?;
+    match resolve_scope(&filter, &state).await? {
+        ResolvedAccountScope::TotalSnapshot => state
+            .allocation_service()
+            .get_holdings_by_allocation("TOTAL", &base_currency, &taxonomy_id, &category_id)
+            .await
+            .map_err(|e| e.to_string()),
+        ResolvedAccountScope::Account(id) => state
+            .allocation_service()
+            .get_holdings_by_allocation(&id, &base_currency, &taxonomy_id, &category_id)
+            .await
+            .map_err(|e| e.to_string()),
+        ResolvedAccountScope::Accounts(ids) => state
+            .allocation_service()
+            .get_holdings_by_allocation_for_accounts(
+                &ids,
+                &base_currency,
+                &taxonomy_id,
+                &category_id,
+                "",
+            )
+            .await
+            .map_err(|e| e.to_string()),
+    }
 }
 
 #[tauri::command]
@@ -224,12 +342,22 @@ pub async fn get_latest_valuations(
 #[tauri::command]
 pub async fn get_income_summary(
     state: State<'_, Arc<ServiceContext>>,
-    account_id: Option<String>,
+    filter: Option<AccountScopeInput>,
 ) -> Result<Vec<IncomeSummary>, String> {
     debug!("Fetching income summary...");
+    let account_ids: Option<Vec<String>> = if let Some(input) = filter {
+        let af = input.into_account_filter()?;
+        match resolve_scope(&af, &state).await? {
+            ResolvedAccountScope::TotalSnapshot => None,
+            ResolvedAccountScope::Account(id) => Some(vec![id]),
+            ResolvedAccountScope::Accounts(ids) => Some(ids),
+        }
+    } else {
+        None
+    };
     state
         .income_service()
-        .get_income_summary(account_id.as_deref())
+        .get_income_summary(account_ids.as_deref())
         .map_err(|e| e.to_string())
 }
 
@@ -1077,6 +1205,7 @@ pub async fn get_snapshot_by_date(
             weight: Decimal::ZERO,
             as_of_date: target_date,
             metadata: asset.metadata.clone(),
+            source_account_ids: Vec::new(),
         };
         holdings.push(holding);
     }
@@ -1122,6 +1251,7 @@ pub async fn get_snapshot_by_date(
             weight: Decimal::ZERO,
             as_of_date: target_date,
             metadata: None,
+            source_account_ids: Vec::new(),
         };
         holdings.push(holding);
     }
@@ -1164,10 +1294,10 @@ pub async fn delete_snapshot(
         );
     }
 
-    // Delete the snapshot
+    // Delete via the service so snapshot deletion stays behind one entry point.
     state
-        .snapshot_repository()
-        .delete_snapshots_for_account_and_dates(&account_id, &[target_date])
+        .snapshot_service()
+        .delete_snapshot_for_account(&account_id, &[target_date])
         .await
         .map_err(|e| format!("Failed to delete snapshot: {}", e))?;
 
@@ -1176,7 +1306,7 @@ pub async fn delete_snapshot(
         snapshot.source, account_id, date
     );
 
-    // If no user-created snapshots remain, clean up orphan SYNTHETIC snapshots
+    // If no user-created snapshots remain, clean up orphan SYNTHETIC snapshots.
     let remaining = state
         .snapshot_repository()
         .get_snapshots_by_account(&account_id, None, None)
@@ -1194,8 +1324,8 @@ pub async fn delete_snapshot(
             .collect();
         if !synthetic_dates.is_empty() {
             state
-                .snapshot_repository()
-                .delete_snapshots_for_account_and_dates(&account_id, &synthetic_dates)
+                .snapshot_service()
+                .delete_snapshot_for_account(&account_id, &synthetic_dates)
                 .await
                 .map_err(|e| format!("Failed to clean up synthetic snapshots: {}", e))?;
             info!(

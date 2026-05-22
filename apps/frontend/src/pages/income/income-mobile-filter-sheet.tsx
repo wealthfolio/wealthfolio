@@ -8,7 +8,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@wealthfolio/ui/components/ui/sheet";
-import type { AccountFilter } from "@/lib/types";
+import type { AccountScope } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@wealthfolio/ui";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -17,21 +17,21 @@ import { usePortfolios } from "@/hooks/use-portfolios";
 interface IncomeMobileFilterSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  accountFilter: AccountFilter;
-  onAccountFilterChange: (filter: AccountFilter) => void;
+  accountFilter: AccountScope;
+  onAccountScopeChange: (filter: AccountScope) => void;
 }
 
 export const IncomeMobileFilterSheet = ({
   open,
   onOpenChange,
   accountFilter,
-  onAccountFilterChange,
+  onAccountScopeChange,
 }: IncomeMobileFilterSheetProps) => {
   const { accounts } = useAccounts();
   const { data: portfolios = [] } = usePortfolios();
 
-  const select = (filter: AccountFilter) => {
-    onAccountFilterChange(filter);
+  const select = (filter: AccountScope) => {
+    onAccountScopeChange(filter);
     onOpenChange(false);
   };
 
@@ -67,18 +67,22 @@ export const IncomeMobileFilterSheet = ({
               </div>
 
               {portfolios.map((p) => {
+                const isSelected =
+                  accountFilter.type === "portfolio" && accountFilter.portfolioId === p.id;
                 return (
                   <div
                     key={p.id}
                     className={cn(
-                      "text-muted-foreground flex cursor-not-allowed items-center justify-between border-t p-3 text-sm opacity-75",
+                      "flex cursor-pointer items-center justify-between border-t p-3 text-sm transition-colors",
+                      isSelected ? "bg-accent/50 font-medium" : "hover:bg-muted/50",
                     )}
+                    onClick={() => select({ type: "portfolio", portfolioId: p.id })}
                   >
                     <span className="flex items-center gap-2">
                       <Icons.Folder className="text-muted-foreground h-4 w-4" />
                       {p.name}
                     </span>
-                    <span className="text-xs">Coming soon</span>
+                    {isSelected && <Icons.Check className="text-primary h-4 w-4" />}
                   </div>
                 );
               })}

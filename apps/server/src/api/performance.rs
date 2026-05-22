@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{error::ApiResult, main_lib::AppState};
 use axum::{
     extract::{Query, State},
-    routing::post,
+    routing::{get, post},
     Json, Router,
 };
 use wealthfolio_core::{
@@ -96,18 +96,50 @@ async fn calculate_performance_summary(
 }
 
 #[derive(serde::Deserialize)]
-struct IncomeSummaryQuery {
+struct IncomeSummaryAccountQuery {
     #[serde(rename = "accountId")]
     account_id: Option<String>,
 }
 
-async fn get_income_summary(
+/// GET /income/summary?accountId=... — single-account or all-accounts scope
+async fn get_income_summary_for_account(
     State(state): State<Arc<AppState>>,
-    Query(query): Query<IncomeSummaryQuery>,
+    Query(q): Query<IncomeSummaryAccountQuery>,
 ) -> ApiResult<Json<Vec<IncomeSummary>>> {
+    let account_ids: Option<Vec<String>> = q.account_id.map(|id| vec![id]);
     let items = state
         .income_service
-        .get_income_summary(query.account_id.as_deref())?;
+        .get_income_summary(account_ids.as_deref())?;
+    Ok(Json(items))
+}
+
+#[derive(serde::Deserialize)]
+struct IncomeSummaryBody {
+    filter: Option<wealthfolio_core::portfolios::AccountScope>,
+}
+
+/// POST /income/summary/query — typed scope query (all, portfolio, multi-account)
+async fn get_income_summary(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<IncomeSummaryBody>,
+) -> ApiResult<Json<Vec<IncomeSummary>>> {
+    use wealthfolio_core::portfolios::ResolvedAccountScope;
+
+    let account_ids: Option<Vec<String>> = match &body.filter {
+        None => None,
+        Some(filter) => match state
+            .portfolio_service
+            .resolve_account_scope(filter)
+            .map_err(crate::error::ApiError::from)?
+        {
+            ResolvedAccountScope::TotalSnapshot => None,
+            ResolvedAccountScope::Account(id) => Some(vec![id]),
+            ResolvedAccountScope::Accounts(ids) => Some(ids),
+        },
+    };
+    let items = state
+        .income_service
+        .get_income_summary(account_ids.as_deref())?;
     Ok(Json(items))
 }
 
@@ -119,5 +151,6 @@ pub fn router() -> Router<Arc<AppState>> {
         )
         .route("/performance/history", post(calculate_performance_history))
         .route("/performance/summary", post(calculate_performance_summary))
-        .route("/income/summary", axum::routing::get(get_income_summary))
+        .route("/income/summary", get(get_income_summary_for_account))
+        .route("/income/summary/query", post(get_income_summary))
 }

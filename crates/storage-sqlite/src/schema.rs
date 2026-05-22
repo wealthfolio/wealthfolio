@@ -308,6 +308,45 @@ diesel::table! {
 }
 
 diesel::table! {
+    lots (id) {
+        id -> Text,
+        account_id -> Text,
+        asset_id -> Text,
+        open_date -> Text,
+        open_activity_id -> Nullable<Text>,
+        original_quantity -> Text,
+        cost_per_unit -> Text,
+        original_cost_basis -> Text,
+        remaining_cost_basis -> Text,
+        fee_allocated -> Text,
+        remaining_quantity -> Text,
+        split_ratio -> Text,
+        is_closed -> Integer,
+        close_date -> Nullable<Text>,
+        close_activity_id -> Nullable<Text>,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
+    snapshot_positions (id) {
+        id -> Integer,
+        snapshot_id -> Text,
+        asset_id -> Text,
+        quantity -> Text,
+        average_cost -> Text,
+        total_cost_basis -> Text,
+        currency -> Text,
+        inception_date -> Text,
+        is_alternative -> Integer,
+        contract_multiplier -> Text,
+        created_at -> Text,
+        last_updated -> Text,
+    }
+}
+
+diesel::table! {
     market_data_providers (id) {
         id -> Text,
         name -> Text,
@@ -518,7 +557,11 @@ diesel::joinable!(goals_allocation -> accounts (account_id));
 diesel::joinable!(goal_plans -> goals (goal_id));
 diesel::joinable!(goals_allocation -> goals (goal_id));
 diesel::joinable!(import_runs -> accounts (account_id));
+diesel::joinable!(lots -> accounts (account_id));
+diesel::joinable!(lots -> assets (asset_id));
 diesel::joinable!(quotes -> assets (asset_id));
+diesel::joinable!(snapshot_positions -> holdings_snapshots (snapshot_id));
+diesel::joinable!(snapshot_positions -> assets (asset_id));
 diesel::joinable!(taxonomy_categories -> taxonomies (taxonomy_id));
 
 diesel::joinable!(import_account_templates -> import_templates (template_id));
@@ -546,10 +589,12 @@ diesel::allow_tables_to_appear_in_same_query!(
     holdings_snapshots,
     import_templates,
     import_runs,
+    lots,
     market_data_providers,
     platforms,
     quote_sync_state,
     quotes,
+    snapshot_positions,
     sync_applied_events,
     sync_cursor,
     sync_device_config,

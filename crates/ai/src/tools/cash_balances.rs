@@ -291,6 +291,7 @@ mod tests {
             prev_close_value: None,
             weight: Decimal::ZERO,
             as_of_date: NaiveDate::from_ymd_opt(2025, 1, 15).unwrap(),
+            source_account_ids: vec![],
             metadata: None,
         }
     }

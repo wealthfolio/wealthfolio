@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use super::portfolios_model::{
-    AccountFilter, NewPortfolio, PortfolioUpdate, PortfolioWithAccounts,
-};
+use super::portfolios_model::{AccountScope, NewPortfolio, PortfolioUpdate, PortfolioWithAccounts};
 use super::portfolios_traits::{PortfolioRepositoryTrait, PortfolioServiceTrait};
 use crate::accounts::AccountRepositoryTrait;
 use crate::errors::{DatabaseError, Result, ValidationError};
@@ -84,7 +82,7 @@ impl PortfolioServiceTrait for PortfolioService {
         self.repository.list()
     }
 
-    fn resolve_account_filter(&self, filter: &AccountFilter) -> Result<Vec<String>> {
+    fn resolve_account_filter(&self, filter: &AccountScope) -> Result<Vec<String>> {
         self.repository.resolve_account_ids(filter)
     }
 }

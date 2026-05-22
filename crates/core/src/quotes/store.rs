@@ -243,6 +243,25 @@ pub trait QuoteStore: Send + Sync {
     /// A map from symbol to its latest quote. Symbols without quotes are omitted.
     fn get_latest_quotes(&self, symbols: &[String]) -> Result<HashMap<String, Quote>>;
 
+    /// Gets the most recent quote per symbol whose `day` is on or before `as_of`.
+    ///
+    /// Future-dated quotes (e.g. scheduled liability payoff balances) are
+    /// excluded. A symbol with no qualifying row is omitted from the result.
+    ///
+    /// # Arguments
+    ///
+    /// * `symbols` - The ticker symbols to query
+    /// * `as_of` - Inclusive upper bound on the quote's `day`
+    ///
+    /// # Returns
+    ///
+    /// A map from symbol to its latest qualifying quote.
+    fn get_latest_quotes_as_of(
+        &self,
+        symbols: &[String],
+        as_of: NaiveDate,
+    ) -> Result<HashMap<String, Quote>>;
+
     /// Gets the latest and previous quotes for multiple symbols.
     ///
     /// # Deprecated

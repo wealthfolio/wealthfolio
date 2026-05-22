@@ -1,5 +1,6 @@
 // Portfolio Commands
 import type {
+  AccountScope,
   Holding,
   AllocationHoldings,
   IncomeSummary,
@@ -11,6 +12,7 @@ import type {
   ImportHoldingsCsvResult,
   CheckHoldingsImportResult,
   SnapshotInfo,
+  AssetLotView,
 } from "@/lib/types";
 
 import { invoke, logger } from "./platform";
@@ -23,12 +25,12 @@ export const recalculatePortfolio = async (): Promise<void> => {
   return invoke<void>("recalculate_portfolio");
 };
 
-export const getHoldings = async (accountId: string): Promise<Holding[]> => {
-  return invoke<Holding[]>("get_holdings", { accountId });
+export const getHoldings = async (filter: AccountScope): Promise<Holding[]> => {
+  return invoke<Holding[]>("get_holdings", { filter });
 };
 
-export const getIncomeSummary = async (accountId?: string): Promise<IncomeSummary[]> => {
-  return invoke<IncomeSummary[]>("get_income_summary", { accountId });
+export const getIncomeSummary = async (filter?: AccountScope): Promise<IncomeSummary[]> => {
+  return invoke<IncomeSummary[]>("get_income_summary", { filter });
 };
 
 export const getHistoricalValuations = async (
@@ -130,8 +132,20 @@ export const getAssetHoldings = async (assetId: string): Promise<Holding[]> => {
   return invoke<Holding[]>("get_asset_holdings", { assetId });
 };
 
-export const getPortfolioAllocations = async (accountId: string): Promise<PortfolioAllocations> => {
-  return invoke<PortfolioAllocations>("get_portfolio_allocations", { accountId });
+export const getAssetLots = async (
+  assetId: string,
+  includeSnapshotPositions = false,
+): Promise<AssetLotView[]> => {
+  return invoke<AssetLotView[]>("get_asset_lots", {
+    assetId,
+    includeSnapshotPositions,
+  });
+};
+
+export const getPortfolioAllocations = async (
+  filter: AccountScope,
+): Promise<PortfolioAllocations> => {
+  return invoke<PortfolioAllocations>("get_portfolio_allocations", { filter });
 };
 
 /**
@@ -140,12 +154,12 @@ export const getPortfolioAllocations = async (accountId: string): Promise<Portfo
  * Returns full category metadata along with the holdings.
  */
 export const getHoldingsByAllocation = async (
-  accountId: string,
+  filter: AccountScope,
   taxonomyId: string,
   categoryId: string,
 ): Promise<AllocationHoldings> => {
   return invoke<AllocationHoldings>("get_holdings_by_allocation", {
-    accountId,
+    filter,
     taxonomyId,
     categoryId,
   });

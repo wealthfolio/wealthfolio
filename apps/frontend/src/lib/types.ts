@@ -60,10 +60,11 @@ export interface NewPortfolio {
   accountIds: string[];
 }
 
-export type AccountFilter =
+export type AccountScope =
   | { type: "all" }
   | { type: "account"; accountId: string }
-  | { type: "portfolio"; portfolioId: string };
+  | { type: "portfolio"; portfolioId: string }
+  | { type: "accounts"; accountIds: string[] };
 
 export interface Account {
   id: string;
@@ -575,6 +576,28 @@ export interface Lot {
   acquisitionFees: number;
 }
 
+export type AssetLotSource = "TRANSACTION_LOT" | "SNAPSHOT_POSITION";
+
+export interface AssetLotView {
+  id: string;
+  accountId: string;
+  accountName: string;
+  assetId: string;
+  source: AssetLotSource;
+  quantity: number;
+  originalQuantity: number;
+  remainingQuantity: number;
+  costBasis: number;
+  unitCost: number;
+  fees: number;
+  splitRatio: number;
+  contractMultiplier: number;
+  acquisitionDate?: string | null;
+  snapshotDate?: string | null;
+  isClosed: boolean;
+  closeDate?: string | null;
+}
+
 export interface Position {
   id: string;
   accountId: string;
@@ -604,6 +627,7 @@ export interface Holding {
   quantity: number;
   openDate?: string | Date | null;
   lots?: Lot[] | null;
+  contractMultiplier?: number | null;
   localCurrency: string;
   baseCurrency: string;
   fxRate?: number | null;
@@ -621,6 +645,8 @@ export interface Holding {
   prevCloseValue?: MonetaryValue | null;
   weight: number;
   asOfDate: string;
+  /** Source account IDs for aggregated holdings (portfolio/multi-account scope). Empty for single-account. */
+  sourceAccountIds?: string[];
 }
 
 /**

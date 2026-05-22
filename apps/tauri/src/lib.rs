@@ -395,6 +395,7 @@ pub fn run() {
             commands::portfolio::get_holdings,
             commands::portfolio::get_holding,
             commands::portfolio::get_asset_holdings,
+            commands::portfolio::get_asset_lots,
             commands::portfolio::get_portfolio_allocations,
             commands::portfolio::get_holdings_by_allocation,
             commands::portfolio::get_income_summary,

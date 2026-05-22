@@ -14,7 +14,7 @@ use wealthfolio_core::errors::Error;
 use super::model::{build_portfolio_with_accounts, PortfolioAccountDB, PortfolioDB};
 use wealthfolio_core::errors::Result;
 use wealthfolio_core::portfolios::{
-    AccountFilter, NewPortfolio, PortfolioRepositoryTrait, PortfolioUpdate, PortfolioWithAccounts,
+    AccountScope, NewPortfolio, PortfolioRepositoryTrait, PortfolioUpdate, PortfolioWithAccounts,
 };
 
 pub struct PortfolioRepository {
@@ -223,11 +223,11 @@ impl PortfolioRepositoryTrait for PortfolioRepository {
         Ok(result)
     }
 
-    fn resolve_account_ids(&self, filter: &AccountFilter) -> Result<Vec<String>> {
+    fn resolve_account_ids(&self, filter: &AccountScope) -> Result<Vec<String>> {
         let mut conn = get_connection(&self.pool)?;
 
         match filter {
-            AccountFilter::All => {
+            AccountScope::All => {
                 use crate::schema::accounts::dsl::*;
                 let ids = accounts
                     .filter(is_active.eq(true))
@@ -238,8 +238,8 @@ impl PortfolioRepositoryTrait for PortfolioRepository {
                     .map_err(StorageError::from)?;
                 Ok(ids)
             }
-            AccountFilter::Account { account_id } => Ok(vec![account_id.clone()]),
-            AccountFilter::Portfolio { portfolio_id: pfid } => {
+            AccountScope::Account { account_id } => Ok(vec![account_id.clone()]),
+            AccountScope::Portfolio { portfolio_id: pfid } => {
                 use crate::schema::portfolio_accounts::dsl::*;
                 let ids = portfolio_accounts
                     .filter(portfolio_id.eq(pfid))
@@ -249,6 +249,7 @@ impl PortfolioRepositoryTrait for PortfolioRepository {
                     .map_err(StorageError::from)?;
                 Ok(ids)
             }
+            AccountScope::Accounts { account_ids } => Ok(account_ids.clone()),
         }
     }
 }

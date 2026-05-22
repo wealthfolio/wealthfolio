@@ -1,4 +1,4 @@
-import { createActivity, getAssetHoldings, getHolding } from "@/adapters";
+import { createActivity, getAssetHoldings, getAssetLots, getHolding } from "@/adapters";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { useHapticFeedback } from "@/hooks";
@@ -11,7 +11,7 @@ import { PORTFOLIO_ACCOUNT_ID } from "@/lib/constants";
 import { generateId } from "@/lib/id";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
-import { AssetKind, Holding, Quote } from "@/lib/types";
+import type { AssetKind, AssetLotView, Holding, Quote } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatedToggleGroup, Page, PageContent, PageHeader, SwipableView } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
@@ -395,6 +395,12 @@ export const AssetProfilePage = () => {
   const isAltAsset = isAlternativeAsset(assetProfile?.kind);
   const isLiability = assetProfile?.kind === "LIABILITY";
 
+  const { data: assetLots = [] } = useQuery<AssetLotView[], Error>({
+    queryKey: [QueryKeys.ASSET_LOTS, assetId, true],
+    queryFn: () => getAssetLots(assetId, true),
+    enabled: !!assetId && !isAssetProfileLoading && !isAltAsset,
+  });
+
   // Fetch alternative asset holding data (for alternative assets only)
   const { data: altHolding } = useAlternativeAssetHolding({
     assetId,
@@ -508,14 +514,14 @@ export const AssetProfilePage = () => {
       items.push({ value: "overview", label: "Overview" });
     }
 
-    if (holding?.lots && holding.lots.length > 0) {
+    if (assetLots.length > 0) {
       items.push({ value: "lots", label: "Lots" });
     }
 
     items.push({ value: "history", label: "Quotes" });
 
     return items;
-  }, [profile, holding, isAltAsset]);
+  }, [profile, assetLots, isAltAsset]);
 
   // Build swipable tabs for mobile
   const swipableTabs = useMemo(() => {
@@ -623,14 +629,15 @@ export const AssetProfilePage = () => {
       });
     }
 
-    if (holding?.lots && holding.lots.length > 0 && profile) {
+    if (assetLots.length > 0 && profile) {
       tabs.push({
         name: "Lots",
         content: (
           <AssetLotsTable
-            lots={holding.lots}
+            lots={assetLots}
             currency={symbolHolding?.currency ?? profile.currency ?? baseCurrency}
-            marketPrice={Number(holding.price ?? profile.marketPrice)}
+            marketPrice={Number(holding?.price ?? profile.marketPrice)}
+            contractMultiplier={Number(holding?.contractMultiplier ?? 1)}
           />
         ),
       });
@@ -674,6 +681,7 @@ export const AssetProfilePage = () => {
   }, [
     profile,
     holding,
+    assetLots,
     symbolHolding,
     quoteHistory,
     saveQuoteMutation,
@@ -1245,13 +1253,18 @@ export const AssetProfilePage = () => {
               </TabsContent>
             )}
 
-            {/* Lots Content: Requires profile and holding with lots */}
-            {profile && holding?.lots && holding.lots.length > 0 && (
-              <TabsContent value="lots" className="pt-6">
+            {/* Lots Content: Requires profile and lot rows */}
+            {profile && assetLots.length > 0 && (
+              <TabsContent value="lots">
                 <AssetLotsTable
-                  lots={holding.lots}
+                  lots={assetLots}
                   currency={symbolHolding?.currency ?? profile.currency ?? baseCurrency}
-                  marketPrice={Number(holding.price ?? profile.marketPrice)}
+                  marketPrice={Number(holding?.price ?? profile.marketPrice)}
+                  contractMultiplier={Number(holding?.contractMultiplier ?? 1)}
+                  dayChangeAmount={
+                    holding?.dayChange?.local != null ? Number(holding.dayChange.local) : null
+                  }
+                  dayChangePct={holding?.dayChangePct ?? null}
                 />
               </TabsContent>
             )}

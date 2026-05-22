@@ -4,7 +4,8 @@ pub mod portfolios_service_tests;
 pub mod portfolios_traits;
 
 pub use portfolios_model::{
-    AccountFilter, NewPortfolio, Portfolio, PortfolioUpdate, PortfolioWithAccounts,
+    AccountScope, NewPortfolio, Portfolio, PortfolioUpdate, PortfolioWithAccounts,
+    ResolvedAccountScope,
 };
 pub use portfolios_service::PortfolioService;
 pub use portfolios_traits::{PortfolioRepositoryTrait, PortfolioServiceTrait};

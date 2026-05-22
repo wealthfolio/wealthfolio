@@ -5,10 +5,11 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { SwipablePage, SwipablePageView } from "@/components/page";
-import { AccountFilterSelector } from "@/components/account-filter-selector";
+import { AccountScopeSelector } from "@/components/account-filter-selector";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useHoldings } from "@/hooks/use-holdings";
+import { usePortfolios } from "@/hooks/use-portfolios";
 import {
   useAlternativeHoldings,
   useDeleteAlternativeAsset,
@@ -23,7 +24,7 @@ import {
 } from "@/lib/constants";
 import {
   Account,
-  AccountFilter,
+  AccountScope,
   HoldingType,
   AlternativeAssetHolding,
   AlternativeAssetKind,
@@ -60,17 +61,14 @@ export const HoldingsPage = () => {
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
-  const [accountFilter, setAccountFilter] = useState<AccountFilter>({ type: "all" });
-
-  // Derive accountId for holdings: portfolio filter falls back to TOTAL (follow-up PR adds aggregation).
-  const holdingsAccountId =
-    accountFilter.type === "account" ? accountFilter.accountId : PORTFOLIO_ACCOUNT_ID;
+  const [accountFilter, setAccountScope] = useState<AccountScope>({ type: "all" });
 
   // Keep selectedAccount for edit/add functionality when a specific account is selected.
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
 
-  const { holdings, isLoading } = useHoldings(holdingsAccountId);
+  const { holdings, isLoading } = useHoldings(accountFilter);
   const { accounts, isLoading: isAccountsLoading } = useAccounts();
+  const { data: portfolios = [] } = usePortfolios();
   const { data: alternativeHoldings, isLoading: isAlternativeHoldingsLoading } =
     useAlternativeHoldings();
 
@@ -122,20 +120,9 @@ export const HoldingsPage = () => {
   );
   const updatePortfolioMutation = useUpdatePortfolioMutation();
 
-  const handleAccountSelect = useCallback((account: Account) => {
-    setSelectedAccount(account);
-    setIsEditMode(false);
-    // Sync AccountFilter when mobile filter sheet selects an account.
-    if (account.id === PORTFOLIO_ACCOUNT_ID) {
-      setAccountFilter({ type: "all" });
-    } else {
-      setAccountFilter({ type: "account", accountId: account.id });
-    }
-  }, []);
-
-  const handleAccountFilterChange = useCallback(
-    (filter: AccountFilter) => {
-      setAccountFilter(filter);
+  const handleAccountScopeChange = useCallback(
+    (filter: AccountScope) => {
+      setAccountScope(filter);
       setIsEditMode(false);
       setSelectedAccount(
         filter.type === "account"
@@ -435,9 +422,10 @@ export const HoldingsPage = () => {
               isLoading={isDataLoading}
               selectedTypes={selectedTypes}
               setSelectedTypes={setSelectedTypes}
-              selectedAccount={selectedAccount}
+              accountFilter={accountFilter}
+              onAccountScopeChange={handleAccountScopeChange}
               accounts={accounts ?? []}
-              onAccountChange={handleAccountSelect}
+              portfolios={portfolios}
               showSearch={true}
               showFilterButton={false}
               sortBy={sortBy}
@@ -594,7 +582,7 @@ export const HoldingsPage = () => {
             <Icons.ListFilter className="h-4 w-4" />
           </Button>
         ) : (
-          <AccountFilterSelector value={accountFilter} onChange={handleAccountFilterChange} />
+          <AccountScopeSelector value={accountFilter} onChange={handleAccountScopeChange} />
         )}
         {/* Show Update button for HOLDINGS-mode manual accounts (only on investments tab) */}
         {canEditHoldings && !isEditMode && currentTab === "investments" && (
@@ -614,7 +602,7 @@ export const HoldingsPage = () => {
       isMobileViewport,
       setIsFilterSheetOpen,
       accountFilter,
-      handleAccountFilterChange,
+      handleAccountScopeChange,
       canEditHoldings,
       isEditMode,
       currentTab,
@@ -666,9 +654,10 @@ export const HoldingsPage = () => {
       <HoldingsMobileFilterSheet
         open={isFilterSheetOpen}
         onOpenChange={setIsFilterSheetOpen}
-        selectedAccount={selectedAccount}
+        accountFilter={accountFilter}
+        onAccountScopeChange={handleAccountScopeChange}
         accounts={accounts ?? []}
-        onAccountChange={handleAccountSelect}
+        portfolios={portfolios}
         selectedTypes={selectedTypes}
         setSelectedTypes={setSelectedTypes}
         sortBy={sortBy}

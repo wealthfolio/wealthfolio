@@ -22,6 +22,17 @@ use super::HoldingsValuationServiceTrait;
 pub trait HoldingsServiceTrait: Send + Sync {
     async fn get_holdings(&self, account_id: &str, base_currency: &str) -> Result<Vec<Holding>>;
 
+    /// Aggregates holdings from multiple accounts into a single merged list.
+    /// Holdings with the same asset are merged by summing MonetaryValue fields.
+    /// Lots are concatenated. Weights are recomputed over the full merged set.
+    /// `aggregated_account_id` is stored on each resulting Holding (use `""` for ad-hoc filters).
+    async fn get_holdings_for_accounts(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+        aggregated_account_id: &str,
+    ) -> Result<Vec<Holding>>;
+
     /// Retrieves a specific holding for an account, calculates its valuation, and includes lot details.
     async fn get_holding(
         &self,
@@ -269,6 +280,7 @@ impl HoldingsService {
                 weight: Decimal::ZERO,
                 as_of_date: today,
                 metadata: asset_info.metadata.clone(),
+                source_account_ids: Vec::new(),
             };
             holdings.push(holding_view);
         }
@@ -328,6 +340,7 @@ impl HoldingsService {
                 weight: Decimal::ZERO,
                 as_of_date: today,
                 metadata: None,
+                source_account_ids: Vec::new(),
             };
             holdings.push(holding_view);
         }
@@ -354,6 +367,19 @@ impl HoldingsService {
                 account_id, e
             );
         }
+    }
+}
+
+fn add_monetary(acc: &mut MonetaryValue, other: &MonetaryValue) {
+    acc.local += other.local;
+    acc.base += other.base;
+}
+
+fn add_optional_monetary(acc: &mut Option<MonetaryValue>, other: &Option<MonetaryValue>) {
+    match (acc.as_mut(), other) {
+        (Some(a), Some(b)) => add_monetary(a, b),
+        (None, Some(b)) => *acc = Some(b.clone()),
+        _ => {}
     }
 }
 
@@ -619,6 +645,112 @@ impl HoldingsServiceTrait for HoldingsService {
         Ok(holdings)
     }
 
+    async fn get_holdings_for_accounts(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+        aggregated_account_id: &str,
+    ) -> Result<Vec<Holding>> {
+        if account_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Collect all holdings from each member account.
+        let mut all_holdings: Vec<Holding> = Vec::new();
+        for account_id in account_ids {
+            let holdings = self.get_holdings(account_id, base_currency).await?;
+            all_holdings.extend(holdings);
+        }
+
+        // Merge by key: securities/alternatives → asset id; cash → local_currency.
+        let mut merged: HashMap<String, Holding> = HashMap::new();
+        for holding in all_holdings {
+            let key = match &holding.holding_type {
+                HoldingType::Cash => format!("CASH-{}", holding.local_currency),
+                _ => holding
+                    .instrument
+                    .as_ref()
+                    .map(|i| i.id.clone())
+                    .unwrap_or_else(|| holding.id.clone()),
+            };
+
+            match merged.entry(key.clone()) {
+                std::collections::hash_map::Entry::Occupied(mut occ) => {
+                    let acc = occ.get_mut();
+                    if !acc.source_account_ids.contains(&holding.account_id) {
+                        acc.source_account_ids.push(holding.account_id.clone());
+                    }
+                    acc.quantity += holding.quantity;
+                    add_monetary(&mut acc.market_value, &holding.market_value);
+                    add_optional_monetary(&mut acc.cost_basis, &holding.cost_basis);
+                    add_optional_monetary(&mut acc.unrealized_gain, &holding.unrealized_gain);
+                    add_optional_monetary(&mut acc.realized_gain, &holding.realized_gain);
+                    add_optional_monetary(&mut acc.total_gain, &holding.total_gain);
+                    add_optional_monetary(&mut acc.day_change, &holding.day_change);
+                    add_optional_monetary(&mut acc.prev_close_value, &holding.prev_close_value);
+                    if let Some(date) = holding.open_date {
+                        acc.open_date = Some(match acc.open_date {
+                            Some(existing) => existing.min(date),
+                            None => date,
+                        });
+                    }
+                    if let Some(lots) = holding.lots {
+                        acc.lots
+                            .get_or_insert_with(std::collections::VecDeque::new)
+                            .extend(lots);
+                    }
+                }
+                std::collections::hash_map::Entry::Vacant(vac) => {
+                    let original_account_id = holding.account_id.clone();
+                    let mut h = holding;
+                    h.id = format!("AGG-{}", key);
+                    h.account_id = aggregated_account_id.to_string();
+                    h.source_account_ids = vec![original_account_id];
+                    vac.insert(h);
+                }
+            }
+        }
+
+        let mut result: Vec<Holding> = merged.into_values().collect();
+        // Sort for deterministic output: cash last, then by id.
+        result.sort_by(|a, b| {
+            let a_cash = matches!(a.holding_type, HoldingType::Cash);
+            let b_cash = matches!(b.holding_type, HoldingType::Cash);
+            a_cash.cmp(&b_cash).then_with(|| a.id.cmp(&b.id))
+        });
+
+        // Recompute percentage fields from the summed base values.
+        // The merge loop accumulates monetary values but percentages from the first
+        // account seen are no longer correct for the aggregated position.
+        for h in result.iter_mut() {
+            let cost_base = h
+                .cost_basis
+                .as_ref()
+                .map(|c| c.base)
+                .unwrap_or(Decimal::ZERO);
+            if cost_base > Decimal::ZERO {
+                h.unrealized_gain_pct = h.unrealized_gain.as_ref().map(|v| v.base / cost_base);
+                h.total_gain_pct = h.total_gain.as_ref().map(|v| v.base / cost_base);
+            } else {
+                h.unrealized_gain_pct = None;
+                h.total_gain_pct = None;
+            }
+            let prev_close_base = h
+                .prev_close_value
+                .as_ref()
+                .map(|p| p.base)
+                .unwrap_or(Decimal::ZERO);
+            if prev_close_base > Decimal::ZERO {
+                h.day_change_pct = h.day_change.as_ref().map(|v| v.base / prev_close_base);
+            } else {
+                h.day_change_pct = None;
+            }
+        }
+
+        apply_portfolio_weights(aggregated_account_id, &mut result);
+        Ok(result)
+    }
+
     async fn get_holding(
         &self,
         account_id: &str,
@@ -821,6 +953,7 @@ impl HoldingsServiceTrait for HoldingsService {
                 weight: Decimal::ZERO,
                 as_of_date: snapshot.snapshot_date,
                 metadata: asset.metadata.clone(),
+                source_account_ids: Vec::new(),
             };
             holdings.push(holding);
         }
@@ -866,6 +999,7 @@ impl HoldingsServiceTrait for HoldingsService {
                 weight: Decimal::ZERO,
                 as_of_date: snapshot.snapshot_date,
                 metadata: None,
+                source_account_ids: Vec::new(),
             };
             holdings.push(holding);
         }
@@ -1062,6 +1196,14 @@ mod tests {
         }
 
         async fn ensure_holdings_history(&self, _account_id: &str) -> Result<()> {
+            unimplemented!("unused in holdings service tests")
+        }
+
+        async fn delete_snapshot_for_account(
+            &self,
+            _account_id: &str,
+            _dates: &[chrono::NaiveDate],
+        ) -> Result<()> {
             unimplemented!("unused in holdings service tests")
         }
     }
@@ -1334,10 +1476,14 @@ mod tests {
                 position_id: "POS-TEST".to_string(),
                 acquisition_date: Utc::now(),
                 quantity: dec!(1),
+                original_quantity: dec!(1),
                 cost_basis: dec!(3000),
                 acquisition_price: dec!(3000),
                 acquisition_fees: dec!(0),
+                original_acquisition_fees: dec!(0),
                 fx_rate_to_position: None,
+                source_activity_id: None,
+                split_ratio: Decimal::ONE,
             }])),
             contract_multiplier: Decimal::ONE,
             local_currency: "GBp".to_string(),
@@ -1376,6 +1522,7 @@ mod tests {
             }),
             weight: dec!(0.1),
             as_of_date: as_of,
+            source_account_ids: vec![],
             metadata: None,
         };
 
@@ -1445,6 +1592,7 @@ mod tests {
             }),
             weight: dec!(1),
             as_of_date: valuation_date_today(),
+            source_account_ids: vec![],
             metadata: None,
         };
 

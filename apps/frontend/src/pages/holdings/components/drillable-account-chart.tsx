@@ -19,6 +19,7 @@ import { useMemo, useState } from "react";
 
 interface DrillableAccountChartProps {
   isLoading?: boolean;
+  accountIds?: string[];
   onAccountClick?: (accountId: string, accountName: string) => void;
 }
 
@@ -29,6 +30,7 @@ interface DrillableAccountChartProps {
  */
 export function DrillableAccountChart({
   isLoading: isLoadingProp,
+  accountIds,
   onAccountClick,
 }: DrillableAccountChartProps) {
   const { settings } = useSettingsContext();
@@ -36,10 +38,12 @@ export function DrillableAccountChart({
   const [activeIndex, setActiveIndex] = useState(0);
   const { path, drillDown, navigateTo, isAtRoot } = useDrillDownState();
 
-  const { data: accounts = [], isLoading: isLoadingAccounts } = useQuery<Account[], Error>({
+  const { data: allAccounts = [], isLoading: isLoadingAccounts } = useQuery<Account[], Error>({
     queryKey: [QueryKeys.ACCOUNTS],
     queryFn: () => getAccounts(),
   });
+
+  const accounts = accountIds ? allAccounts.filter((a) => accountIds.includes(a.id)) : allAccounts;
 
   const { data: performanceData, isLoading: isLoadingPerformance } =
     useAccountsSimplePerformance(accounts);

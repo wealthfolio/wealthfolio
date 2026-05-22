@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ActivityType, ActivityTypeNames, INSTRUMENT_TYPE_OPTIONS } from "@/lib/constants";
 import { debounce } from "@/lib/debounce";
-import { Account } from "@/lib/types";
+import type { AccountScope } from "@/lib/types";
+import { AccountScopeSelector } from "@/components/account-filter-selector";
 import {
   AnimatedToggleGroup,
   Button,
@@ -15,11 +16,10 @@ import type { ActivityStatusFilter } from "../hooks/use-activity-search";
 export type ActivityViewMode = "table" | "datagrid";
 
 interface ActivityViewControlsProps {
-  accounts: Account[];
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
-  selectedAccountIds: string[];
-  onAccountIdsChange: (ids: string[]) => void;
+  accountScope: AccountScope;
+  onAccountScopeChange: (scope: AccountScope) => void;
   selectedActivityTypes: ActivityType[];
   onActivityTypesChange: (types: ActivityType[]) => void;
   selectedInstrumentTypes: string[];
@@ -36,11 +36,10 @@ interface ActivityViewControlsProps {
 }
 
 export function ActivityViewControls({
-  accounts,
   searchQuery,
   onSearchQueryChange,
-  selectedAccountIds,
-  onAccountIdsChange,
+  accountScope,
+  onAccountScopeChange,
   selectedActivityTypes,
   onActivityTypesChange,
   selectedInstrumentTypes,
@@ -73,15 +72,6 @@ export function ActivityViewControls({
     setLocalSearch(searchQuery);
   }, [searchQuery]);
 
-  const accountOptions = useMemo(
-    () =>
-      accounts.map((account) => ({
-        value: account.id,
-        label: `${account.name} (${account.currency})`,
-      })),
-    [accounts],
-  );
-
   const activityOptions = useMemo(
     () =>
       (Object.entries(ActivityTypeNames) as [ActivityType, string][]).map(([value, label]) => ({
@@ -107,7 +97,7 @@ export function ActivityViewControls({
 
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
-    selectedAccountIds.length > 0 ||
+    accountScope.type !== "all" ||
     selectedActivityTypes.length > 0 ||
     selectedInstrumentTypes.length > 0 ||
     statusFilter !== "all";
@@ -124,12 +114,7 @@ export function ActivityViewControls({
           className="w-[160px] lg:w-[240px]"
         />
 
-        <FacetedFilter
-          title="Account"
-          options={accountOptions}
-          selectedValues={new Set(selectedAccountIds)}
-          onFilterChange={(values: Set<string>) => onAccountIdsChange(Array.from(values))}
-        />
+        <AccountScopeSelector value={accountScope} onChange={onAccountScopeChange} />
 
         <FacetedFilter
           title="Type"
@@ -167,7 +152,7 @@ export function ActivityViewControls({
             onClick={() => {
               setLocalSearch("");
               onSearchQueryChange("");
-              onAccountIdsChange([]);
+              onAccountScopeChange({ type: "all" });
               onActivityTypesChange([]);
               onInstrumentTypesChange([]);
               onStatusFilterChange("all");

@@ -1,7 +1,7 @@
-import { AccountFilterSelector } from "@/components/account-filter-selector";
+import { AccountScopeSelector } from "@/components/account-filter-selector";
 import { SwipablePage, SwipablePageView } from "@/components/page";
-import { PORTFOLIO_ACCOUNT_ID } from "@/lib/constants";
-import type { AccountFilter } from "@/lib/types";
+
+import type { AccountScope } from "@/lib/types";
 import IncomePage from "@/pages/income/income-page";
 import PerformancePage from "@/pages/performance/performance-page";
 import { Icons } from "@wealthfolio/ui";
@@ -34,14 +34,10 @@ const DashboardLoader = () => (
 );
 
 export default function PortfolioInsightsPage() {
-  const [accountFilter, setAccountFilter] = useState<AccountFilter>({ type: "all" });
-
-  // Portfolio-level holdings aggregation is a follow-up; portfolio filter uses all accounts.
-  const accountId =
-    accountFilter.type === "account" ? accountFilter.accountId : PORTFOLIO_ACCOUNT_ID;
+  const [accountFilter, setAccountScope] = useState<AccountScope>({ type: "all" });
 
   const holdingsActions = useMemo(
-    () => <AccountFilterSelector value={accountFilter} onChange={setAccountFilter} />,
+    () => <AccountScopeSelector value={accountFilter} onChange={setAccountScope} />,
     [accountFilter],
   );
 
@@ -54,7 +50,7 @@ export default function PortfolioInsightsPage() {
         icon: Icons.PieChart,
         content: (
           <Suspense fallback={<DashboardLoader />}>
-            <HoldingsInsightsPage accountId={accountId} />
+            <HoldingsInsightsPage filter={accountFilter} />
           </Suspense>
         ),
         actions: holdingsActions,
@@ -80,7 +76,7 @@ export default function PortfolioInsightsPage() {
         ),
       },
     ],
-    [accountId, holdingsActions],
+    [accountFilter, holdingsActions],
   );
 
   return <SwipablePage views={views} defaultView="holdings" withPadding={true} />;

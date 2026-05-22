@@ -77,7 +77,12 @@ pub struct AppState {
     pub base_currency: Arc<RwLock<String>>,
     pub timezone: Arc<RwLock<String>>,
     pub snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
+    /// Direct repository handle. No handler reads it currently — snapshot
+    /// access goes through `snapshot_service`. Retained for tests and any
+    /// future maintenance path that needs raw repository access.
+    #[allow(dead_code)]
     pub snapshot_repository: Arc<SnapshotRepository>,
+    pub lots_repository: Arc<dyn wealthfolio_core::lots::LotRepositoryTrait + Send + Sync>,
     pub performance_service:
         Arc<dyn wealthfolio_core::portfolio::performance::PerformanceServiceTrait + Send + Sync>,
     pub income_service: Arc<dyn IncomeServiceTrait + Send + Sync>,
@@ -215,6 +220,10 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
     let market_data_repository = Arc::new(MarketDataRepository::new(pool.clone(), writer.clone()));
     let activity_repository = Arc::new(ActivityRepository::new(pool.clone(), writer.clone()));
     let snapshot_repository = Arc::new(SnapshotRepository::new(pool.clone(), writer.clone()));
+    let lots_repository = Arc::new(wealthfolio_storage_sqlite::lots::LotsRepository::new(
+        pool.clone(),
+        writer.clone(),
+    ));
     let app_sync_repository = Arc::new(AppSyncRepository::new(pool.clone(), writer.clone()));
     let quote_sync_state_repository =
         Arc::new(QuoteSyncStateRepository::new(pool.clone(), writer.clone()));
@@ -279,7 +288,8 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
             asset_repository.clone(),
             fx_service.clone(),
         )
-        .with_event_sink(domain_event_sink.clone()),
+        .with_event_sink(domain_event_sink.clone())
+        .with_lot_repository(lots_repository.clone()),
     );
 
     let valuation_repository = Arc::new(ValuationRepository::new(pool.clone(), writer.clone()));
@@ -513,6 +523,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         timezone,
         snapshot_service,
         snapshot_repository,
+        lots_repository,
         performance_service,
         income_service,
         goal_service,

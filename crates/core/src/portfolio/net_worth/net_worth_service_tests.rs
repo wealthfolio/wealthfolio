@@ -308,6 +308,17 @@ impl SnapshotRepositoryTrait for MockSnapshotRepository {
     ) -> Result<Option<AccountStateSnapshot>> {
         Ok(None)
     }
+
+    fn get_snapshot_positions(&self, _snapshot_id: &str) -> Result<HashMap<String, Position>> {
+        Ok(HashMap::new())
+    }
+
+    fn get_snapshot_positions_batch(
+        &self,
+        _snapshot_ids: &[String],
+    ) -> Result<HashMap<String, HashMap<String, Position>>> {
+        Ok(HashMap::new())
+    }
 }
 
 struct MockMarketDataRepository {
@@ -350,6 +361,14 @@ impl QuoteServiceTrait for MockMarketDataRepository {
             }
         }
         Ok(result)
+    }
+
+    fn get_latest_quotes_as_of(
+        &self,
+        _symbols: &[String],
+        _as_of: chrono::NaiveDate,
+    ) -> Result<HashMap<String, Quote>> {
+        Ok(HashMap::new())
     }
 
     fn get_latest_quotes_snapshot(
@@ -1886,4 +1905,66 @@ async fn test_newly_created_account_has_default_archive_values_net_worth() {
         account.is_active,
         "Test helper should create active accounts"
     );
+}
+
+// ============================================================================
+// Regression Tests
+// ============================================================================
+
+/// Regression: a liability that has a future-dated $0 quote (e.g. a mortgage planned
+/// payoff date) must NOT appear as fully paid-off when computing net worth today.
+/// The `get_latest_quote_as_of` logic filters quotes to those on or before the
+/// requested date, so the future $0 row should be ignored and the most-recent
+/// past balance ($180,000) should be used instead.
+#[tokio::test]
+async fn test_liability_with_future_zero_quote_is_included_at_past_balance() {
+    let valuation_date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+
+    // A mortgage LIABILITY account and asset
+    let liab_account = create_test_account("liab-mortgage", "LIABILITY", "USD");
+    let liab_asset = create_test_asset("LIAB-mortgage-reg", AssetKind::Liability, "USD");
+
+    // The position records the outstanding balance as quantity=1, cost-basis=180_000
+    let liab_position = create_test_position(
+        "liab-mortgage",
+        "LIAB-mortgage-reg",
+        dec!(1),
+        dec!(180000),
+        "USD",
+    );
+    let liab_snapshot = create_test_snapshot("liab-mortgage", vec![liab_position], HashMap::new());
+
+    // Two quotes for the same liability:
+    //   • 2024-01-10: current outstanding balance = $180,000
+    //   • 2041-01-01: planned payoff date recorded as $0 (future-dated)
+    let past_quote = create_test_quote(
+        "LIAB-mortgage-reg",
+        dec!(180000),
+        NaiveDate::from_ymd_opt(2024, 1, 10).unwrap(),
+        "USD",
+    );
+    let future_zero_quote = create_test_quote(
+        "LIAB-mortgage-reg",
+        dec!(0),
+        NaiveDate::from_ymd_opt(2041, 1, 1).unwrap(),
+        "USD",
+    );
+
+    let service = create_net_worth_service(
+        vec![liab_account],
+        vec![liab_asset],
+        vec![liab_snapshot],
+        vec![past_quote, future_zero_quote],
+    );
+
+    let result = service.get_net_worth(valuation_date).await.unwrap();
+
+    // The future $0 quote must be excluded; the liability must appear at $180,000.
+    assert_eq!(
+        result.liabilities.total,
+        dec!(180000),
+        "liability with a future-dated $0 quote should be valued at the most-recent past quote"
+    );
+    // Net worth = assets (0) - liabilities (180_000) = -180_000
+    assert_eq!(result.net_worth, dec!(-180000));
 }

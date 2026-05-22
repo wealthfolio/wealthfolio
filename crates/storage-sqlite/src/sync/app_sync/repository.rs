@@ -1039,6 +1039,29 @@ fn apply_remote_event_lww_tx(
                     diesel::sql_query(sql)
                         .execute(conn)
                         .map_err(StorageError::from)?;
+
+                    // Side effect for SyncEntity::Snapshot: an `ON CONFLICT
+                    // DO UPDATE` updates `holdings_snapshots.positions` JSON
+                    // in place without firing the FK CASCADE that would
+                    // otherwise wipe `snapshot_positions` rows. Without a
+                    // hook here, the relational table keeps the receiving
+                    // device's *old* positions while the JSON column has
+                    // the synced ones, and `get_snapshot_positions` (which
+                    // prefers the relational table over the JSON fallback)
+                    // returns stale data forever.
+                    //
+                    // Drop the relational rows for the affected snapshot.
+                    // The next read falls back to the just-synced JSON;
+                    // the next local snapshot write rebuilds the relational
+                    // rows via `write_snapshot_positions`. A heavier "parse
+                    // JSON and reinsert here" fix is deferred to Phase B's
+                    // read-path switchover.
+                    if matches!(entity, SyncEntity::Snapshot) {
+                        diesel::sql_query("DELETE FROM snapshot_positions WHERE snapshot_id = ?")
+                            .bind::<diesel::sql_types::Text, _>(entity_id_value.clone())
+                            .execute(conn)
+                            .map_err(StorageError::from)?;
+                    }
                 }
             }
 
@@ -4910,5 +4933,106 @@ mod tests {
             .first(&mut conn)
             .expect("import run row");
         assert_eq!(source, "csv");
+    }
+
+    /// Regression: sync upsert on `holdings_snapshots` updates the JSON
+    /// `positions` column in place, but doesn't touch the relational
+    /// `snapshot_positions` rows. Without the explicit DELETE hook,
+    /// `get_snapshot_positions` would return the receiving device's *old*
+    /// relational rows forever, masking the synced JSON.
+    #[tokio::test]
+    async fn replay_snapshot_clears_stale_snapshot_positions() {
+        #[derive(diesel::QueryableByName)]
+        struct CountRow {
+            #[diesel(sql_type = diesel::sql_types::BigInt)]
+            c: i64,
+        }
+
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+
+        insert_account_for_test(&mut conn, "acc-sync-snap").expect("insert account");
+        diesel::sql_query(
+            "INSERT INTO assets (id, kind, name, display_code, notes, metadata, is_active, quote_mode, quote_ccy, instrument_type, instrument_symbol, instrument_exchange_mic, provider_config, created_at, updated_at)
+             VALUES ('asset-sync-snap-old', 'INVESTMENT', 'Old Asset', 'OLD', NULL, NULL, 1, 'MANUAL', 'USD', NULL, NULL, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                    ('asset-sync-snap-new', 'INVESTMENT', 'New Asset', 'NEW', NULL, NULL, 1, 'MANUAL', 'USD', NULL, NULL, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        )
+        .execute(&mut conn)
+        .expect("insert assets");
+
+        let snap_id = "snap-sync-stale";
+        // Seed: receiving device already has the snapshot + relational
+        // positions for "old asset".
+        diesel::sql_query(format!(
+            "INSERT INTO holdings_snapshots (id, account_id, snapshot_date, currency, positions, cash_balances, cost_basis, net_contribution, calculated_at, net_contribution_base, cash_total_account_currency, cash_total_base_currency, source) \
+             VALUES ('{}', 'acc-sync-snap', '2026-01-01', 'USD', '{{}}', '{{}}', '0', '0', '2026-01-01T00:00:00Z', '0', '0', '0', 'MANUAL_ENTRY')",
+            snap_id
+        ))
+        .execute(&mut conn)
+        .expect("insert snapshot");
+
+        diesel::sql_query(format!(
+            "INSERT INTO snapshot_positions (snapshot_id, asset_id, quantity, average_cost, total_cost_basis, currency, inception_date, is_alternative, contract_multiplier, created_at, last_updated) \
+             VALUES ('{}', 'asset-sync-snap-old', '5', '100', '500', 'USD', '2026-01-01T00:00:00Z', 0, '1', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+            snap_id
+        ))
+        .execute(&mut conn)
+        .expect("insert stale snapshot_positions");
+
+        // Sanity check: relational row exists.
+        let before: CountRow = diesel::sql_query(format!(
+            "SELECT COUNT(*) AS c FROM snapshot_positions WHERE snapshot_id = '{}'",
+            snap_id
+        ))
+        .get_result(&mut conn)
+        .expect("count before");
+        assert_eq!(before.c, 1);
+
+        drop(conn);
+
+        // Remote sync sends an updated snapshot for the same id with
+        // positions JSON referencing the new asset.
+        let applied = repo
+            .apply_remote_event_lww(
+                SyncEntity::Snapshot,
+                snap_id.to_string(),
+                SyncOperation::Update,
+                "evt-snap-update".to_string(),
+                "2026-02-01T00:00:00Z".to_string(),
+                1,
+                serde_json::json!({
+                    "id": snap_id,
+                    "accountId": "acc-sync-snap",
+                    "snapshotDate": "2026-01-01",
+                    "currency": "USD",
+                    "positions": "{\"asset-sync-snap-new\":{\"assetId\":\"asset-sync-snap-new\",\"quantity\":\"7\",\"averageCost\":\"110\",\"totalCostBasis\":\"770\",\"currency\":\"USD\",\"inceptionDate\":\"2026-01-01T00:00:00Z\",\"contractMultiplier\":\"1\",\"createdAt\":\"2026-01-01T00:00:00Z\",\"lastUpdated\":\"2026-01-01T00:00:00Z\"}}",
+                    "cashBalances": "{}",
+                    "costBasis": "0",
+                    "netContribution": "0",
+                    "calculatedAt": "2026-02-01T00:00:00Z",
+                    "netContributionBase": "0",
+                    "cashTotalAccountCurrency": "0",
+                    "cashTotalBaseCurrency": "0",
+                    "source": "MANUAL_ENTRY",
+                }),
+            )
+            .await
+            .expect("apply snapshot update");
+        assert!(applied, "snapshot update event must apply");
+
+        let mut conn = get_connection(&pool).expect("conn");
+        // The relational rows for the snapshot must be wiped — read paths
+        // will fall back to the freshly-synced JSON.
+        let after: CountRow = diesel::sql_query(format!(
+            "SELECT COUNT(*) AS c FROM snapshot_positions WHERE snapshot_id = '{}'",
+            snap_id
+        ))
+        .get_result(&mut conn)
+        .expect("count after");
+        assert_eq!(
+            after.c, 0,
+            "stale relational rows must be cleared on sync upsert"
+        );
     }
 }

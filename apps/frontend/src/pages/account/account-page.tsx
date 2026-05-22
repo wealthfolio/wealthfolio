@@ -144,7 +144,7 @@ const AccountPage = () => {
   // Query holdings to check if account has any assets
   const { data: holdings, isLoading: isHoldingsLoading } = useQuery<Holding[], Error>({
     queryKey: [QueryKeys.HOLDINGS, id],
-    queryFn: () => getHoldings(id),
+    queryFn: () => getHoldings({ type: "account", accountId: id }),
   });
 
   // Check if account has any holdings (including cash)

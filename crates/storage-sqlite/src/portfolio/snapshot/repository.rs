@@ -10,12 +10,14 @@ use log::{debug, warn};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use super::model::AccountStateSnapshotDB;
+use super::model::{AccountStateSnapshotDB, NewSnapshotPositionRecord, SnapshotPositionRecord};
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
 use wealthfolio_core::constants::PORTFOLIO_TOTAL_ACCOUNT_ID;
 use wealthfolio_core::errors::{Error, Result};
-use wealthfolio_core::portfolio::snapshot::{AccountStateSnapshot, SnapshotRepositoryTrait};
+use wealthfolio_core::portfolio::snapshot::{
+    AccountStateSnapshot, Position, SnapshotRepositoryTrait,
+};
 
 pub struct SnapshotRepository {
     pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
@@ -38,6 +40,14 @@ impl SnapshotRepository {
             return Ok(());
         }
 
+        // Capture positions for the snapshot_positions dual-write. Include
+        // empty maps so replacing a snapshot with no positions clears stale
+        // relational rows for that snapshot.
+        let positions_to_write: Vec<(String, HashMap<String, Position>)> = snapshots
+            .iter()
+            .map(|s| (s.id.clone(), s.positions.clone()))
+            .collect();
+
         let db_models: Vec<AccountStateSnapshotDB> = snapshots
             .iter()
             .cloned()
@@ -53,6 +63,12 @@ impl SnapshotRepository {
                     .values(&db_models)
                     .execute(conn)
                     .map_err(StorageError::from)?;
+
+                // Dual-write positions to the relational table.
+                for (snap_id, pos_map) in &positions_to_write {
+                    Self::write_snapshot_positions(conn, snap_id, pos_map)?;
+                }
+
                 Ok(())
             })
             .await
@@ -614,6 +630,17 @@ impl SnapshotRepository {
                 .collect()
         };
 
+        // Capture positions for the snapshot_positions dual-write before the
+        // AccountStateSnapshotDB::from conversion. Mirrors save_snapshots:
+        // without this, the FK ON DELETE CASCADE wipes snapshot_positions
+        // rows tied to the deleted CALCULATED snapshots, and the replacement
+        // INSERT below never repopulates them — breaking the dual-write
+        // invariant for every Full recalc.
+        let positions_to_write: Vec<(String, HashMap<String, Position>)> = filtered_snapshots
+            .iter()
+            .map(|s| (s.id.clone(), s.positions.clone()))
+            .collect();
+
         let db_models: Vec<AccountStateSnapshotDB> = filtered_snapshots
             .iter()
             .cloned()
@@ -639,6 +666,12 @@ impl SnapshotRepository {
                         .execute(conn)
                         .map_err(StorageError::from)?;
                 }
+
+                // Dual-write positions to the relational table.
+                for (snap_id, pos_map) in &positions_to_write {
+                    Self::write_snapshot_positions(conn, snap_id, pos_map)?;
+                }
+
                 Ok(())
             })
             .await
@@ -701,6 +734,8 @@ impl SnapshotRepository {
     ) -> Result<()> {
         use crate::schema::holdings_snapshots::dsl::*;
 
+        let snap_id = snapshot.id.clone();
+        let positions_to_write = snapshot.positions.clone();
         let db_model = AccountStateSnapshotDB::from(snapshot.clone());
         debug!(
             "Saving/updating snapshot for account {} on date {}",
@@ -715,6 +750,10 @@ impl SnapshotRepository {
                     .map_err(StorageError::from)?;
 
                 tx.insert(&db_model)?;
+
+                // Dual-write positions to the relational table. Empty maps
+                // intentionally clear any stale relational rows.
+                Self::write_snapshot_positions(tx.conn(), &snap_id, &positions_to_write)?;
 
                 Ok(())
             })
@@ -753,6 +792,222 @@ impl SnapshotRepository {
             .map_err(StorageError::from)?;
 
         Ok(result.map(AccountStateSnapshot::from))
+    }
+
+    // --- snapshot_positions helpers ---
+    //
+    // The relational table is dual-written alongside the legacy positions JSON.
+    // Reads prefer the relational table and fall back to the JSON column when
+    // no rows exist for a snapshot — keeps older snapshots, synced peers on
+    // prior schema versions, and rollback scenarios working.
+
+    /// Load positions from the `snapshot_positions` table for a single
+    /// snapshot, with a JSON-column fallback.
+    fn get_snapshot_positions_impl(
+        &self,
+        snapshot_id_param: &str,
+    ) -> Result<HashMap<String, Position>> {
+        use crate::schema::snapshot_positions::dsl::*;
+
+        let mut conn = get_connection(&self.pool)?;
+
+        let rows: Vec<SnapshotPositionRecord> = snapshot_positions
+            .filter(snapshot_id.eq(snapshot_id_param))
+            .load(&mut conn)
+            .map_err(StorageError::from)?;
+
+        // account_id is needed to reconstruct Position.id; positions JSON is
+        // the fallback when the relational table has no rows for this
+        // snapshot (e.g. snapshot written before this PR landed).
+        let snap_meta: Option<(String, String)> = {
+            use crate::schema::holdings_snapshots::dsl as hs;
+            hs::holdings_snapshots
+                .select((hs::account_id, hs::positions))
+                .filter(hs::id.eq(snapshot_id_param))
+                .first::<(String, String)>(&mut conn)
+                .optional()
+                .map_err(StorageError::from)?
+        };
+        let (acct_id, positions_json) = snap_meta.unwrap_or_default();
+
+        if rows.is_empty() {
+            return Ok(deserialize_positions_json(&positions_json, &acct_id));
+        }
+
+        let mut map = HashMap::new();
+        for row in rows {
+            let pos = row.to_position(&acct_id);
+            map.insert(pos.asset_id.clone(), pos);
+        }
+        Ok(map)
+    }
+
+    /// Batch-load positions for multiple snapshot IDs. Uses the same
+    /// JSON-fallback semantics as `get_snapshot_positions_impl`.
+    fn get_snapshot_positions_batch_impl(
+        &self,
+        snapshot_ids_param: &[String],
+    ) -> Result<HashMap<String, HashMap<String, Position>>> {
+        use crate::schema::snapshot_positions::dsl::*;
+
+        if snapshot_ids_param.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let mut conn = get_connection(&self.pool)?;
+
+        let rows: Vec<SnapshotPositionRecord> = snapshot_positions
+            .filter(snapshot_id.eq_any(snapshot_ids_param))
+            .load(&mut conn)
+            .map_err(StorageError::from)?;
+
+        let snap_meta: HashMap<String, (String, String)> = {
+            use crate::schema::holdings_snapshots::dsl as hs;
+            let triples: Vec<(String, String, String)> = hs::holdings_snapshots
+                .select((hs::id, hs::account_id, hs::positions))
+                .filter(hs::id.eq_any(snapshot_ids_param))
+                .load(&mut conn)
+                .map_err(StorageError::from)?;
+            triples
+                .into_iter()
+                .map(|(sid, acct, pj)| (sid, (acct, pj)))
+                .collect()
+        };
+
+        let mut result: HashMap<String, HashMap<String, Position>> = HashMap::new();
+        for row in rows {
+            let acct_id = snap_meta
+                .get(&row.snapshot_id)
+                .map(|(a, _)| a.clone())
+                .unwrap_or_default();
+            let snap_id = row.snapshot_id.clone();
+            let pos = row.to_position(&acct_id);
+            result
+                .entry(snap_id)
+                .or_default()
+                .insert(pos.asset_id.clone(), pos);
+        }
+
+        // Fallback for snapshots without any rows in the relational table.
+        for sid in snapshot_ids_param {
+            if result.contains_key(sid) {
+                continue;
+            }
+            if let Some((acct, pj)) = snap_meta.get(sid) {
+                let map = deserialize_positions_json(pj, acct);
+                if !map.is_empty() {
+                    result.insert(sid.clone(), map);
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Replace the rows in `snapshot_positions` for a given snapshot_id.
+    /// Deletes existing rows first, then inserts new ones. Called inside the
+    /// same transaction as the holdings_snapshots write so both representations
+    /// move together.
+    ///
+    /// Positions whose `asset_id` no longer exists in `assets` are silently
+    /// dropped with a warning. The legacy positions JSON has no FK constraint,
+    /// so a snapshot can carry references to assets that have since been
+    /// deleted; the relational table does enforce the FK, so attempting to
+    /// insert an orphan row would abort the whole save. Drop them here so the
+    /// JSON write (which still happens in AccountStateSnapshotDB) keeps the
+    /// historical reference while the relational view stays clean.
+    fn write_snapshot_positions(
+        conn: &mut SqliteConnection,
+        snap_id: &str,
+        positions: &HashMap<String, Position>,
+    ) -> std::result::Result<(), StorageError> {
+        use crate::schema::snapshot_positions::dsl::*;
+
+        diesel::delete(snapshot_positions.filter(snapshot_id.eq(snap_id)))
+            .execute(conn)
+            .map_err(StorageError::from)?;
+
+        if positions.is_empty() {
+            return Ok(());
+        }
+
+        let existing_asset_ids =
+            Self::existing_asset_ids(conn, positions.values().map(|p| p.asset_id.as_str()))?;
+
+        let mut records: Vec<NewSnapshotPositionRecord> = Vec::with_capacity(positions.len());
+        for pos in positions.values() {
+            if !existing_asset_ids.contains(pos.asset_id.as_str()) {
+                warn!(
+                    "Dropping snapshot position for missing asset {} (snapshot {})",
+                    pos.asset_id, snap_id
+                );
+                continue;
+            }
+            records.push(NewSnapshotPositionRecord::from_position(snap_id, pos));
+        }
+
+        if records.is_empty() {
+            return Ok(());
+        }
+
+        diesel::insert_into(snapshot_positions)
+            .values(&records)
+            .execute(conn)
+            .map_err(StorageError::from)?;
+
+        Ok(())
+    }
+
+    /// Returns the subset of `candidate_ids` that exist in `assets`.
+    /// Used by write paths that mirror data from the legacy positions JSON
+    /// (which has no FK constraint) into FK-enforced relational tables.
+    fn existing_asset_ids<'a, I>(
+        conn: &mut SqliteConnection,
+        candidate_ids: I,
+    ) -> std::result::Result<HashSet<String>, StorageError>
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
+        use crate::schema::assets::dsl as a;
+
+        let unique: HashSet<String> = candidate_ids.into_iter().map(|s| s.to_string()).collect();
+        if unique.is_empty() {
+            return Ok(HashSet::new());
+        }
+        let needles: Vec<String> = unique.iter().cloned().collect();
+        let found: Vec<String> = a::assets
+            .select(a::id)
+            .filter(a::id.eq_any(&needles))
+            .load(conn)
+            .map_err(StorageError::from)?;
+        Ok(found.into_iter().collect())
+    }
+}
+
+/// Deserialize the legacy `holdings_snapshots.positions` JSON column into a
+/// position map. Returns empty for "{}" or unparseable input. `acct_id` is
+/// stamped onto each Position so callers see a consistent account_id even
+/// if older serialized payloads lacked the field.
+fn deserialize_positions_json(json: &str, acct_id: &str) -> HashMap<String, Position> {
+    if json.is_empty() || json == "{}" {
+        return HashMap::new();
+    }
+    match serde_json::from_str::<HashMap<String, Position>>(json) {
+        Ok(mut map) => {
+            for pos in map.values_mut() {
+                if pos.account_id.is_empty() {
+                    pos.account_id = acct_id.to_string();
+                }
+            }
+            map
+        }
+        Err(e) => {
+            warn!(
+                "Failed to parse positions JSON fallback (acct {}): {}",
+                acct_id, e
+            );
+            HashMap::new()
+        }
     }
 }
 
@@ -898,6 +1153,17 @@ impl SnapshotRepositoryTrait for SnapshotRepository {
     ) -> Result<Option<AccountStateSnapshot>> {
         self.get_earliest_non_calculated_snapshot_impl(account_id)
     }
+
+    fn get_snapshot_positions(&self, snapshot_id: &str) -> Result<HashMap<String, Position>> {
+        self.get_snapshot_positions_impl(snapshot_id)
+    }
+
+    fn get_snapshot_positions_batch(
+        &self,
+        snapshot_ids: &[String],
+    ) -> Result<HashMap<String, HashMap<String, Position>>> {
+        self.get_snapshot_positions_batch_impl(snapshot_ids)
+    }
 }
 
 #[cfg(test)]
@@ -962,6 +1228,50 @@ mod tests {
         .expect("Failed to create test account");
     }
 
+    fn create_test_asset(pool: &Arc<Pool<ConnectionManager<SqliteConnection>>>, asset_id: &str) {
+        let mut conn = get_connection(pool).expect("Failed to get connection");
+        diesel::sql_query(format!(
+            "INSERT INTO assets (id, kind, name, display_code, notes, metadata, is_active, quote_mode, quote_ccy, instrument_type, instrument_symbol, instrument_exchange_mic, provider_config, created_at, updated_at) \
+             VALUES ('{}', 'INVESTMENT', 'Test Asset', 'TEST', NULL, NULL, 1, 'MANUAL', 'USD', NULL, NULL, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            asset_id
+        ))
+        .execute(&mut conn)
+        .expect("Failed to create test asset");
+    }
+
+    fn create_test_position(account_id: &str, asset_id: &str) -> Position {
+        let now = chrono::Utc::now();
+        Position {
+            id: format!("POS-{}-{}", account_id, asset_id),
+            account_id: account_id.to_string(),
+            asset_id: asset_id.to_string(),
+            quantity: Decimal::from(10),
+            average_cost: Decimal::from(25),
+            total_cost_basis: Decimal::from(250),
+            currency: "USD".to_string(),
+            inception_date: now,
+            lots: Default::default(),
+            created_at: now,
+            last_updated: now,
+            is_alternative: false,
+            contract_multiplier: Decimal::ONE,
+        }
+    }
+
+    fn count_snapshot_positions(
+        pool: &Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        snapshot_id_value: &str,
+    ) -> i64 {
+        use crate::schema::snapshot_positions::dsl as sp;
+
+        let mut conn = get_connection(pool).expect("Failed to get connection");
+        sp::snapshot_positions
+            .filter(sp::snapshot_id.eq(snapshot_id_value))
+            .select(count_star())
+            .first::<i64>(&mut conn)
+            .expect("Failed to count snapshot positions")
+    }
+
     /// Helper to create a test snapshot with specific source
     fn create_test_snapshot(
         account_id: &str,
@@ -983,6 +1293,76 @@ mod tests {
             calculated_at: chrono::Utc::now().naive_utc(),
             source,
         }
+    }
+
+    #[tokio::test]
+    async fn test_save_or_update_snapshot_clears_positions_when_empty() {
+        let (repo, pool, _temp_dir) = create_test_repository().await;
+        let account_id = "test-account-empty-update";
+        let asset_id = "asset-empty-update";
+        create_test_account(&pool, account_id);
+        create_test_asset(&pool, asset_id);
+
+        let mut snapshot = create_test_snapshot(
+            account_id,
+            NaiveDate::from_ymd_opt(2024, 5, 1).unwrap(),
+            SnapshotSource::ManualEntry,
+        );
+        snapshot.positions.insert(
+            asset_id.to_string(),
+            create_test_position(account_id, asset_id),
+        );
+
+        repo.save_or_update_snapshot(&snapshot)
+            .await
+            .expect("save snapshot with position");
+        assert_eq!(count_snapshot_positions(&pool, &snapshot.id), 1);
+
+        snapshot.positions.clear();
+        repo.save_or_update_snapshot(&snapshot)
+            .await
+            .expect("save snapshot with no positions");
+
+        assert_eq!(
+            count_snapshot_positions(&pool, &snapshot.id),
+            0,
+            "empty snapshot updates must clear stale relational positions"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_save_snapshots_clears_positions_when_empty() {
+        let (repo, pool, _temp_dir) = create_test_repository().await;
+        let account_id = "test-account-empty-batch";
+        let asset_id = "asset-empty-batch";
+        create_test_account(&pool, account_id);
+        create_test_asset(&pool, asset_id);
+
+        let mut snapshot = create_test_snapshot(
+            account_id,
+            NaiveDate::from_ymd_opt(2024, 5, 2).unwrap(),
+            SnapshotSource::Calculated,
+        );
+        snapshot.positions.insert(
+            asset_id.to_string(),
+            create_test_position(account_id, asset_id),
+        );
+
+        repo.save_snapshots(std::slice::from_ref(&snapshot))
+            .await
+            .expect("save batch snapshot with position");
+        assert_eq!(count_snapshot_positions(&pool, &snapshot.id), 1);
+
+        snapshot.positions.clear();
+        repo.save_snapshots(std::slice::from_ref(&snapshot))
+            .await
+            .expect("save batch snapshot with no positions");
+
+        assert_eq!(
+            count_snapshot_positions(&pool, &snapshot.id),
+            0,
+            "empty batch snapshot writes must clear stale relational positions"
+        );
     }
 
     #[tokio::test]

@@ -2,7 +2,7 @@ import { getHoldings } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { QueryKeys } from "@/lib/query-keys";
-import { Account, Holding, HoldingType } from "@/lib/types";
+import { Holding, HoldingType } from "@/lib/types";
 import { canAddHoldings } from "@/lib/activity-restrictions";
 import { HoldingsTable } from "@/pages/holdings/components/holdings-table";
 import { HoldingsTableMobile } from "@/pages/holdings/components/holdings-table-mobile";
@@ -36,7 +36,7 @@ const AccountHoldings = ({
 
   const { data: holdings, isLoading } = useQuery<Holding[], Error>({
     queryKey: [QueryKeys.HOLDINGS, accountId],
-    queryFn: () => getHoldings(accountId),
+    queryFn: () => getHoldings({ type: "account", accountId }),
   });
 
   const { accounts } = useAccounts();
@@ -54,10 +54,6 @@ const AccountHoldings = ({
   // Check if user can directly edit holdings (manual HOLDINGS-mode accounts only)
   const canEditHoldingsDirectly = useMemo(() => {
     return canAddHoldings(selectedAccount ?? undefined);
-  }, [selectedAccount]);
-
-  const dummyAccounts = useMemo(() => {
-    return selectedAccount ? [selectedAccount] : [];
   }, [selectedAccount]);
 
   const filteredHoldings = holdings?.filter((holding) => holding.holdingType !== HoldingType.CASH);
@@ -155,10 +151,6 @@ const AccountHoldings = ({
     );
   }
 
-  const handleAccountChange = (_account: Account) => {
-    // No-op for account page since we're already on a specific account
-  };
-
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
@@ -184,10 +176,11 @@ const AccountHoldings = ({
           isLoading={isLoading}
           selectedTypes={selectedTypes}
           setSelectedTypes={setSelectedTypes}
-          selectedAccount={selectedAccount}
-          accounts={dummyAccounts}
-          onAccountChange={handleAccountChange}
-          showAccountFilter={false}
+          accountFilter={{ type: "account", accountId: selectedAccount?.id ?? "" }}
+          onAccountScopeChange={() => {}}
+          accounts={[]}
+          portfolios={[]}
+          showAccountScope={false}
           typeOptions={typeOptions}
         />
       ) : (
