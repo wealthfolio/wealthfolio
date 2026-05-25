@@ -1,6 +1,6 @@
 import { getAccounts, logger } from "@/adapters";
 import { usePlatform } from "@/hooks/use-platform";
-import { isCashSymbol, needsImportAssetResolution } from "@/lib/activity-utils";
+import { isCashSymbol, needsImportAssetResolutionForRow } from "@/lib/activity-utils";
 import { canImportCSV } from "@/lib/activity-restrictions";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account } from "@/lib/types";
@@ -205,6 +205,18 @@ function useStepValidation(isHoldingsMode: boolean, accounts?: Account[]) {
                 .map((h) => headers.indexOf(h))
                 .filter((i) => i !== -1)
             : [];
+          const quantityMapping = mapping.fieldMappings[ImportFormat.QUANTITY];
+          const qtyCols = quantityMapping
+            ? (Array.isArray(quantityMapping) ? quantityMapping : [quantityMapping])
+                .map((h) => headers.indexOf(h))
+                .filter((i) => i !== -1)
+            : [];
+          const unitPriceMapping = mapping.fieldMappings[ImportFormat.UNIT_PRICE];
+          const priceCols = unitPriceMapping
+            ? (Array.isArray(unitPriceMapping) ? unitPriceMapping : [unitPriceMapping])
+                .map((h) => headers.indexOf(h))
+                .filter((i) => i !== -1)
+            : [];
 
           if (symbolHeaderIndex !== -1) {
             const symbolsNeedingResolution = new Set<string>();
@@ -236,9 +248,22 @@ function useStepValidation(isHoldingsMode: boolean, accounts?: Account[]) {
                   csvActivityType,
                   mapping.activityMappings || {},
                 );
+                const quantity = qtyCols
+                  .map((idx) => row[idx]?.trim())
+                  .find((value) => value && value.length > 0);
+                const unitPrice = priceCols
+                  .map((idx) => row[idx]?.trim())
+                  .find((value) => value && value.length > 0);
                 if (
                   mappedType &&
-                  (!needsImportAssetResolution(mappedType, csvSubtype) || isCashSymbol(symbol))
+                  (!needsImportAssetResolutionForRow({
+                    activityType: mappedType,
+                    subtype: csvSubtype,
+                    symbol,
+                    quantity,
+                    unitPrice,
+                  }) ||
+                    isCashSymbol(symbol))
                 ) {
                   return;
                 }

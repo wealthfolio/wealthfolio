@@ -12,7 +12,7 @@ import {
   type SymbolSearchResult,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { isCashSymbol, needsImportAssetResolution } from "@/lib/activity-utils";
+import { isCashSymbol, needsImportAssetResolutionForRow } from "@/lib/activity-utils";
 import {
   Badge,
   SearchableSelect,
@@ -400,8 +400,20 @@ export function MappingCell({
     // Skip symbol display when not required (pure cash types, cash symbols)
     const csvType = getMappedValue(row, ImportFormat.ACTIVITY_TYPE)?.trim();
     const csvSubtype = getMappedValue(row, ImportFormat.SUBTYPE)?.trim();
+    const quantity = getMappedValue(row, ImportFormat.QUANTITY)?.trim();
+    const unitPrice = getMappedValue(row, ImportFormat.UNIT_PRICE)?.trim();
     const appType = csvType ? findMappedActivityType(csvType, mapping.activityMappings) : null;
-    if (appType && (!needsImportAssetResolution(appType, csvSubtype) || isCashSymbol(symbol))) {
+    if (
+      appType &&
+      (!needsImportAssetResolutionForRow({
+        activityType: appType,
+        subtype: csvSubtype,
+        symbol,
+        quantity,
+        unitPrice,
+      }) ||
+        isCashSymbol(symbol))
+    ) {
       return <span className="text-muted-foreground text-xs">-</span>;
     }
 

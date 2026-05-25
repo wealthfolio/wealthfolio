@@ -7,6 +7,7 @@ import {
   isAssetBackedIncomeSubtype,
   isAssetIdentityRequired,
   needsImportAssetResolution,
+  needsImportAssetResolutionForRow,
   calculateActivityValue,
   formatSplitRatio,
 } from "./activity-utils";
@@ -106,6 +107,74 @@ describe("Activity Utilities", () => {
 
     it("does not force cash-only interest imports through asset resolution", () => {
       expect(needsImportAssetResolution(ActivityType.INTEREST)).toBe(false);
+    });
+  });
+
+  describe("needsImportAssetResolutionForRow", () => {
+    it("requires asset resolution for security transfers with a real symbol and quantity", () => {
+      expect(
+        needsImportAssetResolutionForRow({
+          activityType: ActivityType.TRANSFER_IN,
+          symbol: "MSFT",
+          quantity: "10",
+          unitPrice: "0",
+        }),
+      ).toBe(true);
+    });
+
+    it("requires asset resolution for security transfer-outs with a real symbol and unit price", () => {
+      expect(
+        needsImportAssetResolutionForRow({
+          activityType: ActivityType.TRANSFER_OUT,
+          symbol: "MSFT",
+          quantity: "0",
+          unitPrice: "425.50",
+        }),
+      ).toBe(true);
+    });
+
+    it("does not require asset resolution for cash transfers", () => {
+      expect(
+        needsImportAssetResolutionForRow({
+          activityType: ActivityType.TRANSFER_IN,
+          symbol: "CASH:USD",
+          quantity: "10",
+          unitPrice: "100",
+        }),
+      ).toBe(false);
+    });
+
+    it("does not require asset resolution for cash transfer-outs", () => {
+      expect(
+        needsImportAssetResolutionForRow({
+          activityType: ActivityType.TRANSFER_OUT,
+          symbol: "$CASH-USD",
+          quantity: "5",
+          unitPrice: "100",
+        }),
+      ).toBe(false);
+    });
+
+    it("does not auto-resolve transfer rows with a real symbol but no quantity or price", () => {
+      expect(
+        needsImportAssetResolutionForRow({
+          activityType: ActivityType.TRANSFER_IN,
+          symbol: "MSFT",
+          quantity: "0",
+          unitPrice: "0",
+        }),
+      ).toBe(false);
+    });
+
+    it("does not auto-resolve transfer-outs with a real symbol but no quantity or price", () => {
+      expect(
+        needsImportAssetResolutionForRow({
+          activityType: ActivityType.TRANSFER_OUT,
+          symbol: "MSFT",
+          quantity: "",
+          unitPrice: "",
+        }),
+      ).toBe(false);
     });
   });
 

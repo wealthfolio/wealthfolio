@@ -37,7 +37,7 @@ import {
 } from "../utils/default-activity-template";
 import { mergeDetectedParseConfig } from "../utils/import-flow-utils";
 
-import { isCashSymbol, needsImportAssetResolution } from "@/lib/activity-utils";
+import { isCashSymbol, needsImportAssetResolutionForRow } from "@/lib/activity-utils";
 import { IMPORT_REQUIRED_FIELDS, ImportFormat } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, CsvRowData, ImportTemplateData } from "@/lib/types";
@@ -147,11 +147,23 @@ export function MappingStepUnified() {
 
       const csvType = getMappedValue(row, ImportFormat.ACTIVITY_TYPE)?.trim();
       const csvSubtype = getMappedValue(row, ImportFormat.SUBTYPE)?.trim();
+      const quantity = getMappedValue(row, ImportFormat.QUANTITY)?.trim();
+      const unitPrice = getMappedValue(row, ImportFormat.UNIT_PRICE)?.trim();
       const appType = csvType
         ? findMappedActivityType(csvType, localMapping.activityMappings || {})
         : null;
 
-      if (appType && (!needsImportAssetResolution(appType, csvSubtype) || isCashSymbol(symbol))) {
+      if (
+        appType &&
+        (!needsImportAssetResolutionForRow({
+          activityType: appType,
+          subtype: csvSubtype,
+          symbol,
+          quantity,
+          unitPrice,
+        }) ||
+          isCashSymbol(symbol))
+      ) {
         return;
       }
 
@@ -293,11 +305,23 @@ export function MappingStepUnified() {
 
       const csvType = getMappedValue(row, ImportFormat.ACTIVITY_TYPE)?.trim();
       const csvSubtype = getMappedValue(row, ImportFormat.SUBTYPE)?.trim();
+      const quantity = getMappedValue(row, ImportFormat.QUANTITY)?.trim();
+      const unitPrice = getMappedValue(row, ImportFormat.UNIT_PRICE)?.trim();
       const appType = csvType
         ? findMappedActivityType(csvType, localMapping.activityMappings || {})
         : null;
 
-      if (appType && (!needsImportAssetResolution(appType, csvSubtype) || isCashSymbol(symbol))) {
+      if (
+        appType &&
+        (!needsImportAssetResolutionForRow({
+          activityType: appType,
+          subtype: csvSubtype,
+          symbol,
+          quantity,
+          unitPrice,
+        }) ||
+          isCashSymbol(symbol))
+      ) {
         return;
       }
       if (validateTickerSymbol(symbol) || localMapping.symbolMappings?.[symbol]) return;

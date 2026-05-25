@@ -18,7 +18,7 @@ import {
   SUBTYPES_BY_ACTIVITY_TYPE,
   SUBTYPE_DISPLAY_NAMES,
 } from "@/lib/constants";
-import { needsImportAssetResolution } from "@/lib/activity-utils";
+import { needsImportAssetResolutionForRow } from "@/lib/activity-utils";
 import { quoteModeFromSearchResult } from "@/lib/asset-utils";
 import { ActivityTypeBadge } from "../../components/activity-type-badge";
 import type { DraftActivity, DraftActivityStatus } from "../context";
@@ -367,7 +367,14 @@ function useImportReviewColumns({
             onCreateCustomAsset,
             isClearable: (rowData: unknown) => {
               const row = rowData as DraftActivity;
-              return !needsImportAssetResolution(row.activityType ?? "", row.subtype);
+              return !needsImportAssetResolutionForRow({
+                activityType: row.activityType,
+                subtype: row.subtype,
+                symbol: row.symbol,
+                assetId: row.assetId,
+                quantity: row.quantity,
+                unitPrice: row.unitPrice,
+              });
             },
           },
         },

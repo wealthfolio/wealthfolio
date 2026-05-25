@@ -83,6 +83,24 @@ export const needsImportAssetResolution = (
   return isAssetIdentityRequired(activityType, subtype);
 };
 
+const hasNonZeroNumericValue = (value?: string | number | null): boolean => {
+  if (value == null) {
+    return false;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value !== 0;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed !== 0;
+};
+
 /**
  * Determines if an activity is a cash transfer based on its type and identifiers.
  * A transfer is cash when:
@@ -143,6 +161,32 @@ export const isSecuritiesTransfer = (
     return false;
   }
   return !isCashTransfer(activityType, assetSymbol, assetId);
+};
+
+/**
+ * Import-time asset resolution for transfer rows needs row-level values.
+ * Security transfers require asset resolution only when they have a real
+ * non-cash symbol and a non-zero quantity or unit price, matching backend
+ * import classification.
+ */
+export const needsImportAssetResolutionForRow = (input: {
+  activityType?: string | null;
+  subtype?: string | null;
+  symbol?: string | null;
+  assetId?: string | null;
+  quantity?: string | number | null;
+  unitPrice?: string | number | null;
+}): boolean => {
+  const activityType = input.activityType?.trim() ?? "";
+  if (needsImportAssetResolution(activityType, input.subtype)) {
+    return true;
+  }
+
+  if (!isSecuritiesTransfer(activityType, input.symbol ?? undefined, input.assetId ?? undefined)) {
+    return false;
+  }
+
+  return hasNonZeroNumericValue(input.quantity) || hasNonZeroNumericValue(input.unitPrice);
 };
 
 const isCanonicalCashIdentifier = (identifier: string): boolean => {

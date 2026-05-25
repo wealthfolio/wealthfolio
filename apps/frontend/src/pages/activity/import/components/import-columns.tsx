@@ -8,7 +8,7 @@ import {
   SUBTYPES_BY_ACTIVITY_TYPE,
   SUBTYPE_DISPLAY_NAMES,
 } from "@/lib/constants";
-import { needsImportAssetResolution } from "@/lib/activity-utils";
+import { needsImportAssetResolutionForRow } from "@/lib/activity-utils";
 import { ActivityTypeBadge } from "../../components/activity-type-badge";
 
 const UNIT_PRICE_HELP_TEXT =
@@ -274,7 +274,13 @@ export function useImportColumns<T extends ImportRowData>({
           onCreateCustomAsset,
           isClearable: (rowData: unknown) => {
             const row = rowData as ImportRowData;
-            return !needsImportAssetResolution(row.activityType ?? "", row.subtype);
+            return !needsImportAssetResolutionForRow({
+              activityType: row.activityType,
+              subtype: row.subtype,
+              symbol: row.symbol ?? row.assetSymbol,
+              quantity: row.quantity,
+              unitPrice: row.unitPrice,
+            });
           },
         },
       },

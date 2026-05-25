@@ -1,4 +1,4 @@
-import { isCashSymbol, needsImportAssetResolution } from "@/lib/activity-utils";
+import { isCashSymbol, needsImportAssetResolutionForRow } from "@/lib/activity-utils";
 import { quoteModeFromSearchResult } from "@/lib/asset-utils";
 import { ActivityType } from "@/lib/constants";
 import type {
@@ -127,7 +127,14 @@ export function buildImportAssetCandidateFromDraft(
     return null;
   }
   if (
-    !needsImportAssetResolution(draft.activityType, draft.subtype) ||
+    !needsImportAssetResolutionForRow({
+      activityType: draft.activityType,
+      subtype: draft.subtype,
+      symbol: draft.symbol,
+      assetId: draft.assetId,
+      quantity: draft.quantity,
+      unitPrice: draft.unitPrice,
+    }) ||
     isCashSymbol(draft.symbol)
   ) {
     return null;

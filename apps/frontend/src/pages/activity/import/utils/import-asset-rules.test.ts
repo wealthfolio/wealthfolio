@@ -45,6 +45,68 @@ describe("import asset rules", () => {
     expect(candidate?.symbol).toBe("SOL");
   });
 
+  it("builds asset candidates for security transfers", () => {
+    const candidate = buildImportAssetCandidateFromDraft(
+      createDraft({
+        activityType: ActivityType.TRANSFER_IN,
+        symbol: "MSFT",
+        quantity: "0.692",
+        unitPrice: "506.69",
+        instrumentType: "EQUITY",
+        quoteCcy: "USD",
+      }),
+    );
+
+    expect(candidate).not.toBeNull();
+    expect(candidate?.symbol).toBe("MSFT");
+  });
+
+  it("does not build asset candidates for cash transfers", () => {
+    const candidate = buildImportAssetCandidateFromDraft(
+      createDraft({
+        activityType: ActivityType.TRANSFER_IN,
+        symbol: "CASH:USD",
+        quantity: "1",
+        unitPrice: "1",
+        instrumentType: "EQUITY",
+        quoteCcy: "USD",
+      }),
+    );
+
+    expect(candidate).toBeNull();
+  });
+
+  it("builds asset candidates for security transfer-outs", () => {
+    const candidate = buildImportAssetCandidateFromDraft(
+      createDraft({
+        activityType: ActivityType.TRANSFER_OUT,
+        symbol: "MSFT",
+        quantity: "5",
+        unitPrice: "410.25",
+        instrumentType: "EQUITY",
+        quoteCcy: "USD",
+      }),
+    );
+
+    expect(candidate).not.toBeNull();
+    expect(candidate?.symbol).toBe("MSFT");
+  });
+
+  it("does not build asset candidates for ambiguous transfers without quantity or price", () => {
+    const candidate = buildImportAssetCandidateFromDraft(
+      createDraft({
+        activityType: ActivityType.TRANSFER_IN,
+        symbol: "MSFT",
+        quantity: "",
+        unitPrice: "",
+        instrumentType: "EQUITY",
+        quoteCcy: "USD",
+      }),
+    );
+
+    expect(candidate).toBeNull();
+  });
+
   it("keeps otherwise identical candidates distinct when their ISIN differs", () => {
     const first = buildImportAssetCandidateFromDraft(
       createDraft({
