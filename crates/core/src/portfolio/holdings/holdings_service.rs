@@ -1172,13 +1172,6 @@ mod tests {
             Ok(Some(self.snapshot.clone()))
         }
 
-        async fn recalculate_total_portfolio_snapshots(
-            &self,
-            _mode: SnapshotRecalcMode,
-        ) -> Result<usize> {
-            unimplemented!("unused in holdings service tests")
-        }
-
         async fn save_manual_snapshot(
             &self,
             _account_id: &str,

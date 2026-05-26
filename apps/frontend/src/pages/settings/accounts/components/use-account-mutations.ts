@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { createAccount, updateAccount, deleteAccount, logger } from "@/adapters";
+import { invalidateSpendingCaches } from "@/features/spending/lib/invalidation";
 import { QueryKeys } from "@/lib/query-keys";
 interface UseAccountMutationsProps {
   onSuccess?: () => void;
@@ -16,6 +17,12 @@ export function useAccountMutations({ onSuccess = () => undefined }: UseAccountM
     }
   };
 
+  const invalidateAccountDependentQueries = () => {
+    queryClient.invalidateQueries({ queryKey: [QueryKeys.ACCOUNTS] });
+    queryClient.invalidateQueries({ queryKey: [QueryKeys.SPENDING_SETTINGS] });
+    invalidateSpendingCaches(queryClient);
+  };
+
   const handleError = (action: string) => {
     toast({
       title: `Uh oh! Something went wrong ${action} this account.`,
@@ -28,7 +35,7 @@ export function useAccountMutations({ onSuccess = () => undefined }: UseAccountM
     mutationFn: createAccount,
     onSuccess: () => {
       handleSuccess("Account created successfully.");
-      queryClient.invalidateQueries({ queryKey: [QueryKeys.ACCOUNTS] });
+      invalidateAccountDependentQueries();
     },
     onError: (e) => {
       logger.error(`Error creating account: ${e}`);
@@ -40,7 +47,7 @@ export function useAccountMutations({ onSuccess = () => undefined }: UseAccountM
     mutationFn: updateAccount,
     onSuccess: () => {
       handleSuccess();
-      queryClient.invalidateQueries({ queryKey: [QueryKeys.ACCOUNTS] });
+      invalidateAccountDependentQueries();
     },
     onError: (e) => {
       logger.error(`Error updating account: ${e}`);
@@ -52,7 +59,7 @@ export function useAccountMutations({ onSuccess = () => undefined }: UseAccountM
     mutationFn: deleteAccount,
     onSuccess: () => {
       handleSuccess();
-      queryClient.invalidateQueries({ queryKey: [QueryKeys.ACCOUNTS] });
+      invalidateAccountDependentQueries();
     },
     onError: (e) => {
       logger.error(`Error deleting account: ${e}`);

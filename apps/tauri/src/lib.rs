@@ -23,8 +23,62 @@ use log::error;
 use log::warn;
 use tauri::{AppHandle, Emitter, Manager};
 
-use events::emit_app_ready;
+use events::{emit_app_ready, emit_portfolio_trigger_recalculate, PortfolioRequestPayload};
 use tauri_plugin_deep_link::DeepLinkExt;
+
+fn portfolio_history_backfill_needed(context: &Arc<context::ServiceContext>) -> bool {
+    let accounts = match context.account_service().get_non_archived_accounts() {
+        Ok(accounts) => accounts,
+        Err(err) => {
+            error!("Failed to inspect accounts for valuation backfill: {}", err);
+            return false;
+        }
+    };
+    let account_ids: Vec<String> = accounts.into_iter().map(|account| account.id).collect();
+    if account_ids.is_empty() {
+        return false;
+    }
+
+    let latest = match context
+        .valuation_service()
+        .get_latest_valuations(&account_ids)
+    {
+        Ok(latest) => latest,
+        Err(err) => {
+            error!("Failed to inspect valuation history for backfill: {}", err);
+            return false;
+        }
+    };
+    let accounts_with_valuations: std::collections::HashSet<_> = latest
+        .into_iter()
+        .map(|valuation| valuation.account_id)
+        .collect();
+    let missing_ids: Vec<String> = account_ids
+        .into_iter()
+        .filter(|account_id| !accounts_with_valuations.contains(account_id))
+        .collect();
+    if missing_ids.is_empty() {
+        return false;
+    }
+
+    if matches!(
+        context
+            .activity_service()
+            .get_first_activity_date(Some(&missing_ids)),
+        Ok(Some(_))
+    ) {
+        return true;
+    }
+
+    missing_ids.iter().any(|account_id| {
+        matches!(
+            context
+                .snapshot_service()
+                .get_latest_holdings_snapshot(account_id),
+            Ok(Some(_))
+        )
+    })
+}
 
 #[cfg(feature = "device-sync")]
 fn start_sync_outbox_wake_worker(
@@ -119,6 +173,10 @@ mod desktop {
         // The frontend will trigger the initial portfolio update and update check after it's mounted
         emit_app_ready(&handle);
 
+        if portfolio_history_backfill_needed(&context) {
+            emit_portfolio_trigger_recalculate(&handle, PortfolioRequestPayload::builder().build());
+        }
+
         // Trigger startup sync (async, non-blocking)
         // After this, user manually triggers sync via button
         let startup_handle = handle.clone();
@@ -202,6 +260,13 @@ mod mobile {
                     // Notify frontend that app is ready
                     // The frontend will trigger the initial portfolio update after it's mounted
                     emit_app_ready(&handle);
+
+                    if portfolio_history_backfill_needed(&context) {
+                        emit_portfolio_trigger_recalculate(
+                            &handle,
+                            PortfolioRequestPayload::builder().build(),
+                        );
+                    }
 
                     // Trigger startup broker sync (async, non-blocking).
                     // After this, user manually triggers sync via button.
@@ -369,6 +434,46 @@ pub fn run() {
             commands::settings::update_exchange_rate,
             commands::settings::add_exchange_rate,
             commands::settings::delete_exchange_rate,
+            // Spending commands
+            commands::spending::get_spending_settings,
+            commands::spending::update_spending_settings,
+            commands::spending::list_cash_activities,
+            commands::spending::search_cash_activities,
+            commands::spending::set_activity_event,
+            commands::spending::get_activity_assignments,
+            commands::spending::assign_activity_category,
+            commands::spending::unassign_activity_category,
+            commands::spending::bulk_assign_categories,
+            commands::spending::list_categorization_rules,
+            commands::spending::create_categorization_rule,
+            commands::spending::update_categorization_rule,
+            commands::spending::delete_categorization_rule,
+            commands::spending::rerun_categorization_rules,
+            commands::spending::list_rule_presets,
+            commands::spending::import_rule_preset,
+            commands::spending::remove_rule_preset,
+            commands::spending::list_event_types,
+            commands::spending::create_event_type,
+            commands::spending::update_event_type,
+            commands::spending::delete_event_type,
+            commands::spending::list_events,
+            commands::spending::create_event,
+            commands::spending::update_event,
+            commands::spending::delete_event,
+            commands::spending::get_budget,
+            commands::spending::upsert_budget_target,
+            commands::spending::delete_budget_target,
+            commands::spending::upsert_budget_rollover_setting,
+            commands::spending::delete_budget_rollover_setting,
+            commands::spending::create_budget_group,
+            commands::spending::update_budget_group,
+            commands::spending::delete_budget_group,
+            commands::spending::assign_category_to_group,
+            commands::spending::reset_budget_groups,
+            commands::spending::copy_budget_targets,
+            commands::spending::get_spending_report,
+            commands::spending::get_spending_insight,
+            commands::spending::get_event_spending_summaries,
             // Goal commands
             commands::goal::create_goal,
             commands::goal::update_goal,

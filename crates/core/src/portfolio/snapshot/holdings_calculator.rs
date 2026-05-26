@@ -1,3 +1,4 @@
+use crate::accounts::account_types;
 use crate::activities::{Activity, ActivityType};
 use crate::assets::AssetRepositoryTrait;
 use crate::errors::{CalculatorError, Error, Result};
@@ -194,6 +195,21 @@ impl HoldingsCalculator {
         activities_today: &[Activity], // Assumes these are for the *target* date and already split-adjusted
         target_date: NaiveDate,
     ) -> Result<HoldingsCalculationResult> {
+        self.calculate_next_holdings_for_account_type(
+            previous_snapshot,
+            activities_today,
+            target_date,
+            None,
+        )
+    }
+
+    pub fn calculate_next_holdings_for_account_type(
+        &self,
+        previous_snapshot: &AccountStateSnapshot,
+        activities_today: &[Activity], // Assumes these are for the *target* date and already split-adjusted
+        target_date: NaiveDate,
+        account_type: Option<&str>,
+    ) -> Result<HoldingsCalculationResult> {
         debug!(
             "Calculating holdings for account {} on date {}",
             previous_snapshot.account_id, target_date
@@ -234,6 +250,7 @@ impl HoldingsCalculator {
                 &mut next_state,
                 &account_currency,
                 &mut asset_cache,
+                account_type,
             ) {
                 Ok(_) => {} // Activity processed successfully
                 Err(e) => {
@@ -312,6 +329,7 @@ impl HoldingsCalculator {
         state: &mut AccountStateSnapshot,
         account_currency: &str,
         asset_cache: &mut HashMap<String, (String, bool, Decimal)>,
+        account_type: Option<&str>,
     ) -> Result<()> {
         let activity_type = ActivityType::from_str(&activity.activity_type).map_err(|_| {
             CalculatorError::UnsupportedActivityType(activity.activity_type.clone())
@@ -324,6 +342,9 @@ impl HoldingsCalculator {
             ActivityType::Sell => self.handle_sell(activity, state, account_currency, asset_cache),
             ActivityType::Deposit => self.handle_deposit(activity, state, account_currency),
             ActivityType::Withdrawal => self.handle_withdrawal(activity, state, account_currency),
+            ActivityType::Interest if account_type == Some(account_types::CREDIT_CARD) => {
+                self.handle_charge(activity, state, &activity_type)
+            }
             ActivityType::Dividend | ActivityType::Interest | ActivityType::Credit => {
                 self.handle_income(activity, state, account_currency)
             }

@@ -4,6 +4,8 @@ import { PrivacyToggle } from "@/components/privacy-toggle";
 import { AlternativeAssetQuickAddModal } from "@/pages/asset/alternative-assets/components";
 import { useNavigationMode } from "@/pages/layouts/navigation/navigation-mode-context";
 import { AlternativeAssetKind } from "@/lib/types";
+import SpendingTabContent from "@/features/spending/components/spending-tab-content";
+import { useSpendingSettings } from "@/features/spending/hooks/use-spending-settings";
 import { Button, Icons } from "@wealthfolio/ui";
 import { Card, CardContent, CardHeader } from "@wealthfolio/ui/components/ui/card";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
@@ -94,8 +96,10 @@ export default function PortfolioPage() {
     </>
   );
 
-  const views: SwipablePageView[] = useMemo(
-    () => [
+  const { isEnabled: spendingEnabled } = useSpendingSettings();
+
+  const views: SwipablePageView[] = useMemo(() => {
+    const items: SwipablePageView[] = [
       {
         value: "investments",
         label: "Investments",
@@ -118,13 +122,39 @@ export default function PortfolioPage() {
         ),
         actions: netWorthActions,
       },
-    ],
-    [investmentActions, netWorthActions, handleAddAsset, handleAddLiability],
-  );
+    ];
+    if (spendingEnabled) {
+      items.push({
+        value: "spending",
+        label: "Spending",
+        icon: Icons.HandCoins,
+        content: (
+          <Suspense fallback={<PageLoader />}>
+            <SpendingTabContent />
+          </Suspense>
+        ),
+        actions: commonActions,
+      });
+    }
+    return items;
+  }, [
+    investmentActions,
+    netWorthActions,
+    commonActions,
+    handleAddAsset,
+    handleAddLiability,
+    spendingEnabled,
+  ]);
 
   return (
     <>
-      <SwipablePage className="pt-0" views={views} defaultView="investments" withPadding={false} />
+      <SwipablePage
+        className="pt-0"
+        views={views}
+        defaultView="investments"
+        withPadding={false}
+        persistKey="dashboard-tab"
+      />
       <AlternativeAssetQuickAddModal
         open={isQuickAddOpen}
         onOpenChange={(open) => {

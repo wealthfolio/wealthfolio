@@ -14,8 +14,12 @@ import React, { useState } from "react";
 // Explanatory texts for info popovers
 export const TIME_WEIGHTED_RETURN_INFO =
   "Time-Weighted Return (TWR) measures the compound growth rate of a portfolio, ignoring the impact of cash flows (deposits/withdrawals). It isolates the performance of the underlying investments.";
-export const MONEY_WEIGHTED_RETURN_INFO =
-  "Money-Weighted Return (MWR) measures the performance of a portfolio taking into account the size and timing of cash flows. It represents the internal rate of return (IRR) of the portfolio.";
+export const MODIFIED_DIETZ_RETURN_INFO =
+  "Modified Dietz return measures portfolio performance while accounting for the size and timing of external cash flows during the period.";
+export const SIMPLE_RETURN_INFO =
+  "Simple return measures value growth over the selected period after adjusting for external cash flows. It is not time weighted.";
+export const PRICE_RETURN_INFO =
+  "Price return measures the selected symbol's price change over the selected period.";
 export const VOLATILITY_INFO =
   "Volatility measures the dispersion of returns for a given investment. Higher volatility means the price of the investment can change dramatically over a short time period in either direction.";
 export const MAX_DRAWDOWN_INFO =

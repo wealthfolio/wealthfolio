@@ -77,7 +77,6 @@ pub trait LotRepositoryTrait: Send + Sync {
     async fn get_open_lots_for_account(&self, account_id: &str) -> Result<Vec<LotRecord>>;
 
     /// Returns all open (is_closed = 0) lot rows across all accounts.
-    /// Used when building live holdings for the TOTAL pseudo-account.
     async fn get_all_open_lots(&self) -> Result<Vec<LotRecord>>;
 
     /// Returns all lots that were active on `date` for the specified accounts.
@@ -108,7 +107,6 @@ pub trait LotRepositoryTrait: Send + Sync {
     ) -> Result<Vec<AssetLotView>>;
 
     /// Returns every lot row (open and closed) across all accounts.
-    /// Used when computing valuations for the TOTAL pseudo-account.
     async fn get_all_lots(&self) -> Result<Vec<LotRecord>>;
 
     /// Syncs the lots table for the given account while preserving closed history:

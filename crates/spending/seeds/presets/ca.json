@@ -1,0 +1,313 @@
+{
+  "presetId": "ca",
+  "presetVersion": "2026-05.2",
+  "name": "Canada",
+  "description": "~40 expense rules covering common Canadian household transactions. Includes major regional chains in ON, QC, BC, and Atlantic Canada, plus housing, car maintenance, health, personal care, pets, education, giving, and fees.",
+  "language": "en-CA",
+  "rules": [
+    {
+      "key": "ca.groceries.major_chains",
+      "name": "Groceries — major chains",
+      "pattern": "(?i)loblaws|no ?frills|real canadian (superstore|liquor)|\\bmetro inc\\b|\\bmetro plus\\b|sobeys|\\biga\\b|\\bmaxi\\b|provigo|save-?on-?foods|\\bt & ?t\\b|whole foods|farm boy|fortinos|food basics|valu-?mart|zehrs|longo'?s|freshco|atlantic superstore|your independent grocer|farmboy",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 80
+    },
+    {
+      "key": "ca.groceries.warehouse",
+      "name": "Costco & Walmart",
+      "pattern": "(?i)costco wholesale|walmart supercentre|walmart canada|\\bbulk barn\\b",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 75
+    },
+    {
+      "key": "ca.coffee",
+      "name": "Coffee shops",
+      "pattern": "(?i)tim ?hortons|\\btims\\b|starbucks|second cup|country style|balzac'?s|aroma espresso|\\bcoffee\\b|\\bcafe\\b|\\bespresso\\b",
+      "matchType": "regex",
+      "categoryKey": "food_coffee",
+      "priority": 80
+    },
+    {
+      "key": "ca.fastfood",
+      "name": "Fast food",
+      "pattern": "(?i)mcdonald|a ?& ?w|\\bwendy\\b|burger king|\\bsubway\\b|harvey'?s|swiss chalet|\\bkfc\\b|popeye|\\bmary brown'?s\\b|\\bmr\\.? sub\\b|domino|pizza pizza|pizza nova|pizza hut|little caesars|panago|boston pizza|the keg|montana'?s|kelsey'?s|jack astor|st-?hubert|chipotle|five guys|\\bdq\\b|dairy queen|\\bopa souvlaki\\b|new york fries|\\bmucho burrito\\b|freshii|chopped leaf|teriyaki experience|booster juice|jugo juice|smoothie king",
+      "matchType": "regex",
+      "categoryKey": "food_restaurants",
+      "priority": 75
+    },
+    {
+      "key": "ca.food_delivery",
+      "name": "Food delivery",
+      "pattern": "(?i)skip ?the ?dishes|skipthedishes|uber ?eats|\\bdoordash\\b|\\bfoodora\\b|\\bjust ?eat\\b|\\binstacart\\b|fantuan",
+      "matchType": "regex",
+      "categoryKey": "food_delivery",
+      "priority": 85
+    },
+    {
+      "key": "ca.bars_alcohol",
+      "name": "Bars & liquor (LCBO/SAQ/BCL)",
+      "pattern": "(?i)\\blcbo\\b|\\bsaq\\b|\\bbc liquor\\b|alcool nb|nslc|nlc liquor|\\bpub\\b|\\btavern\\b|brewing\\b|brewery|wine rack|\\bbeer store\\b",
+      "matchType": "regex",
+      "categoryKey": "food_alcohol",
+      "priority": 80
+    },
+    {
+      "key": "ca.gas",
+      "name": "Gas stations",
+      "pattern": "(?i)petro-?canada|petrocan|\\besso\\b|\\bshell\\b|chevron|husky|pioneer\\b|ultramar|\\bco-?op\\b gas|canadian tire gas|costco gas|\\bmobil\\b|race trac|circle k|couche-?tard|\\b7-?eleven\\b|on the run\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_gas",
+      "priority": 80
+    },
+    {
+      "key": "ca.transit",
+      "name": "Public transit",
+      "pattern": "(?i)\\bpresto\\b|\\bttc\\b|go transit|metrolinx|oc transpo|\\bstm\\b|\\bsto\\b|via rail|trans?link|\\bcompass card\\b|\\bom card\\b|york region transit|\\byrt\\b|brampton transit|miway|\\bgrt\\b|edmonton transit|calgary transit|st cathar|amt transport",
+      "matchType": "regex",
+      "categoryKey": "transport_public",
+      "priority": 80
+    },
+    {
+      "key": "ca.rideshare",
+      "name": "Rideshare & taxi",
+      "pattern": "(?i)\\buber\\b|\\blyft\\b|\\beva\\b ride|beck taxi|\\btaxi\\b|\\bcab\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_rideshare",
+      "priority": 80
+    },
+    {
+      "key": "ca.parking",
+      "name": "Parking",
+      "pattern": "(?i)\\bimpark\\b|\\bindigo\\b parking|honk\\b mobile|paybyphone|green ?p|park'?n fly|diamond parking|\\bprecise park\\b|tour ?parking",
+      "matchType": "regex",
+      "categoryKey": "transport_parking",
+      "priority": 85
+    },
+    {
+      "key": "ca.car_maintenance",
+      "name": "Car maintenance",
+      "pattern": "(?i)mr\\.? lube|jiffy lube|kal tire|canadian tire auto|midas|fountain tire|partsource|napa auto|oil changers|speedy auto|car wash|auto repair|mechanic",
+      "matchType": "regex",
+      "categoryKey": "transport_maintenance",
+      "priority": 85
+    },
+    {
+      "key": "ca.airlines",
+      "name": "Airlines",
+      "pattern": "(?i)air canada|\\bwestjet\\b|porter airlines|\\bflair\\b airlines|sunwing|air transat|\\bswoop\\b|lynx air",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 90
+    },
+    {
+      "key": "ca.hotels_chains",
+      "name": "Hotels (intl chains in CA)",
+      "pattern": "(?i)marriott|\\bhilton\\b|\\bhyatt\\b|holiday inn|best western|fairmont|wyndham|delta hotels|four points|hampton inn|courtyard|residence inn|\\bdoubletree\\b|comfort inn|comfort suites|chateau\\b|sandman hotel|coast hotels",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 85
+    },
+    {
+      "key": "ca.travel_booking",
+      "name": "Travel booking",
+      "pattern": "(?i)airbnb|\\bvrbo\\b|expedia|booking\\.com|hotels\\.com|trivago|priceline|via rail|travelocity\\.ca|tripcentral|flight ?centre|sunwing vacations",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 90
+    },
+    {
+      "key": "ca.streaming",
+      "name": "Streaming services",
+      "pattern": "(?i)netflix|spotify|apple\\.com/bill|apple music|disney ?\\+|\\bcrave\\b|prime video|amazon prime video|amazon ?\\.ca/?prime|amazon\\.ca\\*?prime|youtube ?premium|youtube ?tv|sirius ?xm|\\baudible\\b|crunchyroll|\\btidal\\b|\\bcbc gem\\b|paramount ?\\+",
+      "matchType": "regex",
+      "categoryKey": "entertainment_streaming",
+      "priority": 85
+    },
+    {
+      "key": "ca.software_subs",
+      "name": "Software & cloud",
+      "pattern": "(?i)\\badobe\\b|microsoft ?\\*|\\bm365\\b|office 365|dropbox|\\bicloud\\b|google ?storage|google ?one|\\bnotion\\b|\\bslack\\b|\\bzoom\\.us\\b|\\bgithub\\b|jetbrains|chatgpt|openai|claude\\.ai|anthropic|\\bnyt\\b|globe ?and ?mail|\\b1password\\b|grammarly|\\bcanva\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_software",
+      "priority": 80
+    },
+    {
+      "key": "ca.telecom",
+      "name": "Phone & internet",
+      "pattern": "(?i)bell canada|\\bbell mobility\\b|\\brogers\\b|\\btelus\\b|\\bfido\\b|\\bkoodo\\b|virgin ?mobile|virgin plus|public ?mobile|freedom ?mobile|videotron|\\bshaw\\b|\\beastlink\\b|\\bcogeco\\b|\\btbaytel\\b|\\bsasktel\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_phone",
+      "priority": 80
+    },
+    {
+      "key": "ca.utilities",
+      "name": "Utilities (hydro/gas)",
+      "pattern": "(?i)hydro one|hydro ?qu[eé]bec|bc hydro|\\benmax\\b|\\bepcor\\b|manitoba hydro|nb power|nl hydro|\\bsaskpower\\b|\\bsaskenergy\\b|fortisbc|\\bfortis\\b inc|union gas|\\benbridge\\b|atco gas|atco electric|toronto hydro|nova scotia power|\\bnsp\\b|alectra|hydro ottawa|oakville hydro",
+      "matchType": "regex",
+      "categoryKey": "housing_utilities",
+      "priority": 80
+    },
+    {
+      "key": "ca.housing_rent_mortgage",
+      "name": "Rent, mortgage & condo fees",
+      "pattern": "(?i)\\brent\\b|mortgage|condo fee|strata fee|appfolio|yardi|rentcafe|resident portal|padmapper|rbc mortgage|td mortgage|scotia mortgage|bmo mortgage|cibc mortgage|first national|\\bmcap\\b|equitable bank",
+      "matchType": "regex",
+      "categoryKey": "housing_rent",
+      "priority": 88
+    },
+    {
+      "key": "ca.online_marketplaces",
+      "name": "Online marketplaces",
+      "pattern": "(?i)amazon\\.ca|amzn mktp ca|\\bamzn\\b|\\bebay\\b|\\betsy\\b|\\btemu\\b|\\bshein\\b|aliexpress|wayfair|\\bposhmark\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_online",
+      "priority": 70
+    },
+    {
+      "key": "ca.shopping_clothing",
+      "name": "Clothing retailers",
+      "pattern": "(?i)\\bnike\\b|\\badidas\\b|lululemon|\\bathleta\\b|sport ?chek|mark'?s\\b|\\bmec\\b|mountain equipment|atmosphere|\\bgolf town\\b|sail\\b|hudson'?s? bay|\\bthe bay\\b|simons|holt renfrew|aritzia|\\bharry rosen\\b|\\bzara\\b|\\bh&m\\b|uniqlo|\\bgap\\b|old navy|banana republic|j ?crew|\\bwinners\\b|marshalls|homesense|\\bbluenotes\\b|garage|dynamite|reitmans|le château|\\broots\\b canada|\\bwarby parker\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_clothing",
+      "priority": 80
+    },
+    {
+      "key": "ca.shopping_electronics",
+      "name": "Electronics",
+      "pattern": "(?i)best buy|the source|apple store|microsoft store|\\bnewegg\\b|memory ?express|canada computers",
+      "matchType": "regex",
+      "categoryKey": "shopping_electronics",
+      "priority": 85
+    },
+    {
+      "key": "ca.home_improvement",
+      "name": "Home improvement & home goods",
+      "pattern": "(?i)canadian tire|home depot|\\blowe'?s\\b|\\brona\\b|\\bréno-?dépôt\\b|home hardware|\\bikea\\b|leon'?s|the brick|structube|crate ?& ?barrel|west elm|williams-?sonoma|pottery barn|\\bjysk\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_home",
+      "priority": 80
+    },
+    {
+      "key": "ca.pharmacy",
+      "name": "Pharmacy",
+      "pattern": "(?i)shoppers drug|\\bsdm\\b|pharmaprix|\\brexall\\b|london drugs|jean coutu|pharmasave|costco pharmacy|brunet|familiprix|uniprix|guardian pharmacy|drug ?mart",
+      "matchType": "regex",
+      "categoryKey": "health_pharmacy",
+      "priority": 85
+    },
+    {
+      "key": "ca.medical",
+      "name": "Medical & clinics",
+      "pattern": "(?i)life ?labs|dynacare|maple|telus health|clinic|medical centre|medical center|hospital|walk-?in clinic|physio|chiropractic|massage therapy",
+      "matchType": "regex",
+      "categoryKey": "health_medical",
+      "priority": 86
+    },
+    {
+      "key": "ca.dental",
+      "name": "Dental",
+      "pattern": "(?i)dental|dentist|orthodont|dentalcorp|altima dental",
+      "matchType": "regex",
+      "categoryKey": "health_dental",
+      "priority": 86
+    },
+    {
+      "key": "ca.vision",
+      "name": "Vision",
+      "pattern": "(?i)specsavers|lenscrafters|hakim optical|fyidoctors|clearly|bailey nelson|optical|optomet|vision care",
+      "matchType": "regex",
+      "categoryKey": "health_vision",
+      "priority": 86
+    },
+    {
+      "key": "ca.health_insurance",
+      "name": "Health insurance",
+      "pattern": "(?i)sun life|manulife|canada life|green shield|blue cross|group benefits|health insurance",
+      "matchType": "regex",
+      "categoryKey": "health_insurance",
+      "priority": 86
+    },
+    {
+      "key": "ca.fitness",
+      "name": "Gyms & fitness",
+      "pattern": "(?i)goodlife fitness|fit4less|anytime fitness|\\bla fitness\\b canada|\\borange theory\\b|\\bf45\\b|crossfit|\\bymca\\b|\\bywca\\b|\\bsteve nash\\b fitness|club energie|\\bspartacus gym\\b|yyoga|equinox\\b|\\bnautilus plus\\b",
+      "matchType": "regex",
+      "categoryKey": "health_fitness",
+      "priority": 85
+    },
+    {
+      "key": "ca.movies_tickets",
+      "name": "Movies & live events",
+      "pattern": "(?i)\\bcineplex\\b|landmark cinemas|\\bimax\\b|live ?nation|ticketmaster|seatgeek|stubhub|theatre|concert hall|massey hall|roy thomson",
+      "matchType": "regex",
+      "categoryKey": "entertainment_movies",
+      "priority": 85
+    },
+    {
+      "key": "ca.dollar_discount",
+      "name": "Dollar stores & discount",
+      "pattern": "(?i)dollarama|\\bgiant tiger\\b|\\bdollar tree\\b canada|\\bbig lots\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping",
+      "priority": 75
+    },
+    {
+      "key": "ca.personal_care",
+      "name": "Personal care",
+      "pattern": "(?i)salon|barber|spa\\b|nail salon|\\bnails\\b|sephora|chatters|first choice haircutters|great clips|tommy guns|massage addict|hand & stone|haircut",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 82
+    },
+    {
+      "key": "ca.pets",
+      "name": "Pets",
+      "pattern": "(?i)pet valu|petsmart|global pet foods|ren'?s pets|veterinary|vet clinic|animal hospital|pet supplies",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 82
+    },
+    {
+      "key": "ca.education_childcare",
+      "name": "Education & childcare",
+      "pattern": "(?i)tuition|university|college|school payment|daycare|day care|child ?care|brightpath|kids & company|kumon|coursera|udemy",
+      "matchType": "regex",
+      "categoryKey": "education",
+      "priority": 82
+    },
+    {
+      "key": "ca.donations",
+      "name": "Donations & charities",
+      "pattern": "(?i)canadahelps|united way|red cross|unicef|\\bchurch\\b|\\btithe\\b|donation|charity|gofundme",
+      "matchType": "regex",
+      "categoryKey": "gifts",
+      "priority": 82
+    },
+    {
+      "key": "ca.bank_fees",
+      "name": "Bank & ATM fees",
+      "pattern": "(?i)\\batm fee\\b|nsf fee|monthly fee|service charge|wire fee|overdraft|annual fee|interac e-?transfer fee",
+      "matchType": "regex",
+      "categoryKey": "fees_bank",
+      "priority": 90
+    },
+    {
+      "key": "ca.insurance_auto",
+      "name": "Auto / home insurance",
+      "pattern": "(?i)\\bicbc\\b|\\bsgi\\b auto|\\bmpi\\b|td insurance|intact insurance|\\baviva\\b|belairdirect|\\bsonnet\\b|rbc insurance|cooperators|the personal|economical|allstate canada|state farm canada|desjardins insurance",
+      "matchType": "regex",
+      "categoryKey": "transport_insurance",
+      "priority": 85
+    },
+    {
+      "key": "ca.gov_taxes",
+      "name": "Government & taxes",
+      "pattern": "(?i)\\bcra\\b|canada revenue|service canada|service ontario|saaq|saao|servicebc|service alberta|passport canada|property tax|municipal tax",
+      "matchType": "regex",
+      "categoryKey": "fees",
+      "priority": 90
+    }
+  ]
+}

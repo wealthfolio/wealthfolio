@@ -151,10 +151,7 @@ impl<E: AiEnvironment + 'static> Tool for SearchActivitiesTool<E> {
             .unwrap_or(DEFAULT_PAGE_SIZE)
             .clamp(1, MAX_ACTIVITIES_ROWS as i64);
 
-        // Normalize empty / sentinel values to None
-        let account_id = args
-            .account_id
-            .filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("TOTAL"));
+        let account_id = args.account_id.filter(|s| !s.is_empty());
         let activity_types = args
             .activity_type
             .filter(|s| !s.is_empty())
@@ -166,7 +163,7 @@ impl<E: AiEnvironment + 'static> Tool for SearchActivitiesTool<E> {
             let accounts = self
                 .env
                 .account_service()
-                .get_active_accounts()
+                .get_active_non_archived_accounts()
                 .unwrap_or_default();
             let is_known_id = accounts.iter().any(|a| a.id == *raw);
             if is_known_id {

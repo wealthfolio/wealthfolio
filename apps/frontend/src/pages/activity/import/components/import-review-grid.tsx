@@ -27,6 +27,10 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { searchTicker } from "@/adapters";
 import { CreateCustomAssetDialog } from "@/components/create-custom-asset-dialog";
 import { useSettingsContext } from "@/lib/settings-provider";
+import {
+  DEFAULT_ACTIVITY_IMPORT_PROFILE,
+  type ActivityImportProfile,
+} from "../utils/activity-import-profile";
 
 const UNIT_PRICE_HELP_TEXT =
   "For buys and sells, enter the trade price. For staking rewards and in-kind dividends, enter the fair market value per unit at receipt; it sets income amount and cost basis.";
@@ -49,6 +53,7 @@ export interface ImportReviewGridProps {
   onBulkSetAccount?: (rowIndexes: number[], accountId: string) => void;
   /** Override the grid height (default: "calc(100vh - 360px)"). */
   gridHeight?: string | number;
+  importProfile?: ActivityImportProfile;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -139,6 +144,7 @@ interface UseImportReviewColumnsOptions {
   onSymbolSearch: (query: string) => Promise<SymbolSearchResult[]>;
   onSymbolSelect?: (rowIndex: number, symbol: string, result?: SymbolSearchResult) => void;
   onCreateCustomAsset?: (rowIndex: number, symbol: string) => void;
+  importProfile: ActivityImportProfile;
 }
 
 function useImportReviewColumns({
@@ -146,6 +152,7 @@ function useImportReviewColumns({
   onSymbolSearch,
   onSymbolSelect,
   onCreateCustomAsset,
+  importProfile,
 }: UseImportReviewColumnsOptions): ColumnDef<DraftActivity>[] {
   const accountOptions = useMemo(
     () =>
@@ -158,11 +165,11 @@ function useImportReviewColumns({
 
   const activityTypeOptions = useMemo(
     () =>
-      Object.values(ActivityType).map((type) => ({
+      importProfile.allowedActivityTypes.map((type) => ({
         value: type,
         label: ActivityTypeNames[type],
       })),
-    [],
+    [importProfile.allowedActivityTypes],
   );
 
   // Dynamic subtype options based on activity type
@@ -178,8 +185,9 @@ function useImportReviewColumns({
     }));
   }, []);
 
-  return useMemo<ColumnDef<DraftActivity>[]>(
-    () => [
+  return useMemo<ColumnDef<DraftActivity>[]>(() => {
+    const visibleDataColumns = new Set<string>(importProfile.reviewColumns);
+    const allColumns: ColumnDef<DraftActivity>[] = [
       // === Pinned left (always visible) ===
       // 1. Select
       {
@@ -459,16 +467,23 @@ function useImportReviewColumns({
         enableSorting: false,
         meta: { cell: { variant: "long-text" } },
       },
-    ],
-    [
-      accountOptions,
-      activityTypeOptions,
-      getSubtypeOptions,
-      onSymbolSearch,
-      onSymbolSelect,
-      onCreateCustomAsset,
-    ],
-  );
+    ];
+
+    return allColumns.filter(
+      (column) =>
+        column.id === "select" ||
+        column.id === "status" ||
+        (column.id ? visibleDataColumns.has(column.id) : true),
+    );
+  }, [
+    accountOptions,
+    activityTypeOptions,
+    getSubtypeOptions,
+    importProfile.reviewColumns,
+    onSymbolSearch,
+    onSymbolSelect,
+    onCreateCustomAsset,
+  ]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -487,6 +502,7 @@ export function ImportReviewGrid({
   onBulkSetCurrency,
   onBulkSetAccount,
   gridHeight,
+  importProfile = DEFAULT_ACTIVITY_IMPORT_PROFILE,
 }: ImportReviewGridProps) {
   const { settings } = useSettingsContext();
   const fallbackCurrency = settings?.baseCurrency ?? "USD";
@@ -661,6 +677,7 @@ export function ImportReviewGrid({
     onSymbolSearch: handleSymbolSearch,
     onSymbolSelect: handleSymbolSelect,
     onCreateCustomAsset: handleCreateCustomAsset,
+    importProfile,
   });
 
   // Ref to track if we're in the middle of syncing selection

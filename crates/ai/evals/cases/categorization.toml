@@ -1,0 +1,88 @@
+# Spending categorization flow evals.
+#
+# Validates the two-tool dance documented in `system_prompt.txt`:
+#   list_categorization_context  →  propose_transaction_categories(aiProposals)
+# Plus the rule-draft flow when the user gives a hint like "T&T is groceries".
+
+name = "categorization"
+description = "Agent flows for the spending categorization feature."
+
+# ----------------------------------------------------------------------------
+
+[[case]]
+id = "categorize_basic_two_tool_dance"
+description = "Bare 'categorize' prompt → list_context first, then propose with aiProposals"
+prompt = "Categorize my uncategorized transactions"
+severity = "P0"
+tags = ["smoke", "spending"]
+
+[[case.expected_tools]]
+name = "list_categorization_context"
+
+[[case.expected_tools]]
+name = "propose_transaction_categories"
+[case.expected_tools.args]
+aiProposals = "not_empty"
+accountIds  = "absent_or_empty"
+
+[case.max_tool_calls]
+list_categorization_context = 1
+propose_transaction_categories = 1
+
+# ----------------------------------------------------------------------------
+
+[[case]]
+id = "hint_drafts_rule_for_confirmation"
+description = "User hint 'X is Y' → draft a rule for confirmation"
+prompt = "T&T is groceries"
+severity = "P0"
+tags = ["regression", "spending", "hint-flow"]
+
+[[case.expected_tools]]
+name = "create_categorization_rule"
+[case.expected_tools.args]
+taxonomyId = "spending_categories"
+categoryKey = "groceries"
+pattern = { contains = "T&T" }
+
+[case.max_tool_calls]
+create_categorization_rule = 1
+
+[case.forbidden_tools]
+record_activity = "hint is a categorization op, not a draft op"
+
+# ----------------------------------------------------------------------------
+
+[[case]]
+id = "categorize_does_not_recap_in_text"
+description = "Agent's text reply must not duplicate widget content (no row counts, payee lists, category lists)"
+prompt = "Categorize my uncategorized transactions"
+severity = "P2"
+tags = ["polish", "spending"]
+
+[case.expected_response]
+rubric = """
+Did the assistant's text reply AVOID listing payee names (like COBS BREAD,
+T&T SUPERMARKET, etc.), AVOID stating row counts (like '12 transactions'),
+and AVOID repeating the proposed categories? It should be at most one short
+sentence since the widget shows the details.
+Pass = reply is one short sentence not enumerating widget contents.
+Fail = reply lists payees, counts, or proposed categories.
+"""
+
+# ----------------------------------------------------------------------------
+
+[[case]]
+id = "categorize_with_inline_hint"
+description = "User asks to categorize AND gives a hint in same prompt — both should happen"
+prompt = "Categorize my transactions; treat anything with TIM HORTONS as Restaurants"
+severity = "P1"
+tags = ["spending", "hint-flow"]
+
+[[case.expected_tools]]
+name = "create_categorization_rule"
+[case.expected_tools.args]
+pattern = { contains = "TIM HORTONS" }
+
+[[case.expected_tools]]
+name = "propose_transaction_categories"

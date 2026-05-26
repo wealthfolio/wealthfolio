@@ -12,8 +12,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@wealthfolio/ui/components/ui/alert-dialog";
-import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -21,10 +19,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@wealthfolio/ui/components/ui/dialog";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { Avatar, AvatarFallback } from "@wealthfolio/ui/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@wealthfolio/ui/components/ui/dropdown-menu";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
+import { Button, Checkbox, EmptyPlaceholder, Icons, Separator, Skeleton } from "@wealthfolio/ui";
 import { SettingsHeader } from "../settings-header";
 
 export default function PortfoliosPage() {
@@ -51,47 +57,99 @@ export default function PortfoliosPage() {
     deleteMutation.mutate(deleting.id, { onSuccess: () => setDeleting(null) });
   };
 
+  if (isLoading) {
+    return (
+      <div>
+        <Skeleton className="h-12" />
+        <Skeleton className="h-12" />
+      </div>
+    );
+  }
+
   return (
     <>
-      <SettingsHeader heading="Portfolios" text="Create named reporting scopes across accounts.">
-        <Button onClick={openCreate}>
-          <Icons.Plus className="mr-2 h-4 w-4" />
-          Add portfolio
-        </Button>
-      </SettingsHeader>
+      <div className="space-y-6">
+        <SettingsHeader heading="Portfolios" text="Create named reporting scopes across accounts.">
+          <>
+            <Button
+              size="icon"
+              className="sm:hidden"
+              onClick={openCreate}
+              aria-label="Add portfolio"
+            >
+              <Icons.Plus className="h-4 w-4" />
+            </Button>
+            <Button size="sm" className="hidden sm:inline-flex" onClick={openCreate}>
+              <Icons.Plus className="mr-2 h-4 w-4" />
+              Add portfolio
+            </Button>
+          </>
+        </SettingsHeader>
+        <Separator />
 
-      {isLoading ? (
-        <p className="text-muted-foreground text-sm">Loading…</p>
-      ) : portfolios.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No portfolios yet.</p>
-      ) : (
-        <div className="divide-border divide-y rounded-lg border">
-          {portfolios.map((p) => (
-            <div key={p.id} className="flex items-center justify-between px-4 py-3">
-              <div>
-                <p className="font-medium">{p.name}</p>
-                <p className="text-muted-foreground text-xs">
-                  {p.accountIds.length} account{p.accountIds.length !== 1 ? "s" : ""}
-                  {p.description ? ` · ${p.description}` : ""}
-                </p>
+        {portfolios.length === 0 ? (
+          <EmptyPlaceholder>
+            <EmptyPlaceholder.Icon name="Folder" />
+            <EmptyPlaceholder.Title>No portfolios yet</EmptyPlaceholder.Title>
+            <EmptyPlaceholder.Description>
+              Group accounts into named reporting scopes to filter performance, holdings, income,
+              and activities.
+            </EmptyPlaceholder.Description>
+            <Button onClick={openCreate}>
+              <Icons.Plus className="mr-2 h-4 w-4" />
+              Add a portfolio
+            </Button>
+          </EmptyPlaceholder>
+        ) : (
+          <div className="divide-border bg-card divide-y rounded-md border">
+            {portfolios.map((p) => (
+              <div key={p.id} className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-10 w-10 rounded-lg">
+                    <AvatarFallback className="rounded-lg bg-violet-500/10">
+                      <Icons.Folder className="h-5 w-5 text-violet-500" />
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <div className="grid gap-1">
+                    <div className="font-semibold">{p.name}</div>
+                    <div className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                      <span>
+                        {p.accountIds.length} account{p.accountIds.length !== 1 ? "s" : ""}
+                      </span>
+                      {p.description && (
+                        <>
+                          <span>·</span>
+                          <span className="truncate">{p.description}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-md border transition-colors">
+                      <Icons.MoreVertical className="h-4 w-4" />
+                      <span className="sr-only">Open</span>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => openEdit(p)}>Edit</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive flex cursor-pointer items-center"
+                        onSelect={() => setDeleting(p)}
+                      >
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
-                  <Icons.Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setDeleting(p)}
-                  disabled={deleteMutation.isPending}
-                >
-                  <Icons.Trash className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* key resets form state when switching between portfolios or opening fresh */}
       <PortfolioDialog

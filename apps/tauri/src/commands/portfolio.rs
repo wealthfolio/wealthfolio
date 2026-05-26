@@ -14,12 +14,12 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 use wealthfolio_core::{
-    accounts::TrackingMode,
+    accounts::{account_supports_purpose, AccountPurpose, TrackingMode},
     allocation::{AllocationHoldings, PortfolioAllocations},
     holdings::Holding,
     income::IncomeSummary,
     lots::AssetLotView,
-    performance::{PerformanceMetrics, SimplePerformanceMetrics},
+    performance::{PerformanceMetrics, ReturnMethod, SimplePerformanceMetrics},
     portfolio::snapshot::{
         CashBalanceInput, ManualHoldingInput, ManualSnapshotRequest, ManualSnapshotService,
         SnapshotSource,
@@ -77,6 +77,63 @@ impl AccountScopeInput {
     }
 }
 
+fn account_tracking_modes(
+    state: &ServiceContext,
+    account_ids: &[String],
+) -> Result<HashMap<String, TrackingMode>, String> {
+    Ok(state
+        .account_service()
+        .get_accounts_by_ids(account_ids)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|account| (account.id, account.tracking_mode))
+        .collect())
+}
+
+fn holdings_account_ids(
+    state: &ServiceContext,
+    account_ids: &[String],
+) -> Result<Vec<String>, String> {
+    Ok(state
+        .account_service()
+        .get_accounts_by_ids(account_ids)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter(|account| account_supports_purpose(&account.account_type, AccountPurpose::Holdings))
+        .map(|account| account.id)
+        .collect())
+}
+
+fn performance_account_ids(
+    state: &ServiceContext,
+    account_ids: &[String],
+) -> Result<Vec<String>, String> {
+    Ok(state
+        .account_service()
+        .get_accounts_by_ids(account_ids)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter(|account| {
+            account_supports_purpose(&account.account_type, AccountPurpose::Performance)
+        })
+        .map(|account| account.id)
+        .collect())
+}
+
+fn income_account_ids(
+    state: &ServiceContext,
+    account_ids: &[String],
+) -> Result<Vec<String>, String> {
+    Ok(state
+        .account_service()
+        .get_accounts_by_ids(account_ids)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter(|account| account_supports_purpose(&account.account_type, AccountPurpose::Income))
+        .map(|account| account.id)
+        .collect())
+}
+
 // ============================================================================
 // Snapshot Info Types
 // ============================================================================
@@ -90,6 +147,7 @@ pub struct SnapshotInfo {
     pub source: String,
     pub position_count: usize,
     pub cash_currency_count: usize,
+    pub cash_total_account_currency: String,
 }
 
 #[tauri::command]
@@ -122,17 +180,14 @@ pub async fn update_portfolio(handle: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Resolves an `AccountScope` to a `ResolvedAccountScope`.
-/// `All` → `TotalSnapshot` (fast precomputed path, no TOTAL string leak).
-/// `Account` → `Account(id)`.
-/// `Portfolio`/`Accounts` → `Accounts(ids)` via membership resolution.
 async fn resolve_scope(
     filter: &AccountScope,
     state: &ServiceContext,
 ) -> Result<ResolvedAccountScope, String> {
+    let base_currency = state.get_base_currency();
     state
         .portfolio_service()
-        .resolve_account_scope(filter)
+        .resolve_account_scope(filter, &base_currency)
         .map_err(|e| e.to_string())
 }
 
@@ -144,22 +199,23 @@ pub async fn get_holdings(
     debug!("Get holdings...");
     let base_currency = state.get_base_currency();
     let filter = filter.into_account_filter()?;
-    match resolve_scope(&filter, &state).await? {
-        ResolvedAccountScope::TotalSnapshot => state
+    let resolved = resolve_scope(&filter, &state).await?;
+    let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
+    if account_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    if account_ids.len() == 1 {
+        state
             .holdings_service()
-            .get_holdings("TOTAL", &base_currency)
+            .get_holdings(&account_ids[0], &base_currency)
             .await
-            .map_err(|e| e.to_string()),
-        ResolvedAccountScope::Account(id) => state
+            .map_err(|e| e.to_string())
+    } else {
+        state
             .holdings_service()
-            .get_holdings(&id, &base_currency)
+            .get_holdings_for_accounts(&account_ids, &base_currency, &resolved.scope_id)
             .await
-            .map_err(|e| e.to_string()),
-        ResolvedAccountScope::Accounts(ids) => state
-            .holdings_service()
-            .get_holdings_for_accounts(&ids, &base_currency, "")
-            .await
-            .map_err(|e| e.to_string()),
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -195,6 +251,9 @@ pub async fn get_asset_holdings(
 
     let mut result = Vec::new();
     for account in accounts {
+        if !account_supports_purpose(&account.account_type, AccountPurpose::Holdings) {
+            continue;
+        }
         if let Ok(Some(holding)) = state
             .holdings_service()
             .get_holding(&account.id, &asset_id, &base_currency)
@@ -227,22 +286,24 @@ pub async fn get_portfolio_allocations(
 ) -> Result<PortfolioAllocations, String> {
     let base_currency = state.get_base_currency();
     let filter = filter.into_account_filter()?;
-    match resolve_scope(&filter, &state).await? {
-        ResolvedAccountScope::TotalSnapshot => state
+    let resolved = resolve_scope(&filter, &state).await?;
+    let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
+    if account_ids.len() == 1 {
+        state
             .allocation_service()
-            .get_portfolio_allocations("TOTAL", &base_currency)
+            .get_portfolio_allocations(&account_ids[0], &base_currency)
             .await
-            .map_err(|e| e.to_string()),
-        ResolvedAccountScope::Account(id) => state
+            .map_err(|e| e.to_string())
+    } else {
+        state
             .allocation_service()
-            .get_portfolio_allocations(&id, &base_currency)
+            .get_portfolio_allocations_for_accounts(
+                &account_ids,
+                &base_currency,
+                &resolved.scope_id,
+            )
             .await
-            .map_err(|e| e.to_string()),
-        ResolvedAccountScope::Accounts(ids) => state
-            .allocation_service()
-            .get_portfolio_allocations_for_accounts(&ids, &base_currency, "")
-            .await
-            .map_err(|e| e.to_string()),
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -255,39 +316,41 @@ pub async fn get_holdings_by_allocation(
 ) -> Result<AllocationHoldings, String> {
     let base_currency = state.get_base_currency();
     let filter = filter.into_account_filter()?;
-    match resolve_scope(&filter, &state).await? {
-        ResolvedAccountScope::TotalSnapshot => state
+    let resolved = resolve_scope(&filter, &state).await?;
+    let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
+    if account_ids.len() == 1 {
+        state
             .allocation_service()
-            .get_holdings_by_allocation("TOTAL", &base_currency, &taxonomy_id, &category_id)
+            .get_holdings_by_allocation(&account_ids[0], &base_currency, &taxonomy_id, &category_id)
             .await
-            .map_err(|e| e.to_string()),
-        ResolvedAccountScope::Account(id) => state
-            .allocation_service()
-            .get_holdings_by_allocation(&id, &base_currency, &taxonomy_id, &category_id)
-            .await
-            .map_err(|e| e.to_string()),
-        ResolvedAccountScope::Accounts(ids) => state
+            .map_err(|e| e.to_string())
+    } else {
+        state
             .allocation_service()
             .get_holdings_by_allocation_for_accounts(
-                &ids,
+                &account_ids,
                 &base_currency,
                 &taxonomy_id,
                 &category_id,
-                "",
+                &resolved.scope_id,
             )
             .await
-            .map_err(|e| e.to_string()),
+            .map_err(|e| e.to_string())
     }
 }
 
 #[tauri::command]
 pub async fn get_historical_valuations(
     state: State<'_, Arc<ServiceContext>>,
-    account_id: String,
+    account_id: Option<String>,
+    filter: Option<AccountScopeInput>,
     start_date: Option<String>,
     end_date: Option<String>,
 ) -> Result<Vec<DailyAccountValuation>, String> {
-    debug!("Get historical valuations for account: {}", account_id);
+    debug!(
+        "Get historical valuations for account: {:?}, filter: {:?}",
+        account_id, filter
+    );
     //     // Parse optional dates into Option<NaiveDate>
     let from_date_opt: Option<chrono::NaiveDate> = start_date
         .map(|date_str| {
@@ -303,10 +366,64 @@ pub async fn get_historical_valuations(
         })
         .transpose()?;
 
-    state
-        .valuation_service()
-        .get_historical_valuations(&account_id, from_date_opt, to_date_opt)
-        .map_err(|e| e.to_string())
+    if let Some(input) = filter {
+        let base_currency = state.get_base_currency();
+        let account_filter = input.into_account_filter()?;
+        let resolved = state
+            .portfolio_service()
+            .resolve_account_scope(&account_filter, &base_currency)
+            .map_err(|e| e.to_string())?;
+        let account_ids = holdings_account_ids(state.inner().as_ref(), &resolved.account_ids)?;
+        if account_ids.is_empty() {
+            Ok(Vec::new())
+        } else if account_ids.len() == 1 {
+            state
+                .valuation_service()
+                .get_historical_valuations(&account_ids[0], from_date_opt, to_date_opt)
+                .map_err(|e| e.to_string())
+        } else {
+            state
+                .valuation_service()
+                .get_historical_valuations_for_accounts(
+                    &resolved.scope_id,
+                    &account_ids,
+                    &resolved.base_currency,
+                    from_date_opt,
+                    to_date_opt,
+                )
+                .map_err(|e| e.to_string())
+        }
+    } else if let Some(account_id) = account_id {
+        let account_ids =
+            holdings_account_ids(state.inner().as_ref(), std::slice::from_ref(&account_id))?;
+        if account_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        state
+            .valuation_service()
+            .get_historical_valuations(&account_id, from_date_opt, to_date_opt)
+            .map_err(|e| e.to_string())
+    } else {
+        let base_currency = state.get_base_currency();
+        let resolved = state
+            .portfolio_service()
+            .resolve_account_scope(&AccountScope::All, &base_currency)
+            .map_err(|e| e.to_string())?;
+        let account_ids = holdings_account_ids(state.inner().as_ref(), &resolved.account_ids)?;
+        if account_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        state
+            .valuation_service()
+            .get_historical_valuations_for_accounts(
+                &resolved.scope_id,
+                &account_ids,
+                &resolved.base_currency,
+                from_date_opt,
+                to_date_opt,
+            )
+            .map_err(|e| e.to_string())
+    }
 }
 
 #[tauri::command]
@@ -316,17 +433,18 @@ pub async fn get_latest_valuations(
 ) -> Result<Vec<DailyAccountValuation>, String> {
     debug!("Get latest valuations for accounts: {:?}", account_ids);
 
-    let ids_to_process = if account_ids.is_empty() {
+    let ids_to_process: Vec<String> = if account_ids.is_empty() {
         debug!("Input account_ids is empty, fetching active accounts for latest valuations.");
-        state
+        let active_ids = state
             .account_service()
             .get_active_accounts()
             .map_err(|e| format!("Failed to fetch active accounts: {}", e))?
             .into_iter()
             .map(|acc| acc.id)
-            .collect()
+            .collect::<Vec<_>>();
+        holdings_account_ids(state.inner().as_ref(), &active_ids)?
     } else {
-        account_ids
+        holdings_account_ids(state.inner().as_ref(), &account_ids)?
     };
 
     if ids_to_process.is_empty() {
@@ -345,19 +463,28 @@ pub async fn get_income_summary(
     filter: Option<AccountScopeInput>,
 ) -> Result<Vec<IncomeSummary>, String> {
     debug!("Fetching income summary...");
-    let account_ids: Option<Vec<String>> = if let Some(input) = filter {
+    let account_ids: Vec<String> = if let Some(input) = filter {
         let af = input.into_account_filter()?;
-        match resolve_scope(&af, &state).await? {
-            ResolvedAccountScope::TotalSnapshot => None,
-            ResolvedAccountScope::Account(id) => Some(vec![id]),
-            ResolvedAccountScope::Accounts(ids) => Some(ids),
-        }
+        let resolved = resolve_scope(&af, &state).await?;
+        income_account_ids(&state, &resolved.account_ids)?
     } else {
-        None
+        state
+            .account_service()
+            .get_active_accounts()
+            .map_err(|e| format!("Failed to fetch active accounts: {}", e))?
+            .into_iter()
+            .filter(|account| {
+                account_supports_purpose(&account.account_type, AccountPurpose::Income)
+            })
+            .map(|account| account.id)
+            .collect()
     };
+    if account_ids.is_empty() {
+        return Ok(Vec::new());
+    }
     state
         .income_service()
-        .get_income_summary(account_ids.as_deref())
+        .get_income_summary(Some(&account_ids))
         .map_err(|e| e.to_string())
 }
 
@@ -371,17 +498,26 @@ pub async fn calculate_accounts_simple_performance(
         account_ids
     );
 
-    let ids_to_process = if account_ids.is_empty() {
+    let ids_to_process: Vec<String> = if account_ids.is_empty() {
         debug!("Input account_ids is empty, fetching active accounts.");
         state
             .account_service()
             .get_active_accounts()
             .map_err(|e| format!("Failed to fetch active accounts: {}", e))?
             .into_iter()
+            .filter(|acc| account_supports_purpose(&acc.account_type, AccountPurpose::Performance))
             .map(|acc| acc.id)
             .collect()
     } else {
-        account_ids
+        let requested = state
+            .account_service()
+            .get_accounts_by_ids(&account_ids)
+            .map_err(|e| format!("Failed to fetch accounts: {}", e))?;
+        requested
+            .into_iter()
+            .filter(|acc| account_supports_purpose(&acc.account_type, AccountPurpose::Performance))
+            .map(|acc| acc.id)
+            .collect()
     };
 
     if ids_to_process.is_empty() {
@@ -405,6 +541,7 @@ pub async fn calculate_performance_history(
     start_date: Option<String>,
     end_date: Option<String>,
     tracking_mode: Option<String>,
+    filter: Option<AccountScopeInput>,
 ) -> Result<PerformanceMetrics, String> {
     debug!(
         "Calculating performance for type: {}, id: {}, start: {:?}, end: {:?}, tracking_mode: {:?}",
@@ -433,17 +570,95 @@ pub async fn calculate_performance_history(
         _ => None,
     });
 
-    state
-        .performance_service()
-        .calculate_performance_history(
-            &item_type,
-            &item_id,
-            start_date_opt,
-            end_date_opt,
-            tracking_mode_opt,
-        )
-        .await
-        .map_err(|e| format!("Failed to calculate performance: {}", e))
+    if let (true, Some(filter)) = (item_type == "account", filter) {
+        let base_currency = state.get_base_currency();
+        let account_filter = filter.into_account_filter()?;
+        let resolved = state
+            .portfolio_service()
+            .resolve_account_scope(&account_filter, &base_currency)
+            .map_err(|e| e.to_string())?;
+        let account_ids = performance_account_ids(state.inner().as_ref(), &resolved.account_ids)?;
+        if account_ids.is_empty() {
+            return Ok(empty_performance_metrics(
+                &resolved.scope_id,
+                resolved.base_currency.clone(),
+                start_date_opt,
+                end_date_opt,
+            ));
+        }
+        let tracking_modes = account_tracking_modes(state.inner().as_ref(), &account_ids)?;
+        state
+            .performance_service()
+            .calculate_performance_history_for_accounts(
+                &resolved.scope_id,
+                &account_ids,
+                &resolved.base_currency,
+                &tracking_modes,
+                start_date_opt,
+                end_date_opt,
+            )
+            .await
+            .map_err(|e| format!("Failed to calculate performance: {}", e))
+    } else {
+        if item_type == "account" {
+            let account = state
+                .account_service()
+                .get_account(&item_id)
+                .map_err(|e| format!("Failed to fetch account: {}", e))?;
+            if !account_supports_purpose(&account.account_type, AccountPurpose::Performance) {
+                return Ok(empty_performance_metrics(
+                    &item_id,
+                    account.currency,
+                    start_date_opt,
+                    end_date_opt,
+                ));
+            }
+        }
+
+        state
+            .performance_service()
+            .calculate_performance_history(
+                &item_type,
+                &item_id,
+                start_date_opt,
+                end_date_opt,
+                tracking_mode_opt,
+            )
+            .await
+            .map_err(|e| format!("Failed to calculate performance: {}", e))
+    }
+}
+
+fn empty_performance_metrics(
+    id: &str,
+    currency: String,
+    start_date: Option<NaiveDate>,
+    end_date: Option<NaiveDate>,
+) -> PerformanceMetrics {
+    PerformanceMetrics {
+        id: id.to_string(),
+        returns: Vec::new(),
+        period_start_date: start_date,
+        period_end_date: end_date,
+        currency,
+        period_gain: Decimal::ZERO,
+        period_return: Some(Decimal::ZERO),
+        cumulative_twr: Some(Decimal::ZERO),
+        gain_loss_amount: None,
+        annualized_twr: Some(Decimal::ZERO),
+        simple_return: Decimal::ZERO,
+        annualized_simple_return: Decimal::ZERO,
+        cumulative_modified_dietz: Some(Decimal::ZERO),
+        annualized_modified_dietz: Some(Decimal::ZERO),
+        cumulative_mwr: Some(Decimal::ZERO),
+        annualized_mwr: Some(Decimal::ZERO),
+        volatility: Decimal::ZERO,
+        max_drawdown: Decimal::ZERO,
+        is_holdings_mode: false,
+        return_method: ReturnMethod::NotApplicable,
+        is_mixed_tracking_mode: false,
+        warnings: Vec::new(),
+    }
 }
 
 /// Calculates performance summary for a given item (account or symbol) over a given date range.
@@ -457,6 +672,7 @@ pub async fn calculate_performance_summary(
     start_date: Option<String>,
     end_date: Option<String>,
     tracking_mode: Option<String>,
+    filter: Option<AccountScopeInput>,
 ) -> Result<PerformanceMetrics, String> {
     debug!(
         "Calculating performance summary for type: {}, id: {}, start: {:?}, end: {:?}, tracking_mode: {:?}",
@@ -485,17 +701,63 @@ pub async fn calculate_performance_summary(
         _ => None,
     });
 
-    state
-        .performance_service()
-        .calculate_performance_summary(
-            &item_type,
-            &item_id,
-            start_date_opt,
-            end_date_opt,
-            tracking_mode_opt,
-        )
-        .await
-        .map_err(|e| format!("Failed to calculate performance: {}", e))
+    if let (true, Some(filter)) = (item_type == "account", filter) {
+        let base_currency = state.get_base_currency();
+        let account_filter = filter.into_account_filter()?;
+        let resolved = state
+            .portfolio_service()
+            .resolve_account_scope(&account_filter, &base_currency)
+            .map_err(|e| e.to_string())?;
+        let account_ids = performance_account_ids(state.inner().as_ref(), &resolved.account_ids)?;
+        if account_ids.is_empty() {
+            return Ok(empty_performance_metrics(
+                &resolved.scope_id,
+                resolved.base_currency.clone(),
+                start_date_opt,
+                end_date_opt,
+            ));
+        }
+        let tracking_modes = account_tracking_modes(state.inner().as_ref(), &account_ids)?;
+        state
+            .performance_service()
+            .calculate_performance_summary_for_accounts(
+                &resolved.scope_id,
+                &account_ids,
+                &resolved.base_currency,
+                &tracking_modes,
+                start_date_opt,
+                end_date_opt,
+            )
+            .await
+            .map_err(|e| format!("Failed to calculate performance: {}", e))
+    } else {
+        if item_type == "account" {
+            let account = state
+                .account_service()
+                .get_account(&item_id)
+                .map_err(|e| format!("Failed to fetch account: {}", e))?;
+            if !account_supports_purpose(&account.account_type, AccountPurpose::Performance) {
+                return Ok(empty_performance_metrics(
+                    &item_id,
+                    account.currency,
+                    start_date_opt,
+                    end_date_opt,
+                ));
+            }
+        }
+
+        state
+            .performance_service()
+            .calculate_performance_summary(
+                &item_type,
+                &item_id,
+                start_date_opt,
+                end_date_opt,
+                tracking_mode_opt,
+            )
+            .await
+            .map_err(|e| format!("Failed to calculate performance: {}", e))
+    }
 }
 
 /// Input for a single holding when saving manual holdings
@@ -1052,6 +1314,7 @@ pub async fn get_snapshots(
             source: snapshot_source_to_string(s.source),
             position_count: s.positions.len(),
             cash_currency_count: s.cash_balances.len(),
+            cash_total_account_currency: s.cash_total_account_currency.to_string(),
         })
         .collect();
 

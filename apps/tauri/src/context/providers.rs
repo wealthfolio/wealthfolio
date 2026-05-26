@@ -116,6 +116,45 @@ pub async fn initialize_context(
         settings_repository.clone(),
         fx_service.clone(),
     ));
+
+    // Spending settings service (uses the same app_settings k/v store)
+    let spending_settings_repo: Arc<
+        dyn wealthfolio_spending::settings::SpendingSettingsRepositoryTrait,
+    > = Arc::new(
+        wealthfolio_storage_sqlite::spending::settings::SpendingSettingsRepository::new(
+            pool.clone(),
+            writer.clone(),
+        ),
+    );
+    let spending_settings_service = Arc::new(
+        wealthfolio_spending::settings::SpendingSettingsService::new(spending_settings_repo),
+    );
+
+    // Spending: activity_taxonomy_assignments adapter (built before activity_service so we can pass
+    // both into the cash_activity service after activity_repository is created)
+    let activity_assignments_repo: Arc<
+        dyn wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait,
+    > = Arc::new(
+        wealthfolio_storage_sqlite::spending::activity_assignments::ActivityTaxonomyAssignmentRepository::new(
+            pool.clone(),
+            writer.clone(),
+        ),
+    );
+    // Activity ↔ event tag join table (sidecar to activities; see
+    // crates/spending/src/activity_events for the design rationale).
+    let activity_events_repo: Arc<
+        dyn wealthfolio_spending::activity_events::ActivityEventsRepositoryTrait,
+    > = Arc::new(
+        wealthfolio_storage_sqlite::spending::activity_events::ActivityEventsRepository::new(
+            pool.clone(),
+            writer.clone(),
+        ),
+    );
+    let activity_taxonomy_assignment_service = Arc::new(
+        wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignmentService::new(
+            activity_assignments_repo.clone(),
+        ),
+    );
     let settings = settings_service.get_settings()?;
     let base_currency_string = settings.base_currency.clone();
     let base_currency = Arc::new(RwLock::new(base_currency_string.clone()));
@@ -187,6 +226,115 @@ pub async fn initialize_context(
         quote_sync_state_repository.clone(),
     ));
 
+    // Spending: events + event_types
+    let event_types_repo: Arc<dyn wealthfolio_spending::events::EventTypesRepositoryTrait> =
+        Arc::new(
+            wealthfolio_storage_sqlite::spending::events::EventTypesRepository::new(
+                pool.clone(),
+                writer.clone(),
+            ),
+        );
+    let events_repo: Arc<dyn wealthfolio_spending::events::EventsRepositoryTrait> = Arc::new(
+        wealthfolio_storage_sqlite::spending::events::EventsRepository::new(
+            pool.clone(),
+            writer.clone(),
+        ),
+    );
+    let events_service = Arc::new(wealthfolio_spending::events::EventsService::new(
+        event_types_repo,
+        events_repo,
+        activity_repository.clone(),
+        activity_events_repo.clone(),
+    ));
+
+    // Spending: cash_activity_service depends on the activity_repository + spending settings
+    //          + the assignments service (so search() can batch-fetch assignments and apply
+    //          status/category filters server-side).
+    let cash_activity_service = Arc::new(
+        wealthfolio_spending::cash_activities::CashActivityService::new(
+            activity_repository.clone(),
+            account_repository.clone(),
+            spending_settings_service.clone(),
+            activity_taxonomy_assignment_service.clone(),
+            activity_events_repo.clone(),
+            events_service.clone(),
+        ),
+    );
+
+    // Spending: categorization_rules
+    let categorization_rules_repo: Arc<
+        dyn wealthfolio_spending::categorization_rules::CategorizationRulesRepositoryTrait,
+    > = Arc::new(
+        wealthfolio_storage_sqlite::spending::categorization_rules::CategorizationRulesRepository::new(
+            pool.clone(),
+            writer.clone(),
+        ),
+    );
+    let categorization_rules_service = Arc::new(
+        wealthfolio_spending::categorization_rules::CategorizationRulesService::new(
+            categorization_rules_repo,
+            activity_repository.clone(),
+            activity_taxonomy_assignment_service.clone(),
+        ),
+    );
+
+    // Spending: budget
+    let budget_repo: Arc<dyn wealthfolio_spending::budget::BudgetRepositoryTrait> = Arc::new(
+        wealthfolio_storage_sqlite::spending::budget::BudgetRepository::new(
+            pool.clone(),
+            writer.clone(),
+        ),
+    );
+    let budget_service = Arc::new(wealthfolio_spending::budget::BudgetService::new(
+        budget_repo,
+        activity_repository.clone(),
+        account_repository.clone(),
+        activity_assignments_repo.clone(),
+        spending_settings_service.clone(),
+        taxonomy_service.clone(),
+        fx_service.clone(),
+    ));
+
+    // Spending: analytics — needs activity repo + assignment repo (re-built since the
+    // assignment service doesn't expose the trait). Cheap.
+    let analytics_assignment_repo: Arc<
+        dyn wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait,
+    > = Arc::new(
+        wealthfolio_storage_sqlite::spending::activity_assignments::ActivityTaxonomyAssignmentRepository::new(
+            pool.clone(),
+            writer.clone(),
+        ),
+    );
+    let spending_analytics_service =
+        Arc::new(wealthfolio_spending::analytics::AnalyticsService::new(
+            activity_repository.clone(),
+            account_repository.clone(),
+            analytics_assignment_repo.clone(),
+            spending_settings_service.clone(),
+            taxonomy_service.clone(),
+            events_service.clone(),
+            fx_service.clone(),
+            activity_events_repo.clone(),
+        ));
+
+    // Spending: reconciled period insight (powers the Spending Insight dashboard).
+    let spending_insight_repo: Arc<dyn wealthfolio_spending::budget::BudgetRepositoryTrait> =
+        Arc::new(
+            wealthfolio_storage_sqlite::spending::budget::BudgetRepository::new(
+                pool.clone(),
+                writer.clone(),
+            ),
+        );
+    let spending_insight_service = Arc::new(wealthfolio_spending::insight::InsightService::new(
+        spending_insight_repo,
+        activity_repository.clone(),
+        account_repository.clone(),
+        analytics_assignment_repo,
+        spending_settings_service.clone(),
+        taxonomy_service.clone(),
+        fx_service.clone(),
+    ));
+
     // Import run repository for tracking CSV imports
     let import_run_repository: Arc<dyn ImportRunRepositoryTrait> =
         Arc::new(ImportRunRepository::new(pool.clone(), writer.clone()));
@@ -240,13 +388,16 @@ pub async fn initialize_context(
         timezone.clone(),
     ));
 
-    let valuation_service = Arc::new(ValuationService::new(
-        base_currency.clone(),
-        valuation_repository.clone(),
-        snapshot_service.clone(),
-        quote_service.clone(),
-        fx_service.clone(),
-    ));
+    let valuation_service = Arc::new(
+        ValuationService::new(
+            base_currency.clone(),
+            valuation_repository.clone(),
+            snapshot_service.clone(),
+            quote_service.clone(),
+            fx_service.clone(),
+        )
+        .with_activity_repository(activity_repository.clone(), timezone.clone()),
+    );
 
     let performance_service = Arc::new(PerformanceService::new_with_timezone(
         valuation_service.clone(),
@@ -343,6 +494,10 @@ pub async fn initialize_context(
         performance_service.clone(),
         income_service.clone(),
         health_service.clone(),
+        taxonomy_service.clone(),
+        cash_activity_service.clone(),
+        activity_taxonomy_assignment_service.clone(),
+        categorization_rules_service.clone(),
     ));
     let ai_chat_service = Arc::new(ChatService::new(ai_environment, ChatConfig::default()));
 
@@ -403,6 +558,13 @@ pub async fn initialize_context(
             health_service,
             custom_provider_service,
             portfolio_service,
+            spending_settings_service,
+            cash_activity_service,
+            categorization_rules_service,
+            events_service,
+            budget_service,
+            spending_analytics_service,
+            spending_insight_service,
         },
         event_receiver,
         sync_outbox_wake_receiver,

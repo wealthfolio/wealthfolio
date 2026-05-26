@@ -106,16 +106,13 @@ impl PortfolioUpdate {
 }
 
 /// The resolved form of an `AccountScope` after service-layer resolution.
-/// Makes the "use precomputed TOTAL snapshot" path explicit instead of
-/// leaking the fake account ID `"TOTAL"` through downstream code.
+/// Downstream code receives real account IDs only; persisted pseudo-account
+/// rows are not part of the reporting model.
 #[derive(Debug, Clone)]
-pub enum ResolvedAccountScope {
-    /// Use the precomputed all-accounts snapshot (fast path).
-    TotalSnapshot,
-    /// A single real account.
-    Account(String),
-    /// Multiple accounts — requires on-read aggregation.
-    Accounts(Vec<String>),
+pub struct ResolvedAccountScope {
+    pub scope_id: String,
+    pub account_ids: Vec<String>,
+    pub base_currency: String,
 }
 
 /// Typed account scope filter — resolved once at the service boundary.

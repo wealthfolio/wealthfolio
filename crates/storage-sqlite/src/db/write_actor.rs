@@ -138,6 +138,10 @@ impl<'a> DbWriteTx<'a> {
         job(self.conn)
     }
 
+    pub fn queue_outbox(&mut self, request: OutboxWriteRequest) {
+        self.projection.queue_outbox(request);
+    }
+
     pub fn insert<T: SyncOutboxModel>(&mut self, model: &T) -> Result<()> {
         self.projection.capture_model(model, SyncOperation::Create)
     }

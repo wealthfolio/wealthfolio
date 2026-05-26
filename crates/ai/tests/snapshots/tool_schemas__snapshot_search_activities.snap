@@ -1,0 +1,49 @@
+---
+source: crates/ai/tests/tool_schemas.rs
+expression: snapshot
+---
+{
+  "name": "search_activities",
+  "parameters": {
+    "properties": {
+      "accountId": {
+        "type": "string"
+      },
+      "activityType": {
+        "enum": [
+          "BUY",
+          "SELL",
+          "DIVIDEND",
+          "DEPOSIT",
+          "WITHDRAWAL",
+          "TRANSFER_IN",
+          "TRANSFER_OUT",
+          "INTEREST",
+          "FEE",
+          "SPLIT",
+          "TAX"
+        ],
+        "type": "string"
+      },
+      "dateFrom": {
+        "type": "string"
+      },
+      "dateTo": {
+        "type": "string"
+      },
+      "page": {
+        "default": 1,
+        "type": "integer"
+      },
+      "pageSize": {
+        "default": 50,
+        "type": "integer"
+      },
+      "symbol": {
+        "type": "string"
+      }
+    },
+    "required": [],
+    "type": "object"
+  }
+}

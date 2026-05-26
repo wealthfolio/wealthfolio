@@ -66,6 +66,15 @@ pub struct HistoryQuery {
 }
 
 #[derive(Deserialize)]
+pub struct HistoryFilterBody {
+    pub filter: AccountScope,
+    #[serde(rename = "startDate")]
+    pub start_date: Option<String>,
+    #[serde(rename = "endDate")]
+    pub end_date: Option<String>,
+}
+
+#[derive(Deserialize)]
 pub struct SnapshotsQuery {
     #[serde(rename = "accountId")]
     pub account_id: String,
@@ -98,6 +107,7 @@ pub struct SnapshotInfo {
     pub source: String,
     pub position_count: usize,
     pub cash_currency_count: usize,
+    pub cash_total_account_currency: String,
 }
 
 /// Input for a single holding when saving manual holdings

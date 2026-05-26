@@ -1,0 +1,12 @@
+---
+source: crates/ai/tests/tool_schemas.rs
+expression: snapshot
+---
+{
+  "name": "get_health_status",
+  "parameters": {
+    "properties": {},
+    "required": [],
+    "type": "object"
+  }
+}

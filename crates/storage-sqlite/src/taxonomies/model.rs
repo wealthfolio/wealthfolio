@@ -40,6 +40,13 @@ pub struct TaxonomyDB {
     pub sort_order: i32,
     pub created_at: String, // Schema uses Text
     pub updated_at: String, // Schema uses Text
+    /// Spending module: "asset" (default for backwards compat) | "activity"
+    #[serde(default = "default_taxonomy_scope")]
+    pub scope: String,
+}
+
+fn default_taxonomy_scope() -> String {
+    "asset".to_string()
 }
 
 /// Database model for creating a new taxonomy
@@ -56,6 +63,7 @@ pub struct NewTaxonomyDB {
     pub sort_order: i32,
     pub created_at: String, // Schema uses Text
     pub updated_at: String, // Schema uses Text
+    pub scope: String,
 }
 
 /// Database model for taxonomy categories
@@ -85,6 +93,9 @@ pub struct CategoryDB {
     pub sort_order: i32,
     pub created_at: String, // Schema uses Text
     pub updated_at: String, // Schema uses Text
+    /// Spending module: optional Lucide icon name for UI display.
+    #[serde(default)]
+    pub icon: Option<String>,
 }
 
 /// Database model for creating a new category
@@ -102,6 +113,7 @@ pub struct NewCategoryDB {
     pub sort_order: i32,
     pub created_at: String, // Schema uses Text
     pub updated_at: String, // Schema uses Text
+    pub icon: Option<String>,
 }
 
 /// Database model for asset taxonomy assignments
@@ -158,6 +170,7 @@ impl From<TaxonomyDB> for wealthfolio_core::taxonomies::Taxonomy {
             sort_order: db.sort_order,
             created_at: text_to_datetime(&db.created_at),
             updated_at: text_to_datetime(&db.updated_at),
+            scope: db.scope,
         }
     }
 }
@@ -175,6 +188,7 @@ impl From<CategoryDB> for wealthfolio_core::taxonomies::Category {
             sort_order: db.sort_order,
             created_at: text_to_datetime(&db.created_at),
             updated_at: text_to_datetime(&db.updated_at),
+            icon: db.icon,
         }
     }
 }
@@ -208,6 +222,7 @@ impl From<wealthfolio_core::taxonomies::NewTaxonomy> for NewTaxonomyDB {
             sort_order: domain.sort_order,
             created_at: now.clone(),
             updated_at: now,
+            scope: domain.scope,
         }
     }
 }
@@ -226,6 +241,7 @@ impl From<wealthfolio_core::taxonomies::NewCategory> for NewCategoryDB {
             sort_order: domain.sort_order,
             created_at: now.clone(),
             updated_at: now,
+            icon: domain.icon,
         }
     }
 }

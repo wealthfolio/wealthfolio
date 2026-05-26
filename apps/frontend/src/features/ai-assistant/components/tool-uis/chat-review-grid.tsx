@@ -4,6 +4,7 @@ import { Button } from "@wealthfolio/ui";
 
 import type { DraftActivity } from "@/pages/activity/import/context";
 import { ImportReviewGrid } from "@/pages/activity/import/components/import-review-grid";
+import type { ActivityImportProfile } from "@/pages/activity/import/utils/activity-import-profile";
 
 import type { ChatImportFilter, ChatImportStats } from "../../hooks/use-chat-import-session";
 
@@ -71,6 +72,7 @@ export interface ChatReviewGridProps {
   onBulkSkip: (rowIndexes: number[]) => void;
   onBulkUnskip: (rowIndexes: number[]) => void;
   onBulkForceImport: (rowIndexes: number[]) => void;
+  importProfile?: ActivityImportProfile;
 }
 
 export const ChatReviewGrid = memo(function ChatReviewGrid({
@@ -82,6 +84,7 @@ export const ChatReviewGrid = memo(function ChatReviewGrid({
   onBulkSkip,
   onBulkUnskip,
   onBulkForceImport,
+  importProfile,
 }: ChatReviewGridProps) {
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
 
@@ -125,6 +128,7 @@ export const ChatReviewGrid = memo(function ChatReviewGrid({
           onBulkSkip={handleBulkSkip}
           onBulkUnskip={handleBulkUnskip}
           onBulkForceImport={handleBulkForceImport}
+          importProfile={importProfile}
           gridHeight={400}
         />
       </div>

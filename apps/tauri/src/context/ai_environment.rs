@@ -11,8 +11,12 @@ use wealthfolio_core::{
     allocation::AllocationServiceTrait, goals::GoalServiceTrait, health::HealthServiceTrait,
     holdings::HoldingsServiceTrait, income::IncomeServiceTrait,
     performance::PerformanceServiceTrait, quotes::QuoteServiceTrait, secrets::SecretStore,
-    settings::SettingsServiceTrait, valuation::ValuationServiceTrait,
+    settings::SettingsServiceTrait, taxonomies::TaxonomyServiceTrait,
+    valuation::ValuationServiceTrait,
 };
+use wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignmentService;
+use wealthfolio_spending::cash_activities::CashActivityService;
+use wealthfolio_spending::categorization_rules::CategorizationRulesService;
 
 /// Tauri-side implementation of AiEnvironment.
 ///
@@ -33,6 +37,10 @@ pub struct TauriAiEnvironment {
     performance_service: Arc<dyn PerformanceServiceTrait + Send + Sync>,
     income_service: Arc<dyn IncomeServiceTrait + Send + Sync>,
     health_service: Arc<dyn HealthServiceTrait + Send + Sync>,
+    taxonomy_service: Arc<dyn TaxonomyServiceTrait + Send + Sync>,
+    cash_activity_service: Arc<CashActivityService>,
+    activity_taxonomy_assignment_service: Arc<ActivityTaxonomyAssignmentService>,
+    categorization_rules_service: Arc<CategorizationRulesService>,
 }
 
 impl TauriAiEnvironment {
@@ -53,6 +61,10 @@ impl TauriAiEnvironment {
         performance_service: Arc<dyn PerformanceServiceTrait + Send + Sync>,
         income_service: Arc<dyn IncomeServiceTrait + Send + Sync>,
         health_service: Arc<dyn HealthServiceTrait + Send + Sync>,
+        taxonomy_service: Arc<dyn TaxonomyServiceTrait + Send + Sync>,
+        cash_activity_service: Arc<CashActivityService>,
+        activity_taxonomy_assignment_service: Arc<ActivityTaxonomyAssignmentService>,
+        categorization_rules_service: Arc<CategorizationRulesService>,
     ) -> Self {
         Self {
             base_currency,
@@ -69,6 +81,10 @@ impl TauriAiEnvironment {
             performance_service,
             income_service,
             health_service,
+            taxonomy_service,
+            cash_activity_service,
+            activity_taxonomy_assignment_service,
+            categorization_rules_service,
         }
     }
 }
@@ -128,5 +144,21 @@ impl AiEnvironment for TauriAiEnvironment {
 
     fn health_service(&self) -> Arc<dyn HealthServiceTrait> {
         self.health_service.clone()
+    }
+
+    fn taxonomy_service(&self) -> Arc<dyn TaxonomyServiceTrait> {
+        self.taxonomy_service.clone()
+    }
+
+    fn cash_activity_service(&self) -> Arc<CashActivityService> {
+        self.cash_activity_service.clone()
+    }
+
+    fn activity_taxonomy_assignment_service(&self) -> Arc<ActivityTaxonomyAssignmentService> {
+        self.activity_taxonomy_assignment_service.clone()
+    }
+
+    fn categorization_rules_service(&self) -> Arc<CategorizationRulesService> {
+        self.categorization_rules_service.clone()
     }
 }

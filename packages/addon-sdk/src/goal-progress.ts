@@ -38,7 +38,7 @@ export function calculateGoalProgress(
   // accountId -> totalValue in base currency
   const accountValueMap = new Map<string, number>();
   accountsValuations?.forEach((account) => {
-    const valueInBaseCurrency = (account.totalValue ?? 0) * (account.fxRateToBase ?? 1);
+    const valueInBaseCurrency = account.totalValueBase ?? 0;
     accountValueMap.set(account.accountId, valueInBaseCurrency);
   });
 

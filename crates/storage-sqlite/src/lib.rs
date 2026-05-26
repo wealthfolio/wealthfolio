@@ -44,6 +44,7 @@ pub mod market_data;
 pub mod portfolio;
 pub mod portfolios;
 pub mod settings;
+pub mod spending;
 pub mod sync;
 pub mod taxonomies;
 

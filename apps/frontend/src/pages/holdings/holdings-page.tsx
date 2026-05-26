@@ -18,7 +18,7 @@ import {
 } from "@/hooks/use-alternative-assets";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import {
-  PORTFOLIO_ACCOUNT_ID,
+  AccountPurpose,
   HOLDING_CATEGORY_FILTERS,
   apiKindToAlternativeAssetKind,
 } from "@/lib/constants";
@@ -67,7 +67,9 @@ export const HoldingsPage = () => {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
 
   const { holdings, isLoading } = useHoldings(accountFilter);
-  const { accounts, isLoading: isAccountsLoading } = useAccounts();
+  const { accounts, isLoading: isAccountsLoading } = useAccounts({
+    accountPurpose: AccountPurpose.HOLDINGS,
+  });
   const { data: portfolios = [] } = usePortfolios();
   const { data: alternativeHoldings, isLoading: isAlternativeHoldingsLoading } =
     useAlternativeHoldings();
@@ -135,7 +137,7 @@ export const HoldingsPage = () => {
 
   // Check if the selected account supports manual holdings editing
   const canEditHoldings = useMemo(() => {
-    if (!selectedAccount || selectedAccount.id === PORTFOLIO_ACCOUNT_ID) {
+    if (!selectedAccount) {
       return false;
     }
     return canAddHoldings(selectedAccount);

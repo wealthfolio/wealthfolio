@@ -1,6 +1,8 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
-use super::portfolios_model::{AccountScope, NewPortfolio, PortfolioUpdate, PortfolioWithAccounts};
+use super::portfolios_model::{
+    AccountScope, NewPortfolio, PortfolioUpdate, PortfolioWithAccounts, ResolvedAccountScope,
+};
 use super::portfolios_traits::{PortfolioRepositoryTrait, PortfolioServiceTrait};
 use crate::accounts::AccountRepositoryTrait;
 use crate::errors::{DatabaseError, Result, ValidationError};
@@ -39,6 +41,24 @@ impl PortfolioService {
             if !found.contains(id) {
                 return Err(Error::Validation(ValidationError::InvalidInput(format!(
                     "Account '{}' does not exist",
+                    id
+                ))));
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_resolved_account_ids_exist(&self, ids: &[String]) -> Result<()> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+
+        let existing = self.account_repository.list(None, None, Some(ids))?;
+        let found: HashSet<_> = existing.iter().map(|a| a.id.as_str()).collect();
+        for id in ids {
+            if !found.contains(id.as_str()) {
+                return Err(Error::Validation(ValidationError::InvalidInput(format!(
+                    "Account scope includes unknown account '{}'",
                     id
                 ))));
             }
@@ -84,5 +104,39 @@ impl PortfolioServiceTrait for PortfolioService {
 
     fn resolve_account_filter(&self, filter: &AccountScope) -> Result<Vec<String>> {
         self.repository.resolve_account_ids(filter)
+    }
+
+    fn resolve_account_scope(
+        &self,
+        filter: &AccountScope,
+        base_currency: &str,
+    ) -> Result<ResolvedAccountScope> {
+        let mut ids = match filter {
+            AccountScope::Account { account_id } => vec![account_id.clone()],
+            AccountScope::All | AccountScope::Portfolio { .. } | AccountScope::Accounts { .. } => {
+                self.resolve_account_filter(filter)?
+            }
+        };
+        ids.sort();
+        ids.dedup();
+        self.validate_resolved_account_ids_exist(&ids)?;
+
+        let scope_id = match filter {
+            AccountScope::All => "all".to_string(),
+            AccountScope::Account { account_id } => format!("account:{}", account_id),
+            AccountScope::Portfolio { portfolio_id } => format!("portfolio:{}", portfolio_id),
+            AccountScope::Accounts { .. } => {
+                use sha2::{Digest, Sha256};
+                let joined = ids.join("\n");
+                let digest = Sha256::digest(joined.as_bytes());
+                format!("accounts:{}", hex::encode(&digest[..8]))
+            }
+        };
+
+        Ok(ResolvedAccountScope {
+            scope_id,
+            account_ids: ids,
+            base_currency: base_currency.to_string(),
+        })
     }
 }

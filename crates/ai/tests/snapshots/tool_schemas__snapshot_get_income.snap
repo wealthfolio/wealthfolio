@@ -1,0 +1,22 @@
+---
+source: crates/ai/tests/tool_schemas.rs
+assertion_line: 104
+expression: snapshot
+---
+{
+  "name": "get_income",
+  "parameters": {
+    "properties": {
+      "period": {
+        "enum": [
+          "YTD",
+          "LAST_YEAR",
+          "ALL"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [],
+    "type": "object"
+  }
+}

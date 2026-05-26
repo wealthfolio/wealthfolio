@@ -18,6 +18,11 @@ const accountTypeConfig: Record<AccountType, { icon: Icon; bgClass: string; icon
     bgClass: "bg-green-500/10",
     iconClass: "text-green-500",
   },
+  CREDIT_CARD: {
+    icon: Icons.CreditCard,
+    bgClass: "bg-rose-500/10",
+    iconClass: "text-rose-500",
+  },
   CRYPTOCURRENCY: {
     icon: Icons.Bitcoin,
     bgClass: "bg-orange-500/10",

@@ -71,6 +71,9 @@ importers:
       '@fontsource/ibm-plex-mono':
         specifier: ^5.2.7
         version: 5.2.7
+      '@fontsource/jetbrains-mono':
+        specifier: ^5.2.8
+        version: 5.2.8
       '@fontsource/merriweather':
         specifier: ^5.2.11
         version: 5.2.11
@@ -83,6 +86,9 @@ importers:
       '@number-flow/react':
         specifier: ^0.5.11
         version: 0.5.14(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@radix-ui/react-slot':
         specifier: ^1.2.4
         version: 1.2.4(@types/react@19.2.14)(react@19.2.4)
@@ -958,6 +964,9 @@ packages:
 
   '@fontsource/ibm-plex-mono@5.2.7':
     resolution: {integrity: sha512-MKAb8qV+CaiMQn2B0dIi1OV3565NYzp3WN5b4oT6LTkk+F0jR6j0ZN+5BKJiIhffDC3rtBULsYZE65+0018z9w==}
+
+  '@fontsource/jetbrains-mono@5.2.8':
+    resolution: {integrity: sha512-6w8/SG4kqvIMu7xd7wt6x3idn1Qux3p9N62s6G3rfldOUYHpWcc2FKrqf+Vo44jRvqWj2oAtTHrZXEP23oSKwQ==}
 
   '@fontsource/merriweather@5.2.11':
     resolution: {integrity: sha512-ZiIMeUh5iT8d73o6xlSF8GKgjV5pgiFrufYc5jZTVAfExtWKqM2vQHnsqXSFMv4ELhAcjt6Vf+5T3oVGXhAizQ==}
@@ -6766,6 +6775,8 @@ snapshots:
   '@fontsource-variable/inter@5.2.8': {}
 
   '@fontsource/ibm-plex-mono@5.2.7': {}
+
+  '@fontsource/jetbrains-mono@5.2.8': {}
 
   '@fontsource/merriweather@5.2.11': {}
 

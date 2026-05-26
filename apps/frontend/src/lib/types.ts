@@ -13,6 +13,10 @@ import {
 } from "./constants";
 
 export {
+  accountCapabilities,
+  accountPurposeAccountTypes,
+  AccountPurpose,
+  accountSupportsPurpose,
   AccountType,
   ActivityStatus,
   ActivityType,
@@ -34,8 +38,11 @@ export {
   HOLDING_GROUP_ORDER,
   HoldingType,
   ImportFormat,
+  isLiabilityAccountType,
+  isReportAccountType,
   PricingMode,
   QuoteMode,
+  REPORT_ACCOUNT_TYPES,
   SUBTYPE_DISPLAY_NAMES,
 } from "./constants";
 
@@ -138,6 +145,15 @@ export interface Activity {
   // Metadata
   notes?: string;
   metadata?: Record<string, unknown>;
+
+  /**
+   * Optional spending event tag — sourced from the `activity_events` join
+   * table and surfaced on `CashActivity` (the spending
+   * search response). Plain `getActivities()` lists don't populate this
+   * field; consumers that need the tag should go through the spending
+   * cash-activity search, which JOINs against `activity_events`.
+   */
+  eventId?: string | null;
 
   // Source identity
   sourceSystem?: string; // SNAPTRADE, PLAID, MANUAL, CSV
@@ -905,6 +921,14 @@ export interface AccountValuation {
   totalValue: number;
   costBasis: number;
   netContribution: number;
+  cashBalanceBase: number;
+  investmentMarketValueBase: number;
+  totalValueBase: number;
+  costBasisBase: number;
+  netContributionBase: number;
+  externalInflowBase: number;
+  externalOutflowBase: number;
+  performanceEligibleValueBase: number;
   calculatedAt: string;
 }
 
@@ -1005,14 +1029,27 @@ export interface PerformanceMetrics {
   annualizedTwr?: number | null;
   simpleReturn: number;
   annualizedSimpleReturn: number;
-  /** Money-weighted return (null for HOLDINGS mode - requires cash flow tracking) */
+  /** Modified Dietz return (null for HOLDINGS mode - requires cash flow tracking) */
+  cumulativeModifiedDietz?: number | null;
+  /** Annualized Modified Dietz return (null for HOLDINGS mode) */
+  annualizedModifiedDietz?: number | null;
+  /** Legacy alias for Modified Dietz */
   cumulativeMwr?: number | null;
-  /** Annualized MWR (null for HOLDINGS mode) */
+  /** Legacy alias for annualized Modified Dietz */
   annualizedMwr?: number | null;
   volatility: number;
   maxDrawdown: number;
   /** Indicates if this is a HOLDINGS mode account (no cash flow tracking) */
   isHoldingsMode?: boolean;
+  returnMethod?:
+    | "timeWeighted"
+    | "moneyWeighted"
+    | "modifiedDietz"
+    | "simpleReturn"
+    | "symbolPriceBased"
+    | "notApplicable";
+  isMixedTrackingMode?: boolean;
+  warnings?: string[];
 }
 
 export interface NewAsset {
@@ -1081,6 +1118,7 @@ export interface TrackedItem {
   id: string;
   type: "account" | "symbol";
   name: string;
+  accountScope?: AccountScope;
 }
 
 // Addon Store Types
@@ -1342,7 +1380,7 @@ export interface NetWorthHistoryPoint {
   date: string;
 
   // Component values
-  /** Portfolio value from TOTAL account (investments + cash) as decimal string */
+  /** Portfolio value from aggregated real-account valuations as decimal string */
   portfolioValue: string;
   /** Alternative assets value (properties, vehicles, collectibles, etc.) as decimal string */
   alternativeAssetsValue: string;
@@ -1474,6 +1512,8 @@ export interface NetWorthConfig {
 /**
  * Taxonomy - a classification system (e.g., "Asset Classes", "Regions", "Industries")
  */
+export type TaxonomyScope = "asset" | "activity";
+
 export interface Taxonomy {
   id: string;
   name: string;
@@ -1484,6 +1524,8 @@ export interface Taxonomy {
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
+  /** What entity kind this taxonomy classifies. Defaults to "asset" for backwards compat. */
+  scope: TaxonomyScope;
 }
 
 /**
@@ -1500,6 +1542,8 @@ export interface TaxonomyCategory {
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
+  /** Optional Lucide icon name for UI display (used by spending categories). */
+  icon?: string | null;
 }
 
 /**
@@ -1535,6 +1579,7 @@ export interface NewTaxonomy {
   isSystem: boolean;
   isSingleSelect: boolean;
   sortOrder: number;
+  scope?: TaxonomyScope;
 }
 
 /**
@@ -1549,6 +1594,7 @@ export interface NewTaxonomyCategory {
   color: string;
   description?: string | null;
   sortOrder: number;
+  icon?: string | null;
 }
 
 /**
@@ -1984,6 +2030,8 @@ export interface SnapshotInfo {
   positionCount: number;
   /** Number of cash currencies in this snapshot */
   cashCurrencyCount: number;
+  /** Total cash converted to account currency */
+  cashTotalAccountCurrency: string;
 }
 
 // ============================================================================

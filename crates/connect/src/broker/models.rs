@@ -670,51 +670,11 @@ impl BrokerAccount {
         // First try the direct account_type field (new API)
         if let Some(ref account_type) = self.account_type {
             if !account_type.is_empty() {
-                return account_type.clone();
+                return map_broker_account_type(account_type);
             }
         }
         // Fall back to mapping raw_type (legacy)
-        let raw = self.raw_type.as_deref().unwrap_or("").to_uppercase();
-
-        // Map common broker account types to standardized types
-        match raw.as_str() {
-            // Tax-advantaged accounts
-            "RRSP" | "RSP" => "RRSP".to_string(),
-            "TFSA" => "TFSA".to_string(),
-            "FHSA" => "FHSA".to_string(),
-            "RESP" => "RESP".to_string(),
-            "LIRA" | "LRSP" => "LIRA".to_string(),
-            "RRIF" => "RRIF".to_string(),
-            "LIF" => "LIF".to_string(),
-            "DPSP" => "DPSP".to_string(),
-
-            // US retirement accounts
-            "IRA" | "TRADITIONAL_IRA" | "TRADITIONAL IRA" => "IRA".to_string(),
-            "ROTH_IRA" | "ROTH IRA" | "ROTH" => "ROTH_IRA".to_string(),
-            "401K" | "401(K)" => "401K".to_string(),
-            "403B" | "403(B)" => "403B".to_string(),
-            "SEP_IRA" | "SEP IRA" | "SEP" => "SEP_IRA".to_string(),
-            "SIMPLE_IRA" | "SIMPLE IRA" => "SIMPLE_IRA".to_string(),
-            "529" => "529".to_string(),
-            "HSA" => "HSA".to_string(),
-
-            // Standard accounts
-            "MARGIN" | "MARGIN_ACCOUNT" => "MARGIN".to_string(),
-            "CASH" | "CASH_ACCOUNT" => "CASH".to_string(),
-            "INVESTMENT" | "BROKERAGE" | "INDIVIDUAL" => "INVESTMENT".to_string(),
-            "JOINT" | "JOINT_ACCOUNT" => "JOINT".to_string(),
-            "CORPORATE" | "BUSINESS" => "CORPORATE".to_string(),
-            "TRUST" => "TRUST".to_string(),
-
-            // Default fallback
-            _ if raw.contains("RRSP") => "RRSP".to_string(),
-            _ if raw.contains("TFSA") => "TFSA".to_string(),
-            _ if raw.contains("MARGIN") => "MARGIN".to_string(),
-            _ if raw.contains("CASH") => "CASH".to_string(),
-            _ if raw.contains("IRA") => "IRA".to_string(),
-            _ if raw.contains("401") => "401K".to_string(),
-            _ => "SECURITIES".to_string(),
-        }
+        map_broker_account_type(self.raw_type.as_deref().unwrap_or(""))
     }
 
     /// Get account name, falling back to institution + account number
@@ -736,6 +696,8 @@ impl BrokerAccount {
             "brokerage_authorization": self.brokerage_authorization,
             "created_date": self.created_date,
             "status": self.status,
+            "broker_account_type": self.account_type,
+            "broker_raw_type": self.raw_type,
             "raw_type": self.raw_type,
             "is_paper": self.is_paper,
             "sync_enabled": self.sync_enabled,
@@ -760,6 +722,109 @@ impl BrokerAccount {
             })),
         });
         serde_json::to_string(&meta).ok()
+    }
+}
+
+fn map_broker_account_type(raw: &str) -> String {
+    let raw = raw.trim().to_uppercase();
+
+    // Map common broker account types to standardized types
+    match raw.as_str() {
+        // Investment wrappers are not account types in Wealthfolio's domain model.
+        "RRSP" | "RSP" | "TFSA" | "FHSA" | "RESP" | "LIRA" | "LRSP" | "RRIF" | "LIF" | "DPSP" => {
+            "SECURITIES".to_string()
+        }
+
+        // US retirement accounts
+        "IRA" | "TRADITIONAL_IRA" | "TRADITIONAL IRA" | "ROTH_IRA" | "ROTH IRA" | "ROTH"
+        | "401K" | "401(K)" | "403B" | "403(B)" | "SEP_IRA" | "SEP IRA" | "SEP" | "SIMPLE_IRA"
+        | "SIMPLE IRA" | "529" | "HSA" => "SECURITIES".to_string(),
+
+        // Standard accounts
+        "SECURITIES" | "SECURITY" => "SECURITIES".to_string(),
+        "CRYPTOCURRENCY" | "CRYPTO" | "CRYPTO_ACCOUNT" | "CRYPTO ACCOUNT" => {
+            "CRYPTOCURRENCY".to_string()
+        }
+        "MARGIN" | "MARGIN_ACCOUNT" => "SECURITIES".to_string(),
+        "CASH" | "CASH_ACCOUNT" => "CASH".to_string(),
+        "CREDIT_CARD" | "CREDIT CARD" | "CREDITCARD" | "CARD" => "CREDIT_CARD".to_string(),
+        "INVESTMENT" | "BROKERAGE" | "INDIVIDUAL" | "JOINT" | "JOINT_ACCOUNT" | "CORPORATE"
+        | "BUSINESS" | "TRUST" => "SECURITIES".to_string(),
+
+        // Default fallback
+        _ if raw.contains("CREDIT") && raw.contains("CARD") => "CREDIT_CARD".to_string(),
+        _ if raw.contains("CRYPTO") => "CRYPTOCURRENCY".to_string(),
+        _ if raw.contains("RRSP")
+            || raw.contains("TFSA")
+            || raw.contains("MARGIN")
+            || raw.contains("IRA")
+            || raw.contains("401")
+            || raw.contains("BROKERAGE")
+            || raw.contains("INVESTMENT") =>
+        {
+            "SECURITIES".to_string()
+        }
+        _ if raw.contains("CASH") => "CASH".to_string(),
+        _ => "SECURITIES".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{map_broker_account_type, BrokerAccount};
+
+    #[test]
+    fn maps_direct_account_type_to_supported_constant() {
+        let account = BrokerAccount {
+            account_type: Some("Credit Card".to_string()),
+            raw_type: Some("CASH".to_string()),
+            ..Default::default()
+        };
+
+        assert_eq!(account.get_account_type(), "CREDIT_CARD");
+    }
+
+    #[test]
+    fn preserves_direct_canonical_crypto_account_type() {
+        let account = BrokerAccount {
+            account_type: Some("CRYPTOCURRENCY".to_string()),
+            raw_type: Some("CASH".to_string()),
+            ..Default::default()
+        };
+
+        assert_eq!(account.get_account_type(), "CRYPTOCURRENCY");
+    }
+
+    #[test]
+    fn maps_broker_account_type_variants() {
+        assert_eq!(map_broker_account_type("credit_card"), "CREDIT_CARD");
+        assert_eq!(map_broker_account_type("Credit Card"), "CREDIT_CARD");
+        assert_eq!(map_broker_account_type("card"), "CREDIT_CARD");
+        assert_eq!(map_broker_account_type("crypto"), "CRYPTOCURRENCY");
+        assert_eq!(map_broker_account_type("TFSA"), "SECURITIES");
+        assert_eq!(map_broker_account_type("RRSP"), "SECURITIES");
+        assert_eq!(map_broker_account_type("MARGIN"), "SECURITIES");
+        assert_eq!(map_broker_account_type("INVESTMENT"), "SECURITIES");
+        assert_eq!(map_broker_account_type("Roth IRA"), "SECURITIES");
+        assert_eq!(map_broker_account_type("TFSA Cash"), "SECURITIES");
+        assert_eq!(map_broker_account_type("Brokerage Cash"), "SECURITIES");
+    }
+
+    #[test]
+    fn preserves_raw_broker_type_metadata() {
+        let account = BrokerAccount {
+            account_type: Some("TFSA".to_string()),
+            raw_type: Some("registered_account".to_string()),
+            ..Default::default()
+        };
+
+        let meta: serde_json::Value =
+            serde_json::from_str(&account.to_meta_json().expect("broker account metadata"))
+                .expect("valid json metadata");
+
+        assert_eq!(meta["broker_account_type"], "TFSA");
+        assert_eq!(meta["broker_raw_type"], "registered_account");
+        assert_eq!(meta["raw_type"], "registered_account");
     }
 }
 

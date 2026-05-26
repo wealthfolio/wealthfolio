@@ -39,6 +39,9 @@ pub const DEFAULT_TOOLS_ALLOWLIST: &[&str] = &[
     "record_activities",
     "import_csv",
     "get_health_status",
+    "propose_transaction_categories",
+    "list_categorization_context",
+    "create_categorization_rule",
 ];
 
 const LEGACY_VISIBLE_DATA_TOOLS: &[&str] = &[
@@ -74,6 +77,9 @@ pub fn normalize_tools_allowlist(tools_allowlist: Option<Vec<String>>) -> Option
         push_tool_once(&mut tools, "record_activity");
         push_tool_once(&mut tools, "record_activities");
         push_tool_once(&mut tools, "import_csv");
+        push_tool_once(&mut tools, "propose_transaction_categories");
+        push_tool_once(&mut tools, "list_categorization_context");
+        push_tool_once(&mut tools, "create_categorization_rule");
     }
 
     if LEGACY_VISIBLE_DATA_TOOLS
@@ -1107,6 +1113,8 @@ mod tests {
         assert!(tools.contains(&"import_csv".to_string()));
         assert!(tools.contains(&"get_health_status".to_string()));
     }
+
+    // Cross-tool allowlist coverage evals live in `crates/ai/tests/allowlist.rs`.
 
     #[test]
     fn test_normalize_tools_allowlist_preserves_empty_and_none() {

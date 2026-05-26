@@ -74,6 +74,10 @@ impl WebDomainEventSink {
         timezone: Arc<RwLock<String>>,
         secret_store: Arc<dyn SecretStore>,
         token_lifecycle: Arc<TokenLifecycleState>,
+        spending_settings_service: Arc<wealthfolio_spending::settings::SpendingSettingsService>,
+        categorization_rules_service: Arc<
+            wealthfolio_spending::categorization_rules::CategorizationRulesService,
+        >,
     ) {
         let rx = self
             .rx
@@ -96,6 +100,8 @@ impl WebDomainEventSink {
             timezone,
             secret_store,
             token_lifecycle,
+            spending_settings_service,
+            categorization_rules_service,
         });
 
         // Spawn the background worker

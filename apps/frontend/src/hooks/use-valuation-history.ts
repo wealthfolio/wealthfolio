@@ -1,44 +1,40 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { AccountValuation, DateRange } from "@/lib/types";
+import type { AccountScope, AccountValuation, DateRange } from "@/lib/types";
 import { getHistoricalValuations } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
 import { format } from "date-fns";
-import { PORTFOLIO_ACCOUNT_ID } from "@/lib/constants";
 
 export function useValuationHistory(
   dateRange: DateRange | undefined,
-  accountId: string = PORTFOLIO_ACCOUNT_ID,
+  filter: AccountScope = { type: "all" },
 ) {
+  const dateRangeMode = dateRange === undefined ? "all" : "range";
+  const startDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined;
+  const endDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined;
   const {
     data: valuationHistory,
     isLoading,
     isFetching,
   } = useQuery<AccountValuation[], Error>({
     queryKey: [
-      ...QueryKeys.valuationHistory(accountId),
-      dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : null,
-      dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : null,
+      ...QueryKeys.valuationHistory(filter),
+      dateRangeMode,
+      startDate ?? null,
+      endDate ?? null,
     ],
     queryFn: () => {
-      const fetchValuations = (id: string, start?: string, end?: string) =>
-        getHistoricalValuations(id, start, end);
-
-      if (dateRange === undefined) {
-        return fetchValuations(accountId, undefined, undefined);
+      if (dateRangeMode === "all") {
+        return getHistoricalValuations(filter, undefined, undefined);
       }
 
-      if (!dateRange?.from || !dateRange?.to) {
-        console.error("Invalid date range provided to useValuationHistory", dateRange);
+      if (!startDate || !endDate) {
+        console.error("Invalid date range provided to useValuationHistory");
         return Promise.resolve([]);
       }
 
-      return fetchValuations(
-        accountId,
-        format(dateRange.from, "yyyy-MM-dd"),
-        format(dateRange.to, "yyyy-MM-dd"),
-      );
+      return getHistoricalValuations(filter, startDate, endDate);
     },
-    enabled: dateRange === undefined || (!!dateRange?.from && !!dateRange?.to),
+    enabled: dateRangeMode === "all" || (!!startDate && !!endDate),
     placeholderData: keepPreviousData,
   });
 

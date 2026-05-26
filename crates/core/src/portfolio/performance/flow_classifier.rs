@@ -7,6 +7,13 @@ use crate::activities::{
     Activity, ACTIVITY_SUBTYPE_BONUS, ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_DEPOSIT,
     ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL,
 };
+use chrono::NaiveDate;
+use rust_decimal::Decimal;
+use std::collections::HashSet;
+
+fn transfer_match_tolerance() -> Decimal {
+    Decimal::new(1, 6)
+}
 
 fn is_external_transfer(activity: &Activity) -> bool {
     activity
@@ -90,6 +97,114 @@ pub fn classify_flow_for_scope(activity: &Activity, scope: PerformanceScope) -> 
     FlowType::Internal
 }
 
+pub fn classify_transfer_for_account_scope(
+    activity: &Activity,
+    scope_account_ids: &HashSet<String>,
+    paired_account_id: Option<&str>,
+) -> FlowType {
+    let effective_type = activity.effective_type();
+    if effective_type != ACTIVITY_TYPE_TRANSFER_IN && effective_type != ACTIVITY_TYPE_TRANSFER_OUT {
+        return classify_flow_for_scope(activity, PerformanceScope::Portfolio);
+    }
+
+    if is_external_transfer(activity) {
+        return FlowType::External;
+    }
+
+    let current_inside = scope_account_ids.contains(&activity.account_id);
+    let paired_inside = paired_account_id
+        .map(|account_id| scope_account_ids.contains(account_id))
+        .unwrap_or(false);
+
+    match (current_inside, paired_inside) {
+        (true, true) | (false, false) => FlowType::Internal,
+        (true, false) | (false, true) => FlowType::External,
+    }
+}
+
+fn opposite_transfer_type(activity_type: &str) -> Option<&'static str> {
+    match activity_type {
+        ACTIVITY_TYPE_TRANSFER_IN => Some(ACTIVITY_TYPE_TRANSFER_OUT),
+        ACTIVITY_TYPE_TRANSFER_OUT => Some(ACTIVITY_TYPE_TRANSFER_IN),
+        _ => None,
+    }
+}
+
+fn transfer_amount(activity: &Activity) -> Option<Decimal> {
+    activity
+        .amount
+        .or_else(|| Some(activity.quantity? * activity.unit_price?))
+        .map(|amount| amount.abs())
+}
+
+fn decimal_matches(left: Option<Decimal>, right: Option<Decimal>) -> bool {
+    match (left, right) {
+        (Some(left), Some(right)) => (left - right).abs() <= transfer_match_tolerance(),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+fn transfer_match(activity: &Activity, candidate: &Activity) -> bool {
+    if activity.id == candidate.id {
+        return false;
+    }
+
+    let effective_type = activity.effective_type();
+    let candidate_type = candidate.effective_type();
+    if Some(candidate_type) != opposite_transfer_type(effective_type) {
+        return false;
+    }
+
+    let activity_asset_id = activity.asset_id.as_deref().unwrap_or("").trim();
+    let candidate_asset_id = candidate.asset_id.as_deref().unwrap_or("").trim();
+    let has_asset = !activity_asset_id.is_empty() || !candidate_asset_id.is_empty();
+
+    if has_asset {
+        activity_asset_id == candidate_asset_id
+            && decimal_matches(activity.quantity, candidate.quantity)
+            && decimal_matches(transfer_amount(activity), transfer_amount(candidate))
+    } else {
+        activity.currency == candidate.currency
+            && decimal_matches(transfer_amount(activity), transfer_amount(candidate))
+    }
+}
+
+pub fn infer_paired_transfer_account_id<F>(
+    activity: &Activity,
+    candidates: &[Activity],
+    mut activity_local_date: F,
+) -> Option<String>
+where
+    F: FnMut(&Activity) -> NaiveDate,
+{
+    let effective_type = activity.effective_type();
+    let opposite_type = opposite_transfer_type(effective_type)?;
+
+    if let Some(group_id) = activity.source_group_id.as_deref() {
+        let mut grouped_matches = candidates.iter().filter(|candidate| {
+            candidate.id != activity.id
+                && candidate.source_group_id.as_deref() == Some(group_id)
+                && candidate.effective_type() == opposite_type
+        });
+        let first = grouped_matches.next()?;
+        if grouped_matches.next().is_none() {
+            return Some(first.account_id.clone());
+        }
+    }
+
+    let activity_date = activity_local_date(activity);
+    let mut matches = candidates.iter().filter(|candidate| {
+        activity_local_date(candidate) == activity_date && transfer_match(activity, candidate)
+    });
+    let first = matches.next()?;
+    if matches.next().is_none() {
+        Some(first.account_id.clone())
+    } else {
+        None
+    }
+}
+
 /// Classify flow for portfolio-level performance.
 pub fn classify_flow(activity: &Activity) -> FlowType {
     classify_flow_for_scope(activity, PerformanceScope::Portfolio)
@@ -119,7 +234,8 @@ pub fn affects_net_contribution_for_scope(activity: &Activity, scope: Performanc
 mod tests {
     use super::*;
     use crate::activities::ActivityStatus;
-    use chrono::Utc;
+    use chrono::{TimeZone, Utc};
+    use serde_json::json;
 
     fn create_test_activity(activity_type: &str) -> Activity {
         Activity {
@@ -151,6 +267,14 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
+    }
+
+    fn account_scope(ids: &[&str]) -> HashSet<String> {
+        ids.iter().map(|id| id.to_string()).collect()
+    }
+
+    fn local_date(activity: &Activity) -> NaiveDate {
+        activity.activity_date.date_naive()
     }
 
     // External flow tests
@@ -232,6 +356,117 @@ mod tests {
         assert_eq!(
             classify_flow_for_scope(&activity, PerformanceScope::Account),
             FlowType::External
+        );
+    }
+
+    #[test]
+    fn cash_transfer_inside_account_scope_is_internal() {
+        let activity = create_test_activity("TRANSFER_OUT");
+        let scope = account_scope(&["account-1", "account-2"]);
+        assert_eq!(
+            classify_transfer_for_account_scope(&activity, &scope, Some("account-2")),
+            FlowType::Internal
+        );
+    }
+
+    #[test]
+    fn security_transfer_inside_account_scope_is_internal() {
+        let mut activity = create_test_activity("TRANSFER_IN");
+        activity.asset_id = Some("SEC:AAPL".to_string());
+        activity.quantity = Some(rust_decimal::Decimal::ONE);
+        let scope = account_scope(&["account-1", "account-2"]);
+        assert_eq!(
+            classify_transfer_for_account_scope(&activity, &scope, Some("account-2")),
+            FlowType::Internal
+        );
+    }
+
+    #[test]
+    fn transfer_crossing_account_scope_boundary_is_external() {
+        let activity = create_test_activity("TRANSFER_IN");
+        let scope = account_scope(&["account-1"]);
+        assert_eq!(
+            classify_transfer_for_account_scope(&activity, &scope, Some("account-2")),
+            FlowType::External
+        );
+    }
+
+    #[test]
+    fn unpaired_transfer_inside_scope_defaults_external() {
+        let activity = create_test_activity("TRANSFER_IN");
+        let scope = account_scope(&["account-1"]);
+        assert_eq!(
+            classify_transfer_for_account_scope(&activity, &scope, None),
+            FlowType::External
+        );
+    }
+
+    #[test]
+    fn metadata_can_force_transfer_external() {
+        let mut activity = create_test_activity("TRANSFER_OUT");
+        activity.metadata = Some(json!({ "flow": { "is_external": true } }));
+        let scope = account_scope(&["account-1", "account-2"]);
+        assert_eq!(
+            classify_transfer_for_account_scope(&activity, &scope, Some("account-2")),
+            FlowType::External
+        );
+    }
+
+    #[test]
+    fn paired_transfer_account_is_inferred_from_source_group() {
+        let mut transfer_out = create_test_activity("TRANSFER_OUT");
+        transfer_out.id = "out".to_string();
+        transfer_out.source_group_id = Some("group-1".to_string());
+
+        let mut transfer_in = create_test_activity("TRANSFER_IN");
+        transfer_in.id = "in".to_string();
+        transfer_in.account_id = "account-2".to_string();
+        transfer_in.source_group_id = Some("group-1".to_string());
+
+        let candidates = vec![transfer_out.clone(), transfer_in];
+
+        assert_eq!(
+            infer_paired_transfer_account_id(&transfer_out, &candidates, local_date),
+            Some("account-2".to_string())
+        );
+    }
+
+    #[test]
+    fn unique_unlinked_transfer_pair_is_inferred_by_date_currency_and_amount() {
+        let mut transfer_out = create_test_activity("TRANSFER_OUT");
+        transfer_out.id = "out".to_string();
+        transfer_out.activity_date = Utc.with_ymd_and_hms(2026, 5, 2, 12, 0, 0).unwrap();
+        transfer_out.amount = Some(rust_decimal::Decimal::from(250));
+
+        let mut transfer_in = create_test_activity("TRANSFER_IN");
+        transfer_in.id = "in".to_string();
+        transfer_in.account_id = "account-2".to_string();
+        transfer_in.activity_date = transfer_out.activity_date;
+        transfer_in.amount = transfer_out.amount;
+
+        let candidates = vec![transfer_out.clone(), transfer_in];
+
+        assert_eq!(
+            infer_paired_transfer_account_id(&transfer_out, &candidates, local_date),
+            Some("account-2".to_string())
+        );
+    }
+
+    #[test]
+    fn ambiguous_unlinked_transfer_pair_is_not_inferred() {
+        let transfer_out = create_test_activity("TRANSFER_OUT");
+        let mut transfer_in_a = create_test_activity("TRANSFER_IN");
+        transfer_in_a.id = "in-a".to_string();
+        transfer_in_a.account_id = "account-2".to_string();
+        let mut transfer_in_b = transfer_in_a.clone();
+        transfer_in_b.id = "in-b".to_string();
+        transfer_in_b.account_id = "account-3".to_string();
+
+        let candidates = vec![transfer_out.clone(), transfer_in_a, transfer_in_b];
+
+        assert_eq!(
+            infer_paired_transfer_account_id(&transfer_out, &candidates, local_date),
+            None
         );
     }
 

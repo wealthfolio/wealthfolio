@@ -40,30 +40,36 @@ export function useCalculatePerformanceHistory({
   const endDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined;
 
   const performanceQueries = useQueries({
-    queries: validItems.map((item) => ({
-      queryKey: [
-        QueryKeys.PERFORMANCE_HISTORY,
-        item.type,
-        item.id,
-        startDate,
-        endDate,
-        trackingMode,
-      ],
-      queryFn: () =>
-        calculatePerformanceHistory(
+    queries: validItems.map((item) => {
+      const accountFilter = item.type === "account" ? item.accountScope : undefined;
+
+      return {
+        queryKey: [
+          QueryKeys.PERFORMANCE_HISTORY,
           item.type,
           item.id,
-          startDate!,
-          endDate!,
-          // Only pass trackingMode for accounts, not for symbols
-          item.type === "account" ? trackingMode : undefined,
-        ),
-      // Enable query only if dates are present (item validation done above).
-      enabled: !!startDate && !!endDate,
-      staleTime: 30 * 1000,
-      retry: false,
-      placeholderData: keepPreviousData,
-    })),
+          accountFilter,
+          startDate,
+          endDate,
+          trackingMode,
+        ],
+        queryFn: () =>
+          calculatePerformanceHistory(
+            item.type,
+            item.id,
+            startDate!,
+            endDate!,
+            // Only pass trackingMode for accounts, not for symbols
+            item.type === "account" ? trackingMode : undefined,
+            accountFilter,
+          ),
+        // Enable query only if dates are present (item validation done above).
+        enabled: !!startDate && !!endDate,
+        staleTime: 30 * 1000,
+        retry: false,
+        placeholderData: keepPreviousData,
+      };
+    }),
   });
 
   const isLoading = performanceQueries.some((query) => query.isLoading);

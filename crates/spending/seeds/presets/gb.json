@@ -1,0 +1,321 @@
+{
+  "presetId": "gb",
+  "presetVersion": "2026-05.2",
+  "name": "United Kingdom",
+  "description": "~40 expense rules covering common UK household transactions. Includes major supermarkets, discounters, high-street retailers, utilities, telecom, housing, car maintenance, health, personal care, pets, education, giving, and fees.",
+  "language": "en-GB",
+  "rules": [
+    {
+      "key": "gb.groceries.major_chains",
+      "name": "Groceries — major chains",
+      "pattern": "(?i)\\btesco\\b|sainsbury|\\basda\\b|morrisons|waitrose|\\bocado\\b|\\baldi\\b|\\blidl\\b|\\bspar\\b|\\bcoop\\b|the co-?op|m&s food|marks ?& ?spencer|iceland foods|booths|budgens|nisa\\b|londis|costcutter",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 80
+    },
+    {
+      "key": "gb.coffee",
+      "name": "Coffee shops",
+      "pattern": "(?i)costa coffee|\\bcosta\\b|starbucks|\\bcaffè nero\\b|caffe nero|pret a manger|\\bpret\\b|\\bgreggs\\b|leon\\b|black sheep coffee|\\bcoffee\\b|\\bcafe\\b|\\bespresso\\b",
+      "matchType": "regex",
+      "categoryKey": "food_coffee",
+      "priority": 80
+    },
+    {
+      "key": "gb.fastfood",
+      "name": "Fast food & casual dining",
+      "pattern": "(?i)mcdonald|burger king|\\bkfc\\b|\\bsubway\\b|domino|pizza hut|papa john|\\bnando'?s\\b|wagamama|\\bgbk\\b|gourmet burger|five guys|leon\\b|wasabi|itsu\\b|yo ?sushi|wagamama|pizza express|\\bpret\\b|byron|hard rock cafe|\\bzizzi\\b|\\bask italian\\b|\\bprezzo\\b|cote brasserie|the ivy",
+      "matchType": "regex",
+      "categoryKey": "food_restaurants",
+      "priority": 75
+    },
+    {
+      "key": "gb.food_delivery",
+      "name": "Food delivery",
+      "pattern": "(?i)deliveroo|uber ?eats|just ?eat|\\bgousto\\b|hello ?fresh|gorillas\\b|\\bgetir\\b|\\bzapp\\b",
+      "matchType": "regex",
+      "categoryKey": "food_delivery",
+      "priority": 85
+    },
+    {
+      "key": "gb.pubs_alcohol",
+      "name": "Pubs & off-licences",
+      "pattern": "(?i)\\bpub\\b|\\btavern\\b|\\barms\\b inn|wetherspoon|young'?s|fuller'?s|greene king|\\bmitchell'?s & butler\\b|m & b\\b|brewing\\b|brewery|\\boddbins\\b|majestic wine|\\bbottle shop\\b|\\boff licence\\b|nicolas wine",
+      "matchType": "regex",
+      "categoryKey": "food_alcohol",
+      "priority": 70
+    },
+    {
+      "key": "gb.fuel",
+      "name": "Fuel stations",
+      "pattern": "(?i)\\bbp\\b|\\bshell\\b|\\besso\\b|\\btexaco\\b|jet petrol|\\bgulf\\b petrol|sainsbury'?s petrol|tesco petrol|asda petrol|morrisons petrol|applegreen|euro garages|\\beg group\\b|\\bmotor fuel\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_gas",
+      "priority": 80
+    },
+    {
+      "key": "gb.transit",
+      "name": "Public transit & rail",
+      "pattern": "(?i)\\btfl\\b|transport for london|\\boyster\\b|london underground|\\bnational rail\\b|\\btrainline\\b|\\bgwr\\b|\\blner\\b|\\bsoutheastern\\b|south western|northern rail|\\bmerseyrail\\b|tyne ?and ?wear|stagecoach|first bus|arriva\\b|\\bnxbus\\b|national express|megabus",
+      "matchType": "regex",
+      "categoryKey": "transport_public",
+      "priority": 80
+    },
+    {
+      "key": "gb.rideshare",
+      "name": "Rideshare & taxi",
+      "pattern": "(?i)\\buber\\b|\\bbolt\\b ride|\\bgett\\b|\\bola\\b cabs|free ?now|\\btaxi\\b|\\bminicab\\b|\\bblack cab\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_rideshare",
+      "priority": 80
+    },
+    {
+      "key": "gb.parking",
+      "name": "Parking",
+      "pattern": "(?i)\\bringo\\b|paybyphone|\\bjustpark\\b|\\bncp\\b|q-?park|saba ?park|apcoa parking|car park\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_parking",
+      "priority": 85
+    },
+    {
+      "key": "gb.car_maintenance",
+      "name": "Car maintenance",
+      "pattern": "(?i)kwik fit|halfords|national tyres|ats euromaster|blackcircles|formula one autocentres|in'?n'?out autocentres|\\bmot test\\b|car wash|auto repair|mechanic|garage services",
+      "matchType": "regex",
+      "categoryKey": "transport_maintenance",
+      "priority": 85
+    },
+    {
+      "key": "gb.airlines",
+      "name": "Airlines",
+      "pattern": "(?i)british airways|\\bba\\.com\\b|easyjet|ryanair|jet2\\b|virgin atlantic|wizz air|tui airways|loganair|\\baer lingus\\b",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 90
+    },
+    {
+      "key": "gb.hotels",
+      "name": "Hotels",
+      "pattern": "(?i)premier inn|travelodge|hilton|marriott|hyatt|holiday inn|\\bibis\\b|\\bnovotel\\b|mercure\\b|premier travel|\\bjurys inn\\b|leonardo hotels|best western|hotel\\b|\\bb&b\\b|bed and breakfast",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 85
+    },
+    {
+      "key": "gb.travel_booking",
+      "name": "Travel booking",
+      "pattern": "(?i)airbnb|\\bvrbo\\b|booking\\.com|expedia|hotels\\.com|trivago|skyscanner|on the beach|jet2 holidays|\\btui\\b|\\bthomas cook\\b",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 90
+    },
+    {
+      "key": "gb.streaming",
+      "name": "Streaming services",
+      "pattern": "(?i)netflix|spotify|apple\\.com/bill|apple music|disney ?\\+|amazon prime video|\\bnow tv\\b|prime video|\\bsky\\b sports|sky cinema|britbox|\\bitvx\\b|paramount ?\\+|\\bdazn\\b|youtube ?premium|youtube ?tv|\\baudible\\b",
+      "matchType": "regex",
+      "categoryKey": "entertainment_streaming",
+      "priority": 85
+    },
+    {
+      "key": "gb.software_subs",
+      "name": "Software & cloud",
+      "pattern": "(?i)\\badobe\\b|microsoft ?\\*|\\bm365\\b|office 365|dropbox|\\bicloud\\b|google ?storage|google ?one|\\bnotion\\b|\\bslack\\b|\\bzoom\\.us\\b|\\bgithub\\b|jetbrains|chatgpt|openai|claude\\.ai|anthropic|\\btimes\\b london|\\bft\\.com\\b|\\bguardian\\b\\.com|\\btelegraph\\b\\.co\\.uk|\\b1password\\b|grammarly|\\bcanva\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_software",
+      "priority": 80
+    },
+    {
+      "key": "gb.telecom",
+      "name": "Phone & broadband",
+      "pattern": "(?i)\\bee\\b mobile|\\bo2\\b|\\bvodafone\\b|\\bthree\\b mobile|\\bthree\\.co\\.uk\\b|\\b3 mobile\\b|\\bgiffgaff\\b|\\btesco mobile\\b|smarty\\b|\\bid mobile\\b|sky mobile|\\bbt\\b|\\bvirgin media\\b|\\btalktalk\\b|\\bplusnet\\b|sky broadband|hyperoptic|community fibre|now broadband",
+      "matchType": "regex",
+      "categoryKey": "bills_phone",
+      "priority": 80
+    },
+    {
+      "key": "gb.utilities",
+      "name": "Utilities (electric/gas/water)",
+      "pattern": "(?i)british gas|octopus energy|\\bovo\\b energy|\\bedf\\b energy|e\\.?on energy|scottish power|\\bbulb energy\\b|\\bsse\\b|so energy|good energy|\\butility warehouse\\b|thames water|severn trent|anglian water|yorkshire water|northumbrian water|south west water|\\bwessex water\\b|united utilities|scottish water|tv licence|tv licensing|\\bbbc tv\\b licence",
+      "matchType": "regex",
+      "categoryKey": "housing_utilities",
+      "priority": 80
+    },
+    {
+      "key": "gb.council_tax",
+      "name": "Council tax",
+      "pattern": "(?i)council tax",
+      "matchType": "regex",
+      "categoryKey": "housing_utilities",
+      "priority": 95
+    },
+    {
+      "key": "gb.housing_rent_mortgage",
+      "name": "Rent & mortgage",
+      "pattern": "(?i)\\brent\\b|mortgage|letting agent|estate agent|rightmove|zoopla|openrent|rentguard|landlord|service charge|ground rent",
+      "matchType": "regex",
+      "categoryKey": "housing_rent",
+      "priority": 88
+    },
+    {
+      "key": "gb.online_marketplaces",
+      "name": "Online marketplaces",
+      "pattern": "(?i)amazon\\.co\\.uk|amzn mktp uk|\\bamzn\\b|\\bebay\\b|\\betsy\\b|\\btemu\\b|\\bshein\\b|aliexpress|\\bdepop\\b|\\bvinted\\b|notonthehighstreet",
+      "matchType": "regex",
+      "categoryKey": "shopping_online",
+      "priority": 70
+    },
+    {
+      "key": "gb.shopping_clothing",
+      "name": "Clothing retailers",
+      "pattern": "(?i)\\bnike\\b|\\badidas\\b|lululemon|sports ?direct|jd sports|\\bnext\\b retail|next directory|\\buniqlo\\b|\\bzara\\b|\\bh&m\\b|primark|\\bmarks ?& ?spencer\\b|\\bm&s\\b clothing|\\bjohn lewis\\b|\\bdebenhams\\b|\\bselfridges\\b|harvey nichols|harrods|\\bmatalan\\b|\\bnew look\\b|river island|\\btopshop\\b|topman|\\bboohoo\\b|\\basos\\b|fat face|white stuff|\\bjoules\\b|barbour|superdry|all saints|cos\\b|\\bother stories\\b|\\bgap\\b|\\bbanana republic\\b|\\btk maxx\\b|\\bhomesense\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_clothing",
+      "priority": 80
+    },
+    {
+      "key": "gb.shopping_electronics",
+      "name": "Electronics",
+      "pattern": "(?i)\\bcurrys\\b|argos\\b|apple store|microsoft store|\\bsmyths\\b toys|\\bcex\\b|game\\.co\\.uk|\\brichersounds\\b|\\bjohn lewis\\b electronics",
+      "matchType": "regex",
+      "categoryKey": "shopping_electronics",
+      "priority": 85
+    },
+    {
+      "key": "gb.home_improvement",
+      "name": "Home improvement & home goods",
+      "pattern": "(?i)\\bb&q\\b|\\bhomebase\\b|wickes\\b|screwfix|toolstation|\\bikea\\b|dunelm|the range\\b|wilko\\b|\\bb&m\\b|home bargains|\\bhabitat\\b|john lewis home|\\bdfs\\b|harveys\\b|\\bsofology\\b|made\\.com",
+      "matchType": "regex",
+      "categoryKey": "shopping_home",
+      "priority": 80
+    },
+    {
+      "key": "gb.pharmacy",
+      "name": "Pharmacy & chemists",
+      "pattern": "(?i)\\bboots\\b|boots\\.com|\\bsuperdrug\\b|lloyds pharmacy|well pharmacy|paydens|day lewis|alliance pharmacy|tesco pharmacy",
+      "matchType": "regex",
+      "categoryKey": "health_pharmacy",
+      "priority": 85
+    },
+    {
+      "key": "gb.medical",
+      "name": "Medical & clinics",
+      "pattern": "(?i)private hospital|spire healthcare|nuffield health|nhs prescription|clinic|medical centre|medical center|hospital|physio|chiropractic|bupa clinic",
+      "matchType": "regex",
+      "categoryKey": "health_medical",
+      "priority": 86
+    },
+    {
+      "key": "gb.dental",
+      "name": "Dental",
+      "pattern": "(?i)dental|dentist|orthodont|mydentist|bupa dental",
+      "matchType": "regex",
+      "categoryKey": "health_dental",
+      "priority": 86
+    },
+    {
+      "key": "gb.vision",
+      "name": "Vision",
+      "pattern": "(?i)specsavers|vision express|optical express|boots opticians|scrivens|optician|optomet|vision care",
+      "matchType": "regex",
+      "categoryKey": "health_vision",
+      "priority": 86
+    },
+    {
+      "key": "gb.health_insurance",
+      "name": "Health insurance",
+      "pattern": "(?i)bupa|axa health|vitality health|aviva health|benenden|health insurance",
+      "matchType": "regex",
+      "categoryKey": "health_insurance",
+      "priority": 86
+    },
+    {
+      "key": "gb.fitness",
+      "name": "Gyms & fitness",
+      "pattern": "(?i)pure ?gym|the gym group|\\bdavid lloyd\\b|\\bvirgin active\\b|\\bnuffield health\\b|fitness first|\\bbannatyne\\b|\\bgll\\b|better leisure|f45\\b|crossfit|\\borangetheory\\b|barry'?s|peloton",
+      "matchType": "regex",
+      "categoryKey": "health_fitness",
+      "priority": 85
+    },
+    {
+      "key": "gb.movies_tickets",
+      "name": "Cinemas & live events",
+      "pattern": "(?i)\\bodeon\\b|\\bvue\\b cinema|\\bcineworld\\b|\\bpicturehouse\\b|\\bshowcase\\b cinema|\\bimax\\b|ticketmaster|see tickets|\\baxs\\b|stubhub|\\beventim\\b|\\bencore tickets\\b|\\blast minute\\b theatre",
+      "matchType": "regex",
+      "categoryKey": "entertainment_movies",
+      "priority": 85
+    },
+    {
+      "key": "gb.gaming",
+      "name": "Gaming platforms",
+      "pattern": "(?i)\\bsteam\\b games|valve corp|\\bxbox\\b|playstation|\\bpsn\\b|nintendo|epic games",
+      "matchType": "regex",
+      "categoryKey": "entertainment_games",
+      "priority": 85
+    },
+    {
+      "key": "gb.discount_stores",
+      "name": "Discount & variety stores",
+      "pattern": "(?i)poundland|poundstretcher|\\bb&m\\b|home bargains|the range|\\bwilko\\b|\\b99p stores\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping",
+      "priority": 75
+    },
+    {
+      "key": "gb.personal_care",
+      "name": "Personal care",
+      "pattern": "(?i)salon|barber|spa\\b|nail salon|\\bnails\\b|supercuts|toni ?& ?guy|sephora|space nk|lookfantastic|the fragrance shop|haircut",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 82
+    },
+    {
+      "key": "gb.pets",
+      "name": "Pets",
+      "pattern": "(?i)pets at home|vets4pets|petplan|veterinary|vet clinic|animal hospital|zooplus|pet supplies",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 82
+    },
+    {
+      "key": "gb.education_childcare",
+      "name": "Education & childcare",
+      "pattern": "(?i)tuition|university|college|school payment|nursery|child ?care|open university|kumon|coursera|udemy",
+      "matchType": "regex",
+      "categoryKey": "education",
+      "priority": 82
+    },
+    {
+      "key": "gb.donations",
+      "name": "Donations & charities",
+      "pattern": "(?i)justgiving|gofundme|red cross|oxfam|cancer research|british heart foundation|\\bchurch\\b|\\btithe\\b|donation|charity",
+      "matchType": "regex",
+      "categoryKey": "gifts",
+      "priority": 82
+    },
+    {
+      "key": "gb.bank_fees",
+      "name": "Bank & ATM fees",
+      "pattern": "(?i)\\boverdraft\\b fee|monthly fee|service charge|non-?sterling fee|foreign transaction|atm fee|wire fee|annual fee",
+      "matchType": "regex",
+      "categoryKey": "fees_bank",
+      "priority": 90
+    },
+    {
+      "key": "gb.insurance_auto",
+      "name": "Auto / home insurance",
+      "pattern": "(?i)admiral insurance|aviva\\b|direct line|\\baxa\\b|hastings direct|\\blv=\\b|liverpool victoria|churchill insurance|esure|\\bsaga\\b insurance|more than|\\brias\\b|\\bnfu mutual\\b|sheilas wheels",
+      "matchType": "regex",
+      "categoryKey": "transport_insurance",
+      "priority": 85
+    },
+    {
+      "key": "gb.gov_council_tax",
+      "name": "Government fees",
+      "pattern": "(?i)hmrc\\b|gov\\.uk|\\bdvla\\b|passport office|home office",
+      "matchType": "regex",
+      "categoryKey": "fees",
+      "priority": 90
+    }
+  ]
+}

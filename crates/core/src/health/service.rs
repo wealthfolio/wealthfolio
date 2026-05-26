@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::accounts::AccountServiceTrait;
+use crate::accounts::{account_types, is_liability_account_type, AccountServiceTrait};
 use crate::assets::AssetServiceTrait;
 use crate::errors::Result;
 use crate::portfolio::holdings::HoldingsServiceTrait;
@@ -367,10 +367,12 @@ impl HealthService {
         let unclassified_assets: Vec<UnclassifiedAssetInfo> = Vec::new();
 
         // Detect accounts with negative portfolio balance in their history.
-        // Exclude CASH accounts — a negative cash balance is a normal bank overdraft.
+        // Exclude cash and credit-card accounts; card debt is an expected liability.
         let account_ids: Vec<String> = accounts
             .iter()
-            .filter(|a| a.account_type != crate::accounts::account_types::CASH)
+            .filter(|a| {
+                a.account_type != account_types::CASH && !is_liability_account_type(&a.account_type)
+            })
             .map(|a| a.id.clone())
             .collect();
         let account_name_map: std::collections::HashMap<String, String> = accounts
@@ -407,7 +409,7 @@ impl HealthService {
         // Check CASH accounts separately — negative balance may be a normal overdraft (INFO only)
         let cash_account_ids: Vec<String> = accounts
             .iter()
-            .filter(|a| a.account_type == crate::accounts::account_types::CASH)
+            .filter(|a| a.account_type == account_types::CASH)
             .map(|a| a.id.clone())
             .collect();
         if !cash_account_ids.is_empty() {

@@ -56,6 +56,12 @@ import {
   isDefaultActivityTemplateId,
   prependDefaultActivityTemplate,
 } from "../utils/default-activity-template";
+import {
+  getActivityImportProfile,
+  isTransactionImportProfile,
+  mergeActivityMappingsForImportProfile,
+  sanitizeImportMappingForProfile,
+} from "../utils/activity-import-profile";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CSV Preview Component
@@ -492,6 +498,7 @@ export function UploadStep() {
     () => accounts?.find((a: Account) => a.id === state.accountId) ?? null,
     [accounts, state.accountId],
   );
+  const importProfile = useMemo(() => getActivityImportProfile(selectedAccount), [selectedAccount]);
   const importType =
     selectedAccount?.trackingMode === "HOLDINGS" ? ImportType.HOLDINGS : ImportType.ACTIVITY;
   const baselineParseConfig = useMemo(
@@ -507,9 +514,12 @@ export function UploadStep() {
   const templates = useMemo(
     () =>
       importType === ImportType.ACTIVITY
-        ? prependDefaultActivityTemplate(allTemplates.filter((t) => t.kind === importType))
+        ? prependDefaultActivityTemplate(
+            allTemplates.filter((t) => t.kind === importType),
+            importProfile,
+          )
         : allTemplates.filter((t) => t.kind === importType),
-    [allTemplates, importType],
+    [allTemplates, importProfile, importType],
   );
   const effectiveSelectedTemplateId =
     importType === ImportType.ACTIVITY
@@ -544,17 +554,24 @@ export function UploadStep() {
       }
 
       dispatch(
-        setMapping({
-          accountId: state.accountId || "",
-          importType,
-          name: isDefaultActivityTemplateId(template.id) ? "" : template.name,
-          fieldMappings: computeFieldMappings(headers, template.fieldMappings),
-          activityMappings: template.activityMappings,
-          symbolMappings: template.symbolMappings,
-          accountMappings: template.accountMappings || {},
-          symbolMappingMeta: template.symbolMappingMeta || {},
-          parseConfig: template.parseConfig,
-        }),
+        setMapping(
+          sanitizeImportMappingForProfile(
+            {
+              accountId: state.accountId || "",
+              importType,
+              name: isDefaultActivityTemplateId(template.id) ? "" : template.name,
+              fieldMappings: computeFieldMappings(headers, template.fieldMappings, importProfile),
+              activityMappings: isTransactionImportProfile(importProfile)
+                ? mergeActivityMappingsForImportProfile(template.activityMappings, importProfile)
+                : template.activityMappings,
+              symbolMappings: template.symbolMappings,
+              accountMappings: template.accountMappings || {},
+              symbolMappingMeta: template.symbolMappingMeta || {},
+              parseConfig: template.parseConfig,
+            },
+            importProfile,
+          ),
+        ),
       );
       if (selectTemplate) {
         dispatch(setSelectedTemplate(template.id, template.scope));
@@ -563,6 +580,7 @@ export function UploadStep() {
     [
       baselineParseConfig,
       dispatch,
+      importProfile,
       importType,
       state.accountId,
       state.file,
@@ -591,7 +609,7 @@ export function UploadStep() {
     dispatch(setSelectedTemplate(null, null));
 
     if (importType === ImportType.ACTIVITY) {
-      void applyTemplate(createDefaultActivityTemplate(), { selectTemplate: false });
+      void applyTemplate(createDefaultActivityTemplate(importProfile), { selectTemplate: false });
       return;
     }
 
@@ -608,7 +626,15 @@ export function UploadStep() {
           setParseError(error instanceof Error ? error.message : "Failed to parse CSV file");
         });
     }
-  }, [applyTemplate, baselineParseConfig, dispatch, importType, state.accountId, state.file]);
+  }, [
+    applyTemplate,
+    baselineParseConfig,
+    dispatch,
+    importProfile,
+    importType,
+    state.accountId,
+    state.file,
+  ]);
 
   // Auto-suggest linked template when account changes.
   // Two-phase approach: fetch the linked template ID, then apply once templates are loaded.
@@ -623,7 +649,7 @@ export function UploadStep() {
       dispatch(setSelectedTemplate(null, null));
       dispatch(setSuppressLinkedTemplate(false));
       if (importType === ImportType.ACTIVITY) {
-        void applyTemplate(createDefaultActivityTemplate(), { selectTemplate: false });
+        void applyTemplate(createDefaultActivityTemplate(importProfile), { selectTemplate: false });
       } else {
         dispatch(setParseConfig(baselineParseConfig));
         dispatch(setMapping(createEmptyHoldingsMapping(state.accountId || "")));
@@ -660,6 +686,7 @@ export function UploadStep() {
     applyTemplate,
     baselineParseConfig,
     dispatch,
+    importProfile,
     importType,
     state.accountId,
     state.file,

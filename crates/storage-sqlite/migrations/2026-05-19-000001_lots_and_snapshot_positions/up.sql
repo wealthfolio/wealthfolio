@@ -15,10 +15,12 @@
 -- This migration is intentionally additive:
 --   * The legacy positions JSON column is NOT cleared - read paths still
 --     resolve through it, dual-write keeps both representations populated.
---   * CALCULATED snapshots are derived data and are cleared so the normal
---     portfolio calculation rebuilds snapshots and transaction lots together.
---   * No read-path switchover; no Phase B columns (alternative_market_value,
---     daily_portfolio_valuation) or pseudo-account cleanups.
+--   * Legacy HOLDINGS snapshots that were defaulted to CALCULATED are normalized
+--     to MANUAL_ENTRY before rebuildable calculated snapshots are cleared.
+--     HOLDINGS accounts are not replayed from activities, so those snapshots are
+--     source data.
+--   * No read-path switchover, scoped valuation fields, or pseudo-account
+--     cleanups.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -128,10 +130,20 @@ CREATE TABLE snapshot_positions (
 CREATE INDEX idx_snapshot_positions_snapshot_id ON snapshot_positions(snapshot_id);
 CREATE INDEX idx_snapshot_positions_asset_id    ON snapshot_positions(asset_id);
 
--- Drop derived calculated snapshots and valuation rows so the existing
--- portfolio calculation path rebuilds them together and writes
--- transaction-derived lots. User-entered and imported HOLDINGS snapshots are
--- preserved.
+-- Normalize legacy holdings-mode snapshots before clearing rebuildable derived
+-- snapshots. Older rows can have source='CALCULATED' because the source column
+-- defaulted there, but for HOLDINGS accounts these rows are source snapshots.
+UPDATE holdings_snapshots
+SET source = 'MANUAL_ENTRY'
+WHERE source = 'CALCULATED'
+  AND account_id IN (
+      SELECT id
+      FROM accounts
+      WHERE tracking_mode = 'HOLDINGS'
+  );
+
+-- Drop remaining calculated snapshots and valuation rows so the existing
+-- portfolio calculation path rebuilds transaction-derived state and lots.
 DELETE FROM holdings_snapshots
 WHERE source = 'CALCULATED';
 

@@ -12,14 +12,14 @@ use super::net_worth_model::{
     NetWorthResponse, StaleAssetInfo, ValuationInfo,
 };
 use super::net_worth_traits::NetWorthServiceTrait;
-use crate::accounts::{account_types, AccountRepositoryTrait};
+use crate::accounts::{account_types, is_liability_account_type, AccountRepositoryTrait};
 use crate::assets::{AssetKind, AssetRepositoryTrait};
 use crate::constants::DECIMAL_PRECISION;
 use crate::errors::Result;
 use crate::fx::currency::normalize_amount;
 use crate::fx::FxServiceTrait;
 use crate::portfolio::snapshot::SnapshotRepositoryTrait;
-use crate::portfolio::valuation::ValuationRepositoryTrait;
+use crate::portfolio::valuation::{DailyAccountValuation, ValuationRepositoryTrait};
 use crate::quotes::QuoteServiceTrait;
 
 /// Number of days after which a valuation is considered stale.
@@ -64,6 +64,7 @@ impl NetWorthService {
         match account_type {
             account_types::SECURITIES | account_types::CRYPTOCURRENCY => AssetCategory::Investment,
             account_types::CASH => AssetCategory::Cash,
+            account_types::CREDIT_CARD => AssetCategory::Liability,
             _ => AssetCategory::Investment,
         }
     }
@@ -124,6 +125,32 @@ impl NetWorthService {
         )?;
 
         Ok(converted.round_dp(DECIMAL_PRECISION))
+    }
+
+    fn convert_cash_balance_to_base(
+        &self,
+        amount: Decimal,
+        currency: &str,
+        base_currency: &str,
+        date: NaiveDate,
+    ) -> Decimal {
+        if currency == base_currency {
+            return amount;
+        }
+
+        match self
+            .fx_service
+            .convert_currency_for_date(amount, currency, base_currency, date)
+        {
+            Ok(value) => value,
+            Err(error) => {
+                warn!(
+                    "Failed to convert cash {} {} to {}: {}. Using unconverted.",
+                    amount, currency, base_currency, error
+                );
+                amount
+            }
+        }
     }
 
     /// Get display name for asset category.
@@ -211,16 +238,13 @@ impl NetWorthService {
     }
 
     /// Calculate staleness info for valuations.
-    /// Cash is excluded from staleness checks since it doesn't need market data updates.
+    /// Cash-like balances are excluded since they don't need market data updates.
     fn calculate_staleness(
         valuations: &[ValuationInfo],
         reference_date: NaiveDate,
     ) -> (Option<NaiveDate>, Vec<StaleAssetInfo>) {
-        // Exclude Cash from staleness calculations - Cash is always "fresh" (1:1 value)
-        let non_cash_valuations: Vec<_> = valuations
-            .iter()
-            .filter(|v| v.category != AssetCategory::Cash)
-            .collect();
+        // Exclude cash-like balances from staleness calculations.
+        let non_cash_valuations: Vec<_> = valuations.iter().filter(|v| !v.is_cash_like).collect();
 
         let oldest_date = non_cash_valuations.iter().map(|v| v.valuation_date).min();
 
@@ -242,6 +266,24 @@ impl NetWorthService {
             .collect();
 
         (oldest_date, stale_assets)
+    }
+
+    fn credit_card_liability_value(valuation: &DailyAccountValuation) -> Decimal {
+        let value = valuation.cash_balance_base.round_dp(DECIMAL_PRECISION);
+        if value < Decimal::ZERO {
+            value.abs()
+        } else {
+            Decimal::ZERO
+        }
+    }
+
+    fn credit_card_asset_value(valuation: &DailyAccountValuation) -> Decimal {
+        let value = valuation.cash_balance_base.round_dp(DECIMAL_PRECISION);
+        if value > Decimal::ZERO {
+            value
+        } else {
+            Decimal::ZERO
+        }
     }
 }
 
@@ -288,32 +330,43 @@ impl NetWorthServiceTrait for NetWorthService {
             };
 
             let account_category = Self::categorize_by_account_type(&account.account_type);
+            let is_liability_account = is_liability_account_type(&account.account_type);
 
             // Process positions (securities, alternative assets)
-            for (asset_id, position) in &snapshot.positions {
-                if position.quantity.is_zero() {
-                    continue;
+            if is_liability_account {
+                if !snapshot.positions.is_empty() {
+                    warn!(
+                        "Ignoring {} position(s) on liability account {} while calculating net worth",
+                        snapshot.positions.len(),
+                        account.id
+                    );
                 }
+            } else {
+                for (asset_id, position) in &snapshot.positions {
+                    if position.quantity.is_zero() {
+                        continue;
+                    }
 
-                // Get asset info to determine category more precisely
-                let asset = asset_map.get(asset_id);
-                let asset_name = asset.and_then(|a| {
-                    a.name
-                        .clone()
-                        .filter(|n| !n.is_empty())
-                        .or_else(|| a.display_code.clone())
-                });
+                    // Get asset info to determine category more precisely
+                    let asset = asset_map.get(asset_id);
+                    let asset_name = asset.and_then(|a| {
+                        a.name
+                            .clone()
+                            .filter(|n| !n.is_empty())
+                            .or_else(|| a.display_code.clone())
+                    });
 
-                // Determine category: prefer asset kind if available, fallback to account type
-                let category = if let Some(asset) = asset {
-                    Self::categorize_by_asset_kind(&asset.kind)
-                } else {
-                    account_category
-                };
+                    // Determine category: prefer asset kind if available, fallback to account type
+                    let category = if let Some(asset) = asset {
+                        Self::categorize_by_asset_kind(&asset.kind)
+                    } else {
+                        account_category
+                    };
 
-                // Get the latest quote for this asset as of the date
-                let (price, quote_currency, valuation_date) =
-                    match self.get_latest_quote_as_of(asset_id, date) {
+                    // Get the latest quote for this asset as of the date
+                    let (price, quote_currency, valuation_date) = match self
+                        .get_latest_quote_as_of(asset_id, date)
+                    {
                         Some((p, c, d)) => (p, c, d),
                         None => {
                             // No quote found, use cost basis as fallback
@@ -335,36 +388,77 @@ impl NetWorthServiceTrait for NetWorthService {
                         }
                     };
 
-                // Normalize minor-currency quotes (e.g. GBp → GBP, ZAc → ZAR) before valuation.
-                let (normalized_price, normalized_currency) =
-                    normalize_amount(price, &quote_currency);
+                    // Normalize minor-currency quotes (e.g. GBp → GBP, ZAc → ZAR) before valuation.
+                    let (normalized_price, normalized_currency) =
+                        normalize_amount(price, &quote_currency);
 
-                // Calculate market value in base currency
-                let market_value_base = match self.calculate_market_value(
-                    position.quantity,
-                    normalized_price,
-                    position.contract_multiplier,
-                    normalized_currency,
-                    &base_currency,
-                    date,
-                ) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        warn!(
-                            "Failed to calculate market value for {}: {}. Using local value.",
-                            asset_id, e
-                        );
-                        position.quantity * price * position.contract_multiplier
-                    }
-                };
+                    // Calculate market value in base currency
+                    let market_value_base = match self.calculate_market_value(
+                        position.quantity,
+                        normalized_price,
+                        position.contract_multiplier,
+                        normalized_currency,
+                        &base_currency,
+                        date,
+                    ) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            warn!(
+                                "Failed to calculate market value for {}: {}. Using local value.",
+                                asset_id, e
+                            );
+                            position.quantity * price * position.contract_multiplier
+                        }
+                    };
 
-                valuations.push(ValuationInfo {
-                    asset_id: asset_id.clone(),
-                    name: asset_name,
-                    market_value_base,
-                    valuation_date,
-                    category,
-                });
+                    valuations.push(ValuationInfo {
+                        asset_id: asset_id.clone(),
+                        name: asset_name,
+                        market_value_base,
+                        valuation_date,
+                        category,
+                        is_cash_like: false,
+                    });
+                }
+            }
+
+            if is_liability_account {
+                let cash_base_total = snapshot.cash_balances.iter().fold(
+                    Decimal::ZERO,
+                    |acc, (currency, &amount)| {
+                        if amount.is_zero() {
+                            acc
+                        } else {
+                            acc + self.convert_cash_balance_to_base(
+                                amount,
+                                currency,
+                                &base_currency,
+                                date,
+                            )
+                        }
+                    },
+                );
+
+                if cash_base_total < Decimal::ZERO {
+                    valuations.push(ValuationInfo {
+                        asset_id: format!("CREDIT_CARD:{}", account.id),
+                        name: Some(account.name.clone()),
+                        market_value_base: cash_base_total.abs().round_dp(DECIMAL_PRECISION),
+                        valuation_date: snapshot.snapshot_date,
+                        category: AssetCategory::Liability,
+                        is_cash_like: true,
+                    });
+                } else if cash_base_total > Decimal::ZERO {
+                    valuations.push(ValuationInfo {
+                        asset_id: format!("CASH:{}", account.id),
+                        name: Some(account.name.clone()),
+                        market_value_base: cash_base_total.round_dp(DECIMAL_PRECISION),
+                        valuation_date: snapshot.snapshot_date,
+                        category: AssetCategory::Cash,
+                        is_cash_like: true,
+                    });
+                }
+                continue;
             }
 
             // Process cash balances
@@ -373,33 +467,23 @@ impl NetWorthServiceTrait for NetWorthService {
                     continue;
                 }
 
-                // Convert cash to base currency
-                let cash_base = if currency == &base_currency {
-                    amount
-                } else {
-                    match self.fx_service.convert_currency_for_date(
-                        amount,
-                        currency,
-                        &base_currency,
-                        date,
-                    ) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            warn!(
-                                "Failed to convert cash {} {} to {}: {}. Using unconverted.",
-                                amount, currency, base_currency, e
-                            );
-                            amount
-                        }
-                    }
-                };
+                let cash_base =
+                    self.convert_cash_balance_to_base(amount, currency, &base_currency, date);
+
+                let (asset_id, name, market_value_base, category) = (
+                    format!("CASH:{}:{}", account.id, currency),
+                    Some(format!("Cash ({})", currency)),
+                    cash_base.round_dp(DECIMAL_PRECISION),
+                    AssetCategory::Cash,
+                );
 
                 valuations.push(ValuationInfo {
-                    asset_id: format!("CASH:{}", currency),
-                    name: Some(format!("Cash ({})", currency)),
-                    market_value_base: cash_base.round_dp(DECIMAL_PRECISION),
+                    asset_id,
+                    name,
+                    market_value_base,
                     valuation_date: snapshot.snapshot_date,
-                    category: AssetCategory::Cash,
+                    category,
+                    is_cash_like: true,
                 });
             }
         }
@@ -470,6 +554,7 @@ impl NetWorthServiceTrait for NetWorthService {
                 market_value_base,
                 valuation_date,
                 category,
+                is_cash_like: false,
             });
         }
 
@@ -512,17 +597,8 @@ impl NetWorthServiceTrait for NetWorthService {
         );
 
         // =====================================================================
-        // 1. Load TOTAL account valuations (pre-calculated portfolio summary)
+        // 1. Load real-account valuations and aggregate base-currency portfolio state
         // =====================================================================
-        // The TOTAL account has aggregated values already converted to base currency.
-        // Fields: total_value, net_contribution, fx_rate_to_base (always 1 for TOTAL)
-        let total_valuations = self.valuation_repository.get_historical_valuations(
-            "TOTAL",
-            Some(start_date),
-            Some(end_date),
-        )?;
-
-        // Build portfolio lookup by date
         #[derive(Clone)]
         struct PortfolioState {
             value: Decimal,
@@ -530,16 +606,31 @@ impl NetWorthServiceTrait for NetWorthService {
         }
 
         let mut portfolio_by_date: BTreeMap<NaiveDate, PortfolioState> = BTreeMap::new();
-        for val in &total_valuations {
-            // TOTAL account is already in base currency (fx_rate_to_base = 1)
-            portfolio_by_date.insert(
-                val.valuation_date,
-                PortfolioState {
-                    value: val.total_value,
-                    net_contribution: val.net_contribution,
-                },
-            );
+        let accounts = self.account_repository.list(None, Some(false), None)?;
+        for account in accounts {
+            // Liability accounts (e.g. credit cards) are tracked separately as
+            // liabilities/cash assets below; excluding them here avoids double-counting.
+            if is_liability_account_type(&account.account_type) {
+                continue;
+            }
+            let valuations = self.valuation_repository.get_historical_valuations(
+                &account.id,
+                Some(start_date),
+                Some(end_date),
+            )?;
+            for val in valuations {
+                let entry = portfolio_by_date
+                    .entry(val.valuation_date)
+                    .or_insert_with(|| PortfolioState {
+                        value: Decimal::ZERO,
+                        net_contribution: Decimal::ZERO,
+                    });
+                entry.value += val.total_value_base;
+                entry.net_contribution += val.net_contribution_base;
+            }
         }
+        let first_portfolio_date = portfolio_by_date.keys().next().copied();
+        let history_seed_date = first_portfolio_date.unwrap_or(start_date);
 
         // =====================================================================
         // 2. Load alternative assets and organize by type
@@ -607,13 +698,13 @@ impl NetWorthServiceTrait for NetWorthService {
         }
 
         // =====================================================================
-        // 4. Get initial values for forward-fill (quotes before start_date)
+        // 4. Get initial values for forward-fill (quotes before the first emitted point)
         // =====================================================================
         let mut initial_asset_values: HashMap<String, Decimal> = HashMap::new();
 
         for asset in &alternative_assets {
             if let Some((price, quote_currency, _)) =
-                self.get_latest_quote_as_of(&asset.id, start_date)
+                self.get_latest_quote_as_of(&asset.id, history_seed_date)
             {
                 let (normalized_price, normalized_currency) =
                     normalize_amount(price, &quote_currency);
@@ -625,7 +716,7 @@ impl NetWorthServiceTrait for NetWorthService {
                             normalized_price,
                             normalized_currency,
                             &base_currency,
-                            start_date,
+                            history_seed_date,
                         )
                         .unwrap_or(normalized_price)
                 };
@@ -634,10 +725,64 @@ impl NetWorthServiceTrait for NetWorthService {
         }
 
         // =====================================================================
-        // 5. Determine date range (Rule 1: start from first portfolio date)
+        // 5. Load credit card liability valuations
         // =====================================================================
-        let first_portfolio_date = portfolio_by_date.keys().next().copied();
+        let accounts = self.account_repository.list(None, Some(false), None)?;
+        let credit_card_account_ids: Vec<String> = accounts
+            .iter()
+            .filter(|account| is_liability_account_type(&account.account_type))
+            .map(|account| account.id.clone())
+            .collect();
 
+        let mut initial_credit_card_assets: HashMap<String, Decimal> = HashMap::new();
+        let mut initial_credit_card_liabilities: HashMap<String, Decimal> = HashMap::new();
+        let mut credit_card_assets_by_date: BTreeMap<NaiveDate, HashMap<String, Decimal>> =
+            BTreeMap::new();
+        let mut credit_card_liabilities_by_date: BTreeMap<NaiveDate, HashMap<String, Decimal>> =
+            BTreeMap::new();
+
+        for account_id in &credit_card_account_ids {
+            if let Some(initial_valuation) = self
+                .valuation_repository
+                .get_historical_valuations(account_id, None, Some(history_seed_date))?
+                .into_iter()
+                .max_by_key(|valuation| valuation.valuation_date)
+            {
+                initial_credit_card_assets.insert(
+                    account_id.clone(),
+                    Self::credit_card_asset_value(&initial_valuation),
+                );
+                initial_credit_card_liabilities.insert(
+                    account_id.clone(),
+                    Self::credit_card_liability_value(&initial_valuation),
+                );
+            }
+
+            for valuation in self.valuation_repository.get_historical_valuations(
+                account_id,
+                Some(start_date),
+                Some(end_date),
+            )? {
+                credit_card_assets_by_date
+                    .entry(valuation.valuation_date)
+                    .or_default()
+                    .insert(
+                        account_id.clone(),
+                        Self::credit_card_asset_value(&valuation),
+                    );
+                credit_card_liabilities_by_date
+                    .entry(valuation.valuation_date)
+                    .or_default()
+                    .insert(
+                        account_id.clone(),
+                        Self::credit_card_liability_value(&valuation),
+                    );
+            }
+        }
+
+        // =====================================================================
+        // 6. Determine date range (Rule 1: start from first portfolio date)
+        // =====================================================================
         // Collect all dates with data
         let mut all_dates: Vec<NaiveDate> = Vec::new();
 
@@ -651,13 +796,30 @@ impl NetWorthServiceTrait for NetWorthService {
                     all_dates.push(*date);
                 }
             }
+
+            for date in credit_card_liabilities_by_date.keys() {
+                if *date >= first_pf_date && !all_dates.contains(date) {
+                    all_dates.push(*date);
+                }
+            }
+
+            for date in credit_card_assets_by_date.keys() {
+                if *date >= first_pf_date && !all_dates.contains(date) {
+                    all_dates.push(*date);
+                }
+            }
         } else {
-            // Edge case: no portfolio data, only alternative assets
-            // Use all quote dates
+            // Edge case: no portfolio data, only alternative assets/liabilities.
             all_dates.extend(quotes_by_date.keys().cloned());
+            all_dates.extend(credit_card_assets_by_date.keys().cloned());
+            all_dates.extend(credit_card_liabilities_by_date.keys().cloned());
 
             // Also add start_date if we have initial values but no quotes in range
-            if all_dates.is_empty() && !initial_asset_values.is_empty() {
+            if all_dates.is_empty()
+                && (!initial_asset_values.is_empty()
+                    || !initial_credit_card_assets.is_empty()
+                    || !initial_credit_card_liabilities.is_empty())
+            {
                 all_dates.push(start_date);
             }
         }
@@ -666,7 +828,7 @@ impl NetWorthServiceTrait for NetWorthService {
         all_dates.dedup();
 
         // =====================================================================
-        // 6. Build history with forward-fill (Rule 2)
+        // 7. Build history with forward-fill (Rule 2)
         // =====================================================================
         // Current state for forward-fill
         let mut current_portfolio = PortfolioState {
@@ -676,6 +838,8 @@ impl NetWorthServiceTrait for NetWorthService {
         let mut portfolio_initialized = false;
 
         let mut current_asset_values = initial_asset_values.clone();
+        let mut current_credit_card_assets = initial_credit_card_assets.clone();
+        let mut current_credit_card_liabilities = initial_credit_card_liabilities.clone();
 
         let mut history: Vec<NetWorthHistoryPoint> = Vec::new();
 
@@ -690,6 +854,18 @@ impl NetWorthServiceTrait for NetWorthService {
             if let Some(quotes_on_date) = quotes_by_date.get(&date) {
                 for (symbol, value) in quotes_on_date {
                     current_asset_values.insert(symbol.clone(), *value);
+                }
+            }
+
+            if let Some(liabilities_on_date) = credit_card_liabilities_by_date.get(&date) {
+                for (account_id, value) in liabilities_on_date {
+                    current_credit_card_liabilities.insert(account_id.clone(), *value);
+                }
+            }
+
+            if let Some(assets_on_date) = credit_card_assets_by_date.get(&date) {
+                for (account_id, value) in assets_on_date {
+                    current_credit_card_assets.insert(account_id.clone(), *value);
                 }
             }
 
@@ -711,14 +887,19 @@ impl NetWorthServiceTrait for NetWorthService {
                 }
             }
 
-            let total_assets = current_portfolio.value + alt_assets_value;
-            let net_worth = total_assets - liabilities_value;
+            let credit_card_liabilities_value: Decimal =
+                current_credit_card_liabilities.values().sum();
+            let credit_card_assets_value: Decimal = current_credit_card_assets.values().sum();
+            let total_assets =
+                current_portfolio.value + alt_assets_value + credit_card_assets_value;
+            let total_liabilities = liabilities_value + credit_card_liabilities_value;
+            let net_worth = total_assets - total_liabilities;
 
             history.push(NetWorthHistoryPoint {
                 date,
                 portfolio_value: current_portfolio.value.round_dp(DECIMAL_PRECISION),
                 alternative_assets_value: alt_assets_value.round_dp(DECIMAL_PRECISION),
-                total_liabilities: liabilities_value.round_dp(DECIMAL_PRECISION),
+                total_liabilities: total_liabilities.round_dp(DECIMAL_PRECISION),
                 total_assets: total_assets.round_dp(DECIMAL_PRECISION),
                 net_worth: net_worth.round_dp(DECIMAL_PRECISION),
                 net_contribution: current_portfolio

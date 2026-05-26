@@ -13,7 +13,6 @@ use std::sync::Arc;
 use super::model::{AccountStateSnapshotDB, NewSnapshotPositionRecord, SnapshotPositionRecord};
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
-use wealthfolio_core::constants::PORTFOLIO_TOTAL_ACCOUNT_ID;
 use wealthfolio_core::errors::{Error, Result};
 use wealthfolio_core::portfolio::snapshot::{
     AccountStateSnapshot, Position, SnapshotRepositoryTrait,
@@ -35,7 +34,9 @@ impl SnapshotRepository {
     pub async fn save_snapshots(&self, snapshots: &[AccountStateSnapshot]) -> Result<()> {
         use crate::schema::holdings_snapshots::dsl::*;
 
-        if snapshots.is_empty() {
+        let snapshots_to_save: Vec<AccountStateSnapshot> = snapshots.to_vec();
+
+        if snapshots_to_save.is_empty() {
             debug!("save_snapshots called with no snapshots. Nothing to save.");
             return Ok(());
         }
@@ -43,12 +44,12 @@ impl SnapshotRepository {
         // Capture positions for the snapshot_positions dual-write. Include
         // empty maps so replacing a snapshot with no positions clears stale
         // relational rows for that snapshot.
-        let positions_to_write: Vec<(String, HashMap<String, Position>)> = snapshots
+        let positions_to_write: Vec<(String, HashMap<String, Position>)> = snapshots_to_save
             .iter()
             .map(|s| (s.id.clone(), s.positions.clone()))
             .collect();
 
-        let db_models: Vec<AccountStateSnapshotDB> = snapshots
+        let db_models: Vec<AccountStateSnapshotDB> = snapshots_to_save
             .iter()
             .cloned()
             .map(AccountStateSnapshotDB::from)
@@ -472,14 +473,6 @@ impl SnapshotRepository {
         Ok(())
     }
 
-    pub fn get_total_portfolio_snapshots(
-        &self,
-        start_date_opt: Option<NaiveDate>,
-        end_date_opt: Option<NaiveDate>,
-    ) -> Result<Vec<AccountStateSnapshot>> {
-        self.get_snapshots_by_account(PORTFOLIO_TOTAL_ACCOUNT_ID, start_date_opt, end_date_opt)
-    }
-
     pub fn get_all_non_archived_account_snapshots(
         &self,
         start_date_opt: Option<NaiveDate>,
@@ -488,7 +481,7 @@ impl SnapshotRepository {
         use crate::schema::accounts::dsl as accounts_dsl;
         use crate::schema::holdings_snapshots::dsl::*;
         let mut conn = get_connection(&self.pool)?;
-        // Use is_archived=false instead of is_active=true to include closed accounts in TOTAL
+        // Use is_archived=false instead of is_active=true to include closed accounts.
         let non_archived_account_ids: Vec<String> = accounts_dsl::accounts
             .filter(accounts_dsl::is_archived.eq(false))
             .select(accounts_dsl::id)
@@ -499,7 +492,6 @@ impl SnapshotRepository {
         }
         let mut query = holdings_snapshots
             .into_boxed()
-            .filter(account_id.ne("TOTAL"))
             .filter(account_id.eq_any(non_archived_account_ids));
         if let Some(start) = start_date_opt {
             query = query.filter(snapshot_date.ge(start.format("%Y-%m-%d").to_string()));
@@ -1104,14 +1096,6 @@ impl SnapshotRepositoryTrait for SnapshotRepository {
     ) -> Result<()> {
         self.overwrite_multiple_account_snapshot_ranges(new_snapshots)
             .await
-    }
-
-    fn get_total_portfolio_snapshots(
-        &self,
-        start_date: Option<NaiveDate>,
-        end_date: Option<NaiveDate>,
-    ) -> Result<Vec<AccountStateSnapshot>> {
-        self.get_total_portfolio_snapshots(start_date, end_date)
     }
 
     fn get_all_non_archived_account_snapshots(

@@ -11,17 +11,16 @@ use log::{debug, error, info, warn};
 use rust_decimal::prelude::ToPrimitive;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc;
-use wealthfolio_core::constants::PORTFOLIO_TOTAL_ACCOUNT_ID;
 use wealthfolio_core::events::DomainEvent;
 use wealthfolio_core::health::HealthServiceTrait;
 use wealthfolio_core::portfolio::snapshot::{
-    reconcile_quote_sync_from_latest_total_snapshot, SnapshotRecalcMode,
+    reconcile_quote_sync_from_latest_account_snapshots, SnapshotRecalcMode,
 };
 use wealthfolio_core::portfolio::valuation::ValuationRecalcMode;
 
 #[cfg(feature = "connect-sync")]
 use super::planner::plan_broker_sync;
-use super::planner::{plan_asset_enrichment, plan_portfolio_job};
+use super::planner::{plan_asset_enrichment, plan_categorization_job, plan_portfolio_job};
 #[cfg(feature = "connect-sync")]
 use crate::commands::brokers_sync::perform_broker_sync;
 use crate::context::ServiceContext;
@@ -195,6 +194,11 @@ async fn process_event_batch(
         refresh_all_goal_summaries(context).await;
     }
 
+    // 3. Auto-categorize newly-changed activities on opted-in spending accounts.
+    // Fire-and-forget — the activity command has already returned to the user;
+    // the dashboard will pick up new assignments on its next React Query refetch.
+    spawn_auto_categorize_for_batch(events, context).await;
+
     #[cfg(feature = "connect-sync")]
     {
         // 3. Plan and trigger broker sync for eligible tracking mode changes
@@ -239,6 +243,51 @@ async fn process_event_batch(
     }
 }
 
+/// Plans and spawns auto-categorization for this batch's spending-account
+/// activity changes. Loads `SpendingSettings` once per batch; no-op when
+/// spending tracking is disabled or no opted-in account was touched.
+///
+/// Fire-and-forget by design — categorization writes are idempotent and
+/// the user has already been told the activity was created/updated.
+async fn spawn_auto_categorize_for_batch(events: &[DomainEvent], context: &Arc<ServiceContext>) {
+    let settings = match context.spending_settings_service().get().await {
+        Ok(s) => s,
+        Err(e) => {
+            warn!(
+                "Skipping auto-categorization: failed to load spending settings: {}",
+                e
+            );
+            return;
+        }
+    };
+    if !settings.enabled || settings.account_ids.is_empty() {
+        return;
+    }
+    let opted_in: std::collections::HashSet<String> =
+        settings.account_ids.iter().cloned().collect();
+    let account_ids = plan_categorization_job(events, &opted_in);
+    if account_ids.is_empty() {
+        return;
+    }
+    info!(
+        "Triggering auto-categorization for {} account(s)",
+        account_ids.len()
+    );
+    let rules_service = context.categorization_rules_service();
+    tokio::spawn(async move {
+        match rules_service
+            .rerun_all(&account_ids, /* only_uncategorized */ true)
+            .await
+        {
+            Ok(count) if count > 0 => {
+                info!("Auto-categorization wrote {} assignment(s)", count);
+            }
+            Ok(_) => {}
+            Err(e) => warn!("Auto-categorization failed: {}", e),
+        }
+    });
+}
+
 /// Runs a portfolio job directly (not via event emission).
 ///
 /// This ensures the is_processing guard properly tracks completion and prevents
@@ -263,10 +312,18 @@ async fn run_portfolio_job(
     if market_sync_mode.requires_sync() {
         let market_data_service = context.quote_service();
         let snapshot_service = context.snapshot_service();
+        let account_ids_for_sync = resolve_job_account_ids(context, None).unwrap_or_else(|err| {
+            warn!(
+                "Failed to resolve accounts for quote sync reconciliation: {}",
+                err
+            );
+            Vec::new()
+        });
 
-        if let Err(e) = reconcile_quote_sync_from_latest_total_snapshot(
+        if let Err(e) = reconcile_quote_sync_from_latest_account_snapshots(
             snapshot_service.as_ref(),
             market_data_service.as_ref(),
+            &account_ids_for_sync,
         )
         .await
         {
@@ -358,6 +415,22 @@ async fn run_portfolio_job(
     }
 }
 
+fn resolve_job_account_ids(
+    context: &Arc<ServiceContext>,
+    account_ids: Option<&Vec<String>>,
+) -> Result<Vec<String>, wealthfolio_core::Error> {
+    if let Some(target_ids) = account_ids {
+        return Ok(target_ids.clone());
+    }
+
+    Ok(context
+        .account_service()
+        .get_non_archived_accounts()?
+        .into_iter()
+        .map(|account| account.id)
+        .collect())
+}
+
 /// Runs the portfolio calculation (snapshots and valuations).
 async fn run_portfolio_calculation(
     app_handle: &AppHandle,
@@ -371,24 +444,14 @@ async fn run_portfolio_calculation(
         error!("Failed to emit portfolio:update-start event: {}", e);
     }
 
-    // For TOTAL portfolio calculation, use non-archived accounts (ignores is_active)
-    let accounts_for_total = match context.account_service().get_non_archived_accounts() {
-        Ok(accounts) => accounts,
+    let account_ids_vec = match resolve_job_account_ids(context, account_ids.as_ref()) {
+        Ok(ids) => ids,
         Err(err) => {
-            let err_msg = format!("Failed to list non-archived accounts: {}", err);
+            let err_msg = format!("Failed to resolve account IDs: {}", err);
             error!("{}", err_msg);
             let _ = app_handle.emit(PORTFOLIO_UPDATE_ERROR, &err_msg);
             return;
         }
-    };
-
-    // Determine which accounts to calculate individual snapshots for:
-    // - If specific account_ids provided: process those accounts (even if archived)
-    // - Otherwise: process all non-archived accounts
-    let mut account_ids_vec: Vec<String> = if let Some(ref target_ids) = account_ids {
-        target_ids.clone()
-    } else {
-        accounts_for_total.iter().map(|a| a.id.clone()).collect()
     };
 
     // Calculate holdings snapshots
@@ -409,23 +472,21 @@ async fn run_portfolio_calculation(
         }
     }
 
-    // Calculate total portfolio snapshots
     let snapshot_service = context.snapshot_service();
-    if let Err(err) = snapshot_service
-        .recalculate_total_portfolio_snapshots(snapshot_mode)
-        .await
-    {
-        let err_msg = format!("Failed to calculate TOTAL portfolio snapshot: {}", err);
-        error!("{}", err_msg);
-        let _ = app_handle.emit(PORTFOLIO_UPDATE_ERROR, &err_msg);
-        return;
-    }
-
-    // Update position status from TOTAL snapshot for quote sync planning.
+    // Update position status from latest real-account snapshots for quote sync planning.
     let quote_service = context.quote_service();
-    if let Err(e) = reconcile_quote_sync_from_latest_total_snapshot(
+    let quote_reconciliation_account_ids =
+        resolve_job_account_ids(context, None).unwrap_or_else(|err| {
+            warn!(
+                "Failed to resolve accounts for quote sync reconciliation: {}",
+                err
+            );
+            Vec::new()
+        });
+    if let Err(e) = reconcile_quote_sync_from_latest_account_snapshots(
         snapshot_service.as_ref(),
         quote_service.as_ref(),
+        &quote_reconciliation_account_ids,
     )
     .await
     {
@@ -433,14 +494,6 @@ async fn run_portfolio_calculation(
             "Failed to update position status from holdings: {}. Quote sync planning may be affected.",
             e
         );
-    }
-
-    // Ensure TOTAL is included in valuation calculation
-    if !account_ids_vec
-        .iter()
-        .any(|id| id == PORTFOLIO_TOTAL_ACCOUNT_ID)
-    {
-        account_ids_vec.push(PORTFOLIO_TOTAL_ACCOUNT_ID.to_string());
     }
 
     // Calculate valuation history for each account
@@ -509,21 +562,13 @@ async fn refresh_all_goal_summaries(context: &Arc<ServiceContext>) {
 
     let mut valuation_map = std::collections::HashMap::new();
     for v in &valuations {
-        let Some(total) = v.total_value.to_f64() else {
+        let Some(value_in_base) = v.total_value_base.to_f64() else {
             warn!(
-                "Skipping goal summary refresh: invalid valuation total for account {}",
+                "Skipping goal summary refresh: invalid base valuation total for account {}",
                 v.account_id
             );
             return;
         };
-        let Some(fx) = v.fx_rate_to_base.to_f64() else {
-            warn!(
-                "Skipping goal summary refresh: invalid FX rate for account {}",
-                v.account_id
-            );
-            return;
-        };
-        let value_in_base = total * fx;
         valuation_map.insert(v.account_id.clone(), value_in_base);
     }
 

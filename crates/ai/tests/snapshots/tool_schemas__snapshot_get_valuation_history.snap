@@ -1,0 +1,23 @@
+---
+source: crates/ai/tests/tool_schemas.rs
+assertion_line: 105
+expression: snapshot
+---
+{
+  "name": "get_valuation_history",
+  "parameters": {
+    "properties": {
+      "accountId": {
+        "type": "string"
+      },
+      "endDate": {
+        "type": "string"
+      },
+      "startDate": {
+        "type": "string"
+      }
+    },
+    "required": [],
+    "type": "object"
+  }
+}

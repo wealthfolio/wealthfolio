@@ -12,10 +12,27 @@ pub trait ValuationRepositoryTrait: Send + Sync {
     /// Save multiple valuation records to the database.
     async fn save_valuations(&self, valuation_records: &[DailyAccountValuation]) -> Result<()>;
 
+    /// Atomically replace valuation rows for an account/date range.
+    /// If `since_date` is `None`, replaces all rows for the account.
+    async fn replace_valuations_for_account(
+        &self,
+        account_id: &str,
+        since_date: Option<NaiveDate>,
+        valuation_records: &[DailyAccountValuation],
+    ) -> Result<()>;
+
     /// Get historical valuations for a specific account within optional date range.
     fn get_historical_valuations(
         &self,
         account_id: &str,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+    ) -> Result<Vec<DailyAccountValuation>>;
+
+    /// Get historical valuations for multiple real accounts in one ordered read.
+    fn get_historical_valuations_for_accounts(
+        &self,
+        account_ids: &[String],
         start_date: Option<NaiveDate>,
         end_date: Option<NaiveDate>,
     ) -> Result<Vec<DailyAccountValuation>>;

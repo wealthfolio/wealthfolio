@@ -20,6 +20,7 @@ import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 
 const MAX_DISPLAYED_HOLDINGS = 7;
 const MAX_STACKED_AVATARS = 5;
+const SHOW_TOTAL_RETURN_KEY = "dashboard-holdings-widget-show-total-return";
 
 interface TopHoldingsProps {
   holdings: Holding[];
@@ -55,10 +56,10 @@ function HoldingRow({
   const avatarSymbol = parsedOption ? parsedOption.underlying : symbol;
   const marketValue = holding.marketValue?.base ?? 0;
   const gainAmount = showTotalReturn
-    ? (holding.unrealizedGain?.base ?? 0)
+    ? (holding.totalGain?.base ?? holding.unrealizedGain?.base ?? 0)
     : (holding.dayChange?.base ?? 0);
   const gainPercent = showTotalReturn
-    ? (holding.unrealizedGainPct ?? 0)
+    ? (holding.totalGainPct ?? holding.unrealizedGainPct ?? 0)
     : (holding.dayChangePct ?? 0);
 
   return (
@@ -209,7 +210,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
   const navigate = useNavigate();
   const { isBalanceHidden } = useBalancePrivacy();
   const [showTotalReturn, setShowTotalReturn] = usePersistentState<boolean>(
-    "holdings-show-total-return",
+    SHOW_TOTAL_RETURN_KEY,
     true,
   );
   const [sortBy, setSortBy] = usePersistentState<"value" | "gain">(
@@ -234,8 +235,12 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
       })
       .sort((a, b) => {
         if (sortBy === "gain") {
-          const gainA = showTotalReturn ? (a.unrealizedGain?.base ?? 0) : (a.dayChange?.base ?? 0);
-          const gainB = showTotalReturn ? (b.unrealizedGain?.base ?? 0) : (b.dayChange?.base ?? 0);
+          const gainA = showTotalReturn
+            ? (a.totalGain?.base ?? a.unrealizedGain?.base ?? 0)
+            : (a.dayChange?.base ?? 0);
+          const gainB = showTotalReturn
+            ? (b.totalGain?.base ?? b.unrealizedGain?.base ?? 0)
+            : (b.dayChange?.base ?? 0);
           return gainB - gainA;
         }
         return (b.marketValue?.base ?? 0) - (a.marketValue?.base ?? 0);

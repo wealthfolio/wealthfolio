@@ -46,7 +46,7 @@ interface AssetFormProps {
 }
 
 export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProps) {
-  const { data: taxonomies = [] } = useTaxonomies();
+  const { data: taxonomies = [] } = useTaxonomies({ scope: "asset" });
 
   // Split taxonomies by selection type and sort by sortOrder
   const { singleSelectTaxonomies, multiSelectTaxonomies } = useMemo(() => {

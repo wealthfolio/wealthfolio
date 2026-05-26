@@ -12,6 +12,14 @@ mod tests {
     use crate::errors::{DatabaseError, Error, Result};
     use crate::events::{DomainEvent, MockDomainEventSink};
     use crate::fx::{ExchangeRate, FxServiceTrait, NewExchangeRate};
+    use crate::portfolio::performance::{PerformanceService, PerformanceServiceTrait};
+    use crate::portfolio::snapshot::{
+        AccountStateSnapshot, SnapshotRecalcMode, SnapshotServiceTrait,
+    };
+    use crate::portfolio::valuation::{
+        DailyAccountValuation, NegativeBalanceInfo, ValuationRepositoryTrait, ValuationService,
+        ValuationServiceTrait,
+    };
     use crate::quotes::service::ProviderInfo;
     use crate::quotes::{
         LatestQuotePair, LatestQuoteSnapshot, Quote, QuoteImport, QuoteServiceTrait,
@@ -23,7 +31,7 @@ mod tests {
     use rust_decimal_macros::dec;
     use serde_json::json;
     use std::collections::{HashMap, HashSet};
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Mutex, RwLock};
 
     // --- Mock AccountService ---
     #[derive(Clone)]
@@ -945,6 +953,16 @@ mod tests {
         }
     }
 
+    fn parse_test_activity_datetime(activity_date: &str) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(activity_date)
+            .map(|dt| dt.with_timezone(&Utc))
+            .or_else(|_| {
+                NaiveDate::parse_from_str(activity_date, "%Y-%m-%d")
+                    .map(|date| date.and_hms_opt(0, 0, 0).unwrap().and_utc())
+            })
+            .unwrap_or_else(|_| Utc::now())
+    }
+
     #[async_trait]
     impl ActivityRepositoryTrait for MockActivityRepository {
         fn get_activity(&self, activity_id: &str) -> Result<Activity> {
@@ -1009,6 +1027,7 @@ mod tests {
                 .metadata
                 .as_deref()
                 .and_then(|metadata| serde_json::from_str(metadata).ok());
+            let activity_date = parse_test_activity_datetime(&new_activity.activity_date);
             let activity = Activity {
                 id: new_activity.id.unwrap_or_else(|| "test-id".to_string()),
                 account_id: new_activity.account_id,
@@ -1018,7 +1037,7 @@ mod tests {
                 source_type: None,
                 subtype: new_activity.subtype,
                 status: new_activity.status.unwrap_or(ActivityStatus::Posted),
-                activity_date: Utc::now(),
+                activity_date,
                 settlement_date: None,
                 quantity: new_activity.quantity,
                 unit_price: new_activity.unit_price,
@@ -1171,6 +1190,7 @@ mod tests {
                     .metadata
                     .as_deref()
                     .and_then(|metadata| serde_json::from_str(metadata).ok());
+                let activity_date = parse_test_activity_datetime(&new_activity.activity_date);
                 stored.push(Activity {
                     id: new_activity.id.unwrap_or_else(|| "test-id".to_string()),
                     account_id: new_activity.account_id,
@@ -1182,7 +1202,7 @@ mod tests {
                     status: new_activity
                         .status
                         .unwrap_or(crate::activities::ActivityStatus::Posted),
-                    activity_date: Utc::now(),
+                    activity_date,
                     settlement_date: None,
                     quantity: new_activity.quantity,
                     unit_price: new_activity.unit_price,
@@ -1347,6 +1367,189 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
+    struct MockValuationRepository {
+        valuations: Arc<Mutex<Vec<DailyAccountValuation>>>,
+    }
+
+    impl MockValuationRepository {
+        fn new(valuations: Vec<DailyAccountValuation>) -> Self {
+            Self {
+                valuations: Arc::new(Mutex::new(valuations)),
+            }
+        }
+
+        fn in_range(
+            valuation: &DailyAccountValuation,
+            start_date: Option<NaiveDate>,
+            end_date: Option<NaiveDate>,
+        ) -> bool {
+            start_date
+                .map(|start| valuation.valuation_date >= start)
+                .unwrap_or(true)
+                && end_date
+                    .map(|end| valuation.valuation_date <= end)
+                    .unwrap_or(true)
+        }
+
+        fn sort_valuations(valuations: &mut [DailyAccountValuation]) {
+            valuations.sort_by(|left, right| {
+                left.account_id
+                    .cmp(&right.account_id)
+                    .then(left.valuation_date.cmp(&right.valuation_date))
+            });
+        }
+    }
+
+    #[async_trait]
+    impl ValuationRepositoryTrait for MockValuationRepository {
+        async fn save_valuations(
+            &self,
+            _valuation_records: &[DailyAccountValuation],
+        ) -> Result<()> {
+            unimplemented!()
+        }
+
+        async fn replace_valuations_for_account(
+            &self,
+            _account_id: &str,
+            _since_date: Option<NaiveDate>,
+            _valuation_records: &[DailyAccountValuation],
+        ) -> Result<()> {
+            unimplemented!()
+        }
+
+        fn get_historical_valuations(
+            &self,
+            _account_id: &str,
+            _start_date: Option<NaiveDate>,
+            _end_date: Option<NaiveDate>,
+        ) -> Result<Vec<DailyAccountValuation>> {
+            unimplemented!()
+        }
+
+        fn get_historical_valuations_for_accounts(
+            &self,
+            account_ids: &[String],
+            start_date: Option<NaiveDate>,
+            end_date: Option<NaiveDate>,
+        ) -> Result<Vec<DailyAccountValuation>> {
+            let account_ids: HashSet<&str> = account_ids.iter().map(String::as_str).collect();
+            let mut rows: Vec<_> = self
+                .valuations
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|valuation| account_ids.contains(valuation.account_id.as_str()))
+                .filter(|valuation| Self::in_range(valuation, start_date, end_date))
+                .cloned()
+                .collect();
+            Self::sort_valuations(&mut rows);
+            Ok(rows)
+        }
+
+        fn load_latest_valuation_date(&self, _account_id: &str) -> Result<Option<NaiveDate>> {
+            unimplemented!()
+        }
+
+        async fn delete_valuations_for_account(
+            &self,
+            _account_id: &str,
+            _since_date: Option<NaiveDate>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+
+        fn get_latest_valuations(
+            &self,
+            _account_ids: &[String],
+        ) -> Result<Vec<DailyAccountValuation>> {
+            unimplemented!()
+        }
+
+        fn get_valuations_on_date(
+            &self,
+            _account_ids: &[String],
+            _date: NaiveDate,
+        ) -> Result<Vec<DailyAccountValuation>> {
+            unimplemented!()
+        }
+
+        fn get_accounts_with_negative_balance(
+            &self,
+            _account_ids: &[String],
+        ) -> Result<Vec<NegativeBalanceInfo>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[derive(Clone)]
+    struct MockSnapshotService;
+
+    #[async_trait]
+    impl SnapshotServiceTrait for MockSnapshotService {
+        async fn recalculate_holdings_snapshots(
+            &self,
+            _account_ids: Option<&[String]>,
+            _mode: SnapshotRecalcMode,
+        ) -> Result<usize> {
+            unimplemented!()
+        }
+
+        fn get_holdings_keyframes(
+            &self,
+            _account_id: &str,
+            _start_date: Option<NaiveDate>,
+            _end_date: Option<NaiveDate>,
+        ) -> Result<Vec<AccountStateSnapshot>> {
+            unimplemented!()
+        }
+
+        fn get_daily_holdings_snapshots(
+            &self,
+            _account_id: &str,
+            _start_date: Option<NaiveDate>,
+            _end_date: Option<NaiveDate>,
+        ) -> Result<Vec<AccountStateSnapshot>> {
+            unimplemented!()
+        }
+
+        fn get_latest_holdings_snapshot(
+            &self,
+            _account_id: &str,
+        ) -> Result<Option<AccountStateSnapshot>> {
+            unimplemented!()
+        }
+
+        async fn save_manual_snapshot(
+            &self,
+            _account_id: &str,
+            _snapshot: AccountStateSnapshot,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+
+        async fn update_snapshots_source(
+            &self,
+            _account_id: &str,
+            _new_source: &str,
+        ) -> Result<usize> {
+            unimplemented!()
+        }
+
+        async fn ensure_holdings_history(&self, _account_id: &str) -> Result<()> {
+            unimplemented!()
+        }
+
+        async fn delete_snapshot_for_account(
+            &self,
+            _account_id: &str,
+            _dates: &[NaiveDate],
+        ) -> Result<()> {
+            unimplemented!()
+        }
+    }
+
     // Helper to create a test account
     fn create_test_account(id: &str, currency: &str) -> Account {
         Account {
@@ -1397,6 +1600,38 @@ mod tests {
             quote_ccy: currency.to_string(),
             kind: AssetKind::Investment,
             ..Default::default()
+        }
+    }
+
+    fn create_daily_valuation(
+        account_id: &str,
+        date: &str,
+        cash_balance: Decimal,
+        investment_market_value: Decimal,
+        total_value: Decimal,
+        net_contribution: Decimal,
+    ) -> DailyAccountValuation {
+        DailyAccountValuation {
+            id: format!("{}-{}", account_id, date),
+            account_id: account_id.to_string(),
+            valuation_date: NaiveDate::parse_from_str(date, "%Y-%m-%d").unwrap(),
+            account_currency: "USD".to_string(),
+            base_currency: "USD".to_string(),
+            fx_rate_to_base: Decimal::ONE,
+            cash_balance,
+            investment_market_value,
+            total_value,
+            cost_basis: net_contribution,
+            net_contribution,
+            cash_balance_base: cash_balance,
+            investment_market_value_base: investment_market_value,
+            total_value_base: total_value,
+            cost_basis_base: net_contribution,
+            net_contribution_base: net_contribution,
+            external_inflow_base: Decimal::ZERO,
+            external_outflow_base: Decimal::ZERO,
+            performance_eligible_value_base: total_value,
+            calculated_at: DateTime::<Utc>::from_timestamp(0, 0).unwrap(),
         }
     }
 
@@ -1665,6 +1900,162 @@ mod tests {
         let updated = result.unwrap();
         assert_eq!(updated.amount, Some(dec!(2)));
         assert_eq!(updated.notes.as_deref(), Some("Updated note"));
+    }
+
+    #[tokio::test]
+    async fn credit_card_accounts_reject_investment_activity_types() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let mut account = create_test_account("card-1", "USD");
+        account.account_type = "CREDIT_CARD".to_string();
+        account_service.add_account(account);
+
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            Arc::new(MockQuoteService),
+        );
+
+        let new_activity = NewActivity {
+            id: Some("activity-1".to_string()),
+            account_id: "card-1".to_string(),
+            asset: None,
+            activity_type: "BUY".to_string(),
+            subtype: None,
+            activity_date: "2024-01-15".to_string(),
+            quantity: Some(dec!(1)),
+            unit_price: Some(dec!(100)),
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            amount: Some(dec!(100)),
+            status: None,
+            notes: None,
+            fx_rate: None,
+            metadata: None,
+            needs_review: None,
+            source_system: None,
+            source_record_id: None,
+            source_group_id: None,
+            idempotency_key: None,
+        };
+
+        let err = activity_service
+            .create_activity(new_activity)
+            .await
+            .expect_err("credit cards should reject investment activity types");
+
+        assert!(err
+            .to_string()
+            .contains("BUY activities are not supported for credit card accounts"));
+    }
+
+    #[tokio::test]
+    async fn credit_card_accounts_reject_investment_activity_updates() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let mut account = create_test_account("card-1", "USD");
+        account.account_type = "CREDIT_CARD".to_string();
+        account_service.add_account(account);
+        asset_service.add_asset(create_test_asset("AAPL", "USD"));
+        activity_repository.add_activity(create_stored_activity(
+            "activity-1",
+            "card-1",
+            Some("AAPL"),
+        ));
+
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            Arc::new(MockQuoteService),
+        );
+
+        let update = create_test_activity_update(
+            "activity-1",
+            "card-1",
+            Some(AssetResolutionInput {
+                id: Some("AAPL".to_string()),
+                ..Default::default()
+            }),
+            "USD",
+        );
+
+        let err = activity_service
+            .update_activity(update)
+            .await
+            .expect_err("credit cards should reject investment activity updates");
+
+        assert!(err
+            .to_string()
+            .contains("BUY activities are not supported for credit card accounts"));
+    }
+
+    #[tokio::test]
+    async fn sync_prepare_marks_unsupported_credit_card_activity_as_review_draft() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let mut account = create_test_account("card-1", "USD");
+        account.account_type = "CREDIT_CARD".to_string();
+        account_service.add_account(account.clone());
+        asset_service.add_asset(create_test_asset("AAPL", "USD"));
+
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            Arc::new(MockQuoteService),
+        );
+
+        let result = activity_service
+            .prepare_activities_for_sync(
+                vec![NewActivity {
+                    id: Some("card-buy".to_string()),
+                    account_id: "card-1".to_string(),
+                    asset: Some(AssetResolutionInput {
+                        id: Some("AAPL".to_string()),
+                        ..Default::default()
+                    }),
+                    activity_type: "BUY".to_string(),
+                    subtype: None,
+                    activity_date: "2024-01-15".to_string(),
+                    quantity: Some(dec!(1)),
+                    unit_price: Some(dec!(100)),
+                    currency: "USD".to_string(),
+                    fee: Some(dec!(0)),
+                    amount: Some(dec!(100)),
+                    status: Some(ActivityStatus::Posted),
+                    notes: None,
+                    fx_rate: None,
+                    metadata: None,
+                    needs_review: Some(false),
+                    source_system: Some("SNAPTRADE".to_string()),
+                    source_record_id: Some("card-buy".to_string()),
+                    source_group_id: None,
+                    idempotency_key: None,
+                }],
+                &account,
+            )
+            .await
+            .expect("sync preparation should preserve unsupported card rows for review");
+
+        assert!(result.errors.is_empty());
+        assert_eq!(result.prepared.len(), 1);
+        let prepared = &result.prepared[0].activity;
+        assert_eq!(prepared.needs_review, Some(true));
+        assert_eq!(prepared.status, Some(ActivityStatus::Draft));
     }
 
     /// Test: When creating an activity where the activity currency matches the account currency,
@@ -2800,6 +3191,7 @@ mod tests {
         assert_eq!(prepared.amount, Some(dec!(25)));
         assert_eq!(prepared.quantity, None);
         assert_eq!(prepared.needs_review, Some(true));
+        assert_eq!(prepared.status, Some(ActivityStatus::Draft));
     }
 
     #[tokio::test]
@@ -2859,6 +3251,7 @@ mod tests {
         assert_eq!(prepared.activity.subtype, None);
         assert_eq!(prepared.activity.amount, Some(dec!(25.00)));
         assert_eq!(prepared.activity.needs_review, Some(true));
+        assert_eq!(prepared.activity.status, Some(ActivityStatus::Draft));
     }
 
     #[tokio::test]
@@ -5845,6 +6238,209 @@ mod tests {
         assert_eq!(result.summary.skipped, 0);
         assert_eq!(result.activities.len(), 1);
         assert!(result.activities[0].is_valid);
+    }
+
+    #[tokio::test]
+    async fn test_imported_transactions_feed_scoped_valuation_and_performance_flows() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        account_service.add_account(create_test_account("acc-1", "USD"));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "asset-aapl",
+            "AAPL",
+            Some("XNAS"),
+            Some(InstrumentType::Equity),
+            "USD",
+        ));
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            asset_service.clone(),
+            fx_service.clone(),
+            quote_service.clone(),
+        );
+
+        let checked = activity_service
+            .check_activities_import(vec![
+                ActivityImport {
+                    id: None,
+                    date: "2026-05-02".to_string(),
+                    symbol: String::new(),
+                    activity_type: "DEPOSIT".to_string(),
+                    quantity: None,
+                    unit_price: None,
+                    currency: "USD".to_string(),
+                    fee: Some(dec!(0)),
+                    amount: Some(dec!(1000)),
+                    comment: Some("Funding".to_string()),
+                    account_id: Some("acc-1".to_string()),
+                    account_name: None,
+                    symbol_name: None,
+                    exchange_mic: None,
+                    quote_ccy: None,
+                    instrument_type: None,
+                    quote_mode: None,
+                    provider_id: None,
+                    provider_symbol: None,
+                    errors: None,
+                    warnings: None,
+                    duplicate_of_id: None,
+                    duplicate_of_line_number: None,
+                    is_draft: false,
+                    is_valid: false,
+                    line_number: Some(1),
+                    fx_rate: None,
+                    subtype: None,
+                    asset_id: None,
+                    isin: None,
+                    force_import: false,
+                    is_external: None,
+                },
+                ActivityImport {
+                    id: None,
+                    date: "2026-05-03".to_string(),
+                    symbol: "AAPL".to_string(),
+                    activity_type: "BUY".to_string(),
+                    quantity: Some(dec!(10)),
+                    unit_price: Some(dec!(100)),
+                    currency: "USD".to_string(),
+                    fee: Some(dec!(0)),
+                    amount: Some(dec!(1000)),
+                    comment: Some("Buy AAPL".to_string()),
+                    account_id: Some("acc-1".to_string()),
+                    account_name: None,
+                    symbol_name: None,
+                    exchange_mic: None,
+                    quote_ccy: None,
+                    instrument_type: None,
+                    quote_mode: None,
+                    provider_id: None,
+                    provider_symbol: None,
+                    errors: None,
+                    warnings: None,
+                    duplicate_of_id: None,
+                    duplicate_of_line_number: None,
+                    is_draft: false,
+                    is_valid: false,
+                    line_number: Some(2),
+                    fx_rate: None,
+                    subtype: None,
+                    asset_id: None,
+                    isin: None,
+                    force_import: false,
+                    is_external: None,
+                },
+            ])
+            .await
+            .expect("import check should resolve activities");
+
+        assert_eq!(asset_service.resolve_import_asset_call_count(), 1);
+        assert!(checked.iter().all(|activity| activity.is_valid));
+        let checked_buy = checked
+            .iter()
+            .find(|activity| activity.activity_type == "BUY")
+            .expect("checked buy row should exist");
+        assert_eq!(checked_buy.asset_id.as_deref(), Some("asset-aapl"));
+        assert_eq!(checked_buy.quote_ccy.as_deref(), Some("USD"));
+
+        let import_result = activity_service
+            .import_activities(checked)
+            .await
+            .expect("resolved import should persist");
+        assert!(import_result.summary.success);
+        assert_eq!(import_result.summary.imported, 2);
+
+        let stored = activity_repository
+            .get_activities()
+            .expect("imported activities should be stored");
+        assert_eq!(stored.len(), 2);
+        let imported_buy = stored
+            .iter()
+            .find(|activity| activity.activity_type == "BUY")
+            .expect("stored buy row should exist");
+        assert_eq!(imported_buy.asset_id.as_deref(), Some("asset-aapl"));
+
+        let valuation_repository = Arc::new(MockValuationRepository::new(vec![
+            create_daily_valuation(
+                "acc-1",
+                "2026-05-01",
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            create_daily_valuation(
+                "acc-1",
+                "2026-05-02",
+                dec!(1000),
+                Decimal::ZERO,
+                dec!(1000),
+                dec!(1000),
+            ),
+            create_daily_valuation(
+                "acc-1",
+                "2026-05-03",
+                Decimal::ZERO,
+                dec!(1100),
+                dec!(1100),
+                dec!(1000),
+            ),
+        ]));
+        let timezone = Arc::new(RwLock::new("UTC".to_string()));
+        let valuation_service = Arc::new(
+            ValuationService::new(
+                Arc::new(RwLock::new("USD".to_string())),
+                valuation_repository,
+                Arc::new(MockSnapshotService),
+                quote_service.clone(),
+                fx_service,
+            )
+            .with_activity_repository(activity_repository, timezone),
+        );
+
+        let account_ids = vec!["acc-1".to_string()];
+        let start_date = NaiveDate::parse_from_str("2026-05-01", "%Y-%m-%d").unwrap();
+        let end_date = NaiveDate::parse_from_str("2026-05-03", "%Y-%m-%d").unwrap();
+        let scoped_valuations = valuation_service
+            .get_historical_valuations_for_accounts(
+                "scope:acc-1",
+                &account_ids,
+                "USD",
+                Some(start_date),
+                Some(end_date),
+            )
+            .expect("scoped valuation should aggregate imported flows");
+
+        assert_eq!(scoped_valuations.len(), 3);
+        assert_eq!(scoped_valuations[1].external_inflow_base, dec!(1000));
+        assert_eq!(scoped_valuations[1].external_outflow_base, Decimal::ZERO);
+        assert_eq!(scoped_valuations[2].external_inflow_base, Decimal::ZERO);
+        assert_eq!(scoped_valuations[2].external_outflow_base, Decimal::ZERO);
+
+        let performance_service = PerformanceService::new(valuation_service, quote_service);
+        let account_tracking_modes = HashMap::new();
+        let performance = performance_service
+            .calculate_performance_history_for_accounts(
+                "scope:acc-1",
+                &account_ids,
+                "USD",
+                &account_tracking_modes,
+                Some(start_date),
+                Some(end_date),
+            )
+            .await
+            .expect("performance should use imported activity flows");
+
+        assert_eq!(performance.cumulative_twr, Some(dec!(0.1)));
+        assert_eq!(performance.cumulative_modified_dietz, Some(dec!(0.1)));
+        assert_eq!(performance.period_return, Some(dec!(0.1)));
+        assert_eq!(performance.period_gain, dec!(100));
+        assert_eq!(performance.returns.last().unwrap().value, dec!(0.1));
     }
 
     #[tokio::test]

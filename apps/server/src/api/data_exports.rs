@@ -11,8 +11,8 @@ use axum::{
 use wealthfolio_core::{
     accounts::AccountServiceTrait,
     activities::Sort,
-    constants::PORTFOLIO_TOTAL_ACCOUNT_ID,
     exports::{export_file_name, format_records, ExportDataType, ExportFileFormat},
+    portfolios::AccountScope,
 };
 
 use crate::{
@@ -58,11 +58,19 @@ fn build_data_export_content(
             Ok(format_records(&records, format)?)
         }
         ExportDataType::PortfolioHistory => {
-            let records = state.valuation_service.get_historical_valuations(
-                PORTFOLIO_TOTAL_ACCOUNT_ID,
-                None,
-                None,
-            )?;
+            let base = state.base_currency.read().unwrap().clone();
+            let resolved = state
+                .portfolio_service
+                .resolve_account_scope(&AccountScope::All, &base)?;
+            let records = state
+                .valuation_service
+                .get_historical_valuations_for_accounts(
+                    &resolved.scope_id,
+                    &resolved.account_ids,
+                    &resolved.base_currency,
+                    None,
+                    None,
+                )?;
             Ok(format_records(&records, format)?)
         }
     }

@@ -26,18 +26,20 @@ import { IncomeMobileFilterSheet } from "./income-mobile-filter-sheet";
 const periods = [
   { value: "YTD" as const, label: "Year to Date" },
   { value: "LAST_YEAR" as const, label: "Last Year" },
-  { value: "TOTAL" as const, label: "All Time" },
+  { value: "ALL" as const, label: "All Time" },
 ];
 
 const mobilePeriods = [
   { value: "YTD" as const, label: "YTD" },
   { value: "LAST_YEAR" as const, label: "Last Yr" },
-  { value: "TOTAL" as const, label: "All" },
+  { value: "ALL" as const, label: "All" },
 ];
 
+type IncomePeriod = "ALL" | "YTD" | "LAST_YEAR";
+
 const IncomePeriodSelector: React.FC<{
-  selectedPeriod: "TOTAL" | "YTD" | "LAST_YEAR";
-  onPeriodSelect: (period: "TOTAL" | "YTD" | "LAST_YEAR") => void;
+  selectedPeriod: IncomePeriod;
+  onPeriodSelect: (period: IncomePeriod) => void;
 }> = ({ selectedPeriod, onPeriodSelect }) => (
   <>
     <div className="hidden sm:block">
@@ -62,21 +64,19 @@ const IncomePeriodSelector: React.FC<{
 );
 
 export default function IncomePage() {
-  const [selectedPeriod, setSelectedPeriod] = useState<"TOTAL" | "YTD" | "LAST_YEAR">("TOTAL");
+  const [selectedPeriod, setSelectedPeriod] = useState<IncomePeriod>("ALL");
   const { isBalanceHidden } = useBalancePrivacy();
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
   const [accountFilter, setAccountScope] = useState<AccountScope>({ type: "all" });
-
-  const incomeFilter = accountFilter.type === "all" ? undefined : accountFilter;
 
   const {
     data: incomeData,
     isLoading,
     error,
   } = useQuery<IncomeSummary[], Error>({
-    queryKey: [QueryKeys.INCOME_SUMMARY, incomeFilter ?? "ALL"],
-    queryFn: () => getIncomeSummary(incomeFilter),
+    queryKey: [QueryKeys.INCOME_SUMMARY, accountFilter],
+    queryFn: () => getIncomeSummary(accountFilter),
   });
 
   if (isLoading) {
@@ -88,7 +88,7 @@ export default function IncomePage() {
   }
 
   const periodSummary = incomeData.find((summary) => summary.period === selectedPeriod);
-  const totalSummary = incomeData.find((summary) => summary.period === "TOTAL");
+  const totalSummary = incomeData.find((summary) => summary.period === "ALL");
 
   if (!periodSummary || !totalSummary) {
     return (
@@ -146,7 +146,7 @@ export default function IncomePage() {
 
   const monthlyIncomeData: [string, number][] = Object.entries(periodSummary.byMonth)
     .sort(([a], [b]) => a.localeCompare(b))
-    .slice(selectedPeriod === "TOTAL" ? 0 : -12)
+    .slice(selectedPeriod === "ALL" ? 0 : -12)
     .map(([month, income]) => [month, Number(income) || 0]);
 
   const getPreviousPeriodData = (currentMonth: string): number => {
@@ -225,7 +225,7 @@ export default function IncomePage() {
           <Card className="border-yellow-500/10 bg-yellow-500/10">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                {selectedPeriod === "TOTAL"
+                {selectedPeriod === "ALL"
                   ? "All Time Income"
                   : selectedPeriod === "LAST_YEAR"
                     ? "Last Year Income"

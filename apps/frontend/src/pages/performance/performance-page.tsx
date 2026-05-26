@@ -3,7 +3,10 @@ import {
   ANNUALIZED_RETURN_INFO as annualizedReturnInfo,
   MAX_DRAWDOWN_INFO as maxDrawdownInfo,
   MetricLabelWithInfo,
-  TIME_WEIGHTED_RETURN_INFO as totalReturnInfo,
+  MODIFIED_DIETZ_RETURN_INFO,
+  PRICE_RETURN_INFO,
+  SIMPLE_RETURN_INFO,
+  TIME_WEIGHTED_RETURN_INFO,
   VOLATILITY_INFO as volatilityInfo,
 } from "@/components/metric-display";
 import { PerformanceChart } from "@/components/performance-chart";
@@ -11,9 +14,10 @@ import { PerformanceChartMobile } from "@/components/performance-chart-mobile";
 
 import { PERFORMANCE_CHART_COLORS } from "@/components/performance-chart-colors";
 import { EmptyPlaceholder } from "@wealthfolio/ui/components/ui/empty-placeholder";
+import { useAccounts } from "@/hooks/use-accounts";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useIsMobileViewport } from "@/hooks/use-platform";
-import { PORTFOLIO_ACCOUNT_ID } from "@/lib/constants";
+import { AccountPurpose, PORTFOLIO_SCOPE_ID } from "@/lib/constants";
 import { DateRange, PerformanceMetrics, ReturnData, TrackedItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import NumberFlow from "@number-flow/react";
@@ -39,17 +43,16 @@ import {
   Separator,
 } from "@wealthfolio/ui";
 import { subMonths } from "date-fns";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AccountSelector } from "../../components/account-selector";
 import { AccountSelectorMobile } from "../../components/account-selector-mobile";
 import { BenchmarkSymbolSelectorMobile } from "../../components/benchmark-symbol-selector-mobile";
 import { useCalculatePerformanceHistory } from "./hooks/use-performance-data";
-
-const PORTFOLIO_TOTAL: TrackedItem = {
-  id: PORTFOLIO_ACCOUNT_ID,
-  type: "account",
-  name: "All Portfolio",
-};
+import {
+  ALL_PORTFOLIO_ITEM,
+  migratePerformanceSelectedItemId,
+  migratePerformanceSelectedItems,
+} from "./performance-selection";
 
 // Define the type expected by the chart
 interface ChartDataItem {
@@ -62,6 +65,91 @@ interface ChartDataItem {
 interface PerformanceDataFromHook extends PerformanceMetrics {
   name: string;
   type: "account" | "symbol";
+}
+
+type ReturnMethod = NonNullable<PerformanceMetrics["returnMethod"]>;
+
+function returnMethodPresentation(method: ReturnMethod | undefined): {
+  label: string;
+  mobileLabel: string;
+  infoText: string;
+} {
+  switch (method) {
+    case "modifiedDietz":
+      return {
+        label: "Modified Dietz",
+        mobileLabel: "Dietz",
+        infoText: MODIFIED_DIETZ_RETURN_INFO,
+      };
+    case "simpleReturn":
+      return {
+        label: "Simple Return",
+        mobileLabel: "Simple",
+        infoText: SIMPLE_RETURN_INFO,
+      };
+    case "symbolPriceBased":
+      return {
+        label: "Price Return",
+        mobileLabel: "Price",
+        infoText: PRICE_RETURN_INFO,
+      };
+    case "timeWeighted":
+      return {
+        label: "Time-Weighted Return",
+        mobileLabel: "TWR",
+        infoText: TIME_WEIGHTED_RETURN_INFO,
+      };
+    case "moneyWeighted":
+      return {
+        label: "Money-Weighted Return",
+        mobileLabel: "MWR",
+        infoText: MODIFIED_DIETZ_RETURN_INFO,
+      };
+    case "notApplicable":
+    default:
+      return {
+        label: "Return",
+        mobileLabel: "Return",
+        infoText: SIMPLE_RETURN_INFO,
+      };
+  }
+}
+
+function selectHeadlineReturn(performance: PerformanceMetrics): number {
+  return Number(
+    performance.periodReturn ??
+      performance.cumulativeModifiedDietz ??
+      performance.cumulativeTwr ??
+      performance.simpleReturn ??
+      0,
+  );
+}
+
+function selectAnnualizedHeadlineReturn(performance: PerformanceMetrics): number {
+  switch (performance.returnMethod) {
+    case "modifiedDietz":
+      return Number(
+        performance.annualizedModifiedDietz ??
+          performance.annualizedMwr ??
+          performance.annualizedSimpleReturn ??
+          performance.periodReturn ??
+          0,
+      );
+    case "simpleReturn":
+      return Number(performance.annualizedSimpleReturn ?? performance.periodReturn ?? 0);
+    case "symbolPriceBased":
+      return Number(performance.annualizedSimpleReturn ?? performance.simpleReturn ?? 0);
+    case "timeWeighted":
+      return Number(performance.annualizedTwr ?? performance.periodReturn ?? 0);
+    default:
+      return Number(
+        performance.annualizedTwr ??
+          performance.annualizedModifiedDietz ??
+          performance.annualizedSimpleReturn ??
+          performance.periodReturn ??
+          0,
+      );
+  }
 }
 
 function PerformanceContent({
@@ -206,11 +294,11 @@ const SelectedItemBadge = ({
 
 export default function PerformancePage() {
   const isMobile = useIsMobileViewport();
-  const [selectedItems, setSelectedItems] = usePersistentState<TrackedItem[]>(
+  const [storedSelectedItems, setSelectedItems] = usePersistentState<TrackedItem[]>(
     "performance:selectedItems",
-    [PORTFOLIO_TOTAL],
+    [ALL_PORTFOLIO_ITEM],
   );
-  const [selectedItemId, setSelectedItemId] = usePersistentState<string | null>(
+  const [storedSelectedItemId, setSelectedItemId] = usePersistentState<string | null>(
     "performance:selectedItemId",
     null,
   );
@@ -221,10 +309,73 @@ export default function PerformancePage() {
       to: new Date(),
     },
   );
+  const { accounts, isLoading: isAccountsLoading } = useAccounts({
+    accountPurpose: AccountPurpose.PERFORMANCE,
+  });
 
   // State for mobile dropdown menu
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [benchmarkSheetOpen, setBenchmarkSheetOpen] = useState(false);
+  const selectedItems = useMemo(
+    () => migratePerformanceSelectedItems(storedSelectedItems),
+    [storedSelectedItems],
+  );
+  const selectedItemId = migratePerformanceSelectedItemId(storedSelectedItemId);
+
+  useEffect(() => {
+    if (selectedItems !== storedSelectedItems) {
+      setSelectedItems(selectedItems);
+    }
+  }, [selectedItems, setSelectedItems, storedSelectedItems]);
+
+  useEffect(() => {
+    if (selectedItemId !== storedSelectedItemId) {
+      setSelectedItemId(selectedItemId);
+    }
+  }, [selectedItemId, setSelectedItemId, storedSelectedItemId]);
+
+  useEffect(() => {
+    if (isAccountsLoading) {
+      return;
+    }
+    const reportAccountIds = new Set(accounts.map((account) => account.id));
+    // User-created portfolios resolve to account ids at calc time, so we keep
+    // them regardless of `reportAccountIds`; the backend filter handles it.
+    const isPortfolioItem = (item: TrackedItem) => item.accountScope?.type === "portfolio";
+    setSelectedItems((current) => {
+      const next = current.filter(
+        (item) =>
+          item.type !== "account" ||
+          item.id === PORTFOLIO_SCOPE_ID ||
+          isPortfolioItem(item) ||
+          reportAccountIds.has(item.id),
+      );
+      if (next.length === current.length) {
+        return current;
+      }
+      return next.length > 0 ? next : [ALL_PORTFOLIO_ITEM];
+    });
+    const selectedItemStillPresent =
+      !selectedItemId ||
+      selectedItems.some(
+        (item) =>
+          item.id === selectedItemId &&
+          (item.type !== "account" ||
+            item.id === PORTFOLIO_SCOPE_ID ||
+            isPortfolioItem(item) ||
+            reportAccountIds.has(item.id)),
+      );
+    if (!selectedItemStillPresent) {
+      setSelectedItemId(null);
+    }
+  }, [
+    accounts,
+    isAccountsLoading,
+    selectedItemId,
+    selectedItems,
+    setSelectedItemId,
+    setSelectedItems,
+  ]);
 
   // Helper function to sort comparison items (accounts first, then symbols)
   const sortComparisonItems = (items: TrackedItem[]): TrackedItem[] => {
@@ -290,10 +441,12 @@ export default function PerformancePage() {
     return {
       id: found.id,
       name: name,
-      totalReturn: Number(found.cumulativeTwr),
-      annualizedReturn: Number(found.annualizedTwr),
+      totalReturn: selectHeadlineReturn(found),
+      annualizedReturn: selectAnnualizedHeadlineReturn(found),
       volatility: Number(found.volatility),
       maxDrawdown: Number(found.maxDrawdown),
+      ...returnMethodPresentation(found.returnMethod),
+      warnings: found.warnings ?? [],
     };
   }, [selectedItemId, performanceData, selectedItems]);
 
@@ -314,10 +467,41 @@ export default function PerformancePage() {
       id: accountId,
       type: "account",
       name: account.name,
+      accountScope:
+        accountId === PORTFOLIO_SCOPE_ID ? { type: "all" } : { type: "account", accountId },
     };
 
     setSelectedItems(sortComparisonItems([...selectedItems, newItem]));
     setSelectedItemId(accountId);
+  };
+
+  const handlePortfolioSelect = (portfolio: { id: string; name: string }) => {
+    const portfolioId = String(portfolio.id);
+    const exists = selectedItems.some((item) => item.id === portfolioId);
+
+    if (exists) {
+      const nextItems = sortComparisonItems(
+        selectedItems.filter((item) => item.id !== portfolioId),
+      );
+      setSelectedItems(nextItems);
+      if (selectedItemId === portfolioId) {
+        setSelectedItemId(null);
+      }
+      return;
+    }
+
+    // Tracked as an "account" so it lands in the chart's account-series path,
+    // but the scope filter expands it to the portfolio's member account ids
+    // at calc time (handled by the Rust `calculate_performance_history` cmd).
+    const newItem: TrackedItem = {
+      id: portfolioId,
+      type: "account",
+      name: portfolio.name,
+      accountScope: { type: "portfolio", portfolioId },
+    };
+
+    setSelectedItems(sortComparisonItems([...selectedItems, newItem]));
+    setSelectedItemId(portfolioId);
   };
 
   const handleSymbolSelect = (symbol: { id: string; name: string }) => {
@@ -457,6 +641,8 @@ export default function PerformancePage() {
               variant="button"
               buttonText="Add account"
               includePortfolio={true}
+              accountPurpose={AccountPurpose.PERFORMANCE}
+              onPortfolioSelect={handlePortfolioSelect}
             />
             <BenchmarkSymbolSelector onSelect={handleSymbolSelect} />
           </div>
@@ -469,9 +655,14 @@ export default function PerformancePage() {
             setAccountSheetOpen(false);
           }}
           includePortfolio={true}
+          accountPurpose={AccountPurpose.PERFORMANCE}
           open={accountSheetOpen}
           onOpenChange={setAccountSheetOpen}
           className="hidden"
+          onPortfolioSelect={(portfolio) => {
+            handlePortfolioSelect(portfolio);
+            setAccountSheetOpen(false);
+          }}
         />
         <BenchmarkSymbolSelectorMobile
           onSelect={(symbol) => {
@@ -513,7 +704,7 @@ export default function PerformancePage() {
                             <CarouselItem className="basis-[38%] pl-2 md:pl-4">
                               <div className="bg-muted/30 flex flex-col gap-0.5 rounded-lg px-3 py-2">
                                 <span className="text-muted-foreground text-[9px] font-medium uppercase tracking-wide">
-                                  Total Return
+                                  {selectedItemData?.mobileLabel ?? "Return"}
                                 </span>
                                 <span
                                   className={cn(
@@ -595,7 +786,10 @@ export default function PerformancePage() {
                         /* Desktop metrics */
                         <div className="grid grid-cols-2 gap-3 rounded-lg p-2 backdrop-blur-sm sm:gap-4 md:grid-cols-4 md:gap-6">
                           <div className="flex flex-col items-center space-y-0.5 sm:space-y-1">
-                            <MetricLabelWithInfo label="Total Return" infoText={totalReturnInfo} />
+                            <MetricLabelWithInfo
+                              label={selectedItemData?.label ?? "Return"}
+                              infoText={selectedItemData?.infoText ?? SIMPLE_RETURN_INFO}
+                            />
                             <div className="flex items-baseline justify-center">
                               <span
                                 className={`text-base sm:text-lg ${
@@ -674,6 +868,17 @@ export default function PerformancePage() {
               </div>
             </CardHeader>
             <CardContent className={cn("min-h-0 flex-1", isMobile ? "p-2" : "p-3 sm:p-6")}>
+              {!!selectedItemData?.warnings.length && (
+                <AlertFeedback title="Performance calculation note" variant="warning">
+                  <div>
+                    {selectedItemData.warnings.map((warning) => (
+                      <p key={warning} className="text-sm">
+                        {warning}
+                      </p>
+                    ))}
+                  </div>
+                </AlertFeedback>
+              )}
               <PerformanceContent
                 chartData={chartData}
                 isLoading={isLoadingPerformance}

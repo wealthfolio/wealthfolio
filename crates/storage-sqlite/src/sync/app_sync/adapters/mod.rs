@@ -99,5 +99,45 @@ pub fn default_adapter_descriptors() -> Vec<EntityAdapterDescriptor> {
             entity: SyncEntity::PortfolioAccount,
             table_name: "portfolio_accounts",
         },
+        EntityAdapterDescriptor {
+            entity: SyncEntity::SpendingSetting,
+            table_name: "app_settings",
+        },
+        EntityAdapterDescriptor {
+            entity: SyncEntity::ActivityTaxonomyAssignment,
+            table_name: "activity_taxonomy_assignments",
+        },
+        EntityAdapterDescriptor {
+            entity: SyncEntity::SpendingActivityEvent,
+            table_name: "spending_activity_events",
+        },
+        EntityAdapterDescriptor {
+            entity: SyncEntity::SpendingCategorizationRule,
+            table_name: "spending_categorization_rules",
+        },
+        EntityAdapterDescriptor {
+            entity: SyncEntity::SpendingEvent,
+            table_name: "spending_events",
+        },
+        EntityAdapterDescriptor {
+            entity: SyncEntity::SpendingEventType,
+            table_name: "spending_event_types",
+        },
+        EntityAdapterDescriptor {
+            entity: SyncEntity::BudgetGroup,
+            table_name: "budget_groups",
+        },
+        EntityAdapterDescriptor {
+            entity: SyncEntity::BudgetGroupAssignment,
+            table_name: "budget_group_assignments",
+        },
+        EntityAdapterDescriptor {
+            entity: SyncEntity::BudgetTarget,
+            table_name: "budget_targets",
+        },
+        EntityAdapterDescriptor {
+            entity: SyncEntity::BudgetRolloverSetting,
+            table_name: "budget_rollover_settings",
+        },
     ]
 }

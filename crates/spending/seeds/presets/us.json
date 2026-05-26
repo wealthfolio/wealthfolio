@@ -1,0 +1,337 @@
+{
+  "presetId": "us",
+  "presetVersion": "2026-05.2",
+  "name": "United States",
+  "description": "~40 expense rules covering common US household transactions. Groceries, restaurants, transport, housing, telecom & utilities, subscriptions, shopping, health, personal care, pets, education, giving, travel, and fees.",
+  "language": "en-US",
+  "rules": [
+    {
+      "key": "us.groceries.major_chains",
+      "name": "Groceries — major chains",
+      "pattern": "(?i)\\bwalmart\\b|\\bkroger\\b|\\balbertsons\\b|\\bsafeway\\b|\\bpublix\\b|\\baldi\\b|\\bh-?e-?b\\b|wegmans|whole foods|trader joe|stop & shop|food lion|harris teeter|sprouts|hannaford|giant eagle|winn-?dixie|jewel-?osco|king soopers|fred meyer|pavilions|shoprite|price chopper|smart & final|cardenas|food 4 less|piggly wiggly|smith'?s food",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 80
+    },
+    {
+      "key": "us.groceries.warehouse_clubs",
+      "name": "Warehouse clubs",
+      "pattern": "(?i)\\bcostco\\b|sam'?s club|\\bbj'?s\\b",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 75
+    },
+    {
+      "key": "us.coffee",
+      "name": "Coffee shops",
+      "pattern": "(?i)starbucks|dunkin|peet'?s coffee|caribou coffee|tim ?hortons|philz coffee|blue bottle|\\bcoffee\\b|\\bcafe\\b|\\bespresso\\b",
+      "matchType": "regex",
+      "categoryKey": "food_coffee",
+      "priority": 80
+    },
+    {
+      "key": "us.fastfood",
+      "name": "Fast food",
+      "pattern": "(?i)mcdonald|chick-?fil-?a|\\bsubway\\b|taco bell|wendy|burger king|chipotle|domino|pizza hut|\\bkfc\\b|panera|five guys|in-?n-?out|\\bsonic\\b|arby|popeye|jack in the box|whataburger|raising cane|shake shack|\\bdq\\b|dairy queen|\\bcarl'?s jr\\b|\\bhardee'?s\\b|culver|wingstop|bojangles|jersey mike|jimmy john|firehouse subs|panda express|qdoba|moe'?s southwest|del taco|little caesars|papa john",
+      "matchType": "regex",
+      "categoryKey": "food_restaurants",
+      "priority": 75
+    },
+    {
+      "key": "us.food_delivery",
+      "name": "Food delivery",
+      "pattern": "(?i)\\bdoordash\\b|uber ?eats|\\bgrubhub\\b|postmates|\\bseamless\\b|caviar|\\bgopuff\\b|instacart|\\bshipt\\b|\\bhungryroot\\b|\\bdrizly\\b|gopuff",
+      "matchType": "regex",
+      "categoryKey": "food_delivery",
+      "priority": 85
+    },
+    {
+      "key": "us.bars_alcohol",
+      "name": "Bars & liquor",
+      "pattern": "(?i)\\bpub\\b|\\btavern\\b|\\bbrewing\\b|brewery|liquor|wine shop|total wine|\\bbevmo\\b|abc store",
+      "matchType": "regex",
+      "categoryKey": "food_alcohol",
+      "priority": 70
+    },
+    {
+      "key": "us.gas",
+      "name": "Gas stations",
+      "pattern": "(?i)\\bshell\\b|chevron|exxon|\\bmobil\\b|\\bbp\\b|marathon|valero|speedway|sunoco|phillips ?66|\\bconoco\\b|\\bcitgo\\b|\\b76 station|sinclair|\\bwawa\\b|quiktrip|racetrac|sheetz|casey'?s|\\bpilot\\b|flying j|\\blove'?s\\b|\\bbuc-?ee'?s\\b|arco\\b|kwik trip|circle k|7-?eleven",
+      "matchType": "regex",
+      "categoryKey": "transport_gas",
+      "priority": 80
+    },
+    {
+      "key": "us.rideshare",
+      "name": "Rideshare & taxi",
+      "pattern": "(?i)\\buber\\b|\\blyft\\b|\\btaxi\\b|\\bcab\\b|\\bvia\\b ride|curb taxi",
+      "matchType": "regex",
+      "categoryKey": "transport_rideshare",
+      "priority": 80
+    },
+    {
+      "key": "us.transit",
+      "name": "Public transit",
+      "pattern": "(?i)\\bmta\\b|metrocard|\\bbart\\b|caltrain|amtrak|\\bnjt\\b|nj transit|\\bsepta\\b|\\bcta\\b|\\bwmata\\b|metro transit|\\bmarta\\b|\\brtd\\b|metra\\b|\\bpath\\b|\\blirr\\b|metro-?north|sound transit|\\bmuni\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_public",
+      "priority": 80
+    },
+    {
+      "key": "us.parking",
+      "name": "Parking & tolls",
+      "pattern": "(?i)\\bparking\\b|parkmobile|spothero|\\bparkwhiz\\b|\\btoll\\b|\\bezpass\\b|e-?z ?pass|fastrak|\\bipass\\b|sunpass|peach pass",
+      "matchType": "regex",
+      "categoryKey": "transport_parking",
+      "priority": 80
+    },
+    {
+      "key": "us.car_maintenance",
+      "name": "Car maintenance",
+      "pattern": "(?i)jiffy lube|valvoline|midas|firestone|goodyear|discount tire|tire discounters|les schwab|autozone|o'?reilly|advance auto|pep boys|take 5 oil|car wash|auto repair|mechanic",
+      "matchType": "regex",
+      "categoryKey": "transport_maintenance",
+      "priority": 85
+    },
+    {
+      "key": "us.airlines",
+      "name": "Airlines",
+      "pattern": "(?i)american airlines|\\baa\\.com\\b|delta air|\\bunited\\b airlines|southwest air|\\bjetblue\\b|alaska airlines|\\bspirit\\b airlines|frontier airlines|hawaiian airlines|allegiant|breeze airways|sun country|avelo",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 90
+    },
+    {
+      "key": "us.hotels",
+      "name": "Hotels",
+      "pattern": "(?i)marriott|\\bhilton\\b|\\bhyatt\\b|holiday inn|\\bihg\\b|best western|choice hotels|wyndham|hampton inn|embassy suites|\\bwestin\\b|sheraton|fairmont|ritz-?carlton|four seasons|hotel\\b|\\bmotel\\b|\\binn\\b|courtyard|residence inn|\\bdoubletree\\b|kimpton|\\bw hotel|la quinta|comfort inn|comfort suites|fairfield",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 85
+    },
+    {
+      "key": "us.travel_booking",
+      "name": "Travel booking",
+      "pattern": "(?i)airbnb|\\bvrbo\\b|expedia|booking\\.com|hotels\\.com|priceline|travelocity|orbitz|hotwire|\\bkayak\\b|trivago|google flights",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 90
+    },
+    {
+      "key": "us.car_rental",
+      "name": "Car rental",
+      "pattern": "(?i)enterprise rent|\\bhertz\\b|\\bavis\\b|\\bbudget\\b rent|\\balamo\\b rent|\\bnational\\b car|thrifty car|\\bsixt\\b|dollar rent|fox rent|turo\\b",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 85
+    },
+    {
+      "key": "us.streaming",
+      "name": "Streaming services",
+      "pattern": "(?i)netflix|spotify|apple\\.com/bill|apple music|disney ?\\+|\\bhulu\\b|\\bhbo\\b|\\bmax\\b\\.com|peacock|paramount ?\\+|youtube ?premium|youtube ?tv|\\bsling\\b tv|sirius ?xm|\\baudible\\b|\\bcrunchyroll\\b|tidal\\b|pandora|prime video|amazon prime video",
+      "matchType": "regex",
+      "categoryKey": "entertainment_streaming",
+      "priority": 85
+    },
+    {
+      "key": "us.amazon_prime",
+      "name": "Amazon Prime / Amazon",
+      "pattern": "(?i)\\bamazon prime\\b|amzn\\.com/?prime|amazon ?\\.com\\*?prime",
+      "matchType": "regex",
+      "categoryKey": "bills_subscriptions",
+      "priority": 90
+    },
+    {
+      "key": "us.software_subs",
+      "name": "Software & cloud",
+      "pattern": "(?i)\\badobe\\b|microsoft ?\\*|\\bm365\\b|office 365|dropbox|\\bicloud\\b|google ?storage|google ?one|\\bnotion\\b|\\bslack\\b|\\bzoom\\.us\\b|\\bgithub\\b|gitlab|jetbrains|chatgpt|openai|claude\\.ai|anthropic|\\bnyt\\b|nytimes|\\bwsj\\b|new york times|wall street journal|\\b1password\\b|lastpass|grammarly|\\bcanva\\b|miro\\b|figma\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_software",
+      "priority": 80
+    },
+    {
+      "key": "us.telecom",
+      "name": "Phone & internet",
+      "pattern": "(?i)\\bverizon\\b|\\bat&?t\\b|t-?mobile|\\bsprint\\b|mint mobile|cricket wireless|boost mobile|\\bus cellular\\b|\\bgoogle fi\\b|spectrum|xfinity|\\bcomcast\\b|\\bcox\\b|optimum|\\bfios\\b|frontier|centurylink|earthlink|\\bgooglefi\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_phone",
+      "priority": 80
+    },
+    {
+      "key": "us.utilities",
+      "name": "Utilities (electric/gas/water)",
+      "pattern": "(?i)\\bpg&?e\\b|con ?ed|\\bconed\\b|duke energy|fpl\\b|florida power|southern company|georgia power|alabama power|pacific power|\\bnv energy\\b|\\bcomed\\b|nstar|eversource|\\bdte\\b energy|\\bxcel\\b energy|\\bnyseg\\b|\\bnipsco\\b|austin energy|\\baep\\b|electric company|water (utility|district|company)|trash service",
+      "matchType": "regex",
+      "categoryKey": "housing_utilities",
+      "priority": 80
+    },
+    {
+      "key": "us.housing_rent_mortgage",
+      "name": "Rent & mortgage",
+      "pattern": "(?i)\\brent\\b|mortgage|apartments?\\.com|appfolio|yardi|rentcafe|resident portal|zillow rentals|\\bhoa\\b|homeowners association|rocket mortgage|mr\\.? cooper|pennymac|loan depot|newrez|freedom mortgage",
+      "matchType": "regex",
+      "categoryKey": "housing_rent",
+      "priority": 88
+    },
+    {
+      "key": "us.online_marketplaces",
+      "name": "Online marketplaces",
+      "pattern": "(?i)amazon\\.com|amzn mktp|amzn\\.com|\\bamzn\\b|\\bebay\\b|\\betsy\\b|\\bshein\\b|\\btemu\\b|wayfair|overstock|wish\\.com|aliexpress|alibaba",
+      "matchType": "regex",
+      "categoryKey": "shopping_online",
+      "priority": 70
+    },
+    {
+      "key": "us.shopping_clothing",
+      "name": "Clothing retailers",
+      "pattern": "(?i)\\bnike\\b|\\badidas\\b|lululemon|\\bathleta\\b|\\brei\\b|patagonia|old navy|\\bgap\\b|banana republic|j\\.?crew|madewell|ann taylor|\\bh&m\\b|\\bzara\\b|uniqlo|forever 21|\\bexpress\\b clothing|american eagle|\\bnordstrom\\b|\\bmacy'?s\\b|\\bkohl'?s\\b|jcpenney|dillard|tj ?maxx|marshalls|homegoods|\\bross\\b stores|burlington",
+      "matchType": "regex",
+      "categoryKey": "shopping_clothing",
+      "priority": 80
+    },
+    {
+      "key": "us.shopping_electronics",
+      "name": "Electronics",
+      "pattern": "(?i)best buy|apple store|microsoft store|\\bb&h\\b|newegg|\\bmicrocenter\\b|crutchfield",
+      "matchType": "regex",
+      "categoryKey": "shopping_electronics",
+      "priority": 85
+    },
+    {
+      "key": "us.home_improvement",
+      "name": "Home improvement",
+      "pattern": "(?i)home depot|\\blowe'?s\\b|ace hardware|menards|tractor supply|harbor freight|\\bikea\\b|wayfair|crate & barrel|west elm|williams-?sonoma|pottery barn|world market|\\bbed bath\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_home",
+      "priority": 80
+    },
+    {
+      "key": "us.pharmacy",
+      "name": "Pharmacy",
+      "pattern": "(?i)\\bcvs\\b|walgreens|rite aid|duane reade|walmart pharmacy|costco pharmacy",
+      "matchType": "regex",
+      "categoryKey": "health_pharmacy",
+      "priority": 85
+    },
+    {
+      "key": "us.medical",
+      "name": "Medical & clinics",
+      "pattern": "(?i)kaiser permanente|urgent care|hospital|clinic|medical center|medical centre|quest diagnostics|labcorp|mychart|physician|dermatology|orthopedic|physical therapy|\\bpt clinic\\b",
+      "matchType": "regex",
+      "categoryKey": "health_medical",
+      "priority": 86
+    },
+    {
+      "key": "us.dental",
+      "name": "Dental",
+      "pattern": "(?i)dental|dentist|orthodont|delta dental|aspen dental|smile direct",
+      "matchType": "regex",
+      "categoryKey": "health_dental",
+      "priority": 86
+    },
+    {
+      "key": "us.vision",
+      "name": "Vision",
+      "pattern": "(?i)vision|optical|optomet|lenscrafters|warby parker|america'?s best|vsp\\b|eyeglass",
+      "matchType": "regex",
+      "categoryKey": "health_vision",
+      "priority": 86
+    },
+    {
+      "key": "us.health_insurance",
+      "name": "Health insurance",
+      "pattern": "(?i)aetna|cigna|blue cross|blue shield|\\bbcbs\\b|united ?health|\\buhc\\b|humana|anthem|health insurance",
+      "matchType": "regex",
+      "categoryKey": "health_insurance",
+      "priority": 86
+    },
+    {
+      "key": "us.fitness",
+      "name": "Gyms & fitness",
+      "pattern": "(?i)planet fitness|\\bla fitness\\b|24 ?hour fitness|\\bequinox\\b|\\bcrunch\\b fitness|anytime fitness|soul ?cycle|orangetheory|\\bf45\\b|crossfit|classpass|peloton|barry'?s|\\bymca\\b",
+      "matchType": "regex",
+      "categoryKey": "health_fitness",
+      "priority": 85
+    },
+    {
+      "key": "us.movies_tickets",
+      "name": "Movies & live events",
+      "pattern": "(?i)amc theatres|\\bamc\\b cinemas|\\bregal\\b cinemas|cinemark|alamo drafthouse|\\bimax\\b|stubhub|ticketmaster|seatgeek|live ?nation|vivid seats|axs\\.com",
+      "matchType": "regex",
+      "categoryKey": "entertainment_movies",
+      "priority": 85
+    },
+    {
+      "key": "us.gaming",
+      "name": "Gaming platforms",
+      "pattern": "(?i)\\bsteam\\b games|steamgames|valve corp|\\bxbox\\b|playstation|\\bpsn\\b|nintendo|epic games|riot games|blizzard|\\bea\\b games|electronic arts|\\bubisoft\\b",
+      "matchType": "regex",
+      "categoryKey": "entertainment_games",
+      "priority": 85
+    },
+    {
+      "key": "us.dollar_stores",
+      "name": "Dollar stores & discount",
+      "pattern": "(?i)\\btarget\\b|dollar general|dollar tree|family dollar|five below|99 cents only|\\bbig lots\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping",
+      "priority": 78
+    },
+    {
+      "key": "us.personal_care",
+      "name": "Personal care",
+      "pattern": "(?i)salon|barber|spa\\b|nail salon|\\bnails\\b|sephora|ulta\\b|great clips|supercuts|massage envy|haircut",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 82
+    },
+    {
+      "key": "us.pets",
+      "name": "Pets",
+      "pattern": "(?i)petco|petsmart|chewy|banfield|vca animal|veterinary|vet clinic|animal hospital|pet supplies",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 82
+    },
+    {
+      "key": "us.education_childcare",
+      "name": "Education & childcare",
+      "pattern": "(?i)tuition|university|college|school payment|daycare|day care|child ?care|bright horizons|kumon|coursera|udemy",
+      "matchType": "regex",
+      "categoryKey": "education",
+      "priority": 82
+    },
+    {
+      "key": "us.donations",
+      "name": "Donations & charities",
+      "pattern": "(?i)gofundme|red cross|unicef|st\\.? jude|salvation army|\\bchurch\\b|\\btithe\\b|donation|charity|patreon",
+      "matchType": "regex",
+      "categoryKey": "gifts",
+      "priority": 82
+    },
+    {
+      "key": "us.gov_taxes",
+      "name": "Government & taxes",
+      "pattern": "(?i)\\birs\\b|us treasury|treasury direct|\\bdmv\\b|passport|\\buscis\\b|payusatax|pay1040|official payments|property tax",
+      "matchType": "regex",
+      "categoryKey": "fees",
+      "priority": 90
+    },
+    {
+      "key": "us.bank_fees",
+      "name": "Bank & ATM fees",
+      "pattern": "(?i)\\batm fee\\b|overdraft fee|wire fee|service fee|monthly maintenance|nsf fee|foreign transaction fee|annual fee",
+      "matchType": "regex",
+      "categoryKey": "fees_bank",
+      "priority": 90
+    },
+    {
+      "key": "us.insurance",
+      "name": "Auto / home insurance",
+      "pattern": "(?i)geico|state farm|progressive\\b|allstate|liberty mutual|farmers ins|usaa\\b|nationwide|esurance|metromile|root insurance|lemonade",
+      "matchType": "regex",
+      "categoryKey": "transport_insurance",
+      "priority": 85
+    }
+  ]
+}

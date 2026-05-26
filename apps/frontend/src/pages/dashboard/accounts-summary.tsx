@@ -3,6 +3,7 @@
 import { calculatePerformanceSummary } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useLatestValuations } from "@/hooks/use-latest-valuations";
+import { AccountPurpose } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { AccountValuation, DateRange } from "@/lib/types";
@@ -266,7 +267,7 @@ export const AccountsSummary = React.memo(
       isLoading: isLoadingAccounts,
       isError: isErrorAccounts,
       error: errorAccounts,
-    } = useAccounts();
+    } = useAccounts({ accountPurpose: AccountPurpose.PERFORMANCE });
 
     const accounts = allAccounts ?? [];
 
@@ -336,7 +337,7 @@ export const AccountsSummary = React.memo(
         const perf = performanceQueries[i]?.data;
         const fxRate = valuation.fxRateToBase ?? 1;
         const totalValueAccountCurrency = valuation.totalValue;
-        const totalValueBaseCurrency = totalValueAccountCurrency * fxRate;
+        const totalValueBaseCurrency = valuation.totalValueBase;
 
         const gainLossAccountCurrency = perf?.periodGain ?? null;
         const gainLossBaseCurrency =

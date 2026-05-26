@@ -24,6 +24,7 @@ pub mod portfolios;
 pub mod providers_settings;
 pub mod secrets;
 pub mod settings;
+pub mod spending;
 #[cfg(feature = "device-sync")]
 pub mod sync_crypto;
 pub mod taxonomy;

@@ -4,11 +4,12 @@ use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use crate::accounts::{Account, AccountServiceTrait};
+use crate::accounts::{account_types, Account, AccountServiceTrait};
 use crate::activities::activities_constants::{
     classify_import_activity, is_cash_symbol, is_garbage_symbol, requires_symbol,
-    ImportSymbolDisposition, ACTIVITY_TYPE_SPLIT, ACTIVITY_TYPE_TRANSFER_IN,
-    ACTIVITY_TYPE_TRANSFER_OUT, PRICE_BEARING_ACTIVITY_TYPES,
+    ImportSymbolDisposition, ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_FEE, ACTIVITY_TYPE_INTEREST,
+    ACTIVITY_TYPE_SPLIT, ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
+    ACTIVITY_TYPE_WITHDRAWAL, PRICE_BEARING_ACTIVITY_TYPES,
 };
 use crate::activities::activities_errors::ActivityError;
 use crate::activities::activities_model::*;
@@ -284,6 +285,34 @@ impl ActivityService {
                 }
             }
         }
+    }
+
+    fn account_activity_validation_message(
+        activity_type: &str,
+        account: &Account,
+    ) -> Option<String> {
+        if account.account_type != account_types::CREDIT_CARD {
+            return None;
+        }
+
+        match activity_type {
+            ACTIVITY_TYPE_WITHDRAWAL
+            | ACTIVITY_TYPE_TRANSFER_IN
+            | ACTIVITY_TYPE_CREDIT
+            | ACTIVITY_TYPE_FEE
+            | ACTIVITY_TYPE_INTEREST => None,
+            _ => Some(format!(
+                "{} activities are not supported for credit card accounts",
+                activity_type
+            )),
+        }
+    }
+
+    fn validate_activity_allowed_for_account(activity_type: &str, account: &Account) -> Result<()> {
+        if let Some(message) = Self::account_activity_validation_message(activity_type, account) {
+            return Err(ActivityError::InvalidData(message).into());
+        }
+        Ok(())
     }
 
     fn duplicate_activity_error(existing_activity_id: Option<&str>) -> crate::errors::Error {
@@ -1186,6 +1215,7 @@ impl ActivityService {
         activity.subtype = NewActivity::canonicalize_subtype(activity.subtype.as_deref());
         Self::normalize_new_activity_economic_signs(&mut activity);
         let account: Account = self.account_service.get_account(&activity.account_id)?;
+        Self::validate_activity_allowed_for_account(&activity.activity_type, &account)?;
         let base_ccy = self.account_service.get_base_currency().unwrap_or_default();
         let account_currency = resolve_currency(&[&account.currency, &base_ccy]);
 
@@ -1627,6 +1657,7 @@ impl ActivityService {
         mut activity: ActivityUpdate,
     ) -> Result<ActivityUpdate> {
         let account: Account = self.account_service.get_account(&activity.account_id)?;
+        Self::validate_activity_allowed_for_account(&activity.activity_type, &account)?;
         let base_ccy = self.account_service.get_base_currency().unwrap_or_default();
         let account_currency = resolve_currency(&[&account.currency, &base_ccy]);
         let currency = resolve_currency(&[&activity.currency, &account_currency]);
@@ -2470,6 +2501,13 @@ impl ActivityService {
             }
             if activity.account_id.is_none() {
                 activity.account_id = Some(account_id.clone());
+            }
+            if let Some(message) =
+                Self::account_activity_validation_message(&activity.activity_type, &account)
+            {
+                Self::add_activity_error(&mut activity, "activityType", &message);
+                activities_with_status.push(activity);
+                continue;
             }
             self.hydrate_import_activity_from_asset_id(&mut activity);
             Self::normalize_import_activity_subtype(&mut activity);
@@ -4333,6 +4371,22 @@ impl ActivityService {
         let mut sync_review_indices: HashSet<usize> = HashSet::new();
 
         for (idx, activity) in activities.iter().enumerate() {
+            if let Err(e) =
+                Self::validate_activity_allowed_for_account(&activity.activity_type, account)
+            {
+                if mode.is_sync() {
+                    warn!(
+                        "Broker sync activity at index {} is not allowed for this account and will be imported for review: {}",
+                        idx, e
+                    );
+                    sync_review_indices.insert(idx);
+                } else {
+                    result.errors.push((idx, e.to_string()));
+                    activity_asset_map.push(None);
+                    continue;
+                }
+            }
+
             if let Err(e) = activity.validate() {
                 if mode.is_sync() {
                     warn!(
@@ -4590,6 +4644,7 @@ impl ActivityService {
 
             if mode.is_sync() && sync_review_indices.contains(&idx) {
                 activity.needs_review = Some(true);
+                activity.status = Some(ActivityStatus::Draft);
             }
 
             // Securities transfers derive monetary value from quantity × unit_price;

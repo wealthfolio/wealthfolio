@@ -1,6 +1,6 @@
 //! SQLite storage implementation for settings.
 
-mod model;
+pub mod model;
 mod repository;
 
 pub use model::AppSettingDB;

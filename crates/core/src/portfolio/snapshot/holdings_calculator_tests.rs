@@ -1,6 +1,7 @@
 // Test cases for HoldingsCalculator will go here.
 #[cfg(test)]
 mod tests {
+    use crate::accounts::account_types;
     use crate::activities::{
         Activity, ActivityCompiler, ActivityStatus, ActivityType, DefaultActivityCompiler,
     };
@@ -1401,6 +1402,51 @@ mod tests {
 
         assert_eq!(next_state.cost_basis, previous_snapshot.cost_basis);
         assert!(next_state.positions.is_empty());
+    }
+
+    #[test]
+    fn test_credit_card_interest_books_as_liability_charge() {
+        let mock_fx_service = MockFxService::new();
+        let target_date_str = "2023-01-06";
+        let target_date = NaiveDate::from_str(target_date_str).unwrap();
+        let account_currency = "USD";
+
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let mut previous_snapshot =
+            create_initial_snapshot("card_1", account_currency, "2023-01-05");
+        previous_snapshot
+            .cash_balances
+            .insert(account_currency.to_string(), dec!(-100));
+
+        let interest_activity = create_cash_activity(
+            "card_interest_1",
+            ActivityType::Interest,
+            dec!(25),
+            dec!(0),
+            account_currency,
+            target_date_str,
+        );
+
+        let result = calculator.calculate_next_holdings_for_account_type(
+            &previous_snapshot,
+            &[interest_activity],
+            target_date,
+            Some(account_types::CREDIT_CARD),
+        );
+        assert!(result.is_ok(), "Calculation failed: {:?}", result.err());
+        let next_state = result.unwrap().snapshot;
+
+        assert_eq!(
+            next_state.cash_balances.get(account_currency),
+            Some(&dec!(-125))
+        );
+        assert_eq!(next_state.cash_total_account_currency, dec!(-125));
+        assert_eq!(
+            next_state.net_contribution,
+            previous_snapshot.net_contribution
+        );
     }
 
     #[test]

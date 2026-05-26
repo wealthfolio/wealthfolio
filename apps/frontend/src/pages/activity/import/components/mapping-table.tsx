@@ -10,10 +10,10 @@ import { TooltipProvider } from "@wealthfolio/ui/components/ui/tooltip";
 import { IMPORT_REQUIRED_FIELDS } from "@/lib/constants";
 import {
   Account,
+  ActivityType,
   CsvRowData,
   ImportFormat,
   ImportMappingData,
-  ImportRequiredField,
   type SymbolSearchResult,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,9 @@ interface MappingTableProps {
   getMappedValue: (row: CsvRowData, field: ImportFormat) => string;
   invalidSymbols: string[];
   invalidAccounts: string[];
+  visibleFields?: readonly ImportFormat[];
+  requiredFields?: readonly ImportFormat[];
+  allowedActivityTypes?: readonly ActivityType[];
   className?: string;
 }
 
@@ -53,6 +56,9 @@ export function MappingTable({
   getMappedValue,
   invalidSymbols,
   invalidAccounts,
+  visibleFields = importFormatFields,
+  requiredFields = IMPORT_REQUIRED_FIELDS,
+  allowedActivityTypes,
   className,
 }: MappingTableProps) {
   // Check if a field is mapped (supports fallback column arrays)
@@ -80,12 +86,12 @@ export function MappingTable({
                     <span className="text-muted-foreground text-xs font-semibold">#</span>
                   </div>
                 </TableHead>
-                {importFormatFields.map((field) => (
+                {visibleFields.map((field) => (
                   <TableHead
                     key={field}
                     className={cn(
                       "border-border whitespace-nowrap border-r p-2 transition-colors last:border-r-0",
-                      IMPORT_REQUIRED_FIELDS.includes(field as ImportRequiredField)
+                      requiredFields.includes(field)
                         ? !checkFieldMapped(field)
                           ? "bg-amber-50 dark:bg-amber-950/20"
                           : ""
@@ -96,6 +102,7 @@ export function MappingTable({
                       field={field}
                       mapping={mapping}
                       headers={headers}
+                      requiredFields={requiredFields}
                       handleColumnMapping={handleColumnMapping}
                     />
                   </TableHead>
@@ -118,7 +125,7 @@ export function MappingTable({
                     <TableCell className="border-border bg-muted/30 text-muted-foreground sticky left-0 z-20 w-12 border-r font-mono text-xs font-medium">
                       {row.lineNumber}
                     </TableCell>
-                    {importFormatFields.map((field) => {
+                    {visibleFields.map((field) => {
                       return (
                         <TableCell
                           key={field}
@@ -138,6 +145,7 @@ export function MappingTable({
                             handleAccountIdMapping={handleAccountIdMapping}
                             invalidSymbols={invalidSymbols}
                             invalidAccounts={invalidAccounts}
+                            allowedActivityTypes={allowedActivityTypes}
                           />
                         </TableCell>
                       );

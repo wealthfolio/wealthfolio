@@ -1,0 +1,73 @@
+---
+source: crates/ai/tests/tool_schemas.rs
+expression: snapshot
+---
+{
+  "name": "propose_transaction_categories",
+  "parameters": {
+    "properties": {
+      "accountIds": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "activityIds": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "aiProposals": {
+        "items": {
+          "properties": {
+            "activityId": {
+              "type": "string"
+            },
+            "categoryKey": {
+              "type": "string"
+            },
+            "confidence": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "taxonomyId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "activityId",
+            "taxonomyId",
+            "categoryKey"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "endDate": {
+        "type": "string"
+      },
+      "limit": {
+        "maximum": 100,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "startDate": {
+        "type": "string"
+      },
+      "status": {
+        "enum": [
+          "uncategorized",
+          "all",
+          "needs_review"
+        ],
+        "type": "string"
+      }
+    },
+    "type": "object"
+  }
+}

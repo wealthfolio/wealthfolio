@@ -1,7 +1,7 @@
 //! Unit tests for net worth service.
 
 use super::*;
-use crate::accounts::{Account, AccountRepositoryTrait, AccountUpdate, NewAccount};
+use crate::accounts::{account_types, Account, AccountRepositoryTrait, AccountUpdate, NewAccount};
 use crate::assets::{
     Asset, AssetKind, AssetRepositoryTrait, NewAsset, ProviderProfile, QuoteMode,
     UpdateAssetProfile,
@@ -259,14 +259,6 @@ impl SnapshotRepositoryTrait for MockSnapshotRepository {
         &self,
         _new_snapshots: &[AccountStateSnapshot],
     ) -> Result<()> {
-        unimplemented!()
-    }
-
-    fn get_total_portfolio_snapshots(
-        &self,
-        _start_date: Option<NaiveDate>,
-        _end_date: Option<NaiveDate>,
-    ) -> Result<Vec<AccountStateSnapshot>> {
         unimplemented!()
     }
 
@@ -754,6 +746,15 @@ impl ValuationRepositoryTrait for MockValuationRepository {
         Ok(())
     }
 
+    async fn replace_valuations_for_account(
+        &self,
+        _account_id: &str,
+        _since_date: Option<NaiveDate>,
+        _valuation_records: &[DailyAccountValuation],
+    ) -> Result<()> {
+        Ok(())
+    }
+
     fn get_historical_valuations(
         &self,
         account_id: &str,
@@ -764,6 +765,23 @@ impl ValuationRepositoryTrait for MockValuationRepository {
             .valuations
             .iter()
             .filter(|v| v.account_id == account_id)
+            .filter(|v| start_date.map(|sd| v.valuation_date >= sd).unwrap_or(true))
+            .filter(|v| end_date.map(|ed| v.valuation_date <= ed).unwrap_or(true))
+            .cloned()
+            .collect();
+        Ok(filtered)
+    }
+
+    fn get_historical_valuations_for_accounts(
+        &self,
+        account_ids: &[String],
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+    ) -> Result<Vec<DailyAccountValuation>> {
+        let filtered: Vec<_> = self
+            .valuations
+            .iter()
+            .filter(|v| account_ids.contains(&v.account_id))
             .filter(|v| start_date.map(|sd| v.valuation_date >= sd).unwrap_or(true))
             .filter(|v| end_date.map(|ed| v.valuation_date <= ed).unwrap_or(true))
             .cloned()
@@ -965,7 +983,18 @@ fn create_net_worth_service_with_valuations(
     valuations: Vec<DailyAccountValuation>,
 ) -> NetWorthService {
     let base_currency = Arc::new(RwLock::new("USD".to_string()));
-    let account_repo = Arc::new(MockAccountRepository::new(accounts));
+    let effective_accounts = if accounts.is_empty() && !valuations.is_empty() {
+        valuations
+            .iter()
+            .map(|valuation| valuation.account_id.clone())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .map(|account_id| create_test_account(&account_id, account_types::SECURITIES, "USD"))
+            .collect()
+    } else {
+        accounts
+    };
+    let account_repo = Arc::new(MockAccountRepository::new(effective_accounts));
     let asset_repo = Arc::new(MockAssetRepository::new(assets));
     let snapshot_repo = Arc::new(MockSnapshotRepository::new(snapshots));
     let market_data_repo = Arc::new(MockMarketDataRepository::new(quotes));
@@ -989,8 +1018,8 @@ fn create_total_valuation(
     net_contribution: Decimal,
 ) -> DailyAccountValuation {
     DailyAccountValuation {
-        id: format!("TOTAL_{}", date),
-        account_id: "TOTAL".to_string(),
+        id: format!("account-1_{}", date),
+        account_id: "account-1".to_string(),
         valuation_date: date,
         account_currency: "USD".to_string(),
         base_currency: "USD".to_string(),
@@ -1000,6 +1029,43 @@ fn create_total_valuation(
         total_value,
         cost_basis: net_contribution,
         net_contribution,
+        cash_balance_base: Decimal::ZERO,
+        investment_market_value_base: total_value,
+        total_value_base: total_value,
+        cost_basis_base: net_contribution,
+        net_contribution_base: net_contribution,
+        external_inflow_base: Decimal::ZERO,
+        external_outflow_base: Decimal::ZERO,
+        performance_eligible_value_base: total_value,
+        calculated_at: Utc::now(),
+    }
+}
+
+fn create_account_valuation(
+    account_id: &str,
+    date: NaiveDate,
+    total_value: Decimal,
+) -> DailyAccountValuation {
+    DailyAccountValuation {
+        id: format!("{}_{}", account_id, date),
+        account_id: account_id.to_string(),
+        valuation_date: date,
+        account_currency: "USD".to_string(),
+        base_currency: "USD".to_string(),
+        fx_rate_to_base: dec!(1),
+        cash_balance: total_value,
+        investment_market_value: Decimal::ZERO,
+        total_value,
+        cost_basis: Decimal::ZERO,
+        net_contribution: Decimal::ZERO,
+        cash_balance_base: total_value,
+        investment_market_value_base: Decimal::ZERO,
+        total_value_base: total_value,
+        cost_basis_base: Decimal::ZERO,
+        net_contribution_base: Decimal::ZERO,
+        external_inflow_base: Decimal::ZERO,
+        external_outflow_base: Decimal::ZERO,
+        performance_eligible_value_base: total_value,
         calculated_at: Utc::now(),
     }
 }
@@ -1140,6 +1206,72 @@ async fn test_cash_included_in_investments() {
     assert_eq!(result.net_worth, dec!(10000));
     // Cash is in the cash category
     assert_eq!(get_category_value(&result, "cash"), dec!(10000));
+}
+
+#[tokio::test]
+async fn test_credit_card_negative_balance_is_liability() {
+    let account = create_test_account("card1", "CREDIT_CARD", "USD");
+    let mut cash = HashMap::new();
+    cash.insert("USD".to_string(), dec!(-1250));
+    let snapshot = create_test_snapshot("card1", vec![], cash);
+
+    let service = create_net_worth_service(vec![account], vec![], vec![snapshot], vec![]);
+
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let result = service.get_net_worth(date).await.unwrap();
+
+    assert_eq!(result.assets.total, Decimal::ZERO);
+    assert_eq!(result.liabilities.total, dec!(1250));
+    assert_eq!(result.net_worth, dec!(-1250));
+    assert_eq!(result.stale_assets.len(), 0);
+}
+
+#[tokio::test]
+async fn test_credit_card_positive_balance_is_cash() {
+    let account = create_test_account("card1", "CREDIT_CARD", "USD");
+    let mut cash = HashMap::new();
+    cash.insert("USD".to_string(), dec!(25));
+    let snapshot = create_test_snapshot("card1", vec![], cash);
+
+    let service = create_net_worth_service(vec![account], vec![], vec![snapshot], vec![]);
+
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let result = service.get_net_worth(date).await.unwrap();
+
+    assert_eq!(result.assets.total, dec!(25));
+    assert_eq!(result.liabilities.total, Decimal::ZERO);
+    assert_eq!(result.net_worth, dec!(25));
+    assert_eq!(get_category_value(&result, "cash"), dec!(25));
+}
+
+#[tokio::test]
+async fn test_credit_card_multi_currency_nets_before_liability_split() {
+    let account = create_test_account("card1", "CREDIT_CARD", "USD");
+    let mut cash = HashMap::new();
+    cash.insert("USD".to_string(), dec!(-500));
+    cash.insert("EUR".to_string(), dec!(200));
+    let snapshot = create_test_snapshot("card1", vec![], cash);
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+
+    let service = create_net_worth_service_with_valuations(
+        vec![account],
+        vec![],
+        vec![snapshot],
+        vec![],
+        vec![create_account_valuation("card1", date, dec!(-300))],
+    );
+
+    let result = service.get_net_worth(date).await.unwrap();
+    assert_eq!(result.assets.total, Decimal::ZERO);
+    assert_eq!(result.liabilities.total, dec!(300));
+    assert_eq!(result.net_worth, dec!(-300));
+    assert_eq!(get_category_value(&result, "cash"), Decimal::ZERO);
+
+    let history = service.get_net_worth_history(date, date).unwrap();
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].total_assets, Decimal::ZERO);
+    assert_eq!(history[0].total_liabilities, dec!(300));
+    assert_eq!(history[0].net_worth, dec!(-300));
 }
 
 #[tokio::test]
@@ -1324,7 +1456,7 @@ fn test_history_basic_portfolio_with_alt_assets() {
     let d4 = NaiveDate::from_ymd_opt(2024, 1, 4).unwrap();
     let d5 = NaiveDate::from_ymd_opt(2024, 1, 5).unwrap();
 
-    // Portfolio valuations (TOTAL account)
+    // Portfolio valuations
     let valuations = vec![
         create_total_valuation(d1, dec!(100000), dec!(95000)), // $5K gain
         create_total_valuation(d2, dec!(101000), dec!(95000)), // $6K gain
@@ -1421,6 +1553,242 @@ fn test_history_portfolio_only_no_alt_assets() {
     assert_eq!(history[0].net_worth, dec!(50000));
 
     assert_eq!(history[2].net_worth, dec!(52000));
+}
+
+#[test]
+fn test_history_credit_card_balance_is_split_to_liabilities() {
+    let d1 = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+
+    let valuations = vec![
+        create_total_valuation(d1, dec!(100000), dec!(100000)),
+        create_account_valuation("card1", d1, dec!(-1250)),
+    ];
+    let portfolio_account = create_test_account("account-1", "SECURITIES", "USD");
+    let card = create_test_account("card1", "CREDIT_CARD", "USD");
+
+    let service = create_net_worth_service_with_valuations(
+        vec![portfolio_account, card],
+        vec![],
+        vec![],
+        vec![],
+        valuations,
+    );
+
+    let history = service.get_net_worth_history(d1, d1).unwrap();
+
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].portfolio_value, dec!(100000));
+    assert_eq!(history[0].total_assets, dec!(100000));
+    assert_eq!(history[0].total_liabilities, dec!(1250));
+    assert_eq!(history[0].net_worth, dec!(98750));
+}
+
+#[test]
+fn test_history_credit_card_balance_before_first_portfolio_date_is_seeded() {
+    let start = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+    let card_date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let first_portfolio_date = NaiveDate::from_ymd_opt(2024, 2, 1).unwrap();
+
+    let valuations = vec![
+        create_total_valuation(first_portfolio_date, dec!(100000), dec!(100000)),
+        create_account_valuation("card1", card_date, dec!(-500)),
+    ];
+    let portfolio_account = create_test_account("account-1", "SECURITIES", "USD");
+    let card = create_test_account("card1", "CREDIT_CARD", "USD");
+
+    let service = create_net_worth_service_with_valuations(
+        vec![portfolio_account, card],
+        vec![],
+        vec![],
+        vec![],
+        valuations,
+    );
+
+    let history = service
+        .get_net_worth_history(start, first_portfolio_date)
+        .unwrap();
+
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].date, first_portfolio_date);
+    assert_eq!(history[0].portfolio_value, dec!(100000));
+    assert_eq!(history[0].total_liabilities, dec!(500));
+    assert_eq!(history[0].net_worth, dec!(99500));
+}
+
+#[test]
+fn test_history_credit_card_without_total_stays_liability_only() {
+    let d1 = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+
+    let account = create_test_account("card1", "CREDIT_CARD", "USD");
+    let valuations = vec![create_account_valuation("card1", d1, dec!(-500))];
+
+    let service =
+        create_net_worth_service_with_valuations(vec![account], vec![], vec![], vec![], valuations);
+
+    let history = service.get_net_worth_history(d1, d1).unwrap();
+
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].total_assets, Decimal::ZERO);
+    assert_eq!(history[0].total_liabilities, dec!(500));
+    assert_eq!(history[0].net_worth, dec!(-500));
+}
+
+#[test]
+fn test_history_credit_card_positive_balance_without_total_is_cash_asset() {
+    let d1 = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+
+    let account = create_test_account("card1", "CREDIT_CARD", "USD");
+    let valuations = vec![create_account_valuation("card1", d1, dec!(25))];
+
+    let service =
+        create_net_worth_service_with_valuations(vec![account], vec![], vec![], vec![], valuations);
+
+    let history = service.get_net_worth_history(d1, d1).unwrap();
+
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].total_assets, dec!(25));
+    assert_eq!(history[0].total_liabilities, Decimal::ZERO);
+    assert_eq!(history[0].net_worth, dec!(25));
+}
+
+#[test]
+fn test_history_credit_card_liability_carries_forward_between_dates() {
+    let d1 = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+    let d2 = NaiveDate::from_ymd_opt(2024, 1, 2).unwrap();
+    let d3 = NaiveDate::from_ymd_opt(2024, 1, 3).unwrap();
+
+    // Portfolio holds steady at $100K. Card balance changes on d1 and d2, then
+    // has no valuation on d3 (the balance should carry forward from d2).
+    let valuations = vec![
+        create_total_valuation(d1, dec!(100000), dec!(100000)),
+        create_total_valuation(d2, dec!(100000), dec!(100000)),
+        create_total_valuation(d3, dec!(100000), dec!(100000)),
+        create_account_valuation("card1", d1, dec!(-500)),
+        create_account_valuation("card1", d2, dec!(-1200)),
+    ];
+    let portfolio_account = create_test_account("account-1", "SECURITIES", "USD");
+    let card = create_test_account("card1", "CREDIT_CARD", "USD");
+
+    let service = create_net_worth_service_with_valuations(
+        vec![portfolio_account, card],
+        vec![],
+        vec![],
+        vec![],
+        valuations,
+    );
+
+    let history = service.get_net_worth_history(d1, d3).unwrap();
+
+    assert_eq!(history.len(), 3);
+
+    assert_eq!(history[0].date, d1);
+    assert_eq!(history[0].portfolio_value, dec!(100000));
+    assert_eq!(history[0].total_liabilities, dec!(500));
+    assert_eq!(history[0].net_worth, dec!(99500));
+
+    assert_eq!(history[1].date, d2);
+    assert_eq!(history[1].total_liabilities, dec!(1200));
+    assert_eq!(history[1].net_worth, dec!(98800));
+
+    // d3 has no new card valuation: liability carries forward from d2.
+    assert_eq!(history[2].date, d3);
+    assert_eq!(history[2].portfolio_value, dec!(100000));
+    assert_eq!(history[2].total_liabilities, dec!(1200));
+    assert_eq!(history[2].net_worth, dec!(98800));
+}
+
+#[test]
+fn test_history_mixed_securities_cash_and_credit_card() {
+    let d1 = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+
+    // Securities ($100K) + cash ($5K) both count toward portfolio_value; the
+    // credit card ($1,250 owed) is the only account treated as a liability.
+    let valuations = vec![
+        create_total_valuation(d1, dec!(100000), dec!(100000)),
+        create_account_valuation("cash-1", d1, dec!(5000)),
+        create_account_valuation("card1", d1, dec!(-1250)),
+    ];
+    let securities = create_test_account("account-1", "SECURITIES", "USD");
+    let cash = create_test_account("cash-1", "CASH", "USD");
+    let card = create_test_account("card1", "CREDIT_CARD", "USD");
+
+    let service = create_net_worth_service_with_valuations(
+        vec![securities, cash, card],
+        vec![],
+        vec![],
+        vec![],
+        valuations,
+    );
+
+    let history = service.get_net_worth_history(d1, d1).unwrap();
+
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].portfolio_value, dec!(105000));
+    assert_eq!(history[0].total_assets, dec!(105000));
+    assert_eq!(history[0].total_liabilities, dec!(1250));
+    assert_eq!(history[0].net_worth, dec!(103750));
+}
+
+#[test]
+fn test_history_alt_asset_quote_after_range_start_before_first_portfolio_date_seeds_first_point() {
+    let start = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+    let quote_date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let first_portfolio_date = NaiveDate::from_ymd_opt(2024, 2, 1).unwrap();
+
+    let property = create_test_asset("PROP-house", AssetKind::Property, "USD");
+    let valuations = vec![create_total_valuation(
+        first_portfolio_date,
+        dec!(100000),
+        dec!(100000),
+    )];
+    let quotes = vec![create_test_quote(
+        "PROP-house",
+        dec!(450000),
+        quote_date,
+        "USD",
+    )];
+
+    let service = create_net_worth_service_with_valuations(
+        vec![],
+        vec![property],
+        vec![],
+        quotes,
+        valuations,
+    );
+
+    let history = service
+        .get_net_worth_history(start, first_portfolio_date)
+        .unwrap();
+
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].date, first_portfolio_date);
+    assert_eq!(history[0].portfolio_value, dec!(100000));
+    assert_eq!(history[0].alternative_assets_value, dec!(450000));
+    assert_eq!(history[0].net_worth, dec!(550000));
+}
+
+#[test]
+fn test_history_includes_closed_non_archived_accounts() {
+    let d1 = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+    let closed_account =
+        create_test_account_with_archive_state("closed-1", "SECURITIES", "USD", false, false);
+    let mut valuation = create_total_valuation(d1, dec!(50000), dec!(48000));
+    valuation.id = "closed-1_2024-01-01".to_string();
+    valuation.account_id = "closed-1".to_string();
+
+    let service = create_net_worth_service_with_valuations(
+        vec![closed_account],
+        vec![],
+        vec![],
+        vec![],
+        vec![valuation],
+    );
+
+    let history = service.get_net_worth_history(d1, d1).unwrap();
+
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].portfolio_value, dec!(50000));
+    assert_eq!(history[0].net_worth, dec!(50000));
 }
 
 #[test]

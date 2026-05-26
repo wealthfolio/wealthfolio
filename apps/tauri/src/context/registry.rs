@@ -10,6 +10,13 @@ use wealthfolio_core::{
     portfolio, portfolios, quotes, settings, taxonomies,
 };
 use wealthfolio_device_sync::{engine::DeviceSyncRuntimeState, DeviceEnrollService};
+use wealthfolio_spending::analytics::AnalyticsService;
+use wealthfolio_spending::budget::BudgetService;
+use wealthfolio_spending::cash_activities::CashActivityService;
+use wealthfolio_spending::categorization_rules::CategorizationRulesService;
+use wealthfolio_spending::events::EventsService;
+use wealthfolio_spending::insight::InsightService;
+use wealthfolio_spending::settings::SpendingSettingsService;
 use wealthfolio_storage_sqlite::{
     portfolio::snapshot::SnapshotRepository, sync::AppSyncRepository,
 };
@@ -60,6 +67,13 @@ pub struct ServiceContext {
     pub health_service: Arc<health::HealthService>,
     pub custom_provider_service: Arc<wealthfolio_core::custom_provider::CustomProviderService>,
     pub portfolio_service: Arc<dyn portfolios::PortfolioServiceTrait>,
+    pub spending_settings_service: Arc<SpendingSettingsService>,
+    pub cash_activity_service: Arc<CashActivityService>,
+    pub categorization_rules_service: Arc<CategorizationRulesService>,
+    pub events_service: Arc<EventsService>,
+    pub budget_service: Arc<BudgetService>,
+    pub spending_analytics_service: Arc<AnalyticsService>,
+    pub spending_insight_service: Arc<InsightService>,
 }
 
 impl ServiceContext {
@@ -81,6 +95,34 @@ impl ServiceContext {
 
     pub fn settings_service(&self) -> Arc<dyn settings::SettingsServiceTrait> {
         Arc::clone(&self.settings_service)
+    }
+
+    pub fn spending_settings_service(&self) -> Arc<SpendingSettingsService> {
+        Arc::clone(&self.spending_settings_service)
+    }
+
+    pub fn cash_activity_service(&self) -> Arc<CashActivityService> {
+        Arc::clone(&self.cash_activity_service)
+    }
+
+    pub fn categorization_rules_service(&self) -> Arc<CategorizationRulesService> {
+        Arc::clone(&self.categorization_rules_service)
+    }
+
+    pub fn events_service(&self) -> Arc<EventsService> {
+        Arc::clone(&self.events_service)
+    }
+
+    pub fn budget_service(&self) -> Arc<BudgetService> {
+        Arc::clone(&self.budget_service)
+    }
+
+    pub fn spending_analytics_service(&self) -> Arc<AnalyticsService> {
+        Arc::clone(&self.spending_analytics_service)
+    }
+
+    pub fn spending_insight_service(&self) -> Arc<InsightService> {
+        Arc::clone(&self.spending_insight_service)
     }
 
     pub fn account_service(&self) -> Arc<dyn accounts::AccountServiceTrait> {

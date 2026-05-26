@@ -12,7 +12,10 @@ import { MigrationBanner } from "./migration-banner";
 import { toast } from "sonner";
 
 export default function TaxonomiesPage() {
-  const { data: taxonomies = [], isLoading: isLoadingTaxonomies } = useTaxonomies();
+  // Settings → Classifications is asset-only. Spending categories live at /settings/spending/categories.
+  const { data: taxonomies = [], isLoading: isLoadingTaxonomies } = useTaxonomies({
+    scope: "asset",
+  });
   const [selectedTaxonomyId, setSelectedTaxonomyId] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);

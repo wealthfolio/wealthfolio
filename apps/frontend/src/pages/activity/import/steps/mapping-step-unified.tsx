@@ -27,7 +27,7 @@ import {
 } from "../context";
 import { TemplatePicker } from "../components/template-picker";
 import { computeFieldMappings, useImportMapping } from "../hooks/use-import-mapping";
-import { isFieldMapped } from "../utils/draft-utils";
+import { ACTIVITY_SKIP, isFieldMapped } from "../utils/draft-utils";
 import { validateTickerSymbol, findMappedActivityType } from "../utils/validation-utils";
 import {
   createDefaultActivityMapping,
@@ -36,9 +36,16 @@ import {
   prependDefaultActivityTemplate,
 } from "../utils/default-activity-template";
 import { mergeDetectedParseConfig } from "../utils/import-flow-utils";
+import {
+  activityTypeAllowedForImportProfile,
+  getActivityImportProfileForImportContext,
+  isTransactionImportProfile,
+  mergeActivityMappingsForImportProfile,
+  sanitizeImportMappingForProfile,
+} from "../utils/activity-import-profile";
 
 import { isCashSymbol, needsImportAssetResolution } from "@/lib/activity-utils";
-import { IMPORT_REQUIRED_FIELDS, ImportFormat } from "@/lib/constants";
+import { ImportFormat } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, CsvRowData, ImportTemplateData } from "@/lib/types";
 import { ImportType } from "@/lib/types";
@@ -59,21 +66,18 @@ export function MappingStepUnified() {
     () => accounts.find((account) => account.id === accountId) ?? null,
     [accountId, accounts],
   );
+  const initialImportProfile = useMemo(
+    () =>
+      getActivityImportProfileForImportContext({
+        defaultAccountId: accountId,
+        accounts,
+      }),
+    [accountId, accounts],
+  );
   const baselineParseConfig = useMemo(
     () => createDefaultParseConfig(selectedAccount?.currency),
     [selectedAccount?.currency],
   );
-
-  const { data: allTemplates = [] } = useQuery<ImportTemplateData[], Error>({
-    queryKey: [QueryKeys.IMPORT_TEMPLATES],
-    queryFn: listImportTemplates,
-  });
-  const templates = useMemo(
-    () =>
-      prependDefaultActivityTemplate(allTemplates.filter((t) => t.kind === ImportType.ACTIVITY)),
-    [allTemplates],
-  );
-  const effectiveSelectedTemplateId = state.selectedTemplateId ?? templates[0]?.id ?? null;
 
   // Convert string[][] to CsvRowData[]
   const data: CsvRowData[] = useMemo(() => {
@@ -96,8 +100,58 @@ export function MappingStepUnified() {
     handleAccountIdMapping,
   } = useImportMapping({
     accountId,
-    defaultMapping: mapping || createDefaultActivityMapping(accountId || ""),
+    defaultMapping: mapping || createDefaultActivityMapping(accountId || "", initialImportProfile),
   });
+
+  const importProfile = useMemo(
+    () =>
+      getActivityImportProfileForImportContext({
+        defaultAccountId: accountId,
+        accounts,
+        headers,
+        parsedRows,
+        fieldMappings: localMapping.fieldMappings,
+        accountMappings: localMapping.accountMappings,
+      }),
+    [
+      accountId,
+      accounts,
+      headers,
+      localMapping.accountMappings,
+      localMapping.fieldMappings,
+      parsedRows,
+    ],
+  );
+
+  const effectiveActivityMappings = useMemo(
+    () =>
+      isTransactionImportProfile(importProfile)
+        ? mergeActivityMappingsForImportProfile(localMapping.activityMappings, importProfile)
+        : localMapping.activityMappings,
+    [importProfile, localMapping.activityMappings],
+  );
+
+  const displayMapping = useMemo(
+    () =>
+      effectiveActivityMappings === localMapping.activityMappings
+        ? localMapping
+        : { ...localMapping, activityMappings: effectiveActivityMappings },
+    [effectiveActivityMappings, localMapping],
+  );
+
+  const { data: allTemplates = [] } = useQuery<ImportTemplateData[], Error>({
+    queryKey: [QueryKeys.IMPORT_TEMPLATES],
+    queryFn: listImportTemplates,
+  });
+  const templates = useMemo(
+    () =>
+      prependDefaultActivityTemplate(
+        allTemplates.filter((t) => t.kind === ImportType.ACTIVITY),
+        importProfile,
+      ),
+    [allTemplates, importProfile],
+  );
+  const effectiveSelectedTemplateId = state.selectedTemplateId ?? templates[0]?.id ?? null;
 
   // Sync localMapping to context whenever it changes (covers auto-detection, user edits, etc.)
   useEffect(() => {
@@ -126,20 +180,29 @@ export function MappingStepUnified() {
   );
 
   // Check if all required fields are mapped
-  const requiredFieldsMapped = IMPORT_REQUIRED_FIELDS.every((field) =>
+  const requiredFieldsMapped = importProfile.requiredMappingFields.every((field) =>
     isFieldMapped(localMapping.fieldMappings[field], headers),
   );
 
   // Count how many fields are mapped
-  const mappedFieldsCount = Object.entries(localMapping.fieldMappings).filter(([_, headerName]) =>
-    isFieldMapped(headerName, headers),
+  const visibleFieldSet = useMemo(
+    () => new Set(importProfile.visibleMappingFields),
+    [importProfile.visibleMappingFields],
+  );
+  const mappedFieldsCount = Object.entries(localMapping.fieldMappings).filter(
+    ([field, headerName]) =>
+      visibleFieldSet.has(field as ImportFormat) && isFieldMapped(headerName, headers),
   ).length;
-  const totalFields = Object.values(ImportFormat).length;
+  const totalFields = importProfile.visibleMappingFields.length;
 
   // Symbols validation — skip rows where symbol is not required
   const { distinctSymbols, invalidSymbols } = useMemo(() => {
     const needed = new Set<string>();
     const invalid = new Set<string>();
+
+    if (!importProfile.assetResolutionEnabled) {
+      return { distinctSymbols: [], invalidSymbols: [] };
+    }
 
     data.forEach((row) => {
       const symbol = getMappedValue(row, ImportFormat.SYMBOL)?.trim();
@@ -148,7 +211,7 @@ export function MappingStepUnified() {
       const csvType = getMappedValue(row, ImportFormat.ACTIVITY_TYPE)?.trim();
       const csvSubtype = getMappedValue(row, ImportFormat.SUBTYPE)?.trim();
       const appType = csvType
-        ? findMappedActivityType(csvType, localMapping.activityMappings || {})
+        ? findMappedActivityType(csvType, effectiveActivityMappings || {})
         : null;
 
       if (appType && (!needsImportAssetResolution(appType, csvSubtype) || isCashSymbol(symbol))) {
@@ -163,7 +226,7 @@ export function MappingStepUnified() {
       distinctSymbols: Array.from(needed),
       invalidSymbols: Array.from(invalid),
     };
-  }, [data, getMappedValue, localMapping.activityMappings]);
+  }, [data, effectiveActivityMappings, getMappedValue, importProfile.assetResolutionEnabled]);
 
   // Account ID mappings
   const distinctAccountIds = useMemo(() => {
@@ -232,11 +295,19 @@ export function MappingStepUnified() {
         csvType: type,
         row: d.row,
         count: d.count,
-        appType: findMappedActivityType(type, localMapping.activityMappings || {}),
+        appType: (() => {
+          const mapped = findMappedActivityType(type, effectiveActivityMappings || {}) as
+            | string
+            | null;
+          return mapped === ACTIVITY_SKIP ||
+            activityTypeAllowedForImportProfile(mapped, importProfile)
+            ? mapped
+            : null;
+        })(),
       })),
       totalRows: total,
     };
-  }, [data, getMappedValue, localMapping.activityMappings]);
+  }, [data, effectiveActivityMappings, getMappedValue, importProfile]);
 
   // Count unmapped items
   const activitiesToMapCount = useMemo(() => {
@@ -286,6 +357,8 @@ export function MappingStepUnified() {
   ]);
 
   const symbolsToMapCount = useMemo(() => {
+    if (!importProfile.assetResolutionEnabled) return 0;
+
     const unresolved = new Set<string>();
     data.forEach((row) => {
       const symbol = getMappedValue(row, ImportFormat.SYMBOL)?.trim();
@@ -294,7 +367,7 @@ export function MappingStepUnified() {
       const csvType = getMappedValue(row, ImportFormat.ACTIVITY_TYPE)?.trim();
       const csvSubtype = getMappedValue(row, ImportFormat.SUBTYPE)?.trim();
       const appType = csvType
-        ? findMappedActivityType(csvType, localMapping.activityMappings || {})
+        ? findMappedActivityType(csvType, effectiveActivityMappings || {})
         : null;
 
       if (appType && (!needsImportAssetResolution(appType, csvSubtype) || isCashSymbol(symbol))) {
@@ -304,7 +377,13 @@ export function MappingStepUnified() {
       unresolved.add(symbol);
     });
     return unresolved.size;
-  }, [data, getMappedValue, localMapping.symbolMappings, localMapping.activityMappings]);
+  }, [
+    data,
+    getMappedValue,
+    importProfile.assetResolutionEnabled,
+    localMapping.symbolMappings,
+    effectiveActivityMappings,
+  ]);
 
   // Data to display in mapping table (prioritize rows needing mapping, exclude cash-only symbols)
   const nonCashSymbolSet = useMemo(() => new Set(distinctSymbols), [distinctSymbols]);
@@ -498,16 +577,27 @@ export function MappingStepUnified() {
           dispatch(setParseConfig(nextParseConfig));
         }
 
-        updateMapping({
-          accountId: accountId || "",
-          name: isDefaultActivityTemplateId(template.id) ? "" : template.name,
-          fieldMappings: computeFieldMappings(nextHeaders, template.fieldMappings),
-          activityMappings: template.activityMappings,
-          symbolMappings: template.symbolMappings,
-          accountMappings: template.accountMappings || {},
-          symbolMappingMeta: template.symbolMappingMeta || {},
-          parseConfig: nextParseConfig,
-        });
+        updateMapping(
+          sanitizeImportMappingForProfile(
+            {
+              accountId: accountId || "",
+              name: isDefaultActivityTemplateId(template.id) ? "" : template.name,
+              fieldMappings: computeFieldMappings(
+                nextHeaders,
+                template.fieldMappings,
+                importProfile,
+              ),
+              activityMappings: isTransactionImportProfile(importProfile)
+                ? mergeActivityMappingsForImportProfile(template.activityMappings, importProfile)
+                : template.activityMappings,
+              symbolMappings: template.symbolMappings,
+              accountMappings: template.accountMappings || {},
+              symbolMappingMeta: template.symbolMappingMeta || {},
+              parseConfig: nextParseConfig,
+            },
+            importProfile,
+          ),
+        );
         dispatch(setSelectedTemplate(template.id, template.scope));
       } catch (error) {
         setTemplateError(
@@ -520,6 +610,7 @@ export function MappingStepUnified() {
       baselineParseConfig,
       dispatch,
       headers,
+      importProfile,
       state.file,
       state.parseConfig,
       templates,
@@ -528,19 +619,25 @@ export function MappingStepUnified() {
   );
 
   const buildTemplatePayload = useCallback(
-    (id: string): ImportTemplateData => ({
-      id,
-      name: templateName.trim(),
-      scope: "USER",
-      kind: ImportType.ACTIVITY,
-      fieldMappings: localMapping.fieldMappings,
-      activityMappings: localMapping.activityMappings,
-      symbolMappings: localMapping.symbolMappings,
-      accountMappings: localMapping.accountMappings,
-      symbolMappingMeta: localMapping.symbolMappingMeta ?? {},
-      parseConfig: state.parseConfig,
-    }),
-    [localMapping, state.parseConfig, templateName],
+    (id: string): ImportTemplateData => {
+      const mappingToSave = isTransactionImportProfile(importProfile)
+        ? { ...localMapping, activityMappings: effectiveActivityMappings }
+        : localMapping;
+      const sanitized = sanitizeImportMappingForProfile(mappingToSave, importProfile);
+      return {
+        id,
+        name: templateName.trim(),
+        scope: "USER",
+        kind: ImportType.ACTIVITY,
+        fieldMappings: sanitized.fieldMappings,
+        activityMappings: sanitized.activityMappings,
+        symbolMappings: sanitized.symbolMappings,
+        accountMappings: localMapping.accountMappings,
+        symbolMappingMeta: sanitized.symbolMappingMeta ?? {},
+        parseConfig: state.parseConfig,
+      };
+    },
+    [effectiveActivityMappings, importProfile, localMapping, state.parseConfig, templateName],
   );
 
   const handleSaveTemplate = useCallback(() => {
@@ -695,15 +792,17 @@ export function MappingStepUnified() {
           rightIcon={activitiesToMapCount === 0 ? Icons.CheckCircle : Icons.AlertCircle}
         />
 
-        <ImportAlert
-          variant={symbolsToMapCount === 0 ? "success" : "destructive"}
-          size="sm"
-          title="Symbols"
-          description={`${distinctSymbols.length - symbolsToMapCount} of ${distinctSymbols.length} mapped`}
-          icon={Icons.Tag}
-          className="mb-0"
-          rightIcon={symbolsToMapCount === 0 ? Icons.CheckCircle : Icons.AlertCircle}
-        />
+        {importProfile.assetResolutionEnabled && (
+          <ImportAlert
+            variant={symbolsToMapCount === 0 ? "success" : "destructive"}
+            size="sm"
+            title="Symbols"
+            description={`${distinctSymbols.length - symbolsToMapCount} of ${distinctSymbols.length} mapped`}
+            icon={Icons.Tag}
+            className="mb-0"
+            rightIcon={symbolsToMapCount === 0 ? Icons.CheckCircle : Icons.AlertCircle}
+          />
+        )}
 
         <ImportAlert
           variant={accountsReady ? "success" : "destructive"}
@@ -744,7 +843,9 @@ export function MappingStepUnified() {
                   className="data-[state=active]:bg-primary data-[state=active]:text-primary data-[state=active]:hover:bg-primary/90 h-8 rounded-full px-2 text-sm"
                   value="preview"
                 >
-                  Activity Preview
+                  {importProfile.kind === "transaction"
+                    ? "Transaction Preview"
+                    : "Activity Preview"}
                 </TabsTrigger>
                 <TabsTrigger
                   className="data-[state=active]:bg-primary data-[state=active]:text-primary data-[state=active]:hover:bg-primary/90 h-8 rounded-full px-2 text-sm"
@@ -759,7 +860,7 @@ export function MappingStepUnified() {
           <CardContent className="flex-1 overflow-y-auto p-0">
             <TabsContent value="preview" className="m-0 flex flex-col border-0 p-0">
               <MappingTable
-                mapping={localMapping}
+                mapping={displayMapping}
                 headers={headers}
                 data={dataToMap}
                 accounts={accounts}
@@ -770,6 +871,9 @@ export function MappingStepUnified() {
                 getMappedValue={getMappedValue}
                 invalidSymbols={invalidSymbols}
                 invalidAccounts={invalidAccounts}
+                visibleFields={importProfile.visibleMappingFields}
+                requiredFields={importProfile.requiredMappingFields}
+                allowedActivityTypes={importProfile.allowedActivityTypes}
                 className="max-h-[50vh]"
               />
             </TabsContent>

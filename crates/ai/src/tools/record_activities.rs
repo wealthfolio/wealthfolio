@@ -178,7 +178,7 @@ impl<E: AiEnvironment + 'static> Tool for RecordActivitiesTool<E> {
         let accounts = self
             .env
             .account_service()
-            .get_active_accounts()
+            .get_active_non_archived_accounts()
             .map_err(|e| AiError::ToolExecutionFailed(e.to_string()))?;
 
         let available_accounts: Vec<AccountOption> = accounts
@@ -187,6 +187,7 @@ impl<E: AiEnvironment + 'static> Tool for RecordActivitiesTool<E> {
                 id: a.id.clone(),
                 name: a.name.clone(),
                 currency: a.currency.clone(),
+                account_type: Some(a.account_type.clone()),
             })
             .collect();
 

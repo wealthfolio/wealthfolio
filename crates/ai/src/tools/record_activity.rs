@@ -150,6 +150,8 @@ pub struct AccountOption {
     pub id: String,
     pub name: String,
     pub currency: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_type: Option<String>,
 }
 
 /// Resolved asset information.
@@ -259,7 +261,7 @@ impl<E: AiEnvironment> RecordActivityTool<E> {
         let accounts = self
             .env
             .account_service()
-            .get_active_accounts()
+            .get_active_non_archived_accounts()
             .map_err(|e| AiError::ToolExecutionFailed(e.to_string()))?;
 
         self.build_output_with_accounts(args, &accounts).await
@@ -292,6 +294,7 @@ impl<E: AiEnvironment> RecordActivityTool<E> {
                 id: a.id.clone(),
                 name: a.name.clone(),
                 currency: a.currency.clone(),
+                account_type: Some(a.account_type.clone()),
             })
             .collect();
 
@@ -641,13 +644,30 @@ impl<E: AiEnvironment + 'static> Tool for RecordActivityTool<E> {
         ToolDefinition {
             name: Self::NAME.to_string(),
             description: format!(
-                "Record investment transactions from natural language. Creates a draft preview \
-                for user confirmation. Supports all activity types: BUY, SELL, DIVIDEND, \
-                DEPOSIT, WITHDRAWAL, TRANSFER_IN, TRANSFER_OUT, INTEREST, FEE, SPLIT, TAX, \
-                CREDIT, ADJUSTMENT. User timezone is {timezone_name}; current date there is \
-                {current_date} ({current_weekday}). Resolve all relative date phrases yourself \
-                before calling this tool. If the user has multiple accounts and did not specify \
-                which account to use, ask which account before calling this tool."
+                "Record investment transactions from natural language. Creates an editable draft \
+                preview for user confirmation — every field can be adjusted before save. Supports \
+                all activity types: BUY, SELL, DIVIDEND, DEPOSIT, WITHDRAWAL, TRANSFER_IN, \
+                TRANSFER_OUT, INTEREST, FEE, SPLIT, TAX, CREDIT, ADJUSTMENT. \
+                \n\nUser timezone is {timezone_name}; current date there is {current_date} \
+                ({current_weekday}). Resolve all relative date phrases (\"yesterday\", \"last \
+                Monday\", \"2 days ago\") to ISO 8601 yourself before calling. \
+                \n\nACCOUNT HANDLING: \
+                \n- If only ONE account exists, pass that account name. \
+                \n- If accounts are listed in Known App Context, use those names. \
+                \n- If accounts aren't listed and `get_accounts` is available, call it with \
+                `displayMode=\"compact\"` first; otherwise ASK which account before calling. \
+                \n- If MULTIPLE accounts exist and the user didn't specify, ASK first — do NOT \
+                call this tool with an empty account just to show the picker. \
+                \n\nSYMBOL HANDLING: pass whatever the user wrote (ticker, company name, or \
+                freeform like \"my rental property\") VERBATIM. The backend resolves names to \
+                tickers and marks unresolvable symbols as custom assets. Do NOT hand-convert \
+                names to tickers — models routinely hallucinate or use stale tickers (e.g. \
+                \"Facebook\" is now META, not FB). \
+                \n\nSUBTYPES: \"reinvested dividend\" → DRIP, \"dividend in kind\"/\"spinoff\" → \
+                DIVIDEND_IN_KIND, \"staking reward\" → STAKING_REWARD, \"bonus\"/\"promo credit\" \
+                → BONUS. \
+                \n\nUse `record_activities` (the batch tool) instead of this one when recording 2+ \
+                transactions in a single user request."
             ),
             parameters: serde_json::json!({
                 "type": "object",

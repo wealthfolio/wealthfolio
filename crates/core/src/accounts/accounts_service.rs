@@ -3,7 +3,8 @@
 use log::{debug, info, warn};
 use std::sync::{Arc, RwLock};
 
-use super::accounts_model::{Account, AccountUpdate, NewAccount};
+use super::accounts_constants::account_types;
+use super::accounts_model::{Account, AccountUpdate, NewAccount, TrackingMode};
 use super::accounts_traits::{AccountRepositoryTrait, AccountServiceTrait};
 use crate::assets::AssetRepositoryTrait;
 use crate::errors::Result;
@@ -39,6 +40,24 @@ impl AccountService {
             asset_repository,
             sync_state_store,
         }
+    }
+
+    fn validate_credit_card_tracking_mode(
+        account_type: &str,
+        requested_tracking_mode: Option<TrackingMode>,
+        existing_tracking_mode: TrackingMode,
+    ) -> Result<()> {
+        let effective_tracking_mode = requested_tracking_mode.unwrap_or(existing_tracking_mode);
+        if account_type == account_types::CREDIT_CARD
+            && effective_tracking_mode == TrackingMode::Holdings
+        {
+            return Err(crate::Error::Validation(
+                crate::errors::ValidationError::InvalidInput(
+                    "Credit card accounts cannot use HOLDINGS tracking mode".to_string(),
+                ),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -85,6 +104,11 @@ impl AccountServiceTrait for AccountService {
             ))
         })?;
         let existing = self.repository.get_by_id(account_id)?;
+        Self::validate_credit_card_tracking_mode(
+            &account_update.account_type,
+            account_update.tracking_mode,
+            existing.tracking_mode,
+        )?;
 
         let result = self.repository.update(account_update).await?;
 
@@ -216,5 +240,32 @@ impl AccountServiceTrait for AccountService {
         ));
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn credit_card_update_rejects_existing_holdings_mode_when_tracking_mode_is_omitted() {
+        let result = AccountService::validate_credit_card_tracking_mode(
+            account_types::CREDIT_CARD,
+            None,
+            TrackingMode::Holdings,
+        );
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn credit_card_update_allows_existing_transaction_mode_when_tracking_mode_is_omitted() {
+        let result = AccountService::validate_credit_card_tracking_mode(
+            account_types::CREDIT_CARD,
+            None,
+            TrackingMode::Transactions,
+        );
+
+        assert!(result.is_ok());
     }
 }

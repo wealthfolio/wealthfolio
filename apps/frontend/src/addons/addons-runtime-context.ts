@@ -256,7 +256,12 @@ export function createAddonContext(addonId: string): AddonContext {
           updatePortfolio,
           recalculatePortfolio,
           getIncomeSummary: () => getIncomeSummary(undefined),
-          getHistoricalValuations,
+          getHistoricalValuations: (accountId?: string, startDate?: string, endDate?: string) =>
+            getHistoricalValuations(
+              accountId ? { type: "account", accountId } : { type: "all" },
+              startDate,
+              endDate,
+            ),
           getLatestValuations,
           calculatePerformanceHistory,
           calculatePerformanceSummary,

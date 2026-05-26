@@ -137,6 +137,39 @@ import {
   Wand2,
   X,
   XCircle,
+  // Spending taxonomy icons (referenced by category seed data)
+  Award,
+  Banknote,
+  Code,
+  Coffee,
+  Dumbbell,
+  Film,
+  Fuel,
+  Gamepad2,
+  Gift,
+  GraduationCap,
+  Heart,
+  Laptop,
+  Lightbulb,
+  MoreHorizontal,
+  ParkingCircle,
+  PiggyBank,
+  Pill,
+  Plane,
+  RotateCcw,
+  Shirt,
+  ShoppingBag,
+  ShoppingCart,
+  Smile,
+  Sofa,
+  Stethoscope,
+  Train,
+  Truck,
+  Tv,
+  UtensilsCrossed,
+  Wifi,
+  Wine,
+  Wrench,
 } from "lucide-react";
 import type { ComponentType, CSSProperties } from "react";
 
@@ -717,6 +750,42 @@ const IconsInternal = {
   OtherAssetDuotone: ({ size, className, style, color }: IconProps) => (
     <CubeIcon size={size} weight="duotone" className={className} style={style} color={color} />
   ),
+  // Spending taxonomy icons (referenced by category seed data; keys must match
+  // the strings stored in `taxonomy_categories.icon`).
+  Award: Award,
+  Banknote: Banknote,
+  Code: Code,
+  Coffee: Coffee,
+  Dumbbell: Dumbbell,
+  Film: Film,
+  Fuel: Fuel,
+  Gamepad2: Gamepad2,
+  Gift: Gift,
+  GraduationCap: GraduationCap,
+  Heart: Heart,
+  Laptop: Laptop,
+  Lightbulb: Lightbulb,
+  MoreHorizontal: MoreHorizontal,
+  ParkingCircle: ParkingCircle,
+  PiggyBank: PiggyBank,
+  Pill: Pill,
+  Plane: Plane,
+  RotateCcw: RotateCcw,
+  Shirt: Shirt,
+  ShoppingBag: ShoppingBag,
+  ShoppingCart: ShoppingCart,
+  Smile: Smile,
+  Sofa: Sofa,
+  Stethoscope: Stethoscope,
+  // Tag is registered above as a Phosphor TagIcon — don't re-register here
+  // (Lucide and Phosphor Tag both want the same key).
+  Train: Train,
+  Truck: Truck,
+  Tv: Tv,
+  UtensilsCrossed: UtensilsCrossed,
+  Wifi: Wifi,
+  Wine: Wine,
+  Wrench: Wrench,
 };
 
 /**
@@ -900,7 +969,40 @@ export type IconName =
   | "CollectibleDuotone"
   | "PreciousDuotone"
   | "LiabilityDuotone"
-  | "OtherAssetDuotone";
+  | "OtherAssetDuotone"
+  // Spending taxonomy icons
+  | "Award"
+  | "Banknote"
+  | "Code"
+  | "Coffee"
+  | "Dumbbell"
+  | "Film"
+  | "Fuel"
+  | "Gamepad2"
+  | "Gift"
+  | "GraduationCap"
+  | "Heart"
+  | "Laptop"
+  | "Lightbulb"
+  | "MoreHorizontal"
+  | "ParkingCircle"
+  | "PiggyBank"
+  | "Pill"
+  | "Plane"
+  | "RotateCcw"
+  | "Shirt"
+  | "ShoppingBag"
+  | "ShoppingCart"
+  | "Smile"
+  | "Sofa"
+  | "Stethoscope"
+  | "Train"
+  | "Truck"
+  | "Tv"
+  | "UtensilsCrossed"
+  | "Wifi"
+  | "Wine"
+  | "Wrench";
 
 /**
  * Icons object with unified typing - all icons have the same Icon type

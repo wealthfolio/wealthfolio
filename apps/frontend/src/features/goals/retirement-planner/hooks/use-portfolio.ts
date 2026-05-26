@@ -54,10 +54,7 @@ export function usePortfolioData(accountIds?: string[]) {
     staleTime: 5 * 60 * 1000,
   });
 
-  const totalValue = (valuationsQuery.data ?? []).reduce(
-    (sum, v) => sum + v.totalValue * v.fxRateToBase,
-    0,
-  );
+  const totalValue = (valuationsQuery.data ?? []).reduce((sum, v) => sum + v.totalValueBase, 0);
 
   const activeAccounts = accounts.filter((a) => activeAccountIds.includes(a.id));
 

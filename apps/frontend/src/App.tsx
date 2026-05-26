@@ -1,5 +1,6 @@
 import { isWeb } from "@/adapters";
 import { AuthGate, AuthProvider } from "@/context/auth-context";
+import { EventDialogProvider } from "@/features/spending/components/event-dialog-provider";
 import { WealthfolioConnectProvider } from "@/features/wealthfolio-connect";
 import { SettingsProvider } from "@/lib/settings-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -42,7 +43,9 @@ function App() {
         <WealthfolioConnectProvider>
           <PrivacyProvider>
             <SettingsProvider>
-              <TooltipProvider>{routedContent}</TooltipProvider>
+              <TooltipProvider>
+                <EventDialogProvider>{routedContent}</EventDialogProvider>
+              </TooltipProvider>
             </SettingsProvider>
           </PrivacyProvider>
         </WealthfolioConnectProvider>

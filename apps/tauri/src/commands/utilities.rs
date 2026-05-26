@@ -13,8 +13,8 @@ use tauri_plugin_shell::ShellExt;
 use uuid::Uuid;
 use wealthfolio_core::{
     activities::Sort,
-    constants::PORTFOLIO_TOTAL_ACCOUNT_ID,
     exports::{export_file_name, format_records, ExportDataType, ExportFileFormat},
+    portfolios::AccountScope,
 };
 use wealthfolio_storage_sqlite::db;
 
@@ -291,9 +291,20 @@ fn build_data_export_content(
             format_records(&records, format).map_err(|e| e.to_string())
         }
         ExportDataType::PortfolioHistory => {
+            let base_currency = state.get_base_currency();
+            let resolved = state
+                .portfolio_service()
+                .resolve_account_scope(&AccountScope::All, &base_currency)
+                .map_err(|e| format!("Failed to resolve portfolio scope: {}", e))?;
             let records = state
                 .valuation_service()
-                .get_historical_valuations(PORTFOLIO_TOTAL_ACCOUNT_ID, None, None)
+                .get_historical_valuations_for_accounts(
+                    &resolved.scope_id,
+                    &resolved.account_ids,
+                    &resolved.base_currency,
+                    None,
+                    None,
+                )
                 .map_err(|e| format!("Failed to load portfolio history for export: {}", e))?;
             format_records(&records, format).map_err(|e| e.to_string())
         }

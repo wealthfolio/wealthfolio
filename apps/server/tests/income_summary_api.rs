@@ -1,8 +1,8 @@
 use std::{net::SocketAddr, time::Duration};
 
 use axum::{
-    body::Body,
-    http::{Request, StatusCode},
+    body::{to_bytes, Body},
+    http::Request,
 };
 use tempfile::tempdir;
 use tower::ServiceExt;
@@ -23,7 +23,7 @@ fn test_config(db_path: String, addons_root: String) -> Config {
 }
 
 #[tokio::test]
-async fn income_summary_query_rejects_empty_resolved_portfolio_scope() {
+async fn income_summary_query_returns_empty_data_for_empty_resolved_portfolio_scope() {
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir
         .path()
@@ -53,5 +53,7 @@ async fn income_summary_query_rejects_empty_resolved_portfolio_scope() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert!(response.status().is_success());
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body.as_ref(), b"[]");
 }

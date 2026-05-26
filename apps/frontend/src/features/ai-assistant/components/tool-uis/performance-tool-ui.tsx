@@ -24,15 +24,21 @@ interface PerformanceResult {
   periodStartDate?: string | null;
   periodEndDate?: string | null;
   currency: string;
-  cumulativeTwr: number;
+  cumulativeTwr?: number | null;
+  periodReturn?: number | null;
   gainLossAmount?: number | null;
-  annualizedTwr: number;
+  annualizedTwr?: number | null;
   simpleReturn: number;
   annualizedSimpleReturn: number;
-  cumulativeMwr: number;
-  annualizedMwr: number;
+  cumulativeModifiedDietz?: number | null;
+  annualizedModifiedDietz?: number | null;
+  cumulativeMwr?: number | null;
+  annualizedMwr?: number | null;
   volatility: number;
   maxDrawdown: number;
+  returnMethod?: string;
+  isMixedTrackingMode?: boolean;
+  warnings?: string[];
 }
 
 // ============================================================================
@@ -93,20 +99,67 @@ function normalizeResult(result: unknown, fallbackCurrency: string): Performance
       (candidate.currency as string | undefined) ??
       (candidate.Currency as string | undefined) ??
       fallbackCurrency,
-    cumulativeTwr: Number(candidate.cumulativeTwr ?? candidate.cumulative_twr ?? 0),
+    cumulativeTwr:
+      candidate.cumulativeTwr != null || candidate.cumulative_twr != null
+        ? Number(candidate.cumulativeTwr ?? candidate.cumulative_twr)
+        : null,
+    periodReturn:
+      candidate.periodReturn != null || candidate.period_return != null
+        ? Number(candidate.periodReturn ?? candidate.period_return)
+        : null,
     gainLossAmount:
       candidate.gainLossAmount != null || candidate.gain_loss_amount != null
         ? Number(candidate.gainLossAmount ?? candidate.gain_loss_amount)
         : null,
-    annualizedTwr: Number(candidate.annualizedTwr ?? candidate.annualized_twr ?? 0),
+    annualizedTwr:
+      candidate.annualizedTwr != null || candidate.annualized_twr != null
+        ? Number(candidate.annualizedTwr ?? candidate.annualized_twr)
+        : null,
     simpleReturn: Number(candidate.simpleReturn ?? candidate.simple_return ?? 0),
     annualizedSimpleReturn: Number(
       candidate.annualizedSimpleReturn ?? candidate.annualized_simple_return ?? 0,
     ),
-    cumulativeMwr: Number(candidate.cumulativeMwr ?? candidate.cumulative_mwr ?? 0),
-    annualizedMwr: Number(candidate.annualizedMwr ?? candidate.annualized_mwr ?? 0),
+    cumulativeModifiedDietz:
+      candidate.cumulativeModifiedDietz != null ||
+      candidate.cumulative_modified_dietz != null ||
+      candidate.cumulativeMwr != null ||
+      candidate.cumulative_mwr != null
+        ? Number(
+            candidate.cumulativeModifiedDietz ??
+              candidate.cumulative_modified_dietz ??
+              candidate.cumulativeMwr ??
+              candidate.cumulative_mwr,
+          )
+        : null,
+    annualizedModifiedDietz:
+      candidate.annualizedModifiedDietz != null ||
+      candidate.annualized_modified_dietz != null ||
+      candidate.annualizedMwr != null ||
+      candidate.annualized_mwr != null
+        ? Number(
+            candidate.annualizedModifiedDietz ??
+              candidate.annualized_modified_dietz ??
+              candidate.annualizedMwr ??
+              candidate.annualized_mwr,
+          )
+        : null,
+    cumulativeMwr:
+      candidate.cumulativeMwr != null || candidate.cumulative_mwr != null
+        ? Number(candidate.cumulativeMwr ?? candidate.cumulative_mwr)
+        : null,
+    annualizedMwr:
+      candidate.annualizedMwr != null || candidate.annualized_mwr != null
+        ? Number(candidate.annualizedMwr ?? candidate.annualized_mwr)
+        : null,
     volatility: Number(candidate.volatility ?? candidate.Volatility ?? 0),
     maxDrawdown: Number(candidate.maxDrawdown ?? candidate.max_drawdown ?? 0),
+    returnMethod:
+      (candidate.returnMethod as string | undefined) ??
+      (candidate.return_method as string | undefined),
+    isMixedTrackingMode: Boolean(
+      candidate.isMixedTrackingMode ?? candidate.is_mixed_tracking_mode ?? false,
+    ),
+    warnings: Array.isArray(candidate.warnings) ? (candidate.warnings as string[]) : [],
   };
 }
 
@@ -283,7 +336,8 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
     accountLabel,
   );
-  const isPositiveReturn = parsed.cumulativeTwr >= 0;
+  const headlineReturn = parsed.periodReturn ?? parsed.cumulativeTwr ?? parsed.simpleReturn;
+  const isPositiveReturn = headlineReturn >= 0;
   const TrendIcon = isPositiveReturn ? Icons.TrendingUp : Icons.TrendingDown;
 
   return (
@@ -292,7 +346,7 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <CardTitle className="text-base">Performance</CardTitle>
-            {accountLabel !== "TOTAL" && accountLabel !== "Portfolio" && !isUuid && (
+            {accountLabel !== "Portfolio" && !isUuid && (
               <Badge variant="outline" className="text-xs uppercase">
                 {accountLabel}
               </Badge>
@@ -319,7 +373,7 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
                 isPositiveReturn ? "text-success" : "text-destructive",
               )}
             >
-              {formatPercentSigned(parsed.cumulativeTwr)}
+              {formatPercentSigned(headlineReturn)}
             </span>
           </div>
           {parsed.gainLossAmount != null && (
@@ -342,14 +396,24 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <MetricCard
             label="Annualized TWR"
-            value={formatPercentSigned(parsed.annualizedTwr)}
-            isPositive={parsed.annualizedTwr >= 0}
+            value={parsed.annualizedTwr == null ? "n/a" : formatPercentSigned(parsed.annualizedTwr)}
+            isPositive={parsed.annualizedTwr == null ? null : parsed.annualizedTwr >= 0}
           />
           <MetricCard
-            label="Money-Weighted (MWR)"
-            value={formatPercentSigned(parsed.cumulativeMwr)}
-            subValue={`${formatPercentSigned(parsed.annualizedMwr)} ann.`}
-            isPositive={parsed.cumulativeMwr >= 0}
+            label="Modified Dietz"
+            value={
+              parsed.cumulativeModifiedDietz == null
+                ? "n/a"
+                : formatPercentSigned(parsed.cumulativeModifiedDietz)
+            }
+            subValue={
+              parsed.annualizedModifiedDietz == null
+                ? undefined
+                : `${formatPercentSigned(parsed.annualizedModifiedDietz)} ann.`
+            }
+            isPositive={
+              parsed.cumulativeModifiedDietz == null ? null : parsed.cumulativeModifiedDietz >= 0
+            }
           />
           <MetricCard
             label="Volatility"

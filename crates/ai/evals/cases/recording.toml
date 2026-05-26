@@ -1,0 +1,78 @@
+# Activity-recording flow evals (record_activity / record_activities / import_csv).
+
+name = "recording"
+description = "BUY/SELL/DIVIDEND/DEPOSIT drafting flows."
+
+# ----------------------------------------------------------------------------
+
+[[case]]
+id = "buy_with_account_specified"
+description = "Single BUY with account named — should draft directly, not ask"
+prompt = "Buy 20 AAPL at 240 today in my Taxable account"
+severity = "P0"
+tags = ["smoke", "recording"]
+
+[[case.expected_tools]]
+name = "record_activity"
+[case.expected_tools.args]
+activityType = "BUY"
+symbol       = "AAPL"
+quantity     = { exact = 20 }
+unitPrice    = { exact = 240 }
+
+[case.forbidden_tools]
+record_activities = "single BUY should use record_activity, not the batch tool"
+get_holdings      = "irrelevant for drafting a BUY"
+
+[case.max_tool_calls]
+record_activity = 1
+
+# ----------------------------------------------------------------------------
+
+[[case]]
+id = "deposit_minimal_args"
+description = "DEPOSIT with amount only, no symbol needed"
+prompt = "Deposit $5000 to my Roth IRA today"
+severity = "P0"
+tags = ["smoke", "recording"]
+
+[[case.expected_tools]]
+name = "record_activity"
+[case.expected_tools.args]
+activityType = "DEPOSIT"
+amount       = { exact = 5000 }
+
+[case.forbidden_tools]
+search_activities = "irrelevant for drafting a DEPOSIT"
+
+# ----------------------------------------------------------------------------
+
+[[case]]
+id = "batch_three_trades_uses_record_activities"
+description = "When user asks to record multiple, use record_activities (batch), not record_activity"
+prompt = "Record 3 trades: bought 10 NVDA at 120, bought 5 MSFT at 410, sold 8 GOOGL at 175 — all today in my Taxable account"
+severity = "P1"
+tags = ["recording", "batch"]
+
+[[case.expected_tools]]
+name = "record_activities"
+
+[case.forbidden_tools]
+record_activity = "batch of 3 should go through record_activities, not 3 separate record_activity calls"
+
+# ----------------------------------------------------------------------------
+
+[[case]]
+id = "company_name_passed_verbatim"
+description = "Don't hand-convert company names to tickers — pass user text verbatim, the backend resolves"
+prompt = "Bought 5 Tesla yesterday in my Roth"
+severity = "P1"
+tags = ["recording", "symbol-resolution"]
+
+[[case.expected_tools]]
+name = "record_activity"
+[case.expected_tools.args]
+# Should pass "Tesla" verbatim — the backend resolves to TSLA. Models often
+# hallucinate tickers (Facebook → FB instead of META) so we want the raw text.
+symbol       = { regex = "(?i)tesla" }
+activityType = "BUY"

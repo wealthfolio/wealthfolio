@@ -1,0 +1,26 @@
+---
+source: crates/ai/tests/tool_schemas.rs
+assertion_line: 91
+expression: snapshot
+---
+{
+  "name": "get_holdings",
+  "parameters": {
+    "properties": {
+      "accountId": {
+        "type": "string"
+      },
+      "viewMode": {
+        "default": "treemap",
+        "enum": [
+          "table",
+          "treemap",
+          "both"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [],
+    "type": "object"
+  }
+}

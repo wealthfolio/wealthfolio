@@ -1,0 +1,20 @@
+---
+source: crates/ai/tests/tool_schemas.rs
+expression: snapshot
+---
+{
+  "name": "get_accounts",
+  "parameters": {
+    "properties": {
+      "displayMode": {
+        "enum": [
+          "full",
+          "compact"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [],
+    "type": "object"
+  }
+}

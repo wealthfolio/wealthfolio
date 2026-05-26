@@ -61,14 +61,43 @@ fn has_usable_llm_mappings(args: &ImportCsvArgs) -> bool {
         || has_usable_string_map(&args.account_mappings)
 }
 
-use wealthfolio_core::accounts::Account;
+use wealthfolio_core::accounts::{account_types, Account};
 use wealthfolio_core::activities::{
-    import_type, into_field_mapping_values, ImportMappingData, ParseConfig,
+    import_type, into_field_mapping_values, FieldMappingValue, ImportMappingData, ParseConfig,
 };
 
 use super::record_activity::AccountOption;
 use crate::env::AiEnvironment;
 use crate::error::AiError;
+
+fn merge_parse_config(
+    mut base: ParseConfig,
+    overrides: &ParseConfig,
+    override_default_currency: bool,
+) -> ParseConfig {
+    if overrides.delimiter.is_some() {
+        base.delimiter = overrides.delimiter.clone();
+    }
+    if overrides.skip_top_rows.is_some() {
+        base.skip_top_rows = overrides.skip_top_rows;
+    }
+    if overrides.skip_bottom_rows.is_some() {
+        base.skip_bottom_rows = overrides.skip_bottom_rows;
+    }
+    if overrides.date_format.is_some() {
+        base.date_format = overrides.date_format.clone();
+    }
+    if overrides.decimal_separator.is_some() {
+        base.decimal_separator = overrides.decimal_separator.clone();
+    }
+    if overrides.thousands_separator.is_some() {
+        base.thousands_separator = overrides.thousands_separator.clone();
+    }
+    if override_default_currency && overrides.default_currency.is_some() {
+        base.default_currency = overrides.default_currency.clone();
+    }
+    base
+}
 
 // ============================================================================
 // Tool Arguments
@@ -159,7 +188,7 @@ pub struct ImportCsvMappingOutput {
     /// Headers detected by parse_csv.
     pub detected_headers: Vec<String>,
 
-    /// First few data rows (≤10) so the UI can preview without re-parsing.
+    /// Redacted in persisted tool results; the UI reparses live csvContent from tool args.
     pub sample_rows: Vec<Vec<String>>,
 
     /// Total number of rows parsed (before truncation).
@@ -260,6 +289,7 @@ const UNIT_PRICE_PATTERNS: &[&str] = &[
 const AMOUNT_PATTERNS: &[&str] = &[
     "total",
     "amount",
+    "transaction amount",
     "value",
     "net amount",
     "gross amount",
@@ -269,6 +299,23 @@ const AMOUNT_PATTERNS: &[&str] = &[
     "proceeds",
     "cost",
     "net value",
+];
+
+const TRANSACTION_AMOUNT_PATTERNS: &[&str] = &[
+    "debit",
+    "credit",
+    "charge",
+    "charges",
+    "payment",
+    "payments",
+    "withdrawal",
+    "withdrawals",
+    "deposit",
+    "deposits",
+    "money out",
+    "money in",
+    "paid out",
+    "paid in",
 ];
 
 const CURRENCY_PATTERNS: &[&str] = &["currency", "ccy", "currency code", "curr", "trade currency"];
@@ -298,8 +345,21 @@ const COMMENT_PATTERNS: &[&str] = &[
     "note",
     "notes",
     "description",
+    "transaction description",
     "memo",
     "remarks",
+    "details",
+];
+
+const TRANSACTION_COMMENT_PATTERNS: &[&str] = &[
+    "merchant",
+    "merchant name",
+    "payee",
+    "payer",
+    "vendor",
+    "name",
+    "transaction name",
+    "narrative",
 ];
 
 const FX_RATE_PATTERNS: &[&str] = &[
@@ -325,12 +385,40 @@ const SUBTYPE_PATTERNS: &[&str] = &[
 // Helpers
 // ============================================================================
 
+fn is_transaction_account_type(account_type: Option<&str>) -> bool {
+    matches!(
+        account_type,
+        Some(account_types::CASH) | Some(account_types::CREDIT_CARD)
+    )
+}
+
 /// Auto-detect field mappings from CSV headers.
+#[cfg(test)]
 fn auto_detect_field_mappings(headers: &[String]) -> HashMap<String, String> {
+    auto_detect_field_mapping_values(headers, false)
+        .into_iter()
+        .filter_map(|(field, value)| match value {
+            FieldMappingValue::Single(header) => Some((field, header)),
+            FieldMappingValue::Fallback(headers) => headers.into_iter().next().map(|h| (field, h)),
+        })
+        .collect()
+}
+
+fn header_matches_patterns(header: &str, patterns: &[&str]) -> bool {
+    let lower = header.to_lowercase();
+    patterns.iter().any(|p| lower == *p || lower.contains(p))
+}
+
+/// Auto-detect field mappings from CSV headers, with a transaction-account
+/// profile that avoids treating merchant/payee columns as investment symbols.
+fn auto_detect_field_mapping_values(
+    headers: &[String],
+    is_transaction_account: bool,
+) -> HashMap<String, FieldMappingValue> {
     let mut mappings = HashMap::new();
     let mut used_headers = HashSet::new();
 
-    let field_patterns: &[(&str, &[&str])] = &[
+    let investment_patterns: &[(&str, &[&str])] = &[
         (FIELD_DATE, DATE_PATTERNS),
         (FIELD_ACTIVITY_TYPE, ACTIVITY_TYPE_PATTERNS),
         (FIELD_SYMBOL, SYMBOL_PATTERNS),
@@ -344,18 +432,59 @@ fn auto_detect_field_mappings(headers: &[String]) -> HashMap<String, String> {
         (FIELD_FX_RATE, FX_RATE_PATTERNS),
         (FIELD_SUBTYPE, SUBTYPE_PATTERNS),
     ];
+    let transaction_patterns: &[(&str, &[&str])] = &[
+        (FIELD_DATE, DATE_PATTERNS),
+        (FIELD_ACTIVITY_TYPE, ACTIVITY_TYPE_PATTERNS),
+        (FIELD_AMOUNT, AMOUNT_PATTERNS),
+        (FIELD_CURRENCY, CURRENCY_PATTERNS),
+        (FIELD_FEE, FEE_PATTERNS),
+        (FIELD_ACCOUNT, ACCOUNT_PATTERNS),
+        (FIELD_COMMENT, COMMENT_PATTERNS),
+        (FIELD_FX_RATE, FX_RATE_PATTERNS),
+        (FIELD_SUBTYPE, SUBTYPE_PATTERNS),
+    ];
+
+    let field_patterns = if is_transaction_account {
+        transaction_patterns
+    } else {
+        investment_patterns
+    };
 
     for (field, patterns) in field_patterns {
         for header in headers {
             if used_headers.contains(header) {
                 continue;
             }
-            let lower = header.to_lowercase();
-            if patterns.iter().any(|p| lower == *p || lower.contains(p)) {
-                mappings.insert(field.to_string(), header.clone());
+            let matches_base = header_matches_patterns(header, patterns);
+            let matches_transaction_comment = is_transaction_account
+                && *field == FIELD_COMMENT
+                && header_matches_patterns(header, TRANSACTION_COMMENT_PATTERNS);
+            let matches_transaction_amount = is_transaction_account
+                && *field == FIELD_AMOUNT
+                && header_matches_patterns(header, TRANSACTION_AMOUNT_PATTERNS);
+
+            if matches_base || matches_transaction_comment || matches_transaction_amount {
+                mappings.insert(field.to_string(), FieldMappingValue::Single(header.clone()));
                 used_headers.insert(header.clone());
                 break;
             }
+        }
+    }
+
+    if is_transaction_account {
+        let amount_headers: Vec<String> = headers
+            .iter()
+            .filter(|header| {
+                header_matches_patterns(header, AMOUNT_PATTERNS)
+                    || header_matches_patterns(header, TRANSACTION_AMOUNT_PATTERNS)
+            })
+            .cloned()
+            .collect();
+        if amount_headers.len() > 1 {
+            mappings.insert(
+                FIELD_AMOUNT.to_string(),
+                FieldMappingValue::Fallback(amount_headers),
+            );
         }
     }
 
@@ -435,14 +564,122 @@ fn default_activity_mappings() -> HashMap<String, Vec<String>> {
         .collect()
 }
 
+fn default_transaction_activity_mappings(
+    account_type: Option<&str>,
+) -> HashMap<String, Vec<String>> {
+    let entries: &[(&str, &[&str])] = if account_type == Some(account_types::CREDIT_CARD) {
+        &[
+            (
+                "WITHDRAWAL",
+                &[
+                    "WITHDRAWAL",
+                    "CHARGE",
+                    "PURCHASE",
+                    "CARD PURCHASE",
+                    "DEBIT",
+                    "SALE",
+                    "PAYMENT TO",
+                    "TRANSACTION",
+                ],
+            ),
+            (
+                "TRANSFER_IN",
+                &[
+                    "TRANSFER_IN",
+                    "TRANSFER IN",
+                    "PAYMENT",
+                    "PAYMENT RECEIVED",
+                    "AUTOPAY PAYMENT",
+                    "THANK YOU",
+                    "THANK YOU PAYMENT",
+                    "CREDIT CARD PAYMENT",
+                ],
+            ),
+            (
+                "CREDIT",
+                &[
+                    "CREDIT",
+                    "REFUND",
+                    "RETURN",
+                    "REVERSAL",
+                    "STATEMENT CREDIT",
+                    "CREDIT ADJUSTMENT",
+                ],
+            ),
+            (
+                "FEE",
+                &["FEE", "FEES", "ANNUAL FEE", "LATE FEE", "SERVICE FEE"],
+            ),
+            (
+                "INTEREST",
+                &["INTEREST", "INTEREST CHARGE", "FINANCE CHARGE"],
+            ),
+        ]
+    } else {
+        &[
+            (
+                "DEPOSIT",
+                &[
+                    "DEPOSIT",
+                    "PAYROLL",
+                    "DIRECT DEPOSIT",
+                    "E-TRANSFER IN",
+                    "WIRE IN",
+                    "ACH IN",
+                ],
+            ),
+            (
+                "WITHDRAWAL",
+                &[
+                    "WITHDRAWAL",
+                    "DEBIT",
+                    "PAYMENT",
+                    "PURCHASE",
+                    "POS",
+                    "ATM WITHDRAWAL",
+                    "BILL PAYMENT",
+                ],
+            ),
+            ("TRANSFER_IN", &["TRANSFER_IN", "TRANSFER IN"]),
+            ("TRANSFER_OUT", &["TRANSFER_OUT", "TRANSFER OUT"]),
+            ("INTEREST", &["INTEREST", "INTEREST EARNED"]),
+            ("FEE", &["FEE", "FEES", "SERVICE FEE"]),
+            ("TAX", &["TAX", "TAXES"]),
+            ("CREDIT", &["CREDIT", "REFUND", "REVERSAL"]),
+        ]
+    };
+
+    entries
+        .iter()
+        .map(|(k, vs)| (k.to_string(), vs.iter().map(|v| v.to_string()).collect()))
+        .collect()
+}
+
 /// Merge LLM-provided activity mappings on top of the defaults. LLM entries
 /// win on conflict, but defaults fill in anything the LLM omitted.
 fn merge_activity_mappings(
     llm: Option<HashMap<String, Vec<String>>>,
+    account_type: Option<&str>,
 ) -> HashMap<String, Vec<String>> {
-    let mut merged = default_activity_mappings();
+    let is_transaction = is_transaction_account_type(account_type);
+    let mut merged = if is_transaction {
+        default_transaction_activity_mappings(account_type)
+    } else {
+        default_activity_mappings()
+    };
+    let allowed: Option<HashSet<String>> = if is_transaction {
+        Some(merged.keys().cloned().collect())
+    } else {
+        None
+    };
     if let Some(llm) = llm {
         for (canonical, csv_values) in llm {
+            if allowed
+                .as_ref()
+                .is_some_and(|allowed| !allowed.contains(&canonical))
+            {
+                continue;
+            }
             let entry = merged.entry(canonical).or_default();
             for v in csv_values {
                 let trimmed = v.trim();
@@ -464,24 +701,32 @@ fn merge_activity_mappings(
 
 /// Estimate mapping confidence from how many of the "core" fields were mapped.
 /// Core = date + activityType + symbol + (quantity OR amount) + (unitPrice OR amount).
-fn estimate_confidence(mapping: &ImportMappingData) -> MappingConfidence {
+fn estimate_confidence(
+    mapping: &ImportMappingData,
+    is_transaction_account: bool,
+) -> MappingConfidence {
     let has = |field: &str| mapping.field_mappings.contains_key(field);
     let has_date = has(FIELD_DATE);
     let has_type = has(FIELD_ACTIVITY_TYPE);
-    let has_symbol = has(FIELD_SYMBOL);
-    let has_numeric = has(FIELD_QUANTITY) || has(FIELD_AMOUNT) || has(FIELD_UNIT_PRICE);
+    let has_amount = has(FIELD_AMOUNT);
 
-    let critical = [has_date, has_type, has_symbol, has_numeric];
+    let critical = if is_transaction_account {
+        vec![has_date, has_type, has_amount]
+    } else {
+        let has_symbol = has(FIELD_SYMBOL);
+        let has_numeric = has(FIELD_QUANTITY) || has(FIELD_AMOUNT) || has(FIELD_UNIT_PRICE);
+        vec![has_date, has_type, has_symbol, has_numeric]
+    };
     let ok = critical.iter().filter(|b| **b).count();
 
-    match ok {
-        4 => MappingConfidence::High,
-        2..=3 => MappingConfidence::Medium,
-        _ => MappingConfidence::Low,
+    if ok == critical.len() {
+        MappingConfidence::High
+    } else if ok >= 2 {
+        MappingConfidence::Medium
+    } else {
+        MappingConfidence::Low
     }
 }
-
-const MAX_SAMPLE_ROWS: usize = 10;
 
 fn valid_account_id(value: &str, accounts: &[Account]) -> Option<String> {
     let trimmed = value.trim();
@@ -505,6 +750,70 @@ fn clean_account_mappings(
             valid_account_id(&value, accounts).map(|account_id| (key, account_id))
         })
         .collect()
+}
+
+fn sanitize_field_mappings_for_account(
+    field_mappings: HashMap<String, FieldMappingValue>,
+    is_transaction_account: bool,
+) -> HashMap<String, FieldMappingValue> {
+    if !is_transaction_account {
+        return field_mappings;
+    }
+
+    let allowed: HashSet<&str> = [
+        FIELD_DATE,
+        FIELD_ACTIVITY_TYPE,
+        FIELD_AMOUNT,
+        FIELD_CURRENCY,
+        FIELD_FEE,
+        FIELD_ACCOUNT,
+        FIELD_COMMENT,
+        FIELD_FX_RATE,
+        FIELD_SUBTYPE,
+    ]
+    .into_iter()
+    .collect();
+
+    field_mappings
+        .into_iter()
+        .filter(|(field, _)| allowed.contains(field.as_str()))
+        .collect()
+}
+
+fn sanitize_mapping_for_account(
+    mut mapping: ImportMappingData,
+    account_type: Option<&str>,
+) -> ImportMappingData {
+    let is_transaction = is_transaction_account_type(account_type);
+    mapping.field_mappings =
+        sanitize_field_mappings_for_account(mapping.field_mappings, is_transaction);
+    if is_transaction {
+        let mut merged_activity_mappings = default_transaction_activity_mappings(account_type);
+        let allowed: HashSet<String> = merged_activity_mappings.keys().cloned().collect();
+        for (activity_type, values) in mapping.activity_mappings {
+            if !allowed.contains(&activity_type) {
+                continue;
+            }
+            let entry = merged_activity_mappings.entry(activity_type).or_default();
+            for value in values {
+                let trimmed = value.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                let upper = trimmed.to_uppercase();
+                if !entry
+                    .iter()
+                    .any(|existing| existing.to_uppercase() == upper)
+                {
+                    entry.push(trimmed.to_string());
+                }
+            }
+        }
+        mapping.activity_mappings = merged_activity_mappings;
+        mapping.symbol_mappings.clear();
+        mapping.symbol_mapping_meta.clear();
+    }
+    mapping
 }
 
 fn sanitize_mapping_accounts(
@@ -560,10 +869,13 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
                 \n\nIMPORTANT: csvContent must contain the COMPLETE CSV text every time this tool is called. \
                 CSV data from previous tool calls is NOT retained. If the user wants to re-import or change \
                 settings, ask them to re-attach the CSV file — do not call this tool with empty or partial content. \
-                \n\nWhen CSV symbol values look like company NAMES rather than tickers, populate `symbolMappings` with \
+                \n\nFor investment/brokerage activity CSVs: when CSV symbol values look like company NAMES rather than tickers, populate `symbolMappings` with \
                 name→ticker pairs using your knowledge of public companies. Examples: {\"Cloudflare\": \"NET\", \
                 \"Apple Inc\": \"AAPL\", \"Tesla Inc.\": \"TSLA\"}. For values you are unsure about, leave them \
                 out — the user will resolve them in the chat review step. \
+                For CASH and CREDIT_CARD account statement CSVs, do NOT map merchant/payee/description values to \
+                symbols or tickers. Map merchant/payee/description columns to `comment`; the app treats those rows \
+                as cash/card transactions, not investment asset activity. \
                 \n\nFor `parseConfig` fields (delimiter, skipTopRows, skipBottomRows, dateFormat, decimalSeparator, \
                 thousandsSeparator, defaultCurrency): detect non-defaults from the sample rows. European brokers \
                 often use `;` delimiter, `,` decimal, `.` thousands, and DD/MM/YYYY dates. Many broker exports have \
@@ -582,7 +894,7 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
                     },
                     "fieldMappings": {
                         "type": ["object", "null"],
-                        "description": "Maps field names to CSV header names. Keys: date, activityType, symbol, quantity, unitPrice, amount, fee, fxRate, subtype, currency, account, comment.",
+                        "description": "Maps field names to CSV header names. Investment keys: date, activityType, symbol, quantity, unitPrice, amount, fee, fxRate, subtype, currency, account, comment. For CASH/CREDIT_CARD statements, prefer only date, activityType, amount, fee, fxRate, subtype, currency, account, comment.",
                         "additionalProperties": { "type": "string" }
                     },
                     "activityMappings": {
@@ -595,7 +907,7 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
                     },
                     "symbolMappings": {
                         "type": ["object", "null"],
-                        "description": "Maps CSV symbol values (tickers OR company names) to canonical tickers. Use your knowledge of public companies to translate names: {\"Cloudflare\": \"NET\", \"Apple Inc\": \"AAPL\"}.",
+                        "description": "Maps CSV symbol values (tickers OR public-company names) to canonical tickers for investment activity imports only. For CASH/CREDIT_CARD statements, pass null and map merchant/payee text to comment instead.",
                         "additionalProperties": { "type": "string" }
                     },
                     "accountMappings": {
@@ -659,7 +971,7 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
         let accounts = self
             .env
             .account_service()
-            .get_active_accounts()
+            .get_active_non_archived_accounts()
             .map_err(|e| AiError::ToolExecutionFailed(e.to_string()))?;
 
         let available_accounts: Vec<AccountOption> = accounts
@@ -668,12 +980,18 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
                 id: a.id.clone(),
                 name: a.name.clone(),
                 currency: a.currency.clone(),
+                account_type: Some(a.account_type.clone()),
             })
             .collect();
         let account_id = args
             .account_id
             .as_deref()
             .and_then(|id| valid_account_id(id, &accounts));
+        let account_type = account_id
+            .as_deref()
+            .and_then(|id| accounts.iter().find(|account| account.id == id))
+            .map(|account| account.account_type.as_str());
+        let is_transaction_account = is_transaction_account_type(account_type);
 
         // Build the parse config from LLM input (unset fields fall back to auto-detect).
         let llm_parse_config = ParseConfig {
@@ -709,10 +1027,13 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
 
         // Parse CSV to get headers + sample rows for the UI preview.
         let effective_parse_config = match &mapping {
-            Some(m) => m
-                .parse_config
-                .clone()
-                .unwrap_or_else(|| llm_parse_config.clone()),
+            Some(m) => merge_parse_config(
+                m.parse_config
+                    .clone()
+                    .unwrap_or_else(|| llm_parse_config.clone()),
+                &llm_parse_config,
+                args.default_currency.is_some(),
+            ),
             None => llm_parse_config.clone(),
         };
         let parsed_csv = self
@@ -726,12 +1047,7 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
         if total_rows == 0 {
             debug!("import_csv: parse_csv returned 0 data rows");
         }
-        let sample_rows: Vec<Vec<String>> = parsed_csv
-            .rows
-            .iter()
-            .take(MAX_SAMPLE_ROWS)
-            .cloned()
-            .collect();
+        let sample_rows = Vec::new();
 
         // If we have no saved template, build the mapping from LLM + auto-detect.
         let applied_mapping = if let Some(m) = mapping {
@@ -739,28 +1055,39 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
         } else {
             let llm_field_mappings = clean_string_map(args.field_mappings.clone());
             let field_mappings = if llm_field_mappings.is_empty() {
-                auto_detect_field_mappings(&headers)
+                auto_detect_field_mapping_values(&headers, is_transaction_account)
             } else {
-                llm_field_mappings
+                sanitize_field_mappings_for_account(
+                    into_field_mapping_values(llm_field_mappings),
+                    is_transaction_account,
+                )
             };
 
             ImportMappingData {
                 account_id: account_id.clone().unwrap_or_default(),
                 context_kind: import_type::ACTIVITY.to_string(),
-                field_mappings: into_field_mapping_values(field_mappings),
-                activity_mappings: merge_activity_mappings(args.activity_mappings.clone()),
-                symbol_mappings: clean_string_map(args.symbol_mappings.clone()),
+                field_mappings,
+                activity_mappings: merge_activity_mappings(
+                    args.activity_mappings.clone(),
+                    account_type,
+                ),
+                symbol_mappings: if is_transaction_account {
+                    HashMap::new()
+                } else {
+                    clean_string_map(args.symbol_mappings.clone())
+                },
                 account_mappings: clean_account_mappings(args.account_mappings.clone(), &accounts),
                 parse_config: Some(effective_parse_config.clone()),
                 ..Default::default()
             }
         };
         let applied_mapping = sanitize_mapping_accounts(applied_mapping, &accounts);
+        let applied_mapping = sanitize_mapping_for_account(applied_mapping, account_type);
 
         let mapping_confidence = if used_saved_profile {
             MappingConfidence::High
         } else {
-            estimate_confidence(&applied_mapping)
+            estimate_confidence(&applied_mapping, is_transaction_account)
         };
 
         Ok(ImportCsvMappingOutput {
@@ -787,12 +1114,44 @@ mod tests {
         Account {
             id: id.to_string(),
             name: name.to_string(),
+            account_type: account_types::SECURITIES.to_string(),
             currency: currency.to_string(),
             is_active: true,
             created_at: Utc::now().naive_utc(),
             updated_at: Utc::now().naive_utc(),
             ..Account::default()
         }
+    }
+
+    fn account_with_type(id: &str, name: &str, currency: &str, account_type: &str) -> Account {
+        Account {
+            account_type: account_type.to_string(),
+            ..account(id, name, currency)
+        }
+    }
+
+    #[test]
+    fn test_parse_config_overrides_saved_profile_without_clobbering_currency() {
+        let saved = ParseConfig {
+            delimiter: Some(",".to_string()),
+            date_format: Some("%m/%d/%Y".to_string()),
+            default_currency: Some("CAD".to_string()),
+            ..Default::default()
+        };
+        let overrides = ParseConfig {
+            delimiter: Some(";".to_string()),
+            date_format: None,
+            default_currency: Some("USD".to_string()),
+            ..Default::default()
+        };
+
+        let merged = merge_parse_config(saved.clone(), &overrides, false);
+        assert_eq!(merged.delimiter.as_deref(), Some(";"));
+        assert_eq!(merged.date_format.as_deref(), Some("%m/%d/%Y"));
+        assert_eq!(merged.default_currency.as_deref(), Some("CAD"));
+
+        let merged = merge_parse_config(saved, &overrides, true);
+        assert_eq!(merged.default_currency.as_deref(), Some("USD"));
     }
 
     #[test]
@@ -829,7 +1188,10 @@ mod tests {
             ),
             ..Default::default()
         };
-        assert_eq!(estimate_confidence(&mapping), MappingConfidence::High);
+        assert_eq!(
+            estimate_confidence(&mapping, false),
+            MappingConfidence::High
+        );
     }
 
     #[test]
@@ -842,7 +1204,39 @@ mod tests {
             ),
             ..Default::default()
         };
-        assert_eq!(estimate_confidence(&mapping), MappingConfidence::Low);
+        assert_eq!(estimate_confidence(&mapping, false), MappingConfidence::Low);
+    }
+
+    #[test]
+    fn test_transaction_auto_detect_hides_asset_fields() {
+        let headers = vec![
+            "Transaction Date".to_string(),
+            "Merchant".to_string(),
+            "Debit".to_string(),
+            "Credit".to_string(),
+            "Type".to_string(),
+        ];
+
+        let mappings = auto_detect_field_mapping_values(&headers, true);
+
+        assert_eq!(
+            mappings.get(FIELD_DATE),
+            Some(&FieldMappingValue::Single("Transaction Date".to_string()))
+        );
+        assert_eq!(
+            mappings.get(FIELD_COMMENT),
+            Some(&FieldMappingValue::Single("Merchant".to_string()))
+        );
+        assert_eq!(
+            mappings.get(FIELD_AMOUNT),
+            Some(&FieldMappingValue::Fallback(vec![
+                "Debit".to_string(),
+                "Credit".to_string()
+            ]))
+        );
+        assert!(!mappings.contains_key(FIELD_SYMBOL));
+        assert!(!mappings.contains_key(FIELD_QUANTITY));
+        assert!(!mappings.contains_key(FIELD_UNIT_PRICE));
     }
 
     #[tokio::test]
@@ -889,12 +1283,68 @@ mod tests {
         assert!(am.contains_key("DIVIDEND"));
     }
 
+    #[tokio::test]
+    async fn test_import_csv_credit_card_returns_transaction_mapping() {
+        let mut env = MockEnvironment::new();
+        env.account_service = Arc::new(MockAccountService {
+            accounts: vec![account_with_type(
+                "card-1",
+                "Visa",
+                "USD",
+                account_types::CREDIT_CARD,
+            )],
+        });
+        let tool = ImportCsvTool::new(Arc::new(env), "USD".to_string());
+
+        let args = ImportCsvArgs {
+            csv_content: "Date,Merchant,Debit,Credit,Type\n2024-01-15,Starbucks,12.50,,Purchase"
+                .to_string(),
+            account_id: Some("card-1".to_string()),
+            field_mappings: None,
+            activity_mappings: None,
+            symbol_mappings: Some(
+                [("Starbucks".to_string(), "SBUX".to_string())]
+                    .into_iter()
+                    .collect(),
+            ),
+            account_mappings: None,
+            delimiter: None,
+            skip_top_rows: None,
+            skip_bottom_rows: None,
+            date_format: None,
+            decimal_separator: None,
+            thousands_separator: None,
+            default_currency: None,
+        };
+
+        let result = tool.call(args).await.unwrap();
+        let fields = &result.applied_mapping.field_mappings;
+        assert!(fields.contains_key(FIELD_DATE));
+        assert!(fields.contains_key(FIELD_COMMENT));
+        assert!(fields.contains_key(FIELD_AMOUNT));
+        assert!(!fields.contains_key(FIELD_SYMBOL));
+        assert!(result.applied_mapping.symbol_mappings.is_empty());
+        assert!(result
+            .applied_mapping
+            .activity_mappings
+            .get("WITHDRAWAL")
+            .unwrap()
+            .iter()
+            .any(|value| value == "PURCHASE"));
+        assert!(!result.applied_mapping.activity_mappings.contains_key("BUY"));
+        assert_eq!(result.mapping_confidence, MappingConfidence::High);
+        assert_eq!(
+            result.available_accounts[0].account_type.as_deref(),
+            Some(account_types::CREDIT_CARD)
+        );
+    }
+
     #[test]
     fn test_merge_activity_mappings_llm_additions() {
         let mut llm = HashMap::new();
         llm.insert("BUY".to_string(), vec!["Kopen".to_string()]);
         llm.insert("DIVIDEND".to_string(), vec!["Dividende".to_string()]);
-        let merged = merge_activity_mappings(Some(llm));
+        let merged = merge_activity_mappings(Some(llm), None);
         // Defaults preserved.
         assert!(merged
             .get("BUY")

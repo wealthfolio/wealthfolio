@@ -8,7 +8,7 @@ mod tests {
     use crate::errors::{DatabaseError, Error, Result};
     use crate::portfolios::{
         AccountScope, NewPortfolio, PortfolioRepositoryTrait, PortfolioService,
-        PortfolioServiceTrait, PortfolioUpdate, PortfolioWithAccounts, ResolvedAccountScope,
+        PortfolioServiceTrait, PortfolioUpdate, PortfolioWithAccounts,
     };
 
     // ── Mock portfolio repository ─────────────────────────────────────────────
@@ -283,33 +283,59 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn resolve_account_scope_all_uses_total_snapshot() {
-        let svc = make_service_with(MockPortfolioRepo::default(), &[]);
-        let scope = svc.resolve_account_scope(&AccountScope::All).unwrap();
-        assert!(matches!(scope, ResolvedAccountScope::TotalSnapshot));
+    async fn resolve_account_scope_all_uses_real_accounts() {
+        let svc = make_service_with(MockPortfolioRepo::default(), &["a1", "a2"]);
+        let scope = svc
+            .resolve_account_scope(&AccountScope::All, "USD")
+            .unwrap();
+        assert_eq!(scope.scope_id, "all");
+        assert_eq!(scope.account_ids, vec!["a1", "a2"]);
+        assert_eq!(scope.base_currency, "USD");
     }
 
     #[tokio::test]
-    async fn resolve_account_scope_rejects_empty_accounts_scope() {
-        let svc = make_service_with(MockPortfolioRepo::default(), &[]);
-        let err = svc
-            .resolve_account_scope(&AccountScope::Accounts {
-                account_ids: vec![],
-            })
-            .unwrap_err();
-        assert!(matches!(err, Error::Validation(_)));
-        assert!(err.to_string().contains("no accounts"));
+    async fn resolve_account_scope_accounts_uses_stable_scope_id() {
+        let svc = make_service_with(MockPortfolioRepo::default(), &["a1", "a2"]);
+        let scope = svc
+            .resolve_account_scope(
+                &AccountScope::Accounts {
+                    account_ids: vec!["a2".to_string(), "a1".to_string(), "a1".to_string()],
+                },
+                "USD",
+            )
+            .unwrap();
+        assert!(scope.scope_id.starts_with("accounts:"));
+        assert_eq!(scope.scope_id.len(), "accounts:".len() + 16);
+        assert_eq!(scope.account_ids, vec!["a1", "a2"]);
     }
 
     #[tokio::test]
-    async fn resolve_account_scope_rejects_empty_portfolio_scope() {
-        let svc = make_service_with(MockPortfolioRepo::default(), &[]);
+    async fn resolve_account_scope_rejects_fake_account_id() {
+        let svc = make_service_with(MockPortfolioRepo::default(), &["a1"]);
         let err = svc
-            .resolve_account_scope(&AccountScope::Portfolio {
-                portfolio_id: "empty".to_string(),
-            })
+            .resolve_account_scope(
+                &AccountScope::Account {
+                    account_id: "missing".to_string(),
+                },
+                "USD",
+            )
             .unwrap_err();
         assert!(matches!(err, Error::Validation(_)));
-        assert!(err.to_string().contains("no accounts"));
+        assert!(err.to_string().contains("unknown account"));
+    }
+
+    #[tokio::test]
+    async fn resolve_account_scope_empty_portfolio_is_deterministic() {
+        let svc = make_service_with(MockPortfolioRepo::default(), &[]);
+        let scope = svc
+            .resolve_account_scope(
+                &AccountScope::Portfolio {
+                    portfolio_id: "empty".to_string(),
+                },
+                "USD",
+            )
+            .unwrap();
+        assert_eq!(scope.scope_id, "portfolio:empty");
+        assert!(scope.account_ids.is_empty());
     }
 }

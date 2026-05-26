@@ -4,6 +4,14 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum FxContext {
+    ValuationDate,
+    AcquisitionDate,
+    FlowDate,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ExchangeRate {

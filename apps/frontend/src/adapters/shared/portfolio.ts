@@ -34,12 +34,15 @@ export const getIncomeSummary = async (filter?: AccountScope): Promise<IncomeSum
 };
 
 export const getHistoricalValuations = async (
-  accountId?: string,
+  filter?: AccountScope,
   startDate?: string,
   endDate?: string,
 ): Promise<AccountValuation[]> => {
-  const params: { accountId?: string; startDate?: string; endDate?: string } = {};
-  if (accountId) params.accountId = accountId;
+  const params: {
+    filter?: AccountScope;
+    startDate?: string;
+    endDate?: string;
+  } = { filter: filter ?? { type: "all" } };
   if (startDate) params.startDate = startDate;
   if (endDate) params.endDate = endDate;
 
@@ -59,11 +62,13 @@ export const calculatePerformanceHistory = async (
   startDate: string | undefined,
   endDate: string | undefined,
   trackingMode?: "HOLDINGS" | "TRANSACTIONS",
+  filter?: AccountScope,
 ): Promise<PerformanceMetrics> => {
   const args: Record<string, unknown> = { itemType, itemId };
   if (startDate) args.startDate = startDate;
   if (endDate) args.endDate = endDate;
   if (trackingMode) args.trackingMode = trackingMode;
+  if (filter) args.filter = filter;
   const response = await invoke<PerformanceMetrics>("calculate_performance_history", args);
 
   if (typeof response === "string" || !response || Object.keys(response).length === 0) {
@@ -81,6 +86,7 @@ interface CalculatePerformanceSummaryArgs {
   startDate?: string | null;
   endDate?: string | null;
   trackingMode?: "HOLDINGS" | "TRANSACTIONS";
+  filter?: AccountScope;
 }
 
 export const calculatePerformanceSummary = async ({
@@ -89,6 +95,7 @@ export const calculatePerformanceSummary = async ({
   startDate,
   endDate,
   trackingMode,
+  filter,
 }: CalculatePerformanceSummaryArgs): Promise<PerformanceMetrics> => {
   const args: Record<string, unknown> = {
     itemType,
@@ -102,6 +109,9 @@ export const calculatePerformanceSummary = async ({
   }
   if (trackingMode) {
     args.trackingMode = trackingMode;
+  }
+  if (filter) {
+    args.filter = filter;
   }
 
   const response = await invoke<PerformanceMetrics>("calculate_performance_summary", args);

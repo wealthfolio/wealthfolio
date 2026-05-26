@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   checkActivitiesImport,
@@ -26,6 +27,17 @@ import {
   buildNewAssetFromDraft,
 } from "@/pages/activity/import/utils/asset-review-utils";
 import { createDraftActivities, validateDraft } from "@/pages/activity/import/utils/draft-utils";
+import { computeFieldMappings } from "@/pages/activity/import/hooks/use-import-mapping";
+import {
+  getActivityImportProfileForImportContext,
+  getActivityImportProfileForAccountType,
+  getActivityImportProfileForResolvedAccountIds,
+  mergeActivityMappingsForImportProfile,
+  sanitizeImportMappingForProfile,
+  type ActivityImportProfile,
+} from "@/pages/activity/import/utils/activity-import-profile";
+import { invalidateSpendingCaches } from "@/features/spending/lib/invalidation";
+import { QueryKeys } from "@/lib/query-keys";
 
 import type { ImportCsvMappingOutput } from "../types";
 
@@ -52,6 +64,7 @@ interface ChatImportState {
   createdAssetIdsByKey: Record<string, string>;
   filter: ChatImportFilter;
   accountId: string;
+  accountTypeById: Map<string, string>;
   error: string | null;
   importedCount: number;
 }
@@ -63,6 +76,7 @@ type Action =
         drafts: DraftActivity[];
         assetPreviewItems: ImportAssetPreviewItem[];
         accountId: string;
+        accountTypeById: Map<string, string>;
       };
     }
   | { type: "INIT_ERROR"; payload: string }
@@ -87,6 +101,7 @@ const INITIAL_STATE: ChatImportState = {
   createdAssetIdsByKey: {},
   filter: "all",
   accountId: "",
+  accountTypeById: new Map(),
   error: null,
   importedCount: 0,
 };
@@ -101,6 +116,7 @@ function reducer(state: ChatImportState, action: Action): ChatImportState {
         assetPreviewItems: action.payload.assetPreviewItems,
         createdAssetIdsByKey: {},
         accountId: action.payload.accountId,
+        accountTypeById: action.payload.accountTypeById,
         error: null,
       };
     case "INIT_ERROR":
@@ -148,7 +164,7 @@ function reducer(state: ChatImportState, action: Action): ChatImportState {
         drafts: state.drafts.map((d) => {
           if (d.rowIndex !== action.payload.rowIndex) return d;
           const merged = { ...d, ...action.payload.updates, isEdited: true };
-          const v = validateDraft(merged);
+          const v = validateDraft(merged, state.accountTypeById);
           return {
             ...merged,
             status: merged.status === "skipped" ? "skipped" : v.status,
@@ -168,7 +184,7 @@ function reducer(state: ChatImportState, action: Action): ChatImportState {
           if (!indexSet.has(d.rowIndex)) return d;
           const merged = { ...d, ...action.payload.updates };
           if (merged.status === "skipped") return merged;
-          const v = validateDraft(merged);
+          const v = validateDraft(merged, state.accountTypeById);
           return { ...merged, status: v.status, errors: v.errors, warnings: v.warnings };
         }),
       };
@@ -227,64 +243,20 @@ function applyCreatedAssetIdsToDrafts(
  * (or similar config) likely shifted the parse window and the field mappings
  * are stale — we should re-run auto-detect against the actual parsed headers.
  */
-const CORE_FIELDS = ["date", "activityType", "symbol", "quantity", "unitPrice", "amount"];
-
 function countFieldMappingHits(
   fieldMappings: Record<string, unknown>,
   parsedHeaders: string[],
+  importProfile: ActivityImportProfile,
 ): number {
   const headerSet = new Set(parsedHeaders);
   let hits = 0;
-  for (const field of CORE_FIELDS) {
+  for (const field of importProfile.requiredMappingFields) {
     const value = fieldMappings[field];
     if (!value) continue;
     if (typeof value === "string" && headerSet.has(value)) hits++;
     if (Array.isArray(value) && value.some((v) => headerSet.has(v))) hits++;
   }
   return hits;
-}
-
-/**
- * Simple frontend auto-detect: match headers to common patterns.
- * Mirrors the Rust `auto_detect_field_mappings` so the frontend can
- * self-heal when the AI's parse config was wrong.
- */
-const HEADER_PATTERNS: [string, string[]][] = [
-  ["date", ["date", "trade date", "activity date", "transaction date", "settlement date"]],
-  [
-    "activityType",
-    ["type", "activity type", "transaction type", "action", "activity", "operation"],
-  ],
-  ["symbol", ["symbol", "ticker", "stock", "security", "asset", "instrument"]],
-  ["quantity", ["quantity", "qty", "shares", "units", "volume"]],
-  ["unitPrice", ["price", "unit price", "share price", "cost per share", "avg price"]],
-  [
-    "amount",
-    ["total", "amount", "value", "net amount", "gross amount", "market value", "proceeds", "cost"],
-  ],
-  ["currency", ["currency", "ccy", "currency code"]],
-  ["fee", ["fee", "fees", "commission", "commissions"]],
-  ["account", ["account", "account id", "account name", "portfolio"]],
-  ["comment", ["comment", "comments", "note", "notes", "description", "memo"]],
-  ["fxRate", ["fx rate", "exchange rate", "forex rate"]],
-  ["subtype", ["subtype", "sub type"]],
-];
-
-function autoDetectFieldMappings(headers: string[]): Record<string, string> {
-  const mappings: Record<string, string> = {};
-  const used = new Set<string>();
-  for (const [field, patterns] of HEADER_PATTERNS) {
-    for (const header of headers) {
-      if (used.has(header)) continue;
-      const lower = header.toLowerCase();
-      if (patterns.some((p) => lower === p || lower.includes(p))) {
-        mappings[field] = header;
-        used.add(header);
-        break;
-      }
-    }
-  }
-  return mappings;
 }
 
 /**
@@ -370,9 +342,10 @@ function mergeIssueMaps(
 function applyBackendValidation(
   drafts: DraftActivity[],
   validated: ActivityImport[],
+  accountTypeById: Map<string, string>,
 ): DraftActivity[] {
   return drafts.map((draft) => {
-    const localValidation = validateDraft(draft);
+    const localValidation = validateDraft(draft, accountTypeById);
     const backendResult = validated.find((v) => v.lineNumber === draft.rowIndex + 1);
     if (!backendResult) {
       return {
@@ -560,6 +533,7 @@ export interface UseChatImportSessionResult {
   accountId: string;
   setAccountId: (accountId: string) => void;
   assetPreviewItems: ImportAssetPreviewItem[];
+  importProfile: ActivityImportProfile;
   submitted: boolean;
   importedCount: number;
   canConfirm: boolean;
@@ -582,10 +556,12 @@ export function useChatImportSession({
   submittedFromResult,
   submittedCountFromResult,
 }: UseChatImportSessionOptions): UseChatImportSessionResult {
+  const queryClient = useQueryClient();
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
 
   const mappingRef = useRef(mapping);
   mappingRef.current = mapping;
+  const effectiveMappingRef = useRef<ImportMappingData | null>(null);
 
   // On mount (once per mapping), bootstrap drafts + preview items.
   const initializedRef = useRef(false);
@@ -613,34 +589,10 @@ export function useChatImportSession({
           return;
         }
 
-        const baseParseConfig = normalizeParseConfig(mapping.parseConfig);
-        const csvFile = csvStringAsFile(mapping.csvContent);
-
-        // Parse with the AI's config first.
-        let parsed: ParsedCsvResult = await parseCsv(csvFile, baseParseConfig);
-        if (cancelled) return;
-        let parseConfig = baseParseConfig;
-
         const applied = mapping.appliedMapping;
-        const aiFieldMappings = (applied.fieldMappings ?? {}) as Record<string, unknown>;
-        let hits = countFieldMappingHits(aiFieldMappings, parsed.headers);
-
-        // LLMs sometimes strip preamble from csvContent but still pass
-        // skipTopRows > 0 — which then skips the header row too. If the
-        // AI's field mappings don't match the parsed headers AND skipTopRows
-        // is set, retry with skipTopRows: 0.
-        if (hits < 2 && (baseParseConfig.skipTopRows ?? 0) > 0) {
-          parseConfig = { ...baseParseConfig, skipTopRows: 0 };
-          parsed = await parseCsv(csvStringAsFile(mapping.csvContent), parseConfig);
-          if (cancelled) return;
-          hits = countFieldMappingHits(aiFieldMappings, parsed.headers);
-        }
-
-        const effectiveFieldMappings: Record<string, string | string[]> =
-          hits >= 2
-            ? (aiFieldMappings as Record<string, string | string[]>)
-            : autoDetectFieldMappings(parsed.headers);
-
+        const accountTypeById = new Map(
+          mapping.availableAccounts.map((account) => [account.id, account.accountType ?? ""]),
+        );
         const accountMappings = normalizeAccountMappings(
           applied.accountMappings ?? {},
           mapping.availableAccounts,
@@ -658,27 +610,94 @@ export function useChatImportSession({
           inferredAccountId ||
           (mapping.availableAccounts.length === 1 ? mapping.availableAccounts[0].id : "");
 
+        const baseParseConfig = normalizeParseConfig(mapping.parseConfig);
+        const csvFile = csvStringAsFile(mapping.csvContent);
+
+        // Parse with the AI's config first.
+        let parsed: ParsedCsvResult = await parseCsv(csvFile, baseParseConfig);
+        if (cancelled) return;
+        let parseConfig = baseParseConfig;
+
+        const aiFieldMappings = (applied.fieldMappings ?? {}) as Record<string, unknown>;
+        let importProfile = getActivityImportProfileForImportContext({
+          defaultAccountId: accountId,
+          accounts: mapping.availableAccounts,
+          headers: parsed.headers,
+          parsedRows: parsed.rows,
+          fieldMappings: aiFieldMappings as Record<string, string | string[]>,
+          accountMappings,
+        });
+        let hits = countFieldMappingHits(aiFieldMappings, parsed.headers, importProfile);
+
+        // LLMs sometimes strip preamble from csvContent but still pass
+        // skipTopRows > 0 — which then skips the header row too. If the
+        // AI's field mappings don't match the parsed headers AND skipTopRows
+        // is set, retry with skipTopRows: 0.
+        if (hits < 2 && (baseParseConfig.skipTopRows ?? 0) > 0) {
+          parseConfig = { ...baseParseConfig, skipTopRows: 0 };
+          parsed = await parseCsv(csvStringAsFile(mapping.csvContent), parseConfig);
+          if (cancelled) return;
+          importProfile = getActivityImportProfileForImportContext({
+            defaultAccountId: accountId,
+            accounts: mapping.availableAccounts,
+            headers: parsed.headers,
+            parsedRows: parsed.rows,
+            fieldMappings: aiFieldMappings as Record<string, string | string[]>,
+            accountMappings,
+          });
+          hits = countFieldMappingHits(aiFieldMappings, parsed.headers, importProfile);
+        }
+
+        const effectiveFieldMappings: Record<string, string | string[]> =
+          hits >= 2
+            ? computeFieldMappings(
+                parsed.headers,
+                aiFieldMappings as Record<string, string | string[]>,
+                importProfile,
+              )
+            : computeFieldMappings(parsed.headers, undefined, importProfile);
+        const effectiveParseConfig = {
+          ...parseConfig,
+          dateFormat: parsed.detectedConfig.dateFormat ?? parseConfig.dateFormat ?? "auto",
+          decimalSeparator:
+            parsed.detectedConfig.decimalSeparator ?? parseConfig.decimalSeparator ?? "auto",
+          thousandsSeparator:
+            parsed.detectedConfig.thousandsSeparator ?? parseConfig.thousandsSeparator ?? "auto",
+          defaultCurrency:
+            parsed.detectedConfig.defaultCurrency ?? parseConfig.defaultCurrency ?? "USD",
+        };
+        const effectiveMapping = sanitizeImportMappingForProfile(
+          {
+            ...applied,
+            fieldMappings: effectiveFieldMappings,
+            activityMappings: mergeActivityMappingsForImportProfile(
+              applied.activityMappings ?? {},
+              importProfile,
+            ),
+            symbolMappings: applied.symbolMappings ?? {},
+            accountMappings,
+            symbolMappingMeta: applied.symbolMappingMeta ?? {},
+            parseConfig: effectiveParseConfig,
+          },
+          importProfile,
+        );
+        effectiveMappingRef.current = effectiveMapping;
+
         const drafts = createDraftActivities(
           parsed.rows,
           parsed.headers,
           {
-            fieldMappings: effectiveFieldMappings,
-            activityMappings: applied.activityMappings ?? {},
-            symbolMappings: applied.symbolMappings ?? {},
-            accountMappings,
-            symbolMappingMeta: applied.symbolMappingMeta ?? {},
+            fieldMappings: effectiveMapping.fieldMappings,
+            activityMappings: effectiveMapping.activityMappings,
+            symbolMappings: effectiveMapping.symbolMappings,
+            accountMappings: effectiveMapping.accountMappings ?? {},
+            symbolMappingMeta: effectiveMapping.symbolMappingMeta ?? {},
           },
-          {
-            dateFormat: parsed.detectedConfig.dateFormat ?? parseConfig.dateFormat ?? "auto",
-            decimalSeparator:
-              parsed.detectedConfig.decimalSeparator ?? parseConfig.decimalSeparator ?? "auto",
-            thousandsSeparator:
-              parsed.detectedConfig.thousandsSeparator ?? parseConfig.thousandsSeparator ?? "auto",
-            defaultCurrency:
-              parsed.detectedConfig.defaultCurrency ?? parseConfig.defaultCurrency ?? "USD",
-          },
+          effectiveParseConfig,
           accountId,
           validAccountIds,
+          accountTypeById,
+          { importProfile },
         );
 
         if (drafts.length === 0) {
@@ -702,10 +721,12 @@ export function useChatImportSession({
           ? buildActivitiesToValidate(drafts, parseConfig.defaultCurrency ?? "USD")
           : [];
         const candidates = hasAccounts
-          ? drafts
-              .map(buildImportAssetCandidateFromDraft)
-              .filter((c): c is NonNullable<typeof c> => c !== null)
-              .filter((c, i, arr) => arr.findIndex((x) => x.key === c.key) === i)
+          ? importProfile.assetResolutionEnabled
+            ? drafts
+                .map(buildImportAssetCandidateFromDraft)
+                .filter((c): c is NonNullable<typeof c> => c !== null)
+                .filter((c, i, arr) => arr.findIndex((x) => x.key === c.key) === i)
+            : []
           : [];
 
         // Backend validation + asset preview are best-effort. If they fail,
@@ -732,7 +753,7 @@ export function useChatImportSession({
 
         let nextDrafts = drafts;
         if (validated.length > 0) {
-          nextDrafts = applyBackendValidation(nextDrafts, validated);
+          nextDrafts = applyBackendValidation(nextDrafts, validated, accountTypeById);
         }
         for (const item of preview) {
           if (!item.draft) continue;
@@ -749,7 +770,7 @@ export function useChatImportSession({
 
         dispatch({
           type: "INIT_OK",
-          payload: { drafts: nextDrafts, assetPreviewItems: preview, accountId },
+          payload: { drafts: nextDrafts, assetPreviewItems: preview, accountId, accountTypeById },
         });
       } catch (err) {
         if (cancelled) return;
@@ -777,7 +798,7 @@ export function useChatImportSession({
       const activitiesToValidate = buildActivitiesToValidate(state.drafts, defaultCurrency);
       if (activitiesToValidate.length === 0) return;
       const validated = await checkActivitiesImport({ activities: activitiesToValidate });
-      const merged = applyBackendValidation(state.drafts, validated);
+      const merged = applyBackendValidation(state.drafts, validated, state.accountTypeById);
       dispatch({ type: "SET_DRAFTS", payload: merged });
     } catch (err) {
       dispatch({
@@ -785,7 +806,7 @@ export function useChatImportSession({
         payload: err instanceof Error ? err.message : "Failed to revalidate.",
       });
     }
-  }, [state.drafts]);
+  }, [state.accountTypeById, state.drafts]);
 
   const editDraft = useCallback((rowIndex: number, updates: Partial<DraftActivity>) => {
     dispatch({ type: "UPDATE_DRAFT", payload: { rowIndex, updates } });
@@ -844,6 +865,16 @@ export function useChatImportSession({
   // revalidate so late responses can't overwrite fresher state.
   const revalidateRunRef = useRef(0);
 
+  const importProfile = useMemo(() => {
+    const current = mappingRef.current;
+    return getActivityImportProfileForResolvedAccountIds(
+      current?.availableAccounts ?? [],
+      state.accountId
+        ? [state.accountId]
+        : state.drafts.map((draft) => draft.accountId).filter(Boolean),
+    );
+  }, [state.accountId, state.drafts]);
+
   const setAccountId = useCallback(
     (accountId: string) => {
       dispatch({ type: "SET_ACCOUNT", payload: accountId });
@@ -858,17 +889,94 @@ export function useChatImportSession({
       const run = ++revalidateRunRef.current;
       (async () => {
         try {
+          const nextProfile = getActivityImportProfileForAccountType(
+            state.accountTypeById.get(accountId),
+          );
+          const validAccountIds = new Set(current.availableAccounts.map((account) => account.id));
           const defaultCurrency = current.parseConfig.defaultCurrency ?? "USD";
-          const nextDrafts = state.drafts.map((d) => {
-            const nextErrors = { ...(d.errors ?? {}) };
-            delete nextErrors.accountId;
-            return { ...d, accountId, errors: nextErrors };
-          });
+          let nextDrafts: DraftActivity[];
+          let shouldClearPreview = false;
+
+          if (nextProfile !== importProfile && current.csvContent) {
+            const applied = current.appliedMapping;
+            const sourceMapping = effectiveMappingRef.current ?? applied;
+            const parseConfig = normalizeParseConfig(
+              sourceMapping.parseConfig ?? current.parseConfig,
+            );
+            const parsed = await parseCsv(csvStringAsFile(current.csvContent), parseConfig);
+            const accountMappings = normalizeAccountMappings(
+              sourceMapping.accountMappings ?? {},
+              current.availableAccounts,
+            );
+            const fieldMappings = computeFieldMappings(
+              parsed.headers,
+              sourceMapping.fieldMappings as Record<string, string | string[]>,
+              nextProfile,
+            );
+            const effectiveParseConfig = {
+              ...parseConfig,
+              dateFormat: parsed.detectedConfig.dateFormat ?? parseConfig.dateFormat ?? "auto",
+              decimalSeparator:
+                parsed.detectedConfig.decimalSeparator ?? parseConfig.decimalSeparator ?? "auto",
+              thousandsSeparator:
+                parsed.detectedConfig.thousandsSeparator ??
+                parseConfig.thousandsSeparator ??
+                "auto",
+              defaultCurrency:
+                parsed.detectedConfig.defaultCurrency ?? parseConfig.defaultCurrency ?? "USD",
+            };
+            const effectiveMapping = sanitizeImportMappingForProfile(
+              {
+                ...sourceMapping,
+                fieldMappings,
+                activityMappings: mergeActivityMappingsForImportProfile(
+                  sourceMapping.activityMappings ?? {},
+                  nextProfile,
+                ),
+                symbolMappings: sourceMapping.symbolMappings ?? {},
+                accountMappings,
+                symbolMappingMeta: sourceMapping.symbolMappingMeta ?? {},
+                parseConfig: effectiveParseConfig,
+              },
+              nextProfile,
+            );
+            effectiveMappingRef.current = effectiveMapping;
+
+            nextDrafts = createDraftActivities(
+              parsed.rows,
+              parsed.headers,
+              {
+                fieldMappings: effectiveMapping.fieldMappings,
+                activityMappings: effectiveMapping.activityMappings,
+                symbolMappings: effectiveMapping.symbolMappings,
+                accountMappings: effectiveMapping.accountMappings ?? {},
+                symbolMappingMeta: effectiveMapping.symbolMappingMeta ?? {},
+              },
+              effectiveParseConfig,
+              accountId,
+              validAccountIds,
+              state.accountTypeById,
+              { importProfile: nextProfile },
+            );
+            if (!nextProfile.assetResolutionEnabled) {
+              shouldClearPreview = true;
+            }
+          } else {
+            nextDrafts = state.drafts.map((d) => {
+              const nextErrors = { ...(d.errors ?? {}) };
+              delete nextErrors.accountId;
+              return { ...d, accountId, errors: nextErrors };
+            });
+          }
+
           const activitiesToValidate = buildActivitiesToValidate(nextDrafts, defaultCurrency);
           if (activitiesToValidate.length === 0) return;
           const validated = await checkActivitiesImport({ activities: activitiesToValidate });
           if (run !== revalidateRunRef.current) return;
-          const merged = applyBackendValidation(nextDrafts, validated);
+          const merged = applyBackendValidation(nextDrafts, validated, state.accountTypeById);
+          if (shouldClearPreview) {
+            dispatch({ type: "SET_PREVIEW", payload: [] });
+          }
           dispatch({ type: "SET_DRAFTS", payload: merged });
         } catch (err) {
           if (run !== revalidateRunRef.current) return;
@@ -879,7 +987,7 @@ export function useChatImportSession({
         }
       })();
     },
-    [state.drafts],
+    [importProfile, state.accountTypeById, state.drafts],
   );
 
   const setFilter = useCallback((filter: ChatImportFilter) => {
@@ -913,7 +1021,7 @@ export function useChatImportSession({
       const validated = await checkActivitiesImport({ activities: toValidate });
 
       // Merge backend results back so the grid reflects the latest state.
-      const mergedDrafts = applyBackendValidation(state.drafts, validated);
+      const mergedDrafts = applyBackendValidation(state.drafts, validated, state.accountTypeById);
       dispatch({ type: "SET_DRAFTS", payload: mergedDrafts });
 
       // Step 2: filter again after backend validation — only import rows the
@@ -992,6 +1100,7 @@ export function useChatImportSession({
           const postImportDrafts = applyBackendValidation(
             draftsWithCreatedAssets,
             result.activities,
+            state.accountTypeById,
           );
           dispatch({ type: "SET_DRAFTS", payload: postImportDrafts });
         }
@@ -1003,17 +1112,38 @@ export function useChatImportSession({
         return;
       }
 
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] }),
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.ACTIVITIES] }),
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.IMPORT_RUNS] }),
+      ]);
+      invalidateSpendingCaches(queryClient);
+
       // Step 4: success path — save template + persist tool result.
       if (state.accountId) {
         try {
           const accountName =
             current.availableAccounts.find((a) => a.id === state.accountId)?.name ?? "";
-          const mappingToSave: ImportMappingData = {
-            ...current.appliedMapping,
+          const sourceMapping = effectiveMappingRef.current ?? current.appliedMapping;
+          const accountMappingsToSave = current.appliedMapping.accountMappings ?? {};
+          const mappingToSave: ImportMappingData = sanitizeImportMappingForProfile(
+            {
+              ...sourceMapping,
+              activityMappings: mergeActivityMappingsForImportProfile(
+                sourceMapping.activityMappings ?? {},
+                importProfile,
+              ),
+              symbolMappings: sourceMapping.symbolMappings ?? {},
+              accountMappings: accountMappingsToSave,
+              symbolMappingMeta: sourceMapping.symbolMappingMeta ?? {},
+            },
+            importProfile,
+          );
+          await saveAccountImportMapping({
+            ...mappingToSave,
             accountId: state.accountId,
-            name: current.appliedMapping.name || `AI Import — ${accountName}`.trim(),
-          };
-          await saveAccountImportMapping(mappingToSave);
+            name: sourceMapping.name || `AI Import — ${accountName}`.trim(),
+          });
         } catch (err) {
           logger.error("Failed to save import template:", err);
         }
@@ -1051,8 +1181,11 @@ export function useChatImportSession({
     state.accountId,
     state.assetPreviewItems,
     state.createdAssetIdsByKey,
+    state.accountTypeById,
+    importProfile,
     threadId,
     toolCallId,
+    queryClient,
   ]);
 
   const stats = useMemo(() => computeStats(state.drafts), [state.drafts]);
@@ -1079,6 +1212,7 @@ export function useChatImportSession({
     accountId: state.accountId,
     setAccountId,
     assetPreviewItems: state.assetPreviewItems,
+    importProfile,
     submitted,
     importedCount: state.importedCount,
     canConfirm,

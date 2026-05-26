@@ -1,0 +1,34 @@
+---
+source: crates/ai/tests/tool_schemas.rs
+assertion_line: 95
+expression: snapshot
+---
+{
+  "name": "get_asset_allocation",
+  "parameters": {
+    "properties": {
+      "accountId": {
+        "type": "string"
+      },
+      "categoryId": {
+        "type": "string"
+      },
+      "groupBy": {
+        "default": "class",
+        "enum": [
+          "class",
+          "sector",
+          "region",
+          "risk",
+          "security_type"
+        ],
+        "type": "string"
+      },
+      "taxonomyId": {
+        "type": "string"
+      }
+    },
+    "required": [],
+    "type": "object"
+  }
+}

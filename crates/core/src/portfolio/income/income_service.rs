@@ -129,7 +129,7 @@ impl IncomeServiceTrait for IncomeService {
             months_two_years_ago = 13 - oldest_date.month() as i32
         }
 
-        let mut total_summary = IncomeSummary::new("TOTAL", base_currency.clone());
+        let mut total_summary = IncomeSummary::new("ALL", base_currency.clone());
         let mut ytd_summary = IncomeSummary::new("YTD", base_currency.clone());
         let mut last_year_summary = IncomeSummary::new("LAST_YEAR", base_currency.clone());
         let mut two_years_ago_summary = IncomeSummary::new("TWO_YEARS_AGO", base_currency.clone());

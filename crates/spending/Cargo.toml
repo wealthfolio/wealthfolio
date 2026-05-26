@@ -1,0 +1,27 @@
+[package]
+name = "wealthfolio-spending"
+version.workspace = true
+edition.workspace = true
+description = "Cash-account spending, categorization, rules, events, budget, and analytics for Wealthfolio"
+authors = ["Aziz Fadil"]
+license = "AGPL-3.0"
+repository = "https://github.com/afadil/wealthfolio"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+uuid = { workspace = true, features = ["v7"] }
+async-trait = { workspace = true }
+log = { workspace = true }
+rust_decimal = { workspace = true }
+regex = "1"
+
+# Sibling crate
+wealthfolio-core = { path = "../core" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

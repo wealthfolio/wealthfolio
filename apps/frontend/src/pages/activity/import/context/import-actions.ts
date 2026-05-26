@@ -102,6 +102,13 @@ export function setStep(step: ImportStep): ImportAction {
 }
 
 /**
+ * Set the active wizard step order.
+ */
+export function setStepOrder(stepOrder: ImportStep[]): ImportAction {
+  return { type: "SET_STEP_ORDER", payload: stepOrder };
+}
+
+/**
  * Navigate to the next step in the wizard.
  */
 export function nextStep(): ImportAction {

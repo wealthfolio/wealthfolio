@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{errors::ValidationError, Error, Result};
 
+use super::accounts_constants::account_types;
+
 /// Tracking mode for an account - determines how holdings are tracked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -82,6 +84,13 @@ impl NewAccount {
                 "Currency cannot be empty".to_string(),
             )));
         }
+        if self.account_type == account_types::CREDIT_CARD
+            && self.tracking_mode == TrackingMode::Holdings
+        {
+            return Err(Error::Validation(ValidationError::InvalidInput(
+                "Credit card accounts cannot use HOLDINGS tracking mode".to_string(),
+            )));
+        }
         Ok(())
     }
 }
@@ -116,6 +125,13 @@ impl AccountUpdate {
         if self.name.trim().is_empty() {
             return Err(Error::Validation(ValidationError::InvalidInput(
                 "Account name cannot be empty".to_string(),
+            )));
+        }
+        if self.account_type == account_types::CREDIT_CARD
+            && self.tracking_mode == Some(TrackingMode::Holdings)
+        {
+            return Err(Error::Validation(ValidationError::InvalidInput(
+                "Credit card accounts cannot use HOLDINGS tracking mode".to_string(),
             )));
         }
         Ok(())

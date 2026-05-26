@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
@@ -7,6 +7,7 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
 
 import { newAccountSchema } from "@/lib/schemas";
+import { AccountType } from "@/lib/constants";
 import {
   CurrencyInput,
   RadioGroup,
@@ -47,6 +48,7 @@ import { useAccountMutations } from "./use-account-mutations";
 const accountTypes: ResponsiveSelectOption[] = [
   { label: "Securities", value: "SECURITIES" },
   { label: "Cash", value: "CASH" },
+  { label: "Credit Card", value: "CREDIT_CARD" },
   { label: "Crypto", value: "CRYPTOCURRENCY" },
 ];
 
@@ -81,6 +83,14 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
   });
 
   const currentTrackingMode = form.watch("trackingMode");
+  const currentAccountType = form.watch("accountType");
+  const isCreditCardAccount = currentAccountType === AccountType.CREDIT_CARD;
+
+  useEffect(() => {
+    if (isCreditCardAccount && currentTrackingMode !== "TRANSACTIONS") {
+      form.setValue("trackingMode", "TRANSACTIONS", { shouldDirty: true, shouldValidate: true });
+    }
+  }, [currentTrackingMode, form, isCreditCardAccount]);
 
   // Perform the actual submit (after confirmation if needed)
   // Returns a promise when updating so it can be chained with other operations
@@ -268,19 +278,23 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                         </span>
                       </div>
                     </label>
-                    <label
-                      className={`hover:bg-accent relative flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors ${
-                        field.value === "HOLDINGS" ? "border-primary bg-primary/5" : "border-muted"
-                      }`}
-                    >
-                      <RadioGroupItem value="HOLDINGS" className="mt-0.5" />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium">Holdings</span>
-                        <span className="text-muted-foreground text-xs">
-                          Add holdings directly as snapshots
-                        </span>
-                      </div>
-                    </label>
+                    {!isCreditCardAccount && (
+                      <label
+                        className={`hover:bg-accent relative flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors ${
+                          field.value === "HOLDINGS"
+                            ? "border-primary bg-primary/5"
+                            : "border-muted"
+                        }`}
+                      >
+                        <RadioGroupItem value="HOLDINGS" className="mt-0.5" />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">Holdings</span>
+                          <span className="text-muted-foreground text-xs">
+                            Add holdings directly as snapshots
+                          </span>
+                        </div>
+                      </label>
+                    )}
                   </RadioGroup>
                 </FormControl>
                 {field.value === "HOLDINGS" && (

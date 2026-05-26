@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use super::portfolios_model::{
     AccountScope, NewPortfolio, PortfolioUpdate, PortfolioWithAccounts, ResolvedAccountScope,
 };
-use crate::errors::{Error, Result, ValidationError};
+use crate::errors::Result;
 
 #[async_trait]
 pub trait PortfolioRepositoryTrait: Send + Sync {
@@ -27,21 +27,46 @@ pub trait PortfolioServiceTrait: Send + Sync {
     fn resolve_account_filter(&self, filter: &AccountScope) -> Result<Vec<String>>;
 
     /// Resolve an AccountScope into its runtime reporting form.
-    fn resolve_account_scope(&self, filter: &AccountScope) -> Result<ResolvedAccountScope> {
-        match filter {
-            AccountScope::All => Ok(ResolvedAccountScope::TotalSnapshot),
-            AccountScope::Account { account_id } => {
-                Ok(ResolvedAccountScope::Account(account_id.clone()))
+    fn resolve_account_scope(
+        &self,
+        filter: &AccountScope,
+        base_currency: &str,
+    ) -> Result<ResolvedAccountScope> {
+        let mut ids = match filter {
+            AccountScope::Account { account_id } => vec![account_id.clone()],
+            AccountScope::All | AccountScope::Portfolio { .. } | AccountScope::Accounts { .. } => {
+                self.resolve_account_filter(filter)?
             }
-            AccountScope::Portfolio { .. } | AccountScope::Accounts { .. } => {
-                let ids = self.resolve_account_filter(filter)?;
-                if ids.is_empty() {
-                    return Err(Error::Validation(ValidationError::InvalidInput(
-                        "Account scope resolved to no accounts".to_string(),
-                    )));
-                }
-                Ok(ResolvedAccountScope::Accounts(ids))
+        };
+        ids.sort();
+        ids.dedup();
+
+        let scope_id = match filter {
+            AccountScope::All => "all".to_string(),
+            AccountScope::Account { account_id } => format!("account:{}", account_id),
+            AccountScope::Portfolio { portfolio_id } => format!("portfolio:{}", portfolio_id),
+            AccountScope::Accounts { .. } => {
+                use sha2::{Digest, Sha256};
+                let joined = ids.join("\n");
+                let digest = Sha256::digest(joined.as_bytes());
+                format!("accounts:{}", hex::encode(&digest[..8]))
             }
-        }
+        };
+
+        Ok(ResolvedAccountScope {
+            scope_id,
+            account_ids: ids,
+            base_currency: base_currency.to_string(),
+        })
+    }
+
+    /// Resolve an AccountScope into its runtime reporting form using the app
+    /// default base currency. Prefer `resolve_account_scope` where the current
+    /// base currency is available.
+    fn resolve_account_scope_default_base(
+        &self,
+        filter: &AccountScope,
+    ) -> Result<ResolvedAccountScope> {
+        self.resolve_account_scope(filter, "")
     }
 }

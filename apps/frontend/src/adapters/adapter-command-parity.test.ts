@@ -26,6 +26,25 @@ function collectSourceFiles(dir: string): string[] {
   });
 }
 
+/**
+ * Collect all `features/*\/adapters/*.ts` files. Feature-local adapters call
+ * `invoke(...)` and must round-trip through both the Tauri command registry
+ * and the web COMMANDS dispatch.
+ */
+function collectFeatureAdapterFiles(): string[] {
+  const featuresDir = path.join(frontendSrcDir, "features");
+  const featureEntries = readdirSync(featuresDir, { withFileTypes: true });
+  return featureEntries.flatMap((feature) => {
+    if (!feature.isDirectory()) return [];
+    const adaptersDir = path.join(featuresDir, feature.name, "adapters");
+    try {
+      return collectSourceFiles(adaptersDir);
+    } catch {
+      return [];
+    }
+  });
+}
+
 function collectInvokedCommands(files: string[]): Map<string, string[]> {
   const commands = new Map<string, string[]>();
 
@@ -55,6 +74,7 @@ describe("adapter command parity", () => {
     const files = [
       ...collectSourceFiles(path.join(frontendSrcDir, "adapters/shared")),
       ...collectSourceFiles(path.join(frontendSrcDir, "adapters/web")),
+      ...collectFeatureAdapterFiles(),
     ];
     const invokedCommands = collectInvokedCommands(files);
 
@@ -70,6 +90,7 @@ describe("adapter command parity", () => {
     const files = [
       ...collectSourceFiles(path.join(frontendSrcDir, "adapters/shared")),
       ...collectSourceFiles(path.join(frontendSrcDir, "adapters/tauri")),
+      ...collectFeatureAdapterFiles(),
     ];
     const invokedCommands = collectInvokedCommands(files);
     const registeredCommands = collectRegisteredTauriCommands();
@@ -311,4 +332,44 @@ describe("scope-based routing — get_income_summary", () => {
       filter: { type: "accounts", accountIds: ["acc_1", "acc_2"] },
     });
   });
+});
+
+describe("scope-based routing — performance filters", () => {
+  const commands = [
+    { command: "calculate_performance_history", path: "/api/v1/performance/history" },
+    { command: "calculate_performance_summary", path: "/api/v1/performance/summary" },
+  ] as const;
+  const scopes = [
+    { name: "all", filter: { type: "all" } },
+    { name: "portfolio", filter: { type: "portfolio", portfolioId: "pf_1" } },
+    { name: "accounts", filter: { type: "accounts", accountIds: ["acc_1", "acc_2"] } },
+  ] as const;
+
+  for (const { command, path } of commands) {
+    for (const { name, filter } of scopes) {
+      it(`${command} sends ${name} filter`, async () => {
+        const mock = stubFetch();
+        await invoke(command, {
+          itemType: "account",
+          itemId: "portfolio:all",
+          startDate: "2026-01-01",
+          endDate: "2026-01-31",
+          trackingMode: "TRANSACTIONS",
+          filter,
+        });
+
+        const { url, method, body } = lastCall(mock);
+        expect(url).toBe(path);
+        expect(method).toBe("POST");
+        expect(JSON.parse(body as string)).toEqual({
+          itemType: "account",
+          itemId: "portfolio:all",
+          startDate: "2026-01-01",
+          endDate: "2026-01-31",
+          trackingMode: "TRANSACTIONS",
+          filter,
+        });
+      });
+    }
+  }
 });

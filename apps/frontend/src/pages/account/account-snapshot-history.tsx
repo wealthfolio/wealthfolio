@@ -2,7 +2,7 @@ import { deleteSnapshot, getSnapshots } from "@/adapters";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, SnapshotInfo } from "@/lib/types";
-import { formatDate } from "@/lib/utils";
+import { formatAmount, formatDate } from "@/lib/utils";
 import { HoldingsEditMode } from "@/pages/holdings/components/holdings-edit-mode";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -171,7 +171,9 @@ export function AccountSnapshotHistory({
                     {formatSnapshotSource(snapshot.source)}
                   </Badge>
                 </div>
-                <p className="text-muted-foreground text-xs">{formatSnapshotCounts(snapshot)}</p>
+                <p className="text-muted-foreground text-xs">
+                  {formatSnapshotSummary(snapshot, account.currency)}
+                </p>
               </div>
               {canManageSnapshot(snapshot) && (
                 <div className="flex shrink-0 items-center gap-0.5">
@@ -220,7 +222,9 @@ export function AccountSnapshotHistory({
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">{snapshot.positionCount}</TableCell>
-                  <TableCell className="text-right">{snapshot.cashCurrencyCount}</TableCell>
+                  <TableCell className="text-right">
+                    {formatAmount(snapshot.cashTotalAccountCurrency, account.currency)}
+                  </TableCell>
                   <TableCell className="text-right">
                     {canManageSnapshot(snapshot) && (
                       <div className="flex items-center justify-end gap-1">
@@ -314,10 +318,12 @@ function formatSnapshotSource(source: string): string {
   }
 }
 
-function formatSnapshotCounts(snapshot: SnapshotInfo): string {
+function formatSnapshotSummary(snapshot: SnapshotInfo, accountCurrency: string): string {
   const positionLabel = snapshot.positionCount === 1 ? "position" : "positions";
-  const cashLabel = snapshot.cashCurrencyCount === 1 ? "cash balance" : "cash balances";
-  return `${snapshot.positionCount} ${positionLabel}, ${snapshot.cashCurrencyCount} ${cashLabel}`;
+  return `${snapshot.positionCount} ${positionLabel}, ${formatAmount(
+    snapshot.cashTotalAccountCurrency,
+    accountCurrency,
+  )} cash`;
 }
 
 export default AccountSnapshotHistory;
