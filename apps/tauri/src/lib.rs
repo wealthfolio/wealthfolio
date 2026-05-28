@@ -18,9 +18,9 @@ mod updater;
 use std::sync::Arc;
 
 use dotenvy::dotenv;
-use log::error;
 #[cfg(feature = "device-sync")]
 use log::warn;
+use log::{error, info};
 use tauri::{AppHandle, Emitter, Manager};
 
 use events::{emit_app_ready, emit_portfolio_trigger_recalculate, PortfolioRequestPayload};
@@ -316,6 +316,26 @@ fn get_app_data_dir(handle: &AppHandle) -> Result<String, Box<dyn std::error::Er
     Ok(handle.path().app_data_dir()?.to_string_lossy().into_owned())
 }
 
+#[cfg(desktop)]
+fn log_desktop_runtime_context(handle: &AppHandle, app_data_dir: &str) {
+    let version = handle.package_info().version.to_string();
+    let logs_dir = match handle.path().app_log_dir() {
+        Ok(path) => path.to_string_lossy().into_owned(),
+        Err(err) => {
+            warn!(
+                "Failed to resolve app log directory during startup: {}",
+                err
+            );
+            String::from("unavailable")
+        }
+    };
+
+    info!(
+        "Desktop runtime initialized: version={}, app_data_dir={}, logs_dir={}",
+        version, app_data_dir, logs_dir
+    );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Application entry point
 // ─────────────────────────────────────────────────────────────────────────────
@@ -331,10 +351,13 @@ pub fn run() {
     // to the existing instance's on_open_url handler instead of spawning a new process.
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        info!("Second desktop launch detected; focusing existing main window.");
         // Focus the existing window when a second instance is attempted
         if let Some(window) = app.get_webview_window("main") {
             let _ = window.unminimize();
             let _ = window.set_focus();
+        } else {
+            warn!("Second desktop launch detected but main window was not found.");
         }
     }));
 
@@ -375,14 +398,18 @@ pub fn run() {
             // Get app data directory
             let app_data_dir = get_app_data_dir(&handle)?;
 
+            #[cfg(desktop)]
+            log_desktop_runtime_context(&handle, &app_data_dir);
+
             // Setup event listeners (platform-agnostic)
             listeners::setup_event_listeners(handle.clone());
+            info!("Application event listeners registered.");
 
             // Setup deep link handler
             let deep_link_handle = handle.clone();
             app.deep_link().on_open_url(move |event| {
                 let urls = event.urls();
-                log::debug!("Deep link received (count: {})", urls.len());
+                info!("Deep link received (count: {})", urls.len());
                 for url in urls {
                     let _ = deep_link_handle.emit("deep-link-received", url.to_string());
                 }
@@ -390,10 +417,16 @@ pub fn run() {
 
             // Platform-specific setup
             #[cfg(desktop)]
+            info!("Starting desktop setup.");
+
+            #[cfg(desktop)]
             desktop::setup(handle, &app_data_dir).map_err(|e| {
                 error!("Desktop setup failed: {}", e);
                 e
             })?;
+
+            #[cfg(desktop)]
+            info!("Desktop setup completed.");
 
             #[cfg(mobile)]
             mobile::setup(handle, app_data_dir);
@@ -554,6 +587,23 @@ pub fn run() {
             commands::alternative_assets::get_net_worth,
             commands::alternative_assets::get_net_worth_history,
             commands::alternative_assets::get_alternative_holdings,
+            // Private asset commands
+            commands::private_assets::list_private_asset_rows,
+            commands::private_assets::list_fund_managers,
+            commands::private_assets::get_private_asset_detail,
+            commands::private_assets::get_private_asset_current_totals,
+            commands::private_assets::get_private_asset_historical_series,
+            commands::private_assets::create_fund_manager,
+            commands::private_assets::update_fund_manager,
+            commands::private_assets::create_private_asset,
+            commands::private_assets::update_private_asset,
+            commands::private_assets::list_private_sub_assets,
+            commands::private_assets::create_private_sub_asset,
+            commands::private_assets::update_private_sub_asset,
+            commands::private_assets::list_private_snapshots,
+            commands::private_assets::get_latest_private_snapshot,
+            commands::private_assets::create_private_snapshot,
+            commands::private_assets::update_private_snapshot,
             // Market data commands
             commands::market_data::search_symbol,
             commands::market_data::resolve_symbol_quote,

@@ -235,6 +235,26 @@ export {
   updateAlternativeAssetValuation,
 } from "../shared/alternative-assets";
 
+// Private Assets Commands
+export {
+  listPrivateAssetRows,
+  getPrivateAssetDetail,
+  getPrivateAssetCurrentTotals,
+  getPrivateAssetHistoricalSeries,
+  listFundManagers,
+  createFundManager,
+  updateFundManager,
+  createPrivateAsset,
+  updatePrivateAsset,
+  listPrivateSubAssets,
+  createPrivateSubAsset,
+  updatePrivateSubAsset,
+  listPrivateSnapshots,
+  getLatestPrivateSnapshot,
+  createPrivateSnapshot,
+  updatePrivateSnapshot,
+} from "../shared/private-assets";
+
 // Connect Commands (Broker + Device Sync + Auth)
 export {
   approvePairing,

@@ -7,7 +7,9 @@ use wealthfolio_core::{
     events::DomainEventSink,
     fx, goals, health, limits,
     lots::LotRepositoryTrait,
-    portfolio, portfolios, quotes, settings, taxonomies,
+    portfolio, portfolios,
+    private_assets::{PrivateAssetProjectionServiceTrait, PrivateAssetsServiceTrait},
+    quotes, settings, taxonomies,
 };
 use wealthfolio_device_sync::{engine::DeviceSyncRuntimeState, DeviceEnrollService};
 use wealthfolio_spending::analytics::AnalyticsService;
@@ -27,6 +29,7 @@ use crate::services::ConnectService;
 pub struct ServiceContext {
     pub base_currency: Arc<RwLock<String>>,
     pub timezone: Arc<RwLock<String>>,
+    pub private_assets_enabled: Arc<RwLock<bool>>,
     pub instance_id: Arc<String>,
 
     /// Domain event sink for emitting events after mutations.
@@ -58,6 +61,8 @@ pub struct ServiceContext {
     pub net_worth_service: Arc<dyn portfolio::net_worth::NetWorthServiceTrait>,
     pub sync_service: Arc<dyn BrokerSyncServiceTrait>,
     pub alternative_asset_service: Arc<dyn AlternativeAssetServiceTrait>,
+    pub private_assets_service: Arc<dyn PrivateAssetsServiceTrait>,
+    pub private_asset_projection_service: Arc<dyn PrivateAssetProjectionServiceTrait>,
     pub taxonomy_service: Arc<dyn taxonomies::TaxonomyServiceTrait>,
     pub connect_service: Arc<ConnectService>,
     pub ai_provider_service: Arc<dyn AiProviderServiceTrait>,
@@ -91,6 +96,14 @@ impl ServiceContext {
 
     pub fn update_timezone(&self, new_timezone: String) {
         *self.timezone.write().unwrap() = new_timezone;
+    }
+
+    pub fn get_private_assets_enabled(&self) -> bool {
+        *self.private_assets_enabled.read().unwrap()
+    }
+
+    pub fn update_private_assets_enabled(&self, enabled: bool) {
+        *self.private_assets_enabled.write().unwrap() = enabled;
     }
 
     pub fn settings_service(&self) -> Arc<dyn settings::SettingsServiceTrait> {
@@ -195,6 +208,14 @@ impl ServiceContext {
 
     pub fn alternative_asset_service(&self) -> Arc<dyn AlternativeAssetServiceTrait> {
         Arc::clone(&self.alternative_asset_service)
+    }
+
+    pub fn private_assets_service(&self) -> Arc<dyn PrivateAssetsServiceTrait> {
+        Arc::clone(&self.private_assets_service)
+    }
+
+    pub fn private_asset_projection_service(&self) -> Arc<dyn PrivateAssetProjectionServiceTrait> {
+        Arc::clone(&self.private_asset_projection_service)
     }
 
     pub fn taxonomy_service(&self) -> Arc<dyn taxonomies::TaxonomyServiceTrait> {

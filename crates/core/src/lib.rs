@@ -21,6 +21,7 @@ pub mod lots;
 pub mod planning;
 pub mod portfolio;
 pub mod portfolios;
+pub mod private_assets;
 pub mod quotes;
 pub mod secrets;
 pub mod settings;

@@ -16,6 +16,7 @@ use wealthfolio_core::{
         income::IncomeServiceTrait, performance::PerformanceServiceTrait,
         valuation::ValuationServiceTrait,
     },
+    private_assets::PrivateAssetProjectionServiceTrait,
     quotes::QuoteServiceTrait,
     secrets::SecretStore,
     settings::SettingsServiceTrait,
@@ -78,6 +79,9 @@ pub trait AiEnvironment: Send + Sync {
 
     /// Get the health service for portfolio health diagnostics.
     fn health_service(&self) -> Arc<dyn HealthServiceTrait>;
+
+    /// Get the private-assets projection service for read-only private-asset views.
+    fn private_asset_projection_service(&self) -> Arc<dyn PrivateAssetProjectionServiceTrait>;
 
     /// Get the taxonomy service for fetching taxonomies and categories.
     fn taxonomy_service(&self) -> Arc<dyn TaxonomyServiceTrait>;

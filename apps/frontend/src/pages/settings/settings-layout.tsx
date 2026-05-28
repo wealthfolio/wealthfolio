@@ -1,10 +1,25 @@
 import { ApplicationShell } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
+import { useMemo, type ReactNode } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { usePrivateAssetsEnabled } from "@/hooks/use-private-assets-enabled";
 import { SidebarNav } from "./sidebar-nav";
 
-const settingsSections = [
+interface SettingsSectionItem {
+  title: string;
+  href: string;
+  subtitle: string;
+  icon: ReactNode;
+  requiresPrivateAssets?: boolean;
+}
+
+interface SettingsSection {
+  title: string;
+  items: SettingsSectionItem[];
+}
+
+const settingsSections: SettingsSection[] = [
   {
     title: "Preferences",
     items: [
@@ -59,6 +74,13 @@ const settingsSections = [
         href: "securities",
         subtitle: "Manage security definitions",
         icon: <Icons.BadgeDollarSign className="size-5" />,
+      },
+      {
+        title: "Private Assets",
+        href: "private-assets",
+        subtitle: "Managers, private vehicles, and snapshots",
+        icon: <Icons.Briefcase className="size-5" />,
+        requiresPrivateAssets: true,
       },
       {
         title: "Classifications",
@@ -124,8 +146,20 @@ const settingsSections = [
 export default function SettingsLayout() {
   const location = useLocation();
   const navigate = useNavigate();
+  const privateAssetsEnabled = usePrivateAssetsEnabled();
 
-  const sections = settingsSections;
+  const sections = useMemo(
+    () =>
+      settingsSections
+        .map((section) => ({
+          ...section,
+          items: section.items.filter(
+            (item) => !item.requiresPrivateAssets || privateAssetsEnabled,
+          ),
+        }))
+        .filter((section) => section.items.length > 0),
+    [privateAssetsEnabled],
+  );
 
   // Check if we're on the main settings page (mobile) or a specific setting page
   const isMainSettingsPage =

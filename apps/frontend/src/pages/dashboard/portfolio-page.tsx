@@ -156,6 +156,7 @@ export default function PortfolioPage() {
 
   return (
     <>
+      <h1 className="sr-only">Dashboard</h1>
       <SwipablePage
         className="pt-0"
         views={views}

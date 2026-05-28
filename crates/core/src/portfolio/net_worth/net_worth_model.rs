@@ -23,11 +23,13 @@ pub struct NetWorthHistoryPoint {
     pub portfolio_value: Decimal,
     /// Alternative assets value (properties, vehicles, collectibles, precious metals, other)
     pub alternative_assets_value: Decimal,
+    /// Private assets value from the private-assets projection layer.
+    pub private_assets_value: Decimal,
     /// Total liabilities in base currency (positive magnitude, subtracted for net worth)
     pub total_liabilities: Decimal,
 
     // ─── Totals ─────────────────────────────────────────────────────────
-    /// Total assets = portfolio_value + alternative_assets_value
+    /// Total assets = portfolio_value + alternative_assets_value + private_assets_value
     pub total_assets: Decimal,
     /// Net worth = total_assets - total_liabilities
     pub net_worth: Decimal,
@@ -158,6 +160,8 @@ pub struct ValuationInfo {
 pub enum AssetCategory {
     /// Securities, Crypto, Options, Commodities, PrivateEquity
     Investment,
+    /// First-class private assets from the private-assets projection layer
+    PrivateAssets,
     /// Real estate
     Property,
     /// Vehicles

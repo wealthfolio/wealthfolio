@@ -8,6 +8,7 @@ import { SwipablePage, SwipablePageView } from "@/components/page";
 import { AccountScopeSelector } from "@/components/account-filter-selector";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useHoldings } from "@/hooks/use-holdings";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import {
@@ -17,6 +18,7 @@ import {
   useUnlinkLiability,
 } from "@/hooks/use-alternative-assets";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import { usePrivateAssetsEnabled } from "@/hooks/use-private-assets-enabled";
 import {
   AccountPurpose,
   HOLDING_CATEGORY_FILTERS,
@@ -45,12 +47,31 @@ import {
   type LinkableAsset,
   type LinkedLiability,
 } from "@/pages/asset/alternative-assets";
-import { updateAlternativeAssetMetadata } from "@/adapters";
+import { listPrivateAssetRows, updateAlternativeAssetMetadata } from "@/adapters";
 import { ClassificationSheet } from "@/components/classification/classification-sheet";
 import { useUpdatePortfolioMutation } from "@/hooks/use-calculate-portfolio";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
+import { Badge } from "@wealthfolio/ui/components/ui/badge";
+import { formatDate } from "@/lib/utils";
+import type { PrivateAssetListRow } from "@/lib/types";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@wealthfolio/ui/components/ui/table";
+import {
+  formatPrivateAmount,
+  formatPrivateAssetStatus,
+  formatPrivateAssetStrategy,
+  formatPrivateAssetVehicleKind,
+  getFreshnessBadgeClass,
+  getStatusBadgeClass,
+} from "@/pages/settings/private-assets/private-assets-utils";
 
 export const HoldingsPage = () => {
   const isMobileViewport = useIsMobileViewport();
@@ -59,6 +80,8 @@ export const HoldingsPage = () => {
   const currentTab = searchParams.get("tab") ?? "investments";
   const queryClient = useQueryClient();
   const { settings } = useSettingsContext();
+  const privateAssetsEnabled = usePrivateAssetsEnabled();
+  const { isBalanceHidden } = useBalancePrivacy();
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
   const [accountFilter, setAccountScope] = useState<AccountScope>({ type: "all" });
@@ -73,6 +96,14 @@ export const HoldingsPage = () => {
   const { data: portfolios = [] } = usePortfolios();
   const { data: alternativeHoldings, isLoading: isAlternativeHoldingsLoading } =
     useAlternativeHoldings();
+  const { data: privateAssetRows, isLoading: isPrivateAssetsLoading } = useQuery<
+    PrivateAssetListRow[],
+    Error
+  >({
+    queryKey: QueryKeys.privateAssetRows(false),
+    queryFn: () => listPrivateAssetRows(false),
+    enabled: privateAssetsEnabled,
+  });
 
   // Mobile filter state
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
@@ -348,6 +379,20 @@ export const HoldingsPage = () => {
   const hasNoInvestments = !isDataLoading && (!nonCashHoldings || nonCashHoldings.length === 0);
   const hasNoAssets = !isDataLoading && assetsHoldings.length === 0;
   const hasNoLiabilities = !isDataLoading && liabilitiesHoldings.length === 0;
+  const hasNoPrivateAssets =
+    !privateAssetsEnabled ||
+    (!isPrivateAssetsLoading && (!privateAssetRows || privateAssetRows.length === 0));
+  const showPortfolioPrivateInvestments =
+    privateAssetsEnabled && accountFilter.type === "all" && !hasNoPrivateAssets;
+  const topPrivateInvestmentRows = useMemo(
+    () =>
+      [...(privateAssetRows ?? [])]
+        .sort(
+          (a, b) => (b.latestSnapshot?.currentValue ?? 0) - (a.latestSnapshot?.currentValue ?? 0),
+        )
+        .slice(0, 5),
+    [privateAssetRows],
+  );
 
   // Investments content
   const investmentsContent = (
@@ -361,45 +406,58 @@ export const HoldingsPage = () => {
           onClose={() => setIsEditMode(false)}
         />
       ) : hasNoInvestments ? (
-        <div className="flex items-center justify-center py-16">
-          <EmptyPlaceholder
-            icon={<Icons.TrendingUp className="text-muted-foreground h-10 w-10" />}
-            title="No holdings yet"
-            description={
-              canEditHoldings
-                ? "Get started by updating your holdings or importing from a CSV file."
-                : "Get started by adding your first transaction or quickly import your existing holdings from a CSV file."
-            }
-          >
-            <div className="flex flex-col items-center gap-3 sm:flex-row">
-              {canEditHoldings ? (
-                <>
-                  <Button size="default" onClick={() => setIsEditMode(true)}>
-                    <Icons.Pencil className="mr-2 h-4 w-4" />
-                    Update Holdings
-                  </Button>
-                  <Button size="default" variant="outline" onClick={() => navigate("/import")}>
-                    <Icons.Import className="mr-2 h-4 w-4" />
-                    Import from CSV
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button size="default" onClick={() => navigate("/activities/manage")}>
-                    <Icons.Plus className="mr-2 h-4 w-4" />
-                    Add Transaction
-                  </Button>
-                  <Button size="default" variant="outline" onClick={() => navigate("/import")}>
-                    <Icons.Import className="mr-2 h-4 w-4" />
-                    Import from CSV
-                  </Button>
-                </>
-              )}
-            </div>
-          </EmptyPlaceholder>
+        <div className="space-y-6">
+          <div className="flex items-center justify-center py-16">
+            <EmptyPlaceholder
+              icon={<Icons.TrendingUp className="text-muted-foreground h-10 w-10" />}
+              title={showPortfolioPrivateInvestments ? "No public holdings yet" : "No holdings yet"}
+              description={
+                canEditHoldings
+                  ? "Get started by updating your holdings or importing from a CSV file."
+                  : showPortfolioPrivateInvestments
+                    ? "Public holdings are still empty, but your private investments are available below."
+                    : "Get started by adding your first transaction or quickly import your existing holdings from a CSV file."
+              }
+            >
+              <div className="flex flex-col items-center gap-3 sm:flex-row">
+                {canEditHoldings ? (
+                  <>
+                    <Button size="default" onClick={() => setIsEditMode(true)}>
+                      <Icons.Pencil className="mr-2 h-4 w-4" />
+                      Update Holdings
+                    </Button>
+                    <Button size="default" variant="outline" onClick={() => navigate("/import")}>
+                      <Icons.Import className="mr-2 h-4 w-4" />
+                      Import from CSV
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button size="default" onClick={() => navigate("/activities/manage")}>
+                      <Icons.Plus className="mr-2 h-4 w-4" />
+                      Add Transaction
+                    </Button>
+                    <Button size="default" variant="outline" onClick={() => navigate("/import")}>
+                      <Icons.Import className="mr-2 h-4 w-4" />
+                      Import from CSV
+                    </Button>
+                  </>
+                )}
+              </div>
+            </EmptyPlaceholder>
+          </div>
+
+          {showPortfolioPrivateInvestments && (
+            <PrivateInvestmentsSection
+              rows={topPrivateInvestmentRows}
+              isBalanceHidden={isBalanceHidden}
+              onOpenAll={() => navigate("/holdings?tab=private-assets")}
+              onOpenAsset={(assetId) => navigate(`/settings/private-assets/${assetId}`)}
+            />
+          )}
         </div>
       ) : (
-        <>
+        <div className="space-y-6">
           {/* Desktop View */}
           <div className="hidden md:block">
             <HoldingsTable
@@ -435,7 +493,15 @@ export const HoldingsPage = () => {
               typeOptions={availableTypeOptions}
             />
           </div>
-        </>
+          {showPortfolioPrivateInvestments && (
+            <PrivateInvestmentsSection
+              rows={topPrivateInvestmentRows}
+              isBalanceHidden={isBalanceHidden}
+              onOpenAll={() => navigate("/holdings?tab=private-assets")}
+              onOpenAsset={(assetId) => navigate(`/settings/private-assets/${assetId}`)}
+            />
+          )}
+        </div>
       )}
     </>
   );
@@ -532,6 +598,119 @@ export const HoldingsPage = () => {
     </>
   );
 
+  const privateAssetsContent = (
+    <>
+      {hasNoPrivateAssets ? (
+        <div className="flex items-center justify-center py-16">
+          <EmptyPlaceholder
+            icon={<Icons.Wallet className="text-muted-foreground h-10 w-10" />}
+            title="No private assets yet"
+            description="Private assets live in their own first-class ledger, so this tab links straight into the dedicated private-assets flow."
+          >
+            <Button size="default" onClick={() => navigate("/settings/private-assets")}>
+              <Icons.ArrowRight className="mr-2 h-4 w-4" />
+              Open Private Assets
+            </Button>
+          </EmptyPlaceholder>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 rounded-lg border px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">
+                Private assets stay separate from public holdings.
+              </p>
+              <p className="text-muted-foreground text-sm">
+                Use this view to jump into private-asset records without pretending they are normal
+                tradable positions.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => navigate("/settings/private-assets")}>
+              <Icons.ArrowRight className="mr-2 h-4 w-4" />
+              Open Full Private Assets
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            {(privateAssetRows ?? []).map((row) => (
+              <button
+                key={row.assetId}
+                type="button"
+                className="hover:bg-muted/40 block w-full rounded-lg border p-4 text-left transition-colors"
+                onClick={() => navigate(`/settings/private-assets/${row.assetId}`)}
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-semibold">{row.name}</h3>
+                      <Badge
+                        variant="outline"
+                        className={getFreshnessBadgeClass(row.freshnessState)}
+                      >
+                        {formatPrivateFreshness(row.freshnessState)}
+                      </Badge>
+                      <Badge variant="outline" className={getStatusBadgeClass(row.status)}>
+                        {formatPrivateAssetStatus(row.status)}
+                      </Badge>
+                    </div>
+
+                    <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                      <span>{row.fundManagerName ?? "Direct investment"}</span>
+                      <span>{formatPrivateAssetVehicleKind(row.vehicleKind)}</span>
+                      <span>{formatPrivateAssetStrategy(row.strategyType)}</span>
+                      <span>
+                        {row.latestSnapshot ? "Latest snapshot recorded" : "No snapshots yet"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid min-w-[260px] gap-2 text-sm sm:grid-cols-2 lg:text-right">
+                    <div>
+                      <div className="text-muted-foreground">Current Value</div>
+                      <div className="font-semibold">
+                        {row.latestSnapshot
+                          ? formatPrivateAmount(
+                              row.latestSnapshot.currentValue,
+                              row.currency,
+                              isBalanceHidden,
+                            )
+                          : "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Latest As-Of</div>
+                      <div className="font-semibold">
+                        {formatDate(row.latestSnapshot?.asOfDate)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Contributed</div>
+                      <div className="font-semibold">
+                        {row.latestSnapshot
+                          ? formatPrivateAmount(
+                              row.latestSnapshot.contributedAmount,
+                              row.currency,
+                              isBalanceHidden,
+                            )
+                          : "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Commitment</div>
+                      <div className="font-semibold">
+                        {formatPrivateAmount(row.commitmentAmount, row.currency, isBalanceHidden)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   // Action palette groups
   const actionPaletteGroups: ActionPaletteGroup[] = useMemo(
     () => [
@@ -558,6 +737,15 @@ export const HoldingsPage = () => {
             label: "Add Activity",
             onClick: () => navigate("/activities/manage"),
           },
+          ...(privateAssetsEnabled
+            ? [
+                {
+                  icon: Icons.Wallet,
+                  label: "Open Private Assets",
+                  onClick: () => navigate("/settings/private-assets"),
+                },
+              ]
+            : []),
           {
             icon: Icons.Refresh,
             label: "Update Prices",
@@ -566,7 +754,7 @@ export const HoldingsPage = () => {
         ],
       },
     ],
-    [navigate, updatePortfolioMutation],
+    [navigate, privateAssetsEnabled, updatePortfolioMutation],
   );
 
   // Shared actions for header
@@ -583,7 +771,7 @@ export const HoldingsPage = () => {
           >
             <Icons.ListFilter className="h-4 w-4" />
           </Button>
-        ) : (
+        ) : currentTab === "private-assets" ? null : (
           <AccountScopeSelector value={accountFilter} onChange={handleAccountScopeChange} />
         )}
         {/* Show Update button for HOLDINGS-mode manual accounts (only on investments tab) */}
@@ -637,8 +825,26 @@ export const HoldingsPage = () => {
         content: liabilitiesContent,
         actions: sharedActions,
       },
+      ...(privateAssetsEnabled
+        ? [
+            {
+              value: "private-assets",
+              label: "Private Assets",
+              icon: Icons.Wallet,
+              content: privateAssetsContent,
+              actions: sharedActions,
+            },
+          ]
+        : []),
     ],
-    [investmentsContent, assetsContent, liabilitiesContent, sharedActions],
+    [
+      investmentsContent,
+      assetsContent,
+      liabilitiesContent,
+      privateAssetsContent,
+      privateAssetsEnabled,
+      sharedActions,
+    ],
   );
 
   // Determine defaultKind for modal - explicit state takes precedence, then fall back to current tab
@@ -730,3 +936,167 @@ export const HoldingsPage = () => {
 };
 
 export default HoldingsPage;
+
+function PrivateInvestmentsSection({
+  rows,
+  isBalanceHidden,
+  onOpenAll,
+  onOpenAsset,
+}: {
+  rows: PrivateAssetListRow[];
+  isBalanceHidden: boolean;
+  onOpenAll: () => void;
+  onOpenAsset: (assetId: string) => void;
+}) {
+  return (
+    <section className="space-y-3 border-t pt-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Private Investments</h2>
+        </div>
+        <Button variant="outline" onClick={onOpenAll}>
+          <Icons.ArrowRight className="mr-2 h-4 w-4" />
+          Open Private Assets
+        </Button>
+      </div>
+
+      <div className="hidden overflow-hidden rounded-lg border md:block">
+        <Table className="table-fixed">
+          <TableHeader className="bg-muted/50">
+            <TableRow>
+              <TableHead className="w-[44%]">Position</TableHead>
+              <TableHead className="w-[12%]">Type</TableHead>
+              <TableHead className="text-right">Total Value</TableHead>
+              <TableHead className="text-right">Contributed</TableHead>
+              <TableHead className="text-right">Commitment</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow
+                key={row.assetId}
+                className="hover:bg-muted/40 cursor-pointer"
+                onClick={() => onOpenAsset(row.assetId)}
+              >
+                <TableCell>
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{row.name}</span>
+                      <Badge
+                        variant="outline"
+                        className={getFreshnessBadgeClass(row.freshnessState)}
+                      >
+                        {formatPrivateFreshness(row.freshnessState)}
+                      </Badge>
+                      <Badge variant="outline" className={getStatusBadgeClass(row.status)}>
+                        {formatPrivateAssetStatus(row.status)}
+                      </Badge>
+                    </div>
+                    <div className="text-muted-foreground text-sm">
+                      {row.fundManagerName ?? "Direct investment"}
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="space-y-1 text-sm">
+                    <div>{formatPrivateAssetVehicleKind(row.vehicleKind)}</div>
+                    <div className="text-muted-foreground">
+                      {formatPrivateAssetStrategy(row.strategyType)}
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {row.latestSnapshot
+                    ? formatPrivateAmount(
+                        row.latestSnapshot.currentValue,
+                        row.currency,
+                        isBalanceHidden,
+                      )
+                    : "—"}
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {row.latestSnapshot
+                    ? formatPrivateAmount(
+                        row.latestSnapshot.contributedAmount,
+                        row.currency,
+                        isBalanceHidden,
+                      )
+                    : "—"}
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {formatPrivateAmount(row.commitmentAmount, row.currency, isBalanceHidden)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="space-y-3 md:hidden">
+        {rows.map((row) => (
+          <button
+            key={row.assetId}
+            type="button"
+            className="hover:bg-muted/40 block w-full rounded-lg border p-4 text-left transition-colors"
+            onClick={() => onOpenAsset(row.assetId)}
+          >
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-semibold">{row.name}</h3>
+                  <Badge variant="outline" className={getFreshnessBadgeClass(row.freshnessState)}>
+                    {formatPrivateFreshness(row.freshnessState)}
+                  </Badge>
+                </div>
+                <div className="text-muted-foreground text-sm">
+                  {row.fundManagerName ?? "Direct investment"} •{" "}
+                  {formatPrivateAssetStrategy(row.strategyType)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <div className="text-muted-foreground">Total Value</div>
+                  <div className="font-semibold">
+                    {row.latestSnapshot
+                      ? formatPrivateAmount(
+                          row.latestSnapshot.currentValue,
+                          row.currency,
+                          isBalanceHidden,
+                        )
+                      : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Contributed</div>
+                  <div className="font-semibold">
+                    {row.latestSnapshot
+                      ? formatPrivateAmount(
+                          row.latestSnapshot.contributedAmount,
+                          row.currency,
+                          isBalanceHidden,
+                        )
+                      : "—"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function formatPrivateFreshness(state: PrivateAssetListRow["freshnessState"]) {
+  switch (state) {
+    case "CURRENT":
+      return "Current";
+    case "STALE":
+      return "Stale";
+    case "ESTIMATED":
+      return "Estimated";
+    case "MISSING":
+      return "Missing";
+  }
+}

@@ -1,9 +1,10 @@
 import { Suspense, useEffect, useState } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { AppLayout } from "@/pages/layouts/app-layout";
 import { OnboardingLayout } from "@/pages/layouts/onboarding-layout";
 import SettingsLayout from "@/pages/settings/settings-layout";
+import { usePrivateAssetsFeatureFlag } from "@/hooks/use-private-assets-enabled";
 
 import { getDynamicRoutes, subscribeToNavigationUpdates } from "@/addons/addons-runtime-context";
 import AuthCallbackPage from "@/features/wealthfolio-connect/pages/auth-callback-page";
@@ -48,8 +49,12 @@ import GoalsDashboardPage from "@/features/goals/pages/goals-dashboard-page";
 import GoalNewPage from "@/features/goals/pages/goal-new-page";
 import GoalDetailPage from "@/features/goals/pages/goal-detail-page";
 import GoalRetirementGuidePage from "@/features/goals/pages/goal-retirement-guide-page";
+import PrivateAssetDetailPage from "./pages/settings/private-assets/private-asset-detail-page";
+import PrivateAssetsPage from "./pages/settings/private-assets/private-assets-page";
 
 export function AppRoutes() {
+  const { enabled: privateAssetsEnabled, isPending: privateAssetsPending } =
+    usePrivateAssetsFeatureFlag();
   const [dynamicRoutes, setDynamicRoutes] = useState<
     { path: string; component: React.LazyExoticComponent<React.ComponentType<unknown>> }[]
   >([]);
@@ -139,6 +144,30 @@ export function AppRoutes() {
             <Route path="market-data" element={<MarketDataSettingsPage />} />
             <Route path="market-data/import" element={<MarketDataImportPage />} />
             <Route path="securities" element={<AssetsPage />} />
+            <Route
+              path="private-assets"
+              element={
+                privateAssetsPending ? (
+                  <FeatureFlagLoader />
+                ) : privateAssetsEnabled ? (
+                  <PrivateAssetsPage />
+                ) : (
+                  <Navigate to="/settings/general" replace />
+                )
+              }
+            />
+            <Route
+              path="private-assets/:privateAssetId"
+              element={
+                privateAssetsPending ? (
+                  <FeatureFlagLoader />
+                ) : privateAssetsEnabled ? (
+                  <PrivateAssetDetailPage />
+                ) : (
+                  <Navigate to="/settings/general" replace />
+                )
+              }
+            />
             <Route path="taxonomies" element={<TaxonomiesPage />} />
             <Route path="connect" element={<ConnectSettingsPage />} />
             <Route path="ai-providers" element={<AiProvidersPage />} />
@@ -149,4 +178,8 @@ export function AppRoutes() {
       </Routes>
     </BrowserRouter>
   );
+}
+
+function FeatureFlagLoader() {
+  return <div className="flex h-64 items-center justify-center">Loading...</div>;
 }

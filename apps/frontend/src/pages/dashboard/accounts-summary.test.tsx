@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { calculatePerformanceSummary } from "@/adapters";
+import { calculatePerformanceSummary, listPrivateAssetRows } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useLatestValuations } from "@/hooks/use-latest-valuations";
 import { useSettingsContext } from "@/lib/settings-provider";
@@ -14,11 +14,12 @@ import type {
   TrackingMode,
 } from "@/lib/types";
 import { AccountType } from "@/lib/types";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { AccountsSummary } from "./accounts-summary";
 
 vi.mock("@/adapters", () => ({
   calculatePerformanceSummary: vi.fn(),
+  listPrivateAssetRows: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-accounts", () => ({
@@ -35,6 +36,7 @@ vi.mock("@/lib/settings-provider", () => ({
 
 vi.mock("@tanstack/react-query", () => ({
   useQueries: vi.fn(),
+  useQuery: vi.fn(),
 }));
 
 vi.mock("@wealthfolio/ui", () => ({
@@ -81,10 +83,12 @@ vi.mock("@wealthfolio/ui/components/ui/tooltip", () => ({
 }));
 
 const mockCalculatePerformanceSummary = vi.mocked(calculatePerformanceSummary);
+const mockListPrivateAssetRows = vi.mocked(listPrivateAssetRows);
 const mockUseAccounts = vi.mocked(useAccounts);
 const mockUseLatestValuations = vi.mocked(useLatestValuations);
 const mockUseSettingsContext = vi.mocked(useSettingsContext);
 const mockUseQueries = vi.mocked(useQueries);
+const mockUseQuery = vi.mocked(useQuery);
 
 const mockSettings: Settings = {
   theme: "light",
@@ -96,6 +100,7 @@ const mockSettings: Settings = {
   autoUpdateCheckEnabled: true,
   menuBarVisible: true,
   syncEnabled: false,
+  privateAssetsEnabled: true,
 };
 
 function createAccount(overrides: Partial<Account>): Account {
@@ -213,6 +218,15 @@ function renderAccountsSummary({
     isLoading: false,
     error: null,
   });
+
+  mockUseQuery.mockReturnValue({
+    data: [],
+    isLoading: false,
+    isError: false,
+    error: null,
+  } as ReturnType<typeof useQuery>);
+
+  mockListPrivateAssetRows.mockResolvedValue([]);
 
   mockUseQueries.mockImplementation(({ queries }: { queries: { queryKey: unknown[] }[] }) =>
     queries.map((query) => {

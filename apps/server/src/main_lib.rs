@@ -38,6 +38,10 @@ use wealthfolio_core::{
         valuation::{ValuationService, ValuationServiceTrait},
     },
     portfolios::{PortfolioService, PortfolioServiceTrait},
+    private_assets::{
+        PrivateAssetProjectionService, PrivateAssetProjectionServiceTrait, PrivateAssetsService,
+        PrivateAssetsServiceTrait,
+    },
     quotes::{QuoteService, QuoteServiceTrait},
     secrets::SecretStore,
     settings::{SettingsRepositoryTrait, SettingsService, SettingsServiceTrait},
@@ -57,6 +61,10 @@ use wealthfolio_storage_sqlite::{
     market_data::{MarketDataRepository, QuoteSyncStateRepository},
     portfolio::{snapshot::SnapshotRepository, valuation::ValuationRepository},
     portfolios::PortfolioRepository,
+    private_assets::{
+        FundManagerRepository, PrivateAssetRepository, PrivateSnapshotRepository,
+        PrivateSubAssetRepository,
+    },
     settings::SettingsRepository,
     sync::{AppSyncRepository, BrokerSyncStateRepository, ImportRunRepository, PlatformRepository},
     taxonomies::TaxonomyRepository,
@@ -76,6 +84,7 @@ pub struct AppState {
     pub quote_service: Arc<dyn QuoteServiceTrait + Send + Sync>,
     pub base_currency: Arc<RwLock<String>>,
     pub timezone: Arc<RwLock<String>>,
+    pub private_assets_enabled: Arc<RwLock<bool>>,
     pub snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
     /// Direct repository handle. No handler reads it currently — snapshot
     /// access goes through `snapshot_service`. Retained for tests and any
@@ -94,6 +103,8 @@ pub struct AppState {
     pub taxonomy_service: Arc<dyn TaxonomyServiceTrait + Send + Sync>,
     pub net_worth_service: Arc<dyn NetWorthServiceTrait + Send + Sync>,
     pub alternative_asset_service: Arc<dyn AlternativeAssetServiceTrait + Send + Sync>,
+    pub private_assets_service: Arc<dyn PrivateAssetsServiceTrait + Send + Sync>,
+    pub private_asset_projection_service: Arc<dyn PrivateAssetProjectionServiceTrait + Send + Sync>,
     pub addon_service: Arc<dyn AddonServiceTrait + Send + Sync>,
     pub connect_sync_service: Arc<dyn BrokerSyncServiceTrait + Send + Sync>,
     pub ai_provider_service: Arc<dyn AiProviderServiceTrait + Send + Sync>,
@@ -271,6 +282,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
     let settings = settings_service.get_settings()?;
     let base_currency = Arc::new(RwLock::new(settings.base_currency));
     let timezone = Arc::new(RwLock::new(settings.timezone.clone()));
+    let private_assets_enabled = Arc::new(RwLock::new(settings.private_assets_enabled));
 
     let spending_settings_repo: Arc<
         dyn wealthfolio_spending::settings::SpendingSettingsRepositoryTrait,
@@ -397,17 +409,6 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         )
         .with_activity_repository(activity_repository.clone(), timezone.clone()),
     );
-
-    let net_worth_service: Arc<dyn NetWorthServiceTrait + Send + Sync> =
-        Arc::new(NetWorthService::new(
-            base_currency.clone(),
-            account_repo.clone(),
-            asset_repository.clone(),
-            snapshot_repository.clone(),
-            quote_service.clone(),
-            valuation_repository.clone(),
-            fx_service.clone(),
-        ));
 
     let holdings_valuation_service = Arc::new(HoldingsValuationService::new_with_timezone(
         fx_service.clone(),
@@ -604,6 +605,46 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         .with_event_sink(domain_event_sink.clone()),
     );
 
+    let fund_manager_repository =
+        Arc::new(FundManagerRepository::new(pool.clone(), writer.clone()));
+    let private_asset_repository =
+        Arc::new(PrivateAssetRepository::new(pool.clone(), writer.clone()));
+    let private_sub_asset_repository =
+        Arc::new(PrivateSubAssetRepository::new(pool.clone(), writer.clone()));
+    let private_snapshot_repository =
+        Arc::new(PrivateSnapshotRepository::new(pool.clone(), writer.clone()));
+    let private_assets_service: Arc<dyn PrivateAssetsServiceTrait + Send + Sync> =
+        Arc::new(PrivateAssetsService::new(
+            base_currency.clone(),
+            fund_manager_repository.clone(),
+            private_asset_repository.clone(),
+            private_sub_asset_repository.clone(),
+            private_snapshot_repository.clone(),
+        ));
+    let private_asset_projection_service: Arc<
+        dyn PrivateAssetProjectionServiceTrait + Send + Sync,
+    > = Arc::new(PrivateAssetProjectionService::new(
+        base_currency.clone(),
+        fund_manager_repository,
+        private_asset_repository,
+        private_sub_asset_repository,
+        private_snapshot_repository,
+    ));
+
+    let net_worth_service: Arc<dyn NetWorthServiceTrait + Send + Sync> = Arc::new(
+        NetWorthService::new(
+            base_currency.clone(),
+            account_repo.clone(),
+            asset_repository.clone(),
+            snapshot_repository.clone(),
+            quote_service.clone(),
+            valuation_repository.clone(),
+            fx_service.clone(),
+        )
+        .with_private_asset_projection_service(private_asset_projection_service.clone())
+        .with_private_assets_enabled(private_assets_enabled.clone()),
+    );
+
     // Connect sync service for broker data synchronization
     let platform_repository = Arc::new(PlatformRepository::new(pool.clone(), writer.clone()));
     let connect_sync_service: Arc<dyn BrokerSyncServiceTrait + Send + Sync> = Arc::new(
@@ -663,6 +704,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         cash_activity_service.clone(),
         activity_taxonomy_assignment_service.clone(),
         categorization_rules_service.clone(),
+        private_asset_projection_service.clone(),
     ));
     let ai_chat_service = Arc::new(ChatService::new(ai_environment, ChatConfig::default()));
 
@@ -732,6 +774,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         quote_service,
         base_currency,
         timezone,
+        private_assets_enabled,
         snapshot_service,
         snapshot_repository,
         lots_repository,
@@ -745,6 +788,8 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         taxonomy_service,
         net_worth_service,
         alternative_asset_service,
+        private_assets_service,
+        private_asset_projection_service,
         addon_service,
         connect_sync_service,
         ai_provider_service,

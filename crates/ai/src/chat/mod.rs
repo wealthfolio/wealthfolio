@@ -363,19 +363,21 @@ impl<E: AiEnvironment + 'static> ChatService<E> {
 
     /// List available tool names.
     pub fn list_tools(&self) -> Vec<String> {
-        vec![
-            "get_holdings".to_string(),
-            "get_accounts".to_string(),
-            "search_activities".to_string(),
-            "get_goals".to_string(),
-            "get_valuation_history".to_string(),
-            "get_income".to_string(),
-            "get_asset_allocation".to_string(),
-            "get_performance".to_string(),
-            "record_activity".to_string(),
-            "record_activities".to_string(),
-            "import_csv".to_string(),
-        ]
+        let private_assets_enabled = self
+            .env
+            .settings_service()
+            .get_settings()
+            .map(|settings| settings.private_assets_enabled)
+            .unwrap_or(false);
+
+        crate::types::DEFAULT_TOOLS_ALLOWLIST
+            .iter()
+            .filter(|tool| {
+                private_assets_enabled
+                    || !tool.starts_with("get_private_asset") && **tool != "list_private_asset_rows"
+            })
+            .map(|tool| (*tool).to_string())
+            .collect()
     }
 
     /// Get environment reference.
@@ -506,6 +508,8 @@ mod tests {
         let tools = service.list_tools();
         assert!(tools.contains(&"get_accounts".to_string()));
         assert!(tools.contains(&"get_holdings".to_string()));
+        assert!(tools.contains(&"propose_transaction_categories".to_string()));
+        assert!(!tools.contains(&"list_private_asset_rows".to_string()));
     }
 
     #[test]

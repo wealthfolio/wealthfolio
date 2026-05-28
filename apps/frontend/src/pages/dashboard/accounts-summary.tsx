@@ -1,13 +1,14 @@
 "use client";
 
-import { calculatePerformanceSummary } from "@/adapters";
+import { calculatePerformanceSummary, listPrivateAssetRows } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useLatestValuations } from "@/hooks/use-latest-valuations";
 import { AccountPurpose } from "@/lib/constants";
+import { usePrivateAssetsEnabled } from "@/hooks/use-private-assets-enabled";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
-import type { AccountValuation, DateRange } from "@/lib/types";
-import { useQueries } from "@tanstack/react-query";
+import type { AccountValuation, DateRange, PrivateAssetListRow } from "@/lib/types";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { GainAmount, GainPercent, PrivacyAmount } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -17,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/compone
 import { format } from "date-fns";
 import React, { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { formatPrivateAssetStrategy } from "../settings/private-assets/private-assets-utils";
 
 interface AccountSummaryDisplayData {
   accountName: string;
@@ -34,6 +36,13 @@ interface AccountSummaryDisplayData {
   accountCount?: number;
   accounts?: AccountSummaryDisplayData[];
   displayInAccountCurrency?: boolean;
+  rowType?: "account" | "privateAsset";
+  subtitle?: string;
+  destinationPath?: string;
+  childItemSingular?: string;
+  childItemPlural?: string;
+  strategyKey?: string;
+  groupKey?: string;
 }
 
 const AccountSummarySkeleton = () => (
@@ -73,8 +82,10 @@ const AccountSummaryComponent = React.memo(
     const isGroup = item.isGroup ?? false;
     const useAccountCurrency =
       displayInAccountCurrency || (item.displayInAccountCurrency && Boolean(item.accountCurrency));
+    const shouldShowLoadingSkeleton =
+      !isGroup && isLoadingValuation && item.rowType !== "privateAsset";
 
-    if (!isGroup && isLoadingValuation) {
+    if (shouldShowLoadingSkeleton) {
       const skeletonContent = <AccountSummarySkeleton />;
 
       if (isNested) {
@@ -92,12 +103,18 @@ const AccountSummaryComponent = React.memo(
 
     const name = item.accountName;
     const accountId = item.accountId;
+    const destinationPath =
+      item.destinationPath ?? (accountId ? `/accounts/${accountId}` : undefined);
 
     const subText = isGroup
-      ? `${item.accountCount} ${item.accountCount === 1 ? "account" : "accounts"}`
-      : useAccountCurrency
-        ? (item.accountCurrency ?? item.baseCurrency)
-        : item.baseCurrency;
+      ? (item.subtitle ??
+        `${item.accountCount} ${
+          item.accountCount === 1
+            ? (item.childItemSingular ?? "account")
+            : (item.childItemPlural ?? "accounts")
+        }`)
+      : (item.subtitle ??
+        (useAccountCurrency ? (item.accountCurrency ?? item.baseCurrency) : item.baseCurrency));
 
     const totalValue = useAccountCurrency
       ? (item.totalValueAccountCurrency ?? 0)
@@ -206,7 +223,7 @@ const AccountSummaryComponent = React.memo(
             </div>
           ) : (
             !isLoadingValuation &&
-            accountId && (
+            destinationPath && (
               <div className="flex items-center justify-center">
                 <Icons.ChevronRight className="text-muted-foreground h-5 w-5 shrink-0" />
               </div>
@@ -227,11 +244,11 @@ const AccountSummaryComponent = React.memo(
       );
     }
 
-    if (!isLoadingValuation && accountId) {
+    if (!isLoadingValuation && destinationPath) {
       if (isNested) {
         return (
           <Link
-            to={`/accounts/${accountId}`}
+            to={destinationPath}
             className="flex w-full cursor-pointer items-center justify-between gap-3"
           >
             {content}
@@ -240,7 +257,7 @@ const AccountSummaryComponent = React.memo(
       }
       return (
         <Link
-          to={`/accounts/${accountId}`}
+          to={destinationPath}
           className="border-border/40 bg-card/90 shadow-xs flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3 backdrop-blur-xl transition-all duration-150 hover:shadow-md md:px-5 md:py-4"
         >
           {content}
@@ -260,6 +277,7 @@ AccountSummaryComponent.displayName = "AccountSummaryComponent";
 export const AccountsSummary = React.memo(
   ({ dateRange, isAllTime }: { dateRange?: DateRange; isAllTime?: boolean }) => {
     const { accountsGrouped, setAccountsGrouped, settings } = useSettingsContext();
+    const privateAssetsEnabled = usePrivateAssetsEnabled();
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
     const {
@@ -274,6 +292,11 @@ export const AccountsSummary = React.memo(
     const accountIds = useMemo(() => accounts?.map((acc) => acc.id) ?? [], [accounts]);
 
     const { latestValuations, isLoading: isLoadingValuations } = useLatestValuations(accountIds);
+    const privateRowsQuery = useQuery<PrivateAssetListRow[], Error>({
+      queryKey: QueryKeys.privateAssetRows(false),
+      queryFn: () => listPrivateAssetRows(false),
+      enabled: privateAssetsEnabled,
+    });
 
     const startDate =
       !isAllTime && dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined;
@@ -361,15 +384,47 @@ export const AccountsSummary = React.memo(
       });
     }, [accounts, latestValuations, performanceQueries, settings?.baseCurrency]);
 
-    const toggleGroup = useCallback((groupName: string) => {
+    const privateAssetViews = useMemo((): AccountSummaryDisplayData[] => {
+      const baseCurrency = settings?.baseCurrency ?? "USD";
+      if (!privateAssetsEnabled) {
+        return [];
+      }
+
+      return (privateRowsQuery.data ?? []).map((row) => {
+        const latestValue = row.latestSnapshot?.currentValue ?? 0;
+
+        return {
+          accountName: row.name,
+          baseCurrency,
+          totalValueBaseCurrency: latestValue,
+          totalGainLossAmountBaseCurrency: null,
+          totalValueAccountCurrency: latestValue,
+          totalGainLossAmountAccountCurrency: null,
+          accountCurrency: row.currency,
+          totalGainLossPercent: null,
+          isGroup: false,
+          rowType: "privateAsset",
+          subtitle: row.fundManagerName ?? "Direct investment",
+          destinationPath: `/settings/private-assets/${row.assetId}`,
+          strategyKey: row.strategyType,
+        };
+      });
+    }, [privateAssetsEnabled, privateRowsQuery.data, settings?.baseCurrency]);
+
+    const combinedInvestmentViews = useMemo(
+      () => [...combinedAccountViews, ...privateAssetViews],
+      [combinedAccountViews, privateAssetViews],
+    );
+
+    const toggleGroup = useCallback((groupKey: string) => {
       setExpandedGroups((prev) => ({
         ...prev,
-        [groupName]: !prev[groupName],
+        [groupKey]: !prev[groupKey],
       }));
     }, []);
 
     const renderedContent = useMemo(() => {
-      if (isLoadingAccounts) {
+      if (isLoadingAccounts || (privateAssetsEnabled && privateRowsQuery.isLoading)) {
         return Array.from({ length: 4 }).map((_, index) => (
           <div
             key={`skeleton-${index}`}
@@ -401,17 +456,28 @@ export const AccountsSummary = React.memo(
         );
       }
 
-      if (!combinedAccountViews || combinedAccountViews.length === 0) {
+      if (combinedInvestmentViews.length === 0) {
         return (
           <div className="border-border/50 bg-success/10 rounded-xl border p-6 text-center md:p-8">
-            <p className="text-sm">No accounts found.</p>
-            <Link
-              to="/settings/accounts"
-              className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
-            >
-              Add your first account
-              <Icons.ChevronRight className="h-3 w-3" />
-            </Link>
+            <p className="text-sm">No investments found.</p>
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                to="/settings/accounts"
+                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
+              >
+                Add your first account
+                <Icons.ChevronRight className="h-3 w-3" />
+              </Link>
+              {privateAssetsEnabled && (
+                <Link
+                  to="/settings/private-assets"
+                  className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
+                >
+                  Add your first private asset
+                  <Icons.ChevronRight className="h-3 w-3" />
+                </Link>
+              )}
+            </div>
           </div>
         );
       }
@@ -501,6 +567,7 @@ export const AccountsSummary = React.memo(
 
             actualGroups.push({
               accountName: groupName,
+              groupKey: `account-group:${groupName}`,
               totalValueBaseCurrency,
               baseCurrency,
               totalGainLossAmountBaseCurrency: totalGainLossAmountBase,
@@ -516,7 +583,63 @@ export const AccountsSummary = React.memo(
           }
         });
 
-        actualGroups.sort(
+        const privateGroups: Record<string, AccountSummaryDisplayData[]> = {};
+        privateAssetViews.forEach((asset) => {
+          const groupName = formatPrivateAssetStrategy(
+            (asset.strategyKey ?? "OTHER") as PrivateAssetListRow["strategyType"],
+          );
+          if (!privateGroups[groupName]) {
+            privateGroups[groupName] = [];
+          }
+          privateGroups[groupName].push(asset);
+        });
+
+        const privateStrategyGroups: AccountSummaryDisplayData[] = Object.entries(
+          privateGroups,
+        ).map(([groupName, groupAssets]) => {
+          const baseCurrency = groupAssets[0]?.baseCurrency ?? settings?.baseCurrency ?? "USD";
+          const groupCurrencies = new Set(
+            groupAssets
+              .map((asset) => asset.accountCurrency ?? asset.baseCurrency)
+              .filter((currency): currency is string => Boolean(currency)),
+          );
+          const displayInAccountCurrency = groupCurrencies.size === 1;
+          const displayCurrency = displayInAccountCurrency
+            ? (groupAssets[0]?.accountCurrency ?? groupAssets[0]?.baseCurrency ?? baseCurrency)
+            : baseCurrency;
+
+          return {
+            accountName: groupName,
+            groupKey: `private-strategy:${groupName}`,
+            totalValueBaseCurrency: groupAssets.reduce(
+              (sum, asset) => sum + Number(asset.totalValueBaseCurrency),
+              0,
+            ),
+            baseCurrency,
+            totalGainLossAmountBaseCurrency: null,
+            totalGainLossPercent: null,
+            accountCurrency: displayCurrency,
+            totalValueAccountCurrency: displayInAccountCurrency
+              ? groupAssets.reduce(
+                  (sum, asset) =>
+                    sum + Number(asset.totalValueAccountCurrency ?? asset.totalValueBaseCurrency),
+                  0,
+                )
+              : undefined,
+            totalGainLossAmountAccountCurrency: null,
+            isGroup: true,
+            accountCount: groupAssets.length,
+            accounts: groupAssets,
+            displayInAccountCurrency,
+            subtitle: `${groupAssets.length} ${
+              groupAssets.length === 1 ? "private asset" : "private assets"
+            }`,
+            childItemSingular: "private asset",
+            childItemPlural: "private assets",
+          };
+        });
+
+        const topLevelGroups = [...actualGroups, ...privateStrategyGroups].sort(
           (a, b) => Number(b.totalValueBaseCurrency) - Number(a.totalValueBaseCurrency),
         );
         standaloneAccounts.sort(
@@ -525,29 +648,34 @@ export const AccountsSummary = React.memo(
 
         return (
           <>
-            {actualGroups.map((group) => {
-              const isExpanded = expandedGroups[group.accountName];
+            {topLevelGroups.map((group) => {
+              const isExpanded = expandedGroups[group.groupKey ?? group.accountName];
               const sortedAccounts = [...(group.accounts ?? [])].sort(
                 (a, b) => Number(b.totalValueBaseCurrency) - Number(a.totalValueBaseCurrency),
               );
 
               return (
                 <div
-                  key={group.accountName}
+                  key={group.groupKey ?? `${group.accountName}-${group.subtitle ?? ""}`}
                   className="border-border/40 bg-card/90 shadow-xs overflow-hidden rounded-xl border backdrop-blur-xl transition-shadow duration-150 hover:shadow-md"
                 >
                   <div className="cursor-pointer">
                     <AccountSummaryComponent
                       item={group}
                       isExpanded={isExpanded}
-                      onToggle={() => toggleGroup(group.accountName)}
+                      onToggle={() => toggleGroup(group.groupKey ?? group.accountName)}
                     />
                   </div>
                   {isExpanded && (
                     <div className="border-border/50 border-t">
                       <div className="divide-border/50 divide-y">
                         {sortedAccounts.map((account) => (
-                          <div key={account.accountId} className="px-4 py-3 md:px-5 md:py-4">
+                          <div
+                            key={
+                              account.accountId ?? account.destinationPath ?? account.accountName
+                            }
+                            className="px-4 py-3 md:px-5 md:py-4"
+                          >
                             <AccountSummaryComponent
                               item={account}
                               isLoadingValuation={isLoadingPerformance}
@@ -564,7 +692,7 @@ export const AccountsSummary = React.memo(
             })}
             {standaloneAccounts.map((account) => (
               <AccountSummaryComponent
-                key={account.accountId}
+                key={account.accountId ?? account.destinationPath ?? account.accountName}
                 item={account}
                 isLoadingValuation={isLoadingPerformance}
                 displayInAccountCurrency
@@ -573,13 +701,13 @@ export const AccountsSummary = React.memo(
           </>
         );
       } else {
-        const sortedAccounts = [...combinedAccountViews].sort(
+        const sortedAccounts = [...combinedInvestmentViews].sort(
           (a, b) => Number(b.totalValueBaseCurrency) - Number(a.totalValueBaseCurrency),
         );
 
         return sortedAccounts.map((account) => (
           <AccountSummaryComponent
-            key={account.accountId}
+            key={account.accountId ?? account.destinationPath ?? account.accountName}
             item={account}
             isLoadingValuation={isLoadingPerformance}
             displayInAccountCurrency
@@ -587,6 +715,10 @@ export const AccountsSummary = React.memo(
         ));
       }
     }, [
+      privateRowsQuery.isLoading,
+      privateAssetsEnabled,
+      privateAssetViews,
+      combinedInvestmentViews,
       combinedAccountViews,
       accountsGrouped,
       expandedGroups,
@@ -602,7 +734,7 @@ export const AccountsSummary = React.memo(
     return (
       <div className="mb-4 w-full space-y-0">
         <div className="flex flex-row items-center justify-between gap-2 pb-2">
-          <h2 className="text-sm font-semibold tracking-tight">Accounts</h2>
+          <h2 className="text-sm font-semibold tracking-tight">Investments</h2>
           <Button
             variant="ghost"
             className="text-muted-foreground hover:bg-success/10"
@@ -610,7 +742,11 @@ export const AccountsSummary = React.memo(
             onClick={() => setAccountsGrouped(!accountsGrouped)}
             aria-label={accountsGrouped ? "List view" : "Group view"}
             title={accountsGrouped ? "Switch to list view" : "Switch to group view"}
-            disabled={isLoadingAccounts || combinedAccountViews.length === 0}
+            disabled={
+              isLoadingAccounts ||
+              (privateAssetsEnabled && privateRowsQuery.isLoading) ||
+              combinedInvestmentViews.length === 0
+            }
           >
             {accountsGrouped ? (
               <Icons.ListCollapse className="h-4 w-4" />

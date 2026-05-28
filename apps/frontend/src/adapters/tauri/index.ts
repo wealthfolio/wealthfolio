@@ -100,6 +100,9 @@ export * from "../shared/taxonomies";
 // Alternative Assets Commands
 export * from "../shared/alternative-assets";
 
+// Private Assets Commands
+export * from "../shared/private-assets";
+
 // Contribution Limits Commands
 export * from "../shared/contribution-limits";
 

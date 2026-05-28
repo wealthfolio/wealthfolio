@@ -35,6 +35,7 @@ async fn update_settings(
     state.settings_service.update_settings(&payload).await?;
     let updated_settings = state.settings_service.get_settings()?;
     *state.timezone.write().unwrap() = updated_settings.timezone.clone();
+    *state.private_assets_enabled.write().unwrap() = updated_settings.private_assets_enabled;
     state.health_service.clear_cache().await;
 
     let base_currency_changed = updated_settings.base_currency != previous_base_currency;

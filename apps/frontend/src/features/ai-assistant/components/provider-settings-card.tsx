@@ -22,6 +22,7 @@ import {
   CommandList,
 } from "@wealthfolio/ui/components/ui/command";
 import { cn } from "@/lib/utils";
+import { usePrivateAssetsEnabled } from "@/hooks/use-private-assets-enabled";
 import type {
   MergedProvider,
   MergedModel,
@@ -104,13 +105,19 @@ const DATA_ACCESS_OPTIONS = [
     label: "History",
     description: "Portfolio value over time",
   },
+  {
+    toolIds: [
+      "list_private_asset_rows",
+      "get_private_asset_detail",
+      "get_private_asset_current_totals",
+      "get_private_asset_historical_series",
+    ],
+    label: "Private Assets",
+    description: "Private asset marks, freshness, totals, and history",
+  },
 ];
 
 const HIDDEN_DEFAULT_TOOL_IDS = ["get_health_status"];
-const ALL_DATA_ACCESS_TOOL_IDS = [
-  ...DATA_ACCESS_OPTIONS.flatMap((option) => option.toolIds),
-  ...HIDDEN_DEFAULT_TOOL_IDS,
-];
 
 export function ProviderSettingsCard({
   provider,
@@ -145,6 +152,18 @@ export function ProviderSettingsCard({
   const [customUrlValue, setCustomUrlValue] = useState(provider.customUrl ?? "");
   const [selectedModelForConfig, setSelectedModelForConfig] = useState<string | null>(null);
   const hasAutoSelectedRef = useRef(false);
+  const privateAssetsEnabled = usePrivateAssetsEnabled();
+  const dataAccessOptions = useMemo(
+    () =>
+      DATA_ACCESS_OPTIONS.filter(
+        (option) => privateAssetsEnabled || option.label !== "Private Assets",
+      ),
+    [privateAssetsEnabled],
+  );
+  const allDataAccessToolIds = useMemo(
+    () => [...dataAccessOptions.flatMap((option) => option.toolIds), ...HIDDEN_DEFAULT_TOOL_IDS],
+    [dataAccessOptions],
+  );
 
   // Support both controlled and uncontrolled combobox state
   const [internalComboboxOpen, setInternalComboboxOpen] = useState(false);
@@ -291,7 +310,7 @@ export function ProviderSettingsCard({
     if (!onToolsAllowlistChange) return;
 
     const enabledToolIds = new Set<string>();
-    for (const option of DATA_ACCESS_OPTIONS) {
+    for (const option of dataAccessOptions) {
       const isTarget = option.toolIds.some((toolId) => toolIds.includes(toolId));
       const nextEnabled = isTarget ? enabled : isToolGroupEnabled(option.toolIds);
       if (nextEnabled) {
@@ -301,7 +320,7 @@ export function ProviderSettingsCard({
       }
     }
 
-    const hasVisibleAccess = DATA_ACCESS_OPTIONS.some((option) =>
+    const hasVisibleAccess = dataAccessOptions.some((option) =>
       option.toolIds.some((toolId) => enabledToolIds.has(toolId)),
     );
     if (hasVisibleAccess) {
@@ -310,13 +329,13 @@ export function ProviderSettingsCard({
       }
     }
 
-    const allEnabled = ALL_DATA_ACCESS_TOOL_IDS.every((toolId) => enabledToolIds.has(toolId));
+    const allEnabled = allDataAccessToolIds.every((toolId) => enabledToolIds.has(toolId));
     if (allEnabled) {
       onToolsAllowlistChange(null);
       return;
     }
 
-    onToolsAllowlistChange(ALL_DATA_ACCESS_TOOL_IDS.filter((toolId) => enabledToolIds.has(toolId)));
+    onToolsAllowlistChange(allDataAccessToolIds.filter((toolId) => enabledToolIds.has(toolId)));
   };
 
   return (
@@ -733,7 +752,7 @@ export function ProviderSettingsCard({
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {DATA_ACCESS_OPTIONS.map((option) => {
+                    {dataAccessOptions.map((option) => {
                       const isEnabled = isToolGroupEnabled(option.toolIds);
                       return (
                         <button

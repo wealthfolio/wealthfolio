@@ -121,6 +121,11 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
     // Build dynamic context
     let base_currency = env.base_currency();
     let user_time = user_time_context(env.as_ref());
+    let private_assets_enabled = env
+        .settings_service()
+        .get_settings()
+        .map(|settings| settings.private_assets_enabled)
+        .unwrap_or(false);
 
     let dynamic_context = format!(
         "\n\n## Current Context\n\
@@ -136,6 +141,14 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
 
     // Build preamble with capability-specific instructions
     let mut preamble = format!("{}{}", base_preamble, dynamic_context);
+
+    if !private_assets_enabled {
+        preamble.push_str(
+            "\n\n## Private Assets Capability\n\
+            Private assets are disabled in app settings. Do not call private-assets tools or claim \
+            access to private-asset records unless the user enables the capability in Settings.",
+        );
+    }
 
     if let Some(context) = working_context.render() {
         preamble.push_str("\n\n");
@@ -324,6 +337,18 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
             }
             if is_allowed("get_performance") {
                 allowed_tools.push(Box::new(tool_set.performance));
+            }
+            if private_assets_enabled && is_allowed("list_private_asset_rows") {
+                allowed_tools.push(Box::new(tool_set.private_asset_rows));
+            }
+            if private_assets_enabled && is_allowed("get_private_asset_detail") {
+                allowed_tools.push(Box::new(tool_set.private_asset_detail));
+            }
+            if private_assets_enabled && is_allowed("get_private_asset_current_totals") {
+                allowed_tools.push(Box::new(tool_set.private_asset_current_totals));
+            }
+            if private_assets_enabled && is_allowed("get_private_asset_historical_series") {
+                allowed_tools.push(Box::new(tool_set.private_asset_historical_series));
             }
             if is_allowed("record_activity") {
                 allowed_tools.push(Box::new(tool_set.record_activity));

@@ -128,6 +128,24 @@ export const QueryKeys = {
     startDate,
     endDate,
   ],
+  PRIVATE_ASSET_ROWS: "privateAssetRows",
+  privateAssetRows: (includeArchived: boolean) => [
+    QueryKeys.PRIVATE_ASSET_ROWS,
+    includeArchived ? "all" : "active",
+  ],
+  PRIVATE_ASSET_DETAIL: "privateAssetDetail",
+  privateAssetDetail: (assetId: string) => [QueryKeys.PRIVATE_ASSET_DETAIL, assetId],
+  PRIVATE_ASSET_TOTALS: "privateAssetTotals",
+  privateAssetTotals: (includeArchived: boolean) => [
+    QueryKeys.PRIVATE_ASSET_TOTALS,
+    includeArchived ? "all" : "active",
+  ],
+  PRIVATE_ASSET_HISTORY: "privateAssetHistory",
+  privateAssetHistory: (includeArchived: boolean) => [
+    QueryKeys.PRIVATE_ASSET_HISTORY,
+    includeArchived ? "all" : "active",
+  ],
+  FUND_MANAGERS: "fundManagers",
 
   secrets: {
     apiKey: (providerId: string) => ["secrets", "apiKey", providerId],
