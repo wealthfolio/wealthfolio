@@ -11,11 +11,13 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
+use wealthfolio_core::assets::InstrumentType;
 use wealthfolio_core::portfolio::{snapshot::SnapshotRecalcMode, valuation::ValuationRecalcMode};
 use wealthfolio_core::quotes::{
-    LatestQuoteSnapshot, MarketSyncMode, ProviderInfo, Quote, QuoteImport, SymbolSearchResult,
+    FetchDividendsParams, LatestQuoteSnapshot, MarketSyncMode, ProviderInfo, Quote, QuoteImport,
+    SymbolSearchResult,
 };
-use wealthfolio_market_data::{ExchangeInfo, YahooDividend, YahooProvider};
+use wealthfolio_market_data::{DividendEvent, ExchangeInfo};
 
 async fn get_market_data_providers(
     State(state): State<Arc<AppState>>,
@@ -77,21 +79,37 @@ async fn get_quote_history(
 }
 
 #[derive(serde::Deserialize)]
-struct YahooDividendsQuery {
+#[serde(rename_all = "camelCase")]
+struct DividendsQuery {
     symbol: String,
+    exchange_mic: Option<String>,
+    instrument_type: Option<String>,
+    quote_ccy: Option<String>,
+    provider_id: Option<String>,
+    start_date: Option<chrono::NaiveDate>,
+    end_date: Option<chrono::NaiveDate>,
 }
 
-async fn fetch_yahoo_dividends(
-    Query(q): Query<YahooDividendsQuery>,
-) -> ApiResult<Json<Vec<YahooDividend>>> {
-    // Addon compatibility endpoint. Keep Yahoo-specific dividend fetching out of core services.
-    let provider = YahooProvider::new()
-        .await
-        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-    let dividends = provider
-        .fetch_dividends(&q.symbol)
-        .await
-        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+async fn fetch_dividends(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<DividendsQuery>,
+) -> ApiResult<Json<Vec<DividendEvent>>> {
+    let inst_type = q
+        .instrument_type
+        .as_deref()
+        .and_then(InstrumentType::from_external_str);
+    let dividends = state
+        .quote_service
+        .fetch_dividends(FetchDividendsParams {
+            symbol: q.symbol,
+            exchange_mic: q.exchange_mic,
+            instrument_type: inst_type,
+            quote_ccy: q.quote_ccy,
+            preferred_provider: q.provider_id,
+            start: q.start_date,
+            end: q.end_date,
+        })
+        .await?;
     Ok(Json(dividends))
 }
 
@@ -302,7 +320,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/market-data/search", get(search_symbol))
         .route("/market-data/resolve-currency", get(resolve_symbol_quote))
         .route("/market-data/quotes/history", get(get_quote_history))
-        .route("/market-data/yahoo/dividends", get(fetch_yahoo_dividends))
+        .route("/market-data/dividends", get(fetch_dividends))
         .route("/market-data/quotes/latest", post(get_latest_quotes))
         .route("/market-data/quotes/{symbol}", put(update_quote))
         .route("/market-data/quotes/id/{id}", delete(delete_quote))

@@ -33,5 +33,13 @@ pub struct DailyAccountValuation {
     pub total_value: Decimal,
     pub cost_basis: Decimal,
     pub net_contribution: Decimal,
+    pub cash_balance_base: Decimal,
+    pub investment_market_value_base: Decimal,
+    pub total_value_base: Decimal,
+    pub cost_basis_base: Decimal,
+    pub net_contribution_base: Decimal,
+    pub external_inflow_base: Decimal,
+    pub external_outflow_base: Decimal,
+    pub performance_eligible_value_base: Decimal,
     pub calculated_at: DateTime<Utc>,
 }

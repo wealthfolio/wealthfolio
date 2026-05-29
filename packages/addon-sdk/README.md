@@ -1380,8 +1380,8 @@ npm install @wealthfolio/addon-sdk@1.1.0-beta.1
 # Install directly from GitHub
 npm install github:wealthfolio/wealthfolio#main
 
-# Or from a specific branch/commit
-npm install github:afladil/wealthfolio#wealthfolio-addons
+# Or from a specific Wealthfolio commit
+npm install github:wealthfolio/wealthfolio#COMMIT_SHA
 ```
 
 ### Package Information Commands

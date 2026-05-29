@@ -126,4 +126,9 @@ pub struct Holding {
     /// Asset metadata (JSON) for alternative assets.
     /// Contains purchase_price, purchase_date, sub_type, linked_asset_id, etc.
     pub metadata: Option<Value>,
+
+    /// Source account IDs for aggregated holdings (portfolio or multi-account scope).
+    /// Empty for single-account holdings; `account_id` is then the authoritative identity.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_account_ids: Vec<String>,
 }

@@ -348,7 +348,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
               {categoryCount} categor{categoryCount !== 1 ? "ies" : "y"}
             </p>
           </div>
-          {typedArgs?.accountId && typedArgs.accountId !== "TOTAL" && (
+          {typedArgs?.accountId && typedArgs.accountId !== "all" && (
             <Badge variant="outline" className="text-xs uppercase">
               {typedArgs.accountId}
             </Badge>

@@ -29,7 +29,8 @@ export type {
   HostAPI,
   SnapshotsAPI,
   ToastAPI,
-  YahooDividend,
+  DividendEvent,
+  FetchDividendsOptions,
 } from './host-api';
 
 // Query Client and Keys exports

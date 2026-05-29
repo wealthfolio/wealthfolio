@@ -4,13 +4,23 @@ import { PrivacyToggle } from "@/components/privacy-toggle";
 import { AlternativeAssetQuickAddModal } from "@/pages/asset/alternative-assets/components";
 import { useNavigationMode } from "@/pages/layouts/navigation/navigation-mode-context";
 import { AlternativeAssetKind } from "@/lib/types";
-import { Button, Icons } from "@wealthfolio/ui";
+import SpendingTabContent from "@/features/spending/components/spending-tab-content";
+import { useSpendingSettings } from "@/features/spending/hooks/use-spending-settings";
+import { Button, Icons, type Icon } from "@wealthfolio/ui";
+import { HandCoinsIcon } from "@phosphor-icons/react/dist/csr/HandCoins";
+import { TrendUpIcon } from "@phosphor-icons/react/dist/csr/TrendUp";
+import { WalletIcon } from "@phosphor-icons/react/dist/csr/Wallet";
 import { Card, CardContent, CardHeader } from "@wealthfolio/ui/components/ui/card";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { NetWorthContent } from "../net-worth/net-worth-content";
 import { DashboardActions } from "./dashboard-actions";
 import { DashboardContent } from "./dashboard-content";
+
+// Tab icons rendered as duotone Phosphor glyphs
+const InvestmentsTabIcon: Icon = (props) => <TrendUpIcon weight="duotone" {...props} />;
+const NetWorthTabIcon: Icon = (props) => <WalletIcon weight="duotone" {...props} />;
+const SpendingTabIcon: Icon = (props) => <HandCoinsIcon weight="duotone" {...props} />;
 
 // Loading skeleton
 const PageLoader = () => (
@@ -94,12 +104,14 @@ export default function PortfolioPage() {
     </>
   );
 
-  const views: SwipablePageView[] = useMemo(
-    () => [
+  const { isEnabled: spendingEnabled } = useSpendingSettings();
+
+  const views: SwipablePageView[] = useMemo(() => {
+    const items: SwipablePageView[] = [
       {
         value: "investments",
         label: "Investments",
-        icon: Icons.TrendingUp,
+        icon: InvestmentsTabIcon,
         content: (
           <Suspense fallback={<PageLoader />}>
             <DashboardContent />
@@ -110,21 +122,47 @@ export default function PortfolioPage() {
       {
         value: "net-worth",
         label: "Net Worth",
-        icon: Icons.Wallet,
+        icon: NetWorthTabIcon,
         content: (
           <Suspense fallback={<PageLoader />}>
-            <NetWorthContent onAddAsset={handleAddAsset} onAddLiability={handleAddLiability} />
+            <NetWorthContent />
           </Suspense>
         ),
         actions: netWorthActions,
       },
-    ],
-    [investmentActions, netWorthActions, handleAddAsset, handleAddLiability],
-  );
+    ];
+    if (spendingEnabled) {
+      items.push({
+        value: "spending",
+        label: "Spending",
+        icon: SpendingTabIcon,
+        content: (
+          <Suspense fallback={<PageLoader />}>
+            <SpendingTabContent />
+          </Suspense>
+        ),
+        actions: commonActions,
+      });
+    }
+    return items;
+  }, [
+    investmentActions,
+    netWorthActions,
+    commonActions,
+    handleAddAsset,
+    handleAddLiability,
+    spendingEnabled,
+  ]);
 
   return (
     <>
-      <SwipablePage className="pt-0" views={views} defaultView="investments" withPadding={false} />
+      <SwipablePage
+        className="pt-0"
+        views={views}
+        defaultView="investments"
+        withPadding={false}
+        persistKey="dashboard-tab"
+      />
       <AlternativeAssetQuickAddModal
         open={isQuickAddOpen}
         onOpenChange={(open) => {

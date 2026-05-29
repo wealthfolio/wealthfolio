@@ -6,16 +6,36 @@ import {
   remove,
   startAccessingSecurityScopedResource,
   stopAccessingSecurityScopedResource,
-  writeFile,
 } from "@tauri-apps/plugin-fs";
 
-const isIOS = (): boolean => {
+import { invoke } from "./core";
+
+interface PendingExport {
+  relativePath: string;
+  filename: string;
+}
+
+const isIOSUserAgent = (): boolean => {
   if (typeof window === "undefined") {
     return false;
   }
 
   const userAgent = window.navigator.userAgent.toLowerCase();
   return /iphone|ipad|ipod/.test(userAgent);
+};
+
+const isIOSRuntime = async (): Promise<boolean> => {
+  try {
+    const platform = await invoke<{ os: string }>("get_platform");
+    return platform.os === "ios";
+  } catch {
+    return isIOSUserAgent();
+  }
+};
+
+const fileExtension = (fileName: string): string | null => {
+  const extension = fileName.split(".").pop();
+  return extension && extension !== fileName ? extension : null;
 };
 
 const toBase64 = (bytes: Uint8Array): string => {
@@ -44,22 +64,6 @@ const describeError = (error: unknown): string => {
   }
 };
 
-const shareFileOnIOS = async (content: Uint8Array, fileName: string): Promise<boolean> => {
-  try {
-    const { shareBinary } = await import("tauri-plugin-mobile-share");
-
-    const extensionIndex = fileName.lastIndexOf(".");
-    const hasExtension = extensionIndex > 0 && extensionIndex < fileName.length - 1;
-    const name = hasExtension ? fileName.slice(0, extensionIndex) : fileName;
-    const ext = hasExtension ? fileName.slice(extensionIndex + 1) : "db";
-
-    await shareBinary(toBase64(content), { name, ext });
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 export const openCsvFileDialog = async (): Promise<null | string | string[]> => {
   return open({ filters: [{ name: "CSV", extensions: ["csv"] }] });
 };
@@ -80,73 +84,70 @@ export const openFileSaveDialog = async (
   fileContent: string | Blob | Uint8Array,
   fileName: string,
 ): Promise<boolean> => {
-  let contentToSave: Uint8Array;
   if (typeof fileContent === "string") {
-    contentToSave = new TextEncoder().encode(fileContent);
-  } else if (fileContent instanceof Blob) {
+    if (await isIOSRuntime()) {
+      const { relativePath, filename } = await invoke<PendingExport>(
+        "write_pending_export_text_file",
+        {
+          fileName,
+          content: fileContent,
+        },
+      );
+      return saveAppDataFileViaPicker(relativePath, filename);
+    }
+
+    return invoke<boolean>("save_text_file_with_dialog", {
+      fileName,
+      content: fileContent,
+    });
+  }
+
+  let contentToSave: Uint8Array;
+  if (fileContent instanceof Blob) {
     const arrayBuffer = await fileContent.arrayBuffer();
     contentToSave = new Uint8Array(arrayBuffer);
   } else {
     contentToSave = fileContent;
   }
 
-  if (isIOS()) {
-    return await shareFileOnIOS(contentToSave, fileName);
+  const contentBase64 = toBase64(contentToSave);
+  if (await isIOSRuntime()) {
+    const { relativePath, filename } = await invoke<PendingExport>("write_pending_export_file", {
+      fileName,
+      contentBase64,
+    });
+    return saveAppDataFileViaPicker(relativePath, filename);
   }
 
-  const filePath = await save({
-    defaultPath: fileName,
-    filters: [
-      {
-        name: fileName,
-        extensions: [fileName.split(".").pop() ?? ""],
-      },
-    ],
+  return invoke<boolean>("save_file_with_dialog", {
+    fileName,
+    contentBase64,
   });
-
-  if (filePath === null) {
-    return false;
-  }
-
-  const candidatePaths = [filePath];
-  if (filePath.startsWith("file://")) {
-    candidatePaths.push(decodeURI(filePath.replace("file://", "")));
-  } else {
-    candidatePaths.push(`file://${filePath}`);
-  }
-
-  let lastError: unknown;
-  for (const candidatePath of candidatePaths) {
-    try {
-      await writeFile(candidatePath, contentToSave);
-      return true;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  throw lastError;
 };
 
 export const saveAppDataFileViaPicker = async (
   relativePath: string,
   fileName: string,
 ): Promise<boolean> => {
-  if (!/^pending-exports\/[^/\\]+$/.test(relativePath)) {
+  if (!/^pending-exports\/[^/\\]+\/[^/\\]+$/.test(relativePath)) {
     throw new Error("Only pending export files can be saved with the native file picker");
   }
 
   let filePath: string | null = null;
+  const pendingDir = relativePath.slice(0, relativePath.lastIndexOf("/"));
   try {
     try {
+      const extension = fileExtension(fileName);
       filePath = await save({
         defaultPath: fileName,
-        filters: [
-          {
-            name: "SQLite Database",
-            extensions: ["db"],
-          },
-        ],
+        filters: extension
+          ? [
+              {
+                name: extension === "db" ? "SQLite Database" : `${extension.toUpperCase()} File`,
+                extensions: [extension],
+              },
+            ]
+          : undefined,
       });
     } catch (error) {
       throw new Error(`save picker failed: ${describeError(error)}`);
@@ -175,6 +176,7 @@ export const saveAppDataFileViaPicker = async (
     return true;
   } finally {
     await remove(relativePath, { baseDir: BaseDirectory.AppData }).catch(() => undefined);
+    await remove(pendingDir, { baseDir: BaseDirectory.AppData }).catch(() => undefined);
   }
 };
 
@@ -183,6 +185,5 @@ export const saveAppDataFileViaPicker = async (
 // ============================================================================
 
 export const openUrlInBrowser = async (url: string): Promise<void> => {
-  const { open: openShell } = await import("@tauri-apps/plugin-shell");
-  await openShell(url);
+  await invoke("open_external_url", { url });
 };

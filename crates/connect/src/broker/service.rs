@@ -20,7 +20,9 @@ use chrono::{DateTime, Months, NaiveDate, Utc};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
-use wealthfolio_core::accounts::{Account, AccountServiceTrait, NewAccount, TrackingMode};
+use wealthfolio_core::accounts::{
+    account_types, Account, AccountServiceTrait, NewAccount, TrackingMode,
+};
 use wealthfolio_core::activities::{
     compute_idempotency_key, ActivityRepositoryTrait, ActivityServiceTrait, ActivityUpsert,
     NewActivity, ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_SELL,
@@ -222,11 +224,14 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
             // We need to find the platform that matches this broker account's connection
             let platform_id = self.find_platform_for_account(broker_account)?;
 
-            // Create new broker account with HOLDINGS tracking mode by default
+            let account_type = broker_account.get_account_type();
+            let tracking_mode = default_tracking_mode_for_broker_account_type(&account_type);
+
+            // Create new broker account with tracking mode matching the canonical account type.
             let new_account = NewAccount {
                 id: None, // Let the repository generate a UUID
                 name: broker_account.display_name(),
-                account_type: broker_account.get_account_type(),
+                account_type: account_type.clone(),
                 group: None,
                 currency: broker_account.get_currency(base_currency.as_deref()),
                 is_default: false,
@@ -237,7 +242,7 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
                 provider: Some("SNAPTRADE".to_string()),
                 provider_account_id: Some(provider_account_id.clone()),
                 is_archived: false,
-                tracking_mode: TrackingMode::Holdings,
+                tracking_mode,
             };
 
             // Create the account via AccountService (handles FX rate registration)
@@ -259,7 +264,7 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
                 "Created account: {} ({}) -> {}",
                 broker_account.display_name(),
                 provider_account_id,
-                broker_account.get_account_type()
+                account_type
             );
         }
 
@@ -1415,6 +1420,14 @@ fn map_broker_symbol_type(code: Option<&str>, is_crypto_fallback: bool) -> Instr
     }
 }
 
+fn default_tracking_mode_for_broker_account_type(account_type: &str) -> TrackingMode {
+    if account_type == account_types::CREDIT_CARD {
+        TrackingMode::Transactions
+    } else {
+        TrackingMode::Holdings
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, VecDeque};
@@ -1424,7 +1437,8 @@ mod tests {
     use rust_decimal::Decimal;
     use wealthfolio_core::portfolio::snapshot::{AccountStateSnapshot, Position, SnapshotSource};
 
-    use super::BrokerSyncService;
+    use super::{default_tracking_mode_for_broker_account_type, BrokerSyncService};
+    use wealthfolio_core::accounts::{account_types, TrackingMode};
 
     fn decimal(value: &str) -> Decimal {
         Decimal::from_str(value).expect("valid decimal")
@@ -1488,6 +1502,18 @@ mod tests {
             .into_iter()
             .map(|p| (p.asset_id.clone(), p))
             .collect::<HashMap<_, _>>()
+    }
+
+    #[test]
+    fn broker_credit_cards_default_to_transaction_tracking() {
+        assert_eq!(
+            default_tracking_mode_for_broker_account_type(account_types::CREDIT_CARD),
+            TrackingMode::Transactions
+        );
+        assert_eq!(
+            default_tracking_mode_for_broker_account_type(account_types::SECURITIES),
+            TrackingMode::Holdings
+        );
     }
 
     #[test]

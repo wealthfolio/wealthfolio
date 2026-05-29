@@ -1,5 +1,6 @@
 import { getGoalFunding } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
+import { AccountPurpose } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, GoalFundingRule, GoalFundingRuleInput } from "@/lib/types";
 import { Button } from "@wealthfolio/ui";
@@ -172,16 +173,13 @@ export function GoalFundingEditor({
   editing,
   onEditingChange,
 }: Props) {
-  const { accounts } = useAccounts();
+  const { accounts } = useAccounts({ accountPurpose: AccountPurpose.GOAL_FUNDING });
   const { goals } = useGoals();
   const { fundingRules } = useGoalDetail(goalId);
   const { saveFundingMutation } = useGoalPlanMutations(goalId);
   const isRetirement = goalType === "retirement";
 
-  const activeAccounts = useMemo(
-    () => (accounts ?? []).filter((a) => a.isActive && !a.isArchived),
-    [accounts],
-  );
+  const activeAccounts = useMemo(() => accounts ?? [], [accounts]);
 
   const [sharePercents, setSharePercents] = useState<Map<string, number>>(new Map());
   const [taxBuckets, setTaxBuckets] = useState<Map<string, string>>(new Map());

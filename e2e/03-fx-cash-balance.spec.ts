@@ -1,4 +1,5 @@
 import { expect, Page, test } from "@playwright/test";
+import { gotoActivities } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -206,8 +207,7 @@ test.describe("FX Cash Balance - Cross-currency Buy", () => {
   });
 
   test("3. Deposit 10,000 EUR", async () => {
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible({ timeout: 10000 });
+    await gotoActivities(page);
 
     await openAddActivitySheet();
 
@@ -246,8 +246,7 @@ test.describe("FX Cash Balance - Cross-currency Buy", () => {
 
   test("4. Buy PANW (USD) from EUR account with FX rate", async () => {
     test.setTimeout(60000);
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible({ timeout: 10000 });
+    await gotoActivities(page);
 
     await openAddActivitySheet();
 

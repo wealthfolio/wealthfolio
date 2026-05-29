@@ -191,6 +191,30 @@ pub fn plan_broker_sync(events: &[DomainEvent]) -> Vec<String> {
     account_ids
 }
 
+/// Plans an auto-categorization pass over spending accounts touched by this
+/// batch. Returns the unique set of opted-in spending account IDs that
+/// appeared in any `ActivitiesChanged` event. Empty result means no work.
+///
+/// Other events (DeviceSyncPullComplete, asset events, holdings events,
+/// account / tracking-mode events) are intentionally ignored — sync already
+/// propagates assignments, and the other events don't touch spend activities.
+pub fn plan_categorization_job(
+    events: &[DomainEvent],
+    opted_in_accounts: &HashSet<String>,
+) -> Vec<String> {
+    let mut out: HashSet<String> = HashSet::new();
+    for event in events {
+        if let DomainEvent::ActivitiesChanged { account_ids, .. } = event {
+            for id in account_ids {
+                if opted_in_accounts.contains(id) {
+                    out.insert(id.clone());
+                }
+            }
+        }
+    }
+    out.into_iter().collect()
+}
+
 /// Plans asset enrichment for AssetsCreated events.
 ///
 /// Returns unique asset_ids that need enrichment.

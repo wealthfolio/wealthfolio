@@ -10,9 +10,18 @@ use crate::db::write_actor::WriteProjection;
 use crate::schema::{taxonomies, taxonomy_categories};
 use crate::sync::OutboxWriteRequest;
 
-/// The `custom_groups` system taxonomy allows user-created categories.
-/// It's `is_system = 1` but its categories are user data that must sync.
+/// These system taxonomies allow user-created categories.
+/// They're `is_system = 1` but their categories are user data that must sync.
 const CUSTOM_GROUPS_ID: &str = "custom_groups";
+const SPENDING_CATEGORIES_ID: &str = "spending_categories";
+const INCOME_SOURCES_ID: &str = "income_sources";
+
+fn is_syncable_system_taxonomy_id(taxonomy_id: &str) -> bool {
+    matches!(
+        taxonomy_id,
+        CUSTOM_GROUPS_ID | SPENDING_CATEGORIES_ID | INCOME_SOURCES_ID
+    )
+}
 
 /// Bundle payload for custom taxonomy sync events.
 /// Sent as one atomic event containing the taxonomy row and all its categories.
@@ -23,9 +32,9 @@ pub struct CustomTaxonomyPayload {
 }
 
 /// Returns `true` if the taxonomy should participate in sync.
-/// Eligible: any `is_system = 0` taxonomy, or the `custom_groups` system taxonomy.
+/// Eligible: any `is_system = 0` taxonomy, or a system taxonomy with user categories.
 pub fn is_syncable_taxonomy(conn: &mut SqliteConnection, taxonomy_id: &str) -> bool {
-    if taxonomy_id == CUSTOM_GROUPS_ID {
+    if is_syncable_system_taxonomy_id(taxonomy_id) {
         return true;
     }
     taxonomies::table
@@ -52,7 +61,7 @@ pub fn build_custom_taxonomy_payload(
         None => return Ok(None),
     };
 
-    if taxonomy.is_system != 0 && taxonomy.id != CUSTOM_GROUPS_ID {
+    if taxonomy.is_system != 0 && !is_syncable_system_taxonomy_id(&taxonomy.id) {
         return Ok(None);
     }
 

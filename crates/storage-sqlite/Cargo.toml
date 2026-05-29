@@ -15,6 +15,7 @@ wealthfolio-core = { workspace = true }
 wealthfolio-ai = { workspace = true }
 wealthfolio-connect = { workspace = true }
 wealthfolio-device-sync = { workspace = true }
+wealthfolio-spending = { workspace = true }
 
 # Workspace dependencies
 tokio = { workspace = true }

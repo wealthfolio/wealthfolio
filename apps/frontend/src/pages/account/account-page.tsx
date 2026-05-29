@@ -27,7 +27,13 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useRecalculatePortfolioMutation } from "@/hooks/use-calculate-portfolio";
 import { useValuationHistory } from "@/hooks/use-valuation-history";
 import { canAddHoldings } from "@/lib/activity-restrictions";
-import { AccountType, HoldingType } from "@/lib/constants";
+import {
+  AccountPurpose,
+  AccountType,
+  accountSupportsPurpose,
+  HoldingType,
+  isLiabilityAccountType,
+} from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import {
@@ -86,6 +92,7 @@ type AccountDetailTab = "holdings" | "snapshots";
 const accountTypeIcons: Record<AccountType, Icon> = {
   SECURITIES: Icons.Briefcase,
   CASH: Icons.DollarSign,
+  CREDIT_CARD: Icons.CreditCard,
   CRYPTOCURRENCY: Icons.Bitcoin,
 };
 
@@ -129,6 +136,12 @@ const AccountPage = () => {
   const recalculatePortfolioMutation = useRecalculatePortfolioMutation();
   const { accounts, isLoading: isAccountsLoading } = useAccounts();
   const account = useMemo(() => accounts?.find((acc) => acc.id === id), [accounts, id]);
+  const isLiabilityAccount = isLiabilityAccountType(account?.accountType);
+  const supportsPerformance = accountSupportsPurpose(account, AccountPurpose.PERFORMANCE);
+  const supportsContributionLimits = accountSupportsPurpose(
+    account,
+    AccountPurpose.CONTRIBUTION_LIMITS,
+  );
 
   // Check if this account is in HOLDINGS tracking mode
   const isHoldingsMode = useMemo(() => {
@@ -144,7 +157,7 @@ const AccountPage = () => {
   // Query holdings to check if account has any assets
   const { data: holdings, isLoading: isHoldingsLoading } = useQuery<Holding[], Error>({
     queryKey: [QueryKeys.HOLDINGS, id],
-    queryFn: () => getHoldings(id),
+    queryFn: () => getHoldings({ type: "account", accountId: id }),
   });
 
   // Check if account has any holdings (including cash)
@@ -251,11 +264,11 @@ const AccountPage = () => {
   }, [accounts]);
 
   const accountTrackedItem: TrackedItem | undefined = useMemo(() => {
-    if (account) {
+    if (account && supportsPerformance) {
       return { id: account.id, type: "account", name: account.name };
     }
     return undefined;
-  }, [account]);
+  }, [account, supportsPerformance]);
 
   // Pass tracking mode to the performance hook for SOTA calculations
   const {
@@ -273,7 +286,7 @@ const AccountPage = () => {
 
   const { valuationHistory, isLoading: isValuationHistoryLoading } = useValuationHistory(
     dateRange,
-    id,
+    { type: "account", accountId: id },
   );
 
   const currentValuation = valuationHistory?.[valuationHistory.length - 1];
@@ -305,7 +318,7 @@ const AccountPage = () => {
   };
 
   const percentageToDisplay = useMemo(() => {
-    // For HOLDINGS mode, always use simple return since TWR/MWR are not meaningful
+    // For HOLDINGS mode, always use simple return since flow-adjusted returns are not meaningful
     // (they require transaction history to track cash flows)
     if (isHoldingsMode) {
       return frontendSimpleReturn;
@@ -313,9 +326,9 @@ const AccountPage = () => {
     if (selectedIntervalCode === "ALL") {
       return frontendSimpleReturn;
     }
-    // For other intervals, if accountPerformance is available, use cumulativeMwr
+    // For other intervals, use Modified Dietz with the legacy MWR alias as fallback.
     if (accountPerformance) {
-      return accountPerformance.cumulativeMwr ?? 0;
+      return accountPerformance.cumulativeModifiedDietz ?? accountPerformance.cumulativeMwr ?? 0;
     }
     return 0; // Default if no specific logic matches or data is unavailable
   }, [accountPerformance, selectedIntervalCode, frontendSimpleReturn, isHoldingsMode]);
@@ -368,14 +381,18 @@ const AccountPage = () => {
                   ] satisfies ActionPaletteGroup[])
                 : ([
                     {
-                      title: "Transactions",
+                      title: isLiabilityAccount ? "Activity" : "Transactions",
                       items: [
-                        {
-                          icon: Icons.Plus,
-                          label: "Record Transaction",
-                          onClick: () => navigate(`/activities/manage?account=${id}`),
-                        },
-                        ...(isHoldingsMode
+                        ...(!isLiabilityAccount
+                          ? [
+                              {
+                                icon: Icons.Plus,
+                                label: "Record Transaction",
+                                onClick: () => navigate(`/activities/manage?account=${id}`),
+                              },
+                            ]
+                          : []),
+                        ...(isHoldingsMode || isLiabilityAccount
                           ? []
                           : [
                               {
@@ -645,10 +662,11 @@ const AccountPage = () => {
                   isLoading={isLoading}
                   isPerformanceLoading={isPerformanceHistoryLoading}
                   performanceError={hasPerformanceError ? performanceErrorMessages[0] : undefined}
-                  hideBalanceEdit={isHoldingsMode}
+                  hideBalanceEdit={isHoldingsMode || isLiabilityAccount}
                   isHoldingsMode={isHoldingsMode}
+                  balanceLabel={isLiabilityAccount ? "Balance" : "Cash Balance"}
                 />
-                <AccountContributionLimit accountId={id} />
+                {supportsContributionLimits && <AccountContributionLimit accountId={id} />}
               </div>
             </div>
 

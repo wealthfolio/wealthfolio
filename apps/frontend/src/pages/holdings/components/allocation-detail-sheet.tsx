@@ -15,7 +15,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getHoldingsByAllocation } from "@/adapters";
 import { TickerAvatar } from "@/components/ticker-avatar";
-import type { TaxonomyAllocation, CategoryAllocation, HoldingSummary } from "@/lib/types";
+import type {
+  AccountScope,
+  TaxonomyAllocation,
+  CategoryAllocation,
+  HoldingSummary,
+} from "@/lib/types";
 import { QueryKeys } from "@/lib/query-keys";
 import { CompactAllocationStrip } from "./compact-allocation-strip";
 
@@ -23,7 +28,7 @@ interface AllocationDetailSheetProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   allocation?: TaxonomyAllocation;
-  accountId: string;
+  accountFilter: AccountScope;
   baseCurrency: string;
   initialCategoryId?: string | null;
 }
@@ -32,7 +37,7 @@ export function AllocationDetailSheet({
   isOpen,
   onOpenChange,
   allocation,
-  accountId,
+  accountFilter,
   baseCurrency,
   initialCategoryId,
 }: AllocationDetailSheetProps) {
@@ -91,12 +96,16 @@ export function AllocationDetailSheet({
   } = useQuery({
     queryKey: [
       QueryKeys.HOLDINGS_BY_ALLOCATION,
-      accountId,
+      accountFilter,
       allocation?.taxonomyId,
       selectedCategoryId,
     ],
     queryFn: () =>
-      getHoldingsByAllocation(accountId, allocation?.taxonomyId ?? "", selectedCategoryId ?? ""),
+      getHoldingsByAllocation(
+        accountFilter,
+        allocation?.taxonomyId ?? "",
+        selectedCategoryId ?? "",
+      ),
     enabled: !!selectedCategoryId && !!allocation?.taxonomyId,
     staleTime: 30000,
   });

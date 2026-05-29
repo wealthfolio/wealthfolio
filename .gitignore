@@ -88,10 +88,9 @@ Thumbs.db
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
-/AI-POC-COPY
+.playwright-report
 # AI tools
 .codex/
-.ralph-tui/
 .kiro/
 .conductor/
 db/

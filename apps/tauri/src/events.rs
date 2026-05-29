@@ -3,8 +3,6 @@ use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 use wealthfolio_core::quotes::MarketSyncMode;
 
-pub const PORTFOLIO_TOTAL_ACCOUNT_ID: &str = "TOTAL";
-
 /// Event emitted when core context/services are ready to use.
 pub const APP_READY: &str = "app:ready";
 
@@ -78,17 +76,9 @@ pub struct PortfolioRequestPayloadBuilder {
 }
 
 impl PortfolioRequestPayloadBuilder {
-    /// Sets the account IDs, ensuring the TOTAL account ID is included if specific accounts are provided.
+    /// Sets the account IDs for a targeted portfolio job.
     pub fn account_ids(mut self, account_ids: Option<Vec<String>>) -> Self {
-        self.account_ids = match account_ids {
-            Some(mut ids) => {
-                if !ids.is_empty() && !ids.contains(&PORTFOLIO_TOTAL_ACCOUNT_ID.to_string()) {
-                    ids.push(PORTFOLIO_TOTAL_ACCOUNT_ID.to_string());
-                }
-                Some(ids)
-            }
-            None => None, // None remains None (meaning all accounts)
-        };
+        self.account_ids = account_ids;
         self
     }
 

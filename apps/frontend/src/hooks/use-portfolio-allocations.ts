@@ -1,18 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
-import { PortfolioAllocations } from "@/lib/types";
+import { AccountScope, PortfolioAllocations } from "@/lib/types";
 import { getPortfolioAllocations } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
 
-export function usePortfolioAllocations(accountId: string) {
+export function usePortfolioAllocations(accountFilter: AccountScope) {
+  const isEnabled = accountFilter.type !== "account" || accountFilter.accountId.trim().length > 0;
+
   const {
     data: allocations,
     isLoading,
     isError,
     error,
   } = useQuery<PortfolioAllocations, Error>({
-    queryKey: [QueryKeys.PORTFOLIO_ALLOCATIONS, accountId],
-    queryFn: () => getPortfolioAllocations(accountId),
-    enabled: !!accountId,
+    queryKey: [QueryKeys.PORTFOLIO_ALLOCATIONS, accountFilter],
+    queryFn: () => getPortfolioAllocations(accountFilter),
+    enabled: isEnabled,
   });
 
   return { allocations, isLoading, isError, error };

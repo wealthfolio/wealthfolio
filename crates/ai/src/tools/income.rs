@@ -17,7 +17,7 @@ use crate::error::AiError;
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetIncomeArgs {
-    /// Period to show: "YTD", "LAST_YEAR", or "TOTAL" (default: "YTD").
+    /// Period to show: "YTD", "LAST_YEAR", or "ALL" (default: "YTD").
     pub period: Option<String>,
 }
 
@@ -49,7 +49,7 @@ pub struct GetIncomeOutput {
     pub top_assets: Vec<TopAssetDto>,
     /// Monthly income breakdown (YYYY-MM -> amount).
     pub by_month: HashMap<String, f64>,
-    /// Period label (YTD, LAST_YEAR, TOTAL).
+    /// Period label (YTD, LAST_YEAR, ALL).
     pub period: String,
 }
 
@@ -92,8 +92,8 @@ impl<E: AiEnvironment + 'static> Tool for GetIncomeTool<E> {
                 "properties": {
                     "period": {
                         "type": "string",
-                        "enum": ["YTD", "LAST_YEAR", "TOTAL"],
-                        "description": "Time period for income summary: YTD (year to date), LAST_YEAR, or TOTAL (all time). Defaults to YTD."
+                        "enum": ["YTD", "LAST_YEAR", "ALL"],
+                        "description": "Time period for income summary: YTD (year to date), LAST_YEAR, or ALL (all time). Defaults to YTD."
                     }
                 },
                 "required": []
@@ -199,12 +199,12 @@ mod tests {
 
         let result = tool
             .call(GetIncomeArgs {
-                period: Some("TOTAL".to_string()),
+                period: Some("ALL".to_string()),
             })
             .await;
         assert!(result.is_ok());
 
         let output = result.unwrap();
-        assert_eq!(output.period, "TOTAL");
+        assert_eq!(output.period, "ALL");
     }
 }

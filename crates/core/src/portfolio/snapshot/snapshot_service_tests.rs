@@ -16,11 +16,12 @@ mod tests {
     use crate::assets::{
         Asset, AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode, UpdateAssetProfile,
     };
-    use crate::constants::{DECIMAL_PRECISION, PORTFOLIO_TOTAL_ACCOUNT_ID};
+    use crate::constants::DECIMAL_PRECISION;
     use crate::errors::{Error, Result as AppResult};
     use crate::fx::{ExchangeRate, FxServiceTrait, NewExchangeRate};
+    use crate::lots::{AssetLotView, LotClosure, LotRecord, LotRepositoryTrait};
     use crate::portfolio::snapshot::{
-        AccountStateSnapshot, Lot, Position, SnapshotRecalcMode, SnapshotRepositoryTrait,
+        AccountStateSnapshot, Position, SnapshotRecalcMode, SnapshotRepositoryTrait,
         SnapshotService, SnapshotServiceTrait,
     };
     use crate::utils::time_utils::valuation_date_today;
@@ -481,7 +482,8 @@ mod tests {
         }
         fn get_income_activities_data(
             &self,
-            _account_id: Option<&str>,
+
+            _account_ids: Option<&[String]>,
         ) -> AppResult<Vec<ActivityIncomeData>> {
             unimplemented!()
         }
@@ -710,7 +712,8 @@ mod tests {
         }
         fn get_income_activities_data(
             &self,
-            _account_id: Option<&str>,
+
+            _account_ids: Option<&[String]>,
         ) -> AppResult<Vec<ActivityIncomeData>> {
             unimplemented!()
         }
@@ -768,6 +771,166 @@ mod tests {
         }
     }
 
+    #[derive(Clone, Debug)]
+    struct FailingLotRepository;
+
+    impl FailingLotRepository {
+        fn failure() -> Error {
+            Error::Database(crate::errors::DatabaseError::QueryFailed(
+                "forced lot sync failure".to_string(),
+            ))
+        }
+    }
+
+    #[async_trait]
+    impl LotRepositoryTrait for FailingLotRepository {
+        async fn replace_lots_for_account(
+            &self,
+            _account_id: &str,
+            _lots: &[LotRecord],
+        ) -> AppResult<()> {
+            Err(Self::failure())
+        }
+
+        async fn get_open_lots_for_account(&self, _account_id: &str) -> AppResult<Vec<LotRecord>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_all_open_lots(&self) -> AppResult<Vec<LotRecord>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_lots_as_of_date(
+            &self,
+            _account_ids: &[String],
+            _date: NaiveDate,
+        ) -> AppResult<Vec<LotRecord>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_all_lots_for_account(&self, _account_id: &str) -> AppResult<Vec<LotRecord>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_lots_for_asset(&self, _asset_id: &str) -> AppResult<Vec<LotRecord>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_asset_lot_view(
+            &self,
+            _asset_id: &str,
+            _include_snapshot_positions: bool,
+        ) -> AppResult<Vec<AssetLotView>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_all_lots(&self) -> AppResult<Vec<LotRecord>> {
+            Ok(Vec::new())
+        }
+
+        async fn sync_lots_for_account(
+            &self,
+            _account_id: &str,
+            _open_lots: &[LotRecord],
+            _closures: &[LotClosure],
+        ) -> AppResult<()> {
+            Err(Self::failure())
+        }
+
+        async fn get_open_position_quantities(&self) -> AppResult<HashMap<String, Decimal>> {
+            Ok(HashMap::new())
+        }
+
+        fn count_lots(&self) -> AppResult<i64> {
+            Ok(0)
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct RecordingLotRepository {
+        replaced_accounts: Arc<RwLock<Vec<String>>>,
+    }
+
+    impl RecordingLotRepository {
+        fn new() -> Self {
+            Self {
+                replaced_accounts: Arc::new(RwLock::new(Vec::new())),
+            }
+        }
+
+        fn replaced_accounts(&self) -> Vec<String> {
+            self.replaced_accounts.read().unwrap().clone()
+        }
+    }
+
+    #[async_trait]
+    impl LotRepositoryTrait for RecordingLotRepository {
+        async fn replace_lots_for_account(
+            &self,
+            account_id: &str,
+            _lots: &[LotRecord],
+        ) -> AppResult<()> {
+            self.replaced_accounts
+                .write()
+                .unwrap()
+                .push(account_id.to_string());
+            Ok(())
+        }
+
+        async fn get_open_lots_for_account(&self, _account_id: &str) -> AppResult<Vec<LotRecord>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_all_open_lots(&self) -> AppResult<Vec<LotRecord>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_lots_as_of_date(
+            &self,
+            _account_ids: &[String],
+            _date: NaiveDate,
+        ) -> AppResult<Vec<LotRecord>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_all_lots_for_account(&self, _account_id: &str) -> AppResult<Vec<LotRecord>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_lots_for_asset(&self, _asset_id: &str) -> AppResult<Vec<LotRecord>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_asset_lot_view(
+            &self,
+            _asset_id: &str,
+            _include_snapshot_positions: bool,
+        ) -> AppResult<Vec<AssetLotView>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_all_lots(&self) -> AppResult<Vec<LotRecord>> {
+            Ok(Vec::new())
+        }
+
+        async fn sync_lots_for_account(
+            &self,
+            _account_id: &str,
+            _open_lots: &[LotRecord],
+            _closures: &[LotClosure],
+        ) -> AppResult<()> {
+            Ok(())
+        }
+
+        async fn get_open_position_quantities(&self) -> AppResult<HashMap<String, Decimal>> {
+            Ok(HashMap::new())
+        }
+
+        fn count_lots(&self) -> AppResult<i64> {
+            Ok(0)
+        }
+    }
+
     // Mock SnapshotRepository that implements the trait
     #[derive(Clone, Debug)]
     struct MockSnapshotRepository {
@@ -804,7 +967,6 @@ mod tests {
             &self,
             snapshots_to_save: &[AccountStateSnapshot],
         ) -> AppResult<()> {
-            // This mock is primarily used to verify what the service saves for TOTAL.
             let mut saved_store = self.saved_snapshots.write().unwrap();
             saved_store.clear(); // Clear previous state, as test verifies the result of one operation.
             saved_store.extend(snapshots_to_save.iter().cloned());
@@ -906,18 +1068,7 @@ mod tests {
             _end_date: NaiveDate,
         ) -> AppResult<()> {
             // This was identified as the panic point.
-            // For `test_calculate_total_portfolio_snapshots_aggregation`, this should ideally not be called.
-            // If it is, the test or service logic might have changed.
-            // For now, keep it unimplemented to catch if it's unexpectedly called.
-            unimplemented!("delete_snapshots_for_account_in_range mock - was this expected for TOTAL calculation?")
-        }
-
-        fn get_total_portfolio_snapshots(
-            &self,
-            start_date: Option<NaiveDate>,
-            end_date: Option<NaiveDate>,
-        ) -> AppResult<Vec<AccountStateSnapshot>> {
-            self.get_snapshots_by_account(PORTFOLIO_TOTAL_ACCOUNT_ID, start_date, end_date)
+            unimplemented!("delete_snapshots_for_account_in_range mock")
         }
 
         fn get_all_non_archived_account_snapshots(
@@ -928,12 +1079,7 @@ mod tests {
             let store = self.snapshots.read().unwrap();
             let mut all_snapshots = Vec::new();
 
-            for (account_id, account_snapshots) in store.iter() {
-                // Skip TOTAL snapshots when getting individual account snapshots
-                if account_id == PORTFOLIO_TOTAL_ACCOUNT_ID {
-                    continue;
-                }
-
+            for (_account_id, account_snapshots) in store.iter() {
                 let filtered: Vec<AccountStateSnapshot> = account_snapshots
                     .iter()
                     .filter(|snap| {
@@ -957,12 +1103,27 @@ mod tests {
 
         async fn overwrite_snapshots_for_account_in_range(
             &self,
-            _account_id: &str,
-            _start_date: NaiveDate,
-            _end_date: NaiveDate,
+            account_id: &str,
+            start_date: NaiveDate,
+            end_date: NaiveDate,
             snapshots_to_save: &[AccountStateSnapshot],
         ) -> AppResult<()> {
-            self.save_snapshots(snapshots_to_save).await
+            let mut saved_store = self.saved_snapshots.write().unwrap();
+            saved_store.clear();
+            saved_store.extend(snapshots_to_save.iter().cloned());
+
+            let mut store = self.snapshots.write().unwrap();
+            if let Some(account_snaps) = store.get_mut(account_id) {
+                account_snaps.retain(|snap| {
+                    snap.snapshot_date < start_date || snap.snapshot_date > end_date
+                });
+            }
+            if !snapshots_to_save.is_empty() {
+                let account_snaps = store.entry(account_id.to_string()).or_default();
+                account_snaps.extend(snapshots_to_save.iter().cloned());
+                account_snaps.sort_by_key(|snap| snap.snapshot_date);
+            }
+            Ok(())
         }
 
         async fn overwrite_multiple_account_snapshot_ranges(
@@ -1046,6 +1207,20 @@ mod tests {
             }
             Ok(None)
         }
+
+        fn get_snapshot_positions(
+            &self,
+            _snapshot_id: &str,
+        ) -> AppResult<HashMap<String, Position>> {
+            Ok(HashMap::new())
+        }
+
+        fn get_snapshot_positions_batch(
+            &self,
+            _snapshot_ids: &[String],
+        ) -> AppResult<HashMap<String, HashMap<String, Position>>> {
+            Ok(HashMap::new())
+        }
     }
 
     fn create_test_account(id: &str, currency: &str, name: &str) -> Account {
@@ -1054,7 +1229,7 @@ mod tests {
             name: name.to_string(),
             currency: currency.to_string(),
             is_active: true,
-            account_type: "REGULAR".to_string(),
+            account_type: "SECURITIES".to_string(),
             group: None,
             is_default: false,
             created_at: Utc::now().naive_utc(),
@@ -1132,343 +1307,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_calculate_total_portfolio_snapshots_aggregation() {
-        let base_portfolio_currency = "CAD";
-        let date1_str = "2023-01-01";
-        let date2_str = "2023-01-05";
-        let target_date1 = NaiveDate::parse_from_str(date1_str, "%Y-%m-%d").unwrap();
-        let target_date2 = NaiveDate::parse_from_str(date2_str, "%Y-%m-%d").unwrap();
-
-        // Setup mock repositories
-        let mut mock_account_repo_instance = MockAccountRepository::new();
-        let acc1_cad = create_test_account("acc1", "CAD", "CAD Account");
-        let acc2_usd = create_test_account("acc2", "USD", "USD Account");
-        mock_account_repo_instance.add_account(acc1_cad.clone());
-        mock_account_repo_instance.add_account(acc2_usd.clone());
-        let mock_account_repo_arc = Arc::new(mock_account_repo_instance);
-
-        let mock_activity_repo_arc = Arc::new(MockActivityRepository::new());
-
-        let mut mock_fx_service_instance = MockFxService::new();
-        mock_fx_service_instance.add_bidirectional_rate("USD", "CAD", target_date1, dec!(1.25));
-        mock_fx_service_instance.add_bidirectional_rate("USD", "CAD", target_date2, dec!(1.30));
-        let mock_fx_service_arc = Arc::new(mock_fx_service_instance);
-
-        // Setup mock snapshot repository with test data
-        let mock_snapshot_repo = MockSnapshotRepository::new();
-
-        // Create test snapshots for individual accounts on different dates
-        let mut snap1_cad = create_blank_snapshot(&acc1_cad.id, &acc1_cad.currency, date1_str);
-        snap1_cad
-            .cash_balances
-            .insert("CAD".to_string(), dec!(1000));
-        let pos1_tse = Position {
-            id: format!("pos_TSE_{}", acc1_cad.id),
-            account_id: acc1_cad.id.clone(),
-            asset_id: "TSE.TO".to_string(),
-            currency: "CAD".to_string(),
-            quantity: dec!(10),
-            average_cost: dec!(50),
-            total_cost_basis: dec!(500),
-            lots: Default::default(),
-            inception_date: DateTime::from_naive_utc_and_offset(
-                target_date1.and_hms_opt(0, 0, 0).unwrap(),
-                Utc,
-            ),
-            created_at: Utc::now(),
-            last_updated: Utc::now(),
-            is_alternative: false,
-            contract_multiplier: Decimal::ONE,
-        };
-        snap1_cad.positions.insert("TSE.TO".to_string(), pos1_tse);
-        snap1_cad.cost_basis = dec!(500);
-        snap1_cad.net_contribution = dec!(1000);
-        snap1_cad.net_contribution_base = dec!(1000);
-
-        let mut snap2_usd = create_blank_snapshot(&acc2_usd.id, &acc2_usd.currency, date2_str);
-        snap2_usd.cash_balances.insert("USD".to_string(), dec!(500));
-        let pos2_aapl = Position {
-            id: format!("pos_AAPL_{}", acc2_usd.id),
-            account_id: acc2_usd.id.clone(),
-            asset_id: "AAPL".to_string(),
-            currency: "USD".to_string(),
-            quantity: dec!(5),
-            average_cost: dec!(150),
-            total_cost_basis: dec!(750),
-            lots: Default::default(),
-            inception_date: DateTime::from_naive_utc_and_offset(
-                target_date2.and_hms_opt(0, 0, 0).unwrap(),
-                Utc,
-            ),
-            created_at: Utc::now(),
-            last_updated: Utc::now(),
-            is_alternative: false,
-            contract_multiplier: Decimal::ONE,
-        };
-        snap2_usd.positions.insert("AAPL".to_string(), pos2_aapl);
-        snap2_usd.cost_basis = dec!(750);
-        snap2_usd.net_contribution = dec!(600);
-        snap2_usd.net_contribution_base = dec!(780);
-
-        // Add the individual account snapshots to our mock repository
-        mock_snapshot_repo.add_snapshots(vec![snap1_cad.clone(), snap2_usd.clone()]);
-
-        let mock_snapshot_repo_arc = Arc::new(mock_snapshot_repo);
-        let base_currency_arc = Arc::new(RwLock::new(base_portfolio_currency.to_string()));
-
-        // Create the SnapshotService with our mock repositories
-        let mock_asset_repo = Arc::new(MockAssetRepository::new());
-        let snapshot_service = SnapshotService::new(
-            base_currency_arc.clone(),
-            mock_account_repo_arc.clone(),
-            mock_activity_repo_arc,
-            mock_snapshot_repo_arc.clone(),
-            mock_asset_repo,
-            mock_fx_service_arc.clone(),
-        );
-
-        // Call the public method under test
-        let result = snapshot_service
-            .recalculate_total_portfolio_snapshots(SnapshotRecalcMode::IncrementalFromLast)
-            .await;
-
-        log::info!("result: {:?}", result);
-
-        // Verify the method succeeded
-        assert!(
-            result.is_ok(),
-            "calculate_total_portfolio_snapshots should succeed"
-        );
-        let snapshots_saved = result.unwrap();
-        assert_eq!(
-            snapshots_saved, 2,
-            "Should have saved 2 TOTAL snapshots for 2 different dates"
-        );
-
-        // Verify what was saved
-        let saved_snapshots = mock_snapshot_repo_arc.get_saved_snapshots();
-        assert_eq!(
-            saved_snapshots.len(),
-            2,
-            "Should have 2 saved TOTAL snapshots"
-        );
-
-        // Sort snapshots by date for consistent testing
-        let mut sorted_snapshots = saved_snapshots.clone();
-        sorted_snapshots.sort_by_key(|s| s.snapshot_date);
-
-        // Verify first date snapshot (2023-01-01) - only CAD account data
-        let total_snapshot_date1 = &sorted_snapshots[0];
-        assert_eq!(total_snapshot_date1.account_id, PORTFOLIO_TOTAL_ACCOUNT_ID);
-        assert_eq!(total_snapshot_date1.snapshot_date, target_date1);
-        assert_eq!(total_snapshot_date1.currency, base_portfolio_currency);
-        assert_eq!(
-            total_snapshot_date1.cash_balances.len(),
-            1,
-            "Date1 snapshot should have 1 cash currency"
-        );
-        assert_eq!(
-            total_snapshot_date1.cash_balances.get("CAD"),
-            Some(&dec!(1000))
-        );
-        assert_eq!(
-            total_snapshot_date1.positions.len(),
-            1,
-            "Date1 snapshot should have 1 position"
-        );
-        let total_pos_tse = total_snapshot_date1.positions.get("TSE.TO").unwrap();
-        assert_eq!(total_pos_tse.quantity, dec!(10));
-        assert_eq!(total_pos_tse.total_cost_basis, dec!(500));
-        assert_eq!(total_pos_tse.currency, "CAD");
-        assert_eq!(total_snapshot_date1.net_contribution, dec!(1000));
-        assert_eq!(total_snapshot_date1.cost_basis, dec!(500));
-
-        // Verify second date snapshot (2023-01-05) - should have BOTH accounts' data (carry-forward logic)
-        let total_snapshot_date2 = &sorted_snapshots[1];
-        assert_eq!(total_snapshot_date2.account_id, PORTFOLIO_TOTAL_ACCOUNT_ID);
-        assert_eq!(total_snapshot_date2.snapshot_date, target_date2);
-        assert_eq!(total_snapshot_date2.currency, base_portfolio_currency);
-        assert_eq!(
-            total_snapshot_date2.cash_balances.len(),
-            2,
-            "Date2 snapshot should have 2 cash currencies"
-        );
-        assert_eq!(
-            total_snapshot_date2.cash_balances.get("USD"),
-            Some(&dec!(500))
-        );
-        assert_eq!(
-            total_snapshot_date2.cash_balances.get("CAD"),
-            Some(&dec!(1000))
-        );
-        assert_eq!(
-            total_snapshot_date2.positions.len(),
-            2,
-            "Date2 snapshot should have 2 positions"
-        );
-
-        // Verify TSE position (carried forward from date1)
-        let total_pos_tse_date2 = total_snapshot_date2.positions.get("TSE.TO").unwrap();
-        assert_eq!(total_pos_tse_date2.quantity, dec!(10));
-        assert_eq!(total_pos_tse_date2.total_cost_basis, dec!(500));
-        assert_eq!(total_pos_tse_date2.currency, "CAD");
-
-        // Verify AAPL position (from date2)
-        let total_pos_aapl = total_snapshot_date2.positions.get("AAPL").unwrap();
-        assert_eq!(total_pos_aapl.quantity, dec!(5));
-        assert_eq!(total_pos_aapl.total_cost_basis, dec!(750));
-        assert_eq!(total_pos_aapl.currency, "USD");
-
-        // Verify currency conversions for date2 - should include both accounts
-        let expected_net_contribution_date2 = dec!(1000) + (dec!(600) * dec!(1.30)); // CAD + USD converted
-        assert_eq!(
-            total_snapshot_date2
-                .net_contribution
-                .round_dp(DECIMAL_PRECISION),
-            expected_net_contribution_date2.round_dp(DECIMAL_PRECISION)
-        );
-        let expected_cost_basis_date2 = dec!(500) + (dec!(750) * dec!(1.30)); // CAD + USD converted
-        assert_eq!(
-            total_snapshot_date2.cost_basis.round_dp(DECIMAL_PRECISION),
-            expected_cost_basis_date2.round_dp(DECIMAL_PRECISION)
-        );
-    }
-
-    #[tokio::test]
-    async fn total_portfolio_snapshot_merges_lots() {
-        let base_portfolio_currency = "USD";
-        let target_date_str = "2023-02-01";
-        let target_date = NaiveDate::parse_from_str(target_date_str, "%Y-%m-%d").unwrap();
-
-        let mut mock_account_repo_instance = MockAccountRepository::new();
-        let acc1 = create_test_account("acc1", "USD", "USD Account 1");
-        let acc2 = create_test_account("acc2", "USD", "USD Account 2");
-        mock_account_repo_instance.add_account(acc1.clone());
-        mock_account_repo_instance.add_account(acc2.clone());
-        let mock_account_repo_arc = Arc::new(mock_account_repo_instance);
-
-        let mock_activity_repo_arc = Arc::new(MockActivityRepository::new());
-        let mock_fx_service_arc = Arc::new(MockFxService::new());
-        let mock_snapshot_repo = MockSnapshotRepository::new();
-
-        let lot1 = Lot {
-            id: "LOT1".to_string(),
-            position_id: format!("pos_AAPL_{}", acc1.id),
-            acquisition_date: DateTime::<Utc>::from_naive_utc_and_offset(
-                target_date.and_hms_opt(0, 0, 0).unwrap(),
-                Utc,
-            ),
-            quantity: dec!(3),
-            cost_basis: dec!(300),
-            acquisition_price: dec!(100),
-            acquisition_fees: dec!(0),
-            fx_rate_to_position: None,
-        };
-
-        let lot2 = Lot {
-            id: "LOT2".to_string(),
-            position_id: format!("pos_AAPL_{}", acc2.id),
-            acquisition_date: DateTime::<Utc>::from_naive_utc_and_offset(
-                target_date
-                    .succ_opt()
-                    .unwrap()
-                    .and_hms_opt(0, 0, 0)
-                    .unwrap(),
-                Utc,
-            ),
-            quantity: dec!(2),
-            cost_basis: dec!(220),
-            acquisition_price: dec!(110),
-            acquisition_fees: dec!(0),
-            fx_rate_to_position: None,
-        };
-
-        let mut snap1 = create_blank_snapshot(&acc1.id, &acc1.currency, target_date_str);
-        snap1.positions.insert(
-            "AAPL".to_string(),
-            Position {
-                id: format!("pos_AAPL_{}", acc1.id),
-                account_id: acc1.id.clone(),
-                asset_id: "AAPL".to_string(),
-                currency: "USD".to_string(),
-                quantity: dec!(3),
-                average_cost: dec!(100),
-                total_cost_basis: dec!(300),
-                lots: VecDeque::from(vec![lot1.clone()]),
-                inception_date: lot1.acquisition_date,
-                created_at: Utc::now(),
-                last_updated: Utc::now(),
-                is_alternative: false,
-                contract_multiplier: Decimal::ONE,
-            },
-        );
-
-        let mut snap2 = create_blank_snapshot(&acc2.id, &acc2.currency, target_date_str);
-        snap2.positions.insert(
-            "AAPL".to_string(),
-            Position {
-                id: format!("pos_AAPL_{}", acc2.id),
-                account_id: acc2.id.clone(),
-                asset_id: "AAPL".to_string(),
-                currency: "USD".to_string(),
-                quantity: dec!(2),
-                average_cost: dec!(110),
-                total_cost_basis: dec!(220),
-                lots: VecDeque::from(vec![lot2.clone()]),
-                inception_date: lot2.acquisition_date,
-                created_at: Utc::now(),
-                last_updated: Utc::now(),
-                is_alternative: false,
-                contract_multiplier: Decimal::ONE,
-            },
-        );
-
-        mock_snapshot_repo.add_snapshots(vec![snap1, snap2]);
-        let mock_snapshot_repo_arc = Arc::new(mock_snapshot_repo);
-        let base_currency_arc = Arc::new(RwLock::new(base_portfolio_currency.to_string()));
-
-        let mock_asset_repo = Arc::new(MockAssetRepository::new());
-        let snapshot_service = SnapshotService::new(
-            base_currency_arc.clone(),
-            mock_account_repo_arc.clone(),
-            mock_activity_repo_arc,
-            mock_snapshot_repo_arc.clone(),
-            mock_asset_repo,
-            mock_fx_service_arc.clone(),
-        );
-
-        let result = snapshot_service
-            .recalculate_total_portfolio_snapshots(SnapshotRecalcMode::IncrementalFromLast)
-            .await;
-        assert!(result.is_ok());
-
-        let saved_snapshots = mock_snapshot_repo_arc.get_saved_snapshots();
-        assert_eq!(saved_snapshots.len(), 1);
-
-        let total_snapshot = &saved_snapshots[0];
-        let total_pos = total_snapshot.positions.get("AAPL").unwrap();
-        assert_eq!(total_pos.quantity, dec!(5));
-        assert_eq!(total_pos.total_cost_basis, dec!(520));
-        assert_eq!(total_pos.lots.len(), 2);
-        assert_eq!(
-            total_pos.inception_date,
-            DateTime::<Utc>::from_naive_utc_and_offset(
-                target_date.and_hms_opt(0, 0, 0).unwrap(),
-                Utc
-            )
-        );
-
-        let expected_position_id = format!("AAPL_{}", PORTFOLIO_TOTAL_ACCOUNT_ID);
-        assert!(total_pos
-            .lots
-            .iter()
-            .all(|lot| lot.position_id == expected_position_id));
-        assert!(total_pos.lots.iter().any(|lot| lot.id == lot1.id));
-        assert!(total_pos.lots.iter().any(|lot| lot.id == lot2.id));
-        assert_eq!(total_pos.average_cost, dec!(104));
-    }
-
-    #[tokio::test]
     async fn test_calculate_holdings_snapshots_persists() {
         let base_currency_arc = Arc::new(RwLock::new("CAD".to_string()));
 
@@ -1524,6 +1362,120 @@ mod tests {
             .await
             .unwrap();
         assert!(saved >= 2, "at least two keyframes expected");
+    }
+
+    #[tokio::test]
+    async fn test_recalculate_holdings_snapshots_surfaces_lot_sync_errors() {
+        let base_currency_arc = Arc::new(RwLock::new("USD".to_string()));
+
+        let mut account_repo = MockAccountRepository::new();
+        let acc = create_test_account("acc1", "USD", "Test Account");
+        account_repo.add_account(acc.clone());
+        let account_repo = Arc::new(account_repo);
+
+        let activity_date = NaiveDate::from_ymd_opt(2025, 1, 10).unwrap();
+        let deposit = create_test_activity(
+            "dep1",
+            &acc.id,
+            Some("CASH:USD"),
+            "DEPOSIT",
+            activity_date,
+            None,
+            None,
+            Some(dec!(10000)),
+            "USD",
+        );
+        let buy = create_test_activity(
+            "buy1",
+            &acc.id,
+            Some("AAPL"),
+            "BUY",
+            activity_date,
+            Some(dec!(10)),
+            Some(dec!(150)),
+            Some(dec!(1500)),
+            "USD",
+        );
+        let activity_repo = Arc::new(MockActivityRepositoryWithData::new(vec![deposit, buy]));
+
+        let fx = Arc::new(MockFxService::new());
+        let snapshot_repo = Arc::new(MockSnapshotRepository::new());
+        let asset_repo = Arc::new(MockAssetRepository::new());
+
+        let svc = SnapshotService::new(
+            base_currency_arc,
+            account_repo,
+            activity_repo,
+            snapshot_repo.clone(),
+            asset_repo,
+            fx,
+        )
+        .with_lot_repository(Arc::new(FailingLotRepository));
+
+        let err = svc
+            .recalculate_holdings_snapshots(None, SnapshotRecalcMode::IncrementalFromLast)
+            .await
+            .expect_err("lot sync failure should be returned");
+
+        assert!(err.to_string().contains("lot sync failed for 1 account(s)"));
+        assert!(err.to_string().contains("forced lot sync failure"));
+        assert!(
+            !snapshot_repo.get_saved_snapshots().is_empty(),
+            "snapshot write should happen before the dual-write error is surfaced"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_since_date_recalc_clears_snapshots_and_lots_when_last_activity_deleted() {
+        let base_currency_arc = Arc::new(RwLock::new("CAD".to_string()));
+
+        let mut account_repo = MockAccountRepository::new();
+        let acc = create_test_account("acc1", "CAD", "Deleted Activity Account");
+        account_repo.add_account(acc.clone());
+        let account_repo = Arc::new(account_repo);
+
+        let activity_repo = Arc::new(MockActivityRepositoryWithData::new(Vec::new()));
+        let fx = Arc::new(MockFxService::new());
+        let snapshot_repo = Arc::new(MockSnapshotRepository::new());
+        let asset_repo = Arc::new(MockAssetRepository::new());
+
+        let today = valuation_date_today();
+        let stale_date = today.pred_opt().unwrap_or(today);
+        snapshot_repo.add_snapshots(vec![create_blank_snapshot(
+            &acc.id,
+            "CAD",
+            &stale_date.format("%Y-%m-%d").to_string(),
+        )]);
+
+        let lot_repo = RecordingLotRepository::new();
+        let lot_repo_assert = lot_repo.clone();
+        let svc = SnapshotService::new(
+            base_currency_arc,
+            account_repo,
+            activity_repo,
+            snapshot_repo.clone(),
+            asset_repo,
+            fx,
+        )
+        .with_lot_repository(Arc::new(lot_repo));
+
+        let saved = svc
+            .recalculate_holdings_snapshots(
+                Some(std::slice::from_ref(&acc.id)),
+                SnapshotRecalcMode::SinceDate(stale_date),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(saved, 0);
+        assert!(
+            snapshot_repo
+                .get_snapshots_by_account(&acc.id, None, None)
+                .unwrap()
+                .is_empty(),
+            "stale snapshots for the account should be deleted"
+        );
+        assert_eq!(lot_repo_assert.replaced_accounts(), vec![acc.id]);
     }
 
     #[tokio::test]
@@ -3569,7 +3521,7 @@ mod tests {
         assert_eq!(count, 0);
     }
 
-    // ==================== CASH TOTAL CALCULATION TESTS ====================
+    // ==================== CASH AGGREGATION CALCULATION TESTS ====================
 
     #[tokio::test]
     async fn test_cash_total_account_currency_calculated() {
@@ -4466,754 +4418,6 @@ mod tests {
         assert_eq!(
             synthetic_count, 1,
             "Synthetic should be created when only 1 non-calculated exists"
-        );
-    }
-
-    // ==================== ARCHIVE BEHAVIOR TESTS ====================
-
-    /// Mock snapshot repository that filters by non-archived account IDs
-    #[derive(Clone, Debug)]
-    struct MockArchiveAwareSnapshotRepository {
-        snapshots: Arc<RwLock<HashMap<String, Vec<AccountStateSnapshot>>>>,
-        saved_snapshots: Arc<RwLock<Vec<AccountStateSnapshot>>>,
-        non_archived_account_ids: Arc<RwLock<HashSet<String>>>,
-    }
-
-    impl MockArchiveAwareSnapshotRepository {
-        fn new(non_archived_account_ids: HashSet<String>) -> Self {
-            Self {
-                snapshots: Arc::new(RwLock::new(HashMap::new())),
-                saved_snapshots: Arc::new(RwLock::new(Vec::new())),
-                non_archived_account_ids: Arc::new(RwLock::new(non_archived_account_ids)),
-            }
-        }
-
-        fn add_snapshots(&self, snapshots: Vec<AccountStateSnapshot>) {
-            let mut store = self.snapshots.write().unwrap();
-            for snapshot in snapshots {
-                store
-                    .entry(snapshot.account_id.clone())
-                    .or_default()
-                    .push(snapshot);
-            }
-        }
-
-        fn get_saved_snapshots(&self) -> Vec<AccountStateSnapshot> {
-            self.saved_snapshots.read().unwrap().clone()
-        }
-
-        fn update_non_archived_accounts(&self, account_ids: HashSet<String>) {
-            *self.non_archived_account_ids.write().unwrap() = account_ids;
-        }
-    }
-
-    #[async_trait]
-    impl SnapshotRepositoryTrait for MockArchiveAwareSnapshotRepository {
-        async fn save_snapshots(
-            &self,
-            snapshots_to_save: &[AccountStateSnapshot],
-        ) -> AppResult<()> {
-            let mut saved_store = self.saved_snapshots.write().unwrap();
-            saved_store.clear();
-            saved_store.extend(snapshots_to_save.iter().cloned());
-
-            let mut main_store = self.snapshots.write().unwrap();
-            for s in snapshots_to_save {
-                let account_snaps = main_store.entry(s.account_id.clone()).or_default();
-                account_snaps.retain(|existing_s| existing_s.snapshot_date != s.snapshot_date);
-                account_snaps.push(s.clone());
-                account_snaps.sort_by_key(|k| k.snapshot_date);
-            }
-            Ok(())
-        }
-
-        fn get_snapshots_by_account(
-            &self,
-            account_id: &str,
-            start_date: Option<NaiveDate>,
-            end_date: Option<NaiveDate>,
-        ) -> AppResult<Vec<AccountStateSnapshot>> {
-            let store = self.snapshots.read().unwrap();
-            if let Some(account_snapshots) = store.get(account_id) {
-                let filtered: Vec<AccountStateSnapshot> = account_snapshots
-                    .iter()
-                    .filter(|snap| {
-                        start_date.is_none_or(|start| snap.snapshot_date >= start)
-                            && end_date.is_none_or(|end| snap.snapshot_date <= end)
-                    })
-                    .cloned()
-                    .collect();
-                Ok(filtered)
-            } else {
-                Ok(Vec::new())
-            }
-        }
-
-        fn get_latest_snapshot_before_date(
-            &self,
-            account_id: &str,
-            date: NaiveDate,
-        ) -> AppResult<Option<AccountStateSnapshot>> {
-            let store = self.snapshots.read().unwrap();
-            if let Some(account_snapshots) = store.get(account_id) {
-                return Ok(account_snapshots
-                    .iter()
-                    .filter(|s| s.snapshot_date <= date)
-                    .max_by_key(|s| s.snapshot_date)
-                    .cloned());
-            }
-            Ok(None)
-        }
-
-        fn get_latest_snapshots_before_date(
-            &self,
-            _account_ids: &[String],
-            _date: NaiveDate,
-        ) -> AppResult<HashMap<String, AccountStateSnapshot>> {
-            unimplemented!()
-        }
-
-        fn get_all_latest_snapshots(
-            &self,
-            _account_ids: &[String],
-        ) -> AppResult<HashMap<String, AccountStateSnapshot>> {
-            unimplemented!()
-        }
-
-        async fn delete_snapshots_by_account_ids(
-            &self,
-            account_ids_to_delete: &[String],
-        ) -> AppResult<usize> {
-            let mut store = self.snapshots.write().unwrap();
-            let mut count = 0;
-            for id in account_ids_to_delete {
-                if let Some(removed) = store.remove(id) {
-                    count += removed.len();
-                }
-            }
-            Ok(count)
-        }
-
-        async fn delete_snapshots_for_account_and_dates(
-            &self,
-            _account_id: &str,
-            _dates_to_delete: &[NaiveDate],
-        ) -> AppResult<()> {
-            unimplemented!()
-        }
-
-        async fn delete_snapshots_for_account_in_range(
-            &self,
-            _account_id: &str,
-            _start_date: NaiveDate,
-            _end_date: NaiveDate,
-        ) -> AppResult<()> {
-            unimplemented!()
-        }
-
-        fn get_total_portfolio_snapshots(
-            &self,
-            start_date: Option<NaiveDate>,
-            end_date: Option<NaiveDate>,
-        ) -> AppResult<Vec<AccountStateSnapshot>> {
-            self.get_snapshots_by_account(PORTFOLIO_TOTAL_ACCOUNT_ID, start_date, end_date)
-        }
-
-        fn get_all_non_archived_account_snapshots(
-            &self,
-            start_date: Option<NaiveDate>,
-            end_date: Option<NaiveDate>,
-        ) -> AppResult<Vec<AccountStateSnapshot>> {
-            let store = self.snapshots.read().unwrap();
-            let non_archived_ids = self.non_archived_account_ids.read().unwrap();
-            let mut all_snapshots = Vec::new();
-
-            for (account_id, account_snapshots) in store.iter() {
-                // Skip TOTAL snapshots
-                if account_id == PORTFOLIO_TOTAL_ACCOUNT_ID {
-                    continue;
-                }
-                // Only include snapshots for non-archived accounts
-                if !non_archived_ids.contains(account_id) {
-                    continue;
-                }
-
-                let filtered: Vec<AccountStateSnapshot> = account_snapshots
-                    .iter()
-                    .filter(|snap| {
-                        start_date.is_none_or(|start| snap.snapshot_date >= start)
-                            && end_date.is_none_or(|end| snap.snapshot_date <= end)
-                    })
-                    .cloned()
-                    .collect();
-                all_snapshots.extend(filtered);
-            }
-            Ok(all_snapshots)
-        }
-
-        fn get_earliest_snapshot_date(&self, account_id: &str) -> AppResult<Option<NaiveDate>> {
-            let store = self.snapshots.read().unwrap();
-            if let Some(account_snapshots) = store.get(account_id) {
-                return Ok(account_snapshots.iter().map(|s| s.snapshot_date).min());
-            }
-            Ok(None)
-        }
-
-        async fn overwrite_snapshots_for_account_in_range(
-            &self,
-            _account_id: &str,
-            _start_date: NaiveDate,
-            _end_date: NaiveDate,
-            snapshots_to_save: &[AccountStateSnapshot],
-        ) -> AppResult<()> {
-            self.save_snapshots(snapshots_to_save).await
-        }
-
-        async fn overwrite_multiple_account_snapshot_ranges(
-            &self,
-            new_snaps: &[AccountStateSnapshot],
-        ) -> AppResult<()> {
-            self.save_snapshots(new_snaps).await
-        }
-
-        async fn overwrite_all_snapshots_for_account(
-            &self,
-            account_id: &str,
-            snapshots_to_save: &[AccountStateSnapshot],
-        ) -> AppResult<()> {
-            let mut store = self.snapshots.write().unwrap();
-            store.remove(account_id);
-            if !snapshots_to_save.is_empty() {
-                store.insert(account_id.to_string(), snapshots_to_save.to_vec());
-            }
-            let mut saved_store = self.saved_snapshots.write().unwrap();
-            saved_store.clear();
-            saved_store.extend(snapshots_to_save.iter().cloned());
-            Ok(())
-        }
-
-        async fn update_snapshots_source(
-            &self,
-            _account_id: &str,
-            _new_source: &str,
-        ) -> AppResult<usize> {
-            Ok(0)
-        }
-
-        async fn save_or_update_snapshot(&self, snapshot: &AccountStateSnapshot) -> AppResult<()> {
-            let mut store = self.snapshots.write().unwrap();
-            let account_snaps = store.entry(snapshot.account_id.clone()).or_default();
-            account_snaps.retain(|s| s.snapshot_date != snapshot.snapshot_date);
-            account_snaps.push(snapshot.clone());
-            account_snaps.sort_by_key(|k| k.snapshot_date);
-            Ok(())
-        }
-
-        fn get_non_calculated_snapshot_count(&self, account_id: &str) -> AppResult<usize> {
-            let store = self.snapshots.read().unwrap();
-            if let Some(account_snapshots) = store.get(account_id) {
-                let count = account_snapshots
-                    .iter()
-                    .filter(|s| s.source.is_non_calculated())
-                    .count();
-                return Ok(count);
-            }
-            Ok(0)
-        }
-
-        fn get_earliest_non_calculated_snapshot(
-            &self,
-            account_id: &str,
-        ) -> AppResult<Option<AccountStateSnapshot>> {
-            let store = self.snapshots.read().unwrap();
-            if let Some(account_snapshots) = store.get(account_id) {
-                return Ok(account_snapshots
-                    .iter()
-                    .filter(|s| s.source.is_non_calculated())
-                    .min_by_key(|s| s.snapshot_date)
-                    .cloned());
-            }
-            Ok(None)
-        }
-    }
-
-    fn create_test_account_with_archive_state(
-        id: &str,
-        currency: &str,
-        name: &str,
-        is_active: bool,
-        is_archived: bool,
-    ) -> Account {
-        Account {
-            id: id.to_string(),
-            name: name.to_string(),
-            currency: currency.to_string(),
-            is_active,
-            account_type: "REGULAR".to_string(),
-            group: None,
-            is_default: false,
-            created_at: Utc::now().naive_utc(),
-            updated_at: Utc::now().naive_utc(),
-            platform_id: None,
-            account_number: None,
-            meta: None,
-            provider: None,
-            provider_account_id: None,
-            is_archived,
-            tracking_mode: crate::accounts::TrackingMode::NotSet,
-        }
-    }
-
-    #[tokio::test]
-    async fn test_closed_account_included_in_total_when_not_archived() {
-        // Setup: Create account with is_active=false, is_archived=false
-        let base_currency = "USD";
-        let date_str = "2023-01-01";
-        let target_date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").unwrap();
-
-        // Account is closed (is_active=false) but NOT archived (is_archived=false)
-        let mut account_repo = MockAccountRepository::new();
-        let closed_account = create_test_account_with_archive_state(
-            "closed_acc",
-            "USD",
-            "Closed Account",
-            false,
-            false,
-        );
-        account_repo.add_account(closed_account.clone());
-
-        // Create snapshot for the closed account
-        let mut snapshot = create_blank_snapshot(&closed_account.id, "USD", date_str);
-        snapshot.cash_balances.insert("USD".to_string(), dec!(5000));
-        snapshot.net_contribution = dec!(5000);
-        snapshot.net_contribution_base = dec!(5000);
-
-        // Non-archived account IDs include the closed account
-        let non_archived_ids: HashSet<String> =
-            vec!["closed_acc".to_string()].into_iter().collect();
-        let mock_snapshot_repo = MockArchiveAwareSnapshotRepository::new(non_archived_ids);
-        mock_snapshot_repo.add_snapshots(vec![snapshot]);
-
-        let fx = Arc::new(MockFxService::new());
-        let activity_repo = Arc::new(MockActivityRepository::new());
-        let asset_repo = Arc::new(MockAssetRepository::new());
-
-        let svc = SnapshotService::new(
-            Arc::new(RwLock::new(base_currency.to_string())),
-            Arc::new(account_repo),
-            activity_repo,
-            Arc::new(mock_snapshot_repo.clone()),
-            asset_repo,
-            fx,
-        );
-
-        // Run TOTAL calculation
-        let result = svc
-            .recalculate_total_portfolio_snapshots(SnapshotRecalcMode::IncrementalFromLast)
-            .await;
-        assert!(result.is_ok(), "TOTAL calculation should succeed");
-
-        // Assert: closed but non-archived account's history is included in TOTAL
-        let saved = mock_snapshot_repo.get_saved_snapshots();
-        assert_eq!(saved.len(), 1, "Should have 1 TOTAL snapshot");
-
-        let total_snapshot = &saved[0];
-        assert_eq!(total_snapshot.account_id, PORTFOLIO_TOTAL_ACCOUNT_ID);
-        assert_eq!(total_snapshot.snapshot_date, target_date);
-        assert_eq!(
-            total_snapshot.cash_balances.get("USD"),
-            Some(&dec!(5000)),
-            "Closed account cash should be included in TOTAL"
-        );
-        assert_eq!(
-            total_snapshot.net_contribution,
-            dec!(5000),
-            "Closed account net contribution should be included in TOTAL"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_archived_account_excluded_from_total() {
-        // Setup: Create account with is_archived=true
-        let base_currency = "USD";
-        let date_str = "2023-01-01";
-
-        // Account is archived (is_archived=true)
-        let mut account_repo = MockAccountRepository::new();
-        let archived_account = create_test_account_with_archive_state(
-            "archived_acc",
-            "USD",
-            "Archived Account",
-            true,
-            true,
-        );
-        account_repo.add_account(archived_account.clone());
-
-        // Create snapshot for the archived account
-        let mut snapshot = create_blank_snapshot(&archived_account.id, "USD", date_str);
-        snapshot
-            .cash_balances
-            .insert("USD".to_string(), dec!(10000));
-        snapshot.net_contribution = dec!(10000);
-        snapshot.net_contribution_base = dec!(10000);
-
-        // Non-archived account IDs is EMPTY (archived account is excluded)
-        let non_archived_ids: HashSet<String> = HashSet::new();
-        let mock_snapshot_repo = MockArchiveAwareSnapshotRepository::new(non_archived_ids);
-        mock_snapshot_repo.add_snapshots(vec![snapshot]);
-
-        let fx = Arc::new(MockFxService::new());
-        let activity_repo = Arc::new(MockActivityRepository::new());
-        let asset_repo = Arc::new(MockAssetRepository::new());
-
-        let svc = SnapshotService::new(
-            Arc::new(RwLock::new(base_currency.to_string())),
-            Arc::new(account_repo),
-            activity_repo,
-            Arc::new(mock_snapshot_repo.clone()),
-            asset_repo,
-            fx,
-        );
-
-        // Run TOTAL calculation
-        let result = svc
-            .recalculate_total_portfolio_snapshots(SnapshotRecalcMode::IncrementalFromLast)
-            .await;
-        assert!(result.is_ok(), "TOTAL calculation should succeed");
-
-        // Assert: archived account's history is NOT included in TOTAL
-        let saved = mock_snapshot_repo.get_saved_snapshots();
-        assert!(
-            saved.is_empty(),
-            "TOTAL should have no snapshots when all accounts are archived"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_total_with_mixed_account_states() {
-        // Setup:
-        //   - Account A: is_active=true, is_archived=false (active)
-        //   - Account B: is_active=false, is_archived=false (closed but not archived)
-        //   - Account C: is_active=true, is_archived=true (active but archived)
-        //   - Account D: is_active=false, is_archived=true (closed and archived)
-        let base_currency = "USD";
-        let date_str = "2023-01-01";
-        let target_date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").unwrap();
-
-        let mut account_repo = MockAccountRepository::new();
-
-        let acc_a = create_test_account_with_archive_state("acc_a", "USD", "Active", true, false);
-        let acc_b = create_test_account_with_archive_state("acc_b", "USD", "Closed", false, false);
-        let acc_c =
-            create_test_account_with_archive_state("acc_c", "USD", "Active Archived", true, true);
-        let acc_d =
-            create_test_account_with_archive_state("acc_d", "USD", "Closed Archived", false, true);
-
-        account_repo.add_account(acc_a.clone());
-        account_repo.add_account(acc_b.clone());
-        account_repo.add_account(acc_c.clone());
-        account_repo.add_account(acc_d.clone());
-
-        // Create snapshots for all accounts
-        let mut snap_a = create_blank_snapshot("acc_a", "USD", date_str);
-        snap_a.cash_balances.insert("USD".to_string(), dec!(1000));
-        snap_a.net_contribution = dec!(1000);
-        snap_a.net_contribution_base = dec!(1000);
-
-        let mut snap_b = create_blank_snapshot("acc_b", "USD", date_str);
-        snap_b.cash_balances.insert("USD".to_string(), dec!(2000));
-        snap_b.net_contribution = dec!(2000);
-        snap_b.net_contribution_base = dec!(2000);
-
-        let mut snap_c = create_blank_snapshot("acc_c", "USD", date_str);
-        snap_c.cash_balances.insert("USD".to_string(), dec!(3000));
-        snap_c.net_contribution = dec!(3000);
-        snap_c.net_contribution_base = dec!(3000);
-
-        let mut snap_d = create_blank_snapshot("acc_d", "USD", date_str);
-        snap_d.cash_balances.insert("USD".to_string(), dec!(4000));
-        snap_d.net_contribution = dec!(4000);
-        snap_d.net_contribution_base = dec!(4000);
-
-        // Non-archived accounts: A and B (C and D are archived)
-        let non_archived_ids: HashSet<String> = vec!["acc_a".to_string(), "acc_b".to_string()]
-            .into_iter()
-            .collect();
-        let mock_snapshot_repo = MockArchiveAwareSnapshotRepository::new(non_archived_ids);
-        mock_snapshot_repo.add_snapshots(vec![snap_a, snap_b, snap_c, snap_d]);
-
-        let fx = Arc::new(MockFxService::new());
-        let activity_repo = Arc::new(MockActivityRepository::new());
-        let asset_repo = Arc::new(MockAssetRepository::new());
-
-        let svc = SnapshotService::new(
-            Arc::new(RwLock::new(base_currency.to_string())),
-            Arc::new(account_repo),
-            activity_repo,
-            Arc::new(mock_snapshot_repo.clone()),
-            asset_repo,
-            fx,
-        );
-
-        // Run TOTAL calculation
-        let result = svc
-            .recalculate_total_portfolio_snapshots(SnapshotRecalcMode::IncrementalFromLast)
-            .await;
-        assert!(result.is_ok(), "TOTAL calculation should succeed");
-
-        // Assert: Only A and B contribute to TOTAL (C and D excluded because archived)
-        let saved = mock_snapshot_repo.get_saved_snapshots();
-        assert_eq!(saved.len(), 1, "Should have 1 TOTAL snapshot");
-
-        let total_snapshot = &saved[0];
-        assert_eq!(total_snapshot.account_id, PORTFOLIO_TOTAL_ACCOUNT_ID);
-        assert_eq!(total_snapshot.snapshot_date, target_date);
-
-        // Total cash should be 1000 (A) + 2000 (B) = 3000
-        // C (3000) and D (4000) are excluded because they're archived
-        assert_eq!(
-            total_snapshot.cash_balances.get("USD"),
-            Some(&dec!(3000)),
-            "Only non-archived accounts (A+B) cash should be in TOTAL"
-        );
-        assert_eq!(
-            total_snapshot.net_contribution,
-            dec!(3000),
-            "Only non-archived accounts (A+B) net contribution should be in TOTAL"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_all_accounts_archived_returns_empty_total() {
-        // Setup: All accounts have is_archived=true
-        let base_currency = "USD";
-        let date_str = "2023-01-01";
-
-        let mut account_repo = MockAccountRepository::new();
-        let archived1 =
-            create_test_account_with_archive_state("archived1", "USD", "Archived 1", true, true);
-        let archived2 =
-            create_test_account_with_archive_state("archived2", "USD", "Archived 2", false, true);
-        account_repo.add_account(archived1.clone());
-        account_repo.add_account(archived2.clone());
-
-        // Create snapshots for archived accounts
-        let mut snap1 = create_blank_snapshot("archived1", "USD", date_str);
-        snap1.cash_balances.insert("USD".to_string(), dec!(5000));
-        snap1.net_contribution = dec!(5000);
-        snap1.net_contribution_base = dec!(5000);
-
-        let mut snap2 = create_blank_snapshot("archived2", "USD", date_str);
-        snap2.cash_balances.insert("USD".to_string(), dec!(3000));
-        snap2.net_contribution = dec!(3000);
-        snap2.net_contribution_base = dec!(3000);
-
-        // No non-archived accounts
-        let non_archived_ids: HashSet<String> = HashSet::new();
-        let mock_snapshot_repo = MockArchiveAwareSnapshotRepository::new(non_archived_ids);
-        mock_snapshot_repo.add_snapshots(vec![snap1, snap2]);
-
-        let fx = Arc::new(MockFxService::new());
-        let activity_repo = Arc::new(MockActivityRepository::new());
-        let asset_repo = Arc::new(MockAssetRepository::new());
-
-        let svc = SnapshotService::new(
-            Arc::new(RwLock::new(base_currency.to_string())),
-            Arc::new(account_repo),
-            activity_repo,
-            Arc::new(mock_snapshot_repo.clone()),
-            asset_repo,
-            fx,
-        );
-
-        // Run TOTAL calculation
-        let result = svc
-            .recalculate_total_portfolio_snapshots(SnapshotRecalcMode::IncrementalFromLast)
-            .await;
-        assert!(result.is_ok(), "TOTAL calculation should succeed");
-
-        // Assert: Empty or zero-value result
-        let saved = mock_snapshot_repo.get_saved_snapshots();
-        assert!(
-            saved.is_empty(),
-            "TOTAL should be empty when all accounts are archived"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_archive_then_unarchive_account() {
-        // Setup: Create account with data
-        let base_currency = "USD";
-        let date_str = "2023-01-01";
-        let _target_date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").unwrap();
-
-        let mut account_repo = MockAccountRepository::new();
-        // Initially not archived
-        let account =
-            create_test_account_with_archive_state("test_acc", "USD", "Test Account", true, false);
-        account_repo.add_account(account.clone());
-
-        // Create snapshot
-        let mut snapshot = create_blank_snapshot("test_acc", "USD", date_str);
-        snapshot
-            .cash_balances
-            .insert("USD".to_string(), dec!(10000));
-        snapshot.net_contribution = dec!(10000);
-        snapshot.net_contribution_base = dec!(10000);
-
-        // Initially non-archived
-        let mut non_archived_ids: HashSet<String> =
-            vec!["test_acc".to_string()].into_iter().collect();
-        let mock_snapshot_repo = MockArchiveAwareSnapshotRepository::new(non_archived_ids.clone());
-        mock_snapshot_repo.add_snapshots(vec![snapshot.clone()]);
-
-        let fx = Arc::new(MockFxService::new());
-        let activity_repo = Arc::new(MockActivityRepository::new());
-        let asset_repo = Arc::new(MockAssetRepository::new());
-
-        let svc = SnapshotService::new(
-            Arc::new(RwLock::new(base_currency.to_string())),
-            Arc::new(account_repo.clone()),
-            activity_repo.clone(),
-            Arc::new(mock_snapshot_repo.clone()),
-            asset_repo.clone(),
-            fx.clone(),
-        );
-
-        // First: Account is NOT archived, should be included
-        let result = svc
-            .recalculate_total_portfolio_snapshots(SnapshotRecalcMode::Full)
-            .await;
-        assert!(result.is_ok());
-
-        let saved = mock_snapshot_repo.get_saved_snapshots();
-        assert_eq!(
-            saved.len(),
-            1,
-            "Should have TOTAL snapshot when not archived"
-        );
-        assert_eq!(
-            saved[0].cash_balances.get("USD"),
-            Some(&dec!(10000)),
-            "Account should be included in TOTAL"
-        );
-
-        // Archive it (is_archived=true): remove from non-archived IDs
-        non_archived_ids.clear();
-        mock_snapshot_repo.update_non_archived_accounts(non_archived_ids.clone());
-
-        // Assert: TOTAL now excludes this account
-        let result = svc
-            .recalculate_total_portfolio_snapshots(SnapshotRecalcMode::Full)
-            .await;
-        assert!(result.is_ok());
-
-        let saved = mock_snapshot_repo.get_saved_snapshots();
-        assert!(
-            saved.is_empty(),
-            "TOTAL should be empty after archiving the only account"
-        );
-
-        // Unarchive it (is_archived=false): add back to non-archived IDs
-        non_archived_ids.insert("test_acc".to_string());
-        mock_snapshot_repo.update_non_archived_accounts(non_archived_ids);
-
-        // Assert: TOTAL now includes this account again
-        let result = svc
-            .recalculate_total_portfolio_snapshots(SnapshotRecalcMode::Full)
-            .await;
-        assert!(result.is_ok());
-
-        let saved = mock_snapshot_repo.get_saved_snapshots();
-        assert_eq!(
-            saved.len(),
-            1,
-            "Should have TOTAL snapshot after unarchiving"
-        );
-        assert_eq!(
-            saved[0].cash_balances.get("USD"),
-            Some(&dec!(10000)),
-            "Account should be included in TOTAL after unarchiving"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_account_with_zero_balance_but_historical_data_included_when_not_archived() {
-        // Edge case: Account with zero current balance but has historical data
-        let base_currency = "USD";
-        let date1_str = "2023-01-01";
-        let date2_str = "2023-02-01";
-        let target_date1 = NaiveDate::parse_from_str(date1_str, "%Y-%m-%d").unwrap();
-        let target_date2 = NaiveDate::parse_from_str(date2_str, "%Y-%m-%d").unwrap();
-
-        let mut account_repo = MockAccountRepository::new();
-        let account = create_test_account_with_archive_state(
-            "zero_bal_acc",
-            "USD",
-            "Zero Balance",
-            true,
-            false,
-        );
-        account_repo.add_account(account.clone());
-
-        // Historical snapshot with value
-        let mut snap1 = create_blank_snapshot("zero_bal_acc", "USD", date1_str);
-        snap1.cash_balances.insert("USD".to_string(), dec!(5000));
-        snap1.net_contribution = dec!(5000);
-        snap1.net_contribution_base = dec!(5000);
-
-        // Current snapshot with zero balance (all withdrawn)
-        let mut snap2 = create_blank_snapshot("zero_bal_acc", "USD", date2_str);
-        snap2.cash_balances.insert("USD".to_string(), dec!(0));
-        snap2.net_contribution = dec!(0);
-        snap2.net_contribution_base = dec!(0);
-
-        let non_archived_ids: HashSet<String> =
-            vec!["zero_bal_acc".to_string()].into_iter().collect();
-        let mock_snapshot_repo = MockArchiveAwareSnapshotRepository::new(non_archived_ids);
-        mock_snapshot_repo.add_snapshots(vec![snap1, snap2]);
-
-        let fx = Arc::new(MockFxService::new());
-        let activity_repo = Arc::new(MockActivityRepository::new());
-        let asset_repo = Arc::new(MockAssetRepository::new());
-
-        let svc = SnapshotService::new(
-            Arc::new(RwLock::new(base_currency.to_string())),
-            Arc::new(account_repo),
-            activity_repo,
-            Arc::new(mock_snapshot_repo.clone()),
-            asset_repo,
-            fx,
-        );
-
-        let result = svc
-            .recalculate_total_portfolio_snapshots(SnapshotRecalcMode::IncrementalFromLast)
-            .await;
-        assert!(result.is_ok());
-
-        let saved = mock_snapshot_repo.get_saved_snapshots();
-        assert_eq!(
-            saved.len(),
-            2,
-            "Should have 2 TOTAL snapshots for both dates"
-        );
-
-        // Both historical and current snapshots should be included
-        let mut sorted = saved.clone();
-        sorted.sort_by_key(|s| s.snapshot_date);
-
-        assert_eq!(sorted[0].snapshot_date, target_date1);
-        assert_eq!(
-            sorted[0].cash_balances.get("USD"),
-            Some(&dec!(5000)),
-            "Historical data should be included"
-        );
-
-        assert_eq!(sorted[1].snapshot_date, target_date2);
-        assert_eq!(
-            sorted[1].cash_balances.get("USD"),
-            Some(&dec!(0)),
-            "Zero balance current snapshot should be included"
         );
     }
 

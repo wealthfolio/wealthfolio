@@ -66,14 +66,14 @@ export const backupDatabaseToPath = async (backupDir: string): Promise<string> =
   }
 };
 
-export interface BackupExport {
+export interface PendingExport {
   relativePath: string;
   filename: string;
 }
 
-export const backupDatabaseToPendingExport = async (): Promise<BackupExport> => {
+export const backupDatabaseToPendingExport = async (): Promise<PendingExport> => {
   try {
-    return await invoke<BackupExport>("backup_database_to_pending_export");
+    return await invoke<PendingExport>("backup_database_to_pending_export");
   } catch (error) {
     logger.error("Error backing up database to pending export.");
     throw error;

@@ -59,6 +59,7 @@ impl ProviderCapabilities {
                     "Historical".to_string(),
                     "Search".to_string(),
                     "Profiles".to_string(),
+                    "Dividends".to_string(),
                 ],
             }),
             "MARKETDATA_APP" => Some(Self {
@@ -74,6 +75,7 @@ impl ProviderCapabilities {
                     "Historical".to_string(),
                     "Search".to_string(),
                     "Profiles".to_string(),
+                    "Dividends".to_string(),
                 ],
             }),
             "METAL_PRICE_API" => Some(Self {
@@ -89,6 +91,7 @@ impl ProviderCapabilities {
                     "Historical".to_string(),
                     "Search".to_string(),
                     "Profiles".to_string(),
+                    "Dividends".to_string(),
                 ],
             }),
             "BOERSE_FRANKFURT" => Some(Self {

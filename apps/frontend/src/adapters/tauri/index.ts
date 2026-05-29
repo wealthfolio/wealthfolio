@@ -46,6 +46,7 @@ export type {
   BackendSyncBackgroundEngineResult,
   BackendSyncSnapshotUploadResult,
   EphemeralKeyPair,
+  DataExportResult,
 } from "../types";
 
 // Re-export AI types from features/ai-assistant
@@ -65,6 +66,14 @@ export type {
 // ============================================================================
 // Shared domain modules (identical logic for both platforms)
 // ============================================================================
+
+// Portfolio Commands
+export {
+  createPortfolio,
+  deletePortfolio,
+  getPortfolios,
+  updatePortfolioEntry,
+} from "../shared/portfolios";
 
 // Account Commands
 export * from "../shared/accounts";
@@ -111,6 +120,9 @@ export * from "../shared/ai-threads";
 
 // Health Center Commands
 export * from "../shared/health";
+
+// Data Export Commands
+export { exportDataFile } from "./exports";
 
 // ============================================================================
 // Platform-specific modules (different implementations)

@@ -1,4 +1,5 @@
 import { expect, Page, test } from "@playwright/test";
+import { gotoActivities } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -270,8 +271,7 @@ test.describe("Onboarding And Main Flow", () => {
 
   test("3. Deposit funds", async () => {
     // Navigate to activities page
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible({ timeout: 10000 });
+    await gotoActivities(page);
 
     // Create deposits spread over days 30-27 ago (before buys)
     for (let i = 0; i < TEST_DATA.deposits.length; i++) {
@@ -343,8 +343,7 @@ test.describe("Onboarding And Main Flow", () => {
     test.setTimeout(60000); // 1 minutes
 
     // Navigate fresh to activities page to ensure no stale overlays
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible({ timeout: 10000 });
+    await gotoActivities(page);
 
     // Create buys spread over days 20-17 ago (after deposits which were 30-27 days ago)
     for (let i = 0; i < TEST_DATA.trades.length; i++) {

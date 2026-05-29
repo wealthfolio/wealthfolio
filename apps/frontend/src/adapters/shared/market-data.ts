@@ -213,11 +213,24 @@ export const getExchanges = async (): Promise<ExchangeInfo[]> => {
   }
 };
 
-export const fetchYahooDividends = async (
+export interface FetchDividendsOptions {
+  exchangeMic?: string;
+  instrumentType?: string;
+  quoteCcy?: string;
+  providerId?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export const fetchDividends = async (
   symbol: string,
+  options: FetchDividendsOptions = {},
 ): Promise<{ amount: number; date: number }[]> => {
   try {
-    return await invoke<{ amount: number; date: number }[]>("fetch_yahoo_dividends", { symbol });
+    return await invoke<{ amount: number; date: number }[]>("fetch_dividends", {
+      symbol,
+      ...options,
+    });
   } catch (error) {
     logger.error(`Error fetching dividends for ${symbol}.`);
     throw error;

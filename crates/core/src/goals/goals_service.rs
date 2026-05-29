@@ -1,4 +1,4 @@
-use crate::accounts::{Account, AccountServiceTrait};
+use crate::accounts::{account_supports_purpose, Account, AccountPurpose, AccountServiceTrait};
 use crate::errors::Result;
 use crate::goals::goals_model::{
     AccountValuationMap, Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan, GoalSummaryUpdate,
@@ -16,7 +16,6 @@ use chrono::{Local, Months};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-const RETIREMENT_ELIGIBLE_ACCOUNT_TYPES: &[&str] = &["SECURITIES", "CASH", "CRYPTOCURRENCY"];
 const GOAL_LIFECYCLE_ACTIVE: &str = "active";
 const GOAL_LIFECYCLE_ACHIEVED: &str = "achieved";
 const GOAL_LIFECYCLE_ARCHIVED: &str = "archived";
@@ -70,7 +69,7 @@ fn build_retirement_seed_rules(
 
     eligible_accounts
         .iter()
-        .filter(|a| RETIREMENT_ELIGIBLE_ACCOUNT_TYPES.contains(&a.account_type.as_str()))
+        .filter(|a| account_supports_purpose(&a.account_type, AccountPurpose::GoalFunding))
         .filter_map(|a| {
             let remaining_share = (100.0
                 - existing_share_totals.get(&a.id).copied().unwrap_or(0.0))
@@ -387,6 +386,37 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
         }
     }
 
+    fn validate_goal_funding_accounts(&self, account_ids: &HashSet<String>) -> Result<()> {
+        if account_ids.is_empty() {
+            return Ok(());
+        }
+
+        let requested: Vec<String> = account_ids.iter().cloned().collect();
+        let accounts = self.account_service.get_accounts_by_ids(&requested)?;
+        let accounts_by_id: HashMap<String, Account> = accounts
+            .into_iter()
+            .map(|account| (account.id.clone(), account))
+            .collect();
+
+        for account_id in requested {
+            let account = accounts_by_id.get(&account_id).ok_or_else(|| {
+                crate::errors::ValidationError::InvalidInput(format!(
+                    "Account '{}' does not exist",
+                    account_id
+                ))
+            })?;
+            if !account_supports_purpose(&account.account_type, AccountPurpose::GoalFunding) {
+                return Err(crate::errors::ValidationError::InvalidInput(format!(
+                    "Account '{}' is not eligible for goal funding",
+                    account_id
+                ))
+                .into());
+            }
+        }
+
+        Ok(())
+    }
+
     fn prepare_retirement_input(
         &self,
         goal_id: &str,
@@ -533,7 +563,7 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
         // Reject duplicate accountId entries
         let mut seen_accounts = HashSet::new();
         for rule in &rules {
-            if !seen_accounts.insert(&rule.account_id) {
+            if !seen_accounts.insert(rule.account_id.clone()) {
                 return Err(crate::errors::ValidationError::InvalidInput(format!(
                     "Duplicate account '{}' in funding rules",
                     rule.account_id
@@ -562,6 +592,8 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
                 }
             }
         }
+
+        self.validate_goal_funding_accounts(&seen_accounts)?;
 
         // Clear tax_bucket for non-retirement goals
         let rules: Vec<GoalFundingRuleInput> = if is_retirement {
@@ -649,6 +681,7 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
             // Reject linking a DC stream to an account that has participating shares
             let dc_linked = extract_plan_dc_linked_account_ids(&retirement_plan);
             if !dc_linked.is_empty() {
+                self.validate_goal_funding_accounts(&dc_linked)?;
                 let participating = self.goal_repo.load_participating_funding_rules()?;
                 for account_id in &dc_linked {
                     if participating.iter().any(|r| r.account_id == *account_id) {
@@ -1567,6 +1600,7 @@ mod tests {
             test_account("acct-2", "CASH"),
             test_account("acct-3", "CRYPTOCURRENCY"),
             test_account("acct-4", "OTHER"),
+            test_account("acct-card", "CREDIT_CARD"),
         ];
         let participating_rules = vec![
             share_rule("goal-a", "acct-1", 30.0),
@@ -1584,6 +1618,7 @@ mod tests {
         assert_eq!(shares_by_account.get("acct-3"), Some(&20.0));
         assert!(!shares_by_account.contains_key("acct-2"));
         assert!(!shares_by_account.contains_key("acct-4"));
+        assert!(!shares_by_account.contains_key("acct-card"));
     }
 
     #[tokio::test]
@@ -1659,6 +1694,30 @@ mod tests {
             .expect_err("unknown tax bucket should fail validation");
 
         assert!(err.to_string().contains("Unsupported tax bucket"));
+    }
+
+    #[tokio::test]
+    async fn save_goal_funding_rejects_credit_card_accounts() {
+        let goal = retirement_goal("goal-1", GOAL_LIFECYCLE_ACTIVE);
+        let repo = Arc::new(MockGoalRepository::new(vec![goal]));
+        let account_service = MockAccountService {
+            accounts: Mutex::new(vec![test_account("acct-card", "CREDIT_CARD")]),
+        };
+        let service = GoalService::new(repo, Arc::new(account_service));
+
+        let err = service
+            .save_goal_funding(
+                "goal-1",
+                vec![GoalFundingRuleInput {
+                    account_id: "acct-card".into(),
+                    share_percent: 50.0,
+                    tax_bucket: Some("taxable".into()),
+                }],
+            )
+            .await
+            .expect_err("credit cards should not be goal funding accounts");
+
+        assert!(err.to_string().contains("not eligible for goal funding"));
     }
 
     #[tokio::test]

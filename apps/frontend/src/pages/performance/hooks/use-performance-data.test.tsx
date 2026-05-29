@@ -25,7 +25,7 @@ describe("useCalculatePerformanceHistory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.calculatePerformanceHistory.mockResolvedValue({
-      id: "TOTAL",
+      id: "portfolio:all",
       // Return data starts on a later date than requested start to ensure
       // the hook does not mutate the query start date.
       returns: [{ date: "2026-03-09", value: "0" }],
@@ -43,7 +43,14 @@ describe("useCalculatePerformanceHistory", () => {
     renderHook(
       () =>
         useCalculatePerformanceHistory({
-          selectedItems: [{ id: "TOTAL", type: "account", name: "Total Portfolio" }],
+          selectedItems: [
+            {
+              id: "portfolio:all",
+              type: "account",
+              name: "Total Portfolio",
+              accountScope: { type: "all" },
+            },
+          ],
           dateRange: {
             from: selectedFrom,
             to: selectedTo,
@@ -68,5 +75,33 @@ describe("useCalculatePerformanceHistory", () => {
     expect(starts.every((s) => s === "2026-03-04")).toBe(true);
     expect(ends.every((e) => e === "2026-03-10")).toBe(true);
     expect(starts.some((s) => s === "2026-03-09")).toBe(false);
+  });
+
+  it("does not invent a scoped account filter when an account item has no accountScope", async () => {
+    renderHook(
+      () =>
+        useCalculatePerformanceHistory({
+          selectedItems: [{ id: "acc-1", type: "account", name: "Brokerage" }],
+          dateRange: {
+            from: new Date(2026, 2, 4),
+            to: new Date(2026, 2, 10),
+          },
+          trackingMode: "TRANSACTIONS",
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(mocks.calculatePerformanceHistory).toHaveBeenCalled();
+    });
+
+    expect(mocks.calculatePerformanceHistory).toHaveBeenCalledWith(
+      "account",
+      "acc-1",
+      "2026-03-04",
+      "2026-03-10",
+      "TRANSACTIONS",
+      undefined,
+    );
   });
 });

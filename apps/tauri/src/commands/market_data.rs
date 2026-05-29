@@ -11,10 +11,10 @@ use crate::{
 use log::{debug, error, warn};
 use tauri::{AppHandle, State};
 use wealthfolio_core::quotes::{
-    service::ProviderInfo, LatestQuoteSnapshot, MarketSyncMode, Quote, QuoteImport,
-    SymbolSearchResult,
+    service::ProviderInfo, FetchDividendsParams, LatestQuoteSnapshot, MarketSyncMode, Quote,
+    QuoteImport, SymbolSearchResult,
 };
-use wealthfolio_market_data::ExchangeInfo;
+use wealthfolio_market_data::{DividendEvent, ExchangeInfo};
 
 #[tauri::command]
 pub async fn search_symbol(
@@ -245,18 +245,44 @@ pub fn get_exchanges() -> Vec<ExchangeInfo> {
     wealthfolio_market_data::get_exchange_list()
 }
 
-/// Fetch dividend events for a symbol from Yahoo Finance.
-/// Routes through the Rust backend to avoid CORS restrictions in the webview.
+/// Fetch dividend events for a symbol through configured market data providers.
 #[tauri::command]
-pub async fn fetch_yahoo_dividends(
+#[allow(clippy::too_many_arguments)]
+pub async fn fetch_dividends(
     symbol: String,
-) -> Result<Vec<wealthfolio_market_data::YahooDividend>, String> {
-    // Addon compatibility endpoint. Keep Yahoo-specific dividend fetching out of core services.
-    let provider = wealthfolio_market_data::YahooProvider::new()
-        .await
-        .map_err(|e| e.to_string())?;
-    provider
-        .fetch_dividends(&symbol)
+    exchange_mic: Option<String>,
+    instrument_type: Option<String>,
+    quote_ccy: Option<String>,
+    provider_id: Option<String>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    state: State<'_, Arc<ServiceContext>>,
+) -> Result<Vec<DividendEvent>, String> {
+    let inst_type = instrument_type
+        .as_deref()
+        .and_then(wealthfolio_core::assets::InstrumentType::from_external_str);
+    let start = start_date
+        .as_deref()
+        .map(|date| chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d"))
+        .transpose()
+        .map_err(|e| format!("Invalid startDate: {}", e))?;
+    let end = end_date
+        .as_deref()
+        .map(|date| chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d"))
+        .transpose()
+        .map_err(|e| format!("Invalid endDate: {}", e))?;
+
+    state
+        .quote_service()
+        .fetch_dividends(FetchDividendsParams {
+            symbol,
+            exchange_mic,
+            instrument_type: inst_type,
+            quote_ccy,
+            preferred_provider: provider_id,
+            start,
+            end,
+        })
         .await
         .map_err(|e| e.to_string())
 }

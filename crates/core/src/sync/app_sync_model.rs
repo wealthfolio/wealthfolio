@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Canonical list of local tables that participate in app-side device sync.
 /// Order matters: parent tables before children (FK dependencies).
-pub const APP_SYNC_TABLES: [&str; 20] = [
+pub const APP_SYNC_TABLES: [&str; 32] = [
     // Base tables (no FK deps)
     "platforms",
     "assets",
@@ -24,6 +24,12 @@ pub const APP_SYNC_TABLES: [&str; 20] = [
     "activities",
     // No FK deps
     "import_templates",
+    // Spending settings only; storage filters to spending.* keys.
+    "app_settings",
+    // Spending budget groups have no FK deps.
+    "budget_groups",
+    // Spending event types — no FK deps.
+    "spending_event_types",
     // Depends on: import_templates
     "import_account_templates",
     // No FK deps (base table)
@@ -32,6 +38,18 @@ pub const APP_SYNC_TABLES: [&str; 20] = [
     "taxonomy_categories",
     // Depends on: assets, taxonomy_categories
     "asset_taxonomy_assignments",
+    // Spending activity↔category join. Depends on: activities, taxonomies, taxonomy_categories
+    "activity_taxonomy_assignments",
+    // Spending categorization rules. Depends on: accounts (optional FK), taxonomies, taxonomy_categories
+    "spending_categorization_rules",
+    // Spending events. Depends on: spending_event_types
+    "spending_events",
+    // Spending activity↔event tag. Depends on: activities, spending_events
+    "spending_activity_events",
+    // Depends on: budget_groups, taxonomy_categories
+    "budget_group_assignments",
+    "budget_targets",
+    "budget_rollover_settings",
     // Depends on: accounts, goals
     "goals_allocation",
     // Depends on: ai_threads
@@ -40,6 +58,10 @@ pub const APP_SYNC_TABLES: [&str; 20] = [
     "ai_thread_tags",
     // No FK deps (account_id has no FK constraint)
     "holdings_snapshots",
+    // No FK deps
+    "portfolios",
+    // Depends on: portfolios, accounts
+    "portfolio_accounts",
 ];
 
 /// Entity names used by incremental sync events.
@@ -65,6 +87,22 @@ pub enum SyncEntity {
     CustomProvider,
     CustomTaxonomy,
     ImportRun,
+    Portfolio,
+    PortfolioAccount,
+    // Spending module (wealthfolio-spending crate). Prefixed with `Spending*`
+    // because the bare names (`Event`, `EventType`, `CategorizationRule`)
+    // would clash with the codebase's existing event-system vocabulary
+    // (DomainEvent, EventBus, sync_applied_events, etc.).
+    SpendingSetting,
+    ActivityTaxonomyAssignment,
+    SpendingActivityEvent,
+    SpendingCategorizationRule,
+    SpendingEvent,
+    SpendingEventType,
+    BudgetGroup,
+    BudgetGroupAssignment,
+    BudgetTarget,
+    BudgetRolloverSetting,
 }
 
 /// Supported sync operations.
@@ -287,6 +325,18 @@ mod tests {
             SyncEntity::CustomProvider,
             SyncEntity::CustomTaxonomy,
             SyncEntity::ImportRun,
+            SyncEntity::Portfolio,
+            SyncEntity::PortfolioAccount,
+            SyncEntity::SpendingSetting,
+            SyncEntity::ActivityTaxonomyAssignment,
+            SyncEntity::SpendingActivityEvent,
+            SyncEntity::SpendingCategorizationRule,
+            SyncEntity::SpendingEvent,
+            SyncEntity::SpendingEventType,
+            SyncEntity::BudgetGroup,
+            SyncEntity::BudgetGroupAssignment,
+            SyncEntity::BudgetTarget,
+            SyncEntity::BudgetRolloverSetting,
         ]
         .iter()
         .map(|entity| serde_json::to_string(entity).expect("serialize sync entity"))
@@ -311,6 +361,18 @@ mod tests {
             "\"custom_provider\"",
             "\"custom_taxonomy\"",
             "\"import_run\"",
+            "\"portfolio\"",
+            "\"portfolio_account\"",
+            "\"spending_setting\"",
+            "\"activity_taxonomy_assignment\"",
+            "\"spending_activity_event\"",
+            "\"spending_categorization_rule\"",
+            "\"spending_event\"",
+            "\"spending_event_type\"",
+            "\"budget_group\"",
+            "\"budget_group_assignment\"",
+            "\"budget_target\"",
+            "\"budget_rollover_setting\"",
         ];
 
         assert_eq!(actual, expected);

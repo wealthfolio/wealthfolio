@@ -37,7 +37,7 @@ function getNiceTicks(maxValue: number, count = 5): number[] {
 interface IncomeHistoryChartProps {
   monthlyIncomeData: [string, number][];
   previousMonthlyIncomeData: [string, number][];
-  selectedPeriod: "TOTAL" | "YTD" | "LAST_YEAR";
+  selectedPeriod: "ALL" | "YTD" | "LAST_YEAR";
   currency: string;
   isBalanceHidden: boolean;
   byAccount?: Record<string, IncomeByAccount>;
@@ -115,11 +115,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
   );
 
   const periodDescription =
-    selectedPeriod === "TOTAL"
-      ? "All Time"
-      : selectedPeriod === "YTD"
-        ? "Year to Date"
-        : "Last Year";
+    selectedPeriod === "ALL" ? "All Time" : selectedPeriod === "YTD" ? "Year to Date" : "Last Year";
 
   const xAxisProps = {
     dataKey: "month" as const,

@@ -2,8 +2,8 @@ import { AccountSelector } from "@/components/account-selector";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import TickerSearchInput from "@/components/ticker-search";
 import { useAccounts } from "@/hooks/use-accounts";
-import { QuoteMode } from "@/lib/constants";
 import { quoteModeFromSearchResult } from "@/lib/asset-utils";
+import { AccountPurpose, QuoteMode } from "@/lib/constants";
 import { Account, SymbolSearchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -384,6 +384,7 @@ export const BulkHoldingsForm = ({ onAccountChange, defaultAccount }: BulkHoldin
                       variant="form"
                       filterActive={true}
                       trackingModes={["TRANSACTIONS"]}
+                      accountPurpose={AccountPurpose.HOLDINGS}
                     />
                   </FormControl>
                   <FormMessage />

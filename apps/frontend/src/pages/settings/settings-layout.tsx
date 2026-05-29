@@ -23,7 +23,7 @@ const settingsSections = [
     ],
   },
   {
-    title: "Portfolio",
+    title: "Finance",
     items: [
       {
         title: "Accounts",
@@ -32,10 +32,22 @@ const settingsSections = [
         icon: <Icons.CreditCard className="size-5" />,
       },
       {
+        title: "Portfolios",
+        href: "portfolios",
+        subtitle: "Named reporting scopes",
+        icon: <Icons.Folder className="size-5" />,
+      },
+      {
         title: "Contribution Limits",
         href: "contribution-limits",
         subtitle: "Limits by year and account",
         icon: <Icons.TrendingUp className="size-5" />,
+      },
+      {
+        title: "Spending Tracker",
+        href: "spending",
+        subtitle: "Enable + pick spending accounts",
+        icon: <Icons.Wallet className="size-5" />,
       },
     ],
   },

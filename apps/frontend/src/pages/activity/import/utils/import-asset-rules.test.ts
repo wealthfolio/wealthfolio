@@ -3,6 +3,7 @@ import type { DraftActivity } from "../context";
 import {
   applyAssetResolution,
   buildImportAssetCandidateFromDraft,
+  buildImportAssetCandidateKey,
   buildNewAssetFromDraft,
   buildNewAssetFromSearchResult,
 } from "./asset-review-utils";
@@ -65,6 +66,143 @@ describe("import asset rules", () => {
     expect(first).not.toBeNull();
     expect(second).not.toBeNull();
     expect(first?.key).not.toBe(second?.key);
+  });
+
+  it("preserves the existing candidate key shape when provider identity is absent", () => {
+    const key = buildImportAssetCandidateKey({
+      accountId: "acc-1",
+      symbol: "SHOP",
+      instrumentType: "EQUITY",
+      quoteCcy: "CAD",
+      exchangeMic: "XTSE",
+    });
+
+    expect(key).toBe("SHOP::EQUITY::::XTSE::CAD::");
+  });
+
+  it("keeps same-symbol provider variants distinct for asset preview", () => {
+    const staleKey = buildImportAssetCandidateKey({
+      accountId: "acc-1",
+      symbol: "XAU",
+      instrumentType: "METAL",
+      quoteCcy: "USD",
+    });
+    const first = buildImportAssetCandidateFromDraft(
+      createDraft({
+        symbol: "XAU",
+        instrumentType: "METAL",
+        quoteCcy: "USD",
+        providerId: "METAL_PRICE_API",
+        providerSymbol: "XAU-1KG",
+        assetCandidateKey: staleKey,
+      }),
+    );
+    const second = buildImportAssetCandidateFromDraft(
+      createDraft({
+        symbol: "XAU",
+        instrumentType: "METAL",
+        quoteCcy: "USD",
+        providerId: "METAL_PRICE_API",
+        providerSymbol: "XAU-OZ",
+        assetCandidateKey: staleKey,
+      }),
+    );
+
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    expect(first?.key).not.toBe(staleKey);
+    expect(first?.key).not.toBe(second?.key);
+  });
+
+  it("applies provider-specific preview resolutions to stale provider-less draft keys", () => {
+    const staleKey = buildImportAssetCandidateKey({
+      accountId: "acc-1",
+      symbol: "XAU",
+      instrumentType: "METAL",
+      quoteCcy: "USD",
+    });
+    const first = createDraft({
+      rowIndex: 1,
+      symbol: "XAU",
+      instrumentType: "METAL",
+      quoteCcy: "USD",
+      providerId: "METAL_PRICE_API",
+      providerSymbol: "XAU-1KG",
+      assetCandidateKey: staleKey,
+    });
+    const second = createDraft({
+      rowIndex: 2,
+      symbol: "XAU",
+      instrumentType: "METAL",
+      quoteCcy: "USD",
+      providerId: "METAL_PRICE_API",
+      providerSymbol: "XAU-OZ",
+      assetCandidateKey: staleKey,
+    });
+    const firstKey = buildImportAssetCandidateFromDraft(first)?.key;
+
+    if (!firstKey) throw new Error("expected provider-specific candidate key");
+
+    const resolved = applyAssetResolution(
+      [first, second],
+      firstKey,
+      {
+        kind: "INVESTMENT",
+        name: "Gold 1kg",
+        displayCode: "XAU",
+        isActive: true,
+        quoteMode: "MARKET",
+        quoteCcy: "USD",
+        instrumentType: "METAL",
+        instrumentSymbol: "XAU",
+        providerId: "METAL_PRICE_API",
+        providerSymbol: "XAU-1KG",
+      },
+      { importAssetKey: firstKey },
+    );
+
+    expect(resolved[0].assetCandidateKey).toBe(firstKey);
+    expect(resolved[0].importAssetKey).toBe(firstKey);
+    expect(resolved[1].assetCandidateKey).toBe(staleKey);
+    expect(resolved[1].importAssetKey).toBeUndefined();
+  });
+
+  it("keeps resolved no-provider previews on their original key after provider enrichment", () => {
+    const previewKey = buildImportAssetCandidateKey({
+      accountId: "acc-1",
+      symbol: "SHOP",
+      instrumentType: "EQUITY",
+      quoteCcy: "CAD",
+      exchangeMic: "XTSE",
+    });
+    const [resolved] = applyAssetResolution(
+      [
+        createDraft({
+          symbol: "SHOP",
+          instrumentType: "EQUITY",
+          quoteCcy: "CAD",
+          exchangeMic: "XTSE",
+          assetCandidateKey: previewKey,
+        }),
+      ],
+      previewKey,
+      {
+        kind: "INVESTMENT",
+        name: "Shopify Inc.",
+        displayCode: "SHOP",
+        isActive: true,
+        quoteMode: "MARKET",
+        quoteCcy: "CAD",
+        instrumentType: "EQUITY",
+        instrumentSymbol: "SHOP",
+        instrumentExchangeMic: "XTSE",
+        providerId: "YAHOO",
+        providerSymbol: "SHOP.TO",
+      },
+      { importAssetKey: previewKey },
+    );
+
+    expect(buildImportAssetCandidateFromDraft(resolved)?.key).toBe(previewKey);
   });
 
   it("builds new assets from canonical search identity, not review symbol", () => {

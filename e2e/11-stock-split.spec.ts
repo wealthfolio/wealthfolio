@@ -5,6 +5,7 @@ import {
   completeOnboardingIfNeeded,
   createAccount,
   fillDateField,
+  gotoActivities,
   openAddActivitySheet,
   searchAndSelectSymbol,
   selectActivityType,
@@ -66,11 +67,6 @@ test.describe("Stock split adjusts holdings shares", () => {
     await page.waitForTimeout(400);
   }
 
-  async function gotoActivities() {
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible({ timeout: 10000 });
-  }
-
   async function gotoAccountPage() {
     await page.goto(`${BASE_URL}/settings/accounts`, { waitUntil: "domcontentloaded" });
     const link = page.getByRole("link", { name: ACCOUNT_NAME });
@@ -95,7 +91,7 @@ test.describe("Stock split adjusts holdings shares", () => {
   }
 
   async function addSplit(isoDate: string, ratio: number) {
-    await gotoActivities();
+    await gotoActivities(page);
     await openAddActivitySheet(page);
     await selectActivityType(page, "Split");
     await selectAccount(ACCOUNT_NAME, CURRENCY);
@@ -183,7 +179,7 @@ test.describe("Stock split adjusts holdings shares", () => {
     test.setTimeout(120_000);
 
     // Deposit ahead of the buy
-    await gotoActivities();
+    await gotoActivities(page);
     await openAddActivitySheet(page);
     await selectActivityType(page, "Deposit");
     await selectAccount(ACCOUNT_NAME, CURRENCY);
@@ -196,7 +192,7 @@ test.describe("Stock split adjusts holdings shares", () => {
     // average cost ($103 / 15 ≈ $6.87) lines up with Yahoo's adjusted history
     // and the displayed market value reflects TSLA's true run-up rather than
     // looking like the cost basis was multiplied by the split factor.
-    await gotoActivities();
+    await gotoActivities(page);
     await openAddActivitySheet(page);
     await selectActivityType(page, "Buy");
     await selectAccount(ACCOUNT_NAME, CURRENCY);

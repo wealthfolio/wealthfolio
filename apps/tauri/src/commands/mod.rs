@@ -20,9 +20,11 @@ pub mod limits;
 pub mod market_data;
 pub mod platform;
 pub mod portfolio;
+pub mod portfolios;
 pub mod providers_settings;
 pub mod secrets;
 pub mod settings;
+pub mod spending;
 #[cfg(feature = "device-sync")]
 pub mod sync_crypto;
 pub mod taxonomy;

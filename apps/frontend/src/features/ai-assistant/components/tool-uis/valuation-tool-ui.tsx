@@ -1,6 +1,5 @@
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { HistoryChart } from "@/components/history-chart";
-import { PORTFOLIO_ACCOUNT_ID } from "@/lib/constants";
 import { DateRange, TimePeriod } from "@/lib/types";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import { Badge, Card, CardContent, CardHeader, CardTitle, IntervalSelector } from "@wealthfolio/ui";
@@ -97,7 +96,7 @@ const normalizeResult = (result: unknown, fallbackCurrency: string): ValuationRe
       (candidate.account_id as string | undefined) ??
       (candidate.accountScope as string | undefined) ??
       (candidate.account_scope as string | undefined) ??
-      PORTFOLIO_ACCOUNT_ID,
+      "Portfolio",
     accountName:
       (candidate.accountName as string | undefined) ??
       (candidate.account_name as string | undefined) ??
@@ -156,7 +155,7 @@ function ValuationContentImpl({ args, result, status }: ValuationContentProps) {
   const typedArgs = args as ValuationArgs | undefined;
 
   const accountLabel =
-    parsed?.accountName ?? parsed?.accountId ?? typedArgs?.accountId ?? PORTFOLIO_ACCOUNT_ID;
+    parsed?.accountName ?? parsed?.accountId ?? typedArgs?.accountId ?? "Portfolio";
 
   const isRunning = status?.type === "running";
   const isComplete = status?.type === "complete";

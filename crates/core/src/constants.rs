@@ -1,6 +1,3 @@
-/// Total account ID
-pub const PORTFOLIO_TOTAL_ACCOUNT_ID: &str = "TOTAL";
-
 /// Decimal precision for valuation calculations
 pub const DECIMAL_PRECISION: u32 = 8;
 

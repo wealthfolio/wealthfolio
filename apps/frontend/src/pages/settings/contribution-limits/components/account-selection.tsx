@@ -3,6 +3,7 @@ import { Toggle } from "@wealthfolio/ui/components/ui/toggle";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Account, ContributionLimit, DepositsCalculation } from "@/lib/types";
+import { AccountPurpose, accountSupportsPurpose } from "@/lib/constants";
 import { useContributionLimitMutations } from "../use-contribution-limit-mutations";
 import { formatAmount } from "@wealthfolio/ui";
 
@@ -40,7 +41,11 @@ export function AccountSelection({ limit, accounts, deposits, isLoading }: Accou
       <h3 className="font-semibold">Select Accounts</h3>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
         {accounts
-          ?.filter((account) => account.isActive)
+          ?.filter(
+            (account) =>
+              account.isActive &&
+              accountSupportsPurpose(account, AccountPurpose.CONTRIBUTION_LIMITS),
+          )
           .map((account) => {
             const accountDeposit = deposits?.byAccount[account.id];
             return (

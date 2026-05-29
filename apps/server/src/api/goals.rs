@@ -189,16 +189,12 @@ async fn build_valuation_map(state: &AppState) -> ApiResult<HashMap<String, f64>
 
     let mut map = HashMap::new();
     for v in &valuations {
-        let total = v.total_value.to_f64().ok_or_else(|| {
+        let value_in_base = v.total_value_base.to_f64().ok_or_else(|| {
             ApiError::Internal(format!(
-                "Invalid valuation total for account {}",
+                "Invalid base valuation total for account {}",
                 v.account_id
             ))
         })?;
-        let fx = v.fx_rate_to_base.to_f64().ok_or_else(|| {
-            ApiError::Internal(format!("Invalid FX rate for account {}", v.account_id))
-        })?;
-        let value_in_base = total * fx;
         map.insert(v.account_id.clone(), value_in_base);
     }
     Ok(map)

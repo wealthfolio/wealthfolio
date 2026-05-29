@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use log::debug;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
@@ -17,12 +16,19 @@ use super::{AllocationHoldings, CategoryAllocation, PortfolioAllocations, Taxono
 /// Trait for allocation service.
 #[async_trait]
 pub trait AllocationServiceTrait: Send + Sync {
-    /// Computes portfolio allocations for an account.
-    /// If account_id is "PORTFOLIO", computes for all accounts.
+    /// Computes portfolio allocations for a real account.
     async fn get_portfolio_allocations(
         &self,
         account_id: &str,
         base_currency: &str,
+    ) -> Result<PortfolioAllocations>;
+
+    /// Computes portfolio allocations aggregated across multiple accounts (portfolio filter).
+    async fn get_portfolio_allocations_for_accounts(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+        aggregated_account_id: &str,
     ) -> Result<PortfolioAllocations>;
 
     /// Returns holdings filtered by a taxonomy category with full category metadata.
@@ -33,6 +39,16 @@ pub trait AllocationServiceTrait: Send + Sync {
         base_currency: &str,
         taxonomy_id: &str,
         category_id: &str,
+    ) -> Result<AllocationHoldings>;
+
+    /// Returns holdings by allocation aggregated across multiple accounts.
+    async fn get_holdings_by_allocation_for_accounts(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+        taxonomy_id: &str,
+        category_id: &str,
+        aggregated_account_id: &str,
     ) -> Result<AllocationHoldings>;
 }
 
@@ -140,12 +156,50 @@ impl AllocationService {
                         .entry("__UNKNOWN__".to_string())
                         .or_insert(Decimal::ZERO) += market_value;
                 } else {
-                    for (_, category_id, weight) in taxonomy_assignments {
-                        // Convert weight from basis points (0-10000) to decimal (0-1)
-                        let weight_decimal = Decimal::from(*weight) / dec!(10000);
-                        let weighted_value = market_value * weight_decimal;
+                    // In rollup mode: skip top-level category assignments when a child of
+                    // that category is also assigned for this asset (leaf-wins principle).
+                    // Without this guard, Americas + United States both roll up to Americas
+                    // and double-count the US portion.
+                    let top_levels_covered_by_children: std::collections::HashSet<&str> =
+                        if rollup_to_top_level {
+                            taxonomy_assignments
+                                .iter()
+                                .filter_map(|(_, cat_id, _)| {
+                                    let top = *top_level_map.get(cat_id.as_str())?;
+                                    if top != cat_id.as_str() {
+                                        Some(top)
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect()
+                        } else {
+                            std::collections::HashSet::new()
+                        };
 
-                        // Get top-level category
+                    // Build active assignment set after applying leaf-wins filter, then
+                    // normalize over only those active assignments. Computing total_weight
+                    // before filtering would dilute kept leaf weights by skipped parents.
+                    let active_assignments: Vec<_> = taxonomy_assignments
+                        .iter()
+                        .filter(|(_, category_id, _)| {
+                            if !rollup_to_top_level {
+                                return true;
+                            }
+                            let top = top_level_map
+                                .get(category_id.as_str())
+                                .copied()
+                                .unwrap_or(category_id.as_str());
+                            !(top == category_id.as_str()
+                                && top_levels_covered_by_children.contains(top))
+                        })
+                        .collect();
+
+                    let total_active_weight: i32 =
+                        active_assignments.iter().map(|(_, _, w)| *w).sum();
+                    let weight_divisor = Decimal::from(total_active_weight.max(10000));
+
+                    for (_, category_id, weight) in active_assignments.iter() {
                         let top_level_id = if rollup_to_top_level {
                             top_level_map
                                 .get(category_id.as_str())
@@ -154,6 +208,9 @@ impl AllocationService {
                         } else {
                             category_id.as_str()
                         };
+
+                        let weight_decimal = Decimal::from(*weight) / weight_divisor;
+                        let weighted_value = market_value * weight_decimal;
 
                         // Track original category values (for children)
                         let entry = original_values
@@ -285,26 +342,12 @@ impl AllocationService {
             _ => category_id, // No parent - this is the top level
         }
     }
-}
 
-#[async_trait]
-impl AllocationServiceTrait for AllocationService {
-    async fn get_portfolio_allocations(
+    async fn compute_allocations_from_holdings(
         &self,
-        account_id: &str,
-        base_currency: &str,
+        holdings: &[Holding],
+        _base_currency: &str,
     ) -> Result<PortfolioAllocations> {
-        debug!(
-            "Computing portfolio allocations for account {} in {}",
-            account_id, base_currency
-        );
-
-        // 1. Get holdings
-        let holdings = self
-            .holdings_service
-            .get_holdings(account_id, base_currency)
-            .await?;
-
         if holdings.is_empty() {
             return Ok(PortfolioAllocations::default());
         }
@@ -360,7 +403,7 @@ impl AllocationServiceTrait for AllocationService {
                     // Asset classes include cash, use total_with_cash
                     // Cash holdings now have proper instruments with classifications
                     asset_classes_alloc = self.aggregate_by_taxonomy(
-                        &holdings,
+                        holdings,
                         &taxonomy.id,
                         &taxonomy.name,
                         &taxonomy.color,
@@ -372,7 +415,7 @@ impl AllocationServiceTrait for AllocationService {
                 }
                 "industries_gics" => {
                     sectors_alloc = self.aggregate_by_taxonomy(
-                        &holdings,
+                        holdings,
                         &taxonomy.id,
                         "Sectors", // Use friendly name
                         &taxonomy.color,
@@ -384,7 +427,7 @@ impl AllocationServiceTrait for AllocationService {
                 }
                 "regions" => {
                     regions_alloc = self.aggregate_by_taxonomy(
-                        &holdings,
+                        holdings,
                         &taxonomy.id,
                         "Regions",
                         &taxonomy.color,
@@ -396,7 +439,7 @@ impl AllocationServiceTrait for AllocationService {
                 }
                 "risk_category" => {
                     risk_alloc = self.aggregate_by_taxonomy(
-                        &holdings,
+                        holdings,
                         &taxonomy.id,
                         "Risk Category",
                         &taxonomy.color,
@@ -408,7 +451,7 @@ impl AllocationServiceTrait for AllocationService {
                 }
                 "instrument_type" => {
                     security_types_alloc = self.aggregate_by_taxonomy(
-                        &holdings,
+                        holdings,
                         &taxonomy.id,
                         "Instrument Type",
                         &taxonomy.color,
@@ -421,7 +464,7 @@ impl AllocationServiceTrait for AllocationService {
                 _ if !taxonomy.is_system => {
                     // User-created custom taxonomies only (skip system placeholder "custom_groups")
                     let custom_alloc = self.aggregate_by_taxonomy(
-                        &holdings,
+                        holdings,
                         &taxonomy.id,
                         &taxonomy.name,
                         &taxonomy.color,
@@ -450,23 +493,17 @@ impl AllocationServiceTrait for AllocationService {
         })
     }
 
-    async fn get_holdings_by_allocation(
+    async fn compute_holdings_by_allocation_from_holdings(
         &self,
-        account_id: &str,
+        holdings: &[Holding],
         base_currency: &str,
         taxonomy_id: &str,
         category_id: &str,
     ) -> Result<AllocationHoldings> {
-        debug!(
-            "Getting holdings for category {} in taxonomy {} for account {}",
-            category_id, taxonomy_id, account_id
-        );
-
         // Get taxonomy with categories for hierarchy lookup and metadata
         let taxonomy_with_cats = self.taxonomy_service.get_taxonomy(taxonomy_id)?;
         let empty_categories: Vec<Category> = Vec::new();
 
-        // Extract taxonomy metadata
         let (taxonomy_name, taxonomy_color, categories) = match &taxonomy_with_cats {
             Some(twc) => (
                 twc.taxonomy.name.clone(),
@@ -480,7 +517,6 @@ impl AllocationServiceTrait for AllocationService {
             ),
         };
 
-        // Look up category metadata
         let (category_name, category_color) = if category_id == "__UNKNOWN__" {
             ("Unknown".to_string(), "#878580".to_string())
         } else {
@@ -490,12 +526,6 @@ impl AllocationServiceTrait for AllocationService {
                 .map(|c| (c.name.clone(), c.color.clone()))
                 .unwrap_or_else(|| (category_id.to_string(), taxonomy_color.clone()))
         };
-
-        // Get all holdings for the account
-        let holdings = self
-            .holdings_service
-            .get_holdings(account_id, base_currency)
-            .await?;
 
         if holdings.is_empty() {
             return Ok(AllocationHoldings {
@@ -529,28 +559,47 @@ impl AllocationServiceTrait for AllocationService {
                 .collect()
         };
 
-        // Get assignments for all matching categories
-        let mut asset_to_weight: HashMap<String, i32> = HashMap::new();
+        // Get assignments for all matching categories, applying leaf-wins to avoid
+        // double-counting when both a parent and its child are assigned to the same asset.
+        // Separate direct (target category itself) from child category assignments.
+        // If an asset has child-level assignments, use those; otherwise fall back to direct.
+        let mut direct_weight: HashMap<String, i32> = HashMap::new();
+        let mut child_weight: HashMap<String, i32> = HashMap::new();
         for cat_id in &matching_category_ids {
             if *cat_id == "__UNKNOWN__" {
                 continue;
             }
+            let is_direct = *cat_id == category_id;
             if let Ok(assignments) = self
                 .taxonomy_service
                 .get_category_assignments(taxonomy_id, cat_id)
             {
                 for assignment in assignments {
-                    *asset_to_weight
-                        .entry(assignment.asset_id.clone())
-                        .or_insert(0) += assignment.weight;
+                    if is_direct {
+                        *direct_weight
+                            .entry(assignment.asset_id.clone())
+                            .or_insert(0) += assignment.weight;
+                    } else {
+                        *child_weight.entry(assignment.asset_id.clone()).or_insert(0) +=
+                            assignment.weight;
+                    }
                 }
             }
+        }
+        // Leaf-wins: prefer child weights; fall back to direct only when no child exists.
+        // Also normalize each asset's weight to at most 10000 bps (100%).
+        let mut asset_to_weight: HashMap<String, i32> = child_weight;
+        for (asset_id, weight) in direct_weight {
+            asset_to_weight.entry(asset_id).or_insert(weight);
+        }
+        for weight in asset_to_weight.values_mut() {
+            *weight = (*weight).min(10000);
         }
 
         // Calculate total value of matched holdings for weight calculation
         let mut matched_holdings: Vec<(&Holding, i32)> = Vec::new();
 
-        for holding in &holdings {
+        for holding in holdings {
             let asset_id = match &holding.instrument {
                 Some(instrument) => &instrument.id,
                 None => continue,
@@ -640,5 +689,352 @@ impl AllocationServiceTrait for AllocationService {
             total_value: total_matched_value,
             currency: base_currency.to_string(),
         })
+    }
+}
+
+#[async_trait]
+impl AllocationServiceTrait for AllocationService {
+    async fn get_portfolio_allocations(
+        &self,
+        account_id: &str,
+        base_currency: &str,
+    ) -> Result<PortfolioAllocations> {
+        let holdings = self
+            .holdings_service
+            .get_holdings(account_id, base_currency)
+            .await?;
+        self.compute_allocations_from_holdings(&holdings, base_currency)
+            .await
+    }
+
+    async fn get_portfolio_allocations_for_accounts(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+        aggregated_account_id: &str,
+    ) -> Result<PortfolioAllocations> {
+        let holdings = self
+            .holdings_service
+            .get_holdings_for_accounts(account_ids, base_currency, aggregated_account_id)
+            .await?;
+        self.compute_allocations_from_holdings(&holdings, base_currency)
+            .await
+    }
+
+    async fn get_holdings_by_allocation(
+        &self,
+        account_id: &str,
+        base_currency: &str,
+        taxonomy_id: &str,
+        category_id: &str,
+    ) -> Result<AllocationHoldings> {
+        let holdings = self
+            .holdings_service
+            .get_holdings(account_id, base_currency)
+            .await?;
+        self.compute_holdings_by_allocation_from_holdings(
+            &holdings,
+            base_currency,
+            taxonomy_id,
+            category_id,
+        )
+        .await
+    }
+
+    async fn get_holdings_by_allocation_for_accounts(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+        taxonomy_id: &str,
+        category_id: &str,
+        aggregated_account_id: &str,
+    ) -> Result<AllocationHoldings> {
+        let holdings = self
+            .holdings_service
+            .get_holdings_for_accounts(account_ids, base_currency, aggregated_account_id)
+            .await?;
+        self.compute_holdings_by_allocation_from_holdings(
+            &holdings,
+            base_currency,
+            taxonomy_id,
+            category_id,
+        )
+        .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::portfolio::holdings::holdings_model::{Instrument, MonetaryValue};
+    use crate::taxonomies::{
+        AssetTaxonomyAssignment, Category, NewAssetTaxonomyAssignment, NewCategory, NewTaxonomy,
+        Taxonomy, TaxonomyWithCategories,
+    };
+    use async_trait::async_trait;
+    use chrono::{NaiveDateTime, Utc};
+    use rust_decimal_macros::dec;
+
+    // Minimal mocks — aggregate_by_taxonomy is pure data, does not call these
+    struct NoopHoldings;
+    struct NoopTaxonomies;
+
+    #[async_trait]
+    impl HoldingsServiceTrait for NoopHoldings {
+        async fn get_holdings(&self, _: &str, _: &str) -> Result<Vec<Holding>> {
+            unimplemented!()
+        }
+        async fn get_holdings_for_accounts(
+            &self,
+            _: &[String],
+            _: &str,
+            _: &str,
+        ) -> Result<Vec<Holding>> {
+            unimplemented!()
+        }
+        async fn get_holding(&self, _: &str, _: &str, _: &str) -> Result<Option<Holding>> {
+            unimplemented!()
+        }
+        async fn holdings_from_snapshot(
+            &self,
+            _: &crate::portfolio::snapshot::AccountStateSnapshot,
+            _: &str,
+        ) -> Result<Vec<Holding>> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait]
+    impl TaxonomyServiceTrait for NoopTaxonomies {
+        fn get_taxonomies(&self) -> Result<Vec<Taxonomy>> {
+            unimplemented!()
+        }
+        fn get_taxonomy(&self, _: &str) -> Result<Option<TaxonomyWithCategories>> {
+            unimplemented!()
+        }
+        fn get_taxonomies_with_categories(&self) -> Result<Vec<TaxonomyWithCategories>> {
+            unimplemented!()
+        }
+        async fn create_taxonomy(&self, _: NewTaxonomy) -> Result<Taxonomy> {
+            unimplemented!()
+        }
+        async fn update_taxonomy(&self, _: Taxonomy) -> Result<Taxonomy> {
+            unimplemented!()
+        }
+        async fn delete_taxonomy(&self, _: &str) -> Result<usize> {
+            unimplemented!()
+        }
+        async fn create_category(&self, _: NewCategory) -> Result<Category> {
+            unimplemented!()
+        }
+        async fn update_category(&self, _: Category) -> Result<Category> {
+            unimplemented!()
+        }
+        async fn delete_category(&self, _: &str, _: &str) -> Result<usize> {
+            unimplemented!()
+        }
+        async fn move_category(
+            &self,
+            _: &str,
+            _: &str,
+            _: Option<String>,
+            _: i32,
+        ) -> Result<Category> {
+            unimplemented!()
+        }
+        async fn import_taxonomy_json(&self, _: &str) -> Result<Taxonomy> {
+            unimplemented!()
+        }
+        fn export_taxonomy_json(&self, _: &str) -> Result<String> {
+            unimplemented!()
+        }
+        fn get_asset_assignments(&self, _: &str) -> Result<Vec<AssetTaxonomyAssignment>> {
+            unimplemented!()
+        }
+        fn get_category_assignments(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> Result<Vec<AssetTaxonomyAssignment>> {
+            unimplemented!()
+        }
+        async fn assign_asset_to_category(
+            &self,
+            _: NewAssetTaxonomyAssignment,
+        ) -> Result<AssetTaxonomyAssignment> {
+            unimplemented!()
+        }
+        async fn remove_asset_assignment(&self, _: &str) -> Result<usize> {
+            unimplemented!()
+        }
+    }
+
+    fn svc() -> AllocationService {
+        AllocationService::new(Arc::new(NoopHoldings), Arc::new(NoopTaxonomies))
+    }
+
+    fn now() -> NaiveDateTime {
+        Utc::now().naive_utc()
+    }
+
+    fn make_category(id: &str, parent_id: Option<&str>) -> Category {
+        Category {
+            id: id.to_string(),
+            taxonomy_id: "regions".to_string(),
+            parent_id: parent_id.map(|s| s.to_string()),
+            name: id.to_string(),
+            key: id.to_string(),
+            color: "#808080".to_string(),
+            description: None,
+            sort_order: 0,
+            created_at: now(),
+            updated_at: now(),
+            icon: None,
+        }
+    }
+
+    fn make_holding(asset_id: &str, base_value: Decimal) -> Holding {
+        Holding {
+            id: asset_id.to_string(),
+            account_id: "acc".to_string(),
+            holding_type: HoldingType::Security,
+            instrument: Some(Instrument {
+                id: asset_id.to_string(),
+                symbol: asset_id.to_string(),
+                name: None,
+                currency: "USD".to_string(),
+                notes: None,
+                pricing_mode: "MARKET".to_string(),
+                preferred_provider: None,
+                exchange_mic: None,
+                classifications: None,
+            }),
+            asset_kind: None,
+            quantity: dec!(1),
+            open_date: None,
+            lots: None,
+            contract_multiplier: Decimal::ONE,
+            local_currency: "USD".to_string(),
+            base_currency: "USD".to_string(),
+            fx_rate: None,
+            market_value: MonetaryValue {
+                local: base_value,
+                base: base_value,
+            },
+            cost_basis: None,
+            price: None,
+            purchase_price: None,
+            unrealized_gain: None,
+            unrealized_gain_pct: None,
+            realized_gain: None,
+            realized_gain_pct: None,
+            total_gain: None,
+            total_gain_pct: None,
+            day_change: None,
+            day_change_pct: None,
+            prev_close_value: None,
+            weight: Decimal::ZERO,
+            as_of_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            metadata: None,
+            source_account_ids: vec![],
+        }
+    }
+
+    /// Weights summing above 100% must not cause any category percentage to exceed
+    /// the portfolio total. With AAPL assigned 60% North_America + 60% Europe (120% total),
+    /// the normalized sum across all regions must equal 100%.
+    #[test]
+    fn weights_above_100_pct_are_normalized() {
+        let svc = svc();
+        let holdings = vec![make_holding("AAPL", dec!(1000))];
+
+        // North_America and Europe are both top-level (no parent)
+        let categories = vec![
+            make_category("North_America", None),
+            make_category("Europe", None),
+        ];
+
+        // 60% + 60% = 120% (invalid, should be normalized to 50% + 50%)
+        let mut assignments: HashMap<String, Vec<(String, String, i32)>> = HashMap::new();
+        assignments.insert(
+            "AAPL".to_string(),
+            vec![
+                ("regions".to_string(), "North_America".to_string(), 6000),
+                ("regions".to_string(), "Europe".to_string(), 6000),
+            ],
+        );
+
+        let result = svc.aggregate_by_taxonomy(
+            &holdings,
+            "regions",
+            "Regions",
+            "#ccc",
+            &categories,
+            &assignments,
+            dec!(1000),
+            false,
+        );
+
+        let total_pct: Decimal = result.categories.iter().map(|c| c.percentage).sum();
+        assert!(
+            total_pct <= dec!(100.01),
+            "Total percentage {total_pct} exceeds 100% — normalization failed"
+        );
+    }
+
+    /// When an asset is assigned to both a parent region (Americas) and a child (United_States),
+    /// rolling up to the top level must not double-count: United_States rolls up to Americas,
+    /// so the direct Americas assignment should be skipped (leaf-wins).
+    #[test]
+    fn parent_child_region_not_double_counted_on_rollup() {
+        let svc = svc();
+        let holdings = vec![make_holding("AAPL", dec!(1000))];
+
+        // Americas is top-level; United_States is its child
+        let categories = vec![
+            make_category("Americas", None),
+            make_category("United_States", Some("Americas")),
+        ];
+
+        // 60% Americas (parent) + 40% United_States (child of Americas)
+        // Leaf-wins: Americas direct assignment should be skipped, only US rolls up
+        let mut assignments: HashMap<String, Vec<(String, String, i32)>> = HashMap::new();
+        assignments.insert(
+            "AAPL".to_string(),
+            vec![
+                ("regions".to_string(), "Americas".to_string(), 6000),
+                ("regions".to_string(), "United_States".to_string(), 4000),
+            ],
+        );
+
+        let result = svc.aggregate_by_taxonomy(
+            &holdings,
+            "regions",
+            "Regions",
+            "#ccc",
+            &categories,
+            &assignments,
+            dec!(1000),
+            true, // rollup_to_top_level
+        );
+
+        let americas = result
+            .categories
+            .iter()
+            .find(|c| c.category_id == "Americas")
+            .expect("Americas category missing");
+
+        // Only the United_States leaf (40%) should count — not Americas direct (60%) + US (40%)
+        assert!(
+            americas.value <= dec!(1000),
+            "Americas value {} exceeds total holding value — parent/child double-counted",
+            americas.value
+        );
+        assert_eq!(
+            americas.value,
+            dec!(400),
+            "Expected Americas = 400 (leaf US only), got {}",
+            americas.value
+        );
     }
 }

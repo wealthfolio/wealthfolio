@@ -132,6 +132,7 @@ export type DataSource = (typeof DataSource)[keyof typeof DataSource];
 export const AccountType = {
   SECURITIES: 'SECURITIES',
   CASH: 'CASH',
+  CREDIT_CARD: 'CREDIT_CARD',
   CRYPTOCURRENCY: 'CRYPTOCURRENCY',
 } as const;
 
@@ -752,6 +753,14 @@ export interface AccountValuation {
   totalValue: number;
   costBasis: number;
   netContribution: number;
+  cashBalanceBase: number;
+  investmentMarketValueBase: number;
+  totalValueBase: number;
+  costBasisBase: number;
+  netContributionBase: number;
+  externalInflowBase: number;
+  externalOutflowBase: number;
+  performanceEligibleValueBase: number;
   calculatedAt: string;
 }
 
@@ -855,14 +864,27 @@ export interface PerformanceMetrics {
   annualizedTwr?: number | null;
   simpleReturn: number;
   annualizedSimpleReturn: number;
-  /** Money-weighted return (null for HOLDINGS mode - requires cash flow tracking) */
+  /** Modified Dietz return (null for HOLDINGS mode - requires cash flow tracking) */
+  cumulativeModifiedDietz?: number | null;
+  /** Annualized Modified Dietz return (null for HOLDINGS mode) */
+  annualizedModifiedDietz?: number | null;
+  /** Legacy alias for Modified Dietz */
   cumulativeMwr?: number | null;
-  /** Annualized MWR (null for HOLDINGS mode) */
+  /** Legacy alias for annualized Modified Dietz */
   annualizedMwr?: number | null;
   volatility: number;
   maxDrawdown: number;
   /** Indicates if this is a HOLDINGS mode account (no cash flow tracking) */
   isHoldingsMode?: boolean;
+  returnMethod?:
+    | 'timeWeighted'
+    | 'moneyWeighted'
+    | 'modifiedDietz'
+    | 'simpleReturn'
+    | 'symbolPriceBased'
+    | 'notApplicable';
+  isMixedTrackingMode?: boolean;
+  warnings?: string[];
 }
 
 export interface UpdateAssetProfile {

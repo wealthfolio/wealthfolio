@@ -1,5 +1,5 @@
 import { getGoals } from "@/adapters";
-import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
+import { DashboardCard } from "@/components/dashboard-card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -60,6 +60,18 @@ function formatTimeRemaining(targetDate?: string): string {
   return `${years}Y ${remMonths}M`;
 }
 
+function ViewAllLink() {
+  return (
+    <Link
+      to="/goals"
+      className="text-muted-foreground hover:bg-success/10 inline-flex h-8 items-center rounded-md px-3 text-xs font-medium transition-colors"
+    >
+      View All
+      <Icons.ChevronRight className="ml-1 h-3 w-3" />
+    </Link>
+  );
+}
+
 export function SavingGoals() {
   const { isBalanceHidden } = useBalancePrivacy();
 
@@ -70,24 +82,17 @@ export function SavingGoals() {
 
   if (isLoading) {
     return (
-      <div className="pb-4">
-        <div className="flex items-center justify-between py-2">
-          <h2 className="text-md font-semibold">Goals</h2>
-        </div>
-        <Card className="shadow-xs w-full">
-          <CardContent className="px-5 py-6">
-            <div className="space-y-6">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="space-y-2">
-                  <Skeleton className="h-4 w-1/3" />
-                  <Skeleton className="h-[2px] w-2/3" />
-                  <Skeleton className="h-3 w-1/4" />
-                </div>
-              ))}
+      <DashboardCard title="Goals" elevated>
+        <div className="space-y-6">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-[2px] w-2/3" />
+              <Skeleton className="h-3 w-1/4" />
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          ))}
+        </div>
+      </DashboardCard>
     );
   }
 
@@ -99,132 +104,104 @@ export function SavingGoals() {
 
   if (activeGoals.length === 0) {
     return (
-      <div className="pb-4">
-        <div className="flex items-center justify-between py-2">
-          <h2 className="text-md font-semibold">Goals</h2>
+      <DashboardCard title="Goals" elevated action={<ViewAllLink />}>
+        <div className="py-2 text-center">
+          <p className="text-sm">No goals set.</p>
           <Link
-            to="/goals"
-            className="text-muted-foreground hover:bg-success/10 inline-flex h-8 items-center rounded-md px-3 text-xs font-medium transition-colors"
+            to="/goals/new"
+            className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
           >
-            View All
-            <Icons.ChevronRight className="ml-1 h-3 w-3" />
+            Create your first goal
+            <Icons.ChevronRight className="h-3 w-3" />
           </Link>
         </div>
-        <Card className="border-border/50 bg-success/10 shadow-xs w-full">
-          <CardContent className="px-4 py-6">
-            <div className="text-center">
-              <p className="text-sm">No goals set.</p>
-              <Link
-                to="/goals/new"
-                className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
-              >
-                Create your first goal
-                <Icons.ChevronRight className="h-3 w-3" />
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      </DashboardCard>
     );
   }
 
   return (
-    <div className="pb-4">
-      <div className="flex items-center justify-between py-2">
-        <h2 className="text-md font-semibold">Goals</h2>
+    <DashboardCard title="Goals" elevated action={<ViewAllLink />}>
+      {visibleGoals.map((goal) => {
+        const progress = goal.summaryProgress ?? 0;
+        const pct = Math.max(0, Math.min(1, progress));
+        const currentValue = goal.summaryCurrentValue ?? 0;
+        const target = goal.summaryTargetAmount ?? goal.targetAmount ?? 0;
+        const currency = goal.currency ?? "USD";
+        const deadline = goal.targetDate ?? goal.projectedCompletionDate;
+        const timeStr = formatTimeRemaining(deadline);
+        const pctDisplay = Math.round(pct * 100);
+
+        const currentDisplay = isBalanceHidden
+          ? "••••"
+          : formatCompactAmount(currentValue, currency);
+        const targetDisplay = isBalanceHidden
+          ? "••••"
+          : target > 0
+            ? formatCompactAmount(target, currency)
+            : "—";
+
+        return (
+          <Link
+            key={goal.id}
+            to={`/goals/${goal.id}`}
+            className="border-border hover:bg-muted/30 group block border-b py-3 transition-colors last:border-0"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                {/* Title row with status dot */}
+                <div className="flex items-center gap-2">
+                  <h3 className="truncate text-sm font-semibold leading-tight">{goal.title}</h3>
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 shrink-0 rounded-full",
+                      statusDotClass(goal.statusHealth),
+                    )}
+                  />
+                  {progress >= 1 ? (
+                    <Icons.CheckCircle className="text-success h-3.5 w-3.5 shrink-0" />
+                  ) : null}
+                </div>
+
+                {/* Amounts directly under title */}
+                <div className="text-muted-foreground mt-0.5 text-[11px] tabular-nums">
+                  {currentDisplay} / {targetDisplay}
+                </div>
+              </div>
+
+              {/* Right: big % + time */}
+              <div className="shrink-0 text-right">
+                <div className="text-base font-semibold tabular-nums leading-none">
+                  {pctDisplay}
+                  <span className="text-[9px] font-medium">%</span>
+                </div>
+                <div className="text-muted-foreground mt-1 text-[10px] tracking-[0.1em]">
+                  {timeStr}
+                </div>
+              </div>
+            </div>
+
+            {/* Full-width progress bar at row bottom */}
+            <div className="bg-muted/60 relative mt-2.5 h-1.5 w-full overflow-hidden rounded-full">
+              <div
+                className="bg-success h-full rounded-full transition-all"
+                style={{ width: `${pct * 100}%` }}
+              />
+            </div>
+          </Link>
+        );
+      })}
+      {hiddenGoalsCount > 0 && (
         <Link
           to="/goals"
-          className="text-muted-foreground hover:bg-success/10 inline-flex h-8 items-center rounded-md px-3 text-xs font-medium transition-colors"
+          className="text-muted-foreground hover:text-foreground flex items-center justify-between pt-3 text-xs transition-colors"
         >
-          View All
-          <Icons.ChevronRight className="ml-1 h-3 w-3" />
+          <span>
+            +{hiddenGoalsCount} more {hiddenGoalsCount === 1 ? "goal" : "goals"}
+          </span>
+          <Icons.ChevronRight className="h-4 w-4" />
         </Link>
-      </div>
-      <Card className="shadow-xs w-full">
-        <CardContent className="px-4 pb-2 pt-4">
-          {visibleGoals.map((goal) => {
-            const progress = goal.summaryProgress ?? 0;
-            const pct = Math.max(0, Math.min(1, progress));
-            const currentValue = goal.summaryCurrentValue ?? 0;
-            const target = goal.summaryTargetAmount ?? goal.targetAmount ?? 0;
-            const currency = goal.currency ?? "USD";
-            const deadline = goal.targetDate ?? goal.projectedCompletionDate;
-            const timeStr = formatTimeRemaining(deadline);
-            const pctDisplay = Math.round(pct * 100);
-
-            const currentDisplay = isBalanceHidden
-              ? "••••"
-              : formatCompactAmount(currentValue, currency);
-            const targetDisplay = isBalanceHidden
-              ? "••••"
-              : target > 0
-                ? formatCompactAmount(target, currency)
-                : "—";
-
-            return (
-              <Link
-                key={goal.id}
-                to={`/goals/${goal.id}`}
-                className="border-border hover:bg-muted/30 group block border-b py-3 transition-colors last:border-0"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    {/* Title row with status dot */}
-                    <div className="flex items-center gap-2">
-                      <h3 className="truncate text-sm font-semibold leading-tight">{goal.title}</h3>
-                      <span
-                        className={cn(
-                          "h-1.5 w-1.5 shrink-0 rounded-full",
-                          statusDotClass(goal.statusHealth),
-                        )}
-                      />
-                      {progress >= 1 ? (
-                        <Icons.CheckCircle className="text-success h-3.5 w-3.5 shrink-0" />
-                      ) : null}
-                    </div>
-
-                    {/* Amounts directly under title */}
-                    <div className="text-muted-foreground mt-0.5 text-[11px] tabular-nums">
-                      {currentDisplay} / {targetDisplay}
-                    </div>
-                  </div>
-
-                  {/* Right: big % + time */}
-                  <div className="shrink-0 text-right">
-                    <div className="text-base font-semibold tabular-nums leading-none">
-                      {pctDisplay}
-                      <span className="text-[9px] font-medium">%</span>
-                    </div>
-                    <div className="text-muted-foreground mt-1 text-[10px] tracking-[0.1em]">
-                      {timeStr}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Full-width progress bar at row bottom */}
-                <div className="bg-muted/60 relative mt-2.5 h-1.5 w-full overflow-hidden rounded-full">
-                  <div
-                    className="bg-success h-full rounded-full transition-all"
-                    style={{ width: `${pct * 100}%` }}
-                  />
-                </div>
-              </Link>
-            );
-          })}
-          {hiddenGoalsCount > 0 && (
-            <Link
-              to="/goals"
-              className="text-muted-foreground hover:text-foreground flex items-center justify-between pt-3 text-xs transition-colors"
-            >
-              <span>
-                +{hiddenGoalsCount} more {hiddenGoalsCount === 1 ? "goal" : "goals"}
-              </span>
-              <Icons.ChevronRight className="h-4 w-4" />
-            </Link>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+      )}
+    </DashboardCard>
   );
 }
 

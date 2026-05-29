@@ -138,7 +138,7 @@ function getPeriodLabel(period: string): string {
       return "Year to Date";
     case "LAST_YEAR":
       return "Last Year";
-    case "TOTAL":
+    case "ALL":
       return "All Time";
     default:
       return period;

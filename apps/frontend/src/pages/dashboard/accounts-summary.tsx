@@ -3,6 +3,7 @@
 import { calculatePerformanceSummary } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useLatestValuations } from "@/hooks/use-latest-valuations";
+import { AccountPurpose } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { AccountValuation, DateRange } from "@/lib/types";
@@ -83,7 +84,7 @@ const AccountSummaryComponent = React.memo(
       }
 
       return (
-        <div className="border-border bg-card shadow-xs flex w-full items-center justify-between gap-3 rounded-lg border px-4 py-3 md:px-5 md:py-4">
+        <div className="border-border/40 bg-card/90 shadow-xs flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 backdrop-blur-xl md:px-5 md:py-4">
           {skeletonContent}
         </div>
       );
@@ -240,7 +241,7 @@ const AccountSummaryComponent = React.memo(
       return (
         <Link
           to={`/accounts/${accountId}`}
-          className="border-border bg-card shadow-xs flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg border px-4 py-3 transition-all duration-150 hover:shadow-md md:px-5 md:py-4"
+          className="border-border/40 bg-card/90 shadow-xs flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3 backdrop-blur-xl transition-all duration-150 hover:shadow-md md:px-5 md:py-4"
         >
           {content}
         </Link>
@@ -248,7 +249,7 @@ const AccountSummaryComponent = React.memo(
     }
 
     return (
-      <div className="border-border bg-card shadow-xs flex w-full items-center justify-between gap-3 rounded-lg border px-4 py-3 md:px-5 md:py-4">
+      <div className="border-border/40 bg-card/90 shadow-xs flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 backdrop-blur-xl md:px-5 md:py-4">
         {content}
       </div>
     );
@@ -266,7 +267,7 @@ export const AccountsSummary = React.memo(
       isLoading: isLoadingAccounts,
       isError: isErrorAccounts,
       error: errorAccounts,
-    } = useAccounts();
+    } = useAccounts({ accountPurpose: AccountPurpose.PERFORMANCE });
 
     const accounts = allAccounts ?? [];
 
@@ -336,7 +337,7 @@ export const AccountsSummary = React.memo(
         const perf = performanceQueries[i]?.data;
         const fxRate = valuation.fxRateToBase ?? 1;
         const totalValueAccountCurrency = valuation.totalValue;
-        const totalValueBaseCurrency = totalValueAccountCurrency * fxRate;
+        const totalValueBaseCurrency = valuation.totalValueBase;
 
         const gainLossAccountCurrency = perf?.periodGain ?? null;
         const gainLossBaseCurrency =
@@ -372,7 +373,7 @@ export const AccountsSummary = React.memo(
         return Array.from({ length: 4 }).map((_, index) => (
           <div
             key={`skeleton-${index}`}
-            className="border-border bg-card shadow-xs rounded-lg border px-4 py-3 md:px-5 md:py-4"
+            className="border-border/40 bg-card/90 shadow-xs rounded-xl border px-4 py-3 backdrop-blur-xl md:px-5 md:py-4"
           >
             <AccountSummarySkeleton />
           </div>
@@ -381,7 +382,7 @@ export const AccountsSummary = React.memo(
 
       if (isErrorAccounts) {
         return (
-          <div className="border-destructive/30 bg-destructive/5 rounded-lg border p-4 md:p-5">
+          <div className="border-destructive/30 bg-destructive/5 rounded-xl border p-4 md:p-5">
             <div className="flex items-start gap-3">
               <div className="bg-destructive/10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
                 <Icons.AlertTriangle className="text-destructive h-4 w-4" />
@@ -402,7 +403,7 @@ export const AccountsSummary = React.memo(
 
       if (!combinedAccountViews || combinedAccountViews.length === 0) {
         return (
-          <div className="border-border/50 bg-success/10 rounded-lg border p-6 text-center md:p-8">
+          <div className="border-border/50 bg-success/10 rounded-xl border p-6 text-center md:p-8">
             <p className="text-sm">No accounts found.</p>
             <Link
               to="/settings/accounts"
@@ -533,7 +534,7 @@ export const AccountsSummary = React.memo(
               return (
                 <div
                   key={group.accountName}
-                  className="border-border bg-card shadow-xs overflow-hidden rounded-lg border transition-shadow duration-150 hover:shadow-md"
+                  className="border-border/40 bg-card/90 shadow-xs overflow-hidden rounded-xl border backdrop-blur-xl transition-shadow duration-150 hover:shadow-md"
                 >
                   <div className="cursor-pointer">
                     <AccountSummaryComponent
@@ -601,7 +602,7 @@ export const AccountsSummary = React.memo(
     return (
       <div className="mb-4 w-full space-y-0">
         <div className="flex flex-row items-center justify-between gap-2 pb-2">
-          <h2 className="text-md font-semibold tracking-tight">Accounts</h2>
+          <h2 className="text-sm font-semibold tracking-tight">Accounts</h2>
           <Button
             variant="ghost"
             className="text-muted-foreground hover:bg-success/10"

@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::accounts::{Account, TrackingMode};
+    use crate::accounts::{Account, NewAccount, TrackingMode};
     use chrono::NaiveDateTime;
 
     // ==================== TrackingMode Serialization Tests ====================
@@ -69,6 +69,33 @@ mod tests {
     fn test_account_is_archived_default() {
         let account = Account::default();
         assert!(!account.is_archived);
+    }
+
+    #[test]
+    fn test_credit_card_rejects_holdings_tracking_mode() {
+        let account = NewAccount {
+            id: None,
+            name: "Card".to_string(),
+            account_type: "CREDIT_CARD".to_string(),
+            group: None,
+            currency: "USD".to_string(),
+            is_default: false,
+            is_active: true,
+            platform_id: None,
+            account_number: None,
+            meta: None,
+            provider: None,
+            provider_account_id: None,
+            is_archived: false,
+            tracking_mode: TrackingMode::Holdings,
+        };
+
+        let err = account
+            .validate()
+            .expect_err("credit cards should not support holdings mode");
+        assert!(err
+            .to_string()
+            .contains("Credit card accounts cannot use HOLDINGS tracking mode"));
     }
 
     // ==================== Helper Functions ====================

@@ -10,6 +10,8 @@ interface BalanceProps {
   currency: string;
   displayCurrency?: boolean;
   displayDecimal?: boolean;
+  /** Compact notation (e.g. $1.1M) — useful for large values on narrow screens. */
+  compact?: boolean;
   isLoading?: boolean;
 }
 
@@ -18,6 +20,7 @@ const Balance: React.FC<BalanceProps> = ({
   currency = "USD",
   displayCurrency = false,
   displayDecimal = true,
+  compact = false,
   isLoading = false,
 }) => {
   const { isBalanceHidden } = useBalancePrivacy();
@@ -46,14 +49,15 @@ const Balance: React.FC<BalanceProps> = ({
       const formatter = new Intl.NumberFormat(undefined, {
         ...(useCurrencyStyle ? { currency, currencyDisplay: "narrowSymbol" } : {}),
         style: useCurrencyStyle ? "currency" : "decimal",
-        minimumFractionDigits: displayDecimal ? 2 : 0,
-        maximumFractionDigits: displayDecimal ? 2 : 0,
+        notation: compact ? "compact" : "standard",
+        minimumFractionDigits: compact ? 0 : displayDecimal ? 2 : 0,
+        maximumFractionDigits: compact ? 1 : displayDecimal ? 2 : 0,
       });
       return formatter.format(targetValue);
     } catch {
       return targetValue.toFixed(displayDecimal ? 2 : 0);
     }
-  }, [currency, validCurrency, displayCurrency, displayDecimal, targetValue]);
+  }, [currency, validCurrency, displayCurrency, displayDecimal, compact, targetValue]);
 
   if (isLoading) {
     return <Skeleton className="h-9 w-48" />;
@@ -82,8 +86,9 @@ const Balance: React.FC<BalanceProps> = ({
                 ? { currency, currencyDisplay: "narrowSymbol" as const }
                 : {}),
               style: displayCurrency && validCurrency ? "currency" : "decimal",
-              minimumFractionDigits: displayDecimal ? 2 : 0,
-              maximumFractionDigits: displayDecimal ? 2 : 0,
+              notation: compact ? ("compact" as const) : ("standard" as const),
+              minimumFractionDigits: compact ? 0 : displayDecimal ? 2 : 0,
+              maximumFractionDigits: compact ? 1 : displayDecimal ? 2 : 0,
             }}
           />
           <span className="sr-only" data-testid="portfolio-balance-value">

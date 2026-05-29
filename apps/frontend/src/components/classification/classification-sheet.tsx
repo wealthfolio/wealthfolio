@@ -36,7 +36,8 @@ export function ClassificationSheet({
   open,
   onOpenChange,
 }: ClassificationSheetProps) {
-  const { data: taxonomies, isLoading } = useTaxonomies();
+  // Asset classification sheet — restrict to asset-scoped taxonomies.
+  const { data: taxonomies, isLoading } = useTaxonomies({ scope: "asset" });
 
   // Sort and group taxonomies
   const { singleSelectTaxonomies, multiSelectTaxonomies } = useMemo(() => {

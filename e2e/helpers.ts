@@ -64,6 +64,16 @@ export async function waitForOverlayClose(page: Page) {
     .catch(() => {});
 }
 
+export async function gotoActivities(page: Page) {
+  await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
+  // The Spending module is enabled by default, so the Activities page renders the
+  // Investments/Spending SwipablePage (no "Activity" heading). The "Add Activities"
+  // button is present in both layouts, making it a stable load anchor.
+  await expect(page.getByRole("button", { name: "Add Activities" })).toBeVisible({
+    timeout: 10000,
+  });
+}
+
 export async function openAddActivitySheet(page: Page) {
   await waitForOverlayClose(page);
   await page.getByRole("button", { name: "Add Activities" }).click();

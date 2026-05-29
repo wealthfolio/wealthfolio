@@ -13,18 +13,32 @@ use crate::main_lib::AppState;
 
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/holdings", get(handlers::get_holdings))
+        .route("/holdings", get(handlers::get_holdings_for_account))
+        .route("/holdings/query", post(handlers::get_holdings))
         .route("/holdings/item", get(handlers::get_holding))
         .route("/holdings/by-asset", get(handlers::get_asset_holdings))
+        .route("/holdings/lots", get(handlers::get_asset_lots))
         .route(
             "/valuations/history",
             get(handlers::get_historical_valuations),
         )
+        .route(
+            "/valuations/history/query",
+            post(handlers::get_historical_valuations_for_scope),
+        )
         .route("/valuations/latest", get(handlers::get_latest_valuations))
-        .route("/allocations", get(handlers::get_portfolio_allocations))
+        .route("/allocations", get(handlers::get_allocations_for_account))
+        .route(
+            "/allocations/query",
+            post(handlers::get_portfolio_allocations),
+        )
         .route(
             "/allocations/holdings",
-            get(handlers::get_holdings_by_allocation),
+            get(handlers::get_holdings_by_allocation_for_account),
+        )
+        .route(
+            "/allocations/holdings/query",
+            post(handlers::get_holdings_by_allocation),
         )
         .route(
             "/snapshots",

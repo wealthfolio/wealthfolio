@@ -1,5 +1,11 @@
 import { expect, Page, test } from "@playwright/test";
-import { BASE_URL, createAccount, loginIfNeeded, waitForSyncToast } from "./helpers";
+import {
+  BASE_URL,
+  createAccount,
+  gotoActivities,
+  loginIfNeeded,
+  waitForSyncToast,
+} from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -48,8 +54,7 @@ test.describe("Bulk Holdings (Add Existing Holdings)", () => {
     test.setTimeout(120000);
 
     // Navigate to activities
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible({ timeout: 10000 });
+    await gotoActivities(page);
 
     // Open bulk holdings modal
     await page.getByRole("button", { name: "Add Activities" }).click();
@@ -158,29 +163,25 @@ test.describe("Bulk Holdings (Add Existing Holdings)", () => {
   test("3. Verify activities in activity table", async () => {
     test.setTimeout(30000);
 
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible({ timeout: 10000 });
-    await page.waitForTimeout(1000);
+    await gotoActivities(page);
 
-    // Filter by account
-    const accountFilter = page.getByRole("button", { name: /Account/i });
+    // Filter by account. The trigger is a combobox labelled with the current scope
+    // ("All Accounts"); matching on its visible text is reliable since the combobox
+    // role derives no accessible name from its contents.
+    const accountFilter = page.getByRole("combobox").filter({ hasText: "All Accounts" });
     await accountFilter.click();
-    await page.waitForTimeout(300);
-    const filterOption = page.getByRole("option", { name: ACCOUNT_NAME }).first();
-    await expect(filterOption).toBeVisible({ timeout: 5000 });
-    await filterOption.click();
-    await page.waitForTimeout(500);
+    await page.getByRole("option", { name: ACCOUNT_NAME }).first().click();
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(500);
 
-    // Verify all 3 holdings appear
-    await expect(page.getByText("AAPL").first()).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("MSFT").first()).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("MYASSET").first()).toBeVisible({ timeout: 5000 });
+    // The trigger now reflects the selected account — proves the filter applied
+    // (and replaces a fixed wait for the table to refetch).
+    await expect(page.getByRole("combobox").filter({ hasText: ACCOUNT_NAME })).toBeVisible();
 
-    // All should be Transfer In type
-    const transferInCells = page.getByText("Transfer In");
-    const count = await transferInCells.count();
-    expect(count).toBeGreaterThanOrEqual(3);
+    // All 3 holdings appear in the table, each as a single Transfer In row.
+    const rows = page.getByRole("table").getByRole("row");
+    await expect(rows.filter({ hasText: "AAPL" })).toHaveCount(1);
+    await expect(rows.filter({ hasText: "MSFT" })).toHaveCount(1);
+    await expect(rows.filter({ hasText: "MYASSET" })).toHaveCount(1);
+    await expect(rows.filter({ hasText: "Transfer In" })).toHaveCount(3);
   });
 });

@@ -7,7 +7,7 @@ members = [
 ]
 
 [workspace.package]
-version = "3.4.0"
+version = "3.5.0"
 edition = "2021"
 license = "AGPL-3.0"
 
@@ -70,3 +70,4 @@ wealthfolio-connect = { path = "crates/connect" }
 wealthfolio-storage-sqlite = { path = "crates/storage-sqlite" }
 wealthfolio-device-sync = { path = "crates/device-sync" }
 wealthfolio-ai = { path = "crates/ai" }
+wealthfolio-spending = { path = "crates/spending" }

@@ -1,0 +1,62 @@
+---
+source: crates/ai/tests/tool_schemas.rs
+expression: snapshot
+---
+{
+  "name": "record_activity",
+  "parameters": {
+    "properties": {
+      "account": {
+        "type": "string"
+      },
+      "activityDate": {
+        "type": "string"
+      },
+      "activityType": {
+        "enum": [
+          "BUY",
+          "SELL",
+          "DIVIDEND",
+          "DEPOSIT",
+          "WITHDRAWAL",
+          "TRANSFER_IN",
+          "TRANSFER_OUT",
+          "INTEREST",
+          "FEE",
+          "SPLIT",
+          "TAX",
+          "CREDIT",
+          "ADJUSTMENT",
+          "UNKNOWN"
+        ],
+        "type": "string"
+      },
+      "amount": {
+        "type": "number"
+      },
+      "fee": {
+        "type": "number"
+      },
+      "notes": {
+        "type": "string"
+      },
+      "quantity": {
+        "type": "number"
+      },
+      "subtype": {
+        "type": "string"
+      },
+      "symbol": {
+        "type": "string"
+      },
+      "unitPrice": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "activityType",
+      "activityDate"
+    ],
+    "type": "object"
+  }
+}

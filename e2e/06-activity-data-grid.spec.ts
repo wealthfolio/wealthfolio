@@ -1,5 +1,5 @@
 import { expect, Page, test } from "@playwright/test";
-import { BASE_URL, loginIfNeeded } from "./helpers";
+import { BASE_URL, gotoActivities, loginIfNeeded } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -17,13 +17,11 @@ test.describe("Activity Data Grid Inline Editing", () => {
   test("1. Setup: login and navigate to activities", async () => {
     test.setTimeout(180000);
     await loginIfNeeded(page);
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible({ timeout: 10000 });
+    await gotoActivities(page);
   });
 
   test("2. Grid loads: switch to edit mode, verify rows", async () => {
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible({ timeout: 10000 });
+    await gotoActivities(page);
     await page.waitForTimeout(1000);
 
     // Switch to data grid (Edit mode)

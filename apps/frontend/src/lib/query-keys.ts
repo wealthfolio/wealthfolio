@@ -1,7 +1,20 @@
 export const QueryKeys = {
+  // Portfolios (saved reporting scopes)
+  PORTFOLIOS: "portfolios",
+
   // Account related keys
   ACCOUNTS: "accounts",
   ACCOUNTS_SUMMARY: "accounts_summary",
+
+  // Spending module keys
+  SPENDING_SETTINGS: "spending_settings",
+  SPENDING_TRANSACTIONS: "spending_transactions",
+  SPENDING_RULES: "spending_rules",
+  SPENDING_EVENTS: "spending_events",
+  SPENDING_EVENT_TYPES: "spending_event_types",
+  SPENDING_BUDGET: "spending_budget",
+  SPENDING_REPORT: "spending_report",
+  SPENDING_INSIGHT: "spending_insight",
 
   // Activity related keys
   ACTIVITY_DATA: "activity-data",
@@ -11,6 +24,7 @@ export const QueryKeys = {
   HOLDINGS: "holdings",
   HOLDING: "holding",
   ASSET_HOLDINGS: "assetHoldings",
+  ASSET_LOTS: "assetLots",
   PORTFOLIO_ALLOCATIONS: "portfolioAllocations",
   HOLDINGS_BY_ALLOCATION: "holdingsByAllocation",
   INCOME_SUMMARY: "incomeSummary",
@@ -54,7 +68,7 @@ export const QueryKeys = {
 
   HISTORY_VALUATION: "historyValuation",
   // Helper function to create account-specific keys
-  valuationHistory: (id: string) => [QueryKeys.HISTORY_VALUATION, id],
+  valuationHistory: (scope: unknown) => [QueryKeys.HISTORY_VALUATION, scope],
 
   // Account simple performance
   ACCOUNTS_SIMPLE_PERFORMANCE: "accountsSimplePerformance",

@@ -1,0 +1,44 @@
+---
+source: crates/ai/tests/tool_schemas.rs
+expression: snapshot
+---
+{
+  "name": "create_categorization_rule",
+  "parameters": {
+    "properties": {
+      "accountId": {
+        "type": "string"
+      },
+      "activityType": {
+        "type": "string"
+      },
+      "categoryKey": {
+        "type": "string"
+      },
+      "matchType": {
+        "enum": [
+          "contains",
+          "starts_with",
+          "exact",
+          "regex"
+        ],
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "pattern": {
+        "type": "string"
+      },
+      "taxonomyId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "pattern",
+      "taxonomyId",
+      "categoryKey"
+    ],
+    "type": "object"
+  }
+}

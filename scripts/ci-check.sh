@@ -89,7 +89,7 @@ while IFS= read -r file; do
     postcss.config.*|tailwind.config.*)
       RUN_FRONTEND=true
       ;;
-    apps/frontend/*|packages/*/package.json|addons/*/package.json)
+    apps/frontend/*|packages/*/package.json)
       RUN_FRONTEND=true
       ;;
     .github/workflows/pr-check.yml|scripts/ci-check.sh)

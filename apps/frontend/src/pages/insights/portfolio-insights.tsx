@@ -1,7 +1,7 @@
-import { AccountSelector } from "@/components/account-selector";
+import { AccountScopeSelector } from "@/components/account-filter-selector";
 import { SwipablePage, SwipablePageView } from "@/components/page";
-import { PORTFOLIO_ACCOUNT_ID } from "@/lib/constants";
-import type { Account } from "@/lib/types";
+
+import type { AccountScope } from "@/lib/types";
 import IncomePage from "@/pages/income/income-page";
 import PerformancePage from "@/pages/performance/performance-page";
 import { Icons } from "@wealthfolio/ui";
@@ -34,32 +34,11 @@ const DashboardLoader = () => (
 );
 
 export default function PortfolioInsightsPage() {
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>({
-    id: PORTFOLIO_ACCOUNT_ID,
-    name: "All Portfolio",
-    accountType: "PORTFOLIO" as unknown as Account["accountType"],
-    balance: 0,
-    currency: "USD",
-    isDefault: false,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as Account);
-
-  const accountId = selectedAccount?.id ?? PORTFOLIO_ACCOUNT_ID;
+  const [accountFilter, setAccountScope] = useState<AccountScope>({ type: "all" });
 
   const holdingsActions = useMemo(
-    () => (
-      <AccountSelector
-        selectedAccount={selectedAccount}
-        setSelectedAccount={setSelectedAccount}
-        variant="dropdown"
-        includePortfolio={true}
-        iconOnly={true}
-        icon={Icons.ListFilter}
-      />
-    ),
-    [selectedAccount],
+    () => <AccountScopeSelector value={accountFilter} onChange={setAccountScope} />,
+    [accountFilter],
   );
 
   // Define the views with icons
@@ -71,7 +50,7 @@ export default function PortfolioInsightsPage() {
         icon: Icons.PieChart,
         content: (
           <Suspense fallback={<DashboardLoader />}>
-            <HoldingsInsightsPage accountId={accountId} />
+            <HoldingsInsightsPage filter={accountFilter} />
           </Suspense>
         ),
         actions: holdingsActions,
@@ -97,7 +76,7 @@ export default function PortfolioInsightsPage() {
         ),
       },
     ],
-    [accountId, holdingsActions],
+    [accountFilter, holdingsActions],
   );
 
   return <SwipablePage views={views} defaultView="holdings" withPadding={true} />;

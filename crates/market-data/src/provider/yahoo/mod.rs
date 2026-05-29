@@ -25,8 +25,8 @@ use yahoo_finance_api as yahoo;
 
 use crate::errors::MarketDataError;
 use crate::models::{
-    AssetProfile, Coverage, InstrumentKind, ProviderInstrument, Quote, QuoteContext, SearchResult,
-    SplitEvent,
+    AssetProfile, Coverage, DividendEvent, InstrumentKind, ProviderInstrument, Quote, QuoteContext,
+    SearchResult, SplitEvent,
 };
 use crate::provider::{MarketDataProvider, ProviderCapabilities, RateLimit};
 use crate::resolver::{yahoo_equity_search_queries, yahoo_exchange_to_mic, ResolverChain};
@@ -80,13 +80,6 @@ lazy_static! {
 /// and foreign exchange rates through the Yahoo Finance API.
 pub struct YahooProvider {
     connector: yahoo::YahooConnector,
-}
-
-/// A single dividend event returned by Yahoo Finance.
-#[derive(Debug, serde::Serialize)]
-pub struct YahooDividend {
-    pub amount: f64,
-    pub date: i64, // unix seconds
 }
 
 impl YahooProvider {
@@ -233,23 +226,23 @@ impl YahooProvider {
     // Dividend Fetching
     // ========================================================================
 
-    /// Fetch dividend events for a symbol over the past two years.
+    /// Fetch dividend events for a symbol in the requested date range.
     pub async fn fetch_dividends(
         &self,
         symbol: &str,
-    ) -> Result<Vec<YahooDividend>, MarketDataError> {
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<DividendEvent>, MarketDataError> {
         use std::collections::HashMap;
 
         let crumb_data = self.ensure_crumb().await?;
 
-        let now = chrono::Utc::now().timestamp();
-        let two_years_ago = now - 2 * 365 * 24 * 60 * 60;
         let encoded = urlencoding::encode(symbol);
         let url = format!(
             "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&period1={}&period2={}&events=div&crumb={}",
             encoded,
-            two_years_ago,
-            now,
+            start.timestamp(),
+            end.timestamp(),
             urlencoding::encode(&crumb_data.crumb)
         );
 
@@ -358,9 +351,9 @@ impl YahooProvider {
             .and_then(|e| e.dividends)
             .unwrap_or_default();
 
-        let mut result: Vec<YahooDividend> = divs
+        let mut result: Vec<DividendEvent> = divs
             .into_values()
-            .map(|d| YahooDividend {
+            .map(|d| DividendEvent {
                 amount: d.amount,
                 date: d.date,
             })
@@ -918,6 +911,7 @@ impl MarketDataProvider for YahooProvider {
             supports_historical: true,
             supports_search: true,
             supports_profile: true,
+            supports_dividends: true,
         }
     }
 
@@ -1069,6 +1063,26 @@ impl MarketDataProvider for YahooProvider {
             .collect();
 
         Ok(events)
+    }
+
+    async fn get_dividends(
+        &self,
+        _context: &QuoteContext,
+        instrument: ProviderInstrument,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<DividendEvent>, MarketDataError> {
+        let symbol = match instrument {
+            ProviderInstrument::EquitySymbol { symbol } => symbol.to_string(),
+            _ => {
+                return Err(MarketDataError::NotSupported {
+                    operation: "dividends".to_string(),
+                    provider: self.id().to_string(),
+                });
+            }
+        };
+
+        self.fetch_dividends(&symbol, start, end).await
     }
 
     async fn search(&self, query: &str) -> Result<Vec<SearchResult>, MarketDataError> {
@@ -1380,6 +1394,7 @@ mod tests {
             supports_historical: true,
             supports_search: true,
             supports_profile: true,
+            supports_dividends: true,
         };
 
         assert!(capabilities
@@ -1399,6 +1414,7 @@ mod tests {
         assert!(capabilities.supports_historical);
         assert!(capabilities.supports_search);
         assert!(capabilities.supports_profile);
+        assert!(capabilities.supports_dividends);
     }
 
     #[test]

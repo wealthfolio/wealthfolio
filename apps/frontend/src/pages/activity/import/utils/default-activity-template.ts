@@ -1,7 +1,11 @@
-import { ActivityType } from "@/lib/constants";
 import type { ImportMappingData, ImportTemplateData } from "@/lib/types";
 import { ImportType } from "@/lib/types";
 import type { ParseConfig } from "../context";
+import {
+  DEFAULT_ACTIVITY_IMPORT_PROFILE,
+  getDefaultActivityMappingsForImportProfile,
+  type ActivityImportProfile,
+} from "./activity-import-profile";
 
 export const DEFAULT_ACTIVITY_TEMPLATE_ID = "system_default_activity";
 
@@ -20,35 +24,32 @@ export function createDefaultParseConfig(defaultCurrency = "USD"): ParseConfig {
   };
 }
 
-function createCanonicalActivityMappings(): Record<string, string[]> {
-  return Object.fromEntries(
-    Object.values(ActivityType)
-      .filter((type) => type !== ActivityType.UNKNOWN)
-      .map((type) => [type, [type]]),
-  );
-}
-
-export function createDefaultActivityTemplate(): ImportTemplateData {
+export function createDefaultActivityTemplate(
+  profile: ActivityImportProfile = DEFAULT_ACTIVITY_IMPORT_PROFILE,
+): ImportTemplateData {
   return {
     id: DEFAULT_ACTIVITY_TEMPLATE_ID,
     name: "Default",
     scope: "SYSTEM",
     kind: ImportType.ACTIVITY,
     fieldMappings: {},
-    activityMappings: createCanonicalActivityMappings(),
+    activityMappings: getDefaultActivityMappingsForImportProfile(profile),
     symbolMappings: {},
     accountMappings: {},
     symbolMappingMeta: {},
   };
 }
 
-export function createDefaultActivityMapping(accountId = ""): ImportMappingData {
+export function createDefaultActivityMapping(
+  accountId = "",
+  profile: ActivityImportProfile = DEFAULT_ACTIVITY_IMPORT_PROFILE,
+): ImportMappingData {
   return {
     accountId,
     importType: ImportType.ACTIVITY,
     name: "",
     fieldMappings: {},
-    activityMappings: createDefaultActivityTemplate().activityMappings,
+    activityMappings: createDefaultActivityTemplate(profile).activityMappings,
     symbolMappings: {},
     accountMappings: {},
     symbolMappingMeta: {},
@@ -70,9 +71,10 @@ export function createEmptyHoldingsMapping(accountId = ""): ImportMappingData {
 
 export function prependDefaultActivityTemplate(
   templates: ImportTemplateData[],
+  profile: ActivityImportProfile = DEFAULT_ACTIVITY_IMPORT_PROFILE,
 ): ImportTemplateData[] {
   return [
-    createDefaultActivityTemplate(),
+    createDefaultActivityTemplate(profile),
     ...templates.filter((template) => template.id !== DEFAULT_ACTIVITY_TEMPLATE_ID),
   ];
 }

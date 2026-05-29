@@ -535,6 +535,54 @@ impl QuoteStore for MarketDataRepository {
         Ok(result)
     }
 
+    fn get_latest_quotes_as_of(
+        &self,
+        symbols: &[String],
+        as_of: chrono::NaiveDate,
+    ) -> Result<HashMap<String, Quote>> {
+        if symbols.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let mut conn = get_connection(&self.pool)?;
+        let mut result: HashMap<String, Quote> = HashMap::new();
+        let as_of_str = as_of.format("%Y-%m-%d").to_string();
+
+        for chunk in chunk_for_sqlite(symbols) {
+            let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+
+            let sql = format!(
+                "WITH RankedQuotes AS ( \
+                    SELECT \
+                        q.*, \
+                        ROW_NUMBER() OVER (PARTITION BY q.asset_id ORDER BY q.day DESC, {priority} ASC) as rn \
+                    FROM quotes q \
+                    WHERE q.asset_id IN ({placeholders}) AND q.day <= ? \
+                ) \
+                SELECT * FROM RankedQuotes WHERE rn = 1 \
+                ORDER BY asset_id",
+                priority = SOURCE_PRIORITY_CASE_Q,
+                placeholders = placeholders
+            );
+
+            let mut query_builder = Box::new(sql_query(sql)).into_boxed::<Sqlite>();
+
+            for symbol_val in chunk {
+                query_builder = query_builder.bind::<Text, _>(symbol_val);
+            }
+            query_builder = query_builder.bind::<Text, _>(as_of_str.clone());
+
+            let ranked_quotes_db: Vec<QuoteDB> =
+                query_builder.load::<QuoteDB>(&mut conn).into_core()?;
+
+            for quote_db in ranked_quotes_db {
+                result.insert(quote_db.asset_id.clone(), quote_db.into());
+            }
+        }
+
+        Ok(result)
+    }
+
     fn get_latest_quotes_pair(
         &self,
         symbols: &[String],
@@ -1000,5 +1048,62 @@ mod tests {
             .expect("get_latest_quote should succeed");
         assert_eq!(latest.data_source, "YAHOO");
         assert_eq!(latest.close, Decimal::from(180));
+    }
+
+    /// `get_latest_quotes_as_of` must exclude quotes whose `day` is after the
+    /// supplied cutoff, and omit the asset entirely when no qualifying row exists.
+    #[tokio::test]
+    async fn get_latest_quotes_as_of_excludes_future_rows() {
+        let (repo, _temp) = create_test_repository().await;
+        let asset_id = "MORGAGE";
+        insert_test_asset(&repo, asset_id);
+
+        let past = NaiveDate::from_ymd_opt(2020, 1, 1).unwrap();
+        let present = NaiveDate::from_ymd_opt(2024, 6, 1).unwrap();
+        let future = NaiveDate::from_ymd_opt(2041, 12, 31).unwrap();
+
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            past,
+            "MANUAL",
+            Decimal::from(100_000),
+        ))
+        .await
+        .expect("save past");
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            present,
+            "MANUAL",
+            Decimal::from(80_000),
+        ))
+        .await
+        .expect("save present");
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            future,
+            "MANUAL",
+            Decimal::ZERO,
+        ))
+        .await
+        .expect("save future");
+
+        // as_of = present: should return the present row (not the future row)
+        let result = repo
+            .get_latest_quotes_as_of(&[asset_id.to_string()], present)
+            .expect("get_latest_quotes_as_of should succeed");
+        assert_eq!(result.len(), 1, "should have one entry");
+        let quote = result.get(asset_id).expect("asset should be present");
+        assert_eq!(
+            quote.close,
+            Decimal::from(80_000),
+            "should return present row, not future"
+        );
+
+        // as_of = before all rows: asset should be absent
+        let before_all = NaiveDate::from_ymd_opt(2019, 12, 31).unwrap();
+        let empty = repo
+            .get_latest_quotes_as_of(&[asset_id.to_string()], before_all)
+            .expect("get_latest_quotes_as_of should succeed with empty result");
+        assert!(empty.is_empty(), "no quotes before all rows");
     }
 }

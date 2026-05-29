@@ -1,11 +1,36 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
+use wealthfolio_core::portfolios::AccountScope;
 
 #[derive(Deserialize)]
-pub struct HoldingsQuery {
+pub struct FilterBody {
+    pub filter: AccountScope,
+}
+
+#[derive(Deserialize)]
+pub struct AllocationFilterBody {
+    pub filter: AccountScope,
+    #[serde(rename = "taxonomyId")]
+    pub taxonomy_id: String,
+    #[serde(rename = "categoryId")]
+    pub category_id: String,
+}
+
+#[derive(Deserialize)]
+pub struct AccountIdQuery {
     #[serde(rename = "accountId")]
     pub account_id: String,
+}
+
+#[derive(Deserialize)]
+pub struct AllocationHoldingsQuery {
+    #[serde(rename = "accountId")]
+    pub account_id: String,
+    #[serde(rename = "taxonomyId")]
+    pub taxonomy_id: String,
+    #[serde(rename = "categoryId")]
+    pub category_id: String,
 }
 
 #[derive(Deserialize)]
@@ -23,6 +48,14 @@ pub struct AssetHoldingsQuery {
 }
 
 #[derive(Deserialize)]
+pub struct AssetLotsQuery {
+    #[serde(rename = "assetId")]
+    pub asset_id: String,
+    #[serde(rename = "includeSnapshotPositions", default)]
+    pub include_snapshot_positions: bool,
+}
+
+#[derive(Deserialize)]
 pub struct HistoryQuery {
     #[serde(rename = "accountId")]
     pub account_id: String,
@@ -33,13 +66,12 @@ pub struct HistoryQuery {
 }
 
 #[derive(Deserialize)]
-pub struct AllocationHoldingsQuery {
-    #[serde(rename = "accountId")]
-    pub account_id: String,
-    #[serde(rename = "taxonomyId")]
-    pub taxonomy_id: String,
-    #[serde(rename = "categoryId")]
-    pub category_id: String,
+pub struct HistoryFilterBody {
+    pub filter: AccountScope,
+    #[serde(rename = "startDate")]
+    pub start_date: Option<String>,
+    #[serde(rename = "endDate")]
+    pub end_date: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -75,6 +107,7 @@ pub struct SnapshotInfo {
     pub source: String,
     pub position_count: usize,
     pub cash_currency_count: usize,
+    pub cash_total_account_currency: String,
 }
 
 /// Input for a single holding when saving manual holdings

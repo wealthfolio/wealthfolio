@@ -16,6 +16,8 @@
   for addon development.
 - [Addon Packages](./addon-packages.md) — List of available packages and
   dependencies for addon development.
+- [Addon Migration Guide v2 to v3](./addon-migration-guide-v2-to-v3.md) —
+  Migration notes for older addon APIs.
 - [Shared Query Client Design](./shared-query-client-design.md) — Documentation
   on the design of the shared query client.
 
@@ -27,6 +29,7 @@
 ## 🛠️ Other Resources
 
 - [Addon Packages](./addon-packages.md)
+- [Addon Migration Guide v2 to v3](./addon-migration-guide-v2-to-v3.md)
 - [Addon Architecture](./addon-architecture.md)
 
 ---

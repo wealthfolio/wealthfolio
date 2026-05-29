@@ -304,6 +304,7 @@ impl MarketDataProvider for BoerseFrankfurtProvider {
             supports_historical: true,
             supports_search: false,
             supports_profile: true,
+            supports_dividends: false,
         }
     }
 

@@ -1,0 +1,43 @@
+---
+source: crates/ai/tests/tool_schemas.rs
+expression: snapshot
+---
+{
+  "name": "list_categorization_context",
+  "parameters": {
+    "properties": {
+      "accountIds": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "activityIds": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "endDate": {
+        "type": "string"
+      },
+      "limit": {
+        "maximum": 100,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "startDate": {
+        "type": "string"
+      },
+      "status": {
+        "enum": [
+          "uncategorized",
+          "all",
+          "needs_review"
+        ],
+        "type": "string"
+      }
+    },
+    "type": "object"
+  }
+}

@@ -14,7 +14,7 @@ use rust_decimal::Decimal;
 use std::sync::{Arc, RwLock};
 // Define the trait for the income service
 pub trait IncomeServiceTrait: Send + Sync {
-    fn get_income_summary(&self, account_id: Option<&str>) -> Result<Vec<IncomeSummary>>;
+    fn get_income_summary(&self, account_ids: Option<&[String]>) -> Result<Vec<IncomeSummary>>;
 }
 
 pub struct IncomeService {
@@ -68,12 +68,12 @@ impl IncomeService {
 
 // Implement the trait for IncomeService
 impl IncomeServiceTrait for IncomeService {
-    fn get_income_summary(&self, account_id: Option<&str>) -> Result<Vec<IncomeSummary>> {
+    fn get_income_summary(&self, account_ids: Option<&[String]>) -> Result<Vec<IncomeSummary>> {
         debug!("Getting income summary...");
 
         let activities = match self
             .activity_repository
-            .get_income_activities_data(account_id)
+            .get_income_activities_data(account_ids)
         {
             Ok(activity) => activity,
             Err(e) => {
@@ -93,15 +93,14 @@ impl IncomeServiceTrait for IncomeService {
         let two_years_ago = current_year - 2;
         let current_month = current_date.month();
 
-        // Scope the baseline date to the filtered account so monthly-average
-        // denominators are correct.  Falls back to portfolio-wide when no filter.
-        let oldest_date = if let Some(id) = account_id {
-            let ids = vec![id.to_string()];
-            match self.activity_repository.get_first_activity_date(Some(&ids)) {
+        // Scope baseline date to member accounts so monthly-average denominators are correct.
+        // Falls back to portfolio-wide when no filter.
+        let oldest_date = if let Some(ids) = account_ids.filter(|ids| !ids.is_empty()) {
+            match self.activity_repository.get_first_activity_date(Some(ids)) {
                 Ok(Some(date)) => date,
                 Ok(None) => return Ok(Vec::new()),
                 Err(e) => {
-                    error!("Error getting first activity date for account: {:?}", e);
+                    error!("Error getting first activity date for accounts: {:?}", e);
                     return Err(e);
                 }
             }
@@ -130,7 +129,7 @@ impl IncomeServiceTrait for IncomeService {
             months_two_years_ago = 13 - oldest_date.month() as i32
         }
 
-        let mut total_summary = IncomeSummary::new("TOTAL", base_currency.clone());
+        let mut total_summary = IncomeSummary::new("ALL", base_currency.clone());
         let mut ytd_summary = IncomeSummary::new("YTD", base_currency.clone());
         let mut last_year_summary = IncomeSummary::new("LAST_YEAR", base_currency.clone());
         let mut two_years_ago_summary = IncomeSummary::new("TWO_YEARS_AGO", base_currency.clone());

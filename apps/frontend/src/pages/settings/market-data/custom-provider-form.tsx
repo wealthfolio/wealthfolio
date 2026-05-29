@@ -543,6 +543,7 @@ function CustomProviderFormContent({
 
             {/* Step 1 + 2 */}
             <SourceConfigPanel
+              key={activePrefix}
               form={form}
               prefix={activePrefix}
               runtime={activeRuntime}

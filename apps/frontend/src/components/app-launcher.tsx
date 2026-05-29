@@ -7,7 +7,12 @@ import {
 import { useHoldings } from "@/hooks/use-holdings";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useIsMobileViewport } from "@/hooks/use-platform";
-import { AccountType, HoldingType, PORTFOLIO_ACCOUNT_ID } from "@/lib/constants";
+import {
+  AccountType,
+  HoldingType,
+  PORTFOLIO_ACCOUNT_TYPE,
+  PORTFOLIO_SCOPE_ID,
+} from "@/lib/constants";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { Account } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -62,11 +67,12 @@ interface LauncherActionItem {
   disabled?: boolean;
 }
 
-const accountTypeIcons: Record<AccountType | typeof PORTFOLIO_ACCOUNT_ID, Icon> = {
+const accountTypeIcons: Record<AccountType | typeof PORTFOLIO_ACCOUNT_TYPE, Icon> = {
   [AccountType.SECURITIES]: Icons.Briefcase,
   [AccountType.CASH]: Icons.DollarSign,
+  [AccountType.CREDIT_CARD]: Icons.CreditCard,
   [AccountType.CRYPTOCURRENCY]: Icons.Bitcoin,
-  [PORTFOLIO_ACCOUNT_ID]: Icons.Wallet,
+  [PORTFOLIO_ACCOUNT_TYPE]: Icons.Wallet,
 };
 
 export function AppLauncher() {
@@ -76,7 +82,7 @@ export function AppLauncher() {
   const [search, setSearch] = useState("");
   const navigation = useNavigation();
   const { accounts, isLoading: isAccountsLoading } = useAccounts();
-  const { holdings, isLoading: isHoldingsLoading } = useHoldings(PORTFOLIO_ACCOUNT_ID);
+  const { holdings, isLoading: isHoldingsLoading } = useHoldings({ type: "all" });
   const { isBalanceHidden, toggleBalanceVisibility } = useBalancePrivacy();
   const { updateSettings } = useSettingsContext();
   const { mutate: updatePortfolio, isPending: isUpdatingPortfolio } = useUpdatePortfolioMutation();
@@ -410,7 +416,7 @@ export function AppLauncher() {
       return [];
     }
     return accounts
-      .filter((account) => account.id !== PORTFOLIO_ACCOUNT_ID)
+      .filter((account) => account.id !== PORTFOLIO_SCOPE_ID)
       .map((account) => ({
         id: account.id,
         name: account.name,

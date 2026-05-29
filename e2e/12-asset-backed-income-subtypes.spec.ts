@@ -5,6 +5,7 @@ import {
   completeOnboardingIfNeeded,
   createAccount,
   fillDateField,
+  gotoActivities,
   openAddActivitySheet,
   searchAndSelectSymbol,
   selectActivityType,
@@ -111,13 +112,6 @@ test.describe("Asset-backed income subtypes update holdings", () => {
     const response = await page.request.get(`${BASE_URL}/api/v1/holdings/item?${params}`);
     expect(response.ok()).toBeTruthy();
     return (await response.json()) as HoldingResponse | null;
-  }
-
-  async function gotoActivities() {
-    await page.goto(`${BASE_URL}/activities`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible({
-      timeout: 10000,
-    });
   }
 
   async function selectAccount() {
@@ -257,7 +251,7 @@ test.describe("Asset-backed income subtypes update holdings", () => {
   test("2. Dividend in kind creates shares with matching cost basis", async () => {
     test.setTimeout(120_000);
 
-    await gotoActivities();
+    await gotoActivities(page);
     await openAddActivitySheet(page);
     await selectActivityType(page, "Dividend");
     await selectAccount();
@@ -283,7 +277,7 @@ test.describe("Asset-backed income subtypes update holdings", () => {
   test("3. Staking reward creates reward units with matching cost basis", async () => {
     test.setTimeout(120_000);
 
-    await gotoActivities();
+    await gotoActivities(page);
     await openAddActivitySheet(page);
     await selectActivityType(page, "Interest");
     await selectAccount();

@@ -9,11 +9,11 @@
 @import "@fontsource/merriweather/400.css";
 @import "@fontsource/merriweather/400-italic.css";
 @import "@fontsource/merriweather/700.css";
-/* IBM Plex Mono (mono) - selective weights */
-@import "@fontsource/ibm-plex-mono/400.css";
-@import "@fontsource/ibm-plex-mono/500.css";
-@import "@fontsource/ibm-plex-mono/600.css";
-@import "@fontsource/ibm-plex-mono/700.css";
+/* JetBrains Mono (mono) - selective weights */
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/jetbrains-mono/600.css";
+@import "@fontsource/jetbrains-mono/700.css";
 
 /* Enable class-based dark mode across the subtree (Tailwind v4 pattern) */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -60,7 +60,7 @@
   /* Font families */
   --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Merriweather", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* Disable default colors to prevent their use; feel free to re-enable as needed. */
   --color-amber-50: #fef3c7;
@@ -1017,4 +1017,45 @@ summary {
   --fi-stream-3: oklch(0.82 0.07 140);
   --fi-stream-4: oklch(0.75 0.09 110);
   --fi-stream-5: oklch(0.7 0.09 135);
+}
+
+/* When-you-spend heatmap (apps/frontend/src/features/spending). Forest accent
+   in light mode, bright leaf in dark; per-mode opacity floor so the dimmest
+   cells stay legible against either background. */
+:root {
+  --heatmap-accent: oklch(0.4 0.07 150);
+  --heatmap-empty-opacity: 0.07;
+  --heatmap-min-opacity: 0.18;
+  --heatmap-range-opacity: 0.75;
+}
+.dark {
+  --heatmap-accent: oklch(0.78 0.13 150);
+  --heatmap-empty-opacity: 0.1;
+  --heatmap-min-opacity: 0.25;
+  --heatmap-range-opacity: 0.7;
+}
+
+/* Spending-module shared chart tokens. --status-warn is the "approaching
+   budget" amber (was #C28B47); --bar-stripe is the diagonal-stripe overlay on
+   budget meters; --chart-cursor is the Recharts hover-cursor tint. */
+:root {
+  --status-warn: oklch(0.66 0.11 60);
+  --bar-stripe: rgba(255, 255, 255, 0.25);
+  --chart-cursor: rgba(0, 0, 0, 0.04);
+}
+.dark {
+  --status-warn: oklch(0.78 0.13 70);
+  --bar-stripe: rgba(0, 0, 0, 0.25);
+  --chart-cursor: rgba(255, 255, 255, 0.06);
+}
+
+/* Events timeline — fallback tag color when an event type has no user-picked
+   color, plus the "today" marker color. */
+:root {
+  --event-default: oklch(0.4 0.07 150);
+  --event-today: oklch(0.78 0.13 90);
+}
+.dark {
+  --event-default: oklch(0.78 0.13 150);
+  --event-today: oklch(0.85 0.16 90);
 }

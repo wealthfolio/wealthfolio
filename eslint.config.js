@@ -18,8 +18,7 @@ export default [
       "**/react-qr-code/**",
       // Local data and embedded addon bundles
       "db/**",
-      // Let workspaces handle their own linting
-      "addons/**",
+      // Let package workspaces handle their own linting
       "packages/**",
       // Test and build artifacts
       "playwright-report/**",

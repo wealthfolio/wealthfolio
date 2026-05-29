@@ -22,6 +22,12 @@ interface SwipablePageProps {
   contentClassName?: string;
   withPadding?: boolean;
   title?: string;
+  /**
+   * When set, the most recently selected view is remembered in localStorage
+   * under this key. Used as the fallback when the URL has no `?tab=` param,
+   * so navigating back to this page restores the previously chosen tab.
+   */
+  persistKey?: string;
 }
 
 // Navigation Pills Component - Segmented control style
@@ -122,7 +128,7 @@ function MobileNavigation({
             )}
             <span className="relative z-10 flex items-center gap-1.5">
               {IconComponent && <IconComponent className="size-4" />}
-              {isActive && <span>{item.label}</span>}
+              {isActive && <span className="whitespace-nowrap">{item.label}</span>}
             </span>
           </button>
         );
@@ -139,17 +145,32 @@ export function SwipablePage({
   contentClassName,
   withPadding = true,
   title,
+  persistKey,
 }: SwipablePageProps) {
   const isMobile = useIsMobileViewport();
   const [searchParams, setSearchParams] = useSearchParams();
   const { triggerHaptic } = useHapticFeedback();
 
-  // Single source of truth: URL search params
+  // Optional persistence: remember the last selected view so navigating back to
+  // the page restores it when the URL has no `?tab=` param.
+  const [persistedView, setPersistedView] = React.useState<string | null>(() => {
+    if (!persistKey) return null;
+    try {
+      const raw = window.localStorage.getItem(persistKey);
+      return raw ? (JSON.parse(raw) as string) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // URL wins; then persisted value (if any); then defaultView.
   const tabFromUrl = searchParams.get("tab");
   const currentView =
     tabFromUrl && views.some((v) => v.value === tabFromUrl)
       ? tabFromUrl
-      : (defaultView ?? views[0]?.value);
+      : persistedView && views.some((v) => v.value === persistedView)
+        ? persistedView
+        : (defaultView ?? views[0]?.value);
 
   // Calculate numeric index from URL-derived currentView
   const currentIndex = React.useMemo(() => {
@@ -171,8 +192,17 @@ export function SwipablePage({
       // SwipableView will sync automatically via selectedIndex prop
       setSearchParams({ tab: nextView }, { replace: true });
       onViewChange?.(nextView);
+
+      if (persistKey) {
+        setPersistedView(nextView);
+        try {
+          window.localStorage.setItem(persistKey, JSON.stringify(nextView));
+        } catch {
+          // Swallow quota/serialization errors — persistence is best-effort.
+        }
+      }
     },
-    [currentView, setSearchParams, onViewChange, isMobile, triggerHaptic],
+    [currentView, setSearchParams, onViewChange, isMobile, triggerHaptic, persistKey],
   );
 
   return (

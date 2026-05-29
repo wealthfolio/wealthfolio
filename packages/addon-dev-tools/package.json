@@ -1,6 +1,6 @@
 {
   "name": "@wealthfolio/addon-dev-tools",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "description": "Development tools for Wealthfolio addons - hot reload server and CLI",
   "main": "index.js",
   "bin": {

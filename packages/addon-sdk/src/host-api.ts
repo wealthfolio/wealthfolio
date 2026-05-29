@@ -207,11 +207,20 @@ export interface ActivitiesAPI {
 }
 
 /**
- * A single dividend event returned by Yahoo Finance.
+ * A cash dividend event returned by a market data provider.
  */
-export interface YahooDividend {
+export interface DividendEvent {
   amount: number;
   date: number; // unix seconds
+}
+
+export interface FetchDividendsOptions {
+  exchangeMic?: string;
+  instrumentType?: string;
+  quoteCcy?: string;
+  providerId?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 /**
@@ -251,11 +260,14 @@ export interface MarketDataAPI {
   getProviders(): Promise<MarketDataProviderInfo[]>;
 
   /**
-   * Fetch dividend history for a symbol from Yahoo Finance.
+   * Fetch dividend history for a symbol.
    * @param symbol Ticker symbol
    * @returns Promise resolving to array of dividend events
    */
-  fetchDividends(symbol: string): Promise<YahooDividend[]>;
+  fetchDividends(
+    symbol: string,
+    options?: FetchDividendsOptions,
+  ): Promise<DividendEvent[]>;
 }
 
 /**

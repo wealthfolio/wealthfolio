@@ -3,6 +3,7 @@
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// A single point in net worth history.
 ///
@@ -18,7 +19,7 @@ pub struct NetWorthHistoryPoint {
     pub date: NaiveDate,
 
     // ─── Component Values ───────────────────────────────────────────────
-    /// Portfolio value from TOTAL account (investments + cash) in base currency
+    /// Portfolio value from real-account base-currency valuations
     pub portfolio_value: Decimal,
     /// Alternative assets value (properties, vehicles, collectibles, precious metals, other)
     pub alternative_assets_value: Decimal,
@@ -35,6 +36,13 @@ pub struct NetWorthHistoryPoint {
     /// Cumulative net contributions (deposits - withdrawals) from portfolio
     /// Used for contribution-adjusted gain: portfolio_gain = portfolio_value - net_contribution
     pub net_contribution: Decimal,
+
+    /// Per-category / per-liability values at this date, enabling category-level
+    /// trend and change calculations. Keys mirror the point-in-time breakdown:
+    /// asset category keys (`cash`, `investments`, `properties`, ...) for aggregated
+    /// asset categories, and the individual liability id (matching `BreakdownItem.asset_id`)
+    /// for each liability.
+    pub breakdown: BTreeMap<String, Decimal>,
 
     /// Base currency for all values
     pub currency: String,
@@ -53,6 +61,10 @@ pub struct BreakdownItem {
     /// Optional: asset ID for individual items (liabilities, specific holdings)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<String>,
+    /// Individual items rolled up into this category, for drill-down. Empty for
+    /// leaf items and for the Investments category (use allocation drill-down).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<BreakdownItem>,
 }
 
 /// Assets section of the balance sheet.
@@ -137,6 +149,8 @@ pub struct ValuationInfo {
     pub valuation_date: NaiveDate,
     /// Category for breakdown
     pub category: AssetCategory,
+    /// True for balance snapshots that should not be treated like stale market data.
+    pub is_cash_like: bool,
 }
 
 /// Asset category for net worth breakdown.

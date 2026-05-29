@@ -298,6 +298,8 @@ function getGroupName(accountType: string | undefined): string {
       return "Investments";
     case AccountType.CASH:
       return "Cash";
+    case AccountType.CREDIT_CARD:
+      return "Liabilities";
     default:
       return "Investments";
   }

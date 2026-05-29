@@ -448,7 +448,9 @@ export function AssetEditSheet({
     },
     [],
   );
-  const { data: taxonomies = [], isLoading: isTaxonomiesLoading } = useTaxonomies();
+  const { data: taxonomies = [], isLoading: isTaxonomiesLoading } = useTaxonomies({
+    scope: "asset",
+  });
   const { updateAssetProfileMutation } = useAssetProfileMutations();
   const { data: marketDataProviders = [] } = useMarketDataProviders();
   const { data: customProviders = [] } = useCustomProviders();

@@ -1,22 +1,20 @@
 import { useNetWorth, useNetWorthHistory } from "@/hooks/use-alternative-assets";
+import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
+import { useIsMobileViewport } from "@/hooks/use-platform";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { DateRange } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
 import Balance from "@/pages/dashboard/balance";
+import { AllocationDetailSheet } from "@/pages/holdings/components/allocation-detail-sheet";
+import { DashboardCard } from "@/components/dashboard-card";
 import {
   GainAmount,
   GainPercent,
   IntervalSelector,
-  PrivacyAmount,
   getInitialIntervalData,
   usePersistentState,
   type TimePeriod,
 } from "@wealthfolio/ui";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@wealthfolio/ui/components/ui/collapsible";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import {
@@ -27,319 +25,87 @@ import {
 } from "@wealthfolio/ui/components/ui/tooltip";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { BreakdownTable } from "./components/breakdown-table";
+import { CategoryDetailSheet } from "./components/category-detail-sheet";
+import { MomentumCard } from "./components/momentum-card";
+import {
+  THEME_COLOR,
+  THEME_COLOR_LIGHT,
+  averageMonthlyChange,
+  computeMomentum,
+  computeVelocity,
+  investmentAllocation,
+  parseHistory,
+  type ParsedNetWorth,
+  type SelectedCategory,
+} from "./components/utils";
+import { VelocityCard } from "./components/velocity-card";
 import { NetWorthChart } from "./net-worth-chart";
-
-// Goldish orange for net worth theme (matches chart)
-const THEME_COLOR = "hsl(38 75% 50%)";
-const THEME_COLOR_LIGHT = "hsl(38 75% 50% / 0.12)";
-
-// Color classes for category items (Tailwind classes for dots)
-const CATEGORY_COLORS: Record<string, string> = {
-  cash: "bg-chart-9",
-  investments: "bg-chart-1",
-  properties: "bg-chart-2",
-  vehicles: "bg-chart-3",
-  collectibles: "bg-chart-4",
-  preciousMetals: "bg-chart-5",
-  otherAssets: "bg-muted-foreground",
-  liabilities: "bg-destructive",
-};
-
-// CSS variable colors for the composition bar
-const CATEGORY_CSS_COLORS: Record<string, string> = {
-  cash: "var(--chart-9)",
-  investments: "var(--chart-1)",
-  properties: "var(--chart-2)",
-  vehicles: "var(--chart-3)",
-  collectibles: "var(--chart-4)",
-  preciousMetals: "var(--chart-5)",
-  otherAssets: "var(--muted-foreground)",
-  liabilities: "var(--destructive)",
-};
-
-/**
- * Balance Sheet Component - Collapsible breakdown of assets and liabilities
- */
-interface ParsedNetWorth {
-  netWorth: number;
-  assets: {
-    total: number;
-    breakdown: {
-      category: string;
-      name: string;
-      value: number;
-      assetId?: string;
-    }[];
-  };
-  liabilities: {
-    total: number;
-    breakdown: {
-      category: string;
-      name: string;
-      value: number;
-      assetId?: string;
-    }[];
-  };
-}
-
-interface BalanceSheetProps {
-  data: ParsedNetWorth | null;
-  currency: string;
-}
-
-function BalanceSheet({ data, currency }: BalanceSheetProps) {
-  const [assetsOpen, setAssetsOpen] = useState(true);
-  const [liabilitiesOpen, setLiabilitiesOpen] = useState(true);
-
-  if (!data) return null;
-
-  const hasLiabilities = data.liabilities.total > 0 || data.liabilities.breakdown.length > 0;
-
-  return (
-    <div className="border-border bg-card shadow-xs rounded-lg border">
-      {/* Assets Section */}
-      <Collapsible open={assetsOpen} onOpenChange={setAssetsOpen}>
-        <CollapsibleTrigger className="hover:bg-muted/50 flex w-full items-center justify-between px-4 py-3 transition-colors md:px-5">
-          <div className="flex items-center gap-2">
-            <Icons.ChevronRight
-              className={`text-muted-foreground h-4 w-4 transition-transform ${assetsOpen ? "rotate-90" : ""}`}
-            />
-            <span className="text-sm font-semibold">Assets</span>
-          </div>
-          <span className="text-success text-sm font-semibold">
-            <PrivacyAmount value={data.assets.total} currency={currency} />
-          </span>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className="divide-border divide-y border-t">
-            {data.assets.breakdown.map((item) => (
-              <div
-                key={item.category}
-                className="flex items-center justify-between px-4 py-2.5 pl-10 md:px-5 md:pl-11"
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`h-2 w-2 shrink-0 rounded-full ${CATEGORY_COLORS[item.category] || "bg-muted-foreground"}`}
-                  />
-                  <span className="text-muted-foreground text-sm">{item.name}</span>
-                  <span className="text-muted-foreground/70 text-xs">
-                    {data.assets.total > 0 &&
-                      `${((item.value / data.assets.total) * 100).toFixed(1)}%`}
-                  </span>
-                </div>
-                <span className="text-muted-foreground text-sm">
-                  <PrivacyAmount value={item.value} currency={currency} />
-                </span>
-              </div>
-            ))}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-
-      {/* Liabilities Section */}
-      {hasLiabilities && (
-        <Collapsible open={liabilitiesOpen} onOpenChange={setLiabilitiesOpen}>
-          <CollapsibleTrigger className="hover:bg-muted/50 flex w-full items-center justify-between border-t px-4 py-3 transition-colors md:px-5">
-            <div className="flex items-center gap-2">
-              <Icons.ChevronRight
-                className={`text-muted-foreground h-4 w-4 transition-transform ${liabilitiesOpen ? "rotate-90" : ""}`}
-              />
-              <span className="text-sm font-semibold">Liabilities</span>
-            </div>
-            <span className="text-destructive text-sm font-semibold">
-              -<PrivacyAmount value={data.liabilities.total} currency={currency} />
-            </span>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="divide-border divide-y border-t">
-              {data.liabilities.breakdown.map((item, index) => (
-                <div
-                  key={item.assetId || index}
-                  className="flex items-center justify-between px-4 py-2.5 pl-10 md:px-5 md:pl-11"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`h-2 w-2 shrink-0 rounded-full ${CATEGORY_COLORS.liabilities}`}
-                    />
-                    <span className="text-muted-foreground text-sm">{item.name}</span>
-                  </div>
-                  <span className="text-muted-foreground text-sm">
-                    -<PrivacyAmount value={item.value} currency={currency} />
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-
-      {/* Net Worth Summary */}
-      <div className="bg-muted/30 flex items-center justify-between border-t px-4 py-3 md:px-5">
-        <span className="text-sm font-bold">Net Worth</span>
-        <span className="text-sm font-bold">
-          <PrivacyAmount value={data.netWorth} currency={currency} />
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Composition Widget - Visual breakdown of asset categories
- */
-interface CompositionItem {
-  category: string;
-  name: string;
-  value: number;
-  percentage: number;
-}
-
-interface CompositionWidgetProps {
-  data: ParsedNetWorth | null;
-  isLoading?: boolean;
-}
-
-function CompositionWidget({ data, isLoading }: CompositionWidgetProps) {
-  const items = useMemo((): CompositionItem[] => {
-    if (!data || data.assets.total === 0) return [];
-
-    return data.assets.breakdown
-      .filter((item) => item.value > 0)
-      .map((item) => ({
-        category: item.category,
-        name: item.name,
-        value: item.value,
-        percentage: (item.value / data.assets.total) * 100,
-      }))
-      .sort((a, b) => b.value - a.value);
-  }, [data]);
-
-  if (isLoading) {
-    return (
-      <div className="w-full">
-        <h2 className="text-md pb-2 font-semibold tracking-tight">Composition</h2>
-        <div className="border-border bg-card shadow-xs rounded-lg border p-4 md:p-5">
-          <Skeleton className="mb-4 h-2.5 w-full rounded-full" />
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <Skeleton className="h-2.5 w-2.5 rounded-full" />
-                <Skeleton className="h-3 w-16" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!data || items.length === 0) return null;
-
-  return (
-    <div className="w-full">
-      <h2 className="text-md pb-2 font-semibold tracking-tight">Composition</h2>
-      <div className="border-border bg-card shadow-xs rounded-lg border p-4 md:p-5">
-        {/* Stacked horizontal bar */}
-        <div className="mb-4 flex h-2.5 w-full overflow-hidden rounded-full">
-          {items.map((item, index) => (
-            <TooltipProvider key={item.category} delayDuration={0}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    className="h-full transition-opacity hover:opacity-80"
-                    style={{
-                      width: `${item.percentage}%`,
-                      backgroundColor:
-                        CATEGORY_CSS_COLORS[item.category] || "var(--muted-foreground)",
-                      marginLeft: index > 0 ? "1px" : 0,
-                    }}
-                  />
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
-                  <span className="font-medium">{item.name}</span>
-                  <span className="text-muted-foreground ml-2">{item.percentage.toFixed(1)}%</span>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ))}
-        </div>
-
-        {/* Legend grid */}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-          {items.map((item) => (
-            <div key={item.category} className="flex items-center gap-2">
-              <div
-                className={`h-2.5 w-2.5 shrink-0 rounded-full ${CATEGORY_COLORS[item.category] || "bg-muted-foreground"}`}
-              />
-              <span className="text-muted-foreground truncate text-xs">{item.name}</span>
-              <span className="text-muted-foreground/60 ml-auto text-xs tabular-nums">
-                {item.percentage.toFixed(0)}%
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 const DEFAULT_INTERVAL: TimePeriod = "ALL";
 const INTERVAL_STORAGE_KEY = "networth-interval";
+const MS_PER_DAY = 86_400_000;
 
-/**
- * Net Worth Content - Embeddable content for the combined portfolio page
- */
-interface NetWorthContentProps {
-  onAddAsset?: () => void;
-  onAddLiability?: () => void;
-}
-
-export function NetWorthContent({ onAddAsset, onAddLiability }: NetWorthContentProps) {
+export function NetWorthContent() {
   const { settings } = useSettingsContext();
   const { data: netWorthData, isLoading, isError, error } = useNetWorth();
+  const isMobile = useIsMobileViewport();
 
-  // Use the same persisted state as IntervalSelector for the interval code
   const [intervalCode] = usePersistentState<TimePeriod>(INTERVAL_STORAGE_KEY, DEFAULT_INTERVAL);
 
-  // Derive initial values from the persisted interval code
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
     () => getInitialIntervalData(intervalCode).range,
   );
   const [selectedIntervalDescription, setSelectedIntervalDescription] = useState<string>(
     () => getInitialIntervalData(intervalCode).description,
   );
+  const [periodCode, setPeriodCode] = useState<TimePeriod>(intervalCode);
 
-  // Compute ISO date strings for the history query
+  // ISO date strings for the selected-range history query.
   const historyDates = useMemo(() => {
     if (!dateRange?.from) return null;
     const endDate = dateRange.to ?? new Date();
-    return {
-      startDate: formatDateISO(dateRange.from),
-      endDate: formatDateISO(endDate),
-    };
+    return { startDate: formatDateISO(dateRange.from), endDate: formatDateISO(endDate) };
   }, [dateRange]);
 
-  // Fetch net worth history for chart
+  // Extended range covering an equal prior window (for Momentum) and the trailing
+  // year (for the Velocity multiple), so both come from one extra query. ALL has
+  // no meaningful equal prior window, so avoid asking the backend for decades of
+  // extra daily history.
+  const longHistoryDates = useMemo(() => {
+    if (!dateRange?.from || periodCode === "ALL") return null;
+    const end = dateRange.to ?? new Date();
+    const rangeMs = end.getTime() - dateRange.from.getTime();
+    const priorStart = new Date(dateRange.from.getTime() - rangeMs);
+    const yearStart = new Date(end.getTime() - 366 * MS_PER_DAY);
+    const start = priorStart < yearStart ? priorStart : yearStart;
+    return { startDate: formatDateISO(start), endDate: formatDateISO(end) };
+  }, [dateRange, periodCode]);
+
   const { data: historyData, isLoading: isHistoryLoading } = useNetWorthHistory({
     startDate: historyDates?.startDate ?? "",
     endDate: historyDates?.endDate ?? "",
     enabled: !!historyDates,
   });
 
-  // Interval selector callback
+  const { data: longHistoryData } = useNetWorthHistory({
+    startDate: longHistoryDates?.startDate ?? "",
+    endDate: longHistoryDates?.endDate ?? "",
+    enabled: !!longHistoryDates,
+  });
+
   const handleIntervalSelect = (
-    _code: TimePeriod,
+    code: TimePeriod,
     description: string,
     range: DateRange | undefined,
   ) => {
     setSelectedIntervalDescription(description);
+    setPeriodCode(code);
     setDateRange(range);
   };
 
-  // Parse numeric values from the response
   const parsedData = useMemo((): ParsedNetWorth | null => {
     if (!netWorthData) return null;
-
     return {
       netWorth: parseFloat(netWorthData.netWorth) || 0,
       assets: {
@@ -349,6 +115,12 @@ export function NetWorthContent({ onAddAsset, onAddLiability }: NetWorthContentP
           name: item.name,
           value: parseFloat(item.value) || 0,
           assetId: item.assetId,
+          children: (item.children ?? []).map((child) => ({
+            category: child.category,
+            name: child.name,
+            value: parseFloat(child.value) || 0,
+            assetId: child.assetId,
+          })),
         })),
       },
       liabilities: {
@@ -363,33 +135,45 @@ export function NetWorthContent({ onAddAsset, onAddLiability }: NetWorthContentP
     };
   }, [netWorthData]);
 
-  // Calculate net worth change using simple delta (industry standard for net worth tracking)
+  const parsedHistory = useMemo(() => parseHistory(historyData), [historyData]);
+  const longHistory = useMemo(() => parseHistory(longHistoryData), [longHistoryData]);
+
+  const velocity = useMemo(() => computeVelocity(parsedHistory), [parsedHistory]);
+  const trailingYearMonthly = useMemo(() => {
+    if (periodCode === "ALL") return undefined;
+    const cutoff = formatDateISO(new Date(Date.now() - 366 * MS_PER_DAY));
+    return averageMonthlyChange(longHistory.filter((point) => point.date >= cutoff));
+  }, [longHistory, periodCode]);
+  const momentum = useMemo(() => {
+    if (!historyDates || periodCode === "ALL") return null;
+    return computeMomentum(longHistory, historyDates.startDate, historyDates.endDate);
+  }, [longHistory, historyDates, periodCode]);
+
+  // Net worth change over the selected range (simple delta).
   const { gainLossAmount, gainLossPercent } = useMemo(() => {
-    if (!historyData || historyData.length < 2) {
-      return { gainLossAmount: 0, gainLossPercent: 0 };
-    }
-
-    const first = historyData[0];
-    const last = historyData[historyData.length - 1];
-
-    const firstNetWorth = parseFloat(first.netWorth) || 0;
-    const lastNetWorth = parseFloat(last.netWorth) || 0;
-
-    // Simple delta: how much did total wealth change?
-    const change = lastNetWorth - firstNetWorth;
-
-    // Percent change relative to starting net worth
-    // Use absolute value for negative starting net worth to get meaningful percentage
-    const base = firstNetWorth !== 0 ? Math.abs(firstNetWorth) : 1;
-    const percent = change / base;
-
-    return { gainLossAmount: change, gainLossPercent: percent };
-  }, [historyData]);
+    if (parsedHistory.length < 2) return { gainLossAmount: 0, gainLossPercent: 0 };
+    const first = parsedHistory[0].netWorth;
+    const last = parsedHistory[parsedHistory.length - 1].netWorth;
+    const change = last - first;
+    const base = first !== 0 ? Math.abs(first) : 1;
+    return { gainLossAmount: change, gainLossPercent: change / base };
+  }, [parsedHistory]);
 
   const currency = netWorthData?.currency || settings?.baseCurrency || "USD";
   const hasStaleValuations = netWorthData && netWorthData.staleAssets.length > 0;
+  const periodLabel = periodCode;
 
-  // Error state
+  // Breakdown row → detail drawer. Investments open the existing asset-class
+  // allocation sheet; every other row opens the category detail sheet.
+  const [selected, setSelected] = useState<SelectedCategory | null>(null);
+  const { allocations } = usePortfolioAllocations({ type: "all" });
+  const investmentsAlloc = useMemo(
+    () => investmentAllocation(allocations?.assetClasses),
+    [allocations],
+  );
+  const investmentSheetOpen = !!selected && selected.isInvestment;
+  const categorySheetOpen = !!selected && !selected.isInvestment;
+
   if (isError && error) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center p-8">
@@ -416,6 +200,8 @@ export function NetWorthContent({ onAddAsset, onAddLiability }: NetWorthContentP
                 targetValue={parsedData?.netWorth ?? 0}
                 currency={currency}
                 displayCurrency={true}
+                displayDecimal={false}
+                compact={isMobile}
               />
               {hasStaleValuations && (
                 <TooltipProvider>
@@ -478,7 +264,7 @@ export function NetWorthContent({ onAddAsset, onAddLiability }: NetWorthContentP
         </div>
       </div>
 
-      {/* Wrapper: chart + content with continuous gradient (same structure as investments) */}
+      {/* Wrapper: chart + content with continuous gradient */}
       <div
         className="flex grow flex-col"
         style={{
@@ -516,125 +302,119 @@ export function NetWorthContent({ onAddAsset, onAddLiability }: NetWorthContentP
         </div>
 
         {/* Content section */}
-        <div className="grow px-4 pb-[calc(var(--mobile-nav-ui-height)+max(var(--mobile-nav-gap),env(safe-area-inset-bottom)))] pt-12 md:px-6 md:pb-6 md:pt-6 lg:px-10 lg:pb-8 lg:pt-8">
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-20">
+        <div className="grow px-4 pb-[calc(var(--mobile-nav-ui-height)+max(var(--mobile-nav-gap),env(safe-area-inset-bottom)))] pt-14 md:px-6 md:pb-6 md:pt-12 lg:px-10 lg:pb-8 lg:pt-14">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-12">
             {/* Left column: Breakdown */}
             <div className="lg:col-span-2">
-              <div className="mb-4 mt-8 w-full lg:mt-0">
-                <h2 className="text-md pb-2 font-semibold tracking-tight">Breakdown</h2>
-
-                {isLoading ? (
-                  <div className="border-border bg-card shadow-xs rounded-lg border p-4 md:p-5">
-                    <div className="space-y-4">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="flex items-center justify-between">
-                          <Skeleton className="h-4 w-32" />
-                          <Skeleton className="h-4 w-24" />
-                        </div>
-                      ))}
-                    </div>
+              {isLoading || isHistoryLoading ? (
+                <DashboardCard title="Breakdown">
+                  <div className="space-y-4">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="flex items-center justify-between">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                    ))}
                   </div>
-                ) : parsedData ? (
-                  <BalanceSheet data={parsedData} currency={currency} />
-                ) : (
-                  <div
-                    className="rounded-lg border border-orange-200/50 p-6 text-center md:p-8 dark:border-orange-800/50"
-                    style={{ backgroundColor: THEME_COLOR_LIGHT }}
+                </DashboardCard>
+              ) : parsedData ? (
+                <BreakdownTable
+                  data={parsedData}
+                  history={parsedHistory}
+                  currency={currency}
+                  periodLabel={periodLabel}
+                  onSelect={setSelected}
+                />
+              ) : (
+                <div
+                  className="rounded-xl border border-orange-200/50 p-6 text-center md:p-8 dark:border-orange-800/50"
+                  style={{ backgroundColor: THEME_COLOR_LIGHT }}
+                >
+                  <p className="text-sm">No assets found.</p>
+                  <Link
+                    to="/holdings"
+                    className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
                   >
-                    <p className="text-sm">No assets found.</p>
-                    <Link
-                      to="/holdings"
-                      className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
-                    >
-                      Add your first asset
-                      <Icons.ChevronRight className="h-3 w-3" />
-                    </Link>
-                  </div>
-                )}
-              </div>
+                    Add your first asset
+                    <Icons.ChevronRight className="h-3 w-3" />
+                  </Link>
+                </div>
+              )}
             </div>
 
-            {/* Right column: Info cards */}
-            <div className="space-y-4 lg:col-span-1">
-              {/* Composition widget */}
-              <CompositionWidget data={parsedData} isLoading={isLoading} />
+            {/* Right column: insight cards */}
+            <div className="space-y-6 lg:col-span-1">
+              {velocity && (
+                <VelocityCard
+                  velocity={velocity}
+                  trailingYearMonthly={trailingYearMonthly}
+                  currency={currency}
+                  periodLabel={periodLabel}
+                />
+              )}
+
+              {momentum && (
+                <MomentumCard momentum={momentum} currency={currency} periodLabel={periodLabel} />
+              )}
 
               {/* Stale valuations warning */}
               {hasStaleValuations && (
-                <div className="border-warning/30 bg-warning/5 rounded-lg border p-4 md:p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="bg-warning/10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
-                      <Icons.AlertCircle className="text-warning h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">Update your valuations</p>
-                      <p className="text-muted-foreground mt-1 text-xs">
-                        {netWorthData?.staleAssets.length} asset
-                        {netWorthData?.staleAssets.length !== 1 ? "s have" : " has"} not been
-                        updated in over 90 days.
-                      </p>
-                      <div className="mt-3 space-y-1.5">
-                        {netWorthData?.staleAssets.map((asset) => (
-                          <Link
-                            key={asset.assetId}
-                            to={`/holdings/${encodeURIComponent(asset.assetId)}?tab=history`}
-                            className="hover:bg-warning/10 flex items-center justify-between rounded-md px-2 py-1.5 transition-colors"
-                          >
-                            <span className="truncate text-xs font-medium">
-                              {asset.name ?? asset.assetId}
-                            </span>
-                            <span className="text-muted-foreground ml-2 shrink-0 text-xs">
-                              {asset.daysStale}d ago
-                            </span>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
+                <div className="border-warning/10 bg-warning/10 rounded-xl border p-4 backdrop-blur-xl md:p-5">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Icons.AlertCircle className="text-warning h-4 w-4 shrink-0" />
+                    <h3 className="text-foreground text-sm font-semibold">
+                      Update your valuations
+                    </h3>
+                    <span className="text-muted-foreground/70 ml-auto text-xs">
+                      {netWorthData?.staleAssets.length}{" "}
+                      {netWorthData?.staleAssets.length === 1 ? "asset" : "assets"}
+                    </span>
+                  </div>
+                  <p className="text-muted-foreground ml-6 text-xs">Not updated in over 90 days.</p>
+                  <div className="ml-6 mt-3 space-y-1.5">
+                    {netWorthData?.staleAssets.map((asset) => (
+                      <Link
+                        key={asset.assetId}
+                        to={`/holdings/${encodeURIComponent(asset.assetId)}?tab=history`}
+                        className="hover:bg-warning/10 -mx-2 flex items-center justify-between rounded-md px-2 py-1.5 transition-colors"
+                      >
+                        <span className="truncate text-xs font-medium">
+                          {asset.name ?? asset.assetId}
+                        </span>
+                        <span className="text-muted-foreground ml-2 shrink-0 text-xs">
+                          {asset.daysStale}d ago
+                        </span>
+                      </Link>
+                    ))}
                   </div>
                 </div>
               )}
-
-              {/* Quick links */}
-              <div
-                className="rounded-lg border border-orange-200/50 p-4 md:p-5 dark:border-orange-800/50"
-                style={{ backgroundColor: THEME_COLOR_LIGHT }}
-              >
-                <p className="text-sm font-medium">Manage your assets</p>
-                <div className="mt-3 space-y-2">
-                  <Link
-                    to="/holdings"
-                    className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm transition-colors"
-                  >
-                    <Icons.ChevronRight className="h-4 w-4" />
-                    View all holdings
-                  </Link>
-                  <Link
-                    to="/settings/accounts"
-                    className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm transition-colors"
-                  >
-                    <Icons.ChevronRight className="h-4 w-4" />
-                    Manage accounts
-                  </Link>
-                  <button
-                    onClick={onAddAsset}
-                    className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm transition-colors"
-                  >
-                    <Icons.Plus className="h-4 w-4" />
-                    Add asset
-                  </button>
-                  <button
-                    onClick={onAddLiability}
-                    className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm transition-colors"
-                  >
-                    <Icons.Plus className="h-4 w-4" />
-                    Add liability
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Detail drawers — Investments reuses the asset-class allocation sheet;
+          all other rows open the category detail sheet. */}
+      <AllocationDetailSheet
+        isOpen={investmentSheetOpen}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null);
+        }}
+        allocation={investmentsAlloc}
+        accountFilter={{ type: "all" }}
+        baseCurrency={currency}
+      />
+      <CategoryDetailSheet
+        open={categorySheetOpen}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null);
+        }}
+        selected={selected}
+        history={parsedHistory}
+        currency={currency}
+        periodLabel={periodLabel}
+      />
     </div>
   );
 }

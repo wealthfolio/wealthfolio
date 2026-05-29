@@ -87,7 +87,8 @@ interface AccountMetricsProps {
   performanceError?: string;
   /** If true, hides the inline balance edit (HOLDINGS mode accounts should use the Update Holdings sheet) */
   hideBalanceEdit?: boolean;
-  /** If true, shows only Volatility/MaxDrawdown and hides TWR/MWR (HOLDINGS mode doesn't track cash flows) */
+  balanceLabel?: string;
+  /** If true, shows only Volatility/MaxDrawdown and hides flow-adjusted returns. */
   isHoldingsMode?: boolean;
 }
 
@@ -99,6 +100,7 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
   isPerformanceLoading,
   performanceError,
   hideBalanceEdit = false,
+  balanceLabel = "Cash Balance",
   isHoldingsMode = false,
 }) => {
   // Full skeleton only when valuation data itself is loading
@@ -199,7 +201,7 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
   return (
     <Card className={cn("flex flex-col", className)}>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg font-bold">Cash Balance</CardTitle>
+        <CardTitle className="text-lg font-bold">{balanceLabel}</CardTitle>
         {valuation && !hideBalanceEdit ? (
           <EditableBalance
             account={valuation}
@@ -238,7 +240,7 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
         ) : isHoldingsMode ? (
           <>
             <p className="text-muted-foreground m-0 p-0 text-xs">
-              TWR/MWR not available. Requires transaction tracking.
+              Flow-adjusted returns require transaction tracking.
             </p>
             {lastUpdated && (
               <p className="text-muted-foreground m-0 p-0 text-xs">Last updated: {lastUpdated}</p>

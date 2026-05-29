@@ -33,16 +33,16 @@ impl ValuationRepository {
 #[async_trait]
 impl ValuationRepositoryTrait for ValuationRepository {
     async fn save_valuations(&self, valuation_records: &[DailyAccountValuation]) -> Result<()> {
-        if valuation_records.is_empty() {
-            return Ok(());
-        }
-
         // Materialize the records once before moving into the closure
         let records_to_save: Vec<DailyAccountValuationDB> = valuation_records
             .iter()
             .cloned()
             .map(DailyAccountValuationDB::from)
             .collect();
+
+        if records_to_save.is_empty() {
+            return Ok(());
+        }
 
         self.writer
             .exec(move |conn| {
@@ -52,6 +52,54 @@ impl ValuationRepositoryTrait for ValuationRepository {
                         .execute(conn)
                         .map_err(StorageError::from)?;
                 }
+                Ok(())
+            })
+            .await
+    }
+
+    async fn replace_valuations_for_account(
+        &self,
+        input_account_id: &str,
+        since_date: Option<NaiveDate>,
+        valuation_records: &[DailyAccountValuation],
+    ) -> Result<()> {
+        let account_id_owned = input_account_id.to_string();
+        let records_to_save: Vec<DailyAccountValuationDB> = valuation_records
+            .iter()
+            .cloned()
+            .map(DailyAccountValuationDB::from)
+            .collect();
+
+        self.writer
+            .exec(move |conn| {
+                match since_date {
+                    None => {
+                        diesel::delete(
+                            daily_account_valuation::table
+                                .filter(account_id.eq(account_id_owned.clone())),
+                        )
+                        .execute(conn)
+                        .map_err(StorageError::from)?;
+                    }
+                    Some(date) => {
+                        let date_str = date.to_string();
+                        diesel::delete(
+                            daily_account_valuation::table
+                                .filter(account_id.eq(account_id_owned.clone()))
+                                .filter(valuation_date.ge(date_str)),
+                        )
+                        .execute(conn)
+                        .map_err(StorageError::from)?;
+                    }
+                }
+
+                for chunk in records_to_save.chunks(1000) {
+                    diesel::replace_into(daily_account_valuation::table)
+                        .values(chunk)
+                        .execute(conn)
+                        .map_err(StorageError::from)?;
+                }
+
                 Ok(())
             })
             .await
@@ -90,6 +138,41 @@ impl ValuationRepositoryTrait for ValuationRepository {
             .collect();
 
         Ok(history_records)
+    }
+
+    fn get_historical_valuations_for_accounts(
+        &self,
+        input_account_ids: &[String],
+        start_date_opt: Option<NaiveDate>,
+        end_date_opt: Option<NaiveDate>,
+    ) -> Result<Vec<DailyAccountValuation>> {
+        if input_account_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut conn = get_connection(&self.pool)?;
+
+        let mut query = daily_account_valuation::table
+            .filter(account_id.eq_any(input_account_ids))
+            .order((valuation_date.asc(), account_id.asc()))
+            .into_boxed();
+
+        if let Some(start_date_val) = start_date_opt {
+            query = query.filter(valuation_date.ge(start_date_val));
+        }
+
+        if let Some(end_date_val) = end_date_opt {
+            query = query.filter(valuation_date.le(end_date_val));
+        }
+
+        let history_dbs = query
+            .load::<DailyAccountValuationDB>(&mut conn)
+            .map_err(StorageError::from)?;
+
+        Ok(history_dbs
+            .into_iter()
+            .map(DailyAccountValuation::from)
+            .collect())
     }
 
     fn load_latest_valuation_date(&self, input_account_id: &str) -> Result<Option<NaiveDate>> {
@@ -166,16 +249,22 @@ impl ValuationRepositoryTrait for ValuationRepository {
             "WITH RankedValuations AS ( \
                 SELECT \
                     id, account_id, valuation_date, account_currency, base_currency, \
-                    fx_rate_to_base, cash_balance, investment_market_value, total_value, \
-                    cost_basis, net_contribution, calculated_at, \
+                    fx_rate_to_base, cash_balance, investment_market_value, \
+                    total_value, cost_basis, net_contribution, cash_balance_base, \
+                    investment_market_value_base, total_value_base, cost_basis_base, \
+                    net_contribution_base, external_inflow_base, external_outflow_base, \
+                    performance_eligible_value_base, calculated_at, \
                     ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY valuation_date DESC) as rn \
                 FROM {} \
                 WHERE account_id IN ({}) \
             ) \
             SELECT \
                 id, account_id, valuation_date, account_currency, base_currency, \
-                fx_rate_to_base, cash_balance, investment_market_value, total_value, \
-                cost_basis, net_contribution, calculated_at \
+                fx_rate_to_base, cash_balance, investment_market_value, \
+                total_value, cost_basis, net_contribution, cash_balance_base, \
+                investment_market_value_base, total_value_base, cost_basis_base, \
+                net_contribution_base, external_inflow_base, external_outflow_base, \
+                performance_eligible_value_base, calculated_at \
             FROM RankedValuations \
             WHERE rn = 1",
             "daily_account_valuation", // Use direct table name string

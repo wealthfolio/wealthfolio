@@ -40,11 +40,13 @@ export function MappingHeaderCell({
   field,
   mapping,
   headers,
+  requiredFields = IMPORT_REQUIRED_FIELDS,
   handleColumnMapping,
 }: {
   field: ImportFormat;
   mapping: ImportMappingData;
   headers: string[];
+  requiredFields?: readonly ImportFormat[];
   handleColumnMapping: (field: ImportFormat, value: string) => void;
 }) {
   const [editingHeader, setEditingHeader] = useState<ImportFormat | null>(null);
@@ -52,7 +54,7 @@ export function MappingHeaderCell({
   const displayHeader = Array.isArray(mappedHeader) ? mappedHeader[0] : mappedHeader;
   const isMapped = displayHeader ? headers.includes(displayHeader) : false;
   const isEditing = editingHeader === field || !isMapped;
-  const isRequired = IMPORT_REQUIRED_FIELDS.includes(field as ImportRequiredField);
+  const isRequired = requiredFields.includes(field as ImportRequiredField);
 
   return (
     <div>
@@ -114,12 +116,14 @@ interface ActivityTypeDisplayCellProps {
   csvType: string;
   appType: string | null;
   subtype?: string;
+  allowedActivityTypes?: readonly ActivityType[];
   handleActivityTypeMapping: (csvActivity: string, activityType: string) => void;
 }
 function ActivityTypeDisplayCell({
   csvType,
   appType,
   subtype,
+  allowedActivityTypes,
   handleActivityTypeMapping,
 }: ActivityTypeDisplayCellProps) {
   const trimmedCsvType = csvType.trim().toUpperCase();
@@ -158,7 +162,11 @@ function ActivityTypeDisplayCell({
           <SearchableSelect
             options={[
               ...Object.values(ActivityType)
-                .filter((t) => t !== "UNKNOWN")
+                .filter(
+                  (t) =>
+                    t !== ActivityType.UNKNOWN &&
+                    (!allowedActivityTypes || allowedActivityTypes.includes(t)),
+                )
                 .map((type) => ({ value: type, label: type })),
               {
                 value: ACTIVITY_SKIP,
@@ -349,6 +357,7 @@ export function MappingCell({
   handleAccountIdMapping,
   invalidSymbols,
   invalidAccounts,
+  allowedActivityTypes,
 }: {
   field: ImportFormat;
   row: CsvRowData;
@@ -364,6 +373,7 @@ export function MappingCell({
   handleAccountIdMapping?: (csvAccountId: string, accountId: string) => void;
   invalidSymbols: string[];
   invalidAccounts: string[];
+  allowedActivityTypes?: readonly ActivityType[];
 }) {
   // Get the field's value from the row
   const value = getMappedValue(row, field);
@@ -382,13 +392,20 @@ export function MappingCell({
 
   // Special fields with custom renderers
   if (field === ImportFormat.ACTIVITY_TYPE) {
-    const appType = findMappedActivityType(value, mapping.activityMappings);
+    const mappedType = findMappedActivityType(value, mapping.activityMappings) as string | null;
+    const appType =
+      mappedType === ACTIVITY_SKIP ||
+      !allowedActivityTypes ||
+      allowedActivityTypes.includes(mappedType as ActivityType)
+        ? mappedType
+        : null;
     const subtype = getMappedValue(row, ImportFormat.SUBTYPE)?.trim();
     return (
       <ActivityTypeDisplayCell
         csvType={value}
         appType={appType}
         subtype={subtype}
+        allowedActivityTypes={allowedActivityTypes}
         handleActivityTypeMapping={handleActivityTypeMapping}
       />
     );

@@ -16,6 +16,13 @@ pub struct Taxonomy {
     pub sort_order: i32,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    /// Scope of entities this taxonomy classifies: "asset" (default) or "activity".
+    #[serde(default = "default_taxonomy_scope")]
+    pub scope: String,
+}
+
+fn default_taxonomy_scope() -> String {
+    "asset".to_string()
 }
 
 /// Data for creating a new taxonomy
@@ -29,6 +36,8 @@ pub struct NewTaxonomy {
     pub is_system: bool,
     pub is_single_select: bool,
     pub sort_order: i32,
+    #[serde(default = "default_taxonomy_scope")]
+    pub scope: String,
 }
 
 impl Default for NewTaxonomy {
@@ -41,6 +50,7 @@ impl Default for NewTaxonomy {
             is_system: false,
             is_single_select: false,
             sort_order: 0,
+            scope: "asset".to_string(),
         }
     }
 }
@@ -59,6 +69,9 @@ pub struct Category {
     pub sort_order: i32,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    /// Optional Lucide icon name (e.g. "Home", "ShoppingCart") for UI display.
+    #[serde(default)]
+    pub icon: Option<String>,
 }
 
 /// Data for creating a new category
@@ -73,6 +86,8 @@ pub struct NewCategory {
     pub color: String,
     pub description: Option<String>,
     pub sort_order: i32,
+    #[serde(default)]
+    pub icon: Option<String>,
 }
 
 impl Default for NewCategory {
@@ -86,6 +101,7 @@ impl Default for NewCategory {
             color: "#808080".to_string(),
             description: None,
             sort_order: 0,
+            icon: None,
         }
     }
 }

@@ -74,12 +74,12 @@ export const getDatabaseBackupDownloadUrl = (filename: string): string =>
 export const backupDatabaseToPath = (_backupDir: string): Promise<string> =>
   Promise.reject(new Error("Backing up to a local path is only supported in the Tauri app"));
 
-export interface BackupExport {
+export interface PendingExport {
   relativePath: string;
   filename: string;
 }
 
-export const backupDatabaseToPendingExport = (): Promise<BackupExport> =>
+export const backupDatabaseToPendingExport = (): Promise<PendingExport> =>
   Promise.reject(new Error("Pending backup exports are only supported in the Tauri app"));
 
 export const restoreDatabase = (_backupFilePath: string): Promise<void> =>

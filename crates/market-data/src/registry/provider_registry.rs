@@ -19,7 +19,8 @@ use super::{
 };
 use crate::errors::{MarketDataError, RetryClass};
 use crate::models::{
-    AssetProfile, InstrumentId, ProviderId, Quote, QuoteContext, SearchResult, SplitEvent,
+    AssetProfile, DividendEvent, InstrumentId, ProviderId, Quote, QuoteContext, SearchResult,
+    SplitEvent,
 };
 use crate::provider::MarketDataProvider;
 use crate::resolver::SymbolResolver;
@@ -352,6 +353,85 @@ impl ProviderRegistry {
         }
 
         vec![]
+    }
+
+    /// Fetch cash dividend history for an instrument.
+    ///
+    /// Tries dividend-capable providers in order, using provider fallback semantics
+    /// similar to quote fetching.
+    pub async fn fetch_dividends(
+        &self,
+        context: &QuoteContext,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<DividendEvent>, MarketDataError> {
+        let mut providers: Vec<_> = self
+            .providers
+            .iter()
+            .filter(|p| {
+                let caps = p.capabilities();
+                caps.supports_dividends && caps.supports_instrument(&context.instrument)
+            })
+            .collect();
+
+        self.sort_by_preference(&mut providers, context);
+
+        if providers.is_empty() {
+            return Err(MarketDataError::NoProvidersAvailable);
+        }
+
+        let mut last_error: Option<MarketDataError> = None;
+
+        for provider in providers {
+            let provider_id: ProviderId = Cow::Borrowed(provider.id());
+
+            if !self.circuit_breaker.is_allowed(&provider_id) {
+                continue;
+            }
+
+            let resolved = match self.resolver.resolve(&provider_id, context) {
+                Ok(r) => r,
+                Err(e) => {
+                    debug!(
+                        "Dividend resolution failed for provider '{}': {:?}",
+                        provider_id, e
+                    );
+                    continue;
+                }
+            };
+
+            self.rate_limiter.acquire(&provider_id).await;
+
+            match provider
+                .get_dividends(context, resolved.instrument, start, end)
+                .await
+            {
+                Ok(mut dividends) => {
+                    self.circuit_breaker.record_success(&provider_id);
+                    dividends.sort_by_key(|d| d.date);
+                    return Ok(dividends);
+                }
+                Err(MarketDataError::NotSupported { .. }) => continue,
+                Err(e) => {
+                    let retry_class = e.retry_class();
+
+                    if retry_class == RetryClass::Never {
+                        return Err(e);
+                    }
+
+                    if matches!(
+                        retry_class,
+                        RetryClass::FailoverWithPenalty | RetryClass::CircuitOpen
+                    ) {
+                        self.circuit_breaker.record_failure(&provider_id);
+                    }
+
+                    last_error = Some(e);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or(MarketDataError::AllProvidersFailed))
     }
 
     /// Get providers ordered by preference for the given context.
@@ -918,6 +998,7 @@ mod tests {
                 supports_historical: true,
                 supports_search: false,
                 supports_profile: false,
+                supports_dividends: false,
             }
         }
 
@@ -1088,6 +1169,7 @@ mod tests {
                     supports_historical: true,
                     supports_search: false,
                     supports_profile: false,
+                    supports_dividends: false,
                 }
             }
             fn rate_limit(&self) -> RateLimit {
@@ -1175,6 +1257,7 @@ mod tests {
                     supports_historical: true,
                     supports_search: false,
                     supports_profile: false,
+                    supports_dividends: false,
                 }
             }
             fn rate_limit(&self) -> RateLimit {
@@ -1347,6 +1430,7 @@ mod tests {
                     supports_historical: false,
                     supports_search: false,
                     supports_profile: true,
+                    supports_dividends: false,
                 }
             }
 
@@ -1412,5 +1496,131 @@ mod tests {
         assert_eq!(profile.name.as_deref(), Some("GLOBAL_PROFILE"));
         assert_eq!(us_calls.load(Ordering::SeqCst), 0);
         assert_eq!(global_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_dividends_falls_back_and_sorts() {
+        struct DividendProvider {
+            id: &'static str,
+            priority: u8,
+            call_count: Arc<AtomicUsize>,
+            should_fail: bool,
+        }
+
+        #[async_trait::async_trait]
+        impl MarketDataProvider for DividendProvider {
+            fn id(&self) -> &'static str {
+                self.id
+            }
+
+            fn priority(&self) -> u8 {
+                self.priority
+            }
+
+            fn capabilities(&self) -> ProviderCapabilities {
+                ProviderCapabilities {
+                    instrument_kinds: &[InstrumentKind::Equity],
+                    coverage: Coverage::global_best_effort(),
+                    supports_latest: false,
+                    supports_historical: false,
+                    supports_search: false,
+                    supports_profile: false,
+                    supports_dividends: true,
+                }
+            }
+
+            fn rate_limit(&self) -> RateLimit {
+                RateLimit::default()
+            }
+
+            async fn get_latest_quote(
+                &self,
+                _: &QuoteContext,
+                _: ProviderInstrument,
+            ) -> Result<Quote, MarketDataError> {
+                unreachable!()
+            }
+
+            async fn get_historical_quotes(
+                &self,
+                _: &QuoteContext,
+                _: ProviderInstrument,
+                _: DateTime<Utc>,
+                _: DateTime<Utc>,
+            ) -> Result<Vec<Quote>, MarketDataError> {
+                unreachable!()
+            }
+
+            async fn get_dividends(
+                &self,
+                _: &QuoteContext,
+                _: ProviderInstrument,
+                _: DateTime<Utc>,
+                _: DateTime<Utc>,
+            ) -> Result<Vec<DividendEvent>, MarketDataError> {
+                self.call_count.fetch_add(1, Ordering::SeqCst);
+
+                if self.should_fail {
+                    return Err(MarketDataError::ProviderError {
+                        provider: self.id.to_string(),
+                        message: "Mock failure".to_string(),
+                    });
+                }
+
+                Ok(vec![
+                    DividendEvent {
+                        amount: 0.3,
+                        date: 2,
+                    },
+                    DividendEvent {
+                        amount: 0.2,
+                        date: 1,
+                    },
+                ])
+            }
+        }
+
+        let first_calls = Arc::new(AtomicUsize::new(0));
+        let fallback_calls = Arc::new(AtomicUsize::new(0));
+        let providers: Vec<Arc<dyn MarketDataProvider>> = vec![
+            Arc::new(DividendProvider {
+                id: "FIRST",
+                priority: 5,
+                call_count: first_calls.clone(),
+                should_fail: true,
+            }),
+            Arc::new(DividendProvider {
+                id: "FALLBACK",
+                priority: 10,
+                call_count: fallback_calls.clone(),
+                should_fail: false,
+            }),
+        ];
+
+        let resolver = Arc::new(MockResolver);
+        let registry = ProviderRegistry::new(providers, resolver);
+        let context = QuoteContext {
+            instrument: InstrumentId::Equity {
+                ticker: Arc::from("TEST"),
+                mic: Some(Cow::Borrowed("XNAS")),
+            },
+            overrides: None,
+            currency_hint: None,
+            preferred_provider: None,
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+
+        let dividends = registry
+            .fetch_dividends(&context, Utc::now(), Utc::now())
+            .await
+            .unwrap();
+
+        assert_eq!(first_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(fallback_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            dividends.iter().map(|d| d.date).collect::<Vec<_>>(),
+            vec![1, 2]
+        );
     }
 }

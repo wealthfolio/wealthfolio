@@ -1,5 +1,5 @@
 import type { Account } from "@/lib/types";
-import { ActivityType, ACTIVITY_TYPES } from "@/lib/constants";
+import { ActivityType, ACTIVITY_TYPES, isLiabilityAccountType } from "@/lib/constants";
 
 /**
  * Picker-friendly activity type that maps TRANSFER_IN/OUT to a single TRANSFER option.
@@ -42,6 +42,10 @@ export function getAllowedActivityTypes(account: Account | undefined): readonly 
 
   const { trackingMode, providerAccountId } = account;
 
+  if (isLiabilityAccountType(account.accountType)) {
+    return [];
+  }
+
   if (trackingMode === "HOLDINGS") {
     // Connected accounts are sync-only
     if (providerAccountId) {
@@ -69,6 +73,9 @@ export function canAddHoldings(account: Account | undefined): boolean {
   if (!account) {
     return false;
   }
+  if (isLiabilityAccountType(account.accountType)) {
+    return false;
+  }
   return account.trackingMode === "HOLDINGS";
 }
 
@@ -93,6 +100,10 @@ export function getActivityRestrictionLevel(
 ): ActivityRestrictionLevel {
   if (!account) {
     return "none";
+  }
+
+  if (isLiabilityAccountType(account.accountType)) {
+    return "blocked";
   }
 
   if (account.trackingMode === "HOLDINGS") {

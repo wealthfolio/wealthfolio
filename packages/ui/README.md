@@ -227,7 +227,7 @@ When updating shared components:
 
 1. Add new components to UI package, not main app
 2. Use semantic versioning for UI package updates
-3. Test changes against example addons
+3. Test changes against official addons
 4. Document new components in README
 
 ## Updating Components

@@ -22,6 +22,11 @@ pub trait TaxonomyRepositoryTrait: Send + Sync {
     // Category operations
     fn get_categories(&self, taxonomy_id: &str) -> Result<Vec<Category>>;
     fn get_category(&self, taxonomy_id: &str, category_id: &str) -> Result<Option<Category>>;
+    fn get_category_spending_reference_count(
+        &self,
+        taxonomy_id: &str,
+        category_id: &str,
+    ) -> Result<usize>;
     async fn create_category(&self, category: NewCategory) -> Result<Category>;
     async fn update_category(&self, category: Category) -> Result<Category>;
     async fn delete_category(&self, taxonomy_id: &str, category_id: &str) -> Result<usize>;

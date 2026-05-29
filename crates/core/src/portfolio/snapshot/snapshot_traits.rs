@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::NaiveDate;
 use std::collections::HashMap;
 
-use super::AccountStateSnapshot;
+use super::{AccountStateSnapshot, Position};
 use crate::errors::Result;
 
 /// Repository trait for managing account state snapshots.
@@ -74,15 +74,8 @@ pub trait SnapshotRepositoryTrait: Send + Sync {
         new_snapshots: &[AccountStateSnapshot],
     ) -> Result<()>;
 
-    /// Get total portfolio snapshots.
-    fn get_total_portfolio_snapshots(
-        &self,
-        start_date: Option<NaiveDate>,
-        end_date: Option<NaiveDate>,
-    ) -> Result<Vec<AccountStateSnapshot>>;
-
     /// Get all non-archived account snapshots.
-    /// Uses is_archived=false filtering to include closed accounts in TOTAL aggregates.
+    /// Uses is_archived=false filtering to include closed accounts.
     fn get_all_non_archived_account_snapshots(
         &self,
         start_date: Option<NaiveDate>,
@@ -118,4 +111,18 @@ pub trait SnapshotRepositoryTrait: Send + Sync {
         &self,
         account_id: &str,
     ) -> Result<Option<AccountStateSnapshot>>;
+
+    /// Load positions from the `snapshot_positions` table for a given snapshot.
+    /// Falls back to deserializing the legacy `holdings_snapshots.positions`
+    /// JSON column when the relational table has no rows for the snapshot
+    /// (e.g. snapshots written by an older app version, or HOLDINGS-mode
+    /// snapshots that pre-date this PR).
+    fn get_snapshot_positions(&self, snapshot_id: &str) -> Result<HashMap<String, Position>>;
+
+    /// Batch-load positions for multiple snapshot IDs at once. Uses the same
+    /// JSON-fallback semantics as `get_snapshot_positions`.
+    fn get_snapshot_positions_batch(
+        &self,
+        snapshot_ids: &[String],
+    ) -> Result<HashMap<String, HashMap<String, Position>>>;
 }

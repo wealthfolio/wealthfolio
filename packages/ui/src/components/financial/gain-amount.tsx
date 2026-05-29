@@ -10,6 +10,8 @@ interface GainAmountProps extends React.HTMLAttributes<HTMLDivElement> {
   currency: string;
   displayDecimal?: boolean;
   showSign?: boolean;
+  /** Swap success/destructive coloring — useful for spending where "up" is bad. */
+  invertColor?: boolean;
 }
 
 export function GainAmount({
@@ -19,6 +21,7 @@ export function GainAmount({
   className,
   displayDecimal = true,
   showSign = true,
+  invertColor = false,
   ...props
 }: GainAmountProps) {
   const { isBalanceHidden } = useBalancePrivacy();
@@ -46,7 +49,15 @@ export function GainAmount({
       <div
         className={cn(
           "flex items-center",
-          value > 0 ? "text-success" : value < 0 ? "text-destructive" : "text-foreground",
+          value > 0
+            ? invertColor
+              ? "text-destructive"
+              : "text-success"
+            : value < 0
+              ? invertColor
+                ? "text-success"
+                : "text-destructive"
+              : "text-foreground",
         )}
       >
         {isBalanceHidden ? (

@@ -79,7 +79,17 @@ export interface InternalHostAPI {
 
   // Market data
   searchTicker(query: string): Promise<SymbolSearchResult[]>;
-  fetchYahooDividends(symbol: string): Promise<{ amount: number; date: number }[]>;
+  fetchDividends(
+    symbol: string,
+    options?: {
+      exchangeMic?: string;
+      instrumentType?: string;
+      quoteCcy?: string;
+      providerId?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+  ): Promise<{ amount: number; date: number }[]>;
   syncHistoryQuotes(): Promise<void>;
   getAssetProfile(assetId: string): Promise<Asset>;
   updateAssetProfile(payload: UpdateAssetProfile): Promise<Asset>;
@@ -333,7 +343,7 @@ export function createSDKHostAPIBridge(
       syncHistory: internalAPI.syncHistoryQuotes,
       sync: internalAPI.syncMarketData,
       getProviders: internalAPI.getMarketDataProviders,
-      fetchDividends: internalAPI.fetchYahooDividends,
+      fetchDividends: internalAPI.fetchDividends,
     },
     assets: {
       getProfile: internalAPI.getAssetProfile,

@@ -191,6 +191,34 @@ pub fn plan_asset_enrichment(events: &[DomainEvent]) -> Vec<String> {
     asset_ids.into_iter().collect()
 }
 
+/// Plans an auto-categorization pass over spending accounts touched by this batch.
+///
+/// Returns the unique set of opted-in spending account IDs that appeared in any
+/// `ActivitiesChanged` event. Empty result means no work to do.
+///
+/// Other events (DeviceSyncPullComplete, asset events, holdings events, account
+/// events, tracking-mode changes) are intentionally ignored:
+///   - device-sync propagates `activity_taxonomy_assignments` rows directly, so
+///     newly-pulled activities arrive pre-categorized; rerunning rules would be
+///     redundant and could clash with sync conflict resolution.
+///   - asset / holdings / account events don't change spending activities.
+pub fn plan_categorization_job(
+    events: &[DomainEvent],
+    opted_in_accounts: &HashSet<String>,
+) -> Vec<String> {
+    let mut out: HashSet<String> = HashSet::new();
+    for event in events {
+        if let DomainEvent::ActivitiesChanged { account_ids, .. } = event {
+            for id in account_ids {
+                if opted_in_accounts.contains(id) {
+                    out.insert(id.clone());
+                }
+            }
+        }
+    }
+    out.into_iter().collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -416,5 +444,86 @@ mod tests {
         } else {
             panic!("Expected Incremental sync mode");
         }
+    }
+
+    // ── plan_categorization_job ──────────────────────────────────────────────
+
+    fn opted_in(ids: &[&str]) -> HashSet<String> {
+        ids.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn test_plan_categorization_job_filters_to_opted_in_accounts() {
+        let events = vec![DomainEvent::ActivitiesChanged {
+            account_ids: vec!["acc1".to_string(), "acc2".to_string(), "acc3".to_string()],
+            asset_ids: vec![],
+            currencies: vec![],
+            earliest_activity_at_utc: None,
+        }];
+        // Only acc1 and acc3 are opted into spending.
+        let result = plan_categorization_job(&events, &opted_in(&["acc1", "acc3"]));
+        let mut sorted = result.clone();
+        sorted.sort();
+        assert_eq!(sorted, vec!["acc1".to_string(), "acc3".to_string()]);
+    }
+
+    #[test]
+    fn test_plan_categorization_job_empty_when_no_overlap() {
+        let events = vec![DomainEvent::ActivitiesChanged {
+            account_ids: vec!["acc-non-spending".to_string()],
+            asset_ids: vec![],
+            currencies: vec![],
+            earliest_activity_at_utc: None,
+        }];
+        let result = plan_categorization_job(&events, &opted_in(&["acc-spending"]));
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_plan_categorization_job_empty_when_no_activity_events() {
+        let events = vec![
+            DomainEvent::AssetsCreated {
+                asset_ids: vec!["AAPL".to_string()],
+            },
+            DomainEvent::device_sync_pull_complete(),
+            DomainEvent::holdings_changed(vec!["acc1".to_string()], vec![]),
+        ];
+        // Device sync, asset events, and holdings changes must not trigger categorization.
+        let result = plan_categorization_job(&events, &opted_in(&["acc1"]));
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_plan_categorization_job_coalesces_multiple_events() {
+        let events = vec![
+            DomainEvent::ActivitiesChanged {
+                account_ids: vec!["acc1".to_string()],
+                asset_ids: vec![],
+                currencies: vec![],
+                earliest_activity_at_utc: None,
+            },
+            DomainEvent::ActivitiesChanged {
+                account_ids: vec!["acc1".to_string(), "acc2".to_string()],
+                asset_ids: vec![],
+                currencies: vec![],
+                earliest_activity_at_utc: None,
+            },
+        ];
+        let result = plan_categorization_job(&events, &opted_in(&["acc1", "acc2"]));
+        let mut sorted = result.clone();
+        sorted.sort();
+        assert_eq!(sorted, vec!["acc1".to_string(), "acc2".to_string()]);
+    }
+
+    #[test]
+    fn test_plan_categorization_job_empty_opted_in_yields_no_work() {
+        let events = vec![DomainEvent::ActivitiesChanged {
+            account_ids: vec!["acc1".to_string()],
+            asset_ids: vec![],
+            currencies: vec![],
+            earliest_activity_at_utc: None,
+        }];
+        let result = plan_categorization_job(&events, &HashSet::new());
+        assert!(result.is_empty());
     }
 }

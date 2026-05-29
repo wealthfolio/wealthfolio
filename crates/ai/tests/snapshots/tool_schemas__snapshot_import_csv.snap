@@ -1,0 +1,106 @@
+---
+source: crates/ai/tests/tool_schemas.rs
+expression: snapshot
+---
+{
+  "name": "import_csv",
+  "parameters": {
+    "additionalProperties": false,
+    "properties": {
+      "accountId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "accountMappings": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "activityMappings": {
+        "additionalProperties": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "csvContent": {
+        "type": "string"
+      },
+      "dateFormat": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "decimalSeparator": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "defaultCurrency": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "delimiter": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "fieldMappings": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "skipBottomRows": {
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "skipTopRows": {
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "symbolMappings": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "thousandsSeparator": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "csvContent"
+    ],
+    "type": "object"
+  }
+}

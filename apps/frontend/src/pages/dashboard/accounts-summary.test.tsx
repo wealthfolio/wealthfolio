@@ -136,6 +136,16 @@ function createValuation(overrides: Partial<AccountValuation>): AccountValuation
     totalValue: overrides.totalValue ?? 0,
     costBasis: overrides.costBasis ?? 0,
     netContribution: overrides.netContribution ?? 0,
+    cashBalanceBase: overrides.cashBalanceBase ?? overrides.cashBalance ?? 0,
+    investmentMarketValueBase:
+      overrides.investmentMarketValueBase ?? overrides.investmentMarketValue ?? 0,
+    totalValueBase: overrides.totalValueBase ?? overrides.totalValue ?? 0,
+    costBasisBase: overrides.costBasisBase ?? overrides.costBasis ?? 0,
+    netContributionBase: overrides.netContributionBase ?? overrides.netContribution ?? 0,
+    externalInflowBase: overrides.externalInflowBase ?? 0,
+    externalOutflowBase: overrides.externalOutflowBase ?? 0,
+    performanceEligibleValueBase:
+      overrides.performanceEligibleValueBase ?? overrides.totalValue ?? 0,
     calculatedAt: overrides.calculatedAt ?? "2026-03-17T00:00:00Z",
   };
 }
@@ -154,6 +164,8 @@ function createPerformanceMetrics(overrides: Partial<PerformanceMetrics> = {}): 
     annualizedTwr: overrides.annualizedTwr ?? null,
     simpleReturn: overrides.simpleReturn ?? 0,
     annualizedSimpleReturn: overrides.annualizedSimpleReturn ?? 0,
+    cumulativeModifiedDietz: overrides.cumulativeModifiedDietz ?? overrides.cumulativeMwr ?? null,
+    annualizedModifiedDietz: overrides.annualizedModifiedDietz ?? overrides.annualizedMwr ?? null,
     cumulativeMwr: overrides.cumulativeMwr ?? null,
     annualizedMwr: overrides.annualizedMwr ?? null,
     volatility: overrides.volatility ?? 0,

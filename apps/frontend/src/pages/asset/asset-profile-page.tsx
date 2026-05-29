@@ -1,4 +1,10 @@
-import { createActivity, getAssetHoldings, getHolding } from "@/adapters";
+import {
+  createActivity,
+  getAssetHoldings,
+  getAssetLots,
+  getHoldings,
+  searchActivities,
+} from "@/adapters";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { useHapticFeedback } from "@/hooks";
@@ -7,11 +13,10 @@ import { useIsMobileViewport } from "@/hooks/use-platform";
 import { useQuoteHistory } from "@/hooks/use-quote-history";
 import { useSyncMarketDataMutation } from "@/hooks/use-sync-market-data";
 import { useAssetTaxonomyAssignments, useTaxonomy } from "@/hooks/use-taxonomies";
-import { PORTFOLIO_ACCOUNT_ID } from "@/lib/constants";
 import { generateId } from "@/lib/id";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
-import { AssetKind, Holding, Quote } from "@/lib/types";
+import type { ActivityDetails, AssetKind, AssetLotView, Holding, Quote } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatedToggleGroup, Page, PageContent, PageHeader, SwipableView } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
@@ -33,16 +38,13 @@ import { useCallback, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AlternativeAssetContent, useAlternativeAssetActions } from "./alternative-asset-content";
-import { ValueHistoryDataGrid } from "./alternative-assets";
 import AssetDetailCard from "./asset-detail-card";
 import { AssetEditSheet } from "./asset-edit-sheet";
 import AssetHistoryCard from "./asset-history-card";
-import {
-  AssetAccountHoldings,
-  AssetSnapshotHistory,
-  useHasManualSnapshots,
-} from "./asset-account-holdings";
+import { AssetSnapshotHistory, useHasManualSnapshots } from "./asset-account-holdings";
 import AssetLotsTable from "./asset-lots-table";
+import ActivityTable from "@/pages/activity/components/activity-table/activity-table";
+import ActivityTableMobile from "@/pages/activity/components/activity-table/activity-table-mobile";
 import { useAssetProfile } from "./hooks/use-asset-profile";
 import { useAssetProfileMutations } from "./hooks/use-asset-profile-mutations";
 import { RefreshQuotesConfirmDialog } from "./refresh-quotes-confirm-dialog";
@@ -109,7 +111,26 @@ interface AssetDetailData {
   } | null;
 }
 
-type AssetTab = "overview" | "lots" | "history";
+type AssetTab = "overview" | "history";
+type OverviewSubTab = "about" | "holdings" | "activities" | "snapshots" | "quotes";
+
+const REGULAR_SUB_TAB_VALUES: OverviewSubTab[] = [
+  "about",
+  "holdings",
+  "activities",
+  "snapshots",
+  "quotes",
+];
+
+const parseSubTabParam = (param: string | null): OverviewSubTab => {
+  if (param === "history") return "quotes";
+  if (param === "overview") return "about";
+  if (param === "lots") return "holdings";
+  if (param && (REGULAR_SUB_TAB_VALUES as string[]).includes(param)) {
+    return param as OverviewSubTab;
+  }
+  return "about";
+};
 
 export const AssetProfilePage = () => {
   const { settings } = useSettingsContext();
@@ -120,24 +141,11 @@ export const AssetProfilePage = () => {
   const navigate = useNavigate();
   const queryParams = new URLSearchParams(location.search);
   const tabParam = queryParams.get("tab");
-  const defaultTab: AssetTab =
-    tabParam === "overview" || tabParam === "lots" || tabParam === "history"
-      ? tabParam
-      : "overview";
+  // activeTab is only used by alternative assets (Overview | Values).
+  const defaultTab: AssetTab = tabParam === "history" ? "history" : "overview";
   const [activeTab, setActiveTab] = useState<AssetTab>(defaultTab);
-  type OverviewSubTab = "about" | "holdings" | "snapshots";
-  const [overviewSubTab, setOverviewSubTab] = useState<OverviewSubTab>("about");
+  const [overviewSubTab, setOverviewSubTab] = useState<OverviewSubTab>(parseSubTabParam(tabParam));
   const hasManualSnapshots = useHasManualSnapshots(assetId);
-  const overviewSubTabs = useMemo(() => {
-    const items: { value: OverviewSubTab; label: string }[] = [
-      { value: "about", label: "About" },
-      { value: "holdings", label: "Holdings" },
-    ];
-    if (hasManualSnapshots) {
-      items.push({ value: "snapshots", label: "Snapshots" });
-    }
-    return items;
-  }, [hasManualSnapshots]);
   const [actionPaletteOpen, setActionPaletteOpen] = useState(false);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [editSheetDefaultTab, setEditSheetDefaultTab] = useState<
@@ -169,8 +177,18 @@ export const AssetProfilePage = () => {
     isLoading: isHoldingLoading,
     isError: isHoldingError,
   } = useQuery<Holding | null, Error>({
-    queryKey: [QueryKeys.HOLDING, PORTFOLIO_ACCOUNT_ID, assetId],
-    queryFn: () => getHolding(PORTFOLIO_ACCOUNT_ID, assetId),
+    queryKey: [QueryKeys.HOLDING, { type: "all" }, assetId],
+    queryFn: async () => {
+      const holdings = await getHoldings({ type: "all" });
+      return (
+        holdings.find(
+          (item) =>
+            item.id === assetId ||
+            item.instrument?.id === assetId ||
+            item.instrument?.symbol === assetId,
+        ) ?? null
+      );
+    },
     enabled: !!assetId,
   });
 
@@ -393,7 +411,50 @@ export const AssetProfilePage = () => {
 
   // Determine if this is an alternative asset (property, vehicle, liability, etc.)
   const isAltAsset = isAlternativeAsset(assetProfile?.kind);
-  const isLiability = assetProfile?.kind === "LIABILITY";
+
+  const { data: assetLots = [] } = useQuery<AssetLotView[], Error>({
+    queryKey: [QueryKeys.ASSET_LOTS, assetId, true],
+    queryFn: () => getAssetLots(assetId, true),
+    enabled: !!assetId && !isAssetProfileLoading && !isAltAsset,
+  });
+
+  const { data: assetActivities = [], isLoading: isActivitiesLoading } = useQuery<
+    ActivityDetails[],
+    Error
+  >({
+    queryKey: ["activities", "byAsset", assetId],
+    queryFn: async () => {
+      const response = await searchActivities(0, 200, { symbol: assetId }, "", {
+        id: "date",
+        desc: true,
+      });
+      return response.data;
+    },
+    enabled: !!assetId && !isAssetProfileLoading,
+  });
+
+  const overviewSubTabs = useMemo(() => {
+    const items: { value: OverviewSubTab; label: string }[] = [{ value: "about", label: "About" }];
+    if (assetLots.length > 0) {
+      items.push({ value: "holdings", label: "Holdings" });
+    }
+    items.push({ value: "activities", label: "Activities" });
+    if (hasManualSnapshots) {
+      items.push({ value: "snapshots", label: "Snapshots" });
+    }
+    items.push({ value: "quotes", label: "Quotes" });
+    return items;
+  }, [hasManualSnapshots, assetLots.length]);
+
+  const handleSubTabChange = useCallback(
+    (next: OverviewSubTab) => {
+      if (next === overviewSubTab) return;
+      triggerHaptic();
+      setOverviewSubTab(next);
+      navigate(`${location.pathname}?tab=${next}`, { replace: true });
+    },
+    [overviewSubTab, triggerHaptic, navigate, location.pathname],
+  );
 
   // Fetch alternative asset holding data (for alternative assets only)
   const { data: altHolding } = useAlternativeAssetHolding({
@@ -492,202 +553,181 @@ export const AssetProfilePage = () => {
     };
   }, [holding, quote, bondSpec, optionSpec]);
 
-  // Build toggle items dynamically based on available data
-  const toggleItems = useMemo(() => {
-    const items: { value: AssetTab; label: string }[] = [];
+  // Top toggle is only used for alternative assets (Overview | Values).
+  const altToggleItems = useMemo(
+    () => [
+      { value: "overview" as AssetTab, label: "Overview" },
+      { value: "history" as AssetTab, label: "Values" },
+    ],
+    [],
+  );
 
-    // For alternative assets: Overview | History (no Lots tab)
-    if (isAltAsset) {
-      items.push({ value: "overview", label: "Overview" });
-      items.push({ value: "history", label: "Values" });
-      return items;
-    }
+  // Content for each sub-tab. Shared between desktop and mobile renderers.
+  const subTabContent = useMemo<Record<OverviewSubTab, React.ReactNode>>(() => {
+    const aboutContent = (
+      <div className="space-y-4">
+        {/* Category badges */}
+        <div className="flex flex-wrap items-center gap-2">
+          {isClassificationsLoading ? (
+            <>
+              <Skeleton className="h-6 w-16 rounded-full" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+            </>
+          ) : categoryBadges.length > 0 ? (
+            <>
+              {categoryBadges.map((badge) => (
+                <Badge
+                  key={badge.id}
+                  variant="secondary"
+                  className="gap-1.5"
+                  style={{
+                    backgroundColor: `${badge.categoryColor}20`,
+                    color: badge.categoryColor,
+                    borderColor: badge.categoryColor,
+                  }}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: badge.categoryColor }}
+                  />
+                  {badge.categoryName}
+                </Badge>
+              ))}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => {
+                  setEditSheetDefaultTab("classification");
+                  setEditSheetOpen(true);
+                }}
+              >
+                More
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground h-6 text-xs"
+              onClick={() => {
+                setEditSheetDefaultTab("classification");
+                setEditSheetOpen(true);
+              }}
+            >
+              + Add classifications
+            </Button>
+          )}
+        </div>
 
-    // For regular assets
-    if (profile) {
-      items.push({ value: "overview", label: "Overview" });
-    }
+        {/* ISIN */}
+        {profile?.isin && (
+          <p className="text-muted-foreground text-sm">
+            <span className="font-medium">ISIN:</span> {profile.isin}
+          </p>
+        )}
 
-    if (holding?.lots && holding.lots.length > 0) {
-      items.push({ value: "lots", label: "Lots" });
-    }
+        {/* Notes section */}
+        <p className="text-muted-foreground text-sm">
+          {assetProfile?.notes || holding?.instrument?.notes || "No notes added."}
+        </p>
+      </div>
+    );
 
-    items.push({ value: "history", label: "Quotes" });
-
-    return items;
-  }, [profile, holding, isAltAsset]);
-
-  // Build swipable tabs for mobile
-  const swipableTabs = useMemo(() => {
-    const tabs: { name: string; content: React.ReactNode }[] = [];
-
-    if (profile) {
-      tabs.push({
-        name: "Overview",
-        content: (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 pt-0 md:grid-cols-3">
-              <AssetHistoryCard
-                assetId={profile.id ?? ""}
-                currency={quote?.currency ?? profile.currency ?? baseCurrency}
-                marketPrice={quote?.close ?? profile.marketPrice}
-                totalGainAmount={profile.totalGainAmount}
-                totalGainPercent={profile.totalGainPercent}
-                quoteHistory={quoteHistory ?? []}
-                className={`col-span-1 ${holding ? "md:col-span-2" : "md:col-span-3"}`}
-              />
-              {symbolHolding && (
-                <AssetDetailCard assetData={symbolHolding} className="col-span-1 md:col-span-1" />
-              )}
-            </div>
-
-            <AnimatedToggleGroup
-              items={overviewSubTabs}
-              value={overviewSubTab}
-              onValueChange={(v: OverviewSubTab) => setOverviewSubTab(v)}
-              className="text-sm"
-            />
-
-            {overviewSubTab === "about" && (
-              <div className="space-y-4">
-                {/* Category badges */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {isClassificationsLoading ? (
-                    <>
-                      <Skeleton className="h-6 w-16 rounded-full" />
-                      <Skeleton className="h-6 w-20 rounded-full" />
-                    </>
-                  ) : categoryBadges.length > 0 ? (
-                    <>
-                      {categoryBadges.map((badge) => (
-                        <Badge
-                          key={badge.id}
-                          variant="secondary"
-                          className="gap-1.5"
-                          style={{
-                            backgroundColor: `${badge.categoryColor}20`,
-                            color: badge.categoryColor,
-                            borderColor: badge.categoryColor,
-                          }}
-                        >
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: badge.categoryColor }}
-                          />
-                          {badge.categoryName}
-                        </Badge>
-                      ))}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-xs"
-                        onClick={() => {
-                          setEditSheetDefaultTab("classification");
-                          setEditSheetOpen(true);
-                        }}
-                      >
-                        More
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground h-6 text-xs"
-                      onClick={() => {
-                        setEditSheetDefaultTab("classification");
-                        setEditSheetOpen(true);
-                      }}
-                    >
-                      + Add classifications
-                    </Button>
-                  )}
-                </div>
-
-                {/* Notes section */}
-                <p className="text-muted-foreground text-sm">
-                  {assetProfile?.notes || holding?.instrument?.notes || "No notes added."}
-                </p>
-              </div>
-            )}
-
-            {overviewSubTab === "holdings" && (
-              <AssetAccountHoldings assetId={assetId} baseCurrency={baseCurrency} />
-            )}
-
-            {overviewSubTab === "snapshots" && (
-              <AssetSnapshotHistory assetId={assetId} baseCurrency={baseCurrency} />
-            )}
-          </div>
-        ),
-      });
-    }
-
-    if (holding?.lots && holding.lots.length > 0 && profile) {
-      tabs.push({
-        name: "Lots",
-        content: (
-          <AssetLotsTable
-            lots={holding.lots}
-            currency={symbolHolding?.currency ?? profile.currency ?? baseCurrency}
-            marketPrice={Number(holding.price ?? profile.marketPrice)}
-          />
-        ),
-      });
-    }
-
-    // Use ValueHistoryDataGrid for alternative assets, QuoteHistoryTable for regular assets
-    tabs.push({
-      name: isAltAsset ? "Values" : "Quotes",
-      content: isAltAsset ? (
-        <ValueHistoryDataGrid
-          data={quoteHistory ?? []}
-          currency={profile?.currency ?? baseCurrency}
-          isLiability={isLiability}
-          onSaveQuote={(quote: Quote) => {
-            saveQuoteMutation.mutate(quote);
-          }}
-          onDeleteQuote={(id: string) => deleteQuoteMutation.mutate(id)}
+    const lotsContent =
+      profile && assetLots.length > 0 ? (
+        <AssetLotsTable
+          lots={assetLots}
+          currency={symbolHolding?.currency ?? profile.currency ?? baseCurrency}
+          marketPrice={Number(holding?.price ?? profile.marketPrice)}
+          contractMultiplier={Number(holding?.contractMultiplier ?? 1)}
+          dayChangeAmount={
+            holding?.dayChange?.local != null ? Number(holding.dayChange.local) : null
+          }
+          dayChangePct={holding?.dayChangePct ?? null}
         />
-      ) : (
-        <QuoteHistoryDataGrid
-          data={quoteHistory ?? []}
-          assetId={assetId}
-          currency={quote?.currency ?? profile?.currency ?? baseCurrency}
-          assetKind={assetProfile?.kind}
-          isManualDataSource={isManualPricingMode}
-          onSaveQuote={(quote: Quote) => saveQuoteMutation.mutate(quote)}
-          onDeleteQuote={(id: string) => deleteQuoteMutation.mutate(id)}
-          onChangeDataSource={(isManual) => {
-            if (profile) {
-              updateQuoteModeMutation.mutate({
-                assetId: assetId,
-                quoteMode: isManual ? "MANUAL" : "MARKET",
-              });
-            }
-          }}
-        />
-      ),
-    });
+      ) : null;
 
-    return tabs;
+    const quotesContent = (
+      <QuoteHistoryDataGrid
+        data={quoteHistory ?? []}
+        assetId={assetId}
+        currency={quote?.currency ?? profile?.currency ?? baseCurrency}
+        assetKind={assetProfile?.kind}
+        isManualDataSource={isManualPricingMode}
+        onSaveQuote={(q: Quote) => saveQuoteMutation.mutate(q)}
+        onDeleteQuote={(id: string) => deleteQuoteMutation.mutate(id)}
+        onChangeDataSource={(isManual) => {
+          if (profile) {
+            updateQuoteModeMutation.mutate({
+              assetId: assetId,
+              quoteMode: isManual ? "MANUAL" : "MARKET",
+            });
+          }
+        }}
+      />
+    );
+
+    const noopEdit = () => {};
+    const noopDelete = () => {};
+    const noopDuplicate = async () => {};
+
+    const activitiesContent = isMobile ? (
+      <ActivityTableMobile
+        activities={assetActivities}
+        isCompactView={true}
+        handleEdit={noopEdit}
+        handleDelete={noopDelete}
+        onDuplicate={noopDuplicate}
+      />
+    ) : (
+      <ActivityTable
+        activities={assetActivities}
+        isLoading={isActivitiesLoading}
+        sorting={[{ id: "date", desc: true }]}
+        onSortingChange={() => {}}
+        handleEdit={noopEdit}
+        handleDelete={noopDelete}
+      />
+    );
+
+    return {
+      about: aboutContent,
+      holdings: lotsContent,
+      activities: activitiesContent,
+      snapshots: <AssetSnapshotHistory assetId={assetId} baseCurrency={baseCurrency} />,
+      quotes: quotesContent,
+    };
   }, [
+    assetId,
+    baseCurrency,
     profile,
     holding,
+    assetLots,
     symbolHolding,
     quoteHistory,
-    saveQuoteMutation,
-    deleteQuoteMutation,
-    assetId,
-    isAltAsset,
-    isLiability,
+    quote,
+    assetProfile,
     isManualPricingMode,
     categoryBadges,
     isClassificationsLoading,
-    assetProfile,
-    overviewSubTab,
-    overviewSubTabs,
+    saveQuoteMutation,
+    deleteQuoteMutation,
+    updateQuoteModeMutation,
+    assetActivities,
+    isActivitiesLoading,
+    isMobile,
   ]);
+
+  // Build swipable tabs for mobile from sub-tabs.
+  const swipableTabs = useMemo(
+    () =>
+      overviewSubTabs.map(({ value, label }) => ({
+        name: label,
+        content: subTabContent[value],
+      })),
+    [overviewSubTabs, subTabContent],
+  );
 
   const isLoading = isHoldingLoading || isQuotesLoading || isAssetProfileLoading;
   const [refreshConfirmOpen, setRefreshConfirmOpen] = useState(false);
@@ -876,22 +916,24 @@ export const AssetProfilePage = () => {
         onBack={handleBack}
         actions={
           <div className="flex items-center gap-2">
-            <div className="hidden sm:flex">
-              <AnimatedToggleGroup
-                items={toggleItems}
-                value={activeTab}
-                onValueChange={(next: AssetTab) => {
-                  if (next === activeTab) {
-                    return;
-                  }
-                  triggerHaptic();
-                  setActiveTab(next);
-                  const url = `${location.pathname}?tab=${next}`;
-                  navigate(url, { replace: true });
-                }}
-                className="md:text-base"
-              />
-            </div>
+            {isAltAsset && (
+              <div className="hidden sm:flex">
+                <AnimatedToggleGroup
+                  items={altToggleItems}
+                  value={activeTab}
+                  onValueChange={(next: AssetTab) => {
+                    if (next === activeTab) {
+                      return;
+                    }
+                    triggerHaptic();
+                    setActiveTab(next);
+                    const url = `${location.pathname}?tab=${next}`;
+                    navigate(url, { replace: true });
+                  }}
+                  className="md:text-base"
+                />
+              </div>
+            )}
             <ActionPalette
               open={actionPaletteOpen}
               onOpenChange={setActionPaletteOpen}
@@ -1121,174 +1163,60 @@ export const AssetProfilePage = () => {
             </Tabs>
           )
         ) : isMobile ? (
-          <SwipableView
-            items={swipableTabs}
-            displayToggle={true}
-            onViewChange={(_index: number, name: string) => {
-              const tabValue = name.toLowerCase() as AssetTab;
-              if (tabValue === activeTab) {
-                return;
-              }
-              triggerHaptic();
-              setActiveTab(tabValue);
-              const url = `${location.pathname}?tab=${tabValue}`;
-              navigate(url, { replace: true });
-            }}
-          />
-        ) : (
-          <Tabs value={activeTab} className="space-y-4">
-            {/* Overview Content: Requires profile */}
+          <div className="space-y-4">
             {profile && (
-              <TabsContent value="overview" className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 pt-0 md:grid-cols-3">
-                  <AssetHistoryCard
-                    assetId={profile.id ?? ""}
-                    currency={quote?.currency ?? profile.currency ?? baseCurrency}
-                    marketPrice={quote?.close ?? profile.marketPrice}
-                    totalGainAmount={profile.totalGainAmount}
-                    totalGainPercent={profile.totalGainPercent}
-                    quoteHistory={quoteHistory ?? []}
-                    className={`col-span-1 ${holding ? "md:col-span-2" : "md:col-span-3"}`}
-                  />
-                  {symbolHolding && (
-                    <AssetDetailCard
-                      assetData={symbolHolding}
-                      className="col-span-1 md:col-span-1"
-                    />
-                  )}
-                </div>
-
-                <AnimatedToggleGroup
-                  items={overviewSubTabs}
-                  value={overviewSubTab}
-                  onValueChange={(v: OverviewSubTab) => setOverviewSubTab(v)}
-                  className="text-sm"
+              <div className="grid grid-cols-1 gap-4 pt-0 md:grid-cols-3">
+                <AssetHistoryCard
+                  assetId={profile.id ?? ""}
+                  currency={quote?.currency ?? profile.currency ?? baseCurrency}
+                  marketPrice={quote?.close ?? profile.marketPrice}
+                  totalGainAmount={profile.totalGainAmount}
+                  totalGainPercent={profile.totalGainPercent}
+                  quoteHistory={quoteHistory ?? []}
+                  className={`col-span-1 ${holding ? "md:col-span-2" : "md:col-span-3"}`}
                 />
-
-                {overviewSubTab === "about" && (
-                  <div className="space-y-4">
-                    {/* Category badges */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      {isClassificationsLoading ? (
-                        <>
-                          <Skeleton className="h-6 w-16 rounded-full" />
-                          <Skeleton className="h-6 w-20 rounded-full" />
-                        </>
-                      ) : categoryBadges.length > 0 ? (
-                        <>
-                          {categoryBadges.map((badge) => (
-                            <Badge
-                              key={badge.id}
-                              variant="secondary"
-                              className="gap-1.5"
-                              style={{
-                                backgroundColor: `${badge.categoryColor}20`,
-                                color: badge.categoryColor,
-                                borderColor: badge.categoryColor,
-                              }}
-                            >
-                              <span
-                                className="h-2 w-2 rounded-full"
-                                style={{ backgroundColor: badge.categoryColor }}
-                              />
-                              {badge.categoryName}
-                            </Badge>
-                          ))}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 text-xs"
-                            onClick={() => {
-                              setEditSheetDefaultTab("classification");
-                              setEditSheetOpen(true);
-                            }}
-                          >
-                            More
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-muted-foreground h-6 text-xs"
-                          onClick={() => {
-                            setEditSheetDefaultTab("classification");
-                            setEditSheetOpen(true);
-                          }}
-                        >
-                          + Add classifications
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* ISIN */}
-                    {profile.isin && (
-                      <p className="text-muted-foreground text-sm">
-                        <span className="font-medium">ISIN:</span> {profile.isin}
-                      </p>
-                    )}
-
-                    {/* Notes section */}
-                    <p className="text-muted-foreground text-sm">
-                      {assetProfile?.notes || holding?.instrument?.notes || "No notes added."}
-                    </p>
-                  </div>
+                {symbolHolding && (
+                  <AssetDetailCard assetData={symbolHolding} className="col-span-1 md:col-span-1" />
                 )}
-
-                {overviewSubTab === "holdings" && (
-                  <AssetAccountHoldings assetId={assetId} baseCurrency={baseCurrency} />
+              </div>
+            )}
+            <SwipableView
+              items={swipableTabs}
+              displayToggle={true}
+              onViewChange={(_index: number, name: string) => {
+                const match = overviewSubTabs.find((t) => t.label === name);
+                if (match) handleSubTabChange(match.value);
+              }}
+            />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {profile && (
+              <div className="grid grid-cols-1 gap-4 pt-0 md:grid-cols-3">
+                <AssetHistoryCard
+                  assetId={profile.id ?? ""}
+                  currency={quote?.currency ?? profile.currency ?? baseCurrency}
+                  marketPrice={quote?.close ?? profile.marketPrice}
+                  totalGainAmount={profile.totalGainAmount}
+                  totalGainPercent={profile.totalGainPercent}
+                  quoteHistory={quoteHistory ?? []}
+                  className={`col-span-1 ${holding ? "md:col-span-2" : "md:col-span-3"}`}
+                />
+                {symbolHolding && (
+                  <AssetDetailCard assetData={symbolHolding} className="col-span-1 md:col-span-1" />
                 )}
-
-                {overviewSubTab === "snapshots" && (
-                  <AssetSnapshotHistory assetId={assetId} baseCurrency={baseCurrency} />
-                )}
-              </TabsContent>
+              </div>
             )}
 
-            {/* Lots Content: Requires profile and holding with lots */}
-            {profile && holding?.lots && holding.lots.length > 0 && (
-              <TabsContent value="lots" className="pt-6">
-                <AssetLotsTable
-                  lots={holding.lots}
-                  currency={symbolHolding?.currency ?? profile.currency ?? baseCurrency}
-                  marketPrice={Number(holding.price ?? profile.marketPrice)}
-                />
-              </TabsContent>
-            )}
+            <AnimatedToggleGroup
+              items={overviewSubTabs}
+              value={overviewSubTab}
+              onValueChange={handleSubTabChange}
+              className="text-sm"
+            />
 
-            {/* History/Quotes Content: Requires quoteHistory */}
-            <TabsContent value="history" className="space-y-16 pt-6">
-              {isAltAsset ? (
-                <ValueHistoryDataGrid
-                  data={quoteHistory ?? []}
-                  currency={profile?.currency ?? baseCurrency}
-                  isLiability={isLiability}
-                  onSaveQuote={(quote: Quote) => {
-                    saveQuoteMutation.mutate(quote);
-                  }}
-                  onDeleteQuote={(id: string) => deleteQuoteMutation.mutate(id)}
-                />
-              ) : (
-                <QuoteHistoryDataGrid
-                  data={quoteHistory ?? []}
-                  assetId={assetId}
-                  currency={quote?.currency ?? profile?.currency ?? baseCurrency}
-                  assetKind={assetProfile?.kind}
-                  isManualDataSource={isManualPricingMode}
-                  onSaveQuote={(quote: Quote) => saveQuoteMutation.mutate(quote)}
-                  onDeleteQuote={(id: string) => deleteQuoteMutation.mutate(id)}
-                  onChangeDataSource={(isManual) => {
-                    if (profile) {
-                      updateQuoteModeMutation.mutate({
-                        assetId: assetId,
-                        quoteMode: isManual ? "MANUAL" : "MARKET",
-                      });
-                    }
-                  }}
-                />
-              )}
-            </TabsContent>
-          </Tabs>
+            {subTabContent[overviewSubTab]}
+          </div>
         )}
       </PageContent>
 

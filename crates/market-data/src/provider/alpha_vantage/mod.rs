@@ -22,8 +22,8 @@ use std::time::Duration;
 
 use crate::errors::MarketDataError;
 use crate::models::{
-    AssetProfile, Coverage, InstrumentId, InstrumentKind, ProviderInstrument, Quote, QuoteContext,
-    SearchResult,
+    AssetProfile, Coverage, DividendEvent, InstrumentId, InstrumentKind, ProviderInstrument, Quote,
+    QuoteContext, SearchResult,
 };
 use crate::provider::{MarketDataProvider, ProviderCapabilities, RateLimit};
 use crate::resolver::ResolverChain;
@@ -223,6 +223,24 @@ struct SymbolSearchResponse {
     note: Option<String>,
     #[serde(rename = "Information")]
     information: Option<String>,
+}
+
+/// DIVIDENDS response for equity cash dividends.
+#[derive(Debug, Deserialize)]
+struct DividendsResponse {
+    data: Option<Vec<AlphaDividend>>,
+    #[serde(rename = "Error Message")]
+    error_message: Option<String>,
+    #[serde(rename = "Note")]
+    note: Option<String>,
+    #[serde(rename = "Information")]
+    information: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AlphaDividend {
+    ex_dividend_date: String,
+    amount: String,
 }
 
 /// Individual match from SYMBOL_SEARCH
@@ -893,6 +911,49 @@ impl AlphaVantageProvider {
             .collect()
     }
 
+    /// Fetch cash dividends using DIVIDENDS endpoint.
+    async fn fetch_dividends(
+        &self,
+        symbol: &str,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<DividendEvent>, MarketDataError> {
+        let params = [("function", "DIVIDENDS"), ("symbol", symbol)];
+
+        let text = self.fetch(&params).await?;
+        let response: DividendsResponse =
+            serde_json::from_str(&text).map_err(|e| MarketDataError::ProviderError {
+                provider: PROVIDER_ID.to_string(),
+                message: format!("Failed to parse dividends response: {}", e),
+            })?;
+
+        Self::check_api_error(
+            &response.error_message,
+            &response.note,
+            &response.information,
+        )?;
+
+        let mut dividends: Vec<DividendEvent> = response
+            .data
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|d| {
+                let timestamp = Self::parse_date(&d.ex_dividend_date)?;
+                if timestamp < start || timestamp > end {
+                    return None;
+                }
+                let amount = d.amount.parse::<f64>().ok()?;
+                Some(DividendEvent {
+                    amount,
+                    date: timestamp.timestamp(),
+                })
+            })
+            .collect();
+
+        dividends.sort_by_key(|d| d.date);
+        Ok(dividends)
+    }
+
     /// Fetch company overview using OVERVIEW endpoint.
     async fn fetch_company_overview(&self, symbol: &str) -> Result<AssetProfile, MarketDataError> {
         let params = [("function", "OVERVIEW"), ("symbol", symbol)];
@@ -1046,6 +1107,7 @@ impl MarketDataProvider for AlphaVantageProvider {
             supports_historical: true,
             supports_search: true,  // Via SYMBOL_SEARCH endpoint
             supports_profile: true, // Via OVERVIEW endpoint for equities
+            supports_dividends: true,
         }
     }
 
@@ -1197,6 +1259,26 @@ impl MarketDataProvider for AlphaVantageProvider {
         Ok(filtered)
     }
 
+    async fn get_dividends(
+        &self,
+        _context: &QuoteContext,
+        instrument: ProviderInstrument,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<DividendEvent>, MarketDataError> {
+        let symbol = match instrument {
+            ProviderInstrument::EquitySymbol { symbol } => symbol.to_string(),
+            _ => {
+                return Err(MarketDataError::NotSupported {
+                    operation: "dividends".to_string(),
+                    provider: PROVIDER_ID.to_string(),
+                });
+            }
+        };
+
+        self.fetch_dividends(&symbol, start, end).await
+    }
+
     async fn get_profile(&self, symbol: &str) -> Result<AssetProfile, MarketDataError> {
         debug!("Fetching profile for {} from Alpha Vantage", symbol);
 
@@ -1313,6 +1395,7 @@ mod tests {
         assert!(caps.supports_historical);
         assert!(caps.supports_search); // Via SYMBOL_SEARCH endpoint
         assert!(caps.supports_profile); // Via OVERVIEW endpoint
+        assert!(caps.supports_dividends);
     }
 
     #[test]

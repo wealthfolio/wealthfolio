@@ -39,8 +39,8 @@ use crate::secrets::SecretStore;
 use wealthfolio_market_data::{
     mic_to_currency, mic_to_exchange_name, yahoo_equity_provider_symbol_to_canonical,
     yahoo_exchange_to_mic, yahoo_suffix_to_mic, AlphaVantageProvider,
-    AssetProfile as MarketAssetProfile, BoerseFrankfurtProvider, BondQuoteMetadata, ExchangeMap,
-    FinnhubProvider, FixtureProvider, MarketDataAppProvider, MetalPriceApiProvider,
+    AssetProfile as MarketAssetProfile, BoerseFrankfurtProvider, BondQuoteMetadata, DividendEvent,
+    ExchangeMap, FinnhubProvider, FixtureProvider, MarketDataAppProvider, MetalPriceApiProvider,
     OpenFigiProvider, ProviderId, ProviderRegistry, Quote as MarketQuote, QuoteContext,
     ResolverChain, SearchResult as MarketSearchResult, SplitEvent, UsTreasuryCalcProvider,
     YahooProvider,
@@ -513,6 +513,22 @@ impl MarketDataClient {
             Err(_) => return vec![],
         };
         self.registry.fetch_splits(&context, start, end).await
+    }
+
+    /// Fetch cash dividend history for an asset over the given date range.
+    pub async fn fetch_dividends(
+        &self,
+        asset: &Asset,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<DividendEvent>> {
+        let context = self.build_quote_context(asset)?;
+        let dividends = self
+            .registry
+            .fetch_dividends(&context, start, end)
+            .await
+            .map_err(MarketDataClientError::from)?;
+        Ok(dividends)
     }
 
     /// Fetch historical quotes for multiple assets.

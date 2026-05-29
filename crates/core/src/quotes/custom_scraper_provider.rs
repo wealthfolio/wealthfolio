@@ -439,6 +439,7 @@ impl MarketDataProvider for CustomScraperProvider {
             supports_historical: true,
             supports_search: false,
             supports_profile: false,
+            supports_dividends: false,
         }
     }
 

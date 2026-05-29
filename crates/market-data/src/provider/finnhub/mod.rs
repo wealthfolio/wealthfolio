@@ -20,7 +20,8 @@ use serde::Deserialize;
 
 use crate::errors::MarketDataError;
 use crate::models::{
-    AssetProfile, Coverage, InstrumentKind, ProviderInstrument, Quote, QuoteContext, SearchResult,
+    AssetProfile, Coverage, DividendEvent, InstrumentKind, ProviderInstrument, Quote, QuoteContext,
+    SearchResult,
 };
 use crate::provider::{MarketDataProvider, ProviderCapabilities, RateLimit};
 use crate::resolver::yahoo_suffix_to_mic;
@@ -96,6 +97,20 @@ struct SearchItem {
     /// Security type (e.g., "Common Stock", "ETF")
     #[serde(rename = "type")]
     security_type: String,
+}
+
+/// Response from /stock/dividend2 endpoint.
+#[derive(Debug, Deserialize)]
+struct DividendsResponse {
+    #[serde(default)]
+    data: Vec<FinnhubDividend>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FinnhubDividend {
+    amount: f64,
+    ex_date: String,
 }
 
 /// Response from /stock/profile2 endpoint
@@ -448,6 +463,42 @@ impl FinnhubProvider {
         Ok(quotes)
     }
 
+    /// Fetch cash dividends from /stock/dividend2 endpoint.
+    async fn fetch_dividends(
+        &self,
+        symbol: &str,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<DividendEvent>, MarketDataError> {
+        let params = [("symbol", symbol)];
+        let text = self.fetch("/stock/dividend2", &params).await?;
+
+        let response: DividendsResponse =
+            serde_json::from_str(&text).map_err(|e| MarketDataError::ProviderError {
+                provider: PROVIDER_ID.to_string(),
+                message: format!("Failed to parse dividends response: {}", e),
+            })?;
+
+        let mut dividends: Vec<DividendEvent> = response
+            .data
+            .into_iter()
+            .filter_map(|d| {
+                let date = chrono::NaiveDate::parse_from_str(&d.ex_date, "%Y-%m-%d").ok()?;
+                let timestamp = Utc.from_utc_datetime(&date.and_hms_opt(0, 0, 0)?);
+                if timestamp < start || timestamp > end {
+                    return None;
+                }
+                Some(DividendEvent {
+                    amount: d.amount,
+                    date: timestamp.timestamp(),
+                })
+            })
+            .collect();
+
+        dividends.sort_by_key(|d| d.date);
+        Ok(dividends)
+    }
+
     /// Fetch company profile from /stock/profile2 endpoint.
     async fn fetch_profile(&self, symbol: &str) -> Result<AssetProfile, MarketDataError> {
         let params = [("symbol", symbol)];
@@ -562,6 +613,7 @@ impl MarketDataProvider for FinnhubProvider {
             supports_historical: true,
             supports_search: true,
             supports_profile: true,
+            supports_dividends: true,
         }
     }
 
@@ -612,6 +664,26 @@ impl MarketDataProvider for FinnhubProvider {
         }
 
         Ok(quotes)
+    }
+
+    async fn get_dividends(
+        &self,
+        _context: &QuoteContext,
+        instrument: ProviderInstrument,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<DividendEvent>, MarketDataError> {
+        let symbol = match instrument {
+            ProviderInstrument::EquitySymbol { symbol } => symbol.to_string(),
+            _ => {
+                return Err(MarketDataError::NotSupported {
+                    operation: "dividends".to_string(),
+                    provider: PROVIDER_ID.to_string(),
+                });
+            }
+        };
+
+        self.fetch_dividends(&symbol, start, end).await
     }
 
     async fn search(&self, query: &str) -> Result<Vec<SearchResult>, MarketDataError> {
@@ -695,6 +767,7 @@ mod tests {
         assert!(caps.supports_historical);
         assert!(caps.supports_search);
         assert!(caps.supports_profile);
+        assert!(caps.supports_dividends);
     }
 
     #[test]

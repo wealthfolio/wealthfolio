@@ -19,6 +19,7 @@ import PortfolioInsightsPage from "@/pages/insights/portfolio-insights";
 import NotFoundPage from "@/pages/not-found";
 import PerformancePage from "@/pages/performance/performance-page";
 import SettingsAccountsPage from "@/pages/settings/accounts/accounts-page";
+import PortfoliosPage from "@/pages/settings/portfolios/portfolios-page";
 import SettingsAppearancePage from "@/pages/settings/appearance/appearance-page";
 import AccountPage from "./pages/account/account-page";
 import AiAssistantPage from "./pages/ai-assistant/ai-assistant-page";
@@ -36,6 +37,13 @@ import MarketDataImportPage from "./pages/settings/market-data/market-data-impor
 import MarketDataSettingsPage from "./pages/settings/market-data/market-data-settings";
 import TaxonomiesPage from "./pages/settings/taxonomies/taxonomies-page";
 import ConnectSettingsPage from "./pages/settings/wealthfolio-connect/connect-settings-page";
+import SpendingInsightsPage from "./features/spending/pages/spending-insights-page";
+import SpendingBudgetPage from "./features/spending/pages/spending-budget-page";
+import SpendingSettingsPage from "./pages/settings/spending/spending-settings-page";
+import SpendingSettingsCategoriesPage from "./pages/settings/spending/categories/spending-categories-page";
+import SpendingSettingsEventsPage from "./pages/settings/spending/events/spending-events-page";
+import SpendingSettingsRulesPage from "./pages/settings/spending/rules/spending-rules-page";
+import SpendingSetupPage from "./pages/settings/spending/setup/spending-setup-page";
 import GoalsDashboardPage from "@/features/goals/pages/goals-dashboard-page";
 import GoalNewPage from "@/features/goals/pages/goal-new-page";
 import GoalDetailPage from "@/features/goals/pages/goal-detail-page";
@@ -98,6 +106,8 @@ export function AppRoutes() {
           <Route path="goals/new" element={<GoalNewPage />} />
           <Route path="goals/:goalId/guide" element={<GoalRetirementGuidePage />} />
           <Route path="goals/:goalId" element={<GoalDetailPage />} />
+          <Route path="spending/insights" element={<SpendingInsightsPage />} />
+          <Route path="spending/budget" element={<SpendingBudgetPage />} />
           {/* Dynamic addon routes */}
           {dynamicRoutes.map(({ path, component: Component }) => (
             <Route
@@ -116,10 +126,16 @@ export function AppRoutes() {
             <Route index element={<GeneralSettingsPage />} />
             <Route path="general" element={<GeneralSettingsPage />} />
             <Route path="accounts" element={<SettingsAccountsPage />} />
+            <Route path="portfolios" element={<PortfoliosPage />} />
             <Route path="appearance" element={<SettingsAppearancePage />} />
             <Route path="about" element={<AboutSettingsPage />} />
             <Route path="exports" element={<ExportSettingsPage />} />
             <Route path="contribution-limits" element={<ContributionLimitPage />} />
+            <Route path="spending" element={<SpendingSettingsPage />} />
+            <Route path="spending/categories" element={<SpendingSettingsCategoriesPage />} />
+            <Route path="spending/events" element={<SpendingSettingsEventsPage />} />
+            <Route path="spending/rules" element={<SpendingSettingsRulesPage />} />
+            <Route path="spending/setup" element={<SpendingSetupPage />} />
             <Route path="market-data" element={<MarketDataSettingsPage />} />
             <Route path="market-data/import" element={<MarketDataImportPage />} />
             <Route path="securities" element={<AssetsPage />} />

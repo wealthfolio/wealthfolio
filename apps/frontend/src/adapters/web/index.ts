@@ -26,6 +26,7 @@ export type {
   BackendSyncReconcileReadyResult,
   BackendSyncSnapshotUploadResult,
   BackendSyncStateResult,
+  DataExportResult,
   EphemeralKeyPair,
   EventCallback,
   ExtractedAddon,
@@ -68,6 +69,14 @@ export const RUN_ENV: RunEnv = RunEnvs.WEB;
 // ============================================================================
 // Shared domain modules (identical logic for both platforms)
 // ============================================================================
+
+// Portfolio Commands
+export {
+  createPortfolio,
+  deletePortfolio,
+  getPortfolios,
+  updatePortfolioEntry,
+} from "../shared/portfolios";
 
 // Account Commands
 export { createAccount, deleteAccount, getAccounts, updateAccount } from "../shared/accounts";
@@ -146,6 +155,7 @@ export {
   checkHoldingsImport,
   deleteSnapshot,
   getAssetHoldings,
+  getAssetLots,
   getHistoricalValuations,
   getHolding,
   getHoldings,
@@ -167,7 +177,7 @@ export {
   createAsset,
   deleteAsset,
   deleteQuote,
-  fetchYahooDividends,
+  fetchDividends,
   getAssetProfile,
   getAssets,
   getExchanges,
@@ -308,6 +318,9 @@ export {
   runHealthChecks,
   updateHealthConfig,
 } from "../shared/health";
+
+// Data Export Commands
+export { exportDataFile } from "./exports";
 
 // ============================================================================
 // Platform-specific modules (different implementations for web vs desktop)

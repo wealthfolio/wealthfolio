@@ -4,6 +4,7 @@ use chrono::{DateTime, Duration, Utc};
 use diesel::prelude::*;
 use diesel::r2d2::{self, Pool};
 use diesel::sqlite::SqliteConnection;
+use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 use uuid::Uuid;
@@ -17,14 +18,15 @@ use wealthfolio_core::sync::{
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
 use crate::schema::{
-    sync_applied_events, sync_cursor, sync_device_config, sync_engine_state, sync_entity_metadata,
-    sync_outbox, sync_table_state,
+    spending_preset_rule_deletions, sync_applied_events, sync_cursor, sync_device_config,
+    sync_engine_state, sync_entity_metadata, sync_outbox, sync_table_state,
 };
 
 use super::model::{
     SyncAppliedEventDB, SyncCursorDB, SyncDeviceConfigDB, SyncEngineStateDB, SyncEntityMetadataDB,
     SyncOutboxEventDB, SyncTableStateDB,
 };
+use super::outbox_models::is_syncable_spending_setting_key;
 
 fn enum_to_db<T: serde::Serialize>(value: &T) -> Result<String> {
     Ok(serde_json::to_string(value)?.trim_matches('"').to_string())
@@ -42,6 +44,23 @@ fn validate_sync_table(table: &str) -> Result<()> {
         "Unsupported sync table '{}'",
         table
     ))))
+}
+
+fn canonical_sync_table_set(tables: Vec<String>) -> Result<Vec<String>> {
+    if tables.is_empty() {
+        return Ok(APP_SYNC_TABLES.iter().map(|t| t.to_string()).collect());
+    }
+
+    let requested = tables.into_iter().collect::<HashSet<_>>();
+    for table in &requested {
+        validate_sync_table(table)?;
+    }
+
+    Ok(APP_SYNC_TABLES
+        .iter()
+        .filter(|table| requested.contains::<str>(*table))
+        .map(|table| table.to_string())
+        .collect())
 }
 
 #[derive(Clone)]
@@ -83,39 +102,138 @@ struct TableRowCountResult {
     count: i64,
 }
 
-const USER_SYNCABLE_HOLDINGS_SNAPSHOTS_FILTER: &str =
-    "source IN ('MANUAL_ENTRY', 'CSV_IMPORT', 'SYNTHETIC', 'BROKER_IMPORTED')";
-const MANUAL_QUOTES_FILTER: &str = "source = 'MANUAL'";
-const USER_IMPORT_RUNS_FILTER: &str =
-    "UPPER(run_type) = 'IMPORT' AND UPPER(source_system) IN ('CSV', 'MANUAL')";
-const USER_SYNCABLE_ACTIVITIES_FILTER: &str = "is_user_modified = 1 \
-     OR UPPER(COALESCE(source_system, '')) IN ('MANUAL', 'CSV') \
-     OR ((import_run_id IS NULL OR TRIM(import_run_id) = '') \
-         AND (source_record_id IS NULL OR TRIM(source_record_id) = ''))";
+#[derive(diesel::QueryableByName)]
+struct TextIdRow {
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    id: String,
+}
 
-const OVERWRITE_RISK_TABLE_COUNTS: &[(&str, Option<&str>)] = &[
-    ("platforms", None),
-    ("market_data_custom_providers", None),
-    ("accounts", None),
-    (
-        "assets",
-        Some("kind IN ('PROPERTY', 'VEHICLE', 'COLLECTIBLE', 'PRECIOUS_METAL', 'PRIVATE_EQUITY', 'LIABILITY', 'OTHER')"),
-    ),
-    ("quotes", Some(MANUAL_QUOTES_FILTER)),
-    ("goals", None),
-    ("goal_plans", None),
-    ("ai_threads", None),
-    ("ai_messages", None),
-    ("ai_thread_tags", None),
-    ("contribution_limits", None),
-    ("import_runs", Some(USER_IMPORT_RUNS_FILTER)),
-    ("activities", Some(USER_SYNCABLE_ACTIVITIES_FILTER)),
-    ("import_templates", Some("UPPER(scope) != 'SYSTEM'")),
-    ("import_account_templates", None),
-    ("taxonomies", Some("is_system = 0")),
-    ("taxonomy_categories", Some("taxonomy_id = 'custom_groups'")),
-    ("asset_taxonomy_assignments", None),
-    ("goals_allocation", None),
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SyncRowFilter {
+    UserSyncableHoldingsSnapshots,
+    ManualQuotes,
+    UserImportRuns,
+    UserSyncableActivities,
+    UserImportTemplates,
+    SpendingSettings,
+    SpendingSettingsOverwriteRisk,
+    UserTaxonomies,
+    SyncableTaxonomyCategories,
+    UserModifiedBudgetGroups,
+    UserModifiedBudgetGroupAssignments,
+    UserModifiedSpendingEventTypes,
+    OverwriteRiskAssets,
+}
+
+impl SyncRowFilter {
+    fn sql(self) -> &'static str {
+        match self {
+            Self::UserSyncableHoldingsSnapshots => {
+                "account_id IN (SELECT id FROM accounts) AND source IN ('MANUAL_ENTRY', 'CSV_IMPORT', 'SYNTHETIC', 'BROKER_IMPORTED')"
+            }
+            Self::ManualQuotes => "source = 'MANUAL'",
+            Self::UserImportRuns => {
+                "UPPER(run_type) = 'IMPORT' AND UPPER(source_system) IN ('CSV', 'MANUAL')"
+            }
+            Self::UserSyncableActivities => {
+                "is_user_modified = 1 \
+                 OR UPPER(COALESCE(source_system, '')) IN ('MANUAL', 'CSV') \
+                 OR ((import_run_id IS NULL OR TRIM(import_run_id) = '') \
+                     AND (source_record_id IS NULL OR TRIM(source_record_id) = ''))"
+            }
+            Self::UserImportTemplates => "UPPER(scope) != 'SYSTEM'",
+            Self::SpendingSettings => "setting_key IN ('spending.enabled', 'spending.account_ids')",
+            Self::SpendingSettingsOverwriteRisk => {
+                "setting_key = 'spending.account_ids' \
+                 OR (setting_key = 'spending.enabled' AND LOWER(setting_value) != 'true')"
+            }
+            Self::UserTaxonomies => "is_system = 0",
+            // Spending/income seed category IDs use the `cat_` prefix; user-created rows use UUIDs.
+            Self::SyncableTaxonomyCategories => {
+                "taxonomy_id = 'custom_groups' OR (taxonomy_id IN ('spending_categories', 'income_sources') AND id NOT LIKE 'cat_%')"
+            }
+            Self::UserModifiedBudgetGroups | Self::UserModifiedBudgetGroupAssignments => {
+                "is_system = 0 OR updated_at != created_at"
+            }
+            Self::UserModifiedSpendingEventTypes => "key IS NULL OR updated_at != created_at",
+            Self::OverwriteRiskAssets => {
+                "kind IN ('PROPERTY', 'VEHICLE', 'COLLECTIBLE', 'PRECIOUS_METAL', 'PRIVATE_EQUITY', 'LIABILITY', 'OTHER')"
+            }
+        }
+    }
+}
+
+struct SyncTableFilterSpec {
+    table: &'static str,
+    filter: SyncRowFilter,
+}
+
+const OVERWRITE_RISK_UNFILTERED_TABLES: &[&str] = &[
+    "platforms",
+    "market_data_custom_providers",
+    "accounts",
+    "goals",
+    "goal_plans",
+    "ai_threads",
+    "ai_messages",
+    "ai_thread_tags",
+    "contribution_limits",
+    "activity_taxonomy_assignments",
+    "spending_activity_events",
+    "spending_categorization_rules",
+    "spending_events",
+    "budget_targets",
+    "budget_rollover_settings",
+    "import_account_templates",
+    "asset_taxonomy_assignments",
+    "goals_allocation",
+];
+
+const OVERWRITE_RISK_FILTERED_TABLES: &[SyncTableFilterSpec] = &[
+    SyncTableFilterSpec {
+        table: "assets",
+        filter: SyncRowFilter::OverwriteRiskAssets,
+    },
+    SyncTableFilterSpec {
+        table: "quotes",
+        filter: SyncRowFilter::ManualQuotes,
+    },
+    SyncTableFilterSpec {
+        table: "import_runs",
+        filter: SyncRowFilter::UserImportRuns,
+    },
+    SyncTableFilterSpec {
+        table: "activities",
+        filter: SyncRowFilter::UserSyncableActivities,
+    },
+    SyncTableFilterSpec {
+        table: "import_templates",
+        filter: SyncRowFilter::UserImportTemplates,
+    },
+    SyncTableFilterSpec {
+        table: "app_settings",
+        filter: SyncRowFilter::SpendingSettingsOverwriteRisk,
+    },
+    SyncTableFilterSpec {
+        table: "spending_event_types",
+        filter: SyncRowFilter::UserModifiedSpendingEventTypes,
+    },
+    SyncTableFilterSpec {
+        table: "budget_groups",
+        filter: SyncRowFilter::UserModifiedBudgetGroups,
+    },
+    SyncTableFilterSpec {
+        table: "budget_group_assignments",
+        filter: SyncRowFilter::UserModifiedBudgetGroupAssignments,
+    },
+    SyncTableFilterSpec {
+        table: "taxonomies",
+        filter: SyncRowFilter::UserTaxonomies,
+    },
+    SyncTableFilterSpec {
+        table: "taxonomy_categories",
+        filter: SyncRowFilter::SyncableTaxonomyCategories,
+    },
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -295,6 +413,14 @@ fn apply_value_migration(table: &str, column: &str, value: serde_json::Value) ->
             }
             value
         }
+        ("accounts", "account_type") => {
+            if let Some(s) = value.as_str() {
+                if !matches!(s, "SECURITIES" | "CASH" | "CREDIT_CARD" | "CRYPTOCURRENCY") {
+                    return serde_json::Value::String("SECURITIES".to_string());
+                }
+            }
+            value
+        }
         _ => value,
     }
 }
@@ -433,29 +559,70 @@ fn normalize_outbox_payload(payload: serde_json::Value) -> Result<serde_json::Va
 /// During restore: only rows matching the filter are deleted before importing snapshot data,
 /// so that unfiltered rows (e.g. system taxonomies) are preserved.
 /// Tables not listed here are exported/restored unfiltered.
-const SYNC_TABLE_SNAPSHOT_FILTERS: &[(&str, &str)] = &[
-    (
-        "holdings_snapshots",
-        USER_SYNCABLE_HOLDINGS_SNAPSHOTS_FILTER,
-    ),
-    ("quotes", MANUAL_QUOTES_FILTER),
+const SYNC_TABLE_SNAPSHOT_FILTERS: &[SyncTableFilterSpec] = &[
+    SyncTableFilterSpec {
+        table: "holdings_snapshots",
+        filter: SyncRowFilter::UserSyncableHoldingsSnapshots,
+    },
+    SyncTableFilterSpec {
+        table: "quotes",
+        filter: SyncRowFilter::ManualQuotes,
+    },
     // Taxonomy rows are all seeded by migrations — no user-created taxonomies yet.
     // Export nothing; the table is in APP_SYNC_TABLES for future custom taxonomy support.
-    ("taxonomies", "is_system = 0"),
-    // Only export user-created categories under custom_groups.
-    ("taxonomy_categories", "taxonomy_id = 'custom_groups'"),
+    SyncTableFilterSpec {
+        table: "taxonomies",
+        filter: SyncRowFilter::UserTaxonomies,
+    },
+    // Only export user-created categories under syncable system taxonomies.
+    SyncTableFilterSpec {
+        table: "taxonomy_categories",
+        filter: SyncRowFilter::SyncableTaxonomyCategories,
+    },
     // Only export user-initiated import runs (CSV/manual), matching the outbox policy.
-    ("import_runs", USER_IMPORT_RUNS_FILTER),
+    SyncTableFilterSpec {
+        table: "import_runs",
+        filter: SyncRowFilter::UserImportRuns,
+    },
     // Activities: match the outbox policy so broker activities don't reference
     // filtered-out import_runs (which would cause FK violations on restore).
-    ("activities", USER_SYNCABLE_ACTIVITIES_FILTER),
+    SyncTableFilterSpec {
+        table: "activities",
+        filter: SyncRowFilter::UserSyncableActivities,
+    },
+    // Only the spending module's app_settings keys participate in sync.
+    SyncTableFilterSpec {
+        table: "app_settings",
+        filter: SyncRowFilter::SpendingSettings,
+    },
 ];
 
 fn snapshot_filter_for_table(table: &str) -> Option<&'static str> {
     SYNC_TABLE_SNAPSHOT_FILTERS
         .iter()
-        .find(|(t, _)| *t == table)
-        .map(|(_, f)| *f)
+        .find(|spec| spec.table == table)
+        .map(|spec| spec.filter.sql())
+}
+
+fn delete_orphan_snapshot_rows(conn: &mut SqliteConnection) -> Result<()> {
+    diesel::sql_query(
+        "DELETE FROM snapshot_positions
+         WHERE snapshot_id IN (
+             SELECT id FROM holdings_snapshots
+             WHERE account_id NOT IN (SELECT id FROM accounts)
+         )",
+    )
+    .execute(conn)
+    .map_err(StorageError::from)?;
+
+    diesel::sql_query(
+        "DELETE FROM holdings_snapshots
+         WHERE account_id NOT IN (SELECT id FROM accounts)",
+    )
+    .execute(conn)
+    .map_err(StorageError::from)?;
+
+    Ok(())
 }
 
 fn entity_storage_mapping(entity: &SyncEntity) -> Option<(&'static str, &'static str)> {
@@ -478,8 +645,21 @@ fn entity_storage_mapping(entity: &SyncEntity) -> Option<(&'static str, &'static
         SyncEntity::Snapshot => Some(("holdings_snapshots", "id")),
         SyncEntity::CustomProvider => Some(("market_data_custom_providers", "id")),
         SyncEntity::ImportRun => Some(("import_runs", "id")),
+        SyncEntity::Portfolio => Some(("portfolios", "id")),
+        SyncEntity::PortfolioAccount => Some(("portfolio_accounts", "id")),
+        SyncEntity::SpendingSetting => Some(("app_settings", "setting_key")),
         // CustomTaxonomy uses bundle replay — handled by custom branch in apply_remote_event_lww_tx
         SyncEntity::CustomTaxonomy => None,
+        // Spending module entities
+        SyncEntity::ActivityTaxonomyAssignment => Some(("activity_taxonomy_assignments", "id")),
+        SyncEntity::SpendingActivityEvent => Some(("spending_activity_events", "activity_id")),
+        SyncEntity::SpendingCategorizationRule => Some(("spending_categorization_rules", "id")),
+        SyncEntity::SpendingEvent => Some(("spending_events", "id")),
+        SyncEntity::SpendingEventType => Some(("spending_event_types", "id")),
+        SyncEntity::BudgetGroup => Some(("budget_groups", "id")),
+        SyncEntity::BudgetGroupAssignment => Some(("budget_group_assignments", "id")),
+        SyncEntity::BudgetTarget => Some(("budget_targets", "id")),
+        SyncEntity::BudgetRolloverSetting => Some(("budget_rollover_settings", "id")),
     }
 }
 
@@ -766,6 +946,199 @@ fn upsert_json_row(
     Ok(())
 }
 
+fn load_entity_metadata_tx(
+    conn: &mut SqliteConnection,
+    entity_db: &str,
+    entity_id: &str,
+) -> Result<Option<SyncEntityMetadataDB>> {
+    let row = sync_entity_metadata::table
+        .find((entity_db.to_string(), entity_id.to_string()))
+        .first::<SyncEntityMetadataDB>(conn)
+        .optional()
+        .map_err(StorageError::from)?;
+    Ok(row)
+}
+
+fn should_apply_against_metadata(
+    meta: &SyncEntityMetadataDB,
+    op: SyncOperation,
+    client_timestamp: &str,
+    event_id: &str,
+) -> Result<bool> {
+    let previous_op = enum_from_db::<SyncOperation>(&meta.last_op)?;
+    if op == SyncOperation::Delete && previous_op != SyncOperation::Delete {
+        Ok(true)
+    } else if previous_op == SyncOperation::Delete
+        && matches!(op, SyncOperation::Create | SyncOperation::Update)
+    {
+        Ok(false)
+    } else {
+        Ok(should_apply_lww(
+            &meta.last_client_timestamp,
+            &meta.last_event_id,
+            client_timestamp,
+            event_id,
+        ))
+    }
+}
+
+fn validate_spending_decimal_field(
+    entity: &SyncEntity,
+    fields: &[(String, serde_json::Value)],
+) -> Result<()> {
+    let field_name = match entity {
+        SyncEntity::BudgetTarget => Some("amount"),
+        SyncEntity::BudgetRolloverSetting => Some("starting_balance"),
+        _ => None,
+    };
+
+    let Some(field_name) = field_name else {
+        return Ok(());
+    };
+    let Some((_, value)) = fields.iter().find(|(key, _)| key == field_name) else {
+        return Ok(());
+    };
+    let Some(amount) = value.as_str() else {
+        return Err(Error::Database(DatabaseError::Internal(format!(
+            "{} sync payload field '{}' must be a decimal string",
+            enum_to_db(entity)?,
+            field_name
+        ))));
+    };
+
+    amount.parse::<Decimal>().map(|_| ()).map_err(|_| {
+        Error::Database(DatabaseError::Internal(format!(
+            "{} sync payload field '{}' is not a valid decimal",
+            enum_to_db(entity).unwrap_or_else(|_| "spending".to_string()),
+            field_name
+        )))
+    })
+}
+
+fn is_syncable_system_taxonomy_id(taxonomy_id: &str) -> bool {
+    matches!(
+        taxonomy_id,
+        "custom_groups" | "spending_categories" | "income_sources"
+    )
+}
+
+fn sql_string_list(values: &[String]) -> String {
+    values
+        .iter()
+        .map(|value| format!("'{}'", escape_sqlite_str(value)))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn tombstone_spending_children_for_removed_categories(
+    conn: &mut SqliteConnection,
+    taxonomy_id: &str,
+    category_clause: &str,
+    event_id: &str,
+    client_timestamp: &str,
+    seq: i64,
+) -> Result<()> {
+    for (entity, table_name) in [
+        (
+            SyncEntity::ActivityTaxonomyAssignment,
+            "activity_taxonomy_assignments",
+        ),
+        (
+            SyncEntity::BudgetGroupAssignment,
+            "budget_group_assignments",
+        ),
+        (SyncEntity::BudgetTarget, "budget_targets"),
+        (
+            SyncEntity::BudgetRolloverSetting,
+            "budget_rollover_settings",
+        ),
+    ] {
+        let sql = format!(
+            "SELECT id FROM {} WHERE taxonomy_id = '{}' {}",
+            quote_identifier(table_name),
+            escape_sqlite_str(taxonomy_id),
+            category_clause
+        );
+        let rows = diesel::sql_query(sql)
+            .load::<TextIdRow>(conn)
+            .map_err(StorageError::from)?;
+        for row in rows {
+            upsert_entity_metadata_tx(
+                conn,
+                entity,
+                &row.id,
+                event_id,
+                client_timestamp,
+                SyncOperation::Delete,
+                seq,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn preset_rule_delete_kind(payload_json: &serde_json::Value) -> Option<&str> {
+    payload_json
+        .get("preset_delete_kind")
+        .or_else(|| payload_json.get("presetDeleteKind"))
+        .and_then(serde_json::Value::as_str)
+}
+
+fn preset_rule_identity_from_payload(payload_json: &serde_json::Value) -> Option<(String, String)> {
+    let preset_id = payload_json
+        .get("preset_id")
+        .or_else(|| payload_json.get("presetId"))
+        .and_then(serde_json::Value::as_str)?;
+    let rule_key = payload_json
+        .get("preset_rule_key")
+        .or_else(|| payload_json.get("presetRuleKey"))
+        .and_then(serde_json::Value::as_str)?;
+    Some((preset_id.to_string(), rule_key.to_string()))
+}
+
+fn upsert_preset_rule_deletion_tx(
+    conn: &mut SqliteConnection,
+    preset_id: &str,
+    preset_rule_key: &str,
+    rule_id: &str,
+    deleted_at: &str,
+) -> Result<()> {
+    diesel::insert_into(spending_preset_rule_deletions::table)
+        .values((
+            spending_preset_rule_deletions::preset_id.eq(preset_id),
+            spending_preset_rule_deletions::preset_rule_key.eq(preset_rule_key),
+            spending_preset_rule_deletions::rule_id.eq(rule_id),
+            spending_preset_rule_deletions::deleted_at.eq(deleted_at),
+        ))
+        .on_conflict((
+            spending_preset_rule_deletions::preset_id,
+            spending_preset_rule_deletions::preset_rule_key,
+        ))
+        .do_update()
+        .set((
+            spending_preset_rule_deletions::rule_id.eq(rule_id),
+            spending_preset_rule_deletions::deleted_at.eq(deleted_at),
+        ))
+        .execute(conn)
+        .map_err(StorageError::from)?;
+    Ok(())
+}
+
+fn tombstone_remote_preset_rule_delete(
+    conn: &mut SqliteConnection,
+    rule_id: &str,
+    payload_json: &serde_json::Value,
+    deleted_at: &str,
+) -> Result<()> {
+    if preset_rule_delete_kind(payload_json) != Some("rule") {
+        return Ok(());
+    }
+    let Some((preset_id, rule_key)) = preset_rule_identity_from_payload(payload_json) else {
+        return Ok(());
+    };
+    upsert_preset_rule_deletion_tx(conn, &preset_id, &rule_key, rule_id, deleted_at)
+}
+
 /// Convert a serializable DB model to a JSON object with snake_case keys
 /// suitable for SQL upsert. Returns None if serialization fails.
 fn model_to_sql_fields<T: serde::Serialize>(
@@ -791,19 +1164,37 @@ fn model_to_sql_fields<T: serde::Serialize>(
 
 /// Apply a custom taxonomy bundle event (create/update/delete).
 /// For create/update: upserts taxonomy row, upserts each category, deletes stale categories.
-/// For delete: deletes the taxonomy row (FK cascade handles categories + assignments).
+/// For delete: deletes custom taxonomy rows, or only categories for seeded system taxonomies.
 fn apply_custom_taxonomy_event(
     conn: &mut SqliteConnection,
     taxonomy_id: &str,
     op: SyncOperation,
     payload_json: &serde_json::Value,
+    event_id: &str,
+    client_timestamp: &str,
+    seq: i64,
 ) -> Result<()> {
     match op {
         SyncOperation::Delete => {
-            let sql = format!(
-                "DELETE FROM \"taxonomies\" WHERE \"id\" = '{}'",
-                escape_sqlite_str(taxonomy_id)
-            );
+            tombstone_spending_children_for_removed_categories(
+                conn,
+                taxonomy_id,
+                "",
+                event_id,
+                client_timestamp,
+                seq,
+            )?;
+            let sql = if is_syncable_system_taxonomy_id(taxonomy_id) {
+                format!(
+                    "DELETE FROM \"taxonomy_categories\" WHERE \"taxonomy_id\" = '{}'",
+                    escape_sqlite_str(taxonomy_id)
+                )
+            } else {
+                format!(
+                    "DELETE FROM \"taxonomies\" WHERE \"id\" = '{}'",
+                    escape_sqlite_str(taxonomy_id)
+                )
+            };
             diesel::sql_query(sql)
                 .execute(conn)
                 .map_err(StorageError::from)?;
@@ -817,8 +1208,10 @@ fn apply_custom_taxonomy_event(
                     )))
                 })?;
 
-            // Reject system taxonomy payloads (except custom_groups which allows user categories)
-            if bundle.taxonomy.is_system != 0 && bundle.taxonomy.id != "custom_groups" {
+            // Reject most system taxonomy payloads; these seeded taxonomies allow user categories.
+            if bundle.taxonomy.is_system != 0
+                && !is_syncable_system_taxonomy_id(&bundle.taxonomy.id)
+            {
                 return Err(Error::Database(DatabaseError::Internal(
                     "Cannot sync system taxonomy".to_string(),
                 )));
@@ -842,9 +1235,8 @@ fn apply_custom_taxonomy_event(
                 }
             }
 
-            // Upsert taxonomy row — skip for custom_groups since it's seeded by migrations
-            // and only its categories are user data.
-            if taxonomy_id != "custom_groups" {
+            // Upsert taxonomy row only for custom taxonomies; seeded system taxonomies are local.
+            if !is_syncable_system_taxonomy_id(taxonomy_id) {
                 let tax_fields = model_to_sql_fields(&bundle.taxonomy)?;
                 upsert_json_row(conn, "taxonomies", &["id"], &tax_fields)?;
             }
@@ -865,6 +1257,14 @@ fn apply_custom_taxonomy_event(
             // Delete local categories that are NOT in the incoming payload.
             // This cascades their assignments via FK ON DELETE CASCADE.
             if incoming_cat_ids.is_empty() {
+                tombstone_spending_children_for_removed_categories(
+                    conn,
+                    taxonomy_id,
+                    "",
+                    event_id,
+                    client_timestamp,
+                    seq,
+                )?;
                 let sql = format!(
                     "DELETE FROM \"taxonomy_categories\" WHERE \"taxonomy_id\" = '{}'",
                     escape_sqlite_str(taxonomy_id)
@@ -873,11 +1273,16 @@ fn apply_custom_taxonomy_event(
                     .execute(conn)
                     .map_err(StorageError::from)?;
             } else {
-                let placeholders = incoming_cat_ids
-                    .iter()
-                    .map(|id| format!("'{}'", escape_sqlite_str(id)))
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let placeholders = sql_string_list(&incoming_cat_ids);
+                let category_clause = format!("AND category_id NOT IN ({})", placeholders);
+                tombstone_spending_children_for_removed_categories(
+                    conn,
+                    taxonomy_id,
+                    &category_clause,
+                    event_id,
+                    client_timestamp,
+                    seq,
+                )?;
                 let sql = format!(
                     "DELETE FROM \"taxonomy_categories\" WHERE \"taxonomy_id\" = '{}' AND \"id\" NOT IN ({})",
                     escape_sqlite_str(taxonomy_id),
@@ -913,6 +1318,26 @@ fn apply_custom_taxonomy_event(
     Ok(())
 }
 
+fn mark_table_incremental_applied_tx(conn: &mut SqliteConnection, table_name: &str) -> Result<()> {
+    let now = Utc::now().to_rfc3339();
+    diesel::insert_into(sync_table_state::table)
+        .values(SyncTableStateDB {
+            table_name: table_name.to_string(),
+            enabled: 1,
+            last_snapshot_restore_at: None,
+            last_incremental_apply_at: Some(now.clone()),
+        })
+        .on_conflict(sync_table_state::table_name)
+        .do_update()
+        .set((
+            sync_table_state::enabled.eq(1),
+            sync_table_state::last_incremental_apply_at.eq(Some(now)),
+        ))
+        .execute(conn)
+        .map_err(StorageError::from)?;
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn apply_remote_event_lww_tx(
     conn: &mut SqliteConnection,
@@ -935,44 +1360,46 @@ fn apply_remote_event_lww_tx(
     }
 
     let entity_db = enum_to_db(&entity)?;
-    let metadata_row = sync_entity_metadata::table
-        .filter(sync_entity_metadata::entity.eq(&entity_db))
-        .filter(sync_entity_metadata::entity_id.eq(&entity_id_value))
-        .first::<SyncEntityMetadataDB>(conn)
-        .optional()
-        .map_err(StorageError::from)?;
+    let metadata_row = load_entity_metadata_tx(conn, &entity_db, &entity_id_value)?;
 
-    let should_apply = match metadata_row.as_ref() {
+    let mut should_apply = match metadata_row.as_ref() {
         Some(meta) => {
-            let previous_op = enum_from_db::<SyncOperation>(&meta.last_op)?;
-            // Tombstones intentionally dominate all non-delete events for the same ID, and an
-            // incoming delete wins over a prior create/update even if its client timestamp is
-            // older. Reusing a UUID after deletion requires a full snapshot bootstrap/reset;
-            // otherwise stale updates from another device can resurrect rows the user deleted.
-            if op == SyncOperation::Delete && previous_op != SyncOperation::Delete {
-                true
-            } else if previous_op == SyncOperation::Delete
-                && matches!(op, SyncOperation::Create | SyncOperation::Update)
-            {
-                false
-            } else {
-                should_apply_lww(
-                    &meta.last_client_timestamp,
-                    &meta.last_event_id,
-                    &client_timestamp_value,
-                    &event_id_value,
-                )
-            }
+            should_apply_against_metadata(meta, op, &client_timestamp_value, &event_id_value)?
         }
         None => true,
     };
 
     if should_apply {
+        let mut applied_entity_change = true;
         if entity == SyncEntity::CustomTaxonomy {
-            apply_custom_taxonomy_event(conn, &entity_id_value, op, &payload_json)?;
+            apply_custom_taxonomy_event(
+                conn,
+                &entity_id_value,
+                op,
+                &payload_json,
+                &event_id_value,
+                &client_timestamp_value,
+                seq_value,
+            )?;
+        } else if entity == SyncEntity::SpendingSetting
+            && !is_syncable_spending_setting_key(&entity_id_value)
+        {
+            log::warn!(
+                "Skipping unsupported synced spending setting '{}'",
+                entity_id_value
+            );
+            applied_entity_change = false;
         } else if let Some((table_name, pk_name)) = entity_storage_mapping(&entity) {
             match op {
                 SyncOperation::Delete => {
+                    if entity == SyncEntity::SpendingCategorizationRule {
+                        tombstone_remote_preset_rule_delete(
+                            conn,
+                            &entity_id_value,
+                            &payload_json,
+                            &client_timestamp_value,
+                        )?;
+                    }
                     let sql = format!(
                         "DELETE FROM {} WHERE {} = '{}'",
                         quote_identifier(table_name),
@@ -1008,6 +1435,7 @@ fn apply_remote_event_lww_tx(
                             serde_json::Value::String(entity_id_value.clone()),
                         ));
                     }
+                    validate_spending_decimal_field(&entity, &fields)?;
 
                     let columns = fields
                         .iter()
@@ -1034,39 +1462,53 @@ fn apply_remote_event_lww_tx(
                         quote_identifier(table_name),
                         quote_identifier(pk_name)
                     );
-                    diesel::sql_query(sql)
-                        .execute(conn)
-                        .map_err(StorageError::from)?;
+                    if applied_entity_change {
+                        diesel::sql_query(sql)
+                            .execute(conn)
+                            .map_err(StorageError::from)?;
+                    }
+
+                    // Side effect for SyncEntity::Snapshot: an `ON CONFLICT
+                    // DO UPDATE` updates `holdings_snapshots.positions` JSON
+                    // in place without firing the FK CASCADE that would
+                    // otherwise wipe `snapshot_positions` rows. Without a
+                    // hook here, the relational table keeps the receiving
+                    // device's *old* positions while the JSON column has
+                    // the synced ones, and `get_snapshot_positions` (which
+                    // prefers the relational table over the JSON fallback)
+                    // returns stale data forever.
+                    //
+                    // Drop the relational rows for the affected snapshot.
+                    // The next read falls back to the just-synced JSON;
+                    // the next local snapshot write rebuilds the relational
+                    // rows via `write_snapshot_positions`. A heavier "parse
+                    // JSON and reinsert here" fix is deferred to Phase B's
+                    // read-path switchover.
+                    if applied_entity_change && matches!(entity, SyncEntity::Snapshot) {
+                        diesel::sql_query("DELETE FROM snapshot_positions WHERE snapshot_id = ?")
+                            .bind::<diesel::sql_types::Text, _>(entity_id_value.clone())
+                            .execute(conn)
+                            .map_err(StorageError::from)?;
+                    }
                 }
             }
 
-            let now = Utc::now().to_rfc3339();
-            diesel::insert_into(sync_table_state::table)
-                .values(SyncTableStateDB {
-                    table_name: table_name.to_string(),
-                    enabled: 1,
-                    last_snapshot_restore_at: None,
-                    last_incremental_apply_at: Some(now.clone()),
-                })
-                .on_conflict(sync_table_state::table_name)
-                .do_update()
-                .set((
-                    sync_table_state::enabled.eq(1),
-                    sync_table_state::last_incremental_apply_at.eq(Some(now)),
-                ))
-                .execute(conn)
-                .map_err(StorageError::from)?;
+            mark_table_incremental_applied_tx(conn, table_name)?;
         }
 
-        upsert_entity_metadata_tx(
-            conn,
-            entity,
-            &entity_id_value,
-            &event_id_value,
-            &client_timestamp_value,
-            op,
-            seq_value,
-        )?;
+        if applied_entity_change {
+            upsert_entity_metadata_tx(
+                conn,
+                entity,
+                &entity_id_value,
+                &event_id_value,
+                &client_timestamp_value,
+                op,
+                seq_value,
+            )?;
+        } else {
+            should_apply = false;
+        }
     }
 
     diesel::insert_into(sync_applied_events::table)
@@ -1183,7 +1625,12 @@ impl AppSyncRepository {
 
         for table in APP_SYNC_TABLES {
             let table_ident = quote_identifier(table);
-            let count_sql = format!("SELECT COUNT(*) AS count FROM {table_ident}");
+            let count_sql = match snapshot_filter_for_table(table) {
+                Some(where_clause) => {
+                    format!("SELECT COUNT(*) AS count FROM {table_ident} WHERE {where_clause}")
+                }
+                None => format!("SELECT COUNT(*) AS count FROM {table_ident}"),
+            };
             let row = diesel::sql_query(count_sql)
                 .get_result::<TableRowCountResult>(&mut conn)
                 .map_err(StorageError::from)?;
@@ -1209,9 +1656,9 @@ impl AppSyncRepository {
         let mut total_rows = 0_i64;
         let mut non_empty_tables = Vec::new();
 
-        for (table, filter) in OVERWRITE_RISK_TABLE_COUNTS {
+        let mut record_table = |table: &str, filter: Option<SyncRowFilter>| -> Result<()> {
             let table_ident = quote_identifier(table);
-            let count_sql = match filter {
+            let count_sql = match filter.map(SyncRowFilter::sql) {
                 Some(filter) => {
                     format!("SELECT COUNT(*) AS count FROM {table_ident} WHERE {filter}")
                 }
@@ -1227,6 +1674,14 @@ impl AppSyncRepository {
                     rows: row.count,
                 });
             }
+            Ok(())
+        };
+
+        for table in OVERWRITE_RISK_UNFILTERED_TABLES {
+            record_table(table, None)?;
+        }
+        for spec in OVERWRITE_RISK_FILTERED_TABLES {
+            record_table(spec.table, Some(spec.filter))?;
         }
 
         non_empty_tables.sort_by(|a, b| b.rows.cmp(&a.rows).then_with(|| a.table.cmp(&b.table)));
@@ -2063,17 +2518,7 @@ impl AppSyncRepository {
     ) -> Result<()> {
         self.writer
             .exec(move |conn| {
-                let table_set = if tables.is_empty() {
-                    APP_SYNC_TABLES
-                        .iter()
-                        .map(|t| t.to_string())
-                        .collect::<Vec<_>>()
-                } else {
-                    tables
-                };
-                for table in &table_set {
-                    validate_sync_table(table)?;
-                }
+                let table_set = canonical_sync_table_set(tables)?;
 
                 let now = Utc::now().to_rfc3339();
                 let escaped_path = escape_sqlite_str(&snapshot_db_path);
@@ -2081,9 +2526,8 @@ impl AppSyncRepository {
                 let attach_sql =
                     format!("ATTACH DATABASE '{}' AS {}", escaped_path, snapshot_alias);
 
-                // Note: PRAGMA foreign_keys cannot be changed inside a transaction
-                // (SQLite silently ignores it). Instead, APP_SYNC_TABLES is ordered
-                // to respect FK dependencies (parent tables before children).
+                // APP_SYNC_TABLES is parent-first for inserts. Restore clears the
+                // selected tables in reverse order, then inserts in canonical order.
                 diesel::sql_query(attach_sql)
                     .execute(conn)
                     .map_err(StorageError::from)?;
@@ -2112,6 +2556,13 @@ impl AppSyncRepository {
                     .execute(conn)
                     .map_err(StorageError::from)?;
 
+                    struct RestorePlan {
+                        table: String,
+                        clear_sql: String,
+                        copy_sql: String,
+                    }
+
+                    let mut restore_plans = Vec::new();
                     for table in &table_set {
                         let target_columns = load_table_columns(conn, "main", table)?;
                         let source_columns = load_table_columns(conn, &snapshot_alias, table)?;
@@ -2146,9 +2597,14 @@ impl AppSyncRepository {
                             .map(|column| quote_identifier(column))
                             .collect::<Vec<_>>()
                             .join(", ");
-                        let copy_sql = format!(
-                            "INSERT INTO {table_ident} ({columns_sql}) SELECT {columns_sql} FROM {alias_ident}.{table_ident}"
-                        );
+                        let copy_sql = match snapshot_filter_for_table(table) {
+                            Some(where_clause) => format!(
+                                "INSERT INTO {table_ident} ({columns_sql}) SELECT {columns_sql} FROM {alias_ident}.{table_ident} WHERE {where_clause}"
+                            ),
+                            None => format!(
+                                "INSERT INTO {table_ident} ({columns_sql}) SELECT {columns_sql} FROM {alias_ident}.{table_ident}"
+                            ),
+                        };
                         // For filtered tables, only delete rows matching the filter so
                         // unfiltered rows (e.g. system taxonomies) are preserved.
                         let clear_sql = match snapshot_filter_for_table(table) {
@@ -2157,15 +2613,29 @@ impl AppSyncRepository {
                             }
                             None => format!("DELETE FROM {table_ident}"),
                         };
-                        diesel::sql_query(clear_sql)
+                        restore_plans.push(RestorePlan {
+                            table: table.clone(),
+                            clear_sql,
+                            copy_sql,
+                        });
+                    }
+
+                    for plan in restore_plans.iter().rev() {
+                        diesel::sql_query(&plan.clear_sql)
                             .execute(conn)
                             .map_err(StorageError::from)?;
-                        diesel::sql_query(copy_sql)
+                        if plan.table == "holdings_snapshots" {
+                            delete_orphan_snapshot_rows(conn)?;
+                        }
+                    }
+
+                    for plan in &restore_plans {
+                        diesel::sql_query(&plan.copy_sql)
                             .execute(conn)
                             .map_err(StorageError::from)?;
 
                         let state_row = SyncTableStateDB {
-                            table_name: table.clone(),
+                            table_name: plan.table.clone(),
                             enabled: 1,
                             last_snapshot_restore_at: Some(now.clone()),
                             last_incremental_apply_at: None,
@@ -2262,10 +2732,11 @@ mod tests {
     use crate::db::{create_pool, get_connection, init, run_migrations, write_actor::spawn_writer};
     use crate::goals::GoalRepository;
     use crate::schema::{
-        accounts, assets, goals, goals_allocation, import_account_templates, import_templates,
-        platforms, sync_applied_events, sync_device_config, sync_entity_metadata, sync_outbox,
-        taxonomies, taxonomy_categories,
+        accounts, app_settings, assets, goals, goals_allocation, import_account_templates,
+        import_templates, platforms, sync_applied_events, sync_device_config, sync_entity_metadata,
+        sync_outbox, taxonomies, taxonomy_categories,
     };
+    use wealthfolio_core::accounts::account_types;
     use wealthfolio_core::goals::{GoalRepositoryTrait, GoalSummaryUpdate};
 
     fn setup_db() -> (
@@ -2285,6 +2756,16 @@ mod tests {
         let pool = create_pool(&db_path).expect("create pool");
         let writer = spawn_writer(pool.as_ref().clone()).expect("spawn writer");
         (pool, writer)
+    }
+
+    #[test]
+    fn taxonomy_category_snapshot_filter_includes_user_category_taxonomies() {
+        let filter = snapshot_filter_for_table("taxonomy_categories").expect("filter");
+
+        assert!(filter.contains("custom_groups"));
+        assert!(filter.contains("spending_categories"));
+        assert!(filter.contains("income_sources"));
+        assert!(filter.contains("id NOT LIKE 'cat_%'"));
     }
 
     #[test]
@@ -2426,6 +2907,51 @@ mod tests {
         let pool = create_pool(&db_path).expect("create pool");
         let mut conn = get_connection(&pool).expect("conn");
         insert_account_for_test(&mut conn, account_id).expect("insert account");
+        db_path
+    }
+
+    fn create_snapshot_db_with_holding_snapshot(account_id: &str) -> String {
+        let app_data = tempdir()
+            .expect("tempdir")
+            .keep()
+            .to_string_lossy()
+            .to_string();
+        let db_path = init(&app_data).expect("init db");
+        run_migrations(&db_path).expect("migrate db");
+        let pool = create_pool(&db_path).expect("create pool");
+        let mut conn = get_connection(&pool).expect("conn");
+        let sql = format!(
+            "INSERT INTO holdings_snapshots (id, account_id, snapshot_date, currency, positions, cash_balances, cost_basis, net_contribution, calculated_at, net_contribution_base, cash_total_account_currency, cash_total_base_currency, source)
+             VALUES ('snap-{}', '{}', '2026-01-01', 'USD', '{{}}', '{{}}', '0', '0', '2026-01-01T00:00:00Z', '0', '0', '0', 'MANUAL_ENTRY')",
+            escape_sqlite_str(account_id),
+            escape_sqlite_str(account_id)
+        );
+        diesel::sql_query(sql)
+            .execute(&mut conn)
+            .expect("insert snapshot");
+        db_path
+    }
+
+    fn create_snapshot_db_with_account_and_holding_snapshot(account_id: &str) -> String {
+        let app_data = tempdir()
+            .expect("tempdir")
+            .keep()
+            .to_string_lossy()
+            .to_string();
+        let db_path = init(&app_data).expect("init db");
+        run_migrations(&db_path).expect("migrate db");
+        let pool = create_pool(&db_path).expect("create pool");
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_account_for_test(&mut conn, account_id).expect("insert account");
+        let sql = format!(
+            "INSERT INTO holdings_snapshots (id, account_id, snapshot_date, currency, positions, cash_balances, cost_basis, net_contribution, calculated_at, net_contribution_base, cash_total_account_currency, cash_total_base_currency, source)
+             VALUES ('snap-{}', '{}', '2026-01-01', 'USD', '{{}}', '{{}}', '0', '0', '2026-01-01T00:00:00Z', '0', '0', '0', 'MANUAL_ENTRY')",
+            escape_sqlite_str(account_id),
+            escape_sqlite_str(account_id)
+        );
+        diesel::sql_query(sql)
+            .execute(&mut conn)
+            .expect("insert snapshot");
         db_path
     }
 
@@ -2704,6 +3230,161 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn remote_snapshot_batch_event_is_preserved_before_account_arrives() {
+        #[derive(diesel::QueryableByName)]
+        struct CountRow {
+            #[diesel(sql_type = diesel::sql_types::BigInt)]
+            c: i64,
+        }
+
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+        let orphan_account_id = "orphan-snapshot-account";
+
+        let applied = repo
+            .apply_remote_events_lww_batch(vec![(
+                SyncEntity::Snapshot,
+                "snap-orphan-remote".to_string(),
+                SyncOperation::Update,
+                "evt-orphan-snapshot".to_string(),
+                "2026-02-01T00:00:00Z".to_string(),
+                1,
+                serde_json::json!({
+                    "id": "snap-orphan-remote",
+                    "accountId": orphan_account_id,
+                    "snapshotDate": "2026-01-01",
+                    "currency": "USD",
+                    "positions": "{}",
+                    "cashBalances": "{}",
+                    "costBasis": "0",
+                    "netContribution": "0",
+                    "calculatedAt": "2026-01-01T00:00:00Z",
+                    "netContributionBase": "0",
+                    "cashTotalAccountCurrency": "0",
+                    "cashTotalBaseCurrency": "0",
+                    "source": "MANUAL_ENTRY",
+                }),
+            )])
+            .await
+            .expect("apply orphan snapshot event");
+
+        assert_eq!(applied, 1);
+        let mut conn = get_connection(&pool).expect("conn");
+        let snapshot_count: CountRow = diesel::sql_query(format!(
+            "SELECT COUNT(*) AS c FROM holdings_snapshots WHERE account_id = '{}'",
+            escape_sqlite_str(orphan_account_id)
+        ))
+        .get_result(&mut conn)
+        .expect("count orphan snapshots");
+        assert_eq!(snapshot_count.c, 1);
+
+        let applied_count: i64 = sync_applied_events::table
+            .filter(sync_applied_events::event_id.eq("evt-orphan-snapshot"))
+            .select(count_star())
+            .first(&mut conn)
+            .expect("count applied event");
+        assert_eq!(applied_count, 1);
+    }
+
+    #[tokio::test]
+    async fn remote_snapshot_single_event_is_preserved_before_account_arrives() {
+        #[derive(diesel::QueryableByName)]
+        struct CountRow {
+            #[diesel(sql_type = diesel::sql_types::BigInt)]
+            c: i64,
+        }
+
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+        let orphan_account_id = "orphan-single-snapshot-account";
+
+        let applied = repo
+            .apply_remote_event_lww(
+                SyncEntity::Snapshot,
+                "snap-orphan-single".to_string(),
+                SyncOperation::Update,
+                "evt-orphan-single-snapshot".to_string(),
+                "2026-02-01T00:00:00Z".to_string(),
+                1,
+                serde_json::json!({
+                    "id": "snap-orphan-single",
+                    "accountId": orphan_account_id,
+                    "snapshotDate": "2026-01-01",
+                    "currency": "USD",
+                    "positions": "{}",
+                    "cashBalances": "{}",
+                    "costBasis": "0",
+                    "netContribution": "0",
+                    "calculatedAt": "2026-01-01T00:00:00Z",
+                    "netContributionBase": "0",
+                    "cashTotalAccountCurrency": "0",
+                    "cashTotalBaseCurrency": "0",
+                    "source": "MANUAL_ENTRY",
+                }),
+            )
+            .await
+            .expect("apply orphan snapshot event");
+
+        assert!(applied);
+        let mut conn = get_connection(&pool).expect("conn");
+        let snapshot_count: CountRow = diesel::sql_query(format!(
+            "SELECT COUNT(*) AS c FROM holdings_snapshots WHERE account_id = '{}'",
+            escape_sqlite_str(orphan_account_id)
+        ))
+        .get_result(&mut conn)
+        .expect("count orphan snapshots");
+        assert_eq!(snapshot_count.c, 1);
+
+        let applied_count: i64 = sync_applied_events::table
+            .filter(sync_applied_events::event_id.eq("evt-orphan-single-snapshot"))
+            .select(count_star())
+            .first(&mut conn)
+            .expect("count applied event");
+        assert_eq!(applied_count, 1);
+        drop(conn);
+
+        let account_applied = repo
+            .apply_remote_event_lww(
+                SyncEntity::Account,
+                orphan_account_id.to_string(),
+                SyncOperation::Create,
+                "evt-orphan-single-account".to_string(),
+                "2026-02-01T00:00:01Z".to_string(),
+                2,
+                serde_json::json!({
+                    "id": orphan_account_id,
+                    "name": "Late Account",
+                    "accountType": "cash",
+                    "group": serde_json::Value::Null,
+                    "currency": "USD",
+                    "isDefault": false,
+                    "platformId": serde_json::Value::Null,
+                    "accountNumber": serde_json::Value::Null,
+                    "meta": serde_json::Value::Null,
+                    "provider": serde_json::Value::Null,
+                    "providerAccountId": serde_json::Value::Null,
+                    "isArchived": false,
+                    "isActive": true,
+                    "trackingMode": "portfolio"
+                }),
+            )
+            .await
+            .expect("apply late account event");
+
+        assert!(account_applied);
+        let mut conn = get_connection(&pool).expect("conn");
+        let account_count = count_account_rows(&pool, orphan_account_id);
+        assert_eq!(account_count, 1);
+        let snapshot_count: CountRow = diesel::sql_query(format!(
+            "SELECT COUNT(*) AS c FROM holdings_snapshots WHERE account_id = '{}'",
+            escape_sqlite_str(orphan_account_id)
+        ))
+        .get_result(&mut conn)
+        .expect("count preserved snapshot after account arrives");
+        assert_eq!(snapshot_count.c, 1);
+    }
+
+    #[tokio::test]
     async fn remote_goal_create_does_not_reuse_deleted_id() {
         let (pool, writer) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer.clone());
@@ -2952,6 +3633,81 @@ mod tests {
             .await;
         assert!(result.is_err(), "restore should fail for invalid snapshot");
         assert_eq!(repo.get_cursor().expect("cursor"), 15);
+    }
+
+    #[tokio::test]
+    async fn snapshot_restore_drops_orphan_snapshot_rows() {
+        #[derive(diesel::QueryableByName)]
+        struct CountRow {
+            #[diesel(sql_type = diesel::sql_types::BigInt)]
+            c: i64,
+        }
+
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+        let orphan_account_id = "orphan-restore-account";
+        let snapshot_path = create_snapshot_db_with_holding_snapshot(orphan_account_id);
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            diesel::sql_query(format!(
+                "INSERT INTO holdings_snapshots (id, account_id, snapshot_date, currency, positions, cash_balances, cost_basis, net_contribution, calculated_at, net_contribution_base, cash_total_account_currency, cash_total_base_currency, source)
+                 VALUES ('local-orphan-snapshot', '{}', '2025-12-31', 'USD', '{{}}', '{{}}', '0', '0', '2025-12-31T00:00:00Z', '0', '0', '0', 'MANUAL_ENTRY')",
+                escape_sqlite_str(orphan_account_id)
+            ))
+            .execute(&mut conn)
+            .expect("insert local orphan snapshot");
+        }
+
+        repo.restore_snapshot_tables_from_file(
+            snapshot_path,
+            vec!["holdings_snapshots".to_string()],
+            90,
+            "device-orphan-snapshot".to_string(),
+            Some(1),
+        )
+        .await
+        .expect("restore snapshot");
+
+        let mut conn = get_connection(&pool).expect("conn");
+        let snapshot_count: CountRow =
+            diesel::sql_query("SELECT COUNT(*) AS c FROM holdings_snapshots")
+                .get_result(&mut conn)
+                .expect("count snapshots");
+        assert_eq!(snapshot_count.c, 0);
+    }
+
+    #[tokio::test]
+    async fn snapshot_restore_uses_canonical_table_order_for_requested_tables() {
+        #[derive(diesel::QueryableByName)]
+        struct CountRow {
+            #[diesel(sql_type = diesel::sql_types::BigInt)]
+            c: i64,
+        }
+
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+        let account_id = "acc-reordered-restore";
+        let snapshot_path = create_snapshot_db_with_account_and_holding_snapshot(account_id);
+
+        repo.restore_snapshot_tables_from_file(
+            snapshot_path,
+            vec!["holdings_snapshots".to_string(), "accounts".to_string()],
+            91,
+            "device-reordered-restore".to_string(),
+            Some(1),
+        )
+        .await
+        .expect("restore snapshot");
+
+        assert_eq!(count_account_rows(&pool, account_id), 1);
+        let mut conn = get_connection(&pool).expect("conn");
+        let snapshot_count: CountRow = diesel::sql_query(format!(
+            "SELECT COUNT(*) AS c FROM holdings_snapshots WHERE account_id = '{}'",
+            escape_sqlite_str(account_id)
+        ))
+        .get_result(&mut conn)
+        .expect("count restored snapshots");
+        assert_eq!(snapshot_count.c, 1);
     }
 
     #[tokio::test]
@@ -3935,6 +4691,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn replay_maps_legacy_account_type_to_securities() {
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+
+        let applied = repo
+            .apply_remote_event_lww(
+                SyncEntity::Account,
+                "acc-legacy-account-type".to_string(),
+                SyncOperation::Create,
+                "evt-legacy-account-type".to_string(),
+                "2026-05-25T00:00:00Z".to_string(),
+                1,
+                serde_json::json!({
+                    "id": "acc-legacy-account-type",
+                    "name": "Legacy Account Type",
+                    "account_type": "TFSA",
+                    "group": serde_json::Value::Null,
+                    "currency": "USD",
+                    "is_default": false,
+                    "is_active": true,
+                    "platform_id": serde_json::Value::Null,
+                    "account_number": serde_json::Value::Null,
+                    "meta": serde_json::Value::Null,
+                    "provider": serde_json::Value::Null,
+                    "provider_account_id": serde_json::Value::Null,
+                    "is_archived": false,
+                    "tracking_mode": "NOT_SET"
+                }),
+            )
+            .await
+            .expect("apply account create");
+        assert!(applied, "expected account create to apply");
+
+        let mut conn = get_connection(&pool).expect("conn");
+        let account_type_value: String = accounts::table
+            .filter(accounts::id.eq("acc-legacy-account-type"))
+            .select(accounts::account_type)
+            .first(&mut conn)
+            .expect("account row");
+        assert_eq!(account_type_value, account_types::SECURITIES);
+    }
+
+    #[tokio::test]
     async fn replay_accepts_legacy_goal_is_achieved_payload() {
         let (pool, writer) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
@@ -4431,13 +5230,15 @@ mod tests {
         .execute(&mut conn)
         .expect("insert asset");
 
-        diesel::sql_query(
+        diesel::sql_query(format!(
             "INSERT INTO holdings_snapshots (id, account_id, snapshot_date, currency, positions, cash_balances, cost_basis, net_contribution, calculated_at, net_contribution_base, cash_total_account_currency, cash_total_base_currency, source)
              VALUES
-             ('11111111-1111-4111-8111-111111111111', 'acc-export-filter', '2026-01-01', 'USD', '{}', '{}', '0', '0', '2026-01-01T00:00:00Z', '0', '0', '0', 'MANUAL_ENTRY'),
-             ('22222222-2222-4222-8222-222222222222', 'acc-export-filter', '2026-01-02', 'USD', '{}', '{}', '0', '0', '2026-01-02T00:00:00Z', '0', '0', '0', 'BROKER_IMPORTED'),
-             ('33333333-3333-4333-8333-333333333333', 'acc-export-filter', '2026-01-03', 'USD', '{}', '{}', '0', '0', '2026-01-03T00:00:00Z', '0', '0', '0', 'CALCULATED')",
-        )
+             ('11111111-1111-4111-8111-111111111111', 'acc-export-filter', '2026-01-01', 'USD', '{{}}', '{{}}', '0', '0', '2026-01-01T00:00:00Z', '0', '0', '0', 'MANUAL_ENTRY'),
+             ('22222222-2222-4222-8222-222222222222', 'acc-export-filter', '2026-01-02', 'USD', '{{}}', '{{}}', '0', '0', '2026-01-02T00:00:00Z', '0', '0', '0', 'BROKER_IMPORTED'),
+             ('33333333-3333-4333-8333-333333333333', 'acc-export-filter', '2026-01-03', 'USD', '{{}}', '{{}}', '0', '0', '2026-01-03T00:00:00Z', '0', '0', '0', 'CALCULATED'),
+             ('66666666-6666-4666-8666-666666666666', '{}', '2026-01-04', 'USD', '{{}}', '{{}}', '0', '0', '2026-01-04T00:00:00Z', '0', '0', '0', 'MANUAL_ENTRY')",
+            escape_sqlite_str("orphan-export-filter")
+        ))
         .execute(&mut conn)
         .expect("insert snapshots");
 
@@ -4506,6 +5307,60 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn snapshot_export_only_includes_spending_settings() {
+        #[derive(diesel::QueryableByName)]
+        struct CountRow {
+            #[diesel(sql_type = diesel::sql_types::BigInt)]
+            c: i64,
+        }
+
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+
+        diesel::replace_into(app_settings::table)
+            .values(vec![
+                (
+                    app_settings::setting_key.eq("spending.enabled"),
+                    app_settings::setting_value.eq("true"),
+                ),
+                (
+                    app_settings::setting_key.eq("spending.account_ids"),
+                    app_settings::setting_value.eq("[\"acc-1\"]"),
+                ),
+                (
+                    app_settings::setting_key.eq("theme"),
+                    app_settings::setting_value.eq("dark"),
+                ),
+            ])
+            .execute(&mut conn)
+            .expect("insert app settings");
+
+        let payload = repo
+            .export_snapshot_sqlite_image(vec!["app_settings".to_string()])
+            .await
+            .expect("export app_settings");
+
+        let exported_dir = tempdir().expect("tempdir");
+        let exported_path = exported_dir.path().join("settings-snapshot.db");
+        std::fs::write(&exported_path, payload).expect("write snapshot db");
+        let mut exported_conn =
+            SqliteConnection::establish(exported_path.to_string_lossy().as_ref())
+                .expect("open snapshot db");
+
+        let settings_count: CountRow = diesel::sql_query("SELECT COUNT(*) AS c FROM app_settings")
+            .get_result(&mut exported_conn)
+            .expect("count settings");
+        assert_eq!(settings_count.c, 2);
+
+        let theme_count: CountRow =
+            diesel::sql_query("SELECT COUNT(*) AS c FROM app_settings WHERE setting_key = 'theme'")
+                .get_result(&mut exported_conn)
+                .expect("count theme setting");
+        assert_eq!(theme_count.c, 0);
+    }
+
     #[test]
     fn quote_identifier_escapes_backticks() {
         assert_eq!(quote_identifier("col`name"), "`col``name`");
@@ -4550,6 +5405,158 @@ mod tests {
             "error should mention the bad column: {}",
             err_msg
         );
+    }
+
+    #[tokio::test]
+    async fn replay_spending_setting_skips_non_spending_keys() {
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+
+        let applied = repo
+            .apply_remote_event_lww(
+                SyncEntity::SpendingSetting,
+                "spending.enabled".to_string(),
+                SyncOperation::Update,
+                "evt-spending-setting".to_string(),
+                "2026-02-15T00:00:00Z".to_string(),
+                1,
+                serde_json::json!({
+                    "settingKey": "spending.enabled",
+                    "settingValue": "true"
+                }),
+            )
+            .await
+            .expect("apply spending setting");
+        assert!(applied);
+
+        let mut conn = get_connection(&pool).expect("conn");
+        let value = app_settings::table
+            .filter(app_settings::setting_key.eq("spending.enabled"))
+            .select(app_settings::setting_value)
+            .first::<String>(&mut conn)
+            .expect("spending setting value");
+        assert_eq!(value, "true");
+
+        let skipped = repo
+            .apply_remote_event_lww(
+                SyncEntity::SpendingSetting,
+                "theme".to_string(),
+                SyncOperation::Update,
+                "evt-theme-setting".to_string(),
+                "2026-02-15T00:00:01Z".to_string(),
+                2,
+                serde_json::json!({
+                    "settingKey": "theme",
+                    "settingValue": "dark"
+                }),
+            )
+            .await
+            .expect("unsupported app setting should be skipped, not fatal");
+        assert!(
+            !skipped,
+            "unsupported app setting should not apply an entity change"
+        );
+
+        let applied_event_count: i64 = sync_applied_events::table
+            .filter(sync_applied_events::event_id.eq("evt-theme-setting"))
+            .count()
+            .get_result(&mut conn)
+            .expect("applied event count");
+        assert_eq!(applied_event_count, 1);
+
+        let theme_count: i64 = app_settings::table
+            .filter(app_settings::setting_key.eq("theme"))
+            .count()
+            .get_result(&mut conn)
+            .expect("theme setting count");
+        assert_eq!(theme_count, 0);
+    }
+
+    #[tokio::test]
+    async fn replay_batch_skips_unsupported_spending_setting_without_aborting() {
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+
+        let applied = repo
+            .apply_remote_events_lww_batch(vec![
+                (
+                    SyncEntity::SpendingSetting,
+                    "theme".to_string(),
+                    SyncOperation::Update,
+                    "evt-theme-setting-batch".to_string(),
+                    "2026-02-15T00:00:00Z".to_string(),
+                    1,
+                    serde_json::json!({
+                        "settingKey": "theme",
+                        "settingValue": "dark"
+                    }),
+                ),
+                (
+                    SyncEntity::SpendingSetting,
+                    "spending.enabled".to_string(),
+                    SyncOperation::Update,
+                    "evt-spending-setting-batch".to_string(),
+                    "2026-02-15T00:00:01Z".to_string(),
+                    2,
+                    serde_json::json!({
+                        "settingKey": "spending.enabled",
+                        "settingValue": "true"
+                    }),
+                ),
+            ])
+            .await
+            .expect("batch should not abort on unsupported app setting");
+
+        assert_eq!(applied, 1);
+
+        let mut conn = get_connection(&pool).expect("conn");
+        let applied_event_count: i64 = sync_applied_events::table
+            .filter(
+                sync_applied_events::event_id
+                    .eq_any(["evt-theme-setting-batch", "evt-spending-setting-batch"]),
+            )
+            .count()
+            .get_result(&mut conn)
+            .expect("applied event count");
+        assert_eq!(applied_event_count, 2);
+
+        let value = app_settings::table
+            .filter(app_settings::setting_key.eq("spending.enabled"))
+            .select(app_settings::setting_value)
+            .first::<String>(&mut conn)
+            .expect("spending setting value");
+        assert_eq!(value, "true");
+    }
+
+    #[tokio::test]
+    async fn replay_budget_target_rejects_invalid_decimal_amount() {
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool, writer);
+
+        let err = repo
+            .apply_remote_event_lww(
+                SyncEntity::BudgetTarget,
+                "target-invalid".to_string(),
+                SyncOperation::Create,
+                "evt-budget-target-invalid".to_string(),
+                "2026-02-15T00:00:01Z".to_string(),
+                1,
+                serde_json::json!({
+                    "id": "target-invalid",
+                    "periodKey": "2026-05",
+                    "targetType": "category",
+                    "taxonomyId": "spending_categories",
+                    "categoryId": "cat_food",
+                    "groupId": null,
+                    "amount": "bad",
+                    "createdAt": "2026-02-15T00:00:01Z",
+                    "updatedAt": "2026-02-15T00:00:01Z"
+                }),
+            )
+            .await
+            .expect_err("invalid decimal should fail replay");
+
+        assert!(err.to_string().contains("valid decimal"));
     }
 
     #[tokio::test]
@@ -4908,5 +5915,106 @@ mod tests {
             .first(&mut conn)
             .expect("import run row");
         assert_eq!(source, "csv");
+    }
+
+    /// Regression: sync upsert on `holdings_snapshots` updates the JSON
+    /// `positions` column in place, but doesn't touch the relational
+    /// `snapshot_positions` rows. Without the explicit DELETE hook,
+    /// `get_snapshot_positions` would return the receiving device's *old*
+    /// relational rows forever, masking the synced JSON.
+    #[tokio::test]
+    async fn replay_snapshot_clears_stale_snapshot_positions() {
+        #[derive(diesel::QueryableByName)]
+        struct CountRow {
+            #[diesel(sql_type = diesel::sql_types::BigInt)]
+            c: i64,
+        }
+
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+
+        insert_account_for_test(&mut conn, "acc-sync-snap").expect("insert account");
+        diesel::sql_query(
+            "INSERT INTO assets (id, kind, name, display_code, notes, metadata, is_active, quote_mode, quote_ccy, instrument_type, instrument_symbol, instrument_exchange_mic, provider_config, created_at, updated_at)
+             VALUES ('asset-sync-snap-old', 'INVESTMENT', 'Old Asset', 'OLD', NULL, NULL, 1, 'MANUAL', 'USD', NULL, NULL, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                    ('asset-sync-snap-new', 'INVESTMENT', 'New Asset', 'NEW', NULL, NULL, 1, 'MANUAL', 'USD', NULL, NULL, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        )
+        .execute(&mut conn)
+        .expect("insert assets");
+
+        let snap_id = "snap-sync-stale";
+        // Seed: receiving device already has the snapshot + relational
+        // positions for "old asset".
+        diesel::sql_query(format!(
+            "INSERT INTO holdings_snapshots (id, account_id, snapshot_date, currency, positions, cash_balances, cost_basis, net_contribution, calculated_at, net_contribution_base, cash_total_account_currency, cash_total_base_currency, source) \
+             VALUES ('{}', 'acc-sync-snap', '2026-01-01', 'USD', '{{}}', '{{}}', '0', '0', '2026-01-01T00:00:00Z', '0', '0', '0', 'MANUAL_ENTRY')",
+            snap_id
+        ))
+        .execute(&mut conn)
+        .expect("insert snapshot");
+
+        diesel::sql_query(format!(
+            "INSERT INTO snapshot_positions (snapshot_id, asset_id, quantity, average_cost, total_cost_basis, currency, inception_date, is_alternative, contract_multiplier, created_at, last_updated) \
+             VALUES ('{}', 'asset-sync-snap-old', '5', '100', '500', 'USD', '2026-01-01T00:00:00Z', 0, '1', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+            snap_id
+        ))
+        .execute(&mut conn)
+        .expect("insert stale snapshot_positions");
+
+        // Sanity check: relational row exists.
+        let before: CountRow = diesel::sql_query(format!(
+            "SELECT COUNT(*) AS c FROM snapshot_positions WHERE snapshot_id = '{}'",
+            snap_id
+        ))
+        .get_result(&mut conn)
+        .expect("count before");
+        assert_eq!(before.c, 1);
+
+        drop(conn);
+
+        // Remote sync sends an updated snapshot for the same id with
+        // positions JSON referencing the new asset.
+        let applied = repo
+            .apply_remote_event_lww(
+                SyncEntity::Snapshot,
+                snap_id.to_string(),
+                SyncOperation::Update,
+                "evt-snap-update".to_string(),
+                "2026-02-01T00:00:00Z".to_string(),
+                1,
+                serde_json::json!({
+                    "id": snap_id,
+                    "accountId": "acc-sync-snap",
+                    "snapshotDate": "2026-01-01",
+                    "currency": "USD",
+                    "positions": "{\"asset-sync-snap-new\":{\"assetId\":\"asset-sync-snap-new\",\"quantity\":\"7\",\"averageCost\":\"110\",\"totalCostBasis\":\"770\",\"currency\":\"USD\",\"inceptionDate\":\"2026-01-01T00:00:00Z\",\"contractMultiplier\":\"1\",\"createdAt\":\"2026-01-01T00:00:00Z\",\"lastUpdated\":\"2026-01-01T00:00:00Z\"}}",
+                    "cashBalances": "{}",
+                    "costBasis": "0",
+                    "netContribution": "0",
+                    "calculatedAt": "2026-02-01T00:00:00Z",
+                    "netContributionBase": "0",
+                    "cashTotalAccountCurrency": "0",
+                    "cashTotalBaseCurrency": "0",
+                    "source": "MANUAL_ENTRY",
+                }),
+            )
+            .await
+            .expect("apply snapshot update");
+        assert!(applied, "snapshot update event must apply");
+
+        let mut conn = get_connection(&pool).expect("conn");
+        // The relational rows for the snapshot must be wiped — read paths
+        // will fall back to the freshly-synced JSON.
+        let after: CountRow = diesel::sql_query(format!(
+            "SELECT COUNT(*) AS c FROM snapshot_positions WHERE snapshot_id = '{}'",
+            snap_id
+        ))
+        .get_result(&mut conn)
+        .expect("count after");
+        assert_eq!(
+            after.c, 0,
+            "stale relational rows must be cleared on sync upsert"
+        );
     }
 }

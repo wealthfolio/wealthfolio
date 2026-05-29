@@ -22,6 +22,7 @@ pub enum ReturnMethod {
     #[default]
     TimeWeighted,
     MoneyWeighted,
+    ModifiedDietz,
     SimpleReturn,
     SymbolPriceBased,
     NotApplicable,
@@ -54,15 +55,29 @@ pub struct PerformanceMetrics {
     pub annualized_twr: Option<Decimal>,
     pub simple_return: Decimal,
     pub annualized_simple_return: Decimal,
-    /// Money-weighted return (None for HOLDINGS mode - requires cash flow tracking)
+    /// Modified Dietz return (None for HOLDINGS mode - requires cash flow tracking)
+    pub cumulative_modified_dietz: Option<Decimal>,
+    /// Annualized Modified Dietz (None for HOLDINGS mode)
+    pub annualized_modified_dietz: Option<Decimal>,
+    /// Legacy alias for Modified Dietz
     pub cumulative_mwr: Option<Decimal>,
-    /// Annualized MWR (None for HOLDINGS mode)
+    /// Legacy alias for annualized Modified Dietz
     pub annualized_mwr: Option<Decimal>,
     pub volatility: Decimal,
     pub max_drawdown: Decimal,
     /// Indicates if this is a HOLDINGS mode account (no cash flow tracking)
     #[serde(default)]
     pub is_holdings_mode: bool,
+    /// Method used for the headline period return.
+    #[serde(default)]
+    pub return_method: ReturnMethod,
+    /// True when a scoped performance result combines transaction-mode and
+    /// holdings-mode accounts.
+    #[serde(default)]
+    pub is_mixed_tracking_mode: bool,
+    /// User-facing caveats for scoped methods that cannot expose every metric.
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 // This struct now only holds the calculated performance metrics.

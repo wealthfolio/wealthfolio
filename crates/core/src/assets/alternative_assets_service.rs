@@ -584,14 +584,28 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
         // Get asset IDs for quote lookup
         let asset_ids: Vec<String> = alternative_assets.iter().map(|a| a.id.clone()).collect();
 
-        // Fetch latest quotes for all alternative assets
-        let quotes = self.quote_service.get_latest_quotes(&asset_ids)?;
+        // Fetch latest quotes for all alternative assets, restricted to rows
+        // with day <= today so future-dated payoff rows (e.g. a mortgage's
+        // planned 2041 zero) do not zero out the balance today.
+        let as_of = chrono::Local::now().date_naive();
+        let quotes = self
+            .quote_service
+            .get_latest_quotes_as_of(&asset_ids, as_of)?;
 
         // Build AlternativeHolding for each asset
         let holdings: Vec<AlternativeHolding> = alternative_assets
             .into_iter()
             .filter_map(|asset| {
-                let quote = quotes.get(&asset.id)?;
+                let quote = match quotes.get(&asset.id) {
+                    Some(q) => q,
+                    None => {
+                        debug!(
+                            "Skipping alternative asset {} from holdings: no quote with day <= {}",
+                            asset.id, as_of
+                        );
+                        return None;
+                    }
+                };
 
                 // Extract purchase_price from metadata
                 let purchase_price = asset
@@ -660,6 +674,415 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::assets::alternative_assets_traits::AlternativeAssetRepositoryTrait;
+    use crate::errors::{DatabaseError, Error, Result};
+    use crate::quotes::{
+        LatestQuotePair, LatestQuoteSnapshot, ProviderInfo, Quote, QuoteImport, QuoteServiceTrait,
+        QuoteSyncState, SymbolSearchResult, SymbolSyncPlan, SyncMode, SyncResult,
+    };
+    use chrono::NaiveDate;
+    use std::collections::{HashMap, HashSet};
+
+    // ---------------------------------------------------------------------------
+    // Minimal mock: QuoteService
+    // Only the two methods called by get_alternative_holdings are meaningful;
+    // everything else panics so accidental calls are caught immediately.
+    //
+    // Crucially, get_latest_quotes returns the "bad" future-zero quote for the
+    // asset. If the implementation accidentally calls the old method instead of
+    // get_latest_quotes_as_of, the returned market_value will be 0 and the
+    // assert_eq!(…, Decimal::new(180_000, 0)) will fail.
+    // ---------------------------------------------------------------------------
+    struct MockQuoteService {
+        /// Quotes returned by get_latest_quotes_as_of (correct, today-bounded path).
+        as_of_quotes: HashMap<String, Quote>,
+        /// Quotes returned by get_latest_quotes (old, unbounded path — should NOT be called).
+        latest_quotes: HashMap<String, Quote>,
+    }
+
+    #[async_trait]
+    impl QuoteServiceTrait for MockQuoteService {
+        fn get_latest_quote(&self, _symbol: &str) -> Result<Quote> {
+            unimplemented!("not used in this test")
+        }
+
+        fn get_latest_quotes(&self, symbols: &[String]) -> Result<HashMap<String, Quote>> {
+            // Intentionally returns "bad" future-zero quotes — fail the test if called.
+            Ok(symbols
+                .iter()
+                .filter_map(|s| self.latest_quotes.get(s).cloned().map(|q| (s.clone(), q)))
+                .collect())
+        }
+
+        fn get_latest_quotes_as_of(
+            &self,
+            symbols: &[String],
+            _as_of: NaiveDate,
+        ) -> Result<HashMap<String, Quote>> {
+            Ok(symbols
+                .iter()
+                .filter_map(|s| self.as_of_quotes.get(s).cloned().map(|q| (s.clone(), q)))
+                .collect())
+        }
+
+        fn get_latest_quotes_snapshot(
+            &self,
+            _asset_ids: &[String],
+        ) -> Result<HashMap<String, LatestQuoteSnapshot>> {
+            unimplemented!("not used in this test")
+        }
+
+        fn get_latest_quotes_pair(
+            &self,
+            _symbols: &[String],
+        ) -> Result<HashMap<String, LatestQuotePair>> {
+            unimplemented!("not used in this test")
+        }
+
+        fn get_historical_quotes(&self, _symbol: &str) -> Result<Vec<Quote>> {
+            unimplemented!("not used in this test")
+        }
+
+        fn get_all_historical_quotes(&self) -> Result<HashMap<String, Vec<(NaiveDate, Quote)>>> {
+            unimplemented!("not used in this test")
+        }
+
+        fn get_quotes_in_range(
+            &self,
+            _symbols: &HashSet<String>,
+            _start: NaiveDate,
+            _end: NaiveDate,
+        ) -> Result<Vec<Quote>> {
+            unimplemented!("not used in this test")
+        }
+
+        fn get_quotes_in_range_filled(
+            &self,
+            _symbols: &HashSet<String>,
+            _start: NaiveDate,
+            _end: NaiveDate,
+        ) -> Result<Vec<Quote>> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn get_daily_quotes(
+            &self,
+            _asset_ids: &HashSet<String>,
+            _start: NaiveDate,
+            _end: NaiveDate,
+        ) -> Result<HashMap<NaiveDate, HashMap<String, Quote>>> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn add_quote(&self, _quote: &Quote) -> Result<Quote> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn update_quote(&self, _quote: Quote) -> Result<Quote> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn delete_quote(&self, _quote_id: &str) -> Result<()> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn bulk_upsert_quotes(&self, _quotes: Vec<Quote>) -> Result<usize> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn search_symbol(&self, _query: &str) -> Result<Vec<SymbolSearchResult>> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn search_symbol_with_currency(
+            &self,
+            _query: &str,
+            _account_currency: Option<&str>,
+        ) -> Result<Vec<SymbolSearchResult>> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn get_asset_profile(
+            &self,
+            _asset: &crate::assets::assets_model::Asset,
+        ) -> Result<crate::assets::assets_model::ProviderProfile> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn fetch_quotes_from_provider(
+            &self,
+            _asset_id: &str,
+            _start: NaiveDate,
+            _end: NaiveDate,
+        ) -> Result<Vec<Quote>> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn fetch_quotes_for_symbol(
+            &self,
+            _symbol: &str,
+            _currency: &str,
+            _start: NaiveDate,
+            _end: NaiveDate,
+        ) -> Result<Vec<Quote>> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn sync(
+            &self,
+            _mode: SyncMode,
+            _asset_ids: Option<Vec<String>>,
+        ) -> Result<SyncResult> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn resync(&self, _asset_ids: Option<Vec<String>>) -> Result<SyncResult> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn refresh_sync_state(&self) -> Result<()> {
+            unimplemented!("not used in this test")
+        }
+
+        fn get_sync_plan(&self) -> Result<Vec<SymbolSyncPlan>> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn handle_activity_created(
+            &self,
+            _symbol: &str,
+            _activity_date: NaiveDate,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn handle_activity_deleted(&self, _symbol: &str) -> Result<()> {
+            Ok(())
+        }
+
+        async fn delete_sync_state(&self, _symbol: &str) -> Result<()> {
+            Ok(())
+        }
+
+        fn get_symbols_needing_sync(&self) -> Result<Vec<QuoteSyncState>> {
+            Ok(Vec::new())
+        }
+
+        fn get_sync_state(&self, _symbol: &str) -> Result<Option<QuoteSyncState>> {
+            Ok(None)
+        }
+
+        async fn mark_profile_enriched(&self, _symbol: &str) -> Result<()> {
+            Ok(())
+        }
+
+        fn get_assets_needing_profile_enrichment(&self) -> Result<Vec<QuoteSyncState>> {
+            Ok(Vec::new())
+        }
+
+        fn get_sync_states_with_errors(&self) -> Result<Vec<QuoteSyncState>> {
+            Ok(Vec::new())
+        }
+
+        async fn reset_sync_errors(&self, _asset_ids: &[String]) -> Result<()> {
+            Ok(())
+        }
+
+        async fn reset_sync_state_for_profile_change(&self, _asset_id: &str) -> Result<()> {
+            Ok(())
+        }
+
+        async fn update_position_status_from_holdings(
+            &self,
+            _current_holdings: &HashMap<String, rust_decimal::Decimal>,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_providers_info(&self) -> Result<Vec<ProviderInfo>> {
+            Ok(Vec::new())
+        }
+
+        async fn update_provider_settings(
+            &self,
+            _provider_id: &str,
+            _priority: i32,
+            _enabled: bool,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn check_quotes_import(
+            &self,
+            _content: &[u8],
+            _has_header_row: bool,
+        ) -> Result<Vec<QuoteImport>> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn import_quotes(
+            &self,
+            _quotes: Vec<QuoteImport>,
+            _overwrite: bool,
+        ) -> Result<Vec<QuoteImport>> {
+            unimplemented!("not used in this test")
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Minimal mock: AssetRepository — returns a fixed list of assets.
+    // ---------------------------------------------------------------------------
+    struct MockAssetRepository {
+        assets: Vec<crate::assets::assets_model::Asset>,
+    }
+
+    #[async_trait]
+    impl AssetRepositoryTrait for MockAssetRepository {
+        async fn create(&self, _new_asset: NewAsset) -> Result<crate::assets::assets_model::Asset> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn create_batch(
+            &self,
+            _new_assets: Vec<NewAsset>,
+        ) -> Result<Vec<crate::assets::assets_model::Asset>> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn update_profile(
+            &self,
+            _asset_id: &str,
+            _payload: crate::assets::UpdateAssetProfile,
+        ) -> Result<crate::assets::assets_model::Asset> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn update_quote_mode(
+            &self,
+            _asset_id: &str,
+            _quote_mode: &str,
+        ) -> Result<crate::assets::assets_model::Asset> {
+            unimplemented!("not used in this test")
+        }
+
+        fn get_by_id(&self, asset_id: &str) -> Result<crate::assets::assets_model::Asset> {
+            self.assets
+                .iter()
+                .find(|a| a.id == asset_id)
+                .cloned()
+                .ok_or_else(|| Error::Database(DatabaseError::NotFound(asset_id.to_string())))
+        }
+
+        fn list(&self) -> Result<Vec<crate::assets::assets_model::Asset>> {
+            Ok(self.assets.clone())
+        }
+
+        fn list_by_asset_ids(
+            &self,
+            asset_ids: &[String],
+        ) -> Result<Vec<crate::assets::assets_model::Asset>> {
+            Ok(self
+                .assets
+                .iter()
+                .filter(|a| asset_ids.contains(&a.id))
+                .cloned()
+                .collect())
+        }
+
+        async fn delete(&self, _asset_id: &str) -> Result<()> {
+            unimplemented!("not used in this test")
+        }
+
+        fn search_by_symbol(
+            &self,
+            _query: &str,
+        ) -> Result<Vec<crate::assets::assets_model::Asset>> {
+            unimplemented!("not used in this test")
+        }
+
+        fn find_by_instrument_key(
+            &self,
+            _instrument_key: &str,
+        ) -> Result<Option<crate::assets::assets_model::Asset>> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn cleanup_legacy_metadata(&self, _asset_id: &str) -> Result<()> {
+            Ok(())
+        }
+
+        async fn deactivate(&self, _asset_id: &str) -> Result<()> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn reactivate(&self, _asset_id: &str) -> Result<()> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn copy_user_metadata(&self, _source_id: &str, _target_id: &str) -> Result<()> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn deactivate_orphaned_investments(&self) -> Result<Vec<String>> {
+            Ok(Vec::new())
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Minimal mock: AlternativeAssetRepository — not called by get_alternative_holdings
+    // ---------------------------------------------------------------------------
+    struct NoOpAltAssetRepository;
+
+    #[async_trait]
+    impl AlternativeAssetRepositoryTrait for NoOpAltAssetRepository {
+        async fn delete_alternative_asset(&self, _asset_id: &str) -> Result<()> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn update_asset_metadata(
+            &self,
+            _asset_id: &str,
+            _metadata: Option<serde_json::Value>,
+        ) -> Result<()> {
+            unimplemented!("not used in this test")
+        }
+
+        fn find_liabilities_linked_to(&self, _linked_asset_id: &str) -> Result<Vec<String>> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn update_asset_details(
+            &self,
+            _asset_id: &str,
+            _name: Option<&str>,
+            _display_code: Option<&str>,
+            _metadata: Option<serde_json::Value>,
+            _notes: Option<&str>,
+        ) -> Result<()> {
+            unimplemented!("not used in this test")
+        }
+    }
+
+    // Helper: build a minimal Quote for a given asset + close value + date.
+    fn make_quote(asset_id: &str, close: Decimal, day: NaiveDate) -> Quote {
+        use chrono::{TimeZone, Utc};
+        let ts = Utc.from_utc_datetime(&day.and_hms_opt(12, 0, 0).unwrap());
+        Quote {
+            id: uuid::Uuid::new_v4().to_string(),
+            asset_id: asset_id.to_string(),
+            timestamp: ts,
+            open: close,
+            high: close,
+            low: close,
+            close,
+            adjclose: close,
+            volume: Decimal::ZERO,
+            currency: "EUR".to_string(),
+            data_source: "MANUAL".to_string(),
+            created_at: Utc::now(),
+            notes: None,
+        }
+    }
 
     #[test]
     fn test_validate_alternative_asset_kind() {
@@ -728,5 +1151,67 @@ mod tests {
 
         let removed = AlternativeAssetService::remove_linked_asset_id(Some(metadata));
         assert!(removed.is_none()); // Only had linked_asset_id, so should be None when removed
+    }
+
+    /// Regression test for: liability with a future-dated 0 quote must NOT appear
+    /// as "fully paid" in today's holdings.
+    ///
+    /// The mock's `get_latest_quotes` returns a zero quote dated 2041-01-01 (the
+    /// planned payoff date). The mock's `get_latest_quotes_as_of` returns the
+    /// correct today-bounded quote with close = 180_000. If the implementation
+    /// accidentally calls the old method the assertion will fail with 0 ≠ 180_000.
+    #[test]
+    fn get_alternative_holdings_uses_past_quote_for_liability_with_future_zero() {
+        const ASSET_ID: &str = "mortgage-001";
+
+        let past_day = NaiveDate::from_ymd_opt(2025, 11, 1).unwrap();
+        let future_day = NaiveDate::from_ymd_opt(2041, 1, 1).unwrap();
+
+        let past_quote = make_quote(ASSET_ID, Decimal::new(180_000, 0), past_day);
+        let future_zero_quote = make_quote(ASSET_ID, Decimal::ZERO, future_day);
+
+        let quote_svc = MockQuoteService {
+            as_of_quotes: [(ASSET_ID.to_string(), past_quote)].into_iter().collect(),
+            latest_quotes: [(ASSET_ID.to_string(), future_zero_quote)]
+                .into_iter()
+                .collect(),
+        };
+
+        let liability = crate::assets::assets_model::Asset {
+            id: ASSET_ID.to_string(),
+            kind: AssetKind::Liability,
+            name: Some("Home Mortgage".to_string()),
+            display_code: Some("Mortgage".to_string()),
+            quote_ccy: "EUR".to_string(),
+            is_active: true,
+            quote_mode: QuoteMode::Manual,
+            metadata: Some(json!({
+                "original_amount": "200000",
+                "purchase_price": "200000",
+            })),
+            ..Default::default()
+        };
+
+        let asset_repo = MockAssetRepository {
+            assets: vec![liability],
+        };
+        let alt_repo = NoOpAltAssetRepository;
+
+        let service = AlternativeAssetService::new(
+            Arc::new(alt_repo),
+            Arc::new(asset_repo),
+            Arc::new(quote_svc),
+        );
+
+        let holdings = service
+            .get_alternative_holdings()
+            .expect("get_alternative_holdings should succeed");
+
+        assert_eq!(holdings.len(), 1, "expected exactly one holding");
+        assert_eq!(
+            holdings[0].market_value,
+            Decimal::new(180_000, 0),
+            "market_value must reflect the past-dated quote, not the future 0 payoff row"
+        );
     }
 }

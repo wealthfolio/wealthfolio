@@ -1,5 +1,5 @@
 use crate::accounts::TrackingMode;
-use crate::constants::{DECIMAL_PRECISION, PORTFOLIO_TOTAL_ACCOUNT_ID};
+use crate::constants::DECIMAL_PRECISION;
 use crate::errors::{self, Result, ValidationError};
 use crate::performance::ReturnData;
 use crate::quotes::QuoteServiceTrait;
@@ -16,7 +16,7 @@ use rust_decimal::Decimal;
 use rust_decimal::MathematicalOps;
 use rust_decimal_macros::dec;
 
-use super::{PerformanceMetrics, SimplePerformanceMetrics};
+use super::{PerformanceMetrics, ReturnMethod, SimplePerformanceMetrics};
 use crate::portfolio::valuation::DailyAccountValuation;
 
 #[async_trait]
@@ -30,6 +30,16 @@ pub trait PerformanceServiceTrait: Send + Sync {
         tracking_mode: Option<TrackingMode>,
     ) -> Result<PerformanceMetrics>;
 
+    async fn calculate_performance_history_for_accounts(
+        &self,
+        scope_id: &str,
+        account_ids: &[String],
+        base_currency: &str,
+        account_tracking_modes: &HashMap<String, TrackingMode>,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+    ) -> Result<PerformanceMetrics>;
+
     async fn calculate_performance_summary(
         &self,
         item_type: &str,
@@ -37,6 +47,16 @@ pub trait PerformanceServiceTrait: Send + Sync {
         start_date: Option<NaiveDate>,
         end_date: Option<NaiveDate>,
         tracking_mode: Option<TrackingMode>,
+    ) -> Result<PerformanceMetrics>;
+
+    async fn calculate_performance_summary_for_accounts(
+        &self,
+        scope_id: &str,
+        account_ids: &[String],
+        base_currency: &str,
+        account_tracking_modes: &HashMap<String, TrackingMode>,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
     ) -> Result<PerformanceMetrics>;
 
     /// Calculates simple performance metrics (daily returns, cumulative returns, portfolio weights) for multiple accounts.
@@ -64,14 +84,38 @@ const SQRT_TRADING_DAYS_APPROX: Decimal = dec!(15.874507866); // sqrt(252)
 /// `cumulative_twr_to_date` is the compounded TWR from the first day of the
 /// series up to and including this day.
 ///
-/// Daily MWR is computed internally by `compute_compounded_daily_returns` but
-/// not surfaced here — no caller currently needs a per-day MWR series; the
-/// final cumulative MWR is returned by the function itself. If a future caller
-/// needs it, add an `mwr` field rather than recomputing.
+/// Daily Modified Dietz is computed internally by
+/// `compute_compounded_daily_returns` but not surfaced here — no caller
+/// currently needs a per-day series; the final cumulative Modified Dietz is
+/// returned by the function itself.
 #[derive(Clone, Copy, Debug)]
 struct DailyReturnSample {
     twr: Decimal,
     cumulative_twr_to_date: Decimal,
+    excluded_from_compounding: bool,
+}
+
+struct ScopedPerformanceRequest<'a> {
+    scope_id: &'a str,
+    account_ids: &'a [String],
+    base_currency: &'a str,
+    account_tracking_modes: &'a HashMap<String, TrackingMode>,
+    start_date: Option<NaiveDate>,
+    end_date: Option<NaiveDate>,
+    include_returns_series: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ScopedTrackingComposition {
+    TransactionsOnly,
+    HoldingsOnly,
+    Mixed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ExternalFlowBasis {
+    AccountCurrency,
+    BaseCurrency,
 }
 
 impl PerformanceService {
@@ -112,14 +156,14 @@ impl PerformanceService {
     // dashboard-vs-account-page percentage mismatch — keep them consolidated.
     // =========================================================================
 
-    /// Iterates consecutive valuation pairs and emits per-day TWR/MWR samples
-    /// (and their compounded totals) to `visit`. The callback is the only thing
-    /// that differs between callers: the full path records a `ReturnData` per
-    /// day and collects daily returns for risk metrics; the summary path
-    /// ignores the samples entirely.
+    /// Iterates consecutive valuation pairs and emits per-day TWR/Modified
+    /// Dietz samples (and their compounded totals) to `visit`. The callback is
+    /// the only thing that differs between callers: the full path records a
+    /// `ReturnData` per day and collects daily returns for risk metrics; the
+    /// summary path ignores the samples entirely.
     ///
-    /// Returns `(cumulative_twr, cumulative_mwr)` as returns (not factors):
-    /// `0.05` == +5% for the whole series.
+    /// Returns `(cumulative_twr, cumulative_modified_dietz, warnings)` as
+    /// returns (not factors): `0.05` == +5% for the whole series.
     ///
     /// # Errors
     /// Returns [`ValidationError::InvalidInput`] if any day's `total_value` is
@@ -129,15 +173,17 @@ impl PerformanceService {
     /// than to emit an absurd number.
     fn compute_compounded_daily_returns<F>(
         history: &[DailyAccountValuation],
+        flow_basis: ExternalFlowBasis,
         mut visit: F,
-    ) -> Result<(Decimal, Decimal)>
+    ) -> Result<(Decimal, Decimal, Vec<String>)>
     where
         F: FnMut(&DailyAccountValuation, &DailyAccountValuation, &DailyReturnSample),
     {
         let one = Decimal::ONE;
         let two = dec!(2.0);
         let mut cumulative_twr_factor = one;
-        let mut cumulative_mwr_factor = one;
+        let mut cumulative_modified_dietz_factor = one;
+        let mut warnings = Vec::new();
 
         for window in history.windows(2) {
             let prev_point = &window[0];
@@ -151,43 +197,79 @@ impl PerformanceService {
                 )));
             }
 
-            let cash_flow = curr_point.net_contribution - prev_point.net_contribution;
+            let (inflow, outflow) = Self::daily_external_flows(prev_point, curr_point, flow_basis);
 
-            // TWR for the day: measure market-only return by netting out cash
-            // flows in the denominator (money deposited today doesn't earn
-            // yet). Guards against a degenerate zero denominator.
-            let twr = {
-                let denominator = prev_point.total_value + cash_flow;
-                if denominator.is_zero() {
-                    Decimal::ZERO
-                } else {
-                    (curr_point.total_value / denominator) - one
-                }
+            let twr_denominator = prev_point.total_value + inflow;
+            let modified_dietz_denominator = prev_point.total_value + ((inflow - outflow) / two);
+            let excluded_from_compounding =
+                twr_denominator <= Decimal::ZERO || modified_dietz_denominator <= Decimal::ZERO;
+
+            let (twr, modified_dietz) = if excluded_from_compounding {
+                let warning = format!(
+                    "Skipping return compounding for {}: non-positive denominator (twr={}, modified_dietz={})",
+                    curr_point.valuation_date,
+                    twr_denominator,
+                    modified_dietz_denominator
+                );
+                warn!("{}", warning);
+                warnings.push(warning);
+                (Decimal::ZERO, Decimal::ZERO)
+            } else {
+                let numerator = curr_point.total_value + outflow - prev_point.total_value - inflow;
+                (
+                    numerator / twr_denominator,
+                    numerator / modified_dietz_denominator,
+                )
             };
 
-            // MWR (Modified Dietz) for the day: weights cash flow as if it
-            // arrived mid-day. More forgiving than TWR when flows are large.
-            let mwr = {
-                let numerator = curr_point.total_value - prev_point.total_value - cash_flow;
-                let denominator = prev_point.total_value + (cash_flow / two);
-                if denominator.is_zero() {
-                    Decimal::ZERO
-                } else {
-                    numerator / denominator
-                }
-            };
-
-            cumulative_twr_factor *= one + twr;
-            cumulative_mwr_factor *= one + mwr;
+            if !excluded_from_compounding {
+                cumulative_twr_factor *= one + twr;
+                cumulative_modified_dietz_factor *= one + modified_dietz;
+            }
 
             let sample = DailyReturnSample {
                 twr,
                 cumulative_twr_to_date: cumulative_twr_factor - one,
+                excluded_from_compounding,
             };
             visit(prev_point, curr_point, &sample);
         }
 
-        Ok((cumulative_twr_factor - one, cumulative_mwr_factor - one))
+        Ok((
+            cumulative_twr_factor - one,
+            cumulative_modified_dietz_factor - one,
+            warnings,
+        ))
+    }
+
+    fn daily_external_flows(
+        prev_point: &DailyAccountValuation,
+        curr_point: &DailyAccountValuation,
+        flow_basis: ExternalFlowBasis,
+    ) -> (Decimal, Decimal) {
+        let cash_flow = match flow_basis {
+            ExternalFlowBasis::AccountCurrency => {
+                curr_point.net_contribution - prev_point.net_contribution
+            }
+            ExternalFlowBasis::BaseCurrency => {
+                let explicit_base_flows = !curr_point.external_inflow_base.is_zero()
+                    || !curr_point.external_outflow_base.is_zero();
+
+                if explicit_base_flows {
+                    return (
+                        curr_point.external_inflow_base,
+                        curr_point.external_outflow_base,
+                    );
+                }
+
+                curr_point.net_contribution_base - prev_point.net_contribution_base
+            }
+        };
+        if cash_flow.is_sign_negative() {
+            (Decimal::ZERO, -cash_flow)
+        } else {
+            (cash_flow, Decimal::ZERO)
+        }
     }
 
     /// Simple (start-to-end) total return. Returns zero when the starting
@@ -317,6 +399,97 @@ impl PerformanceService {
         )
     }
 
+    async fn calculate_scoped_performance(
+        &self,
+        request: ScopedPerformanceRequest<'_>,
+    ) -> Result<PerformanceMetrics> {
+        let ScopedPerformanceRequest {
+            scope_id,
+            account_ids,
+            base_currency,
+            account_tracking_modes,
+            start_date: start_date_opt,
+            end_date: end_date_opt,
+            include_returns_series,
+        } = request;
+
+        if let (Some(start), Some(end)) = (start_date_opt, end_date_opt) {
+            if start > end {
+                return Err(errors::Error::Validation(ValidationError::InvalidInput(
+                    "Start date must be before end date".to_string(),
+                )));
+            }
+        }
+
+        if account_ids.is_empty() {
+            return Ok(PerformanceService::empty_response(scope_id));
+        }
+        let scoped_tracking_composition =
+            Self::scoped_tracking_composition(account_ids, account_tracking_modes);
+
+        let full_history = self
+            .valuation_service
+            .get_historical_valuations_for_accounts(
+                scope_id,
+                account_ids,
+                base_currency,
+                start_date_opt,
+                end_date_opt,
+            )?;
+
+        if full_history.len() < 2 {
+            return Ok(PerformanceService::empty_response(scope_id));
+        }
+
+        let mut metrics = match scoped_tracking_composition {
+            ScopedTrackingComposition::TransactionsOnly => {
+                Self::compute_scoped_account_performance(
+                    &full_history,
+                    Some(TrackingMode::Transactions),
+                    start_date_opt,
+                    include_returns_series,
+                )?
+            }
+            ScopedTrackingComposition::HoldingsOnly => Self::compute_scoped_account_performance(
+                &full_history,
+                Some(TrackingMode::Holdings),
+                start_date_opt,
+                include_returns_series,
+            )?,
+            ScopedTrackingComposition::Mixed => {
+                Self::compute_mixed_scope_performance(&full_history, include_returns_series)?
+            }
+        };
+
+        metrics.id = scope_id.to_string();
+        Ok(metrics)
+    }
+
+    fn scoped_tracking_composition(
+        account_ids: &[String],
+        account_tracking_modes: &HashMap<String, TrackingMode>,
+    ) -> ScopedTrackingComposition {
+        let mut has_holdings = false;
+        let mut has_transactions = false;
+
+        for account_id in account_ids {
+            if matches!(
+                account_tracking_modes.get(account_id),
+                Some(TrackingMode::Holdings)
+            ) {
+                has_holdings = true;
+            } else {
+                has_transactions = true;
+            }
+        }
+
+        match (has_transactions, has_holdings) {
+            (true, true) => ScopedTrackingComposition::Mixed,
+            (false, true) => ScopedTrackingComposition::HoldingsOnly,
+            _ => ScopedTrackingComposition::TransactionsOnly,
+        }
+    }
+
     /// Pure computation shared by the full and summary paths. Takes a
     /// pre-fetched valuation history and produces the same `PerformanceMetrics`
     /// both call sites need.
@@ -336,6 +509,37 @@ impl PerformanceService {
         tracking_mode: Option<TrackingMode>,
         start_date_opt: Option<NaiveDate>,
         include_returns_series: bool,
+    ) -> Result<PerformanceMetrics> {
+        Self::compute_account_performance_with_flow_basis(
+            full_history,
+            tracking_mode,
+            start_date_opt,
+            include_returns_series,
+            ExternalFlowBasis::AccountCurrency,
+        )
+    }
+
+    fn compute_scoped_account_performance(
+        full_history: &[DailyAccountValuation],
+        tracking_mode: Option<TrackingMode>,
+        start_date_opt: Option<NaiveDate>,
+        include_returns_series: bool,
+    ) -> Result<PerformanceMetrics> {
+        Self::compute_account_performance_with_flow_basis(
+            full_history,
+            tracking_mode,
+            start_date_opt,
+            include_returns_series,
+            ExternalFlowBasis::BaseCurrency,
+        )
+    }
+
+    fn compute_account_performance_with_flow_basis(
+        full_history: &[DailyAccountValuation],
+        tracking_mode: Option<TrackingMode>,
+        start_date_opt: Option<NaiveDate>,
+        include_returns_series: bool,
+        flow_basis: ExternalFlowBasis,
     ) -> Result<PerformanceMetrics> {
         debug_assert!(full_history.len() >= 2);
 
@@ -361,42 +565,47 @@ impl PerformanceService {
             });
         }
 
-        // Shared TWR/MWR chain. The closure decides what to record per day.
-        let (cumulative_twr, cumulative_mwr) = Self::compute_compounded_daily_returns(
-            full_history,
-            |prev_point, curr_point, sample| {
-                if !include_returns_series {
-                    return;
-                }
+        // Shared TWR/Modified Dietz chain. The closure decides what to record per day.
+        let (cumulative_twr, cumulative_modified_dietz, warnings) =
+            Self::compute_compounded_daily_returns(
+                full_history,
+                flow_basis,
+                |prev_point, curr_point, sample| {
+                    if !include_returns_series {
+                        return;
+                    }
 
-                // Risk metrics (volatility, max drawdown) use filtered daily
-                // TWR returns. TRANSACTIONS mode: TWR already nets out cash
-                // flows, use all days. HOLDINGS mode: drop days where the
-                // holdings set changed, since we can't separate market moves
-                // from position-change-driven value shifts.
-                let should_exclude_from_risk = if is_holdings_mode {
-                    let cost_basis_changed = prev_point.cost_basis != curr_point.cost_basis;
-                    let contribution_changed = prev_point.cost_basis.is_zero()
-                        && prev_point.net_contribution != curr_point.net_contribution;
-                    cost_basis_changed || contribution_changed
-                } else {
-                    false
-                };
-                if !should_exclude_from_risk {
-                    daily_returns_for_risk.push(sample.twr);
-                }
+                    // Risk metrics (volatility, max drawdown) use filtered daily
+                    // TWR returns. TRANSACTIONS mode: TWR already nets out cash
+                    // flows, use all days. HOLDINGS mode: drop days where the
+                    // holdings set changed, since we can't separate market moves
+                    // from position-change-driven value shifts.
+                    let should_exclude_from_risk = if is_holdings_mode {
+                        let cost_basis_changed = prev_point.cost_basis != curr_point.cost_basis;
+                        let contribution_changed = prev_point.cost_basis.is_zero()
+                            && prev_point.net_contribution != curr_point.net_contribution;
+                        cost_basis_changed || contribution_changed
+                    } else {
+                        false
+                    };
+                    if !sample.excluded_from_compounding && !should_exclude_from_risk {
+                        daily_returns_for_risk.push(sample.twr);
+                    }
 
-                returns.push(ReturnData {
-                    date: curr_point.valuation_date,
-                    value: sample.cumulative_twr_to_date.round_dp(DECIMAL_PRECISION),
-                });
-            },
-        )?;
+                    returns.push(ReturnData {
+                        date: curr_point.valuation_date,
+                        value: sample.cumulative_twr_to_date.round_dp(DECIMAL_PRECISION),
+                    });
+                },
+            )?;
 
         let annualized_twr =
             Self::calculate_annualized_return(actual_start_date, actual_end_date, cumulative_twr);
-        let annualized_mwr =
-            Self::calculate_annualized_return(actual_start_date, actual_end_date, cumulative_mwr);
+        let annualized_modified_dietz = Self::calculate_annualized_return(
+            actual_start_date,
+            actual_end_date,
+            cumulative_modified_dietz,
+        );
 
         // Simple (start-to-end) total return. Always populated in the response
         // for consumers that want the unweighted figure (e.g. the account page
@@ -426,10 +635,10 @@ impl PerformanceService {
         //
         // * HOLDINGS: unrealized-P&L-based, since we don't see cash flows at
         //   transaction granularity.
-        // * TRANSACTIONS (full path / account page): MWR matches the dashboard
+        // * TRANSACTIONS (full path / account page): Modified Dietz matches the dashboard
         //   and handles cash flows per-day without blow-ups when the initial
         //   value is small.
-        // * TRANSACTIONS (summary): MWR for the same reason — prior use of
+        // * TRANSACTIONS (summary): Modified Dietz for the same reason — prior use of
         //   `gain / start_value` was the source of the dashboard-side bug.
         let (period_gain, period_return) = if is_holdings_mode {
             let (gain, ret) = Self::compute_holdings_period_return(
@@ -439,7 +648,7 @@ impl PerformanceService {
             );
             (gain, Some(ret))
         } else {
-            (gain_loss_amount, Some(cumulative_mwr))
+            (gain_loss_amount, Some(cumulative_modified_dietz))
         };
 
         let wrap_non_holdings = |value: Decimal| {
@@ -463,11 +672,135 @@ impl PerformanceService {
             annualized_twr: wrap_non_holdings(annualized_twr),
             simple_return: simple_total_return.round_dp(DECIMAL_PRECISION),
             annualized_simple_return: annualized_simple_return.round_dp(DECIMAL_PRECISION),
-            cumulative_mwr: wrap_non_holdings(cumulative_mwr),
-            annualized_mwr: wrap_non_holdings(annualized_mwr),
+            cumulative_modified_dietz: wrap_non_holdings(cumulative_modified_dietz),
+            annualized_modified_dietz: wrap_non_holdings(annualized_modified_dietz),
+            cumulative_mwr: wrap_non_holdings(cumulative_modified_dietz),
+            annualized_mwr: wrap_non_holdings(annualized_modified_dietz),
             volatility: volatility.round_dp(DECIMAL_PRECISION),
             max_drawdown: max_drawdown.round_dp(DECIMAL_PRECISION),
             is_holdings_mode,
+            return_method: if is_holdings_mode {
+                ReturnMethod::SimpleReturn
+            } else {
+                ReturnMethod::ModifiedDietz
+            },
+            is_mixed_tracking_mode: false,
+            warnings,
+        })
+    }
+
+    fn compute_mixed_scope_performance(
+        full_history: &[DailyAccountValuation],
+        include_returns_series: bool,
+    ) -> Result<PerformanceMetrics> {
+        debug_assert!(full_history.len() >= 2);
+
+        let start_point = full_history.first().unwrap();
+        let end_point = full_history.last().unwrap();
+        let actual_start_date = start_point.valuation_date;
+        let actual_end_date = end_point.valuation_date;
+        let currency = start_point.base_currency.clone();
+        let start_value = start_point.total_value;
+        let net_cash_flow: Decimal = full_history
+            .iter()
+            .skip(1)
+            .map(|point| point.external_inflow_base - point.external_outflow_base)
+            .sum();
+        let gain_loss_amount = end_point.total_value - start_value - net_cash_flow;
+        let simple_total_return = Self::compute_simple_total_return(start_value, gain_loss_amount);
+        let annualized_simple_return = Self::calculate_annualized_return(
+            actual_start_date,
+            actual_end_date,
+            simple_total_return,
+        );
+        if full_history
+            .iter()
+            .any(|point| point.total_value.is_sign_negative())
+        {
+            return Err(errors::Error::Validation(ValidationError::InvalidInput(
+                "Account scope has negative portfolio value in its history. Please review the underlying transactions and holdings.".to_string(),
+            )));
+        }
+
+        let mut returns = Vec::new();
+        let mut daily_returns_for_risk = Vec::new();
+
+        if include_returns_series {
+            returns.reserve(full_history.len());
+            daily_returns_for_risk.reserve(full_history.len().saturating_sub(1));
+            returns.push(ReturnData {
+                date: actual_start_date,
+                value: Decimal::ZERO,
+            });
+
+            let mut cumulative_external_flow = Decimal::ZERO;
+            for window in full_history.windows(2) {
+                let prev_point = &window[0];
+                let curr_point = &window[1];
+                if prev_point.total_value.is_sign_negative()
+                    || curr_point.total_value.is_sign_negative()
+                {
+                    return Err(errors::Error::Validation(ValidationError::InvalidInput(
+                        "Account scope has negative portfolio value in its history. Please review the underlying transactions and holdings.".to_string(),
+                    )));
+                }
+
+                let daily_external_flow =
+                    curr_point.external_inflow_base - curr_point.external_outflow_base;
+                cumulative_external_flow += daily_external_flow;
+                let cumulative_gain =
+                    curr_point.total_value - start_value - cumulative_external_flow;
+                let cumulative_return =
+                    Self::compute_simple_total_return(start_value, cumulative_gain);
+
+                let day_gain = curr_point.total_value + curr_point.external_outflow_base
+                    - prev_point.total_value
+                    - curr_point.external_inflow_base;
+                if prev_point.total_value > Decimal::ZERO {
+                    daily_returns_for_risk.push(day_gain / prev_point.total_value);
+                }
+
+                returns.push(ReturnData {
+                    date: curr_point.valuation_date,
+                    value: cumulative_return.round_dp(DECIMAL_PRECISION),
+                });
+            }
+        }
+
+        let (volatility, max_drawdown) = if include_returns_series {
+            (
+                Self::calculate_volatility(&daily_returns_for_risk),
+                Self::calculate_max_drawdown(&daily_returns_for_risk),
+            )
+        } else {
+            (Decimal::ZERO, Decimal::ZERO)
+        };
+
+        Ok(PerformanceMetrics {
+            id: String::new(),
+            returns,
+            period_start_date: Some(actual_start_date),
+            period_end_date: Some(actual_end_date),
+            currency,
+            period_gain: gain_loss_amount.round_dp(DECIMAL_PRECISION),
+            period_return: Some(simple_total_return.round_dp(DECIMAL_PRECISION)),
+            cumulative_twr: None,
+            gain_loss_amount: Some(gain_loss_amount.round_dp(DECIMAL_PRECISION)),
+            annualized_twr: None,
+            simple_return: simple_total_return.round_dp(DECIMAL_PRECISION),
+            annualized_simple_return: annualized_simple_return.round_dp(DECIMAL_PRECISION),
+            cumulative_modified_dietz: None,
+            annualized_modified_dietz: None,
+            cumulative_mwr: None,
+            annualized_mwr: None,
+            volatility: volatility.round_dp(DECIMAL_PRECISION),
+            max_drawdown: max_drawdown.round_dp(DECIMAL_PRECISION),
+            is_holdings_mode: false,
+            return_method: ReturnMethod::SimpleReturn,
+            is_mixed_tracking_mode: true,
+            warnings: vec![
+                "This scope mixes transaction-mode and holdings-mode accounts, so TWR and Modified Dietz are unavailable. The return is a value-complete simple return over the selected scope.".to_string(),
+            ],
         })
     }
 
@@ -604,11 +937,16 @@ impl PerformanceService {
             annualized_twr: Some(annualized_return.round_dp(DECIMAL_PRECISION)),
             simple_return: Decimal::ZERO,
             annualized_simple_return: Decimal::ZERO,
+            cumulative_modified_dietz: Some(Decimal::ZERO),
+            annualized_modified_dietz: Some(Decimal::ZERO),
             cumulative_mwr: Some(Decimal::ZERO),
             annualized_mwr: Some(Decimal::ZERO),
             volatility: volatility.round_dp(DECIMAL_PRECISION),
             max_drawdown: max_drawdown.round_dp(DECIMAL_PRECISION),
             is_holdings_mode: false,
+            return_method: ReturnMethod::SymbolPriceBased,
+            is_mixed_tracking_mode: false,
+            warnings: Vec::new(),
         };
 
         Ok(result)
@@ -628,11 +966,16 @@ impl PerformanceService {
             annualized_twr: Some(Decimal::ZERO),
             simple_return: Decimal::ZERO,
             annualized_simple_return: Decimal::ZERO,
+            cumulative_modified_dietz: Some(Decimal::ZERO),
+            annualized_modified_dietz: Some(Decimal::ZERO),
             cumulative_mwr: Some(Decimal::ZERO),
             annualized_mwr: Some(Decimal::ZERO),
             volatility: Decimal::ZERO,
             max_drawdown: Decimal::ZERO,
             is_holdings_mode: false,
+            return_method: ReturnMethod::NotApplicable,
+            is_mixed_tracking_mode: false,
+            warnings: Vec::new(),
         }
     }
 
@@ -768,7 +1111,7 @@ impl PerformanceService {
             (None, None)
         };
 
-        let total_value_base = current.total_value * current.fx_rate_to_base;
+        let total_value_base = current.total_value_base;
         let portfolio_weight = if let Some(total_portfolio) = total_portfolio_value_base {
             if !total_portfolio.is_zero() {
                 Some(
@@ -827,6 +1170,27 @@ impl PerformanceServiceTrait for PerformanceService {
         }
     }
 
+    async fn calculate_performance_history_for_accounts(
+        &self,
+        scope_id: &str,
+        account_ids: &[String],
+        base_currency: &str,
+        account_tracking_modes: &HashMap<String, TrackingMode>,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+    ) -> Result<PerformanceMetrics> {
+        self.calculate_scoped_performance(ScopedPerformanceRequest {
+            scope_id,
+            account_ids,
+            base_currency,
+            account_tracking_modes,
+            start_date,
+            end_date,
+            include_returns_series: true,
+        })
+        .await
+    }
+
     /// Calculates summary performance metrics only (no returns array, vol, maxDD)
     /// Currently only implemented for item_type = "account"
     async fn calculate_performance_summary(
@@ -857,6 +1221,27 @@ impl PerformanceServiceTrait for PerformanceService {
         }
     }
 
+    async fn calculate_performance_summary_for_accounts(
+        &self,
+        scope_id: &str,
+        account_ids: &[String],
+        base_currency: &str,
+        account_tracking_modes: &HashMap<String, TrackingMode>,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+    ) -> Result<PerformanceMetrics> {
+        self.calculate_scoped_performance(ScopedPerformanceRequest {
+            scope_id,
+            account_ids,
+            base_currency,
+            account_tracking_modes,
+            start_date,
+            end_date,
+            include_returns_series: false,
+        })
+        .await
+    }
+
     fn calculate_accounts_simple_performance(
         &self,
         account_ids: &[String],
@@ -865,16 +1250,8 @@ impl PerformanceServiceTrait for PerformanceService {
             return Ok(Vec::new());
         }
 
-        // Include "TOTAL" to get the total portfolio value reference date
-        let mut ids_to_fetch = account_ids.to_vec();
-        if !account_ids.contains(&PORTFOLIO_TOTAL_ACCOUNT_ID.to_string()) {
-            ids_to_fetch.push(PORTFOLIO_TOTAL_ACCOUNT_ID.to_string());
-        }
-
         // 1. Fetch the *absolute* latest record for each account
-        let latest_daily_valuations = self
-            .valuation_service
-            .get_latest_valuations(&ids_to_fetch)?;
+        let latest_daily_valuations = self.valuation_service.get_latest_valuations(account_ids)?;
 
         let latest_daily_map: HashMap<String, DailyAccountValuation> = latest_daily_valuations
             .into_iter()
@@ -916,10 +1293,13 @@ impl PerformanceServiceTrait for PerformanceService {
             }
         }
 
-        // 4. Calculate total portfolio value using the absolute latest "TOTAL" valuation
-        let total_portfolio_value_base = latest_daily_map
-            .get(PORTFOLIO_TOTAL_ACCOUNT_ID)
-            .map(|p| p.total_value * p.fx_rate_to_base);
+        // 4. Calculate total portfolio value by summing real-account base values.
+        let total_portfolio_value_base: Decimal = account_ids
+            .iter()
+            .filter_map(|account_id| latest_daily_map.get(account_id))
+            .map(|p| p.total_value_base)
+            .sum();
+        let total_portfolio_value_base = Some(total_portfolio_value_base);
 
         // 5. Construct results using the absolute latest and previous-to-latest records
         let mut results = Vec::with_capacity(account_ids.len());
@@ -969,6 +1349,14 @@ mod tests {
             total_value,
             cost_basis,
             net_contribution,
+            cash_balance_base: total_value - investment_market_value,
+            investment_market_value_base: investment_market_value,
+            total_value_base: total_value,
+            cost_basis_base: cost_basis,
+            net_contribution_base: net_contribution,
+            external_inflow_base: Decimal::ZERO,
+            external_outflow_base: Decimal::ZERO,
+            performance_eligible_value_base: total_value,
             calculated_at: DateTime::<Utc>::from_timestamp(0, 0).unwrap(),
         }
     }
@@ -1109,6 +1497,8 @@ mod tests {
         // vs full differentiation.
         assert_eq!(full.period_return, summary.period_return);
         assert_eq!(full.cumulative_mwr, summary.cumulative_mwr);
+        assert_eq!(full.return_method, ReturnMethod::ModifiedDietz);
+        assert_eq!(summary.return_method, ReturnMethod::ModifiedDietz);
         assert_eq!(full.cumulative_twr, summary.cumulative_twr);
         assert_eq!(full.period_gain, summary.period_gain);
         assert_eq!(full.simple_return, summary.simple_return);
@@ -1160,6 +1550,108 @@ mod tests {
         assert_eq!(result.period_gain.round_dp(2), dec!(-0.52));
     }
 
+    #[test]
+    fn twr_uses_start_of_day_inflow_convention() {
+        let history = vec![
+            valuation(
+                "2026-05-01",
+                dec!(100),
+                dec!(100),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            valuation(
+                "2026-05-02",
+                dec!(210),
+                dec!(200),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            true,
+        )
+        .expect("performance should compute");
+
+        assert_eq!(result.cumulative_twr.unwrap().round_dp(4), dec!(0.05));
+        assert_eq!(
+            result.cumulative_modified_dietz.unwrap().round_dp(4),
+            dec!(0.0667)
+        );
+        assert_eq!(result.cumulative_mwr, result.cumulative_modified_dietz);
+    }
+
+    #[test]
+    fn twr_uses_end_of_day_outflow_convention() {
+        let history = vec![
+            valuation(
+                "2026-05-01",
+                dec!(200),
+                dec!(200),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            valuation(
+                "2026-05-02",
+                dec!(110),
+                dec!(100),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            true,
+        )
+        .expect("performance should compute");
+
+        assert_eq!(result.cumulative_twr.unwrap().round_dp(4), dec!(0.05));
+        assert_eq!(
+            result.cumulative_modified_dietz.unwrap().round_dp(4),
+            dec!(0.0667)
+        );
+    }
+
+    #[test]
+    fn return_period_with_non_positive_denominator_is_excluded() {
+        let history = vec![
+            valuation(
+                "2026-05-01",
+                dec!(50),
+                dec!(50),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            valuation(
+                "2026-05-02",
+                Decimal::ZERO,
+                dec!(-50),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            true,
+        )
+        .expect("performance should compute");
+
+        assert_eq!(result.cumulative_twr.unwrap(), Decimal::ZERO);
+        assert_eq!(result.cumulative_modified_dietz.unwrap(), Decimal::ZERO);
+        assert_eq!(result.returns.last().unwrap().value, Decimal::ZERO);
+        assert!(!result.warnings.is_empty());
+    }
+
     /// Negative portfolio value (like TEST's unfunded-BUY shape) surfaces as a
     /// validation error in both paths — downstream percentages are meaningless
     /// when the underlying data is broken.
@@ -1194,6 +1686,58 @@ mod tests {
         }
     }
 
+    #[test]
+    fn scoped_perf_uses_explicit_base_flows_for_foreign_currency_accounts() {
+        let mut prev = valuation("2026-04-01", dec!(100), dec!(100), dec!(100), dec!(100));
+        let mut curr = valuation("2026-04-02", dec!(210), dec!(200), dec!(210), dec!(200));
+        prev.account_currency = "EUR".to_string();
+        prev.base_currency = "USD".to_string();
+        prev.fx_rate_to_base = dec!(1.1);
+        prev.total_value_base = dec!(110);
+        prev.net_contribution_base = dec!(110);
+        curr.account_currency = "EUR".to_string();
+        curr.base_currency = "USD".to_string();
+        curr.fx_rate_to_base = dec!(1.1);
+        curr.total_value_base = dec!(231);
+        curr.net_contribution_base = dec!(220);
+        curr.external_inflow_base = dec!(110);
+
+        let (inflow, outflow) =
+            PerformanceService::daily_external_flows(&prev, &curr, ExternalFlowBasis::BaseCurrency);
+
+        assert_eq!(inflow, dec!(110));
+        assert_eq!(outflow, Decimal::ZERO);
+    }
+
+    #[test]
+    fn account_perf_uses_account_currency_flows_for_foreign_currency_accounts() {
+        let mut prev = valuation("2026-04-01", dec!(100), dec!(100), dec!(100), dec!(100));
+        let mut curr = valuation("2026-04-02", dec!(210), dec!(200), dec!(210), dec!(200));
+        prev.account_currency = "EUR".to_string();
+        prev.base_currency = "USD".to_string();
+        prev.fx_rate_to_base = dec!(1.1);
+        prev.total_value_base = dec!(110);
+        prev.net_contribution_base = dec!(110);
+        curr.account_currency = "EUR".to_string();
+        curr.base_currency = "USD".to_string();
+        curr.fx_rate_to_base = dec!(1.1);
+        curr.total_value_base = dec!(231);
+        curr.net_contribution_base = dec!(220);
+        curr.external_inflow_base = dec!(110);
+
+        let result = PerformanceService::compute_account_performance(
+            &[prev, curr],
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("foreign-currency account performance should compute");
+
+        assert_eq!(result.currency, "EUR");
+        assert_eq!(result.gain_loss_amount, Some(dec!(10)));
+        assert_eq!(result.cumulative_modified_dietz, Some(dec!(0.06666667)));
+    }
+
     /// HOLDINGS mode uses the cost-basis formula in both paths. TWR/MWR are
     /// returned as `None` because they aren't meaningful without per-transaction
     /// cash-flow tracking.
@@ -1218,5 +1762,70 @@ mod tests {
         assert!(result.cumulative_twr.is_none());
         assert!(result.cumulative_mwr.is_none());
         assert!(result.is_holdings_mode);
+    }
+
+    #[test]
+    fn scoped_performance_uses_mixed_mode_without_dropping_holdings_accounts() {
+        let account_ids = vec!["tx".to_string(), "holdings".to_string()];
+        let mut modes = HashMap::new();
+        modes.insert("tx".to_string(), TrackingMode::Transactions);
+        modes.insert("holdings".to_string(), TrackingMode::Holdings);
+
+        let composition = PerformanceService::scoped_tracking_composition(&account_ids, &modes);
+
+        assert_eq!(composition, ScopedTrackingComposition::Mixed);
+    }
+
+    #[test]
+    fn scoped_performance_uses_holdings_mode_when_all_accounts_are_holdings_mode() {
+        let account_ids = vec!["holdings-a".to_string(), "holdings-b".to_string()];
+        let mut modes = HashMap::new();
+        modes.insert("holdings-a".to_string(), TrackingMode::Holdings);
+        modes.insert("holdings-b".to_string(), TrackingMode::Holdings);
+
+        let composition = PerformanceService::scoped_tracking_composition(&account_ids, &modes);
+
+        assert_eq!(composition, ScopedTrackingComposition::HoldingsOnly);
+    }
+
+    #[test]
+    fn mixed_scope_performance_is_value_complete_simple_return() {
+        let mut history = vec![
+            valuation("2026-05-01", dec!(1500), dec!(1500), dec!(1500), dec!(1500)),
+            valuation("2026-05-02", dec!(1660), dec!(1600), dec!(1660), dec!(1600)),
+        ];
+        history[1].external_inflow_base = dec!(100);
+
+        let result = PerformanceService::compute_mixed_scope_performance(&history, true)
+            .expect("mixed scope should compute");
+
+        assert!(result.is_mixed_tracking_mode);
+        assert_eq!(result.return_method, ReturnMethod::SimpleReturn);
+        assert_eq!(result.period_gain, dec!(60));
+        assert_eq!(result.period_return.unwrap().round_dp(4), dec!(0.04));
+        assert_eq!(result.returns.last().unwrap().value.round_dp(4), dec!(0.04));
+        assert!(result.cumulative_twr.is_none());
+        assert!(result.cumulative_modified_dietz.is_none());
+        assert!(!result.warnings.is_empty());
+    }
+
+    #[test]
+    fn mixed_scope_rejects_negative_portfolio_value_without_series() {
+        let history = vec![
+            valuation("2026-05-01", dec!(100), dec!(100), dec!(100), dec!(100)),
+            valuation("2026-05-02", dec!(-50), dec!(100), dec!(-50), dec!(100)),
+        ];
+
+        for include_series in [true, false] {
+            let err = PerformanceService::compute_mixed_scope_performance(&history, include_series)
+                .expect_err("mixed scope should reject negative portfolio value");
+
+            assert!(
+                format!("{}", err).contains("negative portfolio value"),
+                "expected 'negative portfolio value' in error (include_series={}), got: {}",
+                include_series,
+                err
+            );
+        }
     }
 }

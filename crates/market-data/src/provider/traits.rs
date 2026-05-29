@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 
 use crate::errors::MarketDataError;
 use crate::models::{
-    AssetProfile, ProviderInstrument, Quote, QuoteContext, SearchResult, SplitEvent,
+    AssetProfile, DividendEvent, ProviderInstrument, Quote, QuoteContext, SearchResult, SplitEvent,
 };
 
 use super::capabilities::{ProviderCapabilities, RateLimit};
@@ -168,6 +168,24 @@ pub trait MarketDataProvider: Send + Sync {
         let _ = (context, instrument, start, end);
         Err(MarketDataError::NotSupported {
             operation: "splits".to_string(),
+            provider: self.id().to_string(),
+        })
+    }
+
+    /// Fetch cash dividend history for an instrument.
+    ///
+    /// A vector of dividend events, or `NotSupported` if the provider doesn't support dividends.
+    /// Default implementation returns `NotSupported`.
+    async fn get_dividends(
+        &self,
+        context: &QuoteContext,
+        instrument: ProviderInstrument,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<Vec<DividendEvent>, MarketDataError> {
+        let _ = (context, instrument, start, end);
+        Err(MarketDataError::NotSupported {
+            operation: "dividends".to_string(),
             provider: self.id().to_string(),
         })
     }

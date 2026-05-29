@@ -140,7 +140,7 @@ function normalizeResult(result: unknown, fallbackCurrency: string): GetHoldings
     accountScope:
       (candidate.accountScope as string | undefined) ??
       (candidate.account_scope as string | undefined) ??
-      "TOTAL",
+      "Portfolio",
     viewMode: ((candidate.viewMode as string | undefined) ??
       (candidate.view_mode as string | undefined)) as ViewMode | undefined,
     truncated: (candidate.truncated as boolean | undefined) ?? false,
@@ -396,7 +396,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
     return { treemapData, hasData: hasAnyData, totalChange: totalChangePct };
   }, [sortedHoldings, totalValue, returnType]);
 
-  const accountLabel = parsed?.accountScope ?? args?.accountId ?? "TOTAL";
+  const accountLabel = parsed?.accountScope ?? args?.accountId ?? "Portfolio";
   const isLoading = status?.type === "running";
 
   // Compact mode — just show a one-liner when used as a prerequisite
@@ -507,7 +507,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
           <p className="text-sm font-medium">Your Portfolio {returnLabel}</p>
           <p className="text-muted-foreground mt-1 text-xs">
             {holdingsCount} position{holdingsCount !== 1 ? "s" : ""} · {returnLabel}
-            {accountLabel !== "TOTAL" && (
+            {accountLabel !== "Portfolio" && (
               <Badge variant="outline" className="ml-2 text-xs uppercase">
                 {accountLabel}
               </Badge>
@@ -557,7 +557,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
               <p className="text-sm font-medium">Holdings {returnLabel}</p>
               <p className="text-muted-foreground mt-1 text-xs">
                 {holdingsCount} position{holdingsCount !== 1 ? "s" : ""}
-                {accountLabel !== "TOTAL" && (
+                {accountLabel !== "Portfolio" && (
                   <Badge variant="outline" className="ml-2 text-xs uppercase">
                     {accountLabel}
                   </Badge>

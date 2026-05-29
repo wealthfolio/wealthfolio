@@ -10,7 +10,7 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card, CardHeader } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { AnimatePresence, motion } from "motion/react";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 // Context
@@ -20,6 +20,7 @@ import {
   prevStep,
   setDraftActivities,
   setMapping,
+  setStepOrder,
   useImportContext,
   type ImportStep,
 } from "./context";
@@ -46,14 +47,22 @@ import { HoldingsFormat, HoldingsMappingStep } from "./steps/holdings-mapping-st
 import { HoldingsReviewStep } from "./steps/holdings-review-step";
 
 // Constants
-import { IMPORT_REQUIRED_FIELDS, ImportFormat } from "@/lib/constants";
+import { ImportFormat } from "@/lib/constants";
 import { computeFieldMappings } from "./hooks/use-import-mapping";
 import {
   buildImportAssetCandidateFromDraft,
   buildSyntheticDraftsFromHoldings,
 } from "./utils/asset-review-utils";
-import { isFieldMapped, primaryHeader } from "./utils/draft-utils";
+import { ACTIVITY_SKIP, isFieldMapped, primaryHeader } from "./utils/draft-utils";
 import { findMappedActivityType, validateTickerSymbol } from "./utils/validation-utils";
+import {
+  activityTypeAllowedForImportProfile,
+  getActivityImportProfileForImportContext,
+  isTransactionImportProfile,
+  mergeActivityMappingsForImportProfile,
+  sanitizeImportMappingForProfile,
+  type ActivityImportProfile,
+} from "./utils/activity-import-profile";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Step Configuration
@@ -64,6 +73,13 @@ const STEPS: WizardStep[] = [
   { id: "mapping", label: "Mapping" },
   { id: "assets", label: "Review Assets" },
   { id: "review", label: "Review Activities" },
+  { id: "confirm", label: "Import" },
+];
+
+const TRANSACTION_STEPS: WizardStep[] = [
+  { id: "upload", label: "Upload" },
+  { id: "mapping", label: "Mapping" },
+  { id: "review", label: "Review Transactions" },
   { id: "confirm", label: "Import" },
 ];
 
@@ -104,7 +120,11 @@ const HOLDINGS_REQUIRED_FIELDS: HoldingsFormat[] = [
 /**
  * Check if a step can proceed to the next step (for activity import)
  */
-function useStepValidation(isHoldingsMode: boolean, accounts?: Account[]) {
+function useStepValidation(
+  isHoldingsMode: boolean,
+  importProfile: ActivityImportProfile,
+  accounts?: Account[],
+) {
   const { state } = useImportContext();
 
   return useMemo(() => {
@@ -153,14 +173,17 @@ function useStepValidation(isHoldingsMode: boolean, accounts?: Account[]) {
           }
         }
 
-        const requiredFieldsMapped = IMPORT_REQUIRED_FIELDS.every(
-          (field) => mapping.fieldMappings[field],
+        const requiredFieldsMapped = importProfile.requiredMappingFields.every((field) =>
+          isFieldMapped(mapping.fieldMappings[field], headers),
         );
         if (!requiredFieldsMapped) return false;
 
         // Check if all activity types have mappings
         const activityTypeMapping = mapping.fieldMappings[ImportFormat.ACTIVITY_TYPE];
         if (activityTypeMapping) {
+          const activityMappings = isTransactionImportProfile(importProfile)
+            ? mergeActivityMappingsForImportProfile(mapping.activityMappings, importProfile)
+            : mapping.activityMappings || {};
           // Build column indices for fallback resolution
           const atHeaders = Array.isArray(activityTypeMapping)
             ? activityTypeMapping
@@ -180,7 +203,12 @@ function useStepValidation(isHoldingsMode: boolean, accounts?: Account[]) {
             });
 
             for (const value of uniqueValues) {
-              if (!findMappedActivityType(value, mapping.activityMappings || {})) {
+              const mappedType = findMappedActivityType(value, activityMappings) as string | null;
+              if (
+                !mappedType ||
+                (mappedType !== ACTIVITY_SKIP &&
+                  !activityTypeAllowedForImportProfile(mappedType, importProfile))
+              ) {
                 return false;
               }
             }
@@ -188,6 +216,10 @@ function useStepValidation(isHoldingsMode: boolean, accounts?: Account[]) {
         }
 
         // Check if all symbols are resolved (only for non-cash activities)
+        if (!importProfile.assetResolutionEnabled) {
+          return true;
+        }
+
         const symbolColumn = primaryHeader(mapping.fieldMappings[ImportFormat.SYMBOL]);
         if (symbolColumn) {
           const symbolHeaderIndex = headers.indexOf(symbolColumn);
@@ -293,7 +325,7 @@ function useStepValidation(isHoldingsMode: boolean, accounts?: Account[]) {
       default:
         return false;
     }
-  }, [accounts, state, isHoldingsMode]);
+  }, [accounts, state, isHoldingsMode, importProfile]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -323,14 +355,38 @@ function ImportWizardContent() {
   const isHoldingsMode = useMemo(() => {
     return selectedAccount?.trackingMode === "HOLDINGS";
   }, [selectedAccount]);
+  const importProfile = useMemo(
+    () =>
+      getActivityImportProfileForImportContext({
+        defaultAccountId: state.accountId,
+        accounts,
+        headers: state.headers,
+        parsedRows: state.parsedRows,
+        fieldMappings: state.mapping?.fieldMappings,
+        accountMappings: state.mapping?.accountMappings,
+      }),
+    [
+      accounts,
+      state.accountId,
+      state.headers,
+      state.mapping?.accountMappings,
+      state.mapping?.fieldMappings,
+      state.parsedRows,
+    ],
+  );
+  const isTransactionImport = isTransactionImportProfile(importProfile);
 
   const isCsvImportAllowed = canImportCSV(selectedAccount);
 
-  const canProceed = useStepValidation(isHoldingsMode, accounts);
+  const canProceed = useStepValidation(isHoldingsMode, importProfile, accounts);
 
   // Select the appropriate steps and components based on mode
-  const steps = isHoldingsMode ? HOLDINGS_STEPS : STEPS;
+  const steps = isHoldingsMode ? HOLDINGS_STEPS : isTransactionImport ? TRANSACTION_STEPS : STEPS;
   const stepComponents = isHoldingsMode ? HOLDINGS_STEP_COMPONENTS : STEP_COMPONENTS;
+
+  useEffect(() => {
+    dispatch(setStepOrder([...steps.map((step) => step.id), "result"]));
+  }, [dispatch, steps]);
 
   // Step navigation
   const currentStepIndex = useMemo(
@@ -357,6 +413,7 @@ function ImportWizardContent() {
         const mergedFieldMappings = computeFieldMappings(
           state.headers,
           state.mapping?.fieldMappings,
+          importProfile,
         );
         const existingAccountMappings = state.mapping?.accountMappings ?? {};
         // When no account column is mapped, pre-fill accountMappings[""] with the selected
@@ -368,11 +425,17 @@ function ImportWizardContent() {
             ? { ...existingAccountMappings, "": state.accountId }
             : existingAccountMappings;
         dispatch(
-          setMapping({
-            ...(state.mapping ?? createDefaultActivityMapping(state.accountId || "")),
-            fieldMappings: mergedFieldMappings,
-            accountMappings,
-          }),
+          setMapping(
+            sanitizeImportMappingForProfile(
+              {
+                ...(state.mapping ??
+                  createDefaultActivityMapping(state.accountId || "", importProfile)),
+                fieldMappings: mergedFieldMappings,
+                accountMappings,
+              },
+              importProfile,
+            ),
+          ),
         );
       }
 
@@ -390,17 +453,23 @@ function ImportWizardContent() {
           dispatch({ type: "SET_ASSET_PREVIEW_ITEMS", payload: [] });
           dispatch({ type: "CLEAR_PENDING_IMPORT_ASSETS" });
           dispatch(nextStep());
-          void previewAssets(drafts);
+          void previewAssets(drafts, { revision: state.draftRevision + 1 });
           return;
         }
 
         // Activity mode: build draft activities
+        const validAccountIds = new Set((accounts ?? []).map((account) => account.id));
+        const accountTypeById = new Map<string, string>(
+          (accounts ?? []).map((account) => [account.id, account.accountType]),
+        );
         const drafts = createDraftActivities(
           state.parsedRows,
           state.headers,
           {
             fieldMappings: state.mapping.fieldMappings,
-            activityMappings: state.mapping.activityMappings,
+            activityMappings: isTransactionImportProfile(importProfile)
+              ? mergeActivityMappingsForImportProfile(state.mapping.activityMappings, importProfile)
+              : state.mapping.activityMappings,
             symbolMappings: state.mapping.symbolMappings,
             accountMappings: state.mapping.accountMappings || {},
             symbolMappingMeta: state.mapping.symbolMappingMeta || {},
@@ -412,12 +481,19 @@ function ImportWizardContent() {
             defaultCurrency: state.parseConfig.defaultCurrency,
           },
           state.accountId,
+          validAccountIds,
+          accountTypeById,
+          { importProfile },
         );
         dispatch(setDraftActivities(drafts));
         dispatch({ type: "SET_ASSET_PREVIEW_ITEMS", payload: [] });
         dispatch({ type: "CLEAR_PENDING_IMPORT_ASSETS" });
         dispatch(nextStep());
-        void previewAssets(drafts); // fire-and-forget: assets step shows spinner
+        if (importProfile.assetResolutionEnabled) {
+          void previewAssets(drafts, { revision: state.draftRevision + 1 }); // fire-and-forget: assets step shows spinner
+        } else {
+          void validateDrafts(drafts, { revision: state.draftRevision + 1 });
+        }
         return;
       }
 
@@ -460,7 +536,10 @@ function ImportWizardContent() {
     state.parsedRows,
     state.parseConfig,
     state.draftActivities,
+    state.draftRevision,
+    accounts,
     isHoldingsMode,
+    importProfile,
     validateDrafts,
     previewAssets,
   ]);
@@ -491,7 +570,7 @@ function ImportWizardContent() {
       case "upload":
         return "Configure Mapping";
       case "mapping":
-        return "Review Assets";
+        return isTransactionImport ? "Review Transactions" : "Review Assets";
       case "assets":
         return isHoldingsMode ? "Review Holdings" : "Review Activities";
       case "review":
@@ -501,10 +580,20 @@ function ImportWizardContent() {
       default:
         return "Continue";
     }
-  }, [state.step, isHoldingsMode, state.lastValidatedRevision, state.draftRevision]);
+  }, [
+    state.step,
+    isHoldingsMode,
+    isTransactionImport,
+    state.lastValidatedRevision,
+    state.draftRevision,
+  ]);
 
   // Page title
-  const pageTitle = isHoldingsMode ? "Import Holdings" : "Import Activities";
+  const pageTitle = isHoldingsMode
+    ? "Import Holdings"
+    : isTransactionImport
+      ? "Import Transactions"
+      : "Import Activities";
 
   if (selectedAccount && !isCsvImportAllowed) {
     return (

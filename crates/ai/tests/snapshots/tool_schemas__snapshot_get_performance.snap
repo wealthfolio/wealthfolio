@@ -1,0 +1,29 @@
+---
+source: crates/ai/tests/tool_schemas.rs
+assertion_line: 110
+expression: snapshot
+---
+{
+  "name": "get_performance",
+  "parameters": {
+    "properties": {
+      "accountId": {
+        "type": "string"
+      },
+      "period": {
+        "default": "YTD",
+        "enum": [
+          "1M",
+          "3M",
+          "6M",
+          "YTD",
+          "1Y",
+          "ALL"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [],
+    "type": "object"
+  }
+}

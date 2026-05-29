@@ -469,8 +469,9 @@ const holdings: Holding[] = await ctx.api.portfolio.getHoldings(accounts[0].id);
 
 ---
 
-**Ready to build?** Check out our [examples](/docs/addons/examples) to see these
-APIs in action! const history = await ctx.api.quotes.getHistory('AAPL');
+**Ready to build?** Check out the
+[official addon examples](https://github.com/wealthfolio/wealthfolio-addons/tree/main/official)
+to see these APIs in action.
 
 ````
 

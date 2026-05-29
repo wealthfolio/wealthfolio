@@ -379,7 +379,7 @@ Wealthfolio Store, contact **support@wealthfolio.app**.
     <span class="text-primary">Browse APIs →</span>
   </Card>
 
-  <Card href="https://github.com/wealthfolio/wealthfolio/tree/main/addons/">
+  <Card href="https://github.com/wealthfolio/wealthfolio-addons/tree/main/official">
     <h3 class="text-lg font-semibold mb-2">💡 Examples</h3>
     <p class="text-muted-foreground mb-4">See real addon implementations</p>
     <span class="text-primary">Browse Examples →</span>

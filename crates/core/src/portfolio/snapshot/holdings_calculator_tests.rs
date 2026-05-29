@@ -1,6 +1,7 @@
 // Test cases for HoldingsCalculator will go here.
 #[cfg(test)]
 mod tests {
+    use crate::accounts::account_types;
     use crate::activities::{
         Activity, ActivityCompiler, ActivityStatus, ActivityType, DefaultActivityCompiler,
     };
@@ -745,6 +746,56 @@ mod tests {
     }
 
     #[test]
+    fn test_split_uses_user_local_calendar_date_for_lot_eligibility() {
+        let calculator = create_calculator_with_timezone(
+            Arc::new(MockFxService::new()),
+            Arc::new(RwLock::new("USD".to_string())),
+            "America/Los_Angeles",
+        );
+
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2025-01-14");
+        let mut buy_activity = create_default_activity(
+            "buy_same_local_day",
+            ActivityType::Buy,
+            "AAPL",
+            dec!(10),
+            dec!(100),
+            dec!(0),
+            "USD",
+            "2025-01-15",
+        );
+        let mut split_activity = create_default_activity(
+            "split_same_local_day",
+            ActivityType::Split,
+            "AAPL",
+            dec!(2),
+            dec!(0),
+            dec!(0),
+            "USD",
+            "2025-01-15",
+        );
+
+        // Both instants are 2025-01-15 in America/Los_Angeles. The buy
+        // timestamp is earlier in UTC, but split eligibility is calendar-day
+        // based, so a lot opened on the split's local date must not be split.
+        buy_activity.activity_date = Utc.with_ymd_and_hms(2025, 1, 15, 8, 30, 0).unwrap();
+        split_activity.activity_date = Utc.with_ymd_and_hms(2025, 1, 15, 9, 30, 0).unwrap();
+
+        let result = calculator
+            .calculate_next_holdings(
+                &previous_snapshot,
+                &[buy_activity, split_activity],
+                NaiveDate::from_ymd_opt(2025, 1, 15).unwrap(),
+            )
+            .unwrap();
+
+        assert!(result.warnings.is_empty());
+        let position = result.snapshot.positions.get("AAPL").unwrap();
+        assert_eq!(position.quantity, dec!(10));
+        assert_eq!(position.lots[0].effective_split_ratio(), dec!(1));
+    }
+
+    #[test]
     fn test_sell_activity_updates_holdings_and_cash() {
         let mock_fx_service = Arc::new(MockFxService::new());
         let account_currency = "CAD";
@@ -782,10 +833,14 @@ mod tests {
                         .unwrap(),
                 ),
                 quantity: dec!(10),
+                original_quantity: dec!(10),
                 cost_basis: dec!(1500),
                 acquisition_price: dec!(150),
                 acquisition_fees: dec!(5),
+                original_acquisition_fees: dec!(5),
                 fx_rate_to_position: None,
+                source_activity_id: None,
+                split_ratio: Decimal::ONE,
             }]),
             created_at: Utc::now(),
             last_updated: Utc::now(),
@@ -1347,6 +1402,51 @@ mod tests {
 
         assert_eq!(next_state.cost_basis, previous_snapshot.cost_basis);
         assert!(next_state.positions.is_empty());
+    }
+
+    #[test]
+    fn test_credit_card_interest_books_as_liability_charge() {
+        let mock_fx_service = MockFxService::new();
+        let target_date_str = "2023-01-06";
+        let target_date = NaiveDate::from_str(target_date_str).unwrap();
+        let account_currency = "USD";
+
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let mut previous_snapshot =
+            create_initial_snapshot("card_1", account_currency, "2023-01-05");
+        previous_snapshot
+            .cash_balances
+            .insert(account_currency.to_string(), dec!(-100));
+
+        let interest_activity = create_cash_activity(
+            "card_interest_1",
+            ActivityType::Interest,
+            dec!(25),
+            dec!(0),
+            account_currency,
+            target_date_str,
+        );
+
+        let result = calculator.calculate_next_holdings_for_account_type(
+            &previous_snapshot,
+            &[interest_activity],
+            target_date,
+            Some(account_types::CREDIT_CARD),
+        );
+        assert!(result.is_ok(), "Calculation failed: {:?}", result.err());
+        let next_state = result.unwrap().snapshot;
+
+        assert_eq!(
+            next_state.cash_balances.get(account_currency),
+            Some(&dec!(-125))
+        );
+        assert_eq!(next_state.cash_total_account_currency, dec!(-125));
+        assert_eq!(
+            next_state.net_contribution,
+            previous_snapshot.net_contribution
+        );
     }
 
     #[test]
@@ -3234,10 +3334,14 @@ mod tests {
                         .unwrap(),
                 ),
                 quantity: dec!(20),
+                original_quantity: dec!(20),
                 cost_basis: dec!(2000),
                 acquisition_price: dec!(100),
                 acquisition_fees: dec!(0),
+                original_acquisition_fees: dec!(0),
                 fx_rate_to_position: None,
+                source_activity_id: None,
+                split_ratio: Decimal::ONE,
             }]),
             created_at: Utc::now(),
             last_updated: Utc::now(),
@@ -3728,10 +3832,14 @@ mod tests {
             position_id: "pos_1".to_string(),
             acquisition_date: Utc::now(),
             quantity: dec!(10),
+            original_quantity: dec!(10),
             cost_basis: dec!(1000),
             acquisition_price: dec!(100),
             acquisition_fees: dec!(0),
+            original_acquisition_fees: dec!(0),
             fx_rate_to_position: None,
+            source_activity_id: None,
+            split_ratio: Decimal::ONE,
         }]);
         previous_snapshot
             .positions
@@ -3846,10 +3954,14 @@ mod tests {
             position_id: "pos_2".to_string(),
             acquisition_date: Utc::now(),
             quantity: dec!(20),
+            original_quantity: dec!(20),
             cost_basis: dec!(2000),
             acquisition_price: dec!(100),
             acquisition_fees: dec!(0),
+            original_acquisition_fees: dec!(0),
             fx_rate_to_position: None,
+            source_activity_id: None,
+            split_ratio: Decimal::ONE,
         }]);
         previous_snapshot
             .positions
@@ -4184,10 +4296,14 @@ mod tests {
                     position_id: "pos_aapl".to_string(),
                     acquisition_date: Utc::now(),
                     quantity: dec!(10),
+                    original_quantity: dec!(10),
                     cost_basis: dec!(1500),
                     acquisition_price: dec!(150),
                     acquisition_fees: dec!(0),
+                    original_acquisition_fees: dec!(0),
                     fx_rate_to_position: None,
+                    source_activity_id: None,
+                    split_ratio: Decimal::ONE,
                 }]),
                 created_at: Utc::now(),
                 last_updated: Utc::now(),

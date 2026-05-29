@@ -3,7 +3,7 @@ import {
   HOLDINGS_MODE_VOLATILITY_INFO,
   MAX_DRAWDOWN_INFO,
   MetricDisplay,
-  MONEY_WEIGHTED_RETURN_INFO,
+  MODIFIED_DIETZ_RETURN_INFO,
   TIME_WEIGHTED_RETURN_INFO,
   VOLATILITY_INFO,
 } from "@/components/metric-display";
@@ -20,7 +20,7 @@ export interface PerformanceGridProps {
   isLoading?: boolean;
   performanceError?: string;
   className?: string;
-  /** If true, shows only Volatility/MaxDrawdown and hides TWR/MWR (HOLDINGS mode doesn't track cash flows) */
+  /** If true, shows only Volatility/MaxDrawdown and hides flow-adjusted returns. */
   isHoldingsMode?: boolean;
 }
 
@@ -73,6 +73,8 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
   const {
     cumulativeTwr,
     annualizedTwr,
+    cumulativeModifiedDietz,
+    annualizedModifiedDietz,
     cumulativeMwr,
     annualizedMwr,
     volatility = 0,
@@ -82,11 +84,11 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
   // Convert null to undefined for optional props that may be null from the API
   const twrValue = cumulativeTwr ?? undefined;
   const twrAnnualized = annualizedTwr ?? undefined;
-  const mwrValue = cumulativeMwr ?? undefined;
-  const mwrAnnualized = annualizedMwr ?? undefined;
+  const modifiedDietzValue = cumulativeModifiedDietz ?? cumulativeMwr ?? undefined;
+  const modifiedDietzAnnualized = annualizedModifiedDietz ?? annualizedMwr ?? undefined;
 
   // For HOLDINGS mode accounts:
-  // - TWR/MWR are NOT available (require cash flow tracking)
+  // - TWR/Modified Dietz are NOT available (require cash flow tracking)
   // - Volatility and Max Drawdown ARE available (computed from equity curve)
   if (isHoldingsMode) {
     return (
@@ -129,10 +131,10 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
               className="border-muted/30 bg-muted/30 rounded-md border"
             />
             <MetricDisplay
-              label="Money Weighted Return"
-              value={mwrValue}
-              annualizedValue={mwrAnnualized}
-              infoText={MONEY_WEIGHTED_RETURN_INFO}
+              label="Modified Dietz"
+              value={modifiedDietzValue}
+              annualizedValue={modifiedDietzAnnualized}
+              infoText={MODIFIED_DIETZ_RETURN_INFO}
               isPercentage={true}
               className="border-muted/30 bg-muted/30 rounded-md border"
             />

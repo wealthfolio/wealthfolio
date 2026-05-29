@@ -155,6 +155,20 @@ export function formatDateISO(date: Date): string {
   return format(date, "yyyy-MM-dd");
 }
 
+/**
+ * Formats a time as "h:mm a" (e.g. "12:00 AM"). Use when only the time of day
+ * is meaningful and the seconds-bearing formatDateTime would be too verbose.
+ */
+export function formatTime(input: string | number | Date | null | undefined): string {
+  if (input === null || input === undefined) return "-";
+  let date: Date | null = null;
+  if (input instanceof Date) date = input;
+  else if (typeof input === "string") date = tryParseDate(input) ?? new Date(input);
+  else if (typeof input === "number") date = Number.isFinite(input) ? new Date(input) : null;
+  if (date && isValid(date)) return format(date, "h:mm a");
+  return "-";
+}
+
 export const formatDateTime = (date: string | Date, timezone?: string) => {
   if (!date) return { date: "-", time: "-" };
 
@@ -313,19 +327,22 @@ export function formatAmount(
   return getCurrencyFormatter(rawCurrency).format(displayAmount);
 }
 
-export function formatPercent(value: number | null | undefined) {
+export function formatPercent(
+  value: number | null | undefined,
+  options: { digits?: number; signDisplay?: "auto" | "always" | "never" } = {},
+) {
   if (value == null) return "-";
+  const digits = options.digits ?? 2;
   try {
-    // Use Intl.NumberFormat for correct percentage formatting (handles x100 and % sign)
     return new Intl.NumberFormat("en-US", {
       style: "percent",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+      signDisplay: options.signDisplay ?? "auto",
     }).format(value);
   } catch (error) {
     logger.error(`Error formatting percent ${value}: ${error}`);
-    // Fallback to simple string conversion if formatting fails
-    return `${value}%`; // Keep original fallback but it might still be incorrect
+    return `${value}%`;
   }
 }
 
@@ -372,14 +389,17 @@ export function calculatePerformanceMetrics(
   const first = history[0];
   const last = history[history.length - 1];
 
-  const ncFlow = Number(last.netContribution) - Number(first.netContribution);
-  const mvGain = Number(last.totalValue) - Number(first.totalValue);
+  const valueFor = (valuation: AccountValuation) => Number(valuation.totalValueBase);
+  const contributionFor = (valuation: AccountValuation) => Number(valuation.netContributionBase);
+
+  const ncFlow = contributionFor(last) - contributionFor(first);
+  const mvGain = valueFor(last) - valueFor(first);
   const gain$ = mvGain - ncFlow; // profit / loss
 
   // ── all‑time ROI ────────────────────────────────────────────────
   if (isAllTime) {
-    const totalNC = Number(last.netContribution);
-    const gain = Number(last.totalValue) - totalNC;
+    const totalNC = contributionFor(last);
+    const gain = valueFor(last) - totalNC;
 
     return {
       gainLossAmount: gain,
@@ -393,13 +413,13 @@ export function calculatePerformanceMetrics(
     const prev = history[i - 1];
     const curr = history[i];
 
-    const cf = Number(curr.netContribution) - Number(prev.netContribution); // deposit(+)/withdraw(-)
-    const mv0 = Number(prev.totalValue);
+    const cf = contributionFor(curr) - contributionFor(prev); // deposit(+)/withdraw(-)
+    const mv0 = valueFor(prev);
     if (mv0 === 0) {
       continue; // skip day zero if portfolio just opened
     }
 
-    const dailyReturn = (Number(curr.totalValue) - cf) / mv0;
+    const dailyReturn = (valueFor(curr) - cf) / mv0;
     twr *= dailyReturn;
   }
 
