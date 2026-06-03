@@ -5,7 +5,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
+import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { Label } from "@wealthfolio/ui/components/ui/label";
 import { ActivityType, QuoteMode } from "@/lib/constants";
 import { buildOccSymbol } from "@/lib/occ-symbol";
 import { useSettings } from "@/hooks/use-settings";
@@ -71,6 +73,7 @@ export const buyFormSchema = z
       })
       .positive({ message: "FX Rate must be positive." })
       .optional(),
+    includeCashDeposit: z.boolean().default(false),
     // Internal fields
     quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MARKET),
     exchangeMic: z.string().nullable().optional(),
@@ -78,6 +81,9 @@ export const buyFormSchema = z
     symbolInstrumentType: z.string().nullable().optional(),
     // Asset metadata for custom assets (name, etc.)
     assetMetadata: assetMetadataSchema,
+    // Carries through any extra metadata keys from the original activity so they aren't
+    // overwritten when saving. Only the keys the form explicitly manages are updated.
+    existingMetadata: z.record(z.unknown()).optional(),
     // Option-specific fields
     underlyingSymbol: z.string().optional(),
     strikePrice: z.coerce.number().positive().optional(),
@@ -178,6 +184,7 @@ export function BuyForm({
       fee: 0,
       comment: null,
       fxRate: undefined,
+      includeCashDeposit: false,
       quoteMode: QuoteMode.MARKET,
       exchangeMic: undefined,
       // Option defaults
@@ -427,7 +434,23 @@ export function BuyForm({
               accountCurrency={accountCurrency}
               baseCurrency={baseCurrency}
               showSubtype={false}
-            />
+            >
+              <div className="flex items-start gap-3 rounded-md border p-3">
+                <Checkbox
+                  id="includeCashDeposit"
+                  checked={watch("includeCashDeposit")}
+                  onCheckedChange={(checked) => setValue("includeCashDeposit", !!checked)}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <Label htmlFor="includeCashDeposit" className="text-sm font-medium">
+                    Include cash deposit
+                  </Label>
+                  <p className="text-muted-foreground text-xs">
+                    Creates a separate deposit activity for the total purchase cost.
+                  </p>
+                </div>
+              </div>
+            </AdvancedOptionsSection>
 
             {/* Notes */}
             <NotesInput name="comment" label="Notes" placeholder="Add an optional note..." />
