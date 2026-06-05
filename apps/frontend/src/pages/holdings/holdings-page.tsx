@@ -61,7 +61,7 @@ export const HoldingsPage = () => {
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
-  const [accountFilter, setAccountScope] = useState<AccountScope>({ type: "all" });
+  const [accountFilter, setAccountScope] = usePersistentState<AccountScope>('holdings:account-scope', { type: "all" });
 
   // Keep selectedAccount for edit/add functionality when a specific account is selected.
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
