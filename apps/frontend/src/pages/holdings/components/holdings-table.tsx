@@ -123,6 +123,8 @@ export const HoldingsTable = ({
           symbolName: false,
           holdingType: false,
           bookValue: false,
+          avgCost: false,
+          portfolioWeight: false,
         }}
         defaultSorting={[{ id: "symbol", desc: false }]}
         scrollable={true}
@@ -345,6 +347,50 @@ const getColumns = (
       const valueB = rowB.original.costBasis?.local ?? 0;
       return valueA - valueB;
     },
+  },
+  {
+    id: "avgCost",
+    accessorFn: (row) => safeDivide(row.costBasis?.local ?? 0, row.quantity),
+    enableHiding: true,
+    header: ({ column }) => (
+      <DataTableColumnHeader className="justify-end" column={column} title="Avg Cost" />
+    ),
+    meta: {
+      label: "Avg Cost",
+    },
+    cell: ({ row }) => {
+      const holding = row.original;
+      const avgCost = safeDivide(holding.costBasis?.local ?? 0, holding.quantity);
+      return (
+        <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
+          <AmountDisplay value={avgCost} currency={holding.localCurrency} isHidden={isHidden} />
+          <div className="text-xs text-transparent">-</div>
+        </div>
+      );
+    },
+    sortingFn: (rowA, rowB) => {
+      const a = safeDivide(rowA.original.costBasis?.local ?? 0, rowA.original.quantity);
+      const b = safeDivide(rowB.original.costBasis?.local ?? 0, rowB.original.quantity);
+      return a - b;
+    },
+  },
+  {
+    id: "portfolioWeight",
+    accessorFn: (row) => row.weight,
+    enableHiding: true,
+    header: ({ column }) => (
+      <DataTableColumnHeader className="justify-end" column={column} title="Allocation" />
+    ),
+    meta: {
+      label: "Allocation",
+    },
+    cell: ({ row }) => (
+      <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
+        <span className="font-medium">{(row.original.weight * 100).toFixed(2)}%</span>
+        <div className="text-xs text-transparent">-</div>
+      </div>
+    ),
+    sortingFn: (rowA, rowB) => rowA.original.weight - rowB.original.weight,
   },
   {
     id: "marketValue",
