@@ -48,6 +48,7 @@ interface AssetHistoryProps {
   currency: string;
   quoteHistory: Quote[];
   assetId: string;
+  avgCost?: number;
   className?: string;
 }
 
@@ -58,6 +59,7 @@ const AssetHistoryCard: React.FC<AssetHistoryProps> = ({
   currency,
   quoteHistory,
   assetId,
+  avgCost,
   className,
 }) => {
   const syncMarketDataMutation = useSyncMarketDataMutation(true);
@@ -258,6 +260,7 @@ const AssetHistoryCard: React.FC<AssetHistoryProps> = ({
           <HistoryChart
             data={chartData}
             activityMarkers={activityMarkers}
+            avgCost={avgCost}
             onActivityMarkerClick={(marker) => {
               setSelectedActivityDate(dateKey(marker.point));
               setIsActivitySheetOpen(true);
