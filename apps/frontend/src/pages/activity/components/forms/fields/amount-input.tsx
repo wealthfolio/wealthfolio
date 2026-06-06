@@ -42,7 +42,7 @@ export function AmountInput<TFieldValues extends FieldValues = FieldValues>({
       name={name}
       render={({ field }) => (
         <FormItem>
-          <div className="flex items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1.5 overflow-hidden">
             <FormLabel>{label}</FormLabel>
             {labelHelpText && (
               <Tooltip>
@@ -61,7 +61,7 @@ export function AmountInput<TFieldValues extends FieldValues = FieldValues>({
           </div>
           <FormControl>
             {currency ? (
-              <InputGroup className="bg-input-bg h-input-height shadow-xs rounded-md">
+              <InputGroup className="bg-input-bg h-input-height shadow-xs shrink-0 overflow-hidden rounded-md">
                 <MoneyInput
                   data-slot="input-group-control"
                   className="aria-invalid:ring-0 flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0"
