@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
@@ -301,9 +303,26 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
           </div>
 
           {/* Notes */}
-          <p className="text-muted-foreground text-sm">
-            {holding.notes || assetProfile?.notes || "No notes added."}
-          </p>
+          {holding.notes || assetProfile?.notes ? (
+            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground
+              [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2
+              [&_a]:break-all [&_ul]:list-disc [&_ol]:list-decimal
+              [&_ul]:pl-4 [&_ol]:pl-4">
+              <Markdown
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                remarkPlugins={[remarkGfm as any]}
+                components={{
+                  a: (props) => (
+                    <a href={props.href} target="_blank" rel="noopener noreferrer">{props.children}</a>
+                  ),
+                }}
+              >
+                {holding.notes || assetProfile?.notes || ""}
+              </Markdown>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">No notes added.</p>
+          )}
         </div>
       </div>
     );
