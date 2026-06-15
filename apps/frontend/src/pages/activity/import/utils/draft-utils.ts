@@ -11,6 +11,7 @@ import {
   hasPositiveValue,
   hasNonZeroValue,
   resolveCashActivityFields,
+  isCashAdjustmentActivity,
 } from "./review-draft-utils";
 import type { DraftActivity, DraftActivityStatus } from "../context";
 import {
@@ -464,16 +465,19 @@ export function createDraftActivities(
     const normalizedCsvInstrumentType = normalizeInstrumentType(rawInstrumentType);
     const resolvedInstrumentType =
       normalizedCsvInstrumentType || prefixInstrumentType || mappedInstrumentType;
-    const quantity = parseNumericValue(rawQuantity, decimalSeparator, thousandsSeparator);
-    const unitPrice = parseNumericValue(rawUnitPrice, decimalSeparator, thousandsSeparator);
-    const amount = parseNumericValue(rawAmount, decimalSeparator, thousandsSeparator);
     const currency = rawCurrency?.trim() || defaultCurrency;
-    const fee = parseNumericValue(rawFee, decimalSeparator, thousandsSeparator);
     const comment = rawComment?.trim();
-    const fxRate = parseNumericValue(rawFxRate, decimalSeparator, thousandsSeparator);
     const normalizedSubtype = rawSubtype?.trim().toUpperCase();
     const subtype =
       normalizedSubtype && normalizedSubtype !== activityType ? normalizedSubtype : undefined;
+    const preserveAmountSign = isCashAdjustmentActivity(activityType, symbol);
+    const quantity = parseNumericValue(rawQuantity, decimalSeparator, thousandsSeparator);
+    const unitPrice = parseNumericValue(rawUnitPrice, decimalSeparator, thousandsSeparator);
+    const amount = parseNumericValue(rawAmount, decimalSeparator, thousandsSeparator, {
+      preserveSign: preserveAmountSign,
+    });
+    const fee = parseNumericValue(rawFee, decimalSeparator, thousandsSeparator);
+    const fxRate = parseNumericValue(rawFxRate, decimalSeparator, thousandsSeparator);
 
     // Resolve account ID: use CSV account mapping, or fall back to default
     let accountId = accountMappings[""] || defaultAccountId;

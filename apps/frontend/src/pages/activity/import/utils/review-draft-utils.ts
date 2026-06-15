@@ -3,12 +3,13 @@ import { isAssetBackedIncomeSubtype } from "@/lib/activity-utils";
 
 /**
  * Parse a numeric value from a string, handling various formats.
- * Always returns absolute values — brokers often use negative values to indicate direction.
+ * Returns absolute values by default — brokers often use negative values to indicate direction.
  */
 export function parseNumericValue(
   value: string | undefined,
   decimalSeparator: string,
   thousandsSeparator: string,
+  options: { preserveSign?: boolean } = {},
 ): string | undefined {
   if (!value || value.trim() === "") return undefined;
 
@@ -79,7 +80,9 @@ export function parseNumericValue(
 
   const numericCheck = Number(candidate);
   if (!Number.isFinite(numericCheck)) return undefined;
-  // Return absolute value — brokers often use negative values to indicate direction
+  if (options.preserveSign) {
+    return candidate.startsWith("+") ? candidate.slice(1) : candidate;
+  }
   return candidate.startsWith("-") ? candidate.slice(1) : candidate;
 }
 
@@ -111,6 +114,21 @@ const CASH_LIKE_TYPES: string[] = [
   ActivityType.WITHDRAWAL,
   ActivityType.CREDIT,
 ];
+
+function isCashLikeSymbol(symbol: string | undefined): boolean {
+  const normalized = symbol?.trim();
+  if (!normalized) return true;
+  if (/^\$?CASH[-_:][A-Z]{3}$/i.test(normalized)) return true;
+  if (/^-+$/.test(normalized)) return true;
+  return normalized.startsWith("$");
+}
+
+export function isCashAdjustmentActivity(
+  activityType: string | undefined,
+  symbol: string | undefined,
+): boolean {
+  return activityType?.trim().toUpperCase() === ActivityType.ADJUSTMENT && isCashLikeSymbol(symbol);
+}
 
 /**
  * For cash-like activities, some brokers (e.g. Schwab) put the dollar value

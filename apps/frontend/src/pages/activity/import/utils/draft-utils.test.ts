@@ -151,6 +151,42 @@ describe("createDraftActivities explicit activity mapping", () => {
     expect(draft.amount).toBe("1000.00");
   });
 
+  it("preserves signed amounts for cash adjustment rows", () => {
+    const [draft] = createDraftActivities(
+      [["2025-12-18T14:25:15", "ADJUSTMENT", "$CASH-CAD", "1", "1", "-2034.0743927", "CAD"]],
+      [
+        ImportFormat.DATE,
+        ImportFormat.ACTIVITY_TYPE,
+        ImportFormat.SYMBOL,
+        ImportFormat.QUANTITY,
+        ImportFormat.UNIT_PRICE,
+        ImportFormat.AMOUNT,
+        ImportFormat.CURRENCY,
+      ],
+      {
+        ...baseMapping,
+        fieldMappings: {
+          [ImportFormat.DATE]: ImportFormat.DATE,
+          [ImportFormat.ACTIVITY_TYPE]: ImportFormat.ACTIVITY_TYPE,
+          [ImportFormat.SYMBOL]: ImportFormat.SYMBOL,
+          [ImportFormat.QUANTITY]: ImportFormat.QUANTITY,
+          [ImportFormat.UNIT_PRICE]: ImportFormat.UNIT_PRICE,
+          [ImportFormat.AMOUNT]: ImportFormat.AMOUNT,
+          [ImportFormat.CURRENCY]: ImportFormat.CURRENCY,
+        },
+        activityMappings: {
+          [ActivityType.ADJUSTMENT]: ["ADJUSTMENT"],
+        },
+      },
+      parseConfig,
+      "account-1",
+    );
+
+    expect(draft.activityType).toBe(ActivityType.ADJUSTMENT);
+    expect(draft.amount).toBe("-2034.0743927");
+    expect(draftToActivityImport(draft).amount).toBe("-2034.0743927");
+  });
+
   it("does not infer transfer direction from sign", () => {
     const draft = createSingleDraftWithMapping(["2024-03-15", "TRANSFER", "-250.00", "USD"], {
       [ActivityType.TRANSFER_IN]: ["TRANSFER"],

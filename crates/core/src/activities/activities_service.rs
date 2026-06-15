@@ -149,6 +149,25 @@ impl ActivityService {
         !has_asset_id && !has_real_symbol
     }
 
+    fn is_cash_adjustment_import(activity: &ActivityImport) -> bool {
+        if !activity
+            .activity_type
+            .eq_ignore_ascii_case(ACTIVITY_TYPE_ADJUSTMENT)
+        {
+            return false;
+        }
+        let has_asset_id = activity
+            .asset_id
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|asset_id| !asset_id.is_empty());
+        let symbol = activity.symbol.trim();
+        let has_real_symbol =
+            !symbol.is_empty() && !is_cash_symbol(symbol) && !is_garbage_symbol(symbol);
+
+        !has_asset_id && !has_real_symbol
+    }
+
     fn normalize_new_activity_economic_signs(activity: &mut NewActivity) {
         let preserves_signed_amount = Self::is_cash_adjustment_activity(activity);
         activity.quantity = activity.quantity.map(|v| v.abs());
@@ -1245,15 +1264,19 @@ impl ActivityService {
 
         // Normalize to absolute values and major currencies, matching what
         // prepare_activities_internal does before the apply-step key computation.
+        // Cash adjustments are the exception: their signed amount is the
+        // economic direction, so it must remain part of the duplicate key.
+        let preserves_signed_amount = Self::is_cash_adjustment_import(activity);
         let quantity = activity.quantity.map(|v| v.abs());
         let (unit_price, amount, currency) =
             if let Some(rule) = get_normalization_rule(activity.currency.as_str()) {
                 let unit_price = activity
                     .unit_price
                     .map(|v| normalize_amount(v.abs(), activity.currency.as_str()).0);
-                let amount = activity
-                    .amount
-                    .map(|v| normalize_amount(v.abs(), activity.currency.as_str()).0);
+                let amount = activity.amount.map(|v| {
+                    let normalized_input = if preserves_signed_amount { v } else { v.abs() };
+                    normalize_amount(normalized_input, activity.currency.as_str()).0
+                });
                 (unit_price, amount, rule.major_code)
             } else {
                 let ccy = if activity.currency.trim().is_empty() {
@@ -1263,7 +1286,9 @@ impl ActivityService {
                 };
                 (
                     activity.unit_price.map(|v| v.abs()),
-                    activity.amount.map(|v| v.abs()),
+                    activity
+                        .amount
+                        .map(|v| if preserves_signed_amount { v } else { v.abs() }),
                     ccy,
                 )
             };
