@@ -387,8 +387,16 @@ mod tests {
                         }
                     }
 
-                    let explicit_quote_ccy = normalize_quote_ccy_code(input.quote_ccy.as_deref());
-                    let existing_quote_ccy = existing_asset.map(|asset| asset.quote_ccy.clone());
+                    let explicit_quote_ccy = normalize_quote_ccy_code(input.quote_ccy.as_deref())
+                        .or_else(|| {
+                            pair_quote
+                                .as_deref()
+                                .and_then(|quote| normalize_quote_ccy_code(Some(quote)))
+                        });
+                    let existing_quote_ccy = existing_asset
+                        .and_then(|asset| normalize_quote_ccy_code(Some(asset.quote_ccy.as_str())));
+                    let activity_quote_ccy =
+                        normalize_quote_ccy_code(input.activity_currency.as_deref());
                     let provider_quote_ccy = provider_resolution
                         .as_ref()
                         .map(|(_, _, quote, _, _)| quote.clone());
@@ -396,22 +404,16 @@ mod tests {
                         .as_deref()
                         .and_then(wealthfolio_market_data::mic_to_currency)
                         .map(str::to_string);
-                    let activity_quote_ccy = input
-                        .activity_currency
-                        .clone()
-                        .filter(|currency| !currency.trim().is_empty());
                     let (quote_ccy, quote_ccy_source) = if let Some(quote) = explicit_quote_ccy {
                         (quote, QuoteCcyResolutionSource::ExplicitInput)
                     } else if let Some(quote) = existing_quote_ccy {
                         (quote, QuoteCcyResolutionSource::ExistingAsset)
+                    } else if let Some(quote) = activity_quote_ccy {
+                        (quote, QuoteCcyResolutionSource::ExplicitInput)
                     } else if let Some(quote) = provider_quote_ccy {
                         (quote, QuoteCcyResolutionSource::ProviderQuote)
-                    } else if let Some(quote) = pair_quote {
-                        (quote, QuoteCcyResolutionSource::ExplicitInput)
                     } else if let Some(quote) = mic_quote_ccy {
                         (quote, QuoteCcyResolutionSource::MicFallback)
-                    } else if let Some(quote) = activity_quote_ccy {
-                        (quote, QuoteCcyResolutionSource::TerminalFallback)
                     } else {
                         (
                             input.account_currency.clone(),
@@ -5185,6 +5187,55 @@ mod tests {
         assert_eq!(draft.display_code.as_deref(), Some("MSF"));
         assert_eq!(draft.instrument_symbol.as_deref(), Some("MSF"));
         assert_eq!(draft.instrument_exchange_mic.as_deref(), Some("XETR"));
+    }
+
+    #[tokio::test]
+    async fn test_preview_import_assets_uses_csv_currency_before_provider_currency() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let account = create_test_account("acc-1", "USD");
+        account_service.add_account(account);
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let preview = activity_service
+            .preview_import_assets(vec![ImportAssetCandidate {
+                key: "vod-usd".to_string(),
+                account_id: "acc-1".to_string(),
+                symbol: "VOD.L".to_string(),
+                currency: Some("USD".to_string()),
+                instrument_type: None,
+                quote_ccy: None,
+                quote_mode: None,
+                exchange_mic: None,
+                isin: None,
+                provider_id: None,
+                provider_symbol: None,
+            }])
+            .await
+            .expect("preview should succeed");
+
+        assert_eq!(preview.len(), 1);
+        assert_eq!(
+            preview[0].status,
+            ImportAssetPreviewStatus::AutoResolvedNewAsset
+        );
+        assert_eq!(preview[0].review_symbol.as_deref(), Some("VOD.L"));
+        assert_eq!(
+            preview[0].draft.as_ref().map(|draft| draft.quote_ccy.as_str()),
+            Some("USD")
+        );
+        assert!(preview[0].errors.is_none());
     }
 
     #[tokio::test]
