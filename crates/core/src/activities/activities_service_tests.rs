@@ -2324,6 +2324,58 @@ mod tests {
         assert_eq!(prepared.status, Some(ActivityStatus::Draft));
     }
 
+    #[tokio::test]
+    async fn prepare_cash_adjustment_preserves_signed_amount() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let account = create_test_account("acc-1", "USD");
+        account_service.add_account(account.clone());
+
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            Arc::new(MockQuoteService),
+        );
+
+        let result = activity_service
+            .prepare_activities_for_sync(
+                vec![NewActivity {
+                    id: Some("cash-adjustment-out".to_string()),
+                    account_id: "acc-1".to_string(),
+                    asset: None,
+                    activity_type: "ADJUSTMENT".to_string(),
+                    subtype: Some("FX_CONVERSION".to_string()),
+                    activity_date: "2025-06-01".to_string(),
+                    quantity: Some(dec!(1)),
+                    unit_price: Some(dec!(1)),
+                    currency: "USD".to_string(),
+                    fee: Some(dec!(0)),
+                    amount: Some(dec!(-200.35)),
+                    status: Some(ActivityStatus::Posted),
+                    notes: None,
+                    fx_rate: None,
+                    metadata: None,
+                    needs_review: Some(false),
+                    source_system: Some("CSV".to_string()),
+                    source_record_id: None,
+                    source_group_id: None,
+                    idempotency_key: None,
+                }],
+                &account,
+            )
+            .await
+            .expect("cash adjustment should prepare");
+
+        assert!(result.errors.is_empty());
+        assert_eq!(result.prepared.len(), 1);
+        assert_eq!(result.prepared[0].activity.amount, Some(dec!(-200.35)));
+    }
+
     /// Test: When creating an activity where the activity currency matches the account currency,
     /// but the asset has a different currency, we should still register the FX pair for the asset currency.
     ///

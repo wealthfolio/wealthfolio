@@ -7,9 +7,9 @@ use std::sync::Arc;
 use crate::accounts::{account_types, Account, AccountServiceTrait};
 use crate::activities::activities_constants::{
     classify_import_activity, is_cash_symbol, is_garbage_symbol, requires_symbol,
-    ImportSymbolDisposition, ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_FEE, ACTIVITY_TYPE_INTEREST,
-    ACTIVITY_TYPE_SPLIT, ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
-    ACTIVITY_TYPE_WITHDRAWAL, PRICE_BEARING_ACTIVITY_TYPES,
+    ImportSymbolDisposition, ACTIVITY_TYPE_ADJUSTMENT, ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_FEE,
+    ACTIVITY_TYPE_INTEREST, ACTIVITY_TYPE_SPLIT, ACTIVITY_TYPE_TRANSFER_IN,
+    ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL, PRICE_BEARING_ACTIVITY_TYPES,
 };
 use crate::activities::activities_errors::ActivityError;
 use crate::activities::activities_model::*;
@@ -129,10 +129,33 @@ impl PreparationMode {
 }
 
 impl ActivityService {
+    fn is_cash_adjustment_activity(activity: &NewActivity) -> bool {
+        if !activity
+            .activity_type
+            .eq_ignore_ascii_case(ACTIVITY_TYPE_ADJUSTMENT)
+        {
+            return false;
+        }
+        let has_asset_id = activity
+            .get_symbol_id()
+            .map(str::trim)
+            .is_some_and(|asset_id| !asset_id.is_empty());
+        let has_real_symbol = activity
+            .get_symbol_code()
+            .map(str::trim)
+            .filter(|symbol| !symbol.is_empty())
+            .is_some_and(|symbol| !is_cash_symbol(symbol));
+
+        !has_asset_id && !has_real_symbol
+    }
+
     fn normalize_new_activity_economic_signs(activity: &mut NewActivity) {
+        let preserves_signed_amount = Self::is_cash_adjustment_activity(activity);
         activity.quantity = activity.quantity.map(|v| v.abs());
         activity.unit_price = activity.unit_price.map(|v| v.abs());
-        activity.amount = activity.amount.map(|v| v.abs());
+        if !preserves_signed_amount {
+            activity.amount = activity.amount.map(|v| v.abs());
+        }
         activity.fee = activity.fee.map(|v| v.abs());
     }
 
@@ -2177,11 +2200,7 @@ impl ActivityService {
             }
         }
 
-        // Normalize amounts to absolute values (direction is determined by activity type)
-        activity.quantity = activity.quantity.map(|v| v.abs());
-        activity.unit_price = activity.unit_price.map(|v| v.abs());
-        activity.amount = activity.amount.map(|v| v.abs());
-        activity.fee = activity.fee.map(|v| v.abs());
+        Self::normalize_new_activity_economic_signs(&mut activity);
 
         // Securities transfers derive monetary value from quantity × unit_price at
         // read time. Any inbound `amount` is redundant and has historically been
@@ -5680,11 +5699,7 @@ impl ActivityService {
                 }
             }
 
-            // Normalize amounts to absolute values (direction is determined by activity type)
-            activity.quantity = activity.quantity.map(|v| v.abs());
-            activity.unit_price = activity.unit_price.map(|v| v.abs());
-            activity.amount = activity.amount.map(|v| v.abs());
-            activity.fee = activity.fee.map(|v| v.abs());
+            Self::normalize_new_activity_economic_signs(&mut activity);
 
             if let Err(e) = Self::validate_split_ratio(&activity.activity_type, activity.amount) {
                 if mode.is_sync() {

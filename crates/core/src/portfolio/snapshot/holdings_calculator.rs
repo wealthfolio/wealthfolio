@@ -1339,7 +1339,8 @@ impl HoldingsCalculator {
     /// Handle ADJUSTMENT activity.
     /// Dispatches on subtype:
     /// - OPTION_EXPIRY: removes option lots via FIFO, no cash effect
-    /// - Other/None: no-op (future: RoC basis adjustment, merger/spinoff, etc.)
+    /// - Cash-only: applies signed amount as a cash correction
+    /// - Other/None with asset: no-op (future: RoC basis adjustment, merger/spinoff, etc.)
     fn handle_adjustment(
         &self,
         activity: &Activity,
@@ -1392,7 +1393,17 @@ impl HoldingsCalculator {
                 Ok(())
             }
             _ => {
-                // Other adjustments: no-op for now
+                if activity
+                    .asset_id
+                    .as_deref()
+                    .is_none_or(|asset_id| asset_id.trim().is_empty())
+                {
+                    add_cash(
+                        state,
+                        &activity.currency,
+                        activity.amount.unwrap_or(Decimal::ZERO),
+                    );
+                }
                 Ok(())
             }
         }
