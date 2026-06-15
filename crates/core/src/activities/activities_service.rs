@@ -426,11 +426,11 @@ impl ActivityService {
 
     fn normalize_quote_ccy(value: Option<&str>) -> Option<String> {
         let trimmed = value.map(str::trim).filter(|s| !s.is_empty())?;
-        if trimmed.eq_ignore_ascii_case("GBP") {
-            return Some("GBP".to_string());
-        }
         if trimmed == "GBp" {
             return Some("GBp".to_string());
+        }
+        if trimmed.eq_ignore_ascii_case("GBP") {
+            return Some("GBP".to_string());
         }
         if trimmed.eq_ignore_ascii_case("GBX") {
             return Some("GBX".to_string());
@@ -3362,6 +3362,11 @@ impl ActivityService {
                     activity.currency.as_str()
                 };
                 let explicit_quote_ccy = Self::normalize_quote_ccy(activity.quote_ccy.as_deref());
+                let activity_quote_ccy = if activity.currency.trim().is_empty() {
+                    None
+                } else {
+                    Self::normalize_quote_ccy(Some(activity.currency.as_str()))
+                };
 
                 let (resolved_quote_ccy, resolution_source) = if matches!(
                     effective_instrument_type,
@@ -3384,42 +3389,56 @@ impl ActivityService {
                 } else {
                     let has_deterministic = normalize_quote_ccy_code(explicit_quote_ccy.as_deref())
                         .is_some()
-                        || normalize_quote_ccy_code(asset_currency.as_deref()).is_some();
-                    let provider_ccy = if resolution_quote_ccy_source
-                        == Some(QuoteCcyResolutionSource::ProviderQuote)
+                        || normalize_quote_ccy_code(asset_currency.as_deref()).is_some()
+                        || normalize_quote_ccy_code(activity_quote_ccy.as_deref()).is_some();
+                    if let Some(quote_ccy) = normalize_quote_ccy_code(explicit_quote_ccy.as_deref())
                     {
-                        resolution_quote_ccy.clone()
-                    } else if has_deterministic {
-                        None
-                    } else {
-                        self.fetch_provider_quote_ccy(
-                            &normalized_symbol,
-                            resolved_mic.as_deref(),
-                            effective_instrument_type.as_ref(),
-                            &mut quote_ccy_cache,
-                        )
-                        .await
-                    };
-                    let mic_fallback_ccy = if resolution_quote_ccy_source
-                        == Some(QuoteCcyResolutionSource::MicFallback)
+                        (quote_ccy, QuoteCcyResolutionSource::ExplicitInput)
+                    } else if let Some(quote_ccy) =
+                        normalize_quote_ccy_code(asset_currency.as_deref())
                     {
-                        resolution_quote_ccy.as_deref()
+                        (quote_ccy, QuoteCcyResolutionSource::ExistingAsset)
+                    } else if let Some(quote_ccy) =
+                        normalize_quote_ccy_code(activity_quote_ccy.as_deref())
+                    {
+                        (quote_ccy, QuoteCcyResolutionSource::ExplicitInput)
                     } else {
-                        resolved_mic.as_deref().and_then(mic_to_currency)
-                    };
-                    resolve_quote_ccy_precedence(
-                        explicit_quote_ccy.as_deref(),
-                        asset_currency.as_deref(),
-                        provider_ccy.as_deref(),
-                        mic_fallback_ccy,
-                        Some(terminal_fallback),
-                    )
-                    .unwrap_or_else(|| {
-                        (
-                            terminal_fallback.to_string(),
-                            QuoteCcyResolutionSource::TerminalFallback,
+                        let provider_ccy = if resolution_quote_ccy_source
+                            == Some(QuoteCcyResolutionSource::ProviderQuote)
+                        {
+                            resolution_quote_ccy.clone()
+                        } else if has_deterministic {
+                            None
+                        } else {
+                            self.fetch_provider_quote_ccy(
+                                &normalized_symbol,
+                                resolved_mic.as_deref(),
+                                effective_instrument_type.as_ref(),
+                                &mut quote_ccy_cache,
+                            )
+                            .await
+                        };
+                        let mic_fallback_ccy = if resolution_quote_ccy_source
+                            == Some(QuoteCcyResolutionSource::MicFallback)
+                        {
+                            resolution_quote_ccy.as_deref()
+                        } else {
+                            resolved_mic.as_deref().and_then(mic_to_currency)
+                        };
+                        resolve_quote_ccy_precedence(
+                            None,
+                            None,
+                            provider_ccy.as_deref(),
+                            mic_fallback_ccy,
+                            Some(terminal_fallback),
                         )
-                    })
+                        .unwrap_or_else(|| {
+                            (
+                                terminal_fallback.to_string(),
+                                QuoteCcyResolutionSource::TerminalFallback,
+                            )
+                        })
+                    }
                 };
 
                 activity.quote_ccy = Some(resolved_quote_ccy);

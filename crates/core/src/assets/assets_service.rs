@@ -3482,7 +3482,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_resolve_import_asset_inputs_falls_back_to_raw_unsuffixed_symbol() {
+    async fn test_raw_symbol_fallback_prefers_activity_currency() {
         let nyse = yahoo_search_result("SHOP", "SHOP", "XNYS", "Shopify Inc.", "USD", "SHOP");
         let quote_service = TestQuoteService::default().with_result("SHOP", vec![nyse]);
         let search_calls = Arc::clone(&quote_service.search_calls);
@@ -3498,7 +3498,11 @@ mod tests {
         assert_eq!(search_calls.lock().unwrap().as_slice(), ["SHOP.TO", "SHOP"]);
         assert_eq!(output.canonical_symbol.as_deref(), Some("SHOP"));
         assert_eq!(output.exchange_mic.as_deref(), Some("XNYS"));
-        assert_eq!(output.quote_ccy.as_deref(), Some("USD"));
+        assert_eq!(output.quote_ccy.as_deref(), Some("CAD"));
+        assert_eq!(
+            output.quote_ccy_source,
+            Some(QuoteCcyResolutionSource::ExplicitInput)
+        );
         assert_eq!(output.provider_symbol.as_deref(), Some("SHOP"));
         assert_eq!(output.review_symbol.as_deref(), Some("SHOP"));
     }

@@ -799,6 +799,14 @@ mod tests {
             _quote_ccy: Option<&str>,
             _preferred_provider: Option<&str>,
         ) -> Result<ResolvedQuote> {
+            if symbol.eq_ignore_ascii_case("IUES") {
+                return Ok(ResolvedQuote {
+                    currency: Some("EUR".to_string()),
+                    price: Some(dec!(10)),
+                    resolved_provider_id: Some("YAHOO".to_string()),
+                });
+            }
+
             let is_uk_vwrp = (exchange_mic == Some("XLON") || exchange_mic == Some("CXE"))
                 && (symbol.eq_ignore_ascii_case("VWRPL")
                     || symbol.eq_ignore_ascii_case("VWRPL.XC"));
@@ -5232,7 +5240,10 @@ mod tests {
         );
         assert_eq!(preview[0].review_symbol.as_deref(), Some("VOD.L"));
         assert_eq!(
-            preview[0].draft.as_ref().map(|draft| draft.quote_ccy.as_str()),
+            preview[0]
+                .draft
+                .as_ref()
+                .map(|draft| draft.quote_ccy.as_str()),
             Some("USD")
         );
         assert!(preview[0].errors.is_none());
@@ -5284,7 +5295,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_check_import_uses_mic_currency_as_quote_ccy_fallback() {
+    async fn test_check_import_uses_activity_currency_before_mic_currency_fallback() {
         let account_service = Arc::new(MockAccountService::new());
         let asset_service = Arc::new(MockAssetService::new());
         let fx_service = Arc::new(MockFxService::new());
@@ -5345,14 +5356,14 @@ mod tests {
         assert_eq!(result.len(), 1);
         let checked = &result[0];
         assert_eq!(checked.instrument_type.as_deref(), Some("EQUITY"));
-        assert_eq!(checked.quote_ccy.as_deref(), Some("GBp"));
+        assert_eq!(checked.quote_ccy.as_deref(), Some("CAD"));
         assert!(
             checked
                 .warnings
                 .as_ref()
                 .and_then(|w| w.get("_quote_ccy_fallback"))
-                .is_some(),
-            "Expected MIC fallback warning when quote_ccy is inferred from exchange"
+                .is_none(),
+            "activity currency should not be reported as a MIC fallback"
         );
     }
 
@@ -5629,6 +5640,73 @@ mod tests {
         assert_eq!(checked.instrument_type.as_deref(), Some("EQUITY"));
         assert_eq!(checked.exchange_mic.as_deref(), Some("XLON"));
         assert_eq!(checked.quote_ccy.as_deref(), Some("GBP"));
+    }
+
+    #[tokio::test]
+    async fn test_check_import_uses_activity_currency_before_provider_quote_for_new_asset() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let account = create_test_account("acc-1", "USD");
+        account_service.add_account(account);
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let import = ActivityImport {
+            id: None,
+            date: "2025-12-30".to_string(),
+            symbol: "IUES".to_string(),
+            activity_type: "BUY".to_string(),
+            quantity: Some(dec!(778)),
+            unit_price: Some(dec!(9.4075)),
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            amount: Some(dec!(7318.035)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: Some("XAMS".to_string()),
+            quote_ccy: None,
+            instrument_type: Some("EQUITY".to_string()),
+            quote_mode: Some("MARKET".to_string()),
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: None,
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: None,
+        };
+
+        let result = activity_service
+            .check_activities_import(vec![import])
+            .await
+            .expect("import check should succeed");
+
+        assert_eq!(result.len(), 1);
+        let checked = &result[0];
+        assert_eq!(checked.symbol, "IUES");
+        assert_eq!(checked.exchange_mic.as_deref(), Some("XAMS"));
+        assert_eq!(checked.quote_ccy.as_deref(), Some("USD"));
+        assert!(checked.is_valid);
     }
 
     #[tokio::test]
