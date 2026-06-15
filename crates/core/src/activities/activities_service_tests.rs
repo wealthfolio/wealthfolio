@@ -6757,6 +6757,82 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_import_keeps_same_day_cash_adjustments_with_distinct_times() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let account = create_test_account("acc-1", "USD");
+        account_service.add_account(account);
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let base_adjustment = ActivityImport {
+            id: None,
+            date: "2025-12-30T10:30:03Z".to_string(),
+            symbol: "$CASH-USD".to_string(),
+            activity_type: "ADJUSTMENT".to_string(),
+            quantity: Some(dec!(1)),
+            unit_price: Some(dec!(1)),
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            amount: Some(dec!(0.36)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: Some("FX_CONVERSION".to_string()),
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: None,
+        };
+
+        let result = activity_service
+            .import_activities(vec![
+                base_adjustment.clone(),
+                ActivityImport {
+                    date: "2025-12-30T12:00:09Z".to_string(),
+                    line_number: Some(2),
+                    ..base_adjustment
+                },
+            ])
+            .await
+            .expect("cash adjustment import should succeed");
+
+        assert!(result.summary.success);
+        assert_eq!(result.summary.imported, 2);
+        assert_eq!(result.summary.duplicates, 0);
+
+        let stored = activity_repository
+            .get_activities()
+            .expect("stored activities should be readable");
+        assert_eq!(stored.len(), 2);
+    }
+
+    #[tokio::test]
     async fn test_import_accepts_resolved_symbol_rows_without_rechecking() {
         let account_service = Arc::new(MockAccountService::new());
         let asset_service = Arc::new(MockAssetService::new());

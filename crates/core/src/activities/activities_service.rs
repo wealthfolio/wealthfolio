@@ -1292,6 +1292,7 @@ impl ActivityService {
                     ccy,
                 )
             };
+        let time_discriminator = preserves_signed_amount.then(|| date.to_rfc3339());
 
         Some(compute_idempotency_key(
             account_id,
@@ -1302,7 +1303,7 @@ impl ActivityService {
             unit_price,
             amount,
             currency,
-            None,
+            time_discriminator.as_deref(),
             activity.comment.as_deref(),
         ))
     }
