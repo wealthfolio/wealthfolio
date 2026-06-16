@@ -735,6 +735,7 @@ const ActivityPage = () => {
           isFetching={
             shouldUseDatagridView ? paginatedSearch.isFetching : infiniteSearch.isFetching
           }
+          onClearFilters={clearInvestmentsFilters}
         />
       )}
 

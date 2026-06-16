@@ -38,6 +38,7 @@ interface ActivityViewControlsProps {
   /** Shown only in table view - total number of activities matching filters */
   totalRowCount?: number;
   isFetching: boolean;
+  onClearFilters?: () => void;
 }
 
 function accountIdsForScope(scope: AccountScope, portfolios: PortfolioWithAccounts[]): string[] {
@@ -75,6 +76,7 @@ export function ActivityViewControls({
   totalFetched,
   totalRowCount,
   isFetching,
+  onClearFilters,
 }: ActivityViewControlsProps) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
 
@@ -205,20 +207,7 @@ export function ActivityViewControls({
         />
 
         {hasActiveFilters ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-xs"
-            onClick={() => {
-              setLocalSearch("");
-              onSearchQueryChange("");
-              onAccountScopeChange({ type: "all" });
-              onActivityTypesChange([]);
-              onInstrumentTypesChange([]);
-              onStatusFilterChange("all");
-              onDateRangeChange(undefined);
-            }}
-          >
+          <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={onClearFilters}>
             Reset
             <Icons.Close className="ml-2 h-4 w-4" />
           </Button>
