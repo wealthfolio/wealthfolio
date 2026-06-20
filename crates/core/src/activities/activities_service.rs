@@ -7,9 +7,9 @@ use std::sync::Arc;
 use crate::accounts::{account_types, Account, AccountServiceTrait};
 use crate::activities::activities_constants::{
     classify_import_activity, is_cash_symbol, is_garbage_symbol, requires_symbol,
-    ImportSymbolDisposition, ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_FEE, ACTIVITY_TYPE_INTEREST,
-    ACTIVITY_TYPE_SPLIT, ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
-    ACTIVITY_TYPE_WITHDRAWAL, PRICE_BEARING_ACTIVITY_TYPES,
+    ImportSymbolDisposition, ACTIVITY_TYPE_ADJUSTMENT, ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_FEE,
+    ACTIVITY_TYPE_INTEREST, ACTIVITY_TYPE_SPLIT, ACTIVITY_TYPE_TRANSFER_IN,
+    ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL, PRICE_BEARING_ACTIVITY_TYPES,
 };
 use crate::activities::activities_errors::ActivityError;
 use crate::activities::activities_model::*;
@@ -129,10 +129,52 @@ impl PreparationMode {
 }
 
 impl ActivityService {
+    fn is_cash_adjustment_activity(activity: &NewActivity) -> bool {
+        if !activity
+            .activity_type
+            .eq_ignore_ascii_case(ACTIVITY_TYPE_ADJUSTMENT)
+        {
+            return false;
+        }
+        let has_asset_id = activity
+            .get_symbol_id()
+            .map(str::trim)
+            .is_some_and(|asset_id| !asset_id.is_empty());
+        let has_real_symbol = activity
+            .get_symbol_code()
+            .map(str::trim)
+            .filter(|symbol| !symbol.is_empty())
+            .is_some_and(|symbol| !is_cash_symbol(symbol));
+
+        !has_asset_id && !has_real_symbol
+    }
+
+    fn is_cash_adjustment_import(activity: &ActivityImport) -> bool {
+        if !activity
+            .activity_type
+            .eq_ignore_ascii_case(ACTIVITY_TYPE_ADJUSTMENT)
+        {
+            return false;
+        }
+        let has_asset_id = activity
+            .asset_id
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|asset_id| !asset_id.is_empty());
+        let symbol = activity.symbol.trim();
+        let has_real_symbol =
+            !symbol.is_empty() && !is_cash_symbol(symbol) && !is_garbage_symbol(symbol);
+
+        !has_asset_id && !has_real_symbol
+    }
+
     fn normalize_new_activity_economic_signs(activity: &mut NewActivity) {
+        let preserves_signed_amount = Self::is_cash_adjustment_activity(activity);
         activity.quantity = activity.quantity.map(|v| v.abs());
         activity.unit_price = activity.unit_price.map(|v| v.abs());
-        activity.amount = activity.amount.map(|v| v.abs());
+        if !preserves_signed_amount {
+            activity.amount = activity.amount.map(|v| v.abs());
+        }
         activity.fee = activity.fee.map(|v| v.abs());
     }
 
@@ -426,11 +468,11 @@ impl ActivityService {
 
     fn normalize_quote_ccy(value: Option<&str>) -> Option<String> {
         let trimmed = value.map(str::trim).filter(|s| !s.is_empty())?;
-        if trimmed.eq_ignore_ascii_case("GBP") {
-            return Some("GBP".to_string());
-        }
         if trimmed == "GBp" {
             return Some("GBp".to_string());
+        }
+        if trimmed.eq_ignore_ascii_case("GBP") {
+            return Some("GBP".to_string());
         }
         if trimmed.eq_ignore_ascii_case("GBX") {
             return Some("GBX".to_string());
@@ -1222,15 +1264,19 @@ impl ActivityService {
 
         // Normalize to absolute values and major currencies, matching what
         // prepare_activities_internal does before the apply-step key computation.
+        // Cash adjustments are the exception: their signed amount is the
+        // economic direction, so it must remain part of the duplicate key.
+        let preserves_signed_amount = Self::is_cash_adjustment_import(activity);
         let quantity = activity.quantity.map(|v| v.abs());
         let (unit_price, amount, currency) =
             if let Some(rule) = get_normalization_rule(activity.currency.as_str()) {
                 let unit_price = activity
                     .unit_price
                     .map(|v| normalize_amount(v.abs(), activity.currency.as_str()).0);
-                let amount = activity
-                    .amount
-                    .map(|v| normalize_amount(v.abs(), activity.currency.as_str()).0);
+                let amount = activity.amount.map(|v| {
+                    let normalized_input = if preserves_signed_amount { v } else { v.abs() };
+                    normalize_amount(normalized_input, activity.currency.as_str()).0
+                });
                 (unit_price, amount, rule.major_code)
             } else {
                 let ccy = if activity.currency.trim().is_empty() {
@@ -1240,10 +1286,13 @@ impl ActivityService {
                 };
                 (
                     activity.unit_price.map(|v| v.abs()),
-                    activity.amount.map(|v| v.abs()),
+                    activity
+                        .amount
+                        .map(|v| if preserves_signed_amount { v } else { v.abs() }),
                     ccy,
                 )
             };
+        let time_discriminator = preserves_signed_amount.then(|| date.to_rfc3339());
 
         Some(compute_idempotency_key(
             account_id,
@@ -1254,7 +1303,7 @@ impl ActivityService {
             unit_price,
             amount,
             currency,
-            None,
+            time_discriminator.as_deref(),
             activity.comment.as_deref(),
         ))
     }
@@ -2177,11 +2226,7 @@ impl ActivityService {
             }
         }
 
-        // Normalize amounts to absolute values (direction is determined by activity type)
-        activity.quantity = activity.quantity.map(|v| v.abs());
-        activity.unit_price = activity.unit_price.map(|v| v.abs());
-        activity.amount = activity.amount.map(|v| v.abs());
-        activity.fee = activity.fee.map(|v| v.abs());
+        Self::normalize_new_activity_economic_signs(&mut activity);
 
         // Securities transfers derive monetary value from quantity × unit_price at
         // read time. Any inbound `amount` is redundant and has historically been
@@ -3362,6 +3407,11 @@ impl ActivityService {
                     activity.currency.as_str()
                 };
                 let explicit_quote_ccy = Self::normalize_quote_ccy(activity.quote_ccy.as_deref());
+                let activity_quote_ccy = if activity.currency.trim().is_empty() {
+                    None
+                } else {
+                    Self::normalize_quote_ccy(Some(activity.currency.as_str()))
+                };
 
                 let (resolved_quote_ccy, resolution_source) = if matches!(
                     effective_instrument_type,
@@ -3384,42 +3434,56 @@ impl ActivityService {
                 } else {
                     let has_deterministic = normalize_quote_ccy_code(explicit_quote_ccy.as_deref())
                         .is_some()
-                        || normalize_quote_ccy_code(asset_currency.as_deref()).is_some();
-                    let provider_ccy = if resolution_quote_ccy_source
-                        == Some(QuoteCcyResolutionSource::ProviderQuote)
+                        || normalize_quote_ccy_code(asset_currency.as_deref()).is_some()
+                        || normalize_quote_ccy_code(activity_quote_ccy.as_deref()).is_some();
+                    if let Some(quote_ccy) = normalize_quote_ccy_code(explicit_quote_ccy.as_deref())
                     {
-                        resolution_quote_ccy.clone()
-                    } else if has_deterministic {
-                        None
-                    } else {
-                        self.fetch_provider_quote_ccy(
-                            &normalized_symbol,
-                            resolved_mic.as_deref(),
-                            effective_instrument_type.as_ref(),
-                            &mut quote_ccy_cache,
-                        )
-                        .await
-                    };
-                    let mic_fallback_ccy = if resolution_quote_ccy_source
-                        == Some(QuoteCcyResolutionSource::MicFallback)
+                        (quote_ccy, QuoteCcyResolutionSource::ExplicitInput)
+                    } else if let Some(quote_ccy) =
+                        normalize_quote_ccy_code(asset_currency.as_deref())
                     {
-                        resolution_quote_ccy.as_deref()
+                        (quote_ccy, QuoteCcyResolutionSource::ExistingAsset)
+                    } else if let Some(quote_ccy) =
+                        normalize_quote_ccy_code(activity_quote_ccy.as_deref())
+                    {
+                        (quote_ccy, QuoteCcyResolutionSource::ExplicitInput)
                     } else {
-                        resolved_mic.as_deref().and_then(mic_to_currency)
-                    };
-                    resolve_quote_ccy_precedence(
-                        explicit_quote_ccy.as_deref(),
-                        asset_currency.as_deref(),
-                        provider_ccy.as_deref(),
-                        mic_fallback_ccy,
-                        Some(terminal_fallback),
-                    )
-                    .unwrap_or_else(|| {
-                        (
-                            terminal_fallback.to_string(),
-                            QuoteCcyResolutionSource::TerminalFallback,
+                        let provider_ccy = if resolution_quote_ccy_source
+                            == Some(QuoteCcyResolutionSource::ProviderQuote)
+                        {
+                            resolution_quote_ccy.clone()
+                        } else if has_deterministic {
+                            None
+                        } else {
+                            self.fetch_provider_quote_ccy(
+                                &normalized_symbol,
+                                resolved_mic.as_deref(),
+                                effective_instrument_type.as_ref(),
+                                &mut quote_ccy_cache,
+                            )
+                            .await
+                        };
+                        let mic_fallback_ccy = if resolution_quote_ccy_source
+                            == Some(QuoteCcyResolutionSource::MicFallback)
+                        {
+                            resolution_quote_ccy.as_deref()
+                        } else {
+                            resolved_mic.as_deref().and_then(mic_to_currency)
+                        };
+                        resolve_quote_ccy_precedence(
+                            None,
+                            None,
+                            provider_ccy.as_deref(),
+                            mic_fallback_ccy,
+                            Some(terminal_fallback),
                         )
-                    })
+                        .unwrap_or_else(|| {
+                            (
+                                terminal_fallback.to_string(),
+                                QuoteCcyResolutionSource::TerminalFallback,
+                            )
+                        })
+                    }
                 };
 
                 activity.quote_ccy = Some(resolved_quote_ccy);
@@ -5661,11 +5725,7 @@ impl ActivityService {
                 }
             }
 
-            // Normalize amounts to absolute values (direction is determined by activity type)
-            activity.quantity = activity.quantity.map(|v| v.abs());
-            activity.unit_price = activity.unit_price.map(|v| v.abs());
-            activity.amount = activity.amount.map(|v| v.abs());
-            activity.fee = activity.fee.map(|v| v.abs());
+            Self::normalize_new_activity_economic_signs(&mut activity);
 
             if let Err(e) = Self::validate_split_ratio(&activity.activity_type, activity.amount) {
                 if mode.is_sync() {

@@ -1394,22 +1394,36 @@ impl AssetServiceTrait for AssetService {
                 .map(|asset| asset.quote_ccy.as_str());
 
             let explicit_quote_ccy = input.quote_ccy.as_deref().or(pair_quote_ccy.as_deref());
+            let activity_quote_ccy = input
+                .activity_currency
+                .as_deref()
+                .map(str::trim)
+                .filter(|currency| !currency.is_empty());
             let provider_quote_ccy = provider_result
                 .as_ref()
                 .and_then(|result| result.currency.as_deref());
-            let (quote_ccy, quote_ccy_source) = resolve_quote_ccy_precedence(
-                explicit_quote_ccy,
-                existing_quote_ccy,
-                provider_quote_ccy,
-                exchange_mic.as_deref().and_then(mic_to_currency),
-                Some(&terminal_currency),
-            )
-            .unwrap_or_else(|| {
-                (
-                    terminal_currency.clone(),
-                    QuoteCcyResolutionSource::TerminalFallback,
-                )
-            });
+            let (quote_ccy, quote_ccy_source) =
+                if let Some(quote_ccy) = normalize_quote_ccy_code(explicit_quote_ccy) {
+                    (quote_ccy, QuoteCcyResolutionSource::ExplicitInput)
+                } else if let Some(quote_ccy) = normalize_quote_ccy_code(existing_quote_ccy) {
+                    (quote_ccy, QuoteCcyResolutionSource::ExistingAsset)
+                } else if let Some(quote_ccy) = normalize_quote_ccy_code(activity_quote_ccy) {
+                    (quote_ccy, QuoteCcyResolutionSource::ExplicitInput)
+                } else {
+                    resolve_quote_ccy_precedence(
+                        None,
+                        None,
+                        provider_quote_ccy,
+                        exchange_mic.as_deref().and_then(mic_to_currency),
+                        Some(&terminal_currency),
+                    )
+                    .unwrap_or_else(|| {
+                        (
+                            terminal_currency.clone(),
+                            QuoteCcyResolutionSource::TerminalFallback,
+                        )
+                    })
+                };
 
             let quote_mode = input.quote_mode.unwrap_or(QuoteMode::Market);
             let provider_id = input.provider_id.clone().or_else(|| {
@@ -2612,7 +2626,8 @@ impl AssetServiceTrait for AssetService {
 #[cfg(test)]
 mod tests {
     use super::super::assets_model::{
-        Asset, AssetKind, InstrumentType, NewAsset, ProviderProfile, UpdateAssetProfile,
+        Asset, AssetKind, InstrumentType, NewAsset, ProviderProfile, QuoteCcyResolutionSource,
+        UpdateAssetProfile,
     };
     use super::{AssetRepositoryTrait, AssetService, AssetServiceTrait, QuoteMode};
     use crate::assets::AssetResolutionInput;
@@ -3145,6 +3160,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_resolve_import_asset_inputs_uses_activity_currency_before_provider_quote() {
+        let service = test_asset_service(
+            Vec::new(),
+            TestQuoteService::default().with_result(
+                "VOD.L",
+                vec![yahoo_search_result(
+                    "VOD.L",
+                    "VOD",
+                    "XLON",
+                    "Vodafone Group Public Limited Company",
+                    "GBp",
+                    "VOD.L",
+                )],
+            ),
+        );
+
+        let output = service
+            .resolve_import_asset_inputs(vec![import_input("VOD.L", "USD")])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        assert_eq!(output.canonical_symbol.as_deref(), Some("VOD"));
+        assert_eq!(output.exchange_mic.as_deref(), Some("XLON"));
+        assert_eq!(output.quote_ccy.as_deref(), Some("USD"));
+        assert_eq!(
+            output.quote_ccy_source,
+            Some(QuoteCcyResolutionSource::ExplicitInput)
+        );
+        assert_eq!(output.provider_id.as_deref(), Some("YAHOO"));
+        assert_eq!(output.provider_symbol.as_deref(), Some("VOD.L"));
+
+        let draft = output.draft.expect("new LSE asset draft");
+        assert_eq!(draft.quote_ccy, "USD");
+        assert_eq!(draft.provider_symbol.as_deref(), Some("VOD.L"));
+    }
+
+    #[tokio::test]
     async fn test_resolve_import_asset_inputs_preserves_share_class_identity() {
         let mut wrong_display_match = yahoo_search_result(
             "BRK.B",
@@ -3428,7 +3482,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_resolve_import_asset_inputs_falls_back_to_raw_unsuffixed_symbol() {
+    async fn test_raw_symbol_fallback_prefers_activity_currency() {
         let nyse = yahoo_search_result("SHOP", "SHOP", "XNYS", "Shopify Inc.", "USD", "SHOP");
         let quote_service = TestQuoteService::default().with_result("SHOP", vec![nyse]);
         let search_calls = Arc::clone(&quote_service.search_calls);
@@ -3444,7 +3498,11 @@ mod tests {
         assert_eq!(search_calls.lock().unwrap().as_slice(), ["SHOP.TO", "SHOP"]);
         assert_eq!(output.canonical_symbol.as_deref(), Some("SHOP"));
         assert_eq!(output.exchange_mic.as_deref(), Some("XNYS"));
-        assert_eq!(output.quote_ccy.as_deref(), Some("USD"));
+        assert_eq!(output.quote_ccy.as_deref(), Some("CAD"));
+        assert_eq!(
+            output.quote_ccy_source,
+            Some(QuoteCcyResolutionSource::ExplicitInput)
+        );
         assert_eq!(output.provider_symbol.as_deref(), Some("SHOP"));
         assert_eq!(output.review_symbol.as_deref(), Some("SHOP"));
     }

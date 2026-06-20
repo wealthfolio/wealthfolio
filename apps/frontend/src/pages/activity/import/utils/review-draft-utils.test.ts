@@ -19,6 +19,14 @@ describe("parseNumericValue", () => {
       expect(parseNumericValue("-0.5", auto, none)).toBe("0.5");
     });
 
+    it("should preserve signs when requested", () => {
+      expect(parseNumericValue("-58.22", auto, none, { preserveSign: true })).toBe("-58.22");
+      expect(parseNumericValue("($1,234.56)", auto, none, { preserveSign: true })).toBe(
+        "-1234.56",
+      );
+      expect(parseNumericValue("+1000", auto, none, { preserveSign: true })).toBe("1000");
+    });
+
     it("should return absolute value for negative currency amounts", () => {
       expect(parseNumericValue("-$58.22", auto, none)).toBe("58.22");
       expect(parseNumericValue("-$1,234.56", auto, none)).toBe("1234.56");

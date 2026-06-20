@@ -387,8 +387,16 @@ mod tests {
                         }
                     }
 
-                    let explicit_quote_ccy = normalize_quote_ccy_code(input.quote_ccy.as_deref());
-                    let existing_quote_ccy = existing_asset.map(|asset| asset.quote_ccy.clone());
+                    let explicit_quote_ccy = normalize_quote_ccy_code(input.quote_ccy.as_deref())
+                        .or_else(|| {
+                            pair_quote
+                                .as_deref()
+                                .and_then(|quote| normalize_quote_ccy_code(Some(quote)))
+                        });
+                    let existing_quote_ccy = existing_asset
+                        .and_then(|asset| normalize_quote_ccy_code(Some(asset.quote_ccy.as_str())));
+                    let activity_quote_ccy =
+                        normalize_quote_ccy_code(input.activity_currency.as_deref());
                     let provider_quote_ccy = provider_resolution
                         .as_ref()
                         .map(|(_, _, quote, _, _)| quote.clone());
@@ -396,22 +404,16 @@ mod tests {
                         .as_deref()
                         .and_then(wealthfolio_market_data::mic_to_currency)
                         .map(str::to_string);
-                    let activity_quote_ccy = input
-                        .activity_currency
-                        .clone()
-                        .filter(|currency| !currency.trim().is_empty());
                     let (quote_ccy, quote_ccy_source) = if let Some(quote) = explicit_quote_ccy {
                         (quote, QuoteCcyResolutionSource::ExplicitInput)
                     } else if let Some(quote) = existing_quote_ccy {
                         (quote, QuoteCcyResolutionSource::ExistingAsset)
+                    } else if let Some(quote) = activity_quote_ccy {
+                        (quote, QuoteCcyResolutionSource::ExplicitInput)
                     } else if let Some(quote) = provider_quote_ccy {
                         (quote, QuoteCcyResolutionSource::ProviderQuote)
-                    } else if let Some(quote) = pair_quote {
-                        (quote, QuoteCcyResolutionSource::ExplicitInput)
                     } else if let Some(quote) = mic_quote_ccy {
                         (quote, QuoteCcyResolutionSource::MicFallback)
-                    } else if let Some(quote) = activity_quote_ccy {
-                        (quote, QuoteCcyResolutionSource::TerminalFallback)
                     } else {
                         (
                             input.account_currency.clone(),
@@ -797,6 +799,14 @@ mod tests {
             _quote_ccy: Option<&str>,
             _preferred_provider: Option<&str>,
         ) -> Result<ResolvedQuote> {
+            if symbol.eq_ignore_ascii_case("IUES") {
+                return Ok(ResolvedQuote {
+                    currency: Some("EUR".to_string()),
+                    price: Some(dec!(10)),
+                    resolved_provider_id: Some("YAHOO".to_string()),
+                });
+            }
+
             let is_uk_vwrp = (exchange_mic == Some("XLON") || exchange_mic == Some("CXE"))
                 && (symbol.eq_ignore_ascii_case("VWRPL")
                     || symbol.eq_ignore_ascii_case("VWRPL.XC"));
@@ -2312,6 +2322,58 @@ mod tests {
         let prepared = &result.prepared[0].activity;
         assert_eq!(prepared.needs_review, Some(true));
         assert_eq!(prepared.status, Some(ActivityStatus::Draft));
+    }
+
+    #[tokio::test]
+    async fn prepare_cash_adjustment_preserves_signed_amount() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let account = create_test_account("acc-1", "USD");
+        account_service.add_account(account.clone());
+
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            Arc::new(MockQuoteService),
+        );
+
+        let result = activity_service
+            .prepare_activities_for_sync(
+                vec![NewActivity {
+                    id: Some("cash-adjustment-out".to_string()),
+                    account_id: "acc-1".to_string(),
+                    asset: None,
+                    activity_type: "ADJUSTMENT".to_string(),
+                    subtype: Some("FX_CONVERSION".to_string()),
+                    activity_date: "2025-06-01".to_string(),
+                    quantity: Some(dec!(1)),
+                    unit_price: Some(dec!(1)),
+                    currency: "USD".to_string(),
+                    fee: Some(dec!(0)),
+                    amount: Some(dec!(-200.35)),
+                    status: Some(ActivityStatus::Posted),
+                    notes: None,
+                    fx_rate: None,
+                    metadata: None,
+                    needs_review: Some(false),
+                    source_system: Some("CSV".to_string()),
+                    source_record_id: None,
+                    source_group_id: None,
+                    idempotency_key: None,
+                }],
+                &account,
+            )
+            .await
+            .expect("cash adjustment should prepare");
+
+        assert!(result.errors.is_empty());
+        assert_eq!(result.prepared.len(), 1);
+        assert_eq!(result.prepared[0].activity.amount, Some(dec!(-200.35)));
     }
 
     /// Test: When creating an activity where the activity currency matches the account currency,
@@ -5188,6 +5250,58 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_preview_import_assets_uses_csv_currency_before_provider_currency() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let account = create_test_account("acc-1", "USD");
+        account_service.add_account(account);
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let preview = activity_service
+            .preview_import_assets(vec![ImportAssetCandidate {
+                key: "vod-usd".to_string(),
+                account_id: "acc-1".to_string(),
+                symbol: "VOD.L".to_string(),
+                currency: Some("USD".to_string()),
+                instrument_type: None,
+                quote_ccy: None,
+                quote_mode: None,
+                exchange_mic: None,
+                isin: None,
+                provider_id: None,
+                provider_symbol: None,
+            }])
+            .await
+            .expect("preview should succeed");
+
+        assert_eq!(preview.len(), 1);
+        assert_eq!(
+            preview[0].status,
+            ImportAssetPreviewStatus::AutoResolvedNewAsset
+        );
+        assert_eq!(preview[0].review_symbol.as_deref(), Some("VOD.L"));
+        assert_eq!(
+            preview[0]
+                .draft
+                .as_ref()
+                .map(|draft| draft.quote_ccy.as_str()),
+            Some("USD")
+        );
+        assert!(preview[0].errors.is_none());
+    }
+
+    #[tokio::test]
     async fn test_preview_import_assets_preserves_provider_refs() {
         let account_service = Arc::new(MockAccountService::new());
         let asset_service = Arc::new(MockAssetService::new());
@@ -5233,7 +5347,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_check_import_uses_mic_currency_as_quote_ccy_fallback() {
+    async fn test_check_import_uses_activity_currency_before_mic_currency_fallback() {
         let account_service = Arc::new(MockAccountService::new());
         let asset_service = Arc::new(MockAssetService::new());
         let fx_service = Arc::new(MockFxService::new());
@@ -5294,14 +5408,14 @@ mod tests {
         assert_eq!(result.len(), 1);
         let checked = &result[0];
         assert_eq!(checked.instrument_type.as_deref(), Some("EQUITY"));
-        assert_eq!(checked.quote_ccy.as_deref(), Some("GBp"));
+        assert_eq!(checked.quote_ccy.as_deref(), Some("CAD"));
         assert!(
             checked
                 .warnings
                 .as_ref()
                 .and_then(|w| w.get("_quote_ccy_fallback"))
-                .is_some(),
-            "Expected MIC fallback warning when quote_ccy is inferred from exchange"
+                .is_none(),
+            "activity currency should not be reported as a MIC fallback"
         );
     }
 
@@ -5578,6 +5692,73 @@ mod tests {
         assert_eq!(checked.instrument_type.as_deref(), Some("EQUITY"));
         assert_eq!(checked.exchange_mic.as_deref(), Some("XLON"));
         assert_eq!(checked.quote_ccy.as_deref(), Some("GBP"));
+    }
+
+    #[tokio::test]
+    async fn test_check_import_uses_activity_currency_before_provider_quote_for_new_asset() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let account = create_test_account("acc-1", "USD");
+        account_service.add_account(account);
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let import = ActivityImport {
+            id: None,
+            date: "2025-12-30".to_string(),
+            symbol: "IUES".to_string(),
+            activity_type: "BUY".to_string(),
+            quantity: Some(dec!(778)),
+            unit_price: Some(dec!(9.4075)),
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            amount: Some(dec!(7318.035)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: Some("XAMS".to_string()),
+            quote_ccy: None,
+            instrument_type: Some("EQUITY".to_string()),
+            quote_mode: Some("MARKET".to_string()),
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: None,
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: None,
+        };
+
+        let result = activity_service
+            .check_activities_import(vec![import])
+            .await
+            .expect("import check should succeed");
+
+        assert_eq!(result.len(), 1);
+        let checked = &result[0];
+        assert_eq!(checked.symbol, "IUES");
+        assert_eq!(checked.exchange_mic.as_deref(), Some("XAMS"));
+        assert_eq!(checked.quote_ccy.as_deref(), Some("USD"));
+        assert!(checked.is_valid);
     }
 
     #[tokio::test]
@@ -6421,6 +6602,234 @@ mod tests {
         assert_eq!(stored.len(), 1);
         assert_eq!(stored[0].activity_type, "DIVIDEND");
         assert_eq!(stored[0].asset_id, None);
+    }
+
+    #[tokio::test]
+    async fn test_import_preserves_negative_cash_adjustment_amount() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let account = create_test_account("acc-1", "USD");
+        account_service.add_account(account);
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let cash_adjustment = ActivityImport {
+            id: None,
+            date: "2025-12-18T14:25:15Z".to_string(),
+            symbol: "$CASH-CAD".to_string(),
+            activity_type: "ADJUSTMENT".to_string(),
+            quantity: Some(dec!(1)),
+            unit_price: Some(dec!(1)),
+            currency: "CAD".to_string(),
+            fee: Some(dec!(0)),
+            amount: Some(dec!(-2034.0743927)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: Some("FX_CONVERSION".to_string()),
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: None,
+        };
+
+        let result = activity_service
+            .import_activities(vec![cash_adjustment])
+            .await
+            .expect("cash adjustment import should succeed");
+
+        assert!(result.summary.success);
+        assert_eq!(result.summary.imported, 1);
+
+        let stored = activity_repository
+            .get_activities()
+            .expect("stored activities should be readable");
+        assert_eq!(stored.len(), 1);
+        assert_eq!(stored[0].activity_type, "ADJUSTMENT");
+        assert_eq!(stored[0].asset_id, None);
+        assert_eq!(stored[0].amount, Some(dec!(-2034.0743927)));
+    }
+
+    #[tokio::test]
+    async fn test_import_keeps_opposite_signed_cash_adjustments_distinct() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let account = create_test_account("acc-1", "USD");
+        account_service.add_account(account);
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let base_adjustment = ActivityImport {
+            id: None,
+            date: "2025-12-18T14:25:15Z".to_string(),
+            symbol: "$CASH-CAD".to_string(),
+            activity_type: "ADJUSTMENT".to_string(),
+            quantity: Some(dec!(1)),
+            unit_price: Some(dec!(1)),
+            currency: "CAD".to_string(),
+            fee: Some(dec!(0)),
+            amount: Some(dec!(-100)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: Some("FX_CONVERSION".to_string()),
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: None,
+        };
+
+        let result = activity_service
+            .import_activities(vec![
+                base_adjustment.clone(),
+                ActivityImport {
+                    amount: Some(dec!(100)),
+                    line_number: Some(2),
+                    ..base_adjustment
+                },
+            ])
+            .await
+            .expect("cash adjustment import should succeed");
+
+        assert!(result.summary.success);
+        assert_eq!(result.summary.imported, 2);
+        assert_eq!(result.summary.duplicates, 0);
+
+        let mut amounts: Vec<Decimal> = activity_repository
+            .get_activities()
+            .expect("stored activities should be readable")
+            .into_iter()
+            .filter_map(|activity| activity.amount)
+            .collect();
+        amounts.sort();
+
+        assert_eq!(amounts, vec![dec!(-100), dec!(100)]);
+    }
+
+    #[tokio::test]
+    async fn test_import_keeps_same_day_cash_adjustments_with_distinct_times() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let account = create_test_account("acc-1", "USD");
+        account_service.add_account(account);
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let base_adjustment = ActivityImport {
+            id: None,
+            date: "2025-12-30T10:30:03Z".to_string(),
+            symbol: "$CASH-USD".to_string(),
+            activity_type: "ADJUSTMENT".to_string(),
+            quantity: Some(dec!(1)),
+            unit_price: Some(dec!(1)),
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            amount: Some(dec!(0.36)),
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: Some("FX_CONVERSION".to_string()),
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: None,
+        };
+
+        let result = activity_service
+            .import_activities(vec![
+                base_adjustment.clone(),
+                ActivityImport {
+                    date: "2025-12-30T12:00:09Z".to_string(),
+                    line_number: Some(2),
+                    ..base_adjustment
+                },
+            ])
+            .await
+            .expect("cash adjustment import should succeed");
+
+        assert!(result.summary.success);
+        assert_eq!(result.summary.imported, 2);
+        assert_eq!(result.summary.duplicates, 0);
+
+        let stored = activity_repository
+            .get_activities()
+            .expect("stored activities should be readable");
+        assert_eq!(stored.len(), 2);
     }
 
     #[tokio::test]

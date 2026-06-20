@@ -4905,6 +4905,65 @@ mod tests {
     }
 
     #[test]
+    fn cash_adjustment_increases_cash_without_net_contribution() {
+        let date_str = "2025-06-01";
+        let target_date = NaiveDate::from_str(date_str).unwrap();
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2025-05-31");
+        let mut adjustment = create_cash_activity(
+            "cash_adjustment_in",
+            ActivityType::Adjustment,
+            dec!(125.50),
+            Decimal::ZERO,
+            "USD",
+            date_str,
+        );
+        adjustment.subtype = Some("FX_CONVERSION".to_string());
+
+        let next_state = calculator
+            .calculate_next_holdings(&previous_snapshot, &[adjustment], target_date)
+            .unwrap()
+            .snapshot;
+
+        assert_eq!(next_state.cash_balances.get("USD"), Some(&dec!(125.50)));
+        assert_eq!(next_state.net_contribution, Decimal::ZERO);
+        assert_eq!(next_state.net_contribution_base, Decimal::ZERO);
+    }
+
+    #[test]
+    fn cash_adjustment_decreases_cash_without_net_contribution() {
+        let date_str = "2025-06-01";
+        let target_date = NaiveDate::from_str(date_str).unwrap();
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut previous_snapshot = create_initial_snapshot("acc_1", "USD", "2025-05-31");
+        previous_snapshot
+            .cash_balances
+            .insert("USD".to_string(), dec!(500));
+        let mut adjustment = create_cash_activity(
+            "cash_adjustment_out",
+            ActivityType::Adjustment,
+            dec!(-200.35),
+            Decimal::ZERO,
+            "USD",
+            date_str,
+        );
+        adjustment.subtype = Some("FX_CONVERSION".to_string());
+
+        let next_state = calculator
+            .calculate_next_holdings(&previous_snapshot, &[adjustment], target_date)
+            .unwrap()
+            .snapshot;
+
+        assert_eq!(next_state.cash_balances.get("USD"), Some(&dec!(299.65)));
+        assert_eq!(next_state.net_contribution, Decimal::ZERO);
+        assert_eq!(next_state.net_contribution_base, Decimal::ZERO);
+    }
+
+    #[test]
     fn test_buy_without_fx_rate_still_books_in_activity_currency() {
         // When no fx_rate is provided, cash should still be booked in
         // activity currency (multi-currency account behavior is preserved).
