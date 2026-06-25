@@ -328,7 +328,7 @@ fn calculate_investment_market_value_acct(
         } else {
             unpriced_positions += 1;
             warn!(
-                "Missing quote for asset {} on date {}. Position market value treated as ZERO.",
+                "No quote (including forward-fill) for asset {} on date {}. Position market value treated as zero.",
                 asset_id, target_date
             );
         }

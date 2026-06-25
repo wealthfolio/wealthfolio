@@ -1638,6 +1638,7 @@ impl ValuationServiceTrait for ValuationService {
         };
 
         let mut skipped_incomplete_dates: Vec<(NaiveDate, String)> = Vec::new();
+        let mut last_known_quotes: HashMap<String, Quote> = HashMap::new();
         let mut newly_calculated_valuations: Vec<DailyAccountValuation> = snapshots_to_process
             .into_iter()
             .filter_map(|holdings_snapshot| {
@@ -1683,15 +1684,37 @@ impl ValuationServiceTrait for ValuationService {
                     return None;
                 }
 
-                // Partial gap: some quotes present, some missing → proceed.
-                // Missing positions valued at ZERO by the calculator, which is
-                // better than dropping the entire day (see #683).
-                if !missing_quotes.is_empty() {
-                    debug!(
-                        "Partial quote gap for {:?} on {} (account '{}').",
-                        missing_quotes, current_date, account_id_clone
-                    );
+                // Forward-fill: use last known quote for positions missing today.
+                for (asset_id, quote) in &quotes_for_current_date {
+                    last_known_quotes.insert(asset_id.clone(), quote.clone());
                 }
+                let mut filled_quotes = quotes_for_current_date;
+                if !missing_quotes.is_empty() {
+                    let mut forward_filled = Vec::new();
+                    for symbol in &missing_quotes {
+                        if let Some(last_quote) = last_known_quotes.get(symbol) {
+                            filled_quotes.insert(symbol.clone(), last_quote.clone());
+                            forward_filled.push(symbol.as_str());
+                        }
+                    }
+                    if !forward_filled.is_empty() {
+                        debug!(
+                            "Forward-filled {:?} from last known quote on {} (account '{}').",
+                            forward_filled, current_date, account_id_clone
+                        );
+                    }
+                    let still_missing: Vec<_> = missing_quotes
+                        .iter()
+                        .filter(|s| !filled_quotes.contains_key(*s))
+                        .collect();
+                    if !still_missing.is_empty() {
+                        warn!(
+                            "No prior quote to forward-fill for {:?} on {} (account '{}').",
+                            still_missing, current_date, account_id_clone
+                        );
+                    }
+                }
+
                 let account_curr = &holdings_snapshot.currency;
                 if account_curr != &base_curr_clone
                     && !fx_for_current_date
@@ -1713,7 +1736,7 @@ impl ValuationServiceTrait for ValuationService {
 
                 match calculate_valuation_with_price_factors(
                     &holdings_snapshot,
-                    &quotes_for_current_date,
+                    &filled_quotes,
                     &fx_for_current_date,
                     &fx_rates_by_date,
                     current_date,
