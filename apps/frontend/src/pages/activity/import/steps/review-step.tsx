@@ -116,13 +116,25 @@ export function ReviewStep() {
 
   // Calculate filter stats (counts by status)
   const filterStats = useMemo(() => {
-    const counts = { all: 0, errors: 0, warnings: 0, duplicates: 0, skipped: 0, valid: 0 };
+    const counts = {
+      all: 0,
+      errors: 0,
+      warnings: 0,
+      duplicates: 0,
+      duplicatesCsv: 0,
+      duplicatesDb: 0,
+      skipped: 0,
+      valid: 0,
+    };
     counts.all = draftActivities.length;
     for (const d of draftActivities) {
       if (d.status === "error") counts.errors++;
       else if (d.status === "warning") counts.warnings++;
-      else if (d.status === "duplicate") counts.duplicates++;
-      else if (d.status === "skipped") counts.skipped++;
+      else if (d.status === "duplicate") {
+        counts.duplicates++;
+        if (typeof d.duplicateOfLineNumber === "number") counts.duplicatesCsv++;
+        else counts.duplicatesDb++;
+      } else if (d.status === "skipped") counts.skipped++;
       else counts.valid++;
     }
     return counts;
@@ -143,7 +155,18 @@ export function ReviewStep() {
     const statuses = [
       { label: "Errors", value: "error", count: filterStats.errors },
       { label: "Warnings", value: "warning", count: filterStats.warnings },
-      { label: "Duplicates", value: "duplicate", count: filterStats.duplicates },
+      ...(filterStats.duplicatesCsv > 0
+        ? [{ label: "CSV duplicates", value: "duplicate_csv", count: filterStats.duplicatesCsv }]
+        : []),
+      ...(filterStats.duplicatesDb > 0
+        ? [
+            {
+              label: "Existing duplicates",
+              value: "duplicate_db",
+              count: filterStats.duplicatesDb,
+            },
+          ]
+        : []),
       { label: "Skipped", value: "skipped", count: filterStats.skipped },
       { label: "Valid", value: "valid", count: filterStats.valid },
     ].filter((o) => o.count > 0);
@@ -175,6 +198,53 @@ export function ReviewStep() {
       return { facetFilteredDrafts: draftsMatchingFacetFilters, nonSelectableRowIndexes: [] };
     }
 
+    const hasDuplicateCsvFilter = statusFilter.has("duplicate_csv");
+    const hasDuplicateDbFilter = statusFilter.has("duplicate_db");
+    const nonDuplicateFilters = new Set(
+      [...statusFilter].filter((v) => v !== "duplicate_csv" && v !== "duplicate_db"),
+    );
+
+    const matchesStatusFilter = (draft: DraftActivity): boolean => {
+      if (nonDuplicateFilters.has(draft.status)) return true;
+      if (draft.status !== "duplicate") return false;
+      if (hasDuplicateCsvFilter && typeof draft.duplicateOfLineNumber === "number") return true;
+      if (hasDuplicateDbFilter && typeof draft.duplicateOfLineNumber !== "number") return true;
+      return false;
+    };
+
+    // Duplicate-only filter: apply special grouping to show CSV originals as context rows
+    const isDuplicateOnlyFilter =
+      nonDuplicateFilters.size === 0 && (hasDuplicateCsvFilter || hasDuplicateDbFilter);
+
+    if (isDuplicateOnlyFilter) {
+      const duplicateRows = draftsMatchingFacetFilters.filter(matchesStatusFilter);
+
+      // buildDuplicateReviewRows looks up source rows (the original of a CSV duplicate)
+      // from the dataset it receives. Re-attach any source rows from the full facet-filtered
+      // set so they appear as non-selectable context when filtering by duplicate_csv.
+      let rowsForGrouping = duplicateRows;
+      if (hasDuplicateCsvFilter) {
+        const byLineNumber = new Map(draftsMatchingFacetFilters.map((d) => [d.rowIndex + 1, d]));
+        const duplicateRowIndexes = new Set(duplicateRows.map((d) => d.rowIndex));
+        const sourceRows = duplicateRows
+          .filter((d) => typeof d.duplicateOfLineNumber === "number")
+          .map((d) => byLineNumber.get(d.duplicateOfLineNumber!))
+          .filter(
+            (d): d is DraftActivity => d !== undefined && !duplicateRowIndexes.has(d.rowIndex),
+          );
+        if (sourceRows.length > 0) {
+          rowsForGrouping = [...duplicateRows, ...sourceRows];
+        }
+      }
+
+      const groupedDrafts = buildDuplicateReviewRows(rowsForGrouping);
+      return {
+        facetFilteredDrafts: groupedDrafts,
+        nonSelectableRowIndexes: findDuplicateContextRowIndexes(groupedDrafts),
+      };
+    }
+
+    // Legacy: plain "duplicate" value (banner badges no longer emit it, kept for safety)
     if (statusFilter.size === 1 && statusFilter.has("duplicate")) {
       const groupedDrafts = buildDuplicateReviewRows(draftsMatchingFacetFilters);
       return {
@@ -184,9 +254,7 @@ export function ReviewStep() {
     }
 
     return {
-      facetFilteredDrafts: draftsMatchingFacetFilters.filter((draft) =>
-        statusFilter.has(draft.status),
-      ),
+      facetFilteredDrafts: draftsMatchingFacetFilters.filter(matchesStatusFilter),
       nonSelectableRowIndexes: [],
     };
   }, [
@@ -382,6 +450,48 @@ export function ReviewStep() {
   const isStale = state.lastValidatedRevision !== state.draftRevision;
   const warningCount = filterStats.warnings + filterStats.duplicates;
 
+  // Determine the dominant warning type for a more specific banner message
+  const onlyDuplicatesDb =
+    !hasErrors &&
+    filterStats.warnings === 0 &&
+    filterStats.duplicatesCsv === 0 &&
+    filterStats.duplicatesDb > 0;
+  const onlyDuplicatesCsv =
+    !hasErrors &&
+    filterStats.warnings === 0 &&
+    filterStats.duplicatesDb === 0 &&
+    filterStats.duplicatesCsv > 0;
+
+  const bannerTitle = hasErrors
+    ? `${filterStats.errors} ${filterStats.errors === 1 ? "row needs fixing" : "rows need fixing"}`
+    : onlyDuplicatesDb
+      ? `${filterStats.duplicatesDb} ${filterStats.duplicatesDb === 1 ? "activity" : "activities"} already in your portfolio`
+      : onlyDuplicatesCsv
+        ? `${filterStats.duplicatesCsv} ${filterStats.duplicatesCsv === 1 ? "duplicate" : "duplicates"} within this file`
+        : `${warningCount} ${warningCount === 1 ? "warning" : "warnings"} to review`;
+
+  const mixedBreakdownParts: string[] = [];
+  if (filterStats.warnings > 0)
+    mixedBreakdownParts.push(
+      `${filterStats.warnings} ${filterStats.warnings === 1 ? "warning" : "warnings"}`,
+    );
+  if (filterStats.duplicatesCsv > 0)
+    mixedBreakdownParts.push(
+      `${filterStats.duplicatesCsv} CSV ${filterStats.duplicatesCsv === 1 ? "duplicate" : "duplicates"}`,
+    );
+  if (filterStats.duplicatesDb > 0)
+    mixedBreakdownParts.push(
+      `${filterStats.duplicatesDb} existing ${filterStats.duplicatesDb === 1 ? "duplicate" : "duplicates"}`,
+    );
+
+  const bannerDescription = hasErrors
+    ? `${validCount} of ${filterStats.all} rows are valid and ready to import. Fix errors below, or skip them to continue.`
+    : onlyDuplicatesDb
+      ? `These activities match existing records in your portfolio and will be skipped. Use "Import anyway" on individual rows to override.`
+      : onlyDuplicatesCsv
+        ? `These activities appear more than once in this file and will be skipped. All ${filterStats.all} activities are otherwise importable.`
+        : `All ${filterStats.all} activities are importable — ${mixedBreakdownParts.join(", ")} to review.`;
+
   return (
     <div className="flex flex-col gap-4">
       {/* Summary alert */}
@@ -409,16 +519,8 @@ export function ReviewStep() {
       ) : hasIssues ? (
         <ImportAlert
           variant={hasErrors ? "destructive" : "warning"}
-          title={
-            hasErrors
-              ? `${filterStats.errors} ${filterStats.errors === 1 ? "row needs fixing" : "rows need fixing"}`
-              : `${warningCount} ${warningCount === 1 ? "warning" : "warnings"} to review`
-          }
-          description={
-            hasErrors
-              ? `${validCount} of ${filterStats.all} rows are valid and ready to import. Fix errors below, or skip them to continue.`
-              : `All ${filterStats.all} activities are importable. Review warnings below or proceed.`
-          }
+          title={bannerTitle}
+          description={bannerDescription}
         >
           <div className="mt-2 flex flex-wrap gap-2">
             {filterStats.errors > 0 && (
@@ -439,13 +541,24 @@ export function ReviewStep() {
                 {filterStats.warnings} warnings
               </Badge>
             )}
-            {filterStats.duplicates > 0 && (
+            {filterStats.duplicatesCsv > 0 && (
               <Badge
                 variant="outline"
                 className="cursor-pointer border-yellow-500/50 text-yellow-700 hover:bg-yellow-500/10 dark:text-yellow-400"
-                onClick={() => setStatusFilter(new Set(["duplicate"]))}
+                onClick={() => setStatusFilter(new Set(["duplicate_csv"]))}
               >
-                {filterStats.duplicates} duplicates
+                {filterStats.duplicatesCsv} CSV{" "}
+                {filterStats.duplicatesCsv === 1 ? "duplicate" : "duplicates"}
+              </Badge>
+            )}
+            {filterStats.duplicatesDb > 0 && (
+              <Badge
+                variant="outline"
+                className="cursor-pointer border-yellow-500/50 text-yellow-700 hover:bg-yellow-500/10 dark:text-yellow-400"
+                onClick={() => setStatusFilter(new Set(["duplicate_db"]))}
+              >
+                {filterStats.duplicatesDb} existing{" "}
+                {filterStats.duplicatesDb === 1 ? "duplicate" : "duplicates"}
               </Badge>
             )}
           </div>
@@ -515,7 +628,10 @@ export function ReviewStep() {
           onBulkSkip={handleBulkSkip}
           onBulkUnskip={handleBulkUnskip}
           onBulkForceImport={
-            statusFilter.size === 1 && statusFilter.has("duplicate")
+            statusFilter.size === 1 &&
+            (statusFilter.has("duplicate") ||
+              statusFilter.has("duplicate_csv") ||
+              statusFilter.has("duplicate_db"))
               ? handleBulkForceImport
               : undefined
           }
