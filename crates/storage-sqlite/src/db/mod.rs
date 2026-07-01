@@ -176,6 +176,59 @@ mod migration_tests {
     }
 
     #[test]
+    fn migrated_activities_cascade_when_account_is_deleted() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("cascade.db").to_string_lossy().to_string();
+        run_migrations(&db_path).unwrap();
+
+        let mut conn = SqliteConnection::establish(&db_path).unwrap();
+        conn.batch_execute(
+            "
+            PRAGMA foreign_keys = ON;
+
+            INSERT INTO accounts (
+                id, name, account_type, `group`, currency, is_default, is_active,
+                created_at, updated_at, platform_id, account_number, meta, provider,
+                provider_account_id, is_archived, tracking_mode
+            ) VALUES (
+                'account-to-delete', 'Test', 'REGULAR', NULL, 'USD', 0, 1,
+                '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', NULL, NULL, NULL,
+                NULL, NULL, 0, 'TRANSACTIONS'
+            );
+
+            INSERT INTO assets (
+                id, kind, name, display_code, is_active, quote_mode, quote_ccy,
+                created_at, updated_at
+            ) VALUES (
+                'asset-with-activity', 'INVESTMENT', 'Asset', 'ASSET', 1, 'MANUAL', 'USD',
+                '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'
+            );
+
+            INSERT INTO activities (
+                id, account_id, asset_id, activity_type, status, activity_date,
+                quantity, unit_price, amount, fee, currency, is_user_modified,
+                needs_review, created_at, updated_at
+            ) VALUES (
+                'activity-to-cascade', 'account-to-delete', 'asset-with-activity', 'BUY',
+                'POSTED', '2026-01-01T00:00:00Z', '1', '10', '10', '0', 'USD',
+                0, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'
+            );
+
+            DELETE FROM accounts WHERE id = 'account-to-delete';
+            ",
+        )
+        .unwrap();
+
+        assert_eq!(
+            count(
+                &mut conn,
+                "SELECT COUNT(*) AS count FROM activities WHERE id = 'activity-to-cascade'"
+            ),
+            0
+        );
+    }
+
+    #[test]
     fn lot_disposals_migration_clears_generated_data() {
         let mut conn = SqliteConnection::establish(":memory:").unwrap();
         conn.batch_execute(
