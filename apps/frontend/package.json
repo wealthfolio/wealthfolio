@@ -16,7 +16,7 @@
     "dev": "cross-env BUILD_TARGET=web vite",
     "dev:tauri": "cross-env BUILD_TARGET=tauri vite",
     "dev:addons": "vite --mode addon-dev",
-    "build": "cross-env BUILD_TARGET=web tsc && vite build",
+    "build": "cross-env BUILD_TARGET=web tsc && cross-env BUILD_TARGET=web vite build",
     "build:tauri": "cross-env BUILD_TARGET=tauri vite build",
     "preview": "vite preview",
     "test": "vitest",

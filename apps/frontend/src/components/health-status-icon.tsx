@@ -1,4 +1,5 @@
 import { useHealthStatus } from "@/hooks/use-health";
+import { useI18n } from "@/i18n/i18n-provider";
 import { cn } from "@/lib/utils";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -18,6 +19,8 @@ const SEVERITY_COLORS: Record<HealthSeverity, string> = {
  * Shows a warning icon when there are health issues, hidden when healthy.
  */
 export function HealthStatusIndicator() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { data: status, isLoading } = useHealthStatus();
 
   // Don't render if loading or no issues
@@ -50,10 +53,10 @@ export function HealthStatusIndicator() {
 
   // Build summary text
   const summaryParts: string[] = [];
-  if (counts.critical > 0) summaryParts.push(`${counts.critical} critical`);
-  if (counts.error > 0) summaryParts.push(`${counts.error} error`);
-  if (counts.warning > 0) summaryParts.push(`${counts.warning} warning`);
-  if (counts.info > 0) summaryParts.push(`${counts.info} info`);
+  if (counts.critical > 0) summaryParts.push(isChinese ? `${counts.critical} 严重` : `${counts.critical} critical`);
+  if (counts.error > 0) summaryParts.push(isChinese ? `${counts.error} 错误` : `${counts.error} error`);
+  if (counts.warning > 0) summaryParts.push(isChinese ? `${counts.warning} 警告` : `${counts.warning} warning`);
+  if (counts.info > 0) summaryParts.push(isChinese ? `${counts.info} 提示` : `${counts.info} info`);
   const summaryText = summaryParts.join(", ");
 
   return (
@@ -66,14 +69,14 @@ export function HealthStatusIndicator() {
             className="bg-secondary/50 rounded-full"
             asChild
           >
-            <Link to="/health" title="Data Status">
+            <Link to="/health" title={isChinese ? "数据状态" : "Data Status"}>
               <Icons.AlertTriangle className={cn("size-5", severityColor)} />
             </Link>
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom">
           <div className="space-y-1">
-            <p className="font-medium">Health Issues</p>
+            <p className="font-medium">{isChinese ? "健康问题" : "Health Issues"}</p>
             <p className="text-muted-foreground text-xs">{summaryText}</p>
           </div>
         </TooltipContent>

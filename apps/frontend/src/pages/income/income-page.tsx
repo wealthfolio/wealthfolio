@@ -11,6 +11,7 @@ import { EmptyPlaceholder } from "@wealthfolio/ui/components/ui/empty-placeholde
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useI18n } from "@/i18n/i18n-provider";
 import { AccountScopeSelector } from "@/components/account-filter-selector";
 import type { AccountScope } from "@/lib/types";
 
@@ -18,52 +19,65 @@ import { QueryKeys } from "@/lib/query-keys";
 import type { IncomeSummary } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import { AmountDisplay, AnimatedToggleGroup, GainPercent, PrivacyAmount } from "@wealthfolio/ui";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Cell, Pie, PieChart } from "recharts";
 import { IncomeHistoryChart } from "./income-history-chart";
 import { IncomeMobileFilterSheet } from "./income-mobile-filter-sheet";
 
-const periods = [
-  { value: "YTD" as const, label: "Year to Date" },
-  { value: "LAST_YEAR" as const, label: "Last Year" },
-  { value: "ALL" as const, label: "All Time" },
-];
-
-const mobilePeriods = [
-  { value: "YTD" as const, label: "YTD" },
-  { value: "LAST_YEAR" as const, label: "Last Yr" },
-  { value: "ALL" as const, label: "All" },
-];
-
 type IncomePeriod = "ALL" | "YTD" | "LAST_YEAR";
+
+function getPeriods(isChinese: boolean) {
+  return [
+    { value: "YTD" as const, label: isChinese ? "今年至今" : "Year to Date" },
+    { value: "LAST_YEAR" as const, label: isChinese ? "去年" : "Last Year" },
+    { value: "ALL" as const, label: isChinese ? "全部时间" : "All Time" },
+  ];
+}
+
+function getMobilePeriods(isChinese: boolean) {
+  return [
+    { value: "YTD" as const, label: isChinese ? "今年" : "YTD" },
+    { value: "LAST_YEAR" as const, label: isChinese ? "去年" : "Last Yr" },
+    { value: "ALL" as const, label: isChinese ? "全部" : "All" },
+  ];
+}
 
 const IncomePeriodSelector: React.FC<{
   selectedPeriod: IncomePeriod;
   onPeriodSelect: (period: IncomePeriod) => void;
-}> = ({ selectedPeriod, onPeriodSelect }) => (
-  <>
-    <div className="hidden sm:block">
-      <AnimatedToggleGroup
-        variant="secondary"
-        size="sm"
-        items={periods}
-        value={selectedPeriod}
-        onValueChange={onPeriodSelect}
-      />
-    </div>
-    <div className="block sm:hidden">
-      <AnimatedToggleGroup
-        variant="secondary"
-        size="xs"
-        items={mobilePeriods}
-        value={selectedPeriod}
-        onValueChange={onPeriodSelect}
-      />
-    </div>
-  </>
-);
+}> = ({ selectedPeriod, onPeriodSelect }) => {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
+  const periods = useMemo(() => getPeriods(isChinese), [isChinese]);
+  const mobilePeriods = useMemo(() => getMobilePeriods(isChinese), [isChinese]);
+
+  return (
+    <>
+      <div className="hidden sm:block">
+        <AnimatedToggleGroup
+          variant="secondary"
+          size="sm"
+          items={periods}
+          value={selectedPeriod}
+          onValueChange={onPeriodSelect}
+        />
+      </div>
+      <div className="block sm:hidden">
+        <AnimatedToggleGroup
+          variant="secondary"
+          size="xs"
+          items={mobilePeriods}
+          value={selectedPeriod}
+          onValueChange={onPeriodSelect}
+        />
+      </div>
+    </>
+  );
+};
 
 export default function IncomePage() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [selectedPeriod, setSelectedPeriod] = useState<IncomePeriod>("ALL");
   const { isBalanceHidden } = useBalancePrivacy();
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
@@ -84,7 +98,13 @@ export default function IncomePage() {
   }
 
   if (error || !incomeData) {
-    return <div>Failed to load income summary: {error?.message || "Unknown error"}</div>;
+    return (
+      <div>
+        {isChinese
+          ? "收入摘要加载失败，请稍后重试。"
+          : `Failed to load income summary: ${error?.message || "Unknown error"}`}
+      </div>
+    );
   }
 
   const periodSummary = incomeData.find((summary) => summary.period === selectedPeriod);
@@ -120,8 +140,12 @@ export default function IncomePage() {
         <EmptyPlaceholder
           className="mx-auto flex max-w-[420px] items-center justify-center pt-12"
           icon={<Icons.DollarSign className="h-10 w-10" />}
-          title="No income data available"
-          description="There is no income data for the selected period. Try selecting a different time range or check back later."
+          title={isChinese ? "暂无收入数据" : "No income data available"}
+          description={
+            isChinese
+              ? "所选期间没有收入数据。请尝试其他时间范围或稍后再查看。"
+              : "There is no income data for the selected period. Try selecting a different time range or check back later."
+          }
         />
         <IncomeMobileFilterSheet
           open={isFilterSheetOpen}
@@ -226,10 +250,16 @@ export default function IncomePage() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
                 {selectedPeriod === "ALL"
-                  ? "All Time Income"
+                  ? isChinese
+                    ? "全部时间收入"
+                    : "All Time Income"
                   : selectedPeriod === "LAST_YEAR"
-                    ? "Last Year Income"
-                    : "This Year Income"}
+                    ? isChinese
+                      ? "去年收入"
+                      : "Last Year Income"
+                    : isChinese
+                      ? "今年收入"
+                      : "This Year Income"}
               </CardTitle>
               <Icons.DollarSign className="text-muted-foreground h-4 w-4" />
             </CardHeader>
@@ -252,12 +282,12 @@ export default function IncomePage() {
                           animated={true}
                         />
                         <span className="text-muted-foreground ml-2 text-xs">
-                          Year-over-year growth
+                          {isChinese ? "同比增长" : "Year-over-year growth"}
                         </span>
                       </div>
                     ) : (
                       <p className="text-muted-foreground text-xs">
-                        Cumulative income since inception
+                        {isChinese ? "自开始以来的累计收入" : "Cumulative income since inception"}
                       </p>
                     )}
                   </div>
@@ -291,7 +321,9 @@ export default function IncomePage() {
           </Card>
           <Card className="border-yellow-500/10 bg-yellow-500/10">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Monthly Average</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                {isChinese ? "月均" : "Monthly Average"}
+              </CardTitle>
               <Icons.DollarSign className="text-muted-foreground h-4 w-4" />
             </CardHeader>
             <CardContent>
@@ -304,20 +336,24 @@ export default function IncomePage() {
               </div>
               <div className="flex items-center text-xs">
                 <GainPercent value={monthlyAverageChange} className="text-left text-xs" />
-                <span className="text-muted-foreground ml-2 text-xs">Since last period</span>
+                <span className="text-muted-foreground ml-2 text-xs">
+                  {isChinese ? "较上一期间" : "Since last period"}
+                </span>
               </div>
             </CardContent>
           </Card>
           <Card className="border-yellow-500/10 bg-yellow-500/10">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Income Sources</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                {isChinese ? "收入来源" : "Income Sources"}
+              </CardTitle>
               <Icons.PieChart className="text-muted-foreground h-4 w-4" />
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 {[
                   {
-                    name: "Dividends",
+                    name: isChinese ? "股息" : "Dividends",
                     amount: (
                       <AmountDisplay
                         value={dividendIncome}
@@ -328,7 +364,7 @@ export default function IncomePage() {
                     percentage: dividendPercentage,
                   },
                   {
-                    name: "Interest",
+                    name: isChinese ? "利息" : "Interest",
                     amount: (
                       <AmountDisplay
                         value={interestIncome}
@@ -382,15 +418,21 @@ export default function IncomePage() {
           />
           <Card className="flex flex-col">
             <CardHeader>
-              <CardTitle className="text-sm font-medium">Top 10 Dividend Sources</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                {isChinese ? "前 10 股息来源" : "Top 10 Dividend Sources"}
+              </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto">
               {topDividendStocks.length === 0 ? (
                 <EmptyPlaceholder
                   className="mx-auto flex h-[300px] max-w-[420px] items-center justify-center"
                   icon={<Icons.DollarSign className="h-10 w-10" />}
-                  title="No dividend income recorded"
-                  description="There are no dividend sources for the selected period. Try selecting a different time range or check back later."
+                  title={isChinese ? "没有记录股息收入" : "No dividend income recorded"}
+                  description={
+                    isChinese
+                      ? "所选期间没有股息来源。请尝试其他时间范围或稍后再查看。"
+                      : "There are no dividend sources for the selected period. Try selecting a different time range or check back later."
+                  }
                 />
               ) : (
                 <div className="space-y-6">
@@ -411,8 +453,10 @@ export default function IncomePage() {
                         ...(otherTotal > 0
                           ? [
                               {
-                                symbol: "Other",
-                                companyName: `${otherStocks.length} other sources`,
+                                symbol: isChinese ? "其他" : "Other",
+                                companyName: isChinese
+                                  ? `${otherStocks.length} 个其他来源`
+                                  : `${otherStocks.length} other sources`,
                                 income: otherTotal,
                                 isOther: true,
                               },
@@ -453,7 +497,9 @@ export default function IncomePage() {
                                   <PrivacyAmount value={item.income} currency={currency} />
                                 </div>
                                 <div className="text-muted-foreground text-xs">
-                                  {percentage.toFixed(1)}% of total
+                                  {isChinese
+                                    ? `占总计 ${percentage.toFixed(1)}%`
+                                    : `${percentage.toFixed(1)}% of total`}
                                 </div>
                                 {/* Tooltip arrow */}
                                 <div className="border-t-border absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 transform border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent"></div>

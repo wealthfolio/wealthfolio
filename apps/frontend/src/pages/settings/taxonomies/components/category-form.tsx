@@ -25,6 +25,7 @@ import {
 } from "@wealthfolio/ui";
 import type { TaxonomyCategory } from "@/lib/types";
 import { useCreateCategory, useUpdateCategory, useDeleteCategory } from "@/hooks/use-taxonomies";
+import { useI18n } from "@/i18n/i18n-provider";
 import { toast } from "sonner";
 
 const categoryFormSchema = z.object({
@@ -66,6 +67,8 @@ export function CategoryForm({
   const createMutation = useCreateCategory();
   const updateMutation = useUpdateCategory();
   const deleteMutation = useDeleteCategory();
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
 
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categoryFormSchema),
@@ -264,10 +267,11 @@ export function CategoryForm({
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Category</AlertDialogTitle>
+                    <AlertDialogTitle>{isChinese ? "删除分类" : "Delete Category"}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Are you sure you want to delete &quot;{category?.name}&quot;? This will remove
-                      all asset assignments to this category. This action cannot be undone.
+                      {isChinese
+                        ? `确定要删除“${category?.name}”吗？这会移除此分类下的所有资产分配。此操作无法撤销。`
+                        : `Are you sure you want to delete "${category?.name}"? This will remove all asset assignments to this category. This action cannot be undone.`}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>

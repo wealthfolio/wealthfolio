@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import * as z from "zod";
 
+import { useI18n } from "@/i18n/i18n-provider";
 import {
   Button,
   Command,
@@ -48,20 +49,28 @@ import {
 import type { EventDialogPrefill } from "./event-dialog-provider";
 import type { NewSpendingEvent, SpendingEvent } from "../types/event";
 
-const eventSchema = z
-  .object({
-    name: z.string().min(1, "Name is required"),
-    description: z.string().optional(),
-    eventTypeId: z.string().min(1, "Event type is required"),
-    startDate: z.date({ required_error: "Start date is required" }),
-    endDate: z.date({ required_error: "End date is required" }),
-  })
-  .refine((data) => data.startDate <= data.endDate, {
-    message: "Start date must be before or equal to end date",
-    path: ["endDate"],
-  });
+function createEventSchema(isChinese: boolean) {
+  return z
+    .object({
+      name: z.string().min(1, isChinese ? "请输入名称" : "Name is required"),
+      description: z.string().optional(),
+      eventTypeId: z.string().min(1, isChinese ? "请选择事件类型" : "Event type is required"),
+      startDate: z.date({
+        required_error: isChinese ? "请选择开始日期" : "Start date is required",
+      }),
+      endDate: z.date({
+        required_error: isChinese ? "请选择结束日期" : "End date is required",
+      }),
+    })
+    .refine((data) => data.startDate <= data.endDate, {
+      message: isChinese
+        ? "开始日期必须早于或等于结束日期"
+        : "Start date must be before or equal to end date",
+      path: ["endDate"],
+    });
+}
 
-type EventFormValues = z.infer<typeof eventSchema>;
+type EventFormValues = z.infer<ReturnType<typeof createEventSchema>>;
 
 const PRESET_COLORS = [
   "#ef4444",
@@ -95,6 +104,8 @@ export function EventFormDialog({
   onCreated,
   onUpdated,
 }: Props) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { data: eventTypes = [], isError: eventTypesErrored } = useEventTypes();
   const { create, update } = useSpendingEventMutations();
   const { create: createType } = useEventTypeMutations();
@@ -114,7 +125,7 @@ export function EventFormDialog({
   const [typePopoverOpen, setTypePopoverOpen] = useState(false);
 
   const form = useForm<EventFormValues>({
-    resolver: zodResolver(eventSchema) as never,
+    resolver: zodResolver(createEventSchema(isChinese)) as never,
     defaultValues: {
       name: "",
       description: "",
@@ -221,7 +232,7 @@ export function EventFormDialog({
   const handleCreateType = async () => {
     const name = newTypeName.trim();
     if (!name) {
-      setTypeError("Name is required");
+      setTypeError(isChinese ? "请输入名称" : "Name is required");
       return;
     }
     setIsCreatingType(true);
@@ -233,7 +244,7 @@ export function EventFormDialog({
       setNewTypeName("");
       setNewTypeColor(PRESET_COLORS[0]);
     } catch {
-      setTypeError("Failed to create event type.");
+      setTypeError(isChinese ? "创建事件类型失败。" : "Failed to create event type.");
     } finally {
       setIsCreatingType(false);
     }
@@ -302,11 +313,23 @@ export function EventFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Event" : "Create Event"}</DialogTitle>
+          <DialogTitle>
+            {isEditing
+              ? isChinese
+                ? "编辑事件"
+                : "Edit Event"
+              : isChinese
+                ? "新建事件"
+                : "Create Event"}
+          </DialogTitle>
           <DialogDescription>
             {isEditing
-              ? "Update the event details."
-              : "Create a new event to track and categorize cash account transactions."}
+              ? isChinese
+                ? "更新事件详情。"
+                : "Update the event details."
+              : isChinese
+                ? "新建事件，用于追踪和归类现金账户交易。"
+                : "Create a new event to track and categorize cash account transactions."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -316,9 +339,12 @@ export function EventFormDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{isChinese ? "名称" : "Name"}</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Summer Vacation 2024" {...field} />
+                    <Input
+                      placeholder={isChinese ? "例如：2024 暑假旅行" : "e.g., Summer Vacation 2024"}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -329,10 +355,12 @@ export function EventFormDialog({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description (Optional)</FormLabel>
+                  <FormLabel>{isChinese ? "说明（可选）" : "Description (Optional)"}</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Add details about this event..."
+                      placeholder={
+                        isChinese ? "添加关于这个事件的详情..." : "Add details about this event..."
+                      }
                       className="resize-none"
                       {...field}
                     />
@@ -346,7 +374,7 @@ export function EventFormDialog({
               name="eventTypeId"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Event Type</FormLabel>
+                  <FormLabel>{isChinese ? "事件类型" : "Event Type"}</FormLabel>
                   {!showCreateType ? (
                     <>
                       <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
@@ -356,8 +384,12 @@ export function EventFormDialog({
                               type="button"
                               aria-label={
                                 selectedType
-                                  ? `Change event type (${selectedType.name})`
-                                  : "Select event type"
+                                  ? isChinese
+                                    ? `更改事件类型（${selectedType.name}）`
+                                    : `Change event type (${selectedType.name})`
+                                  : isChinese
+                                    ? "选择事件类型"
+                                    : "Select event type"
                               }
                               className="border-input bg-input-bg dark:bg-input/30 hover:bg-accent/30 ring-offset-background focus:ring-ring h-input-height flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
                             >
@@ -373,7 +405,9 @@ export function EventFormDialog({
                                   <span className="truncate">{selectedType.name}</span>
                                 </span>
                               ) : (
-                                <span className="text-muted-foreground">Select event type</span>
+                                <span className="text-muted-foreground">
+                                  {isChinese ? "选择事件类型" : "Select event type"}
+                                </span>
                               )}
                               <Icons.ChevronDown
                                 className="ml-2 h-4 w-4 shrink-0 opacity-50"
@@ -387,9 +421,13 @@ export function EventFormDialog({
                           align="start"
                         >
                           <Command>
-                            <CommandInput placeholder="Search event types..." />
+                            <CommandInput
+                              placeholder={isChinese ? "搜索事件类型..." : "Search event types..."}
+                            />
                             <CommandList>
-                              <CommandEmpty>No event types found.</CommandEmpty>
+                              <CommandEmpty>
+                                {isChinese ? "未找到事件类型。" : "No event types found."}
+                              </CommandEmpty>
                               {eventTypes.length > 0 && (
                                 <CommandGroup>
                                   {eventTypes.map((t) => {
@@ -431,7 +469,7 @@ export function EventFormDialog({
                                   className="text-primary flex items-center gap-2"
                                 >
                                   <Icons.Plus className="h-3.5 w-3.5" />
-                                  Create new type
+                                  {isChinese ? "新建类型" : "Create new type"}
                                 </CommandItem>
                               </CommandGroup>
                             </CommandList>
@@ -439,14 +477,16 @@ export function EventFormDialog({
                         </PopoverContent>
                       </Popover>
                       {eventTypesErrored && (
-                        <p className="text-destructive text-xs">Event types could not load.</p>
+                        <p className="text-destructive text-xs">
+                          {isChinese ? "无法加载事件类型。" : "Event types could not load."}
+                        </p>
                       )}
                     </>
                   ) : (
                     <div className="border-input bg-muted/20 space-y-3 rounded-md border p-3">
                       <div className="flex items-center justify-between">
                         <span className="text-foreground text-xs font-semibold">
-                          New event type
+                          {isChinese ? "新事件类型" : "New event type"}
                         </span>
                         <button
                           type="button"
@@ -457,12 +497,14 @@ export function EventFormDialog({
                           }}
                           className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
                         >
-                          Cancel
+                          {isChinese ? "取消" : "Cancel"}
                         </button>
                       </div>
                       <Input
                         autoFocus
-                        placeholder="e.g., Travel, Wedding, Move"
+                        placeholder={
+                          isChinese ? "例如：旅行、婚礼、搬家" : "e.g., Travel, Wedding, Move"
+                        }
                         value={newTypeName}
                         onChange={(e) => {
                           setNewTypeName(e.target.value);
@@ -480,7 +522,7 @@ export function EventFormDialog({
                           <button
                             key={color}
                             type="button"
-                            aria-label={`Pick color ${color}`}
+                            aria-label={isChinese ? `选择颜色 ${color}` : `Pick color ${color}`}
                             className={`h-7 w-7 rounded-full border-2 transition-transform hover:scale-110 ${
                               newTypeColor === color
                                 ? "border-foreground ring-2 ring-offset-1"
@@ -499,7 +541,13 @@ export function EventFormDialog({
                           onClick={handleCreateType}
                           disabled={isCreatingType || !newTypeName.trim()}
                         >
-                          {isCreatingType ? "Creating..." : "Create type"}
+                          {isCreatingType
+                            ? isChinese
+                              ? "创建中..."
+                              : "Creating..."
+                            : isChinese
+                              ? "创建类型"
+                              : "Create type"}
                         </Button>
                       </div>
                     </div>
@@ -514,7 +562,7 @@ export function EventFormDialog({
                 name="startDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Event Start Date</FormLabel>
+                    <FormLabel>{isChinese ? "事件开始日期" : "Event Start Date"}</FormLabel>
                     <DatePickerInput
                       onChange={(date: Date | undefined) => field.onChange(date)}
                       value={field.value}
@@ -529,7 +577,7 @@ export function EventFormDialog({
                 name="endDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Event End Date</FormLabel>
+                    <FormLabel>{isChinese ? "事件结束日期" : "Event End Date"}</FormLabel>
                     <DatePickerInput
                       onChange={(date: Date | undefined) => field.onChange(date)}
                       value={field.value}
@@ -543,6 +591,7 @@ export function EventFormDialog({
 
             {showSuggestions && candidateFilter && (
               <SuggestedTransactions
+                language={language}
                 candidates={candidates}
                 isFetching={isFetchingCandidates}
                 isSelected={isCandidateSelected}
@@ -556,8 +605,9 @@ export function EventFormDialog({
             {replacedTagCount > 0 && (
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
                 <span className="font-semibold">{replacedTagCount}</span>{" "}
-                {replacedTagCount === 1 ? "transaction is" : "transactions are"} already tagged to
-                another event. Creating this event will replace those tags.
+                {isChinese
+                  ? "笔交易已标记到其他事件。创建此事件会替换这些标记。"
+                  : `${replacedTagCount === 1 ? "transaction is" : "transactions are"} already tagged to another event. Creating this event will replace those tags.`}
               </div>
             )}
 
@@ -568,16 +618,24 @@ export function EventFormDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={isSubmitting}
               >
-                Cancel
+                {isChinese ? "取消" : "Cancel"}
               </Button>
               <Button type="submit" disabled={isSubmitting || showCreateType}>
                 {isSubmitting
                   ? isEditing
-                    ? "Updating..."
-                    : "Creating..."
+                    ? isChinese
+                      ? "更新中..."
+                      : "Updating..."
+                    : isChinese
+                      ? "创建中..."
+                      : "Creating..."
                   : isEditing
-                    ? "Update Event"
-                    : "Create Event"}
+                    ? isChinese
+                      ? "更新事件"
+                      : "Update Event"
+                    : isChinese
+                      ? "创建事件"
+                      : "Create Event"}
               </Button>
             </DialogFooter>
           </form>
@@ -588,6 +646,7 @@ export function EventFormDialog({
 }
 
 interface SuggestedTransactionsProps {
+  language: string;
   candidates: Activity[];
   isFetching: boolean;
   isSelected: (c: Activity) => boolean;
@@ -598,6 +657,7 @@ interface SuggestedTransactionsProps {
 }
 
 function SuggestedTransactions({
+  language,
   candidates,
   isFetching,
   isSelected,
@@ -606,10 +666,14 @@ function SuggestedTransactions({
   onClearAll,
   selectedCount,
 }: SuggestedTransactionsProps) {
+  const isChinese = language === "zh-CN";
+
   if (isFetching && candidates.length === 0) {
     return (
       <div className="border-input bg-muted/10 rounded-md border p-3">
-        <p className="text-muted-foreground text-xs">Looking for transactions in range…</p>
+        <p className="text-muted-foreground text-xs">
+          {isChinese ? "正在查找日期范围内的交易..." : "Looking for transactions in range..."}
+        </p>
       </div>
     );
   }
@@ -617,9 +681,13 @@ function SuggestedTransactions({
   if (candidates.length === 0) {
     return (
       <div className="border-input bg-muted/10 rounded-md border p-3">
-        <p className="text-foreground text-xs font-semibold">Tag transactions</p>
+        <p className="text-foreground text-xs font-semibold">
+          {isChinese ? "标记交易" : "Tag transactions"}
+        </p>
         <p className="text-muted-foreground mt-1 text-xs">
-          No transactions found in this date range. You can tag them later from the activity list.
+          {isChinese
+            ? "这个日期范围内没有找到交易。你可以稍后在活动列表中标记。"
+            : "No transactions found in this date range. You can tag them later from the activity list."}
         </p>
       </div>
     );
@@ -629,9 +697,13 @@ function SuggestedTransactions({
     <div className="border-input rounded-md border">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="min-w-0">
-          <p className="text-foreground text-xs font-semibold">Tag transactions in this range</p>
+          <p className="text-foreground text-xs font-semibold">
+            {isChinese ? "标记此范围内的交易" : "Tag transactions in this range"}
+          </p>
           <p className="text-muted-foreground text-[11px]">
-            {selectedCount} of {candidates.length} selected
+            {isChinese
+              ? `已选择 ${selectedCount} / ${candidates.length} 笔`
+              : `${selectedCount} of ${candidates.length} selected`}
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
@@ -640,14 +712,14 @@ function SuggestedTransactions({
             onClick={onSelectAll}
             className="text-muted-foreground hover:text-foreground text-[11px] underline-offset-2 hover:underline"
           >
-            Select all
+            {isChinese ? "全选" : "Select all"}
           </button>
           <button
             type="button"
             onClick={onClearAll}
             className="text-muted-foreground hover:text-foreground text-[11px] underline-offset-2 hover:underline"
           >
-            Clear
+            {isChinese ? "清除" : "Clear"}
           </button>
         </div>
       </div>
@@ -658,7 +730,10 @@ function SuggestedTransactions({
           const date = new Date(c.activityDate);
           const dateLabel = isNaN(date.getTime())
             ? c.activityDate.slice(0, 10)
-            : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+            : date.toLocaleDateString(isChinese ? "zh-CN" : undefined, {
+                month: "short",
+                day: "numeric",
+              });
           return (
             <li key={c.id}>
               <label className="hover:bg-muted/30 flex cursor-pointer items-center gap-3 px-3 py-2">
@@ -675,12 +750,12 @@ function SuggestedTransactions({
                     </span>
                     {c.eventId && checked && (
                       <span className="shrink-0 rounded border border-amber-500/30 bg-amber-500/15 px-1 py-px text-[9px] uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                        will replace tag
+                        {isChinese ? "将替换标记" : "will replace tag"}
                       </span>
                     )}
                     {c.eventId && !checked && (
                       <span className="text-muted-foreground/80 border-muted-foreground/30 shrink-0 rounded border px-1 py-px text-[9px] uppercase tracking-wide">
-                        already tagged
+                        {isChinese ? "已标记" : "already tagged"}
                       </span>
                     )}
                   </div>

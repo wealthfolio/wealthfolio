@@ -1,5 +1,6 @@
 import type { AllocationTarget, DriftReport } from "@/lib/types";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
+import { useI18n } from "@/i18n/i18n-provider";
 import { CurrentVsTargetCard } from "./current-vs-target-card";
 import { DriftDriversCard } from "./drift-drivers-card";
 import { HoldingsTable } from "./holdings-table";
@@ -21,21 +22,33 @@ export function OverviewTab({
   target,
   onRebalanceClick,
 }: OverviewTabProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { data: taxonomy } = useTaxonomy(taxonomyId);
   const resolvedReport = resolveDriftReportCategories(report, taxonomy?.categories);
   const taxonomyName = taxonomy?.taxonomy.name;
-  const categoryLabel = categoryNoun(taxonomyId, taxonomyName, report.outOfBandCount);
-  const pluralCategoryLabel = categoryNoun(taxonomyId, taxonomyName, 2);
-  const displayTaxonomy = taxonomyLabel(taxonomyId, taxonomyName);
+  const categoryLabel = categoryNoun(taxonomyId, taxonomyName, report.outOfBandCount, language);
+  const pluralCategoryLabel = categoryNoun(taxonomyId, taxonomyName, 2, language);
+  const displayTaxonomy = taxonomyLabel(taxonomyId, taxonomyName, language);
   const gapStatus =
     report.outOfBandCount === 0
-      ? `All ${pluralCategoryLabel} inside target`
-      : `${report.outOfBandCount} ${categoryLabel} outside target`;
+      ? isChinese
+        ? `所有${pluralCategoryLabel}均在目标范围内`
+        : `All ${pluralCategoryLabel} inside target`
+      : isChinese
+        ? `${report.outOfBandCount} 个${categoryLabel}超出目标范围`
+        : `${report.outOfBandCount} ${categoryLabel} outside target`;
 
   const bandLabel = (() => {
     if (!target) return null;
     const isHybrid = target.bandType === "hybrid";
-    const typeName = isHybrid ? "Hybrid" : "Absolute";
+    const typeName = isHybrid
+      ? isChinese
+        ? "混合"
+        : "Hybrid"
+      : isChinese
+        ? "固定"
+        : "Absolute";
     const requiredRows = resolvedReport.rows.filter((r) => r.isRequired && r.targetBps > 0);
     if (!requiredRows.length) return `${typeName} · ${formatTolerance(target.driftBandBps)}`;
     const bands = requiredRows.map((r) => r.effectiveBandBps);
@@ -54,7 +67,7 @@ export function OverviewTab({
         <CurrentVsTargetCard
           report={resolvedReport}
           taxonomyLabel={displayTaxonomy}
-          targetLabel={targetLabel(targetName)}
+          targetLabel={targetLabel(targetName, language)}
         />
         <DriftDriversCard
           report={resolvedReport}

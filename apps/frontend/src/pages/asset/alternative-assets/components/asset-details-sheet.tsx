@@ -31,6 +31,7 @@ import {
   type ResponsiveSelectOption,
 } from "@wealthfolio/ui";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
+import { useI18n } from "@/i18n/i18n-provider";
 
 import {
   assetDetailsSchema,
@@ -114,6 +115,8 @@ export function AssetDetailsSheet({
   onUnlinkMortgage,
   isSaving = false,
 }: AssetDetailsSheetProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   // Use a fallback kind for the form when asset is null (form state won't be used anyway)
   const assetKind = asset?.kind ?? AlternativeAssetKind.OTHER;
   const assetName = asset?.name ?? "";
@@ -157,20 +160,34 @@ export function AssetDetailsSheet({
       // Pass notes separately (it goes to asset.notes, not metadata)
       await onSave(asset.id, metadata, nameChanged, values.notes);
       toast({
-        title: "Details saved successfully",
+        title: isChinese ? "详情已成功保存" : "Details saved successfully",
         variant: "success",
       });
       onOpenChange(false);
     } catch (_error) {
       toast({
-        title: "Failed to save details",
-        description: "Please try again or report an issue if the problem persists.",
+        title: isChinese ? "保存详情失败" : "Failed to save details",
+        description: isChinese
+          ? "请重试；如果问题仍然存在，请提交问题反馈。"
+          : "Please try again or report an issue if the problem persists.",
         variant: "destructive",
       });
     }
   };
 
   const kindDisplayName = ALTERNATIVE_ASSET_KIND_DISPLAY_NAMES[asset.kind] || asset.kind;
+  const localizedKindDisplayName =
+    isChinese && asset.kind === AlternativeAssetKind.LIABILITY
+      ? "负债"
+      : isChinese && asset.kind === AlternativeAssetKind.PROPERTY
+        ? "房产"
+        : isChinese && asset.kind === AlternativeAssetKind.VEHICLE
+          ? "车辆"
+          : isChinese && asset.kind === AlternativeAssetKind.PRECIOUS_METAL
+            ? "贵金属"
+            : isChinese
+              ? "资产"
+              : kindDisplayName;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -182,15 +199,19 @@ export function AssetDetailsSheet({
             </div>
             <div className="flex flex-col items-start">
               <SheetTitle className="flex items-center gap-2">
-                Edit {kindDisplayName}
+                {isChinese ? `编辑${localizedKindDisplayName}` : `Edit ${kindDisplayName}`}
                 <Badge variant="secondary" className="text-xs font-normal">
-                  {kindDisplayName}
+                  {localizedKindDisplayName}
                 </Badge>
               </SheetTitle>
               <SheetDescription className="text-left">
-                {asset.kind === AlternativeAssetKind.LIABILITY
-                  ? "Edit liability details and linking"
-                  : "Edit name, purchase information, and other details"}
+                {isChinese
+                  ? asset.kind === AlternativeAssetKind.LIABILITY
+                    ? "编辑负债详情和关联关系"
+                    : "编辑名称、购买信息和其他详情"
+                  : asset.kind === AlternativeAssetKind.LIABILITY
+                    ? "Edit liability details and linking"
+                    : "Edit name, purchase information, and other details"}
               </SheetDescription>
             </div>
           </div>

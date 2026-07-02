@@ -1,3 +1,5 @@
+import type { AppLanguage } from "@/i18n/languages";
+import { translateClassificationLabel, translateUiText } from "@/i18n/ui-text";
 import { cn } from "@/lib/utils";
 import type { CategoryAllocation } from "@/lib/types";
 import { allocationTargetColor } from "./allocation-target-colors";
@@ -68,6 +70,7 @@ interface ModelPresetPickerProps {
   selected: string | null;
   onSelect: (presetId: string) => void;
   currentCategories: CategoryAllocation[];
+  language: AppLanguage;
   compact?: boolean;
 }
 
@@ -76,8 +79,10 @@ export function ModelPresetPicker({
   selected,
   onSelect,
   currentCategories,
+  language,
   compact = false,
 }: ModelPresetPickerProps) {
+  const isChinese = language === "zh-CN";
   const categoryNames = Object.fromEntries(
     currentCategories.map((category) => [category.categoryId, category.categoryName]),
   );
@@ -95,15 +100,25 @@ export function ModelPresetPicker({
   const currentPreset: ModelPreset = {
     id: "current",
     taxonomyId,
-    name: "Current allocation",
-    description: "Start from what you hold today",
-    risk: "From holdings",
+    name: isChinese ? "当前配置" : "Current allocation",
+    description: isChinese ? "从当前持仓开始" : "Start from what you hold today",
+    risk: isChinese ? "来自持仓" : "From holdings",
     featured: true,
     weights: currentWeights,
   };
 
   function categoryLabel(categoryId: string): string {
-    return categoryNames[categoryId] ?? CATEGORY_LABELS[categoryId] ?? categoryId;
+    const label = categoryNames[categoryId] ?? CATEGORY_LABELS[categoryId] ?? categoryId;
+    return translateClassificationLabel(language, label);
+  }
+
+  function presetText(text: string): string {
+    return translateUiText(language, text);
+  }
+
+  function riskClass(risk: string): string {
+    if (risk === "来自持仓") return RISK_BADGE["From holdings"];
+    return RISK_BADGE[risk] ?? "bg-muted text-muted-foreground";
   }
 
   function colorMapForWeights(weights: Record<string, number>): Record<string, string> {
@@ -122,7 +137,7 @@ export function ModelPresetPicker({
       .sort(([, a], [, b]) => b - a)
       .slice(0, 3);
 
-    if (nonZero.length === 0) return "No current holdings";
+    if (nonZero.length === 0) return isChinese ? "当前没有持仓" : "No current holdings";
 
     return nonZero
       .map(([categoryId, pct]) => `${categoryLabel(categoryId)} ${formattedPct(pct)}`)
@@ -156,10 +171,10 @@ export function ModelPresetPicker({
           <span
             className={cn(
               "shrink-0 rounded-md px-2 py-1 text-[10px] font-medium",
-              RISK_BADGE[preset.risk] ?? "bg-muted text-muted-foreground",
+              riskClass(preset.risk),
             )}
           >
-            {preset.risk}
+            {presetText(preset.risk)}
           </span>
           {selected === preset.id && (
             <span className="bg-foreground text-background flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px]">
@@ -173,7 +188,7 @@ export function ModelPresetPicker({
             compact ? "mt-3" : "mt-4",
           )}
         >
-          {preset.name}
+          {presetText(preset.name)}
         </span>
         <p
           className={cn(
@@ -181,7 +196,7 @@ export function ModelPresetPicker({
             compact ? "max-h-9 min-h-9 overflow-hidden" : "min-h-10",
           )}
         >
-          {preset.description}
+          {presetText(preset.description)}
         </p>
         <div className={cn("mt-auto space-y-2.5", compact ? "pt-4" : "pt-7")}>
           <PresetBar weights={preset.weights} colorMap={colorMapForWeights(preset.weights)} />
@@ -211,7 +226,7 @@ export function ModelPresetPicker({
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {secondaryPresets.length > 0 && (
             <span className="text-muted-foreground mr-1 text-[11px] font-medium uppercase tracking-wider">
-              More templates
+              {isChinese ? "更多模板" : "More templates"}
             </span>
           )}
           {secondaryPresets.map((preset) => (
@@ -227,7 +242,7 @@ export function ModelPresetPicker({
               )}
               title={allocationSummary(preset.weights)}
             >
-              {preset.name}
+              {presetText(preset.name)}
               {selected === preset.id && <span className="text-[10px]">✓</span>}
             </button>
           ))}
@@ -241,7 +256,7 @@ export function ModelPresetPicker({
                 : "bg-card hover:border-muted-foreground/50",
             )}
           >
-            Build from scratch
+            {isChinese ? "从空白开始" : "Build from scratch"}
             {scratchSelected && <span className="text-[10px]">✓</span>}
           </button>
         </div>

@@ -19,7 +19,7 @@ interface EnterCodeProps {
 export function EnterCode({ onSubmit, onCancel, isLoading, error }: EnterCodeProps) {
   const [code, setCode] = useState("");
   const [isScanning, setIsScanning] = useState(false);
-  const { isMobile } = usePlatform();
+  const { isMobile, isTauri } = usePlatform();
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export function EnterCode({ onSubmit, onCancel, isLoading, error }: EnterCodePro
   }, []);
 
   // Scan only available on mobile (native iOS/Android)
-  const canScan = isMobile;
+  const canScan = isMobile && isTauri;
 
   // Normalize code: uppercase, alphanumeric only, max 6 chars
   const normalizeCode = (value: string): string => {

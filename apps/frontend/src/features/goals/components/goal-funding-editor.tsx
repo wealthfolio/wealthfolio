@@ -1,5 +1,6 @@
 import { getGoalFunding } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useI18n } from "@/i18n/i18n-provider";
 import { AccountPurpose } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, GoalFundingRule, GoalFundingRuleInput } from "@/lib/types";
@@ -657,38 +658,51 @@ function AllocationDetailsSheet({
   goalColumns: { id: string; title: string }[];
   currentGoalId: string;
 }) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex h-full w-full flex-col p-0 sm:max-w-3xl">
         <SheetHeader className="border-border border-b px-6 py-5">
-          <SheetTitle>Allocation details</SheetTitle>
+          <SheetTitle>{isChinese ? "配置详情" : "Allocation details"}</SheetTitle>
           <SheetDescription>
-            Active goal shares by account. Each account can be allocated up to 100%.
+            {isChinese
+              ? "按账户查看当前目标份额。每个账户最多可分配 100%。"
+              : "Active goal shares by account. Each account can be allocated up to 100%."}
           </SheetDescription>
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {rows.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No active account shares yet.</p>
+            <p className="text-muted-foreground text-sm">
+              {isChinese ? "还没有活跃的账户份额。" : "No active account shares yet."}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
                 <thead>
                   <tr className="text-muted-foreground text-left text-[10px] uppercase tracking-[0.18em]">
-                    <th className="border-border border-b py-2 pr-4 font-medium">Account</th>
+                    <th className="border-border border-b py-2 pr-4 font-medium">
+                      {isChinese ? "账户" : "Account"}
+                    </th>
                     {goalColumns.map((goal) => (
                       <th
                         key={goal.id}
                         className="border-border border-b px-3 py-2 text-right font-medium"
                       >
-                        {goal.id === currentGoalId ? "This goal" : goal.title}
+                        {goal.id === currentGoalId
+                          ? isChinese
+                            ? "此目标"
+                            : "This goal"
+                          : goal.title}
                       </th>
                     ))}
                     <th className="border-border border-b px-3 py-2 text-right font-medium">
-                      Free
+                      {isChinese ? "可用" : "Free"}
                     </th>
                     <th className="border-border border-b py-2 pl-3 text-right font-medium">
-                      Total
+                      {isChinese ? "总计" : "Total"}
                     </th>
                   </tr>
                 </thead>

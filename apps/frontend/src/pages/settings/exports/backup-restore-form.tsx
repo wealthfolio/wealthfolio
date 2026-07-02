@@ -10,6 +10,7 @@ import { DeleteConfirm } from "@wealthfolio/ui/components/common";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import type { DatabaseBackup } from "@/adapters";
+import { useI18n } from "@/i18n/i18n-provider";
 import { useBackupRestore } from "./use-backup-restore";
 
 const desktopNotes = [
@@ -190,6 +191,9 @@ const WebBackupPanel = ({
   onDeleteBackup,
   getDownloadUrl,
 }: WebPanelProps) => {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
+
   return (
     <div className="space-y-4">
       <PanelIntro />
@@ -272,11 +276,19 @@ const WebBackupPanel = ({
                       <TooltipContent>Download</TooltipContent>
                     </Tooltip>
                     <DeleteConfirm
-                      deleteConfirmTitle="Delete Backup"
+                      deleteConfirmTitle={isChinese ? "删除备份" : "Delete Backup"}
                       deleteConfirmMessage={
                         <>
-                          Delete <span className="break-all font-medium">{backup.filename}</span>?
-                          This action cannot be undone.
+                          {isChinese ? (
+                            <>
+                              要删除 <span className="break-all font-medium">{backup.filename}</span> 吗？此操作无法撤销。
+                            </>
+                          ) : (
+                            <>
+                              Delete <span className="break-all font-medium">{backup.filename}</span>?
+                              This action cannot be undone.
+                            </>
+                          )}
                         </>
                       }
                       handleDeleteConfirm={() => void onDeleteBackup(backup.filename)}

@@ -19,6 +19,7 @@ import {
 } from "@/hooks/use-updater";
 import { Icons } from "@wealthfolio/ui";
 import { usePersistentState } from "@wealthfolio/ui/hooks/use-persistent-state";
+import { useI18n } from "@/i18n/i18n-provider";
 
 interface DismissedUpdate {
   version: string;
@@ -38,7 +39,7 @@ function isDismissed(dismissed: DismissedUpdate | null, version: string): boolea
   return Date.now() - dismissed.dismissedAt < SNOOZE_DURATION_MS;
 }
 
-function formatReleaseDate(pubDate?: string) {
+function formatReleaseDate(pubDate: string | undefined, locale?: string) {
   if (!pubDate) {
     return null;
   }
@@ -48,7 +49,7 @@ function formatReleaseDate(pubDate?: string) {
     return pubDate;
   }
 
-  return parsed.toLocaleString(undefined, {
+  return parsed.toLocaleString(locale, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -56,6 +57,8 @@ function formatReleaseDate(pubDate?: string) {
 }
 
 export function UpdateDialog() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { data: updateInfo } = useCheckUpdateOnStartup();
   const clearUpdate = useClearUpdate();
   const [isOpen, setIsOpen] = useState(false);
@@ -115,8 +118,8 @@ export function UpdateDialog() {
       await openUrlInBrowser(updateInfo.storeUrl);
     } catch (error) {
       toast({
-        title: "Unable to open the link",
-        description: "Try opening the link manually.",
+        title: isChinese ? "无法打开链接" : "Unable to open the link",
+        description: isChinese ? "请尝试手动打开链接。" : "Try opening the link manually.",
         variant: "destructive",
       });
       console.error("Failed to open store for update", error);
@@ -130,15 +133,17 @@ export function UpdateDialog() {
       await openUrlInBrowser(updateInfo.changelogUrl);
     } catch (error) {
       toast({
-        title: "Unable to open changelog",
-        description: "Try opening the changelog manually in your browser.",
+        title: isChinese ? "无法打开更新日志" : "Unable to open changelog",
+        description: isChinese
+          ? "请尝试在浏览器中手动打开更新日志。"
+          : "Try opening the changelog manually in your browser.",
         variant: "destructive",
       });
       console.error("Failed to open changelog", error);
     }
   };
 
-  const releaseDate = formatReleaseDate(updateInfo?.pubDate);
+  const releaseDate = formatReleaseDate(updateInfo?.pubDate, isChinese ? "zh-CN" : undefined);
 
   if (!isOpen || !updateInfo) return null;
 
@@ -159,7 +164,7 @@ export function UpdateDialog() {
             <button
               onClick={handleDismiss}
               className="bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground absolute right-4 top-4 rounded-full p-2 transition-all duration-200 hover:scale-105"
-              aria-label="Close dialog"
+              aria-label={isChinese ? "关闭弹窗" : "Close dialog"}
             >
               <Icons.Close className="h-4 w-4" />
             </button>
@@ -175,7 +180,7 @@ export function UpdateDialog() {
             {/* Title */}
             <div className="mb-3 space-y-3">
               <h2 className="text-foreground text-balance text-2xl font-bold">
-                New Update Available
+                {isChinese ? "有新版本可用" : "New Update Available"}
               </h2>
             </div>
 
@@ -223,7 +228,9 @@ export function UpdateDialog() {
               {phase === "downloading" ? (
                 <>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Downloading update...</span>
+                    <span className="text-muted-foreground">
+                      {isChinese ? "正在下载更新..." : "Downloading update..."}
+                    </span>
                     <span className="text-muted-foreground tabular-nums">
                       {progress.total
                         ? `${formatBytes(progress.downloaded)} / ${formatBytes(progress.total)}`
@@ -240,7 +247,9 @@ export function UpdateDialog() {
               ) : (
                 <div className="flex items-center gap-2 text-sm">
                   <Icons.Spinner className="h-4 w-4 animate-spin" />
-                  <span className="text-muted-foreground">Installing update...</span>
+                  <span className="text-muted-foreground">
+                    {isChinese ? "正在安装更新..." : "Installing update..."}
+                  </span>
                 </div>
               )}
             </div>
@@ -248,42 +257,42 @@ export function UpdateDialog() {
             // Error state with retry
             <div className="flex items-center justify-between gap-4">
               <p className="text-destructive text-sm">
-                {error || "Update failed. Please try again."}
+                {isChinese ? "更新失败，请重试。" : error || "Update failed. Please try again."}
               </p>
               <div className="flex items-center gap-3">
                 <Button variant="ghost" onClick={handleDismiss}>
-                  Close
+                  {isChinese ? "关闭" : "Close"}
                 </Button>
-                <Button onClick={handleInstall}>Retry</Button>
+                <Button onClick={handleInstall}>{isChinese ? "重试" : "Retry"}</Button>
               </div>
             </div>
           ) : (
             // Default actions
             <div className="flex items-center justify-between gap-4">
               <Button variant="ghost" onClick={handleSnooze}>
-                Remind me later
+                {isChinese ? "稍后提醒我" : "Remind me later"}
               </Button>
               <div className="flex items-center gap-3">
                 {updateInfo.changelogUrl && (
                   <Button variant="outline" onClick={handleOpenChangelog}>
-                    View Changelog
+                    {isChinese ? "查看更新日志" : "View Changelog"}
                   </Button>
                 )}
                 {isDesktopEnv ? (
                   updateInfo.isAppStoreBuild ? (
                     <Button onClick={handleOpenStore} disabled={!updateInfo.storeUrl}>
-                      Open App Store
+                      {isChinese ? "打开 App Store" : "Open App Store"}
                     </Button>
                   ) : (
                     <Button onClick={handleInstall}>
                       <Icons.Download className="mr-2 h-4 w-4" />
-                      Update Now
+                      {isChinese ? "立即更新" : "Update Now"}
                     </Button>
                   )
                 ) : (
                   <Button onClick={handleOpenStore} disabled={!updateInfo.storeUrl}>
                     <Icons.ExternalLink className="mr-2 h-4 w-4" />
-                    View Release
+                    {isChinese ? "查看版本" : "View Release"}
                   </Button>
                 )}
               </div>

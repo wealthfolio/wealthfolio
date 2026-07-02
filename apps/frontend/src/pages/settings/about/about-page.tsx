@@ -15,9 +15,12 @@ import {
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
+import { useI18n } from "@/i18n/i18n-provider";
 import { SettingsHeader } from "../settings-header";
 
 export default function AboutSettingsPage() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [version, setVersion] = useState<string>("");
   const [dbPath, setDbPath] = useState<string>("");
   const [logsDir, setLogsDir] = useState<string>("");
@@ -50,11 +53,14 @@ export default function AboutSettingsPage() {
   const handleCopy = async (value: string, label: string) => {
     try {
       await navigator.clipboard.writeText(value);
-      toast({ title: "Copied", description: `${label} copied to clipboard.` });
+      toast({
+        title: isChinese ? "已复制" : "Copied",
+        description: isChinese ? `${label} 已复制到剪贴板。` : `${label} copied to clipboard.`,
+      });
     } catch (error) {
       toast({
-        title: "Copy failed",
-        description: `Could not copy ${label.toLowerCase()}.`,
+        title: isChinese ? "复制失败" : "Copy failed",
+        description: isChinese ? `无法复制 ${label}。` : `Could not copy ${label.toLowerCase()}.`,
         variant: "destructive",
       });
       console.error("Failed to copy to clipboard:", error);
@@ -173,7 +179,9 @@ export default function AboutSettingsPage() {
 
           <div className="space-y-4">
             <p className="text-muted-foreground text-sm">
-              Have questions or found a bug? Please email us at{" "}
+              {isChinese
+                ? "有问题或发现了错误？请发送邮件至"
+                : "Have questions or found a bug? Please email us at"}{" "}
               <span className="select-all font-mono font-semibold">support@wealthfolio.app</span>
             </p>
             <div className="flex flex-wrap items-center gap-2">

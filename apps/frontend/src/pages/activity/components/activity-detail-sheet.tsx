@@ -4,6 +4,7 @@ import {
   ActivityTypeNames,
   SUBTYPE_DISPLAY_NAMES,
 } from "@/lib/constants";
+import { useI18n } from "@/i18n/i18n-provider";
 import { parseOccSymbol } from "@/lib/occ-symbol";
 import type { ActivityDetails } from "@/lib/types";
 import {
@@ -73,6 +74,9 @@ function DetailSection({ title, icon, children }: DetailSectionProps) {
 }
 
 export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDetailSheetProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
+
   if (!activity) return null;
 
   const statusConfig = activity.status
@@ -113,11 +117,11 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
               <Icons.Receipt className="text-primary h-5 w-5" />
             </div>
             <div className="flex flex-col items-start">
-              <span>Activity Details</span>
+              <span>{isChinese ? "活动详情" : "Activity Details"}</span>
               <span className="text-muted-foreground text-xs font-normal">
                 {parsedOption
                   ? parsedOption.underlying
-                  : activity.assetSymbol || "Cash Transaction"}
+                  : activity.assetSymbol || (isChinese ? "现金交易" : "Cash Transaction")}
               </span>
             </div>
           </SheetTitle>

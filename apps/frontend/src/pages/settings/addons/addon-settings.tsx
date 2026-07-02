@@ -19,11 +19,14 @@ import {
 } from "@wealthfolio/ui";
 import { useToast } from "@wealthfolio/ui/components/ui/use-toast";
 import { useState } from "react";
+import { useI18n } from "@/i18n/i18n-provider";
 import { SettingsHeader } from "../settings-header";
 import { useAddonActions } from "./hooks/use-addon-actions";
 import { useAddonUpdates } from "./hooks/use-addon-updates";
 
 export default function AddonSettingsPage() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [activeTab, setActiveTab] = useState<"installed" | "store">("installed");
   const [ratingDialog, setRatingDialog] = useState<{
     open: boolean;
@@ -164,16 +167,30 @@ export default function AddonSettingsPage() {
                 <h3 className="text-base font-medium sm:text-lg">Installed Add-ons</h3>
                 <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm">
                   <span>
-                    {installedAddons.length} add-on{installedAddons.length !== 1 ? "s" : ""}{" "}
-                    installed
+                    {isChinese
+                      ? `已安装 ${installedAddons.length} 个插件`
+                      : `${installedAddons.length} add-on${
+                          installedAddons.length !== 1 ? "s" : ""
+                        } installed`}
                   </span>
                   {hasUpdates() && (
                     <Badge
                       variant={getCriticalUpdateCount() > 0 ? "destructive" : "default"}
                       className="text-xs"
                     >
-                      {getUpdateCount()} update{getUpdateCount() !== 1 ? "s" : ""} available
-                      {getCriticalUpdateCount() > 0 && ` (${getCriticalUpdateCount()} critical)`}
+                      {isChinese
+                        ? `${getUpdateCount()} 个更新可用${
+                            getCriticalUpdateCount() > 0
+                              ? `（${getCriticalUpdateCount()} 个关键更新）`
+                              : ""
+                          }`
+                        : `${getUpdateCount()} update${
+                            getUpdateCount() !== 1 ? "s" : ""
+                          } available${
+                            getCriticalUpdateCount() > 0
+                              ? ` (${getCriticalUpdateCount()} critical)`
+                              : ""
+                          }`}
                     </Badge>
                   )}
                 </div>
@@ -404,16 +421,25 @@ export default function AddonSettingsPage() {
 
                           {/* Delete button with confirmation */}
                           <DeleteConfirm
-                            deleteConfirmTitle="Remove Addon"
+                            deleteConfirmTitle={isChinese ? "移除插件" : "Remove Addon"}
                             deleteConfirmMessage={
                               <div className="space-y-2">
                                 <p>
-                                  Are you sure you want to remove{" "}
-                                  <strong>{addon.metadata.name}</strong>?
+                                  {isChinese ? (
+                                    <>
+                                      确定要移除 <strong>{addon.metadata.name}</strong> 吗？
+                                    </>
+                                  ) : (
+                                    <>
+                                      Are you sure you want to remove{" "}
+                                      <strong>{addon.metadata.name}</strong>?
+                                    </>
+                                  )}
                                 </p>
                                 <p className="text-muted-foreground text-sm">
-                                  This action cannot be undone. The addon will be completely removed
-                                  from your system.
+                                  {isChinese
+                                    ? "此操作无法撤销。该插件会从你的系统中完全移除。"
+                                    : "This action cannot be undone. The addon will be completely removed from your system."}
                                 </p>
                               </div>
                             }

@@ -22,6 +22,15 @@ interface PerformanceChartProps {
   }[];
 }
 
+function isChineseLocale(): boolean {
+  return typeof document !== "undefined" && document.documentElement.lang === "zh-CN";
+}
+
+function formatChartDate(date: Date, options: Intl.DateTimeFormatOptions): string {
+  if (!isChineseLocale()) return "";
+  return new Intl.DateTimeFormat("zh-CN", options).format(date);
+}
+
 export function PerformanceChart({ data }: PerformanceChartProps) {
   const formattedData = data[0]?.returns?.map((item) => {
     const dataPoint: Record<string, number | string> = { date: item.date };
@@ -63,9 +72,13 @@ export function PerformanceChart({ data }: PerformanceChartProps) {
     const daysDiff = differenceInDays(lastDate, firstDate);
 
     if (daysDiff <= 31) {
+      const localized = formatChartDate(date, { month: "short", day: "numeric" });
+      if (localized) return localized;
       return format(date, "MMM d"); // e.g., "Sep 15"
     }
     if (monthsDiff <= 36) {
+      const localized = formatChartDate(date, { year: "numeric", month: "short" });
+      if (localized) return localized;
       return format(date, "MMM yyyy"); // e.g., "Sep 2023"
     }
     return format(date, "yyyy"); // e.g., "2023"
@@ -89,7 +102,10 @@ export function PerformanceChart({ data }: PerformanceChartProps) {
   };
 
   const tooltipLabelFormatter = (label: React.ReactNode) =>
-    typeof label === "string" ? format(parseISO(label), "PPP") : "";
+    typeof label === "string"
+      ? formatChartDate(parseISO(label), { year: "numeric", month: "long", day: "numeric" }) ||
+        format(parseISO(label), "PPP")
+      : "";
 
   return (
     <div className="h-full w-full">

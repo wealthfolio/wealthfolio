@@ -12,6 +12,7 @@ import type { AccountScope } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@wealthfolio/ui";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useI18n } from "@/i18n/i18n-provider";
 import { usePortfolios } from "@/hooks/use-portfolios";
 
 interface IncomeMobileFilterSheetProps {
@@ -27,6 +28,8 @@ export const IncomeMobileFilterSheet = ({
   accountFilter,
   onAccountScopeChange,
 }: IncomeMobileFilterSheetProps) => {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { accounts } = useAccounts();
   const { data: portfolios = [] } = usePortfolios();
 
@@ -44,12 +47,12 @@ export const IncomeMobileFilterSheet = ({
         className="flex h-[70vh] flex-col rounded-t-xl pb-[max(env(safe-area-inset-bottom),0.75rem)]"
       >
         <SheetHeader className="text-left">
-          <SheetTitle>Filter Options</SheetTitle>
+          <SheetTitle>{isChinese ? "筛选选项" : "Filter Options"}</SheetTitle>
         </SheetHeader>
         <ScrollArea className="flex-1 py-4">
           <div className="space-y-3">
             <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-              Account
+              {isChinese ? "账户" : "Account"}
             </h4>
             <div className="overflow-hidden rounded-lg border">
               <div
@@ -61,7 +64,7 @@ export const IncomeMobileFilterSheet = ({
               >
                 <span className="flex items-center gap-2">
                   <Icons.LayoutDashboard className="text-muted-foreground h-4 w-4" />
-                  All Accounts
+                  {isChinese ? "全部账户" : "All Accounts"}
                 </span>
                 {isAll && <Icons.Check className="text-primary h-4 w-4" />}
               </div>
@@ -112,7 +115,7 @@ export const IncomeMobileFilterSheet = ({
         </ScrollArea>
         <SheetFooter className="mt-auto">
           <SheetClose asChild>
-            <Button className="w-full">Done</Button>
+            <Button className="w-full">{isChinese ? "完成" : "Done"}</Button>
           </SheetClose>
         </SheetFooter>
       </SheetContent>

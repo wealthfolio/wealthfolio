@@ -20,6 +20,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { Account, TrackingMode } from "@/lib/types";
 import { syncBrokerData } from "../services/broker-service";
+import { useI18n } from "@/i18n/i18n-provider";
 
 export interface NewAccountInfo {
   localAccountId: string;
@@ -49,6 +50,8 @@ export function NewAccountsFoundModal({
   accounts,
   onComplete,
 }: NewAccountsFoundModalProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -100,8 +103,10 @@ export function NewAccountsFoundModal({
       // Invalidate queries and trigger sync
       await queryClient.invalidateQueries();
 
-      toast.success("Accounts configured", {
-        description: "Starting sync with your selected settings...",
+      toast.success(isChinese ? "账户已配置" : "Accounts configured", {
+        description: isChinese
+          ? "正在使用你选择的设置开始同步..."
+          : "Starting sync with your selected settings...",
       });
 
       onOpenChange(false);
@@ -110,7 +115,7 @@ export function NewAccountsFoundModal({
       // Trigger broker sync to import data for the now-configured accounts
       syncBrokerData();
     } catch (error) {
-      toast.error("Failed to save accounts", {
+      toast.error(isChinese ? "保存账户失败" : "Failed to save accounts", {
         description: String(error),
       });
     } finally {
@@ -128,10 +133,12 @@ export function NewAccountsFoundModal({
         <SheetHeader className="border-b px-6 py-4">
           <SheetTitle className="flex items-center gap-2">
             <Icons.Users className="h-5 w-5" />
-            New accounts found
+            {isChinese ? "发现新账户" : "New accounts found"}
           </SheetTitle>
           <SheetDescription>
-            Choose how to track each account. You can change this later.
+            {isChinese
+              ? "选择每个账户的跟踪方式。你之后仍可更改。"
+              : "Choose how to track each account. You can change this later."}
           </SheetDescription>
         </SheetHeader>
 
@@ -144,14 +151,23 @@ export function NewAccountsFoundModal({
               >
                 <Icons.AlertTriangle className="h-4 w-4" />
                 <AlertDescription className="text-sm">
-                  <strong>Transactions</strong> mode tracks every trade for full performance
-                  analytics. <strong>Holdings</strong> mode imports snapshots only with limited
-                  metrics.{" "}
+                  {isChinese ? (
+                    <>
+                      <strong>交易</strong>模式会记录每笔交易，用于完整绩效分析。
+                      <strong>持仓</strong>模式只导入快照，指标会受限。
+                    </>
+                  ) : (
+                    <>
+                      <strong>Transactions</strong> mode tracks every trade for full performance
+                      analytics. <strong>Holdings</strong> mode imports snapshots only with limited
+                      metrics.
+                    </>
+                  )}{" "}
                   <ExternalLink
                     href="https://wealthfolio.app/docs/concepts/activity-types"
                     className="hover:text-foreground underline"
                   >
-                    Learn more
+                    {isChinese ? "了解更多" : "Learn more"}
                   </ExternalLink>
                 </AlertDescription>
               </Alert>
@@ -169,7 +185,9 @@ export function NewAccountsFoundModal({
 
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor={`name-${acc.id}`}>Account name</Label>
+                        <Label htmlFor={`name-${acc.id}`}>
+                          {isChinese ? "账户名称" : "Account name"}
+                        </Label>
                         <Input
                           id={`name-${acc.id}`}
                           value={setup?.name ?? ""}
@@ -177,18 +195,20 @@ export function NewAccountsFoundModal({
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor={`group-${acc.id}`}>Group (optional)</Label>
+                        <Label htmlFor={`group-${acc.id}`}>
+                          {isChinese ? "分组（可选）" : "Group (optional)"}
+                        </Label>
                         <Input
                           id={`group-${acc.id}`}
                           value={setup?.group ?? ""}
-                          placeholder="e.g., Retirement"
+                          placeholder={isChinese ? "例如：退休账户" : "e.g., Retirement"}
                           onChange={(e) => updateSetup(acc.id, "group", e.target.value)}
                         />
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Tracking mode</Label>
+                      <Label>{isChinese ? "跟踪模式" : "Tracking mode"}</Label>
                       <RadioGroup
                         value={setup?.trackingMode}
                         onValueChange={(value) =>
@@ -205,9 +225,11 @@ export function NewAccountsFoundModal({
                         >
                           <RadioGroupItem value="TRANSACTIONS" className="mt-0.5" />
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium">Transactions</span>
+                            <span className="text-sm font-medium">
+                              {isChinese ? "交易" : "Transactions"}
+                            </span>
                             <span className="text-muted-foreground text-xs">
-                              Full performance analytics
+                              {isChinese ? "完整绩效分析" : "Full performance analytics"}
                             </span>
                           </div>
                         </label>
@@ -220,8 +242,12 @@ export function NewAccountsFoundModal({
                         >
                           <RadioGroupItem value="HOLDINGS" className="mt-0.5" />
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium">Holdings</span>
-                            <span className="text-muted-foreground text-xs">Snapshots only</span>
+                            <span className="text-sm font-medium">
+                              {isChinese ? "持仓" : "Holdings"}
+                            </span>
+                            <span className="text-muted-foreground text-xs">
+                              {isChinese ? "仅快照" : "Snapshots only"}
+                            </span>
                           </div>
                         </label>
                       </RadioGroup>
@@ -231,7 +257,9 @@ export function NewAccountsFoundModal({
                       <Alert variant="warning">
                         <Icons.AlertTriangle className="h-4 w-4" />
                         <AlertDescription>
-                          Performance metrics will be limited without transaction history.
+                          {isChinese
+                            ? "没有交易历史时，绩效指标会受限。"
+                            : "Performance metrics will be limited without transaction history."}
                         </AlertDescription>
                       </Alert>
                     )}
@@ -244,18 +272,18 @@ export function NewAccountsFoundModal({
 
         <SheetFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={handleNotNow} disabled={isSaving}>
-            Not now
+            {isChinese ? "暂时不要" : "Not now"}
           </Button>
           <Button onClick={handleSaveAndSync} disabled={isSaving}>
             {isSaving ? (
               <>
                 <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
+                {isChinese ? "保存中..." : "Saving..."}
               </>
             ) : (
               <>
                 <Icons.Check className="mr-2 h-4 w-4" />
-                Save and sync
+                {isChinese ? "保存并同步" : "Save and sync"}
               </>
             )}
           </Button>

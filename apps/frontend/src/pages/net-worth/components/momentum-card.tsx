@@ -1,13 +1,14 @@
 import { DashboardCard } from "@/components/dashboard-card";
+import { useI18n } from "@/i18n/i18n-provider";
 import { CompactAmount } from "./compact-amount";
 import { toneClass, toneFill, type Momentum } from "./utils";
 
 const PRIOR_BAR_COLOR = "color-mix(in srgb, var(--muted-foreground) 35%, transparent)";
 
-function monthLabel(month: string): string {
+function monthLabel(month: string, locale: string): string {
   // month is "YYYY-MM"
   const date = new Date(`${month}-01T00:00:00`);
-  return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+  return date.toLocaleDateString(locale, { month: "short", year: "2-digit" });
 }
 
 interface MomentumCardProps {
@@ -17,6 +18,9 @@ interface MomentumCardProps {
 }
 
 export function MomentumCard({ momentum, currency, periodLabel }: MomentumCardProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
+  const locale = isChinese ? "zh-CN" : "en-US";
   const { currentChange, beatBy, bars } = momentum;
   const changeSign = Math.abs(currentChange) < 0.005 ? "" : currentChange > 0 ? "+" : "-";
 
@@ -31,14 +35,23 @@ export function MomentumCard({ momentum, currency, periodLabel }: MomentumCardPr
     current ? toneFill(value) : PRIOR_BAR_COLOR;
 
   return (
-    <DashboardCard title="Momentum" meta={beatBy == null ? "all time" : `vs prior ${periodLabel}`}>
+    <DashboardCard
+      title={isChinese ? "动量" : "Momentum"}
+      meta={beatBy == null ? (isChinese ? "全部时间" : "all time") : isChinese ? `较上一${periodLabel}` : `vs prior ${periodLabel}`}
+    >
       <div className={`text-lg font-bold tabular-nums ${toneClass(currentChange)}`}>
         {changeSign}
         <CompactAmount value={Math.abs(currentChange)} currency={currency} />
       </div>
       {beatBy != null && (
         <p className="text-muted-foreground mt-0.5 text-xs">
-          {beatBy >= 0 ? "Beat prior period by " : "Behind prior period by "}
+          {beatBy >= 0
+            ? isChinese
+              ? "较上一期间多 "
+              : "Beat prior period by "
+            : isChinese
+              ? "较上一期间少 "
+              : "Behind prior period by "}
           <span className={`font-semibold ${toneClass(beatBy)}`}>
             <CompactAmount value={Math.abs(beatBy)} currency={currency} />
           </span>
@@ -57,7 +70,7 @@ export function MomentumCard({ momentum, currency, periodLabel }: MomentumCardPr
             )}
             <div className="flex h-full items-stretch gap-1">
               {bars.map((bar) => {
-                const title = `${monthLabel(bar.month)}: ${bar.value >= 0 ? "+" : ""}${bar.value.toFixed(0)}`;
+                const title = `${monthLabel(bar.month, locale)}: ${bar.value >= 0 ? "+" : ""}${bar.value.toFixed(0)}`;
                 return (
                   <div key={bar.month} className="flex flex-1 flex-col" title={title}>
                     {/* above-zero zone */}
@@ -90,8 +103,8 @@ export function MomentumCard({ momentum, currency, periodLabel }: MomentumCardPr
             </div>
           </div>
           <div className="text-muted-foreground/60 mt-1.5 flex justify-between text-xs">
-            <span>{monthLabel(bars[0].month)}</span>
-            <span>Now</span>
+            <span>{monthLabel(bars[0].month, locale)}</span>
+            <span>{isChinese ? "现在" : "Now"}</span>
           </div>
         </>
       )}

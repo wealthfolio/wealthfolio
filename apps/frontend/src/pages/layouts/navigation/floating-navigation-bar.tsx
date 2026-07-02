@@ -1,6 +1,7 @@
 import { LiquidGlass } from "@/components/liquid-glass";
 import { SyncStatusIcon } from "@/features/wealthfolio-connect/components/sync-status-icon";
 import { useAggregatedSyncStatus } from "@/features/wealthfolio-connect/hooks";
+import { useI18n } from "@/i18n/i18n-provider";
 import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, Icons } from "@wealthfolio/ui";
 import { motion } from "motion/react";
@@ -19,6 +20,7 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
   const [addonsOpen, setAddonsOpen] = useState(false);
   const uniqueId = useId();
   const { status: syncStatus } = useAggregatedSyncStatus();
+  const { t } = useI18n();
   const baseButtonClass =
     "text-foreground relative z-10 flex h-11 w-full items-center justify-center rounded-full transition-colors";
 
@@ -82,7 +84,7 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
           )}
         >
           <nav
-            aria-label="Floating navigation"
+            aria-label={t("navigation.floating")}
             className="grid place-items-center items-center gap-0"
             style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}
           >
@@ -120,7 +122,7 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
             })}
             <button
               type="button"
-              aria-label="Open launcher"
+              aria-label={t("navigation.openLauncher")}
               className={baseButtonClass}
               onClick={() => {
                 // Trigger the launcher by dispatching Cmd/Ctrl+K
@@ -150,7 +152,7 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
               onClick={() =>
                 handleNavigation("/connect", isPathActive(location.pathname, "/connect"))
               }
-              aria-label="Connect"
+              aria-label={t("navigation.connect")}
               className={baseButtonClass}
               aria-current={isPathActive(location.pathname, "/connect") ? "page" : undefined}
             >
@@ -176,7 +178,7 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
             {hasOverflow && (
               <DropdownMenu open={overflowOpen} onOpenChange={setOverflowOpen}>
                 <DropdownMenuTrigger asChild>
-                  <button aria-label="More navigation" className={baseButtonClass}>
+                  <button aria-label={t("navigation.moreNavigation")} className={baseButtonClass}>
                     {overflowItems.some((item) => isPathActive(location.pathname, item.href)) && (
                       <motion.div
                         layoutId={`floating-nav-indicator-${uniqueId}`}
@@ -231,7 +233,7 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
             {hasAddons && (
               <DropdownMenu open={addonsOpen} onOpenChange={setAddonsOpen}>
                 <DropdownMenuTrigger asChild>
-                  <button aria-label="Add-ons" className={baseButtonClass}>
+                  <button aria-label={t("navigation.addons")} className={baseButtonClass}>
                     {addonItems.some((item) => isPathActive(location.pathname, item.href)) && (
                       <motion.div
                         layoutId={`floating-nav-indicator-${uniqueId}`}

@@ -1,5 +1,6 @@
 import { deleteSnapshot, getSnapshots } from "@/adapters";
 import { useIsMobileViewport } from "@/hooks/use-platform";
+import { useI18n } from "@/i18n/i18n-provider";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, SnapshotInfo } from "@/lib/types";
 import { formatAmount, formatDate } from "@/lib/utils";
@@ -49,6 +50,8 @@ export function AccountSnapshotHistory({
 }: AccountSnapshotHistoryProps) {
   const queryClient = useQueryClient();
   const isMobile = useIsMobileViewport();
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [deletingSnapshot, setDeletingSnapshot] = useState<SnapshotInfo | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -92,10 +95,10 @@ export function AccountSnapshotHistory({
     try {
       await deleteSnapshot(account.id, deletingSnapshot.snapshotDate);
       invalidateSnapshotQueries(deletingSnapshot.snapshotDate);
-      toast.success("Snapshot deleted");
+      toast.success(isChinese ? "快照已删除" : "Snapshot deleted");
       setDeletingSnapshot(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete snapshot");
+      toast.error(error instanceof Error ? error.message : isChinese ? "删除快照失败" : "Failed to delete snapshot");
     } finally {
       setIsDeleting(false);
     }
@@ -261,7 +264,7 @@ export function AccountSnapshotHistory({
         <Sheet open={!!editingDate} onOpenChange={() => handleEditClose()}>
           <SheetContent side="right" className="flex h-full w-full flex-col p-0 sm:max-w-2xl">
             <SheetHeader className="border-b px-6 py-4">
-              <SheetTitle>Update Snapshot</SheetTitle>
+              <SheetTitle>{isChinese ? "更新快照" : "Update Snapshot"}</SheetTitle>
             </SheetHeader>
             <div className="flex-1 overflow-hidden px-6">
               <HoldingsEditMode
@@ -279,21 +282,27 @@ export function AccountSnapshotHistory({
       <AlertDialog open={!!deletingSnapshot} onOpenChange={() => setDeletingSnapshot(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Snapshot</AlertDialogTitle>
+            <AlertDialogTitle>{isChinese ? "删除快照" : "Delete Snapshot"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Delete the snapshot from{" "}
-              {deletingSnapshot ? formatDate(deletingSnapshot.snapshotDate) : ""}? This removes the
-              positions and cash balances saved for that date.
+              {isChinese
+                ? `要删除 ${
+                    deletingSnapshot ? formatDate(deletingSnapshot.snapshotDate) : ""
+                  } 的快照吗？这会移除该日期保存的持仓和现金余额。`
+                : `Delete the snapshot from ${
+                    deletingSnapshot ? formatDate(deletingSnapshot.snapshotDate) : ""
+                  }? This removes the positions and cash balances saved for that date.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>
+              {isChinese ? "取消" : "Cancel"}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteSnapshot}
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting ? "Deleting..." : "Delete"}
+              {isDeleting ? (isChinese ? "删除中..." : "Deleting...") : isChinese ? "删除" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

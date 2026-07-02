@@ -1,4 +1,5 @@
 import { useHapticFeedback } from "@/hooks";
+import { useI18n } from "@/i18n/i18n-provider";
 import { ChartConfig, ChartContainer } from "@wealthfolio/ui/components/ui/chart";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useIsMobileViewport } from "@/hooks/use-platform";
@@ -37,6 +38,9 @@ interface CustomTooltipProps extends TooltipBaseProps {
 }
 
 const CustomTooltip = ({ active, payload, isBalanceHidden }: CustomTooltipProps) => {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
+
   if (!active || !payload?.length) {
     return null;
   }
@@ -57,7 +61,9 @@ const CustomTooltip = ({ active, payload, isBalanceHidden }: CustomTooltipProps)
       <div className="flex items-center justify-between space-x-4">
         <div className="flex items-center space-x-1.5">
           <span className="block h-0.5 w-3" style={{ backgroundColor: tooltipColor }} />
-          <span className="text-muted-foreground text-xs">Net Worth:</span>
+          <span className="text-muted-foreground text-xs">
+            {isChinese ? "净资产：" : "Net Worth:"}
+          </span>
         </div>
         <AmountDisplay
           value={entry.netWorth}
@@ -71,7 +77,9 @@ const CustomTooltip = ({ active, payload, isBalanceHidden }: CustomTooltipProps)
       {hasLiabilities && (
         <div className="border-border mt-1 border-t pt-1.5">
           <div className="flex items-center justify-between space-x-4">
-            <span className="text-muted-foreground/70 text-xs">Assets:</span>
+            <span className="text-muted-foreground/70 text-xs">
+              {isChinese ? "资产：" : "Assets:"}
+            </span>
             <AmountDisplay
               value={entry.totalAssets}
               currency={entry.currency}
@@ -80,7 +88,9 @@ const CustomTooltip = ({ active, payload, isBalanceHidden }: CustomTooltipProps)
             />
           </div>
           <div className="flex items-center justify-between space-x-4">
-            <span className="text-muted-foreground/70 text-xs">Liabilities:</span>
+            <span className="text-muted-foreground/70 text-xs">
+              {isChinese ? "负债：" : "Liabilities:"}
+            </span>
             <span className="text-muted-foreground text-xs">
               -
               <AmountDisplay

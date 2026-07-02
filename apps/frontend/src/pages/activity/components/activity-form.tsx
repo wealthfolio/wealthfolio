@@ -1,4 +1,5 @@
 import { ExternalLink } from "@/components/external-link";
+import { useI18n } from "@/i18n/i18n-provider";
 import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -54,6 +55,8 @@ export function ActivityForm({
   onClose,
   hidePicker,
 }: ActivityFormProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   // Derive the editing state and initial type from activity prop
   const isEditing = !!activity?.id;
   const initialType = mapActivityTypeToPicker(activity?.activityType);
@@ -100,16 +103,28 @@ export function ActivityForm({
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent className="flex w-full flex-col overflow-hidden sm:max-w-[625px]">
         <SheetHeader>
-          <SheetTitle>{isEditing ? "Update Activity" : "Add Activity"}</SheetTitle>
+          <SheetTitle>
+            {isEditing
+              ? isChinese
+                ? "更新活动"
+                : "Update Activity"
+              : isChinese
+                ? "添加活动"
+                : "Add Activity"}
+          </SheetTitle>
           <SheetDescription>
             {isEditing
-              ? "Update the details of your transaction"
-              : "Record a new transaction in your account."}{" "}
+              ? isChinese
+                ? "更新你的交易详情"
+                : "Update the details of your transaction"
+              : isChinese
+                ? "在你的账户中记录一笔新交易。"
+                : "Record a new transaction in your account."}{" "}
             <ExternalLink
               href="https://wealthfolio.app/docs/concepts/activity-types"
               className="underline"
             >
-              Learn more
+              {isChinese ? "了解更多" : "Learn more"}
             </ExternalLink>
           </SheetDescription>
         </SheetHeader>

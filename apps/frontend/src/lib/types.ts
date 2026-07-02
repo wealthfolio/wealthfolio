@@ -11,6 +11,7 @@ import {
   QuoteMode,
   SUBTYPE_DISPLAY_NAMES,
 } from "./constants";
+import type { AppLanguage } from "@/i18n/languages";
 
 export {
   accountCapabilities,
@@ -841,6 +842,7 @@ export interface QuoteUpdate {
 export interface Settings {
   theme: string;
   font: string;
+  language: AppLanguage;
   baseCurrency: string;
   defaultReturnMetric: "twr" | "irr" | "valueReturn";
   timezone: string;

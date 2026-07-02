@@ -1,5 +1,6 @@
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { SymbolSearchResult } from "@/lib/types";
+import { useI18n } from "@/i18n/i18n-provider";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CurrencyInput } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -69,6 +70,8 @@ export function CreateCustomAssetDialog({
   defaultCurrency,
 }: CreateCustomAssetDialogProps) {
   const { settings } = useSettingsContext();
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
 
   // Use provided defaultCurrency, or fall back to settings base currency
   const currency = defaultCurrency || settings?.baseCurrency || "USD";
@@ -146,10 +149,11 @@ export function CreateCustomAssetDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create Custom Asset</DialogTitle>
+          <DialogTitle>{isChinese ? "创建自定义资产" : "Create Custom Asset"}</DialogTitle>
           <DialogDescription>
-            You&apos;ll maintain prices manually, or map to a market ticker later for automatic
-            updates.
+            {isChinese
+              ? "你可以手动维护价格，也可以稍后映射到市场代码以自动更新。"
+              : "You'll maintain prices manually, or map to a market ticker later for automatic updates."}
           </DialogDescription>
         </DialogHeader>
 
@@ -160,7 +164,7 @@ export function CreateCustomAssetDialog({
               name="symbol"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Symbol / Ticker</FormLabel>
+                  <FormLabel>{isChinese ? "代码 / Ticker" : "Symbol / Ticker"}</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="e.g., MYCOIN"
@@ -179,9 +183,9 @@ export function CreateCustomAssetDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{isChinese ? "名称" : "Name"}</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., My Custom Coin" {...field} />
+                    <Input placeholder={isChinese ? "例如：我的自定义币" : "e.g., My Custom Coin"} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -194,11 +198,11 @@ export function CreateCustomAssetDialog({
                 name="assetType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Asset Type</FormLabel>
+                    <FormLabel>{isChinese ? "资产类型" : "Asset Type"}</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
+                          <SelectValue placeholder={isChinese ? "选择类型" : "Select type"} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -219,7 +223,7 @@ export function CreateCustomAssetDialog({
                 name="currency"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Currency</FormLabel>
+                    <FormLabel>{isChinese ? "货币" : "Currency"}</FormLabel>
                     <FormControl>
                       <CurrencyInput {...field} />
                     </FormControl>
@@ -231,10 +235,10 @@ export function CreateCustomAssetDialog({
 
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={handleCancel}>
-                Cancel
+                {isChinese ? "取消" : "Cancel"}
               </Button>
               <Button type="button" onClick={handleCreateClick}>
-                Create Asset
+                {isChinese ? "创建资产" : "Create Asset"}
               </Button>
             </DialogFooter>
           </div>

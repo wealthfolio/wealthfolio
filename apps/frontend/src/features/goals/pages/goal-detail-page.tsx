@@ -21,6 +21,7 @@ import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
+import { useI18n } from "@/i18n/i18n-provider";
 import {
   useGoalDetail,
   useGoalPlanMutations,
@@ -60,6 +61,8 @@ export default function GoalDetailPage() {
   const { mutate: savePlan } = savePlanMutation;
   const { deleteMutation } = useGoalMutations();
   const { settings } = useSettingsContext();
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
 
   const isRetirement = goal?.goalType === "retirement";
   const isSaveUp = goal && !isRetirement;
@@ -256,14 +259,17 @@ export default function GoalDetailPage() {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete goal</AlertDialogTitle>
+            <AlertDialogTitle>{isChinese ? "删除目标" : "Delete goal"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{goal.title}&quot;? This action cannot be
-              undone.
+              {isChinese
+                ? `确定要删除“${goal.title}”吗？此操作无法撤销。`
+                : `Are you sure you want to delete "${goal.title}"? This action cannot be undone.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              {isChinese ? "取消" : "Cancel"}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deleteMutation.isPending}
@@ -272,10 +278,10 @@ export default function GoalDetailPage() {
               {deleteMutation.isPending ? (
                 <>
                   <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
+                  {isChinese ? "删除中..." : "Deleting..."}
                 </>
               ) : (
-                "Delete"
+                isChinese ? "删除" : "Delete"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

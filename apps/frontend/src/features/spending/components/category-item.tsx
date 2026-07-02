@@ -17,6 +17,7 @@ import {
   TooltipTrigger,
 } from "@wealthfolio/ui";
 import type { TaxonomyCategory } from "@/lib/types";
+import { useI18n } from "@/i18n/i18n-provider";
 
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 
@@ -48,6 +49,8 @@ export function CategoryItem({
   const [isExpanded, setIsExpanded] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const hasChildren = children && children.length > 0;
   const activityCount = activityCounts?.[category.id] ?? 0;
 
@@ -184,24 +187,38 @@ export function CategoryItem({
         <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete Category</AlertDialogTitle>
+              <AlertDialogTitle>{isChinese ? "删除分类" : "Delete Category"}</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete &quot;{category.name}&quot;?
-                {hasChildren && (
-                  <span className="text-destructive mt-2 block font-medium">
-                    This will also delete all subcategories.
-                  </span>
+                {isChinese ? (
+                  <>
+                    确定要删除“{category.name}”吗？
+                    {hasChildren && (
+                      <span className="text-destructive mt-2 block font-medium">
+                        这也会删除所有子分类。
+                      </span>
+                    )}
+                    此操作无法撤销。
+                  </>
+                ) : (
+                  <>
+                    Are you sure you want to delete &quot;{category.name}&quot;?
+                    {hasChildren && (
+                      <span className="text-destructive mt-2 block font-medium">
+                        This will also delete all subcategories.
+                      </span>
+                    )}
+                    This action cannot be undone.
+                  </>
                 )}
-                This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{isChinese ? "取消" : "Cancel"}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => onDelete(category)}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                Delete
+                {isChinese ? "删除" : "Delete"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

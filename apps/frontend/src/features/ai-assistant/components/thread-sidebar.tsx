@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from "@wealthfolio/ui/components/ui/dialog";
 import { Label } from "@wealthfolio/ui/components/ui/label";
+import { useI18n } from "@/i18n/i18n-provider";
 import { cn } from "@/lib/utils";
 import type { ChatThread } from "../types";
 
@@ -67,6 +68,8 @@ export function ThreadSidebar({
   const [selectedThread, setSelectedThread] = useState<ChatThread | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [editingTags, setEditingTags] = useState<string[]>([]);
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
 
   // Get all unique tags across all threads
   const allTags = useMemo(() => {
@@ -399,10 +402,11 @@ export function ThreadSidebar({
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete conversation?</AlertDialogTitle>
+            <AlertDialogTitle>{isChinese ? "要删除对话吗？" : "Delete conversation?"}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete &ldquo;{selectedThread?.title ?? "this conversation"}
-              &rdquo; and all its messages. This action cannot be undone.
+              {isChinese
+                ? `这会永久删除“${selectedThread?.title ?? "此对话"}”及其全部消息。此操作无法撤销。`
+                : `This will permanently delete “${selectedThread?.title ?? "this conversation"}” and all its messages. This action cannot be undone.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

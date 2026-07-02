@@ -3,6 +3,7 @@
 import { calculatePerformanceSummaries, performanceSummaryScopeKey } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCurrentAccountValuations } from "@/hooks/use-current-account-valuations";
+import { useI18n } from "@/i18n/i18n-provider";
 import { AccountPurpose } from "@/lib/constants";
 import { performanceSummaryReturn, performancePeriodPnl } from "@/lib/performance";
 import { QueryKeys } from "@/lib/query-keys";
@@ -141,6 +142,8 @@ const AccountSummaryComponent = React.memo(
     displayInAccountCurrency?: boolean;
     isNested?: boolean;
   }) => {
+    const { language } = useI18n();
+    const isChinese = language === "zh-CN";
     const isGroup = item.isGroup ?? false;
     const useAccountCurrency =
       displayInAccountCurrency || (item.displayInAccountCurrency && Boolean(item.accountCurrency));
@@ -169,11 +172,14 @@ const AccountSummaryComponent = React.memo(
       );
     }
 
-    const name = item.accountName;
+    const name =
+      item.accountName === "Uncategorized" && isChinese ? "未分类" : item.accountName;
     const accountId = item.accountId;
 
     const subText = isGroup
-      ? `${item.accountCount} ${item.accountCount === 1 ? "account" : "accounts"}`
+      ? isChinese
+        ? `${item.accountCount} 个账户`
+        : `${item.accountCount} ${item.accountCount === 1 ? "account" : "accounts"}`
       : useAccountCurrency
         ? (item.accountCurrency ?? item.baseCurrency)
         : item.baseCurrency;
@@ -206,8 +212,12 @@ const AccountSummaryComponent = React.memo(
     const warningMessages = hasBadData
       ? [
           item.trackingMode === "HOLDINGS"
-            ? "Return % unavailable - missing cost basis or starting holdings value."
-            : "Return % unavailable - activity history may be inconsistent.",
+            ? isChinese
+              ? "无法显示回报率：缺少成本基础或期初持仓价值。"
+              : "Return % unavailable - missing cost basis or starting holdings value."
+            : isChinese
+              ? "无法显示回报率：活动历史可能不一致。"
+              : "Return % unavailable - activity history may be inconsistent.",
         ]
       : [];
     const shouldShowWarning = hasBadData;
@@ -374,6 +384,8 @@ export const AccountsSummary = React.memo(
     currentAccountValuations?: CurrentAccountValuation[];
     isLoadingCurrentValuations?: boolean;
   }) => {
+    const { language } = useI18n();
+    const isChinese = language === "zh-CN";
     const { accountsGrouped, setAccountsGrouped, settings } = useSettingsContext();
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
@@ -512,12 +524,18 @@ export const AccountsSummary = React.memo(
                 <Icons.AlertTriangle className="text-destructive h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-destructive text-sm font-medium">Failed to load accounts</p>
+                <p className="text-destructive text-sm font-medium">
+                  {isChinese ? "加载账户失败" : "Failed to load accounts"}
+                </p>
                 <p className="text-muted-foreground mt-1 break-words text-xs">
-                  {errorAccounts?.message || "An unexpected error occurred"}
+                  {isChinese
+                    ? "无法加载账户数据，请稍后重试。"
+                    : errorAccounts?.message || "An unexpected error occurred"}
                 </p>
                 <p className="text-muted-foreground mt-2 text-xs">
-                  Try restarting the app. If this persists, your database may need to be reset.
+                  {isChinese
+                    ? "请尝试重启应用。如果问题持续存在，可能需要检查数据库。"
+                    : "Try restarting the app. If this persists, your database may need to be reset."}
                 </p>
               </div>
             </div>
@@ -528,12 +546,12 @@ export const AccountsSummary = React.memo(
       if (!combinedAccountViews || combinedAccountViews.length === 0) {
         return (
           <div className="border-border/50 bg-success/10 rounded-xl border p-6 text-center md:p-8">
-            <p className="text-sm">No accounts found.</p>
+            <p className="text-sm">{isChinese ? "未找到账户。" : "No accounts found."}</p>
             <Link
               to="/settings/accounts"
               className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
             >
-              Add your first account
+              {isChinese ? "添加第一个账户" : "Add your first account"}
               <Icons.ChevronRight className="h-3 w-3" />
             </Link>
           </div>
@@ -687,20 +705,39 @@ export const AccountsSummary = React.memo(
       performanceSummaries,
       isErrorAccounts,
       errorAccounts,
+      isChinese,
       settings?.baseCurrency,
     ]);
 
     return (
       <div className="mb-4 w-full space-y-0">
         <div className="flex flex-row items-center justify-between gap-2 pb-2">
-          <h2 className="text-sm font-semibold tracking-tight">Accounts</h2>
+          <h2 className="text-sm font-semibold tracking-tight">
+            {isChinese ? "账户" : "Accounts"}
+          </h2>
           <Button
             variant="ghost"
             className="text-muted-foreground hover:bg-success/10"
             size="sm"
             onClick={() => setAccountsGrouped(!accountsGrouped)}
-            aria-label={accountsGrouped ? "List view" : "Group view"}
-            title={accountsGrouped ? "Switch to list view" : "Switch to group view"}
+            aria-label={
+              accountsGrouped
+                ? isChinese
+                  ? "列表视图"
+                  : "List view"
+                : isChinese
+                  ? "分组视图"
+                  : "Group view"
+            }
+            title={
+              accountsGrouped
+                ? isChinese
+                  ? "切换到列表视图"
+                  : "Switch to list view"
+                : isChinese
+                  ? "切换到分组视图"
+                  : "Switch to group view"
+            }
             disabled={isLoadingAccounts || combinedAccountViews.length === 0}
           >
             {accountsGrouped ? (
@@ -716,10 +753,13 @@ export const AccountsSummary = React.memo(
               <Icons.AlertTriangle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
               <div className="min-w-0">
                 <p className="text-destructive text-sm font-medium">
-                  Failed to load performance metrics
+                  {isChinese ? "加载绩效指标失败" : "Failed to load performance metrics"}
                 </p>
                 <p className="text-muted-foreground mt-1 break-words text-xs">
-                  {performanceError?.message || "Account values are shown without period returns."}
+                  {isChinese
+                    ? "账户市值仍会显示，但暂时没有期间回报。"
+                    : performanceError?.message ||
+                      "Account values are shown without period returns."}
                 </p>
               </div>
             </div>

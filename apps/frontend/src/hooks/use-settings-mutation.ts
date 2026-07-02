@@ -3,7 +3,13 @@ import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { QueryKeys } from "@/lib/query-keys";
 import { invalidatePerformanceCaches } from "@/lib/performance-cache";
 import { Settings } from "@/lib/types";
+import { normalizeLanguage } from "@/i18n/languages";
+import { getMessage, type TranslationKey } from "@/i18n/messages";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+function settingsMessage(languageValue: unknown, key: TranslationKey): string {
+  return getMessage(normalizeLanguage(languageValue), key);
+}
 
 export function useSettingsMutation(
   setSettings: React.Dispatch<React.SetStateAction<Settings | null>>,
@@ -28,18 +34,21 @@ export function useSettingsMutation(
         "onboardingCompleted" in variables || !updatedSettings.onboardingCompleted;
       if (!isOnboarding) {
         toast({
-          title: "Settings updated",
-          description: "Your settings have been updated successfully.",
+          title: settingsMessage(updatedSettings.language, "settings.toast.successTitle"),
+          description: settingsMessage(
+            updatedSettings.language,
+            "settings.toast.successDescription",
+          ),
           variant: "success",
           duration: 1000,
         });
       }
     },
-    onError: (error) => {
+    onError: (error, variables) => {
       logger.error(`Error updating settings: ${error}`);
       toast({
-        title: "Uh oh! Something went wrong.",
-        description: "There was a problem updating your settings.",
+        title: settingsMessage(variables?.language, "settings.toast.errorTitle"),
+        description: settingsMessage(variables?.language, "settings.toast.errorDescription"),
         variant: "destructive",
       });
     },

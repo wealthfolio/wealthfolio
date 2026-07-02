@@ -1,5 +1,6 @@
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { useI18n } from "@/i18n/i18n-provider";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 
@@ -30,6 +31,7 @@ export function SettingsHeader({
   actionsInline = false,
 }: SettingsHeaderProps) {
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const handleBack = () => {
     if (onBack) {
@@ -58,7 +60,7 @@ export function SettingsHeader({
             size="sm"
             onClick={handleBack}
             className="text-muted-foreground hover:text-foreground -ml-1 h-8 w-8 shrink-0 p-0 lg:hidden"
-            aria-label="Back"
+            aria-label={t("settings.back")}
           >
             <Icons.ArrowLeft className="h-5 w-5" />
           </Button>

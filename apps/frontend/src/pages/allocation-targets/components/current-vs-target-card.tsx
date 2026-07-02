@@ -1,3 +1,5 @@
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateClassificationLabel } from "@/i18n/ui-text";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@wealthfolio/ui";
 import { cn } from "@/lib/utils";
@@ -32,6 +34,8 @@ export function CurrentVsTargetCard({
   taxonomyLabel,
   targetLabel,
 }: CurrentVsTargetCardProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const visibleRows = report.rows.filter(hasVisibleAllocation);
   const colorByCategory = useMemo(() => buildAllocationTargetColorMap(report.rows), [report.rows]);
@@ -41,9 +45,11 @@ export function CurrentVsTargetCard({
   return (
     <Card className="h-full">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Allocation vs target</CardTitle>
+        <CardTitle className="text-base">
+          {isChinese ? "当前配置 vs 目标" : "Allocation vs target"}
+        </CardTitle>
         <CardDescription>
-          {taxonomyLabel} · current allocation vs {targetLabel}
+          {taxonomyLabel} · {isChinese ? "当前配置 vs" : "current allocation vs"} {targetLabel}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -63,11 +69,11 @@ export function CurrentVsTargetCard({
           <div className="min-w-0">
             {/* Column headers */}
             <div className="text-muted-foreground hidden grid-cols-[minmax(7.5rem,1fr)_minmax(10rem,1.25fr)_3.5rem_3.5rem_5rem] gap-x-3 px-2 pb-2 text-[10px] font-medium uppercase tracking-wider md:grid">
-              <span>Category</span>
-              <span>Current allocation</span>
-              <span className="text-right">Current</span>
-              <span className="text-right">Target</span>
-              <span className="text-right">Drift</span>
+              <span>{isChinese ? "分类" : "Category"}</span>
+              <span>{isChinese ? "当前配置" : "Current allocation"}</span>
+              <span className="text-right">{isChinese ? "当前" : "Current"}</span>
+              <span className="text-right">{isChinese ? "目标" : "Target"}</span>
+              <span className="text-right">{isChinese ? "偏离" : "Drift"}</span>
             </div>
 
             {/* Asset class rows */}
@@ -77,6 +83,7 @@ export function CurrentVsTargetCard({
                 const rowColor = allocationTargetColorForRow(row, colorByCategory, i);
                 const current = row.currentBps / 100;
                 const target = row.targetBps / 100;
+                const categoryName = translateClassificationLabel(language, row.categoryName);
                 const rowEl = (
                   <div
                     key={row.categoryId}
@@ -91,7 +98,7 @@ export function CurrentVsTargetCard({
                         style={{ background: rowColor }}
                       />
                       <span className="text-foreground truncate text-[12.5px] font-semibold">
-                        {row.categoryName}
+                        {categoryName}
                       </span>
                     </div>
 
@@ -128,10 +135,11 @@ export function CurrentVsTargetCard({
 
                     <div className="text-muted-foreground col-span-2 flex justify-between text-[11px] tabular-nums md:hidden">
                       <span>
-                        Current <span className="text-foreground">{current.toFixed(1)}%</span>
+                        {isChinese ? "当前" : "Current"}{" "}
+                        <span className="text-foreground">{current.toFixed(1)}%</span>
                       </span>
                       <span>
-                        Target{" "}
+                        {isChinese ? "目标" : "Target"}{" "}
                         <span className="text-foreground">{formatTargetBps(row.targetBps)}%</span>
                       </span>
                     </div>

@@ -10,6 +10,7 @@ interface BalanceProps {
   currency: string;
   displayCurrency?: boolean;
   displayDecimal?: boolean;
+  language?: string;
   /** Compact notation (e.g. $1.1M) — useful for large values on narrow screens. */
   compact?: boolean;
   isLoading?: boolean;
@@ -21,6 +22,7 @@ const Balance: React.FC<BalanceProps> = ({
   currency = "USD",
   displayCurrency = false,
   displayDecimal = true,
+  language = "en",
   compact = false,
   isLoading = false,
   isUnavailable = false,
@@ -71,7 +73,7 @@ const Balance: React.FC<BalanceProps> = ({
         className="font-heading text-muted-foreground text-3xl font-bold tracking-tight"
         data-testid="portfolio-balance"
       >
-        N/A
+        {language === "zh-CN" ? "暂无" : "N/A"}
       </h1>
     );
   }

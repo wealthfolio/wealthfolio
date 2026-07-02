@@ -2,6 +2,7 @@ import { getAccounts } from "@/adapters";
 import { AllocationBreadcrumb } from "@/components/allocation-breadcrumb";
 import { useAccountsSimplePerformance } from "@/hooks/use-accounts-simple-performance";
 import { useDrillDownState } from "@/hooks/use-drill-down-state";
+import { useI18n } from "@/i18n/i18n-provider";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { Account, AccountValueSource } from "@/lib/types";
@@ -35,6 +36,8 @@ export function DrillableAccountChart({
   accountValuations,
   onAccountClick,
 }: DrillableAccountChartProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const [activeIndex, setActiveIndex] = useState(0);
@@ -181,12 +184,12 @@ export function DrillableAccountChart({
       <CardHeader className="px-5 pb-1 pt-5">
         {isAtRoot ? (
           <CardTitle className="text-muted-foreground text-[12px] font-semibold uppercase tracking-[0.18em]">
-            Accounts
+            {isChinese ? "账户" : "Accounts"}
           </CardTitle>
         ) : (
           <AllocationBreadcrumb
             path={path}
-            rootLabel="Accounts"
+            rootLabel={isChinese ? "账户" : "Accounts"}
             onNavigate={handleBreadcrumbNavigate}
           />
         )}
@@ -201,7 +204,9 @@ export function DrillableAccountChart({
             endAngle={0}
           />
         ) : (
-          <EmptyPlaceholder description="No account data available." />
+          <EmptyPlaceholder
+            description={isChinese ? "暂无账户数据。" : "No account data available."}
+          />
         )}
       </CardContent>
     </Card>

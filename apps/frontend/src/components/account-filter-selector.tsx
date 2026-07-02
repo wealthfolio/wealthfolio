@@ -22,6 +22,7 @@ import { forwardRef, useState, type ComponentPropsWithoutRef } from "react";
 import { useAccounts } from "@/hooks/use-accounts";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import type { AccountScope } from "@/lib/types";
+import { useI18n } from "@/i18n/i18n-provider";
 
 interface AccountScopeSelectorProps {
   value: AccountScope;
@@ -35,15 +36,21 @@ function filterLabel(
   filter: AccountScope,
   accounts: { id: string; name: string }[],
   portfolios: { id: string; name: string }[],
+  isChinese: boolean,
 ): string {
-  if (filter.type === "all") return "All Accounts";
+  if (filter.type === "all") return isChinese ? "全部账户" : "All Accounts";
   if (filter.type === "account") {
-    return accounts.find((a) => a.id === filter.accountId)?.name ?? "Account";
+    return (
+      accounts.find((a) => a.id === filter.accountId)?.name ?? (isChinese ? "账户" : "Account")
+    );
   }
   if (filter.type === "portfolio") {
-    return portfolios.find((p) => p.id === filter.portfolioId)?.name ?? "Portfolio";
+    return (
+      portfolios.find((p) => p.id === filter.portfolioId)?.name ??
+      (isChinese ? "投资组合" : "Portfolio")
+    );
   }
-  return `${filter.accountIds.length} Accounts`;
+  return isChinese ? `${filter.accountIds.length} 个账户` : `${filter.accountIds.length} Accounts`;
 }
 
 function isAccountChecked(value: AccountScope, accountId: string): boolean {
@@ -121,12 +128,14 @@ function AccountScopeCommand({
   listClassName,
   itemClassName,
   groupClassName,
+  isChinese,
 }: {
   value: AccountScope;
   accounts: { id: string; name: string; currency: string }[];
   portfolios: { id: string; name: string }[];
   onSelect: (filter: AccountScope) => void;
   onToggleAccount: (accountId: string) => void;
+  isChinese: boolean;
   commandClassName?: string;
   listClassName?: string;
   itemClassName?: string;
@@ -134,14 +143,16 @@ function AccountScopeCommand({
 }) {
   return (
     <Command className={commandClassName}>
-      <CommandInput placeholder="Search accounts..." />
+      <CommandInput placeholder={isChinese ? "搜索账户..." : "Search accounts..."} />
       <CommandList className={listClassName}>
-        <CommandEmpty>No results.</CommandEmpty>
+        <CommandEmpty>{isChinese ? "没有结果。" : "No results."}</CommandEmpty>
 
         <CommandGroup className={groupClassName}>
           <CommandItem className={itemClassName} onSelect={() => onSelect({ type: "all" })}>
             <Icons.Wallet className="mr-1 h-4 w-4" />
-            <span className="min-w-0 flex-1 truncate">All Accounts</span>
+            <span className="min-w-0 flex-1 truncate">
+              {isChinese ? "全部账户" : "All Accounts"}
+            </span>
             <Icons.Check
               className={cn("ml-auto h-4 w-4", value.type === "all" ? "opacity-100" : "opacity-0")}
             />
@@ -149,7 +160,7 @@ function AccountScopeCommand({
         </CommandGroup>
 
         {portfolios.length > 0 && (
-          <CommandGroup heading="Portfolios" className={groupClassName}>
+          <CommandGroup heading={isChinese ? "投资组合" : "Portfolios"} className={groupClassName}>
             {portfolios.map((p) => (
               <CommandItem
                 key={p.id}
@@ -174,7 +185,7 @@ function AccountScopeCommand({
         )}
 
         {accounts.length > 0 && (
-          <CommandGroup heading="Accounts" className={groupClassName}>
+          <CommandGroup heading={isChinese ? "账户" : "Accounts"} className={groupClassName}>
             {accounts.map((a) => {
               const checked = isAccountChecked(value, a.id);
               return (
@@ -208,12 +219,14 @@ export function AccountScopeSelector({
   triggerVariant = "default",
   allowMultiAccount = true,
 }: AccountScopeSelectorProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const isMobile = useIsMobileViewport();
   const [open, setOpen] = useState(false);
   const { accounts } = useAccounts({ filterActive: false, includeArchived: false });
   const { data: portfolios = [] } = usePortfolios();
 
-  const label = filterLabel(value, accounts, portfolios);
+  const label = filterLabel(value, accounts, portfolios, isChinese);
 
   const select = (filter: AccountScope) => {
     onChange(filter);
@@ -260,12 +273,13 @@ export function AccountScopeSelector({
         </SheetTrigger>
         <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[80vh] p-0">
           <SheetHeader className="border-border border-b px-6 py-4">
-            <SheetTitle>Select account scope</SheetTitle>
+            <SheetTitle>{isChinese ? "选择账户范围" : "Select account scope"}</SheetTitle>
           </SheetHeader>
           <AccountScopeCommand
             value={value}
             accounts={accounts}
             portfolios={portfolios}
+            isChinese={isChinese}
             onSelect={select}
             onToggleAccount={toggleAccount}
             commandClassName="h-[calc(80vh-4.5rem)] rounded-none"
@@ -295,6 +309,7 @@ export function AccountScopeSelector({
           value={value}
           accounts={accounts}
           portfolios={portfolios}
+          isChinese={isChinese}
           onSelect={select}
           onToggleAccount={toggleAccount}
           itemClassName="py-2"

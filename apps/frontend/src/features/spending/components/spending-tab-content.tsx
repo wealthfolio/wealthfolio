@@ -12,6 +12,8 @@ import {
 } from "recharts";
 
 import { DashboardCard } from "@/components/dashboard-card";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateUiText } from "@/i18n/ui-text";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -98,6 +100,24 @@ const INTERVAL_DESCRIPTIONS: Record<SpendingDashboardPeriod, string> = {
   YTD: "year to date",
   "1Y": "past year",
 };
+
+function spendingIntervalDescription(code: SpendingDashboardPeriod, isChinese: boolean): string {
+  if (!isChinese) return INTERVAL_DESCRIPTIONS[code];
+  switch (code) {
+    case "MTD":
+      return "本月";
+    case "LAST_MONTH":
+      return "上月";
+    case "3M":
+      return "过去 3 个月";
+    case "6M":
+      return "过去 6 个月";
+    case "YTD":
+      return "年初至今";
+    case "1Y":
+      return "过去 1 年";
+  }
+}
 
 // The three insights stages, surfaced as a "Dig deeper" strip under Recent
 // activity. Mirrors the StageNav on /spending/insights.
@@ -292,6 +312,8 @@ function barKeyToRange(
 }
 
 export default function SpendingTabContent() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { isBalanceHidden } = useBalancePrivacy();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -337,6 +359,10 @@ export default function SpendingTabContent() {
     description: selectedIntervalDescription,
     insightPeriod,
   } = useMemo(() => selectionData(selection, appTimezone), [selection, appTimezone]);
+  const localizedIntervalDescription =
+    selection.kind === "period"
+      ? spendingIntervalDescription(selection.code, isChinese)
+      : translateUiText(language, selectedIntervalDescription);
   const theme: Palette = FOREST_THEME;
 
   const [whereItWentView, setWhereItWentView] = usePersistentState<"list" | "map">(
@@ -602,20 +628,9 @@ export default function SpendingTabContent() {
     const sorted = buckets.slice().sort((a, b) => a.date.localeCompare(b.date));
     const todayParts = getZonedDateParts(new Date(), appTimezone);
     const todayKey = formatZonedDateKey(new Date(), appTimezone);
-    const monthLabels = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
+    const monthLabels = isChinese
+      ? ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"]
+      : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
     const groups = new Map<
       string,
@@ -701,9 +716,19 @@ export default function SpendingTabContent() {
     const avg =
       observed.length > 0 ? observed.reduce((s, d) => s + d.value, 0) / observed.length : 0;
     const labelByGranularity =
-      granularity === "day" ? "daily avg" : granularity === "week" ? "weekly avg" : "monthly avg";
+      granularity === "day"
+        ? isChinese
+          ? "日均"
+          : "daily avg"
+        : granularity === "week"
+          ? isChinese
+            ? "周均"
+            : "weekly avg"
+          : isChinese
+            ? "月均"
+            : "monthly avg";
     return { barData: data, avgValue: avg, avgLabel: labelByGranularity };
-  }, [report?.byDay, granularity, dateRange, appTimezone]);
+  }, [report?.byDay, granularity, dateRange, appTimezone, isChinese]);
 
   const categoriesMeta = useMemo(() => {
     const meta = new Map<
@@ -772,13 +797,27 @@ export default function SpendingTabContent() {
         icon: "!",
         title: (
           <>
-            Spending is <span className="font-semibold">{(deltaPct * 100).toFixed(0)}% above</span>{" "}
-            the prior period.
+            {isChinese ? (
+              <>
+                支出较上一期间
+                <span className="font-semibold">高出 {(deltaPct * 100).toFixed(0)}%</span>。
+              </>
+            ) : (
+              <>
+                Spending is{" "}
+                <span className="font-semibold">{(deltaPct * 100).toFixed(0)}% above</span> the
+                prior period.
+              </>
+            )}
           </>
         ),
-        sub: `${isBalanceHidden ? "••••" : formatAmount(delta, currency)} more than ${
-          isBalanceHidden ? "••••" : formatAmount(priorSpending, currency)
-        }`,
+        sub: isChinese
+          ? `比 ${isBalanceHidden ? "••••" : formatAmount(priorSpending, currency)} 多 ${
+              isBalanceHidden ? "••••" : formatAmount(delta, currency)
+            }`
+          : `${isBalanceHidden ? "••••" : formatAmount(delta, currency)} more than ${
+              isBalanceHidden ? "••••" : formatAmount(priorSpending, currency)
+            }`,
       });
     }
     const uncategorized = categoryRows.find((c) => c.id === "__uncategorized__");
@@ -789,12 +828,21 @@ export default function SpendingTabContent() {
         icon: "+",
         title: (
           <>
-            <span className="font-semibold">{uncategorized.txCount} uncategorized</span>{" "}
-            {uncategorized.txCount === 1 ? "transaction" : "transactions"} totaling{" "}
-            <PrivacyAmount value={uncategorized.amount} currency={currency} />.
+            {isChinese ? (
+              <>
+                <span className="font-semibold">{uncategorized.txCount} 笔未分类</span>
+                交易，合计 <PrivacyAmount value={uncategorized.amount} currency={currency} />。
+              </>
+            ) : (
+              <>
+                <span className="font-semibold">{uncategorized.txCount} uncategorized</span>{" "}
+                {uncategorized.txCount === 1 ? "transaction" : "transactions"} totaling{" "}
+                <PrivacyAmount value={uncategorized.amount} currency={currency} />.
+              </>
+            )}
           </>
         ),
-        sub: "Categorize them to improve breakdowns",
+        sub: isChinese ? "完成分类以完善明细" : "Categorize them to improve breakdowns",
         action: (
           <Link
             to="/assistant"
@@ -805,7 +853,7 @@ export default function SpendingTabContent() {
             style={{ color: theme.deep }}
           >
             <Icons.Sparkles className="h-3 w-3" />
-            Ask AI to categorize
+            {isChinese ? "让 AI 分类" : "Ask AI to categorize"}
           </Link>
         ),
       });
@@ -814,16 +862,16 @@ export default function SpendingTabContent() {
           icon: "!",
           title: (
             <>
-              No categorization rules set.{" "}
+              {isChinese ? "未设置分类规则。" : "No categorization rules set."}{" "}
               <Link
                 to="/settings/spending/rules"
                 className="font-semibold underline-offset-4 hover:underline"
               >
-                Create rules →
+                {isChinese ? "创建规则 →" : "Create rules →"}
               </Link>
             </>
           ),
-          sub: "Automate matching for recurring merchants",
+          sub: isChinese ? "为重复商户自动匹配分类" : "Automate matching for recurring merchants",
         });
       }
     }
@@ -837,6 +885,7 @@ export default function SpendingTabContent() {
     isBalanceHidden,
     categorizationRules,
     categorizationRulesLoading,
+    isChinese,
     theme.deep,
   ]);
 
@@ -845,14 +894,17 @@ export default function SpendingTabContent() {
       {dataErrored && (
         <div className="mx-4 mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-700 md:mx-6 lg:mx-8 dark:text-amber-300">
           <span>
-            <span className="font-semibold">Couldn't load spending data.</span> Showing zeros below.
+            <span className="font-semibold">
+              {isChinese ? "无法加载支出数据。" : "Couldn't load spending data."}
+            </span>{" "}
+            {isChinese ? "以下将显示为零。" : "Showing zeros below."}
           </span>
           <button
             type="button"
             onClick={() => void refetchReport()}
             className="text-foreground hover:underline"
           >
-            Retry
+            {isChinese ? "重试" : "Retry"}
           </button>
         </div>
       )}
@@ -860,7 +912,8 @@ export default function SpendingTabContent() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
           <div>
             <div className="text-muted-foreground/80 text-[11px] font-semibold uppercase tracking-[0.12em]">
-              Spent{selectedIntervalDescription ? ` · ${selectedIntervalDescription}` : ""}
+              {isChinese ? "支出" : "Spent"}
+              {localizedIntervalDescription ? ` · ${localizedIntervalDescription}` : ""}
             </div>
             <Balance
               isLoading={isLoading}
@@ -911,7 +964,9 @@ export default function SpendingTabContent() {
           ) : barData.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center">
               <Icons.CreditCard className="text-muted-foreground/30 mb-3 h-12 w-12" />
-              <p className="text-muted-foreground text-sm">No spending in this period</p>
+              <p className="text-muted-foreground text-sm">
+                {isChinese ? "本期间无支出" : "No spending in this period"}
+              </p>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -1011,15 +1066,15 @@ export default function SpendingTabContent() {
           <div className="flex flex-col gap-6 lg:grid lg:grid-cols-3 lg:gap-20">
             <div className="contents lg:col-span-2 lg:block lg:space-y-6">
               <DashboardCard
-                title="Where it went"
+                title={isChinese ? "钱花到哪里了" : "Where it went"}
                 className="order-1 overflow-hidden lg:order-none"
                 action={
                   <div className="flex items-center gap-3">
                     <SegmentedToggle
-                      ariaLabel="Where it went view"
+                      ariaLabel={isChinese ? "支出去向视图" : "Where it went view"}
                       items={[
-                        { value: "list", label: "List" },
-                        { value: "map", label: "Map" },
+                        { value: "list", label: isChinese ? "列表" : "List" },
+                        { value: "map", label: isChinese ? "图块" : "Map" },
                       ]}
                       value={whereItWentView}
                       onChange={(v) => setWhereItWentView(v as "list" | "map")}
@@ -1028,7 +1083,7 @@ export default function SpendingTabContent() {
                       to={dashboardInsightHref.where}
                       className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
                     >
-                      View all →
+                      {isChinese ? "查看全部 →" : "View all →"}
                     </Link>
                   </div>
                 }
@@ -1066,7 +1121,9 @@ export default function SpendingTabContent() {
               </div>
 
               <div className="order-6 lg:order-none">
-                <h2 className="pb-2 text-sm font-semibold tracking-tight">Dig deeper</h2>
+                <h2 className="pb-2 text-sm font-semibold tracking-tight">
+                  {isChinese ? "深入查看" : "Dig deeper"}
+                </h2>
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                   {INSIGHT_STAGES.map((s) => (
                     <Link
@@ -1079,9 +1136,11 @@ export default function SpendingTabContent() {
                         <Icons.ArrowRight className="text-muted-foreground/40 group-hover:text-foreground h-3.5 w-3.5 transition-colors" />
                       </div>
                       <div>
-                        <div className="text-foreground text-sm font-medium">{s.label}</div>
+                        <div className="text-foreground text-sm font-medium">
+                          {isChinese ? translateUiText("zh-CN", s.label) : s.label}
+                        </div>
                         <div className="text-muted-foreground/80 mt-0.5 text-xs leading-snug">
-                          {s.sub}
+                          {isChinese ? translateUiText("zh-CN", s.sub) : s.sub}
                         </div>
                       </div>
                     </Link>
@@ -1118,9 +1177,13 @@ export default function SpendingTabContent() {
                 <div className="border-border/40 bg-card/70 order-4 rounded-xl border p-4 backdrop-blur-xl md:p-5 lg:order-none">
                   <div className="mb-2 flex items-center gap-2">
                     <Icons.AlertCircle className="h-4 w-4 shrink-0" style={{ color: theme.deep }} />
-                    <h3 className="text-foreground text-sm font-semibold">Worth a look</h3>
+                    <h3 className="text-foreground text-sm font-semibold">
+                      {isChinese ? "值得看看" : "Worth a look"}
+                    </h3>
                     <span className="text-muted-foreground/70 ml-auto text-xs">
-                      {insights.length} {insights.length === 1 ? "signal" : "signals"}
+                      {isChinese
+                        ? `${insights.length} 条提示`
+                        : `${insights.length} ${insights.length === 1 ? "signal" : "signals"}`}
                     </span>
                   </div>
                   <div className="space-y-2.5">
@@ -1146,7 +1209,7 @@ export default function SpendingTabContent() {
                     to={dashboardInsightHref.changed}
                     className="text-muted-foreground hover:text-foreground ml-6 mt-3 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
                   >
-                    See trends
+                    {isChinese ? "查看趋势" : "See trends"}
                     <Icons.ChevronRight className="h-3 w-3" />
                   </Link>
                 </div>
@@ -1240,20 +1303,27 @@ function spendingActivityHref(id: string): string {
 }
 
 function WhereItWentEmptyState({ hasNoIncludedAccounts }: { hasNoIncludedAccounts: boolean }) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
+
   return (
     <div className="py-6 text-center">
       {hasNoIncludedAccounts ? (
         <div className="space-y-2">
-          <p className="text-muted-foreground text-sm">No spending accounts selected.</p>
+          <p className="text-muted-foreground text-sm">
+            {isChinese ? "未选择支出账户。" : "No spending accounts selected."}
+          </p>
           <Link
             to="/settings/spending"
             className="text-foreground inline-flex text-xs underline-offset-4 hover:underline"
           >
-            Open spending settings →
+            {isChinese ? "打开支出设置 →" : "Open spending settings →"}
           </Link>
         </div>
       ) : (
-        <p className="text-muted-foreground text-sm">No categorized spending in this period.</p>
+        <p className="text-muted-foreground text-sm">
+          {isChinese ? "该期间没有已分类支出。" : "No categorized spending in this period."}
+        </p>
       )}
     </div>
   );
@@ -1515,6 +1585,8 @@ function CategoryRankedBar({
    */
   groupRows?: import("../types/budget").BudgetGroupRow[];
 }) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { isBalanceHidden } = useBalancePrivacy();
   // Memoize derivations so we don't rebuild the Map + reduce + slices on every
   // parent re-render — this card lives inside a chart-heavy page.
@@ -1690,7 +1762,9 @@ function CategoryRankedBar({
           >
             <Icons.AlertCircle className="text-muted-foreground h-3 w-3 shrink-0" />
             <span className="text-foreground/80 min-w-0 flex-1 text-xs font-medium">
-              Uncategorized — review to improve breakdown
+              {isChinese
+                ? "未分类 - 检查以完善明细"
+                : "Uncategorized — review to improve breakdown"}
             </span>
             <span className="text-muted-foreground/70 w-12 text-right text-[11px] tabular-nums">
               {uncategorizedShare.toFixed(1)}%
@@ -1702,7 +1776,8 @@ function CategoryRankedBar({
         )}
         {restAmount > 0 && (
           <div className="text-muted-foreground/60 px-1 pt-1 text-[10px]">
-            + {rows.length - 7} more · <PrivacyAmount value={restAmount} currency={currency} />
+            {isChinese ? `+ ${rows.length - 7} 项更多` : `+ ${rows.length - 7} more`} ·{" "}
+            <PrivacyAmount value={restAmount} currency={currency} />
           </div>
         )}
       </div>
@@ -1828,14 +1903,16 @@ function SpendingDeltaLine({
   currency: string;
   deltaPct: number | null;
 }) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const isFlat = Math.abs(delta) < 1;
-  const direction = delta < 0 ? "Down" : "Up";
+  const direction = delta < 0 ? (isChinese ? "减少" : "Down") : isChinese ? "增加" : "Up";
   const tone = isFlat ? "text-muted-foreground" : delta < 0 ? "text-success" : "text-destructive";
 
   if (isFlat) {
     return (
       <span className="text-muted-foreground lg:text-md text-sm font-light">
-        About the same as prior period
+        {isChinese ? "与上一期间基本持平" : "About the same as prior period"}
       </span>
     );
   }
@@ -1848,7 +1925,9 @@ function SpendingDeltaLine({
         {direction} <PrivacyAmount value={Math.abs(delta)} currency={currency} />
         {pctSuffix}
       </span>{" "}
-      <span className="text-muted-foreground">from prior period</span>
+      <span className="text-muted-foreground">
+        {isChinese ? "较上一期间" : "from prior period"}
+      </span>
     </span>
   );
 }

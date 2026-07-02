@@ -42,6 +42,7 @@ import {
 } from "@wealthfolio/ui";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
 
+import { useI18n } from "@/i18n/i18n-provider";
 import { cn } from "@/lib/utils";
 
 import { useBudget, useBudgetMutations } from "../hooks/use-budget";
@@ -352,11 +353,17 @@ function BudgetSummary({
 }
 
 function BudgetFxNote({ budget, currency }: { budget: BudgetSnapshot; currency: string }) {
+  const { language } = useI18n();
   if (!budget.computed.fxAsOf) return null;
+
+  const note =
+    language === "zh-CN"
+      ? `目标以${currency ? ` ${currency} ` : " "}录入；实际值使用 ${budget.computed.fxAsOf} 附近的汇率。`
+      : `Targets are entered in ${currency}; actuals use FX rates around ${budget.computed.fxAsOf}.`;
 
   return (
     <div className="border-border/60 bg-muted/30 text-muted-foreground rounded-lg border px-3 py-2 text-xs">
-      Targets are entered in {currency}; actuals use FX rates around {budget.computed.fxAsOf}.
+      {note}
     </div>
   );
 }
@@ -472,6 +479,8 @@ function GroupBudgetSection({
   onSaveGroupRollover: (enabled: boolean, startingBalance?: string) => void;
   onToggleCategoryRollover: (row: BudgetCategoryRow, enabled: boolean) => void;
 }) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -613,13 +622,19 @@ function GroupBudgetSection({
         <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete {row.group.name}?</AlertDialogTitle>
+              <AlertDialogTitle>
+                {isChinese ? `要删除 ${row.group.name} 吗？` : `Delete ${row.group.name}?`}
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                {row.categories.length > 0
-                  ? `Its ${row.categories.length} ${
-                      row.categories.length === 1 ? "category" : "categories"
-                    } will be moved to another group. This can't be undone.`
-                  : "This can't be undone."}
+                {isChinese
+                  ? row.categories.length > 0
+                    ? `其中 ${row.categories.length} 个分类会移动到另一个分组。此操作无法撤销。`
+                    : "此操作无法撤销。"
+                  : row.categories.length > 0
+                    ? `Its ${row.categories.length} ${
+                        row.categories.length === 1 ? "category" : "categories"
+                      } will be moved to another group. This can't be undone.`
+                    : "This can't be undone."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -697,6 +712,8 @@ function AddCategoryRow({
   pool: CategoryPoolEntry[];
   onMoveCategory: (categoryId: string, groupId: string) => void;
 }) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [pendingMove, setPendingMove] = useState<{
@@ -729,20 +746,20 @@ function AddCategoryRow({
       <span className="border-border/50 group-hover:border-foreground/30 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-dashed">
         <Icons.Plus className="h-3 w-3" />
       </span>
-      <span className="text-xs">Add category</span>
+      <span className="text-xs">{isChinese ? "添加分类" : "Add category"}</span>
     </button>
   );
 
   const emptyState = (
     <div className="text-muted-foreground p-4 text-xs">
-      No other categories available. Create one in{" "}
+      {isChinese ? "没有其他可用分类。请在 " : "No other categories available. Create one in "}
       <Link
         to="/settings/spending/categories?tab=expense"
         className="text-foreground underline-offset-2 hover:underline"
       >
-        Manage categories
+        {isChinese ? "管理分类" : "Manage categories"}
       </Link>
-      .
+      {isChinese ? " 中创建。" : "."}
     </div>
   );
 
@@ -780,7 +797,7 @@ function AddCategoryRow({
               </div>
               {entry.fromGroupName && (
                 <div className="text-muted-foreground truncate text-xs">
-                  from {entry.fromGroupName}
+                  {isChinese ? `来自 ${entry.fromGroupName}` : `from ${entry.fromGroupName}`}
                 </div>
               )}
             </div>
@@ -809,7 +826,7 @@ function AddCategoryRow({
         <Icons.Plus className={isMobile ? "h-4 w-4" : "h-3.5 w-3.5"} />
       </span>
       <span className={cn("font-medium", isMobile ? "text-base" : "text-sm")}>
-        Create new category
+        {isChinese ? "创建新分类" : "Create new category"}
       </span>
     </Link>
   );
@@ -825,7 +842,9 @@ function AddCategoryRow({
               <div className="bg-muted-foreground/30 h-1 w-10 rounded-full" />
             </div>
             <SheetHeader className="px-4 pb-3 pt-1 text-left">
-              <SheetTitle className="text-base">Add category to {groupName}</SheetTitle>
+              <SheetTitle className="text-base">
+                {isChinese ? `添加分类到 ${groupName}` : `Add category to ${groupName}`}
+              </SheetTitle>
             </SheetHeader>
             {pool.length === 0 ? (
               emptyState
@@ -844,7 +863,7 @@ function AddCategoryRow({
             ) : (
               <>
                 <div className="text-muted-foreground border-border/60 border-b px-3 py-2 text-[10px] font-medium uppercase tracking-widest">
-                  Move existing category
+                  {isChinese ? "移动现有分类" : "Move existing category"}
                 </div>
                 {list}
                 {footer}
@@ -863,16 +882,18 @@ function AddCategoryRow({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Move {pendingMove?.categoryName} to {groupName}?
+              {isChinese
+                ? `要将 ${pendingMove?.categoryName} 移动到 ${groupName} 吗？`
+                : `Move ${pendingMove?.categoryName} to ${groupName}?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingMove?.categoryName} is currently in {pendingMove?.fromGroupName}. Moving it
-              re-groups its budget total under {groupName}. The category's target amount and history
-              are preserved.
+              {isChinese
+                ? `${pendingMove?.categoryName} 当前位于 ${pendingMove?.fromGroupName}。移动后，它的预算总额会重新归入 ${groupName}。该分类的目标金额和历史会保留。`
+                : `${pendingMove?.categoryName} is currently in ${pendingMove?.fromGroupName}. Moving it re-groups its budget total under ${groupName}. The category's target amount and history are preserved.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{isChinese ? "取消" : "Cancel"}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (pendingMove) {
@@ -881,7 +902,7 @@ function AddCategoryRow({
                 }
               }}
             >
-              Move category
+              {isChinese ? "移动分类" : "Move category"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -922,6 +943,8 @@ function GroupEditDialogBody({
   rolloverStartingBalance,
   onSaveRollover,
 }: GroupEditDialogProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [draftName, setDraftName] = useState(group.name);
   const [draftColor, setDraftColor] = useState(color);
   const [draftIcon, setDraftIcon] = useState<string | null>(group.icon ?? null);
@@ -957,14 +980,14 @@ function GroupEditDialogBody({
           >
             <CategoryIcon icon={draftIcon} className="h-4 w-4" />
           </span>
-          Edit group
+          {isChinese ? "编辑分组" : "Edit group"}
         </DialogTitle>
       </DialogHeader>
 
       <div className="space-y-4 py-2">
         <div className="space-y-1.5">
           <label className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
-            Name
+            {isChinese ? "名称" : "Name"}
           </label>
           <div className="bg-muted/60 border-border/60 focus-within:ring-ring/50 flex h-9 items-center rounded-md border px-3 transition-shadow focus-within:ring-2">
             <input
@@ -982,14 +1005,14 @@ function GroupEditDialogBody({
 
         <div className="space-y-1.5">
           <label className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
-            Color
+            {isChinese ? "颜色" : "Color"}
           </label>
           <GroupColorSwatchGrid value={draftColor} onChange={setDraftColor} />
         </div>
 
         <div className="space-y-1.5">
           <label className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
-            Icon
+            {isChinese ? "图标" : "Icon"}
           </label>
           <IconPicker value={draftIcon} accent={draftColor} onChange={setDraftIcon} />
         </div>
@@ -997,15 +1020,19 @@ function GroupEditDialogBody({
         <div className="border-border/40 space-y-2 border-t pt-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 space-y-0.5">
-              <div className="text-foreground text-sm font-medium">Monthly rollover</div>
+              <div className="text-foreground text-sm font-medium">
+                {isChinese ? "月度结转" : "Monthly rollover"}
+              </div>
               <p className="text-muted-foreground text-[11px] leading-snug">
-                Carry unspent budget into next month for this group.
+                {isChinese
+                  ? "将此分组未用完的预算结转到下个月。"
+                  : "Carry unspent budget into next month for this group."}
               </p>
             </div>
             <Switch
               checked={draftRollover}
               onCheckedChange={setDraftRollover}
-              aria-label="Enable monthly rollover"
+              aria-label={isChinese ? "启用月度结转" : "Enable monthly rollover"}
             />
           </div>
           {draftRollover && (
@@ -1014,7 +1041,7 @@ function GroupEditDialogBody({
                 htmlFor="rollover-starting-balance"
                 className="text-muted-foreground text-[11px]"
               >
-                Starting balance
+                {isChinese ? "起始余额" : "Starting balance"}
               </label>
               <div className="w-[120px]">
                 <input
@@ -1034,10 +1061,10 @@ function GroupEditDialogBody({
 
       <DialogFooter className="gap-2">
         <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-          Cancel
+          {isChinese ? "取消" : "Cancel"}
         </Button>
         <Button size="sm" onClick={handleSave} disabled={!draftName.trim()}>
-          Save
+          {isChinese ? "保存" : "Save"}
         </Button>
       </DialogFooter>
     </>
@@ -1550,6 +1577,7 @@ function CopyFromMonthRow({
   onCopy: (sourcePeriodKey: string, overwrite: boolean) => void;
   pending: boolean;
 }) {
+  const { language } = useI18n();
   const previousMonth = useMemo(() => {
     const [year, month] = currentPeriodKey.split("-").map(Number);
     if (!Number.isFinite(year) || !Number.isFinite(month)) return currentPeriodKey;
@@ -1558,18 +1586,25 @@ function CopyFromMonthRow({
   }, [currentPeriodKey]);
   const [sourceMonth, setSourceMonth] = useState(previousMonth);
   const [overwrite, setOverwrite] = useState(false);
+  const isChinese = language === "zh-CN";
 
   return (
     <section className={cn(CARD_CLASS, "p-3 sm:p-4")}>
       <PanelHeader
-        title="Copy plan from another month"
+        title={isChinese ? "从其他月份复制计划" : "Copy plan from another month"}
         icon={<Icons.Copy className="h-3.5 w-3.5" />}
       />
       <p className="text-muted-foreground mt-1 text-[11px]">
-        Copies all overrides from the source month into this one.{" "}
+        {isChinese
+          ? "将来源月份的所有调整项复制到当前月份。"
+          : "Copies all overrides from the source month into this one."}{" "}
         {overwrite
-          ? "Existing overrides this month will be replaced."
-          : "Existing overrides are preserved."}
+          ? isChinese
+            ? "当前月份的现有调整项会被替换。"
+            : "Existing overrides this month will be replaced."
+          : isChinese
+            ? "现有调整项会保留。"
+            : "Existing overrides are preserved."}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <div className="bg-background border-input flex items-center rounded-md border px-2">
@@ -1589,7 +1624,7 @@ function CopyFromMonthRow({
             onChange={(event) => setOverwrite(event.target.checked)}
             className="accent-foreground h-3 w-3"
           />
-          Replace existing overrides
+          {isChinese ? "替换现有调整项" : "Replace existing overrides"}
         </label>
         <Button
           size="sm"
@@ -1598,7 +1633,7 @@ function CopyFromMonthRow({
           onClick={() => onCopy(sourceMonth, overwrite)}
           className="ml-auto h-7 px-3 text-xs"
         >
-          {pending ? "Copying…" : "Copy plan"}
+          {pending ? (isChinese ? "正在复制…" : "Copying…") : isChinese ? "复制计划" : "Copy plan"}
         </Button>
       </div>
     </section>

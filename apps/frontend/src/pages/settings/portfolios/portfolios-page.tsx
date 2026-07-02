@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useI18n } from "@/i18n/i18n-provider";
 import { usePortfolioMutations, usePortfolios } from "@/hooks/use-portfolios";
 import type { NewPortfolio, PortfolioWithAccounts } from "@/lib/types";
 import {
@@ -34,6 +35,8 @@ import { Button, Checkbox, EmptyPlaceholder, Icons, Separator, Skeleton } from "
 import { SettingsHeader } from "../settings-header";
 
 export default function PortfoliosPage() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { data: portfolios = [], isLoading } = usePortfolios();
   const { accounts, isLoading: isAccountsLoading } = useAccounts({
     filterActive: false,
@@ -206,14 +209,23 @@ export default function PortfoliosPage() {
       <AlertDialog open={deleting !== null} onOpenChange={(value) => !value && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete portfolio?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {isChinese ? "要删除投资组合吗？" : "Delete portfolio?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This removes {deleting ? `"${deleting.name}"` : "this portfolio"} and its account
-              memberships. This action cannot be undone.
+              {isChinese
+                ? `这会移除 ${
+                    deleting ? `“${deleting.name}”` : "此投资组合"
+                  } 及其账户成员关系。此操作无法撤销。`
+                : `This removes ${
+                    deleting ? `"${deleting.name}"` : "this portfolio"
+                  } and its account memberships. This action cannot be undone.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              {isChinese ? "取消" : "Cancel"}
+            </AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleteMutation.isPending}

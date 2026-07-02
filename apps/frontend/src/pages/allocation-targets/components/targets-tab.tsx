@@ -34,6 +34,8 @@ import type {
   TargetScopeType,
   TaxonomyCategory,
 } from "@/lib/types";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateClassificationLabel, translateUiText } from "@/i18n/ui-text";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { BUILT_IN_PRESETS, ModelPresetPicker, type ModelPreset } from "./model-preset-picker";
@@ -65,17 +67,22 @@ function targetScopeLabel(
   target: AllocationTarget,
   accounts: { id: string; name: string }[],
   portfolios: { id: string; name: string }[],
+  isChinese: boolean,
 ): string {
-  if (target.scopeType === "all") return "All Accounts";
+  if (target.scopeType === "all") return isChinese ? "全部账户" : "All Accounts";
   if (target.scopeType === "account" && target.scopeId) {
-    return accounts.find((account) => account.id === target.scopeId)?.name ?? "Account target";
+    return (
+      accounts.find((account) => account.id === target.scopeId)?.name ??
+      (isChinese ? "账户目标" : "Account target")
+    );
   }
   if (target.scopeType === "portfolio" && target.scopeId) {
     return (
-      portfolios.find((portfolio) => portfolio.id === target.scopeId)?.name ?? "Portfolio target"
+      portfolios.find((portfolio) => portfolio.id === target.scopeId)?.name ??
+      (isChinese ? "投资组合目标" : "Portfolio target")
     );
   }
-  return "Target scope";
+  return isChinese ? "目标范围" : "Target scope";
 }
 
 function TargetScopeIcon({ scopeType }: { scopeType: TargetScopeType }) {
@@ -86,13 +93,17 @@ function TargetScopeIcon({ scopeType }: { scopeType: TargetScopeType }) {
   return <Icons.Wallet className="h-4 w-4 shrink-0 opacity-70" />;
 }
 
-function currentPreset(taxonomyId: string, categories: CategoryAllocation[]): ModelPreset {
+function currentPreset(
+  taxonomyId: string,
+  categories: CategoryAllocation[],
+  isChinese: boolean,
+): ModelPreset {
   return {
     id: "current",
     taxonomyId,
-    name: "Current allocation",
-    description: "Start from what you hold today",
-    risk: "From holdings",
+    name: isChinese ? "当前配置" : "Current allocation",
+    description: isChinese ? "从当前持仓开始" : "Start from what you hold today",
+    risk: isChinese ? "来自持仓" : "From holdings",
     weights: Object.fromEntries(categories.map((c) => [c.categoryId, c.percentage])),
   };
 }
@@ -124,15 +135,15 @@ function topLevelCategories(categories: CategoryAllocation[]): CategoryAllocatio
   );
 }
 
-function categoryLabelForTaxonomy(taxonomyName: string | undefined): string {
-  if (!taxonomyName) return "Category";
+function categoryLabelForTaxonomy(taxonomyName: string | undefined, isChinese: boolean): string {
+  if (!taxonomyName) return isChinese ? "分类" : "Category";
   const normalized = taxonomyName.toLowerCase();
-  if (normalized.includes("regions")) return "Region";
-  if (normalized.includes("industries")) return "Industry";
-  if (normalized.includes("risk")) return "Risk category";
-  if (normalized.includes("custom")) return "Custom group";
-  if (normalized.includes("asset classes")) return "Asset class";
-  return "Category";
+  if (normalized.includes("regions")) return isChinese ? "地区" : "Region";
+  if (normalized.includes("industries")) return isChinese ? "行业" : "Industry";
+  if (normalized.includes("risk")) return isChinese ? "风险分类" : "Risk category";
+  if (normalized.includes("custom")) return isChinese ? "自定义分组" : "Custom group";
+  if (normalized.includes("asset classes")) return isChinese ? "资产类别" : "Asset class";
+  return isChinese ? "分类" : "Category";
 }
 
 function normalizeWeights(
@@ -261,6 +272,8 @@ function TargetEditor({
   onDelete?: () => void;
   onUnsavedChange?: (dirty: boolean) => void;
 }) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { data: taxonomies = [] } = useTaxonomies({ scope: "asset" });
   const { accounts } = useAccounts({ filterActive: false, includeArchived: true });
   const { data: portfolios = [] } = usePortfolios();
@@ -331,17 +344,20 @@ function TargetEditor({
     startId === "scratch" || startId === "saved"
       ? null
       : startId === "current"
-        ? currentPreset(taxonomyId, categories)
+        ? currentPreset(taxonomyId, categories, isChinese)
         : (presets.find((preset) => preset.id === startId) ?? null);
   const scope = target
     ? { scopeType: target.scopeType, scopeId: target.scopeId ?? null }
     : defaultScopeFromAccountScope(accountScope);
   const cannotTargetScope = !target && accountScope.type === "accounts";
   const selectedTaxonomy = taxonomies.find((taxonomy) => taxonomy.id === taxonomyId);
-  const suggestedTargetName =
+  const fallbackTargetName = translateUiText(language, selectedTaxonomy?.name ?? "Custom");
+  const suggestedTargetBase =
     startId === "scratch" || startId === "current"
-      ? `${selectedTaxonomy?.name ?? "Custom"} target`
-      : `${selectedPreset?.name ?? selectedTaxonomy?.name ?? "Custom"} target`;
+      ? fallbackTargetName
+      : translateUiText(language, selectedPreset?.name ?? selectedTaxonomy?.name ?? "Custom");
+  const suggestedTargetName =
+    isChinese ? `${suggestedTargetBase}目标` : `${suggestedTargetBase} target`;
   const savedWeightDrafts = React.useMemo(
     () => (existingWeightsData ? savedWeightsToDraft(existingWeightsData) : null),
     [existingWeightsData],
@@ -447,10 +463,14 @@ function TargetEditor({
   const canSave = !cannotTargetScope && targetName.trim().length > 0 && totalBps === 10000;
   const selectedStartName =
     startId === "saved"
-      ? "Saved target"
+      ? isChinese
+        ? "已保存目标"
+        : "Saved target"
       : startId === "scratch"
-        ? "Build from scratch"
-        : (selectedPreset?.name ?? "Current allocation");
+        ? isChinese
+          ? "从空白开始"
+          : "Build from scratch"
+        : translateUiText(language, selectedPreset?.name ?? "Current allocation");
   const showEditorSkeleton =
     taxonomyLoading || (!!target && existingWeightsLoading && weights.length === 0);
 
@@ -486,10 +506,26 @@ function TargetEditor({
 
       setHasUnsavedChanges(false);
       onUnsavedChange?.(false);
-      toast.success(target ? "Target saved" : "Target created");
+      toast.success(
+        target
+          ? isChinese
+            ? "目标已保存"
+            : "Target saved"
+          : isChinese
+            ? "目标已创建"
+            : "Target created",
+      );
       onSaved(saved.target);
     } catch (error) {
-      toast.error(target ? "Failed to save target" : "Failed to create target");
+      toast.error(
+        target
+          ? isChinese
+            ? "保存目标失败"
+            : "Failed to save target"
+          : isChinese
+            ? "创建目标失败"
+            : "Failed to create target",
+      );
       console.error(error);
     }
   }
@@ -540,7 +576,7 @@ function TargetEditor({
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           <Button variant="ghost" size="sm" onClick={handleCancel}>
             <Icons.X className="mr-1.5 h-4 w-4" />
-            Cancel
+            {isChinese ? "取消" : "Cancel"}
           </Button>
           {target ? (
             <>
@@ -549,15 +585,21 @@ function TargetEditor({
                 disabled={!canSave || isSaving || !hasUnsavedChanges}
                 onClick={() => persistTarget()}
               >
-                {isSaving ? "Saving…" : "Save target"}
+                {isSaving
+                  ? isChinese
+                    ? "保存中…"
+                    : "Saving…"
+                  : isChinese
+                    ? "保存目标"
+                    : "Save target"}
               </Button>
               {onDelete && (
                 <Button
                   variant="ghost"
                   size="icon-sm"
                   className="text-destructive hover:text-destructive"
-                  aria-label="Delete target"
-                  title="Delete target"
+                  aria-label={isChinese ? "删除目标" : "Delete target"}
+                  title={isChinese ? "删除目标" : "Delete target"}
                   onClick={() => setDeleteOpen(true)}
                 >
                   <Icons.Trash className="h-4 w-4" />
@@ -566,7 +608,13 @@ function TargetEditor({
             </>
           ) : (
             <Button size="sm" disabled={!canSave || isSaving} onClick={() => persistTarget()}>
-              {isSaving ? "Creating…" : "Create target"}
+              {isSaving
+                ? isChinese
+                  ? "创建中…"
+                  : "Creating…"
+                : isChinese
+                  ? "创建目标"
+                  : "Create target"}
             </Button>
           )}
         </div>
@@ -576,11 +624,11 @@ function TargetEditor({
         <div className="space-y-4">
           <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
             <StepHeader number={1} className="mb-3">
-              Name & scope
+              {isChinese ? "名称和范围" : "Name & scope"}
             </StepHeader>
             <label className="block">
               <span className="text-muted-foreground mb-1.5 block text-[11px] font-medium uppercase tracking-wider">
-                Target name
+                {isChinese ? "目标名称" : "Target name"}
               </span>
               <input
                 value={targetName}
@@ -589,19 +637,19 @@ function TargetEditor({
                   setTargetName(event.target.value);
                   markDirty();
                 }}
-                placeholder="Target name"
+                placeholder={isChinese ? "目标名称" : "Target name"}
                 className="bg-background/70 text-foreground placeholder:text-muted-foreground focus:border-foreground w-full rounded-lg border px-3 py-2.5 text-[14px] font-semibold outline-none transition-colors placeholder:font-normal"
               />
             </label>
             <div className="mt-4">
               <div className="text-muted-foreground mb-1.5 text-[11px] font-medium uppercase tracking-wider">
-                Account scope
+                {isChinese ? "账户范围" : "Account scope"}
               </div>
               {target ? (
                 <div className="bg-muted/20 text-foreground flex items-center gap-2 rounded-lg border px-3 py-2.5 text-[14px] font-semibold">
                   <TargetScopeIcon scopeType={target.scopeType} />
                   <span className="min-w-0 truncate">
-                    {targetScopeLabel(target, accounts, portfolios)}
+                    {targetScopeLabel(target, accounts, portfolios, isChinese)}
                   </span>
                 </div>
               ) : (
@@ -618,20 +666,23 @@ function TargetEditor({
             </div>
             {!target ? (
               <p className="text-muted-foreground mt-3 text-[12px] leading-relaxed">
-                Targets are saved for the selected all-account, portfolio, or account scope.
+                {isChinese
+                  ? "目标会保存到所选的全部账户、投资组合或单个账户范围。"
+                  : "Targets are saved for the selected all-account, portfolio, or account scope."}
               </p>
             ) : null}
             {cannotTargetScope && (
               <p className="text-destructive mt-3 text-[12px] leading-relaxed">
-                Custom multi-account selections cannot have targets yet. Select all accounts, one
-                portfolio, or one account.
+                {isChinese
+                  ? "自定义多账户选择暂不支持目标。请选择全部账户、一个投资组合或一个账户。"
+                  : "Custom multi-account selections cannot have targets yet. Select all accounts, one portfolio, or one account."}
               </p>
             )}
           </section>
 
           <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
             <StepHeader number={2} className="mb-3">
-              Allocation type
+              {isChinese ? "配置类型" : "Allocation type"}
             </StepHeader>
             <div className="space-y-2">
               {guidedTaxonomies.map((taxonomy) => {
@@ -651,10 +702,10 @@ function TargetEditor({
                   >
                     <span className="min-w-0">
                       <span className="text-foreground block truncate text-[12.5px] font-semibold">
-                        {taxonomy.name}
+                        {translateClassificationLabel(language, taxonomy.name)}
                       </span>
                       <span className="text-muted-foreground text-[11px]">
-                        {count} current categories
+                        {isChinese ? `${count} 个当前分类` : `${count} current categories`}
                       </span>
                     </span>
                     {selected && (
@@ -670,7 +721,7 @@ function TargetEditor({
 
           <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
             <StepHeader number={3} className="mb-3">
-              Drift tolerance
+              {isChinese ? "偏离容差" : "Drift tolerance"}
             </StepHeader>
             <DriftBandSlider
               driftBandPct={driftBandPct}
@@ -688,16 +739,19 @@ function TargetEditor({
                 setRelativeFactorPct(value);
                 markDirty();
               }}
+              language={language}
             />
           </section>
 
           <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
             <div className="text-muted-foreground mb-4 text-[11px] font-medium uppercase tracking-wider">
-              Rebalance settings
+              {isChinese ? "再平衡设置" : "Rebalance settings"}
             </div>
             <div className="divide-border/50 divide-y [&>*:first-child]:pt-0 [&>*:last-child]:pb-0 [&>*]:py-4">
               <div>
-                <div className="text-foreground mb-2 text-[12.5px] font-medium">Mode</div>
+                <div className="text-foreground mb-2 text-[12.5px] font-medium">
+                  {isChinese ? "模式" : "Mode"}
+                </div>
                 <AnimatedToggleGroup<"buy_only" | "allow_sells">
                   value={allowSells ? "allow_sells" : "buy_only"}
                   onValueChange={(v) => {
@@ -705,21 +759,27 @@ function TargetEditor({
                     markDirty();
                   }}
                   items={[
-                    { value: "buy_only", label: "Buy only" },
-                    { value: "allow_sells", label: "Allow sells" },
+                    { value: "buy_only", label: isChinese ? "仅买入" : "Buy only" },
+                    { value: "allow_sells", label: isChinese ? "允许卖出" : "Allow sells" },
                   ]}
                   rounded="lg"
                   className="bg-muted/30 [&_button:has(>div)]:text-primary-foreground [&_button:not(:has(>div))]:text-muted-foreground [&_button>div]:bg-primary w-full border [&_button]:flex-1 [&_button]:py-2 [&_button]:text-[12px]"
                 />
                 <p className="text-muted-foreground mt-2 text-[11px] leading-relaxed">
                   {allowSells
-                    ? "Sell overweight positions to fund underweight ones."
-                    : "Deploy new cash only — no positions are sold."}
+                    ? isChinese
+                      ? "卖出超配持仓，为低配项目提供资金。"
+                      : "Sell overweight positions to fund underweight ones."
+                    : isChinese
+                      ? "只投入新增现金，不卖出任何持仓。"
+                      : "Deploy new cash only — no positions are sold."}
                 </p>
               </div>
 
               <div>
-                <div className="text-foreground mb-2 text-[12.5px] font-medium">Goal</div>
+                <div className="text-foreground mb-2 text-[12.5px] font-medium">
+                  {isChinese ? "目标" : "Goal"}
+                </div>
                 <AnimatedToggleGroup<RebalanceGoal>
                   value={rebalanceGoal}
                   onValueChange={(v) => {
@@ -727,21 +787,27 @@ function TargetEditor({
                     markDirty();
                   }}
                   items={[
-                    { value: "nearest_band", label: "Nearest band" },
-                    { value: "exact_target", label: "Exact target" },
+                    { value: "nearest_band", label: isChinese ? "接近容差" : "Nearest band" },
+                    { value: "exact_target", label: isChinese ? "精确目标" : "Exact target" },
                   ]}
                   rounded="lg"
                   className="bg-muted/30 [&_button:has(>div)]:text-primary-foreground [&_button:not(:has(>div))]:text-muted-foreground [&_button>div]:bg-primary w-full border [&_button]:flex-1 [&_button]:py-2 [&_button]:text-[12px]"
                 />
                 <p className="text-muted-foreground mt-2 text-[11px] leading-relaxed">
                   {rebalanceGoal === "exact_target"
-                    ? "Deploy cash until each sleeve reaches exactly its target weight."
-                    : "Stop once each sleeve is within the drift tolerance band."}
+                    ? isChinese
+                      ? "持续投入现金，直到每个分类精确达到目标权重。"
+                      : "Deploy cash until each sleeve reaches exactly its target weight."
+                    : isChinese
+                      ? "每个分类进入偏离容差范围后即停止。"
+                      : "Stop once each sleeve is within the drift tolerance band."}
                 </p>
               </div>
 
               <div>
-                <div className="text-foreground mb-2 text-[12.5px] font-medium">Share sizing</div>
+                <div className="text-foreground mb-2 text-[12.5px] font-medium">
+                  {isChinese ? "股数计算" : "Share sizing"}
+                </div>
                 <AnimatedToggleGroup<"fractional" | "whole">
                   value={wholeSharesOnly ? "whole" : "fractional"}
                   onValueChange={(v) => {
@@ -749,22 +815,26 @@ function TargetEditor({
                     markDirty();
                   }}
                   items={[
-                    { value: "fractional", label: "Fractional" },
-                    { value: "whole", label: "Whole shares" },
+                    { value: "fractional", label: isChinese ? "碎股" : "Fractional" },
+                    { value: "whole", label: isChinese ? "整股" : "Whole shares" },
                   ]}
                   rounded="lg"
                   className="bg-muted/30 [&_button:has(>div)]:text-primary-foreground [&_button:not(:has(>div))]:text-muted-foreground [&_button>div]:bg-primary w-full border [&_button]:flex-1 [&_button]:py-2 [&_button]:text-[12px]"
                 />
                 <p className="text-muted-foreground mt-2 text-[11px] leading-relaxed">
                   {wholeSharesOnly
-                    ? "Suggest integer share quantities only."
-                    : "Allow fractional quantities for precise allocation."}
+                    ? isChinese
+                      ? "只建议整数股数。"
+                      : "Suggest integer share quantities only."
+                    : isChinese
+                      ? "允许碎股，以便更精确配置。"
+                      : "Allow fractional quantities for precise allocation."}
                 </p>
               </div>
 
               <label className="block">
                 <div className="text-foreground mb-2 text-[12.5px] font-medium">
-                  Minimum trade amount
+                  {isChinese ? "最低交易金额" : "Minimum trade amount"}
                 </div>
                 <div className="border-input bg-background focus-within:ring-ring flex h-9 items-center rounded-md border px-3 focus-within:ring-2">
                   <input
@@ -782,7 +852,9 @@ function TargetEditor({
                   />
                 </div>
                 <p className="text-muted-foreground mt-2 text-[11px] leading-relaxed">
-                  Trades below this amount are excluded from the plan.
+                  {isChinese
+                    ? "低于此金额的交易会从方案中排除。"
+                    : "Trades below this amount are excluded from the plan."}
                 </p>
               </label>
             </div>
@@ -792,7 +864,7 @@ function TargetEditor({
         <div className="space-y-4">
           <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
             <div className="mb-3">
-              <StepHeader number={4}>Starting point</StepHeader>
+              <StepHeader number={4}>{isChinese ? "起点" : "Starting point"}</StepHeader>
             </div>
 
             <ModelPresetPicker
@@ -806,25 +878,30 @@ function TargetEditor({
               }}
               currentCategories={categories}
               compact
+              language={language}
             />
           </section>
 
           <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
             <div className="mb-7">
               <h3 className="text-foreground text-[15px] font-semibold">
-                Target weights · {selectedStartName}
+                {isChinese ? "目标权重" : "Target weights"} · {selectedStartName}
               </h3>
               <p className="text-muted-foreground mt-1 text-[12px]">
-                Set the intended mix. The total must equal 100%.
+                {isChinese
+                  ? "设置目标组合。合计必须等于 100%。"
+                  : "Set the intended mix. The total must equal 100%."}
               </p>
               {cannotTargetScope && (
                 <p className="text-destructive mt-2 text-[11px] leading-relaxed">
-                  Select all accounts, one portfolio, or one account before saving.
+                  {isChinese
+                    ? "保存前请选择全部账户、一个投资组合或一个账户。"
+                    : "Select all accounts, one portfolio, or one account before saving."}
                 </p>
               )}
               {targetName.trim().length === 0 && (
                 <p className="text-destructive mt-2 text-[11px] leading-relaxed">
-                  Add a target name before saving.
+                  {isChinese ? "保存前请添加目标名称。" : "Add a target name before saving."}
                 </p>
               )}
             </div>
@@ -836,10 +913,11 @@ function TargetEditor({
                 categories={targetCategories}
                 weights={weights}
                 currentAllocation={currentAllocation}
-                categoryLabel={categoryLabelForTaxonomy(selectedTaxonomy?.name)}
+                categoryLabel={categoryLabelForTaxonomy(selectedTaxonomy?.name, isChinese)}
                 bandType={bandType}
                 driftBandBps={Math.round(driftBandPct * 100)}
                 relativeFactorBps={Math.round(relativeFactorPct * 100)}
+                language={language}
                 onChange={(nextWeights) => {
                   setWeights(nextWeights);
                   markDirty();
@@ -847,7 +925,9 @@ function TargetEditor({
               />
             ) : (
               <p className="text-muted-foreground rounded-lg border px-4 py-6 text-[12px]">
-                No categories found for this allocation type.
+                {isChinese
+                  ? "未找到该配置类型的分类。"
+                  : "No categories found for this allocation type."}
               </p>
             )}
           </section>
@@ -857,14 +937,15 @@ function TargetEditor({
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete target?</AlertDialogTitle>
+            <AlertDialogTitle>{isChinese ? "要删除目标吗？" : "Delete target?"}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete &ldquo;{targetName}&rdquo; and all its target weights.
-              This action cannot be undone.
+              {isChinese
+                ? `这会永久删除“${targetName}”及其全部目标权重。此操作无法撤销。`
+                : `This will permanently delete “${targetName}” and all its target weights. This action cannot be undone.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{isChinese ? "取消" : "Cancel"}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -874,7 +955,7 @@ function TargetEditor({
                 onDelete?.();
               }}
             >
-              Delete
+              {isChinese ? "删除" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,4 +1,5 @@
 import { useHapticFeedback } from "@/hooks";
+import { useI18n } from "@/i18n/i18n-provider";
 import { ChartConfig, ChartContainer } from "@wealthfolio/ui/components/ui/chart";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useIsMobileViewport } from "@/hooks/use-platform";
@@ -62,6 +63,9 @@ const CustomTooltip = ({
   isBalanceHidden,
   isChartHovered,
 }: CustomTooltipProps) => {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
+
   if (!active || !payload?.length) {
     return null;
   }
@@ -92,7 +96,9 @@ const CustomTooltip = ({
       <div className="flex items-center justify-between space-x-2">
         <div className="flex items-center space-x-1.5">
           <span className="block h-0.5 w-3" style={{ backgroundColor: tooltipColor }} />
-          <span className="text-muted-foreground text-xs">Total Value:</span>
+          <span className="text-muted-foreground text-xs">
+            {isChinese ? "总价值：" : "Total Value:"}
+          </span>
         </div>
         <AmountDisplay
           value={tvPayload.totalValue}
@@ -108,7 +114,9 @@ const CustomTooltip = ({
               className="block h-0 w-3 border-b-2 border-dashed"
               style={{ borderColor: "var(--muted-foreground)" }}
             />
-            <span className="text-muted-foreground text-xs">Net Deposit:</span>
+            <span className="text-muted-foreground text-xs">
+              {isChinese ? "净存入：" : "Net Deposit:"}
+            </span>
           </div>
           <AmountDisplay
             value={netContributionPayload.netContribution}

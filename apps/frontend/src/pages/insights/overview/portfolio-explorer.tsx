@@ -1,3 +1,5 @@
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateClassificationLabel } from "@/i18n/ui-text";
 import { useAccountsSimplePerformance } from "@/hooks/use-accounts-simple-performance";
 import type {
   Account,
@@ -33,7 +35,9 @@ interface PortfolioExplorerProps {
 interface Lens {
   key: string;
   label: string;
+  localizedLabel: string;
   unit: string;
+  unitLabel: string;
   nodes: BreakdownNode[];
   /** Taxonomy backing the lens; when present, leaf rows open the detail sheet. */
   allocation?: TaxonomyAllocation;
@@ -70,24 +74,28 @@ function collapseWeights(
 }
 
 function SegmentedBar({ nodes }: { nodes: BreakdownNode[] }) {
+  const { language } = useI18n();
   return (
     <div className="bg-muted flex h-6 w-full overflow-hidden rounded-lg">
-      {nodes.map((node, index) => (
-        <div
-          key={node.id}
-          className="flex h-full items-center overflow-hidden px-2"
-          style={{
-            flex: `${Math.max(node.percentage, 0.5)} 1 0%`,
-            background: node.color,
-            boxShadow: index === 0 ? undefined : "inset 2px 0 0 var(--card)",
-          }}
-          title={`${node.name} · ${node.percentage.toFixed(1)}%`}
-        >
-          {node.percentage >= 8 && (
-            <span className="truncate text-[10.5px] font-bold text-white/95">{node.name}</span>
-          )}
-        </div>
-      ))}
+      {nodes.map((node, index) => {
+        const name = translateClassificationLabel(language, node.name);
+        return (
+          <div
+            key={node.id}
+            className="flex h-full items-center overflow-hidden px-2"
+            style={{
+              flex: `${Math.max(node.percentage, 0.5)} 1 0%`,
+              background: node.color,
+              boxShadow: index === 0 ? undefined : "inset 2px 0 0 var(--card)",
+            }}
+            title={`${name} · ${node.percentage.toFixed(1)}%`}
+          >
+            {node.percentage >= 8 && (
+              <span className="truncate text-[10.5px] font-bold text-white/95">{name}</span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -95,13 +103,17 @@ function SegmentedBar({ nodes }: { nodes: BreakdownNode[] }) {
 function taxonomyLens(
   key: string,
   label: string,
+  localizedLabel: string,
   unit: string,
+  unitLabel: string,
   allocation: TaxonomyAllocation | undefined,
 ): Lens {
   return {
     key,
     label,
+    localizedLabel,
     unit,
+    unitLabel,
     nodes: buildBreakdownTree(allocation?.categories, sumOfCategories(allocation)),
     allocation,
   };
@@ -117,6 +129,7 @@ export function PortfolioExplorer({
   isLoading,
   onOpenAllocation,
 }: PortfolioExplorerProps) {
+  const { language } = useI18n();
   const [activeKey, setActiveKey] = useState("allocation");
   const [showAll, setShowAll] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -132,28 +145,55 @@ export function PortfolioExplorer({
 
   const lenses = useMemo<Lens[]>(() => {
     const list: Lens[] = [
-      taxonomyLens("allocation", "Allocation", "categories", allocations?.assetClasses),
+      taxonomyLens(
+        "allocation",
+        "Allocation",
+        "配置",
+        "categories",
+        "分类",
+        allocations?.assetClasses,
+      ),
       {
         key: "accounts",
         label: "Accounts",
+        localizedLabel: "账户",
         unit: "accounts",
+        unitLabel: "账户",
         nodes: accountTreeWeights(accountValues, scopedAccounts),
       },
-      taxonomyLens("sectors", "Sectors", "sectors", allocations?.sectors),
-      taxonomyLens("regions", "Regions", "regions", allocations?.regions),
-      taxonomyLens("risk", "Risk", "levels", allocations?.riskCategory),
-      taxonomyLens("security", "Security types", "types", allocations?.securityTypes),
+      taxonomyLens("sectors", "Sectors", "行业", "sectors", "行业", allocations?.sectors),
+      taxonomyLens("regions", "Regions", "地区", "regions", "地区", allocations?.regions),
+      taxonomyLens("risk", "Risk", "风险", "levels", "等级", allocations?.riskCategory),
+      taxonomyLens(
+        "security",
+        "Security types",
+        "证券类型",
+        "types",
+        "类型",
+        allocations?.securityTypes,
+      ),
       {
         key: "currency",
         label: "Currency",
+        localizedLabel: "币种",
         unit: "currencies",
+        unitLabel: "币种",
         nodes: toBreakdownNodes(currencyLensItems(holdings)),
       },
     ];
     // Each custom-group taxonomy becomes its own lens.
     for (const taxonomy of allocations?.customGroups ?? []) {
       if (taxonomy.categories.some((c) => c.value > 0)) {
-        list.push(taxonomyLens(taxonomy.taxonomyId, taxonomy.taxonomyName, "groups", taxonomy));
+        list.push(
+          taxonomyLens(
+            taxonomy.taxonomyId,
+            taxonomy.taxonomyName,
+            taxonomy.taxonomyName,
+            "groups",
+            "分组",
+            taxonomy,
+          ),
+        );
       }
     }
     return list;
@@ -188,18 +228,23 @@ export function PortfolioExplorer({
 
   const total = sumValue(active.nodes);
   const collapsible = active.nodes.length > 6;
+  const activeLabel = language === "zh-CN" ? active.localizedLabel : active.label;
+  const otherLabel = language === "zh-CN" ? `其他${active.unitLabel}` : `Other ${active.unit}`;
+  const countLabel = language === "zh-CN" ? `个${active.unitLabel}` : active.unit;
+  const topLabel = language === "zh-CN" ? `主要${active.unitLabel}` : `Top ${active.unit}`;
   const barWeights = collapsible
-    ? collapseWeights(active.nodes, 5, `Other ${active.unit}`)
+    ? collapseWeights(active.nodes, 5, otherLabel)
     : active.nodes;
   const listWeights =
     collapsible && !showAll
-      ? collapseWeights(active.nodes, 5, `Other ${active.unit}`)
+      ? collapseWeights(active.nodes, 5, otherLabel)
       : active.nodes;
 
   function renderNode(node: BreakdownNode): React.ReactNode[] {
     const hasChildren = !!node.children?.length;
     const isOpen = expanded.has(node.id);
     const isOther = node.id === "__other__";
+    const nodeName = translateClassificationLabel(language, node.name);
     const canOpenSheet = !hasChildren && !isOther && !!active.allocation;
     const interactive = hasChildren || canOpenSheet;
     const onActivate = hasChildren
@@ -249,7 +294,7 @@ export function PortfolioExplorer({
               isOther && "text-muted-foreground font-medium",
             )}
           >
-            {node.name}
+            {nodeName}
           </span>
         </span>
         <span className="text-foreground w-[62px] text-right text-[13px] font-bold tabular-nums">
@@ -274,7 +319,7 @@ export function PortfolioExplorer({
     <div>
       <div className="mb-2">
         <span className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
-          Breakdown
+          {language === "zh-CN" ? "配置明细" : "Breakdown"}
         </span>
       </div>
 
@@ -293,7 +338,7 @@ export function PortfolioExplorer({
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
-              {lens.label}
+              {language === "zh-CN" ? lens.localizedLabel : lens.label}
             </button>
           ))}
         </div>
@@ -301,16 +346,16 @@ export function PortfolioExplorer({
         {/* Full-width breakdown */}
         <div className="p-6">
           <div className="mb-3.5 flex items-baseline justify-between gap-3.5">
-            <span className="text-[13.5px] font-bold">{active.label}</span>
+            <span className="text-[13.5px] font-bold">{activeLabel}</span>
             <span className="text-muted-foreground text-[12.5px] tabular-nums">
               <PrivacyAmount value={total} currency={currency} /> · {active.nodes.length}{" "}
-              {active.unit}
+              {countLabel}
             </span>
           </div>
           <SegmentedBar nodes={barWeights} />
           <div className="mb-1 mt-4 flex items-baseline justify-between">
             <span className="text-muted-foreground text-[10.5px] font-semibold uppercase tracking-wider">
-              {collapsible && !showAll ? `Top ${active.unit}` : active.label}
+              {collapsible && !showAll ? topLabel : activeLabel}
             </span>
             {collapsible && (
               <button
@@ -318,7 +363,13 @@ export function PortfolioExplorer({
                 onClick={() => setShowAll((v) => !v)}
                 className="text-muted-foreground hover:text-foreground text-[12px] font-semibold"
               >
-                {showAll ? "Show less" : "Show all"}
+                {showAll
+                  ? language === "zh-CN"
+                    ? "收起"
+                    : "Show less"
+                  : language === "zh-CN"
+                    ? "显示全部"
+                    : "Show all"}
               </button>
             )}
           </div>

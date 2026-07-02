@@ -1,3 +1,5 @@
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateClassificationLabel } from "@/i18n/ui-text";
 import { useMemo } from "react";
 import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription } from "@wealthfolio/ui";
 import { cn } from "@/lib/utils";
@@ -21,16 +23,21 @@ function formatPercent(bps: number, decimals = 1): string {
   return Number.isInteger(pct) ? pct.toFixed(0) : pct.toFixed(decimals);
 }
 
-function buildDriver(row: DriftRow, currency: string) {
+function buildDriver(row: DriftRow, currency: string, language: string) {
   const current = formatPercent(row.currentBps);
   const target = formatPercent(row.targetBps);
   const absDelta = Math.abs(row.valueDelta);
   const drift = formatPp(row.driftBps);
+  const categoryName = translateClassificationLabel(language === "zh-CN" ? "zh-CN" : "en", row.categoryName);
+  const amount = formatRoundedCurrency(absDelta, currency);
 
   if (row.status === "not_targeted") {
     return {
-      title: `${row.categoryName} is outside target`,
-      detail: `Current ${current}% · Target 0% · ${formatRoundedCurrency(absDelta, currency)} not in target`,
+      title: language === "zh-CN" ? `${categoryName} 超出目标范围` : `${categoryName} is outside target`,
+      detail:
+        language === "zh-CN"
+          ? `当前 ${current}% · 目标 0% · ${amount} 不在目标内`
+          : `Current ${current}% · Target 0% · ${amount} not in target`,
       drift,
       isOver: true,
     };
@@ -38,15 +45,21 @@ function buildDriver(row: DriftRow, currency: string) {
 
   if (row.status === "overweight") {
     return {
-      title: `${row.categoryName} is above target`,
-      detail: `Current ${current}% · Target ${target}% · ${formatRoundedCurrency(absDelta, currency)} above target`,
+      title: language === "zh-CN" ? `${categoryName} 高于目标` : `${categoryName} is above target`,
+      detail:
+        language === "zh-CN"
+          ? `当前 ${current}% · 目标 ${target}% · ${amount} 高于目标`
+          : `Current ${current}% · Target ${target}% · ${amount} above target`,
       drift,
       isOver: true,
     };
   }
   return {
-    title: `${row.categoryName} is below target`,
-    detail: `Current ${current}% · Target ${target}% · Needs about ${formatRoundedCurrency(absDelta, currency)}`,
+    title: language === "zh-CN" ? `${categoryName} 低于目标` : `${categoryName} is below target`,
+    detail:
+      language === "zh-CN"
+        ? `当前 ${current}% · 目标 ${target}% · 约需补入 ${amount}`
+        : `Current ${current}% · Target ${target}% · Needs about ${amount}`,
     drift,
     isOver: false,
   };
@@ -68,6 +81,8 @@ export function DriftDriversCard({
   bandLabel,
   onRebalanceClick,
 }: DriftDriversCardProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const colorByCategory = useMemo(() => buildAllocationTargetColorMap(report.rows), [report.rows]);
   const oobRows = report.rows
     .filter(isOutOfBand)
@@ -79,7 +94,7 @@ export function DriftDriversCard({
   return (
     <Card className="flex h-full flex-col">
       <CardHeader className="pb-4">
-        <CardTitle className="text-base">Largest gaps</CardTitle>
+        <CardTitle className="text-base">{isChinese ? "最大偏离项" : "Largest gaps"}</CardTitle>
         <CardDescription>
           {statusDescription}
           {bandLabel && (
@@ -93,12 +108,14 @@ export function DriftDriversCard({
       <CardContent className="flex flex-1 flex-col">
         {oobRows.length === 0 ? (
           <p className="text-muted-foreground py-6 text-center text-[13px]">
-            {statusDescription}. No action required.
+            {language === "zh-CN"
+              ? `${statusDescription}。无需操作。`
+              : `${statusDescription}. No action required.`}
           </p>
         ) : (
           <ul className="space-y-3">
             {visibleRows.map((row, index) => {
-              const driver = buildDriver(row, report.baseCurrency);
+              const driver = buildDriver(row, report.baseCurrency, language);
               const rowColor = allocationTargetColorForRow(row, colorByCategory, index);
               return (
                 <li key={row.categoryId} className="bg-muted/35 rounded-lg px-3.5 py-3">
@@ -135,12 +152,14 @@ export function DriftDriversCard({
             {remainingRows.length > 0 && (
               <li className="bg-muted/20 text-muted-foreground rounded-lg px-3.5 py-2.5 text-[11.5px] leading-relaxed">
                 <span className="text-foreground font-medium">
-                  {remainingRows.length} more outside target
+                  {language === "zh-CN"
+                    ? `${remainingRows.length} 个项目仍超出目标`
+                    : `${remainingRows.length} more outside target`}
                 </span>
                 <span className="px-1.5">·</span>
                 {remainingRows
                   .map((row) => {
-                    return `${row.categoryName} ${formatPp(row.driftBps)}`;
+                    return `${translateClassificationLabel(language, row.categoryName)} ${formatPp(row.driftBps)}`;
                   })
                   .join(" · ")}
               </li>
@@ -150,7 +169,7 @@ export function DriftDriversCard({
         {showRebalanceCta && (
           <div className="mt-auto pt-4">
             <Button size="sm" onClick={onRebalanceClick} className="w-fit">
-              Review rebalance →
+              {isChinese ? "查看再平衡 →" : "Review rebalance →"}
             </Button>
           </div>
         )}

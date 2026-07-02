@@ -1,4 +1,5 @@
 import { DashboardCard } from "@/components/dashboard-card";
+import { useI18n } from "@/i18n/i18n-provider";
 import { CompactAmount } from "./compact-amount";
 import { CARD_LABEL, toneClass, toneFill, type Velocity } from "./utils";
 
@@ -8,12 +9,14 @@ function DriverRow({
   months,
   total,
   currency,
+  isChinese,
 }: {
   label: string;
   value: number;
   months: number;
   total: number;
   currency: string;
+  isChinese: boolean;
 }) {
   const perMonth = months > 0 ? value / months : value;
   const share = total > 0 ? (Math.abs(value) / total) * 100 : 0;
@@ -25,7 +28,9 @@ function DriverRow({
         <span className={`text-sm font-semibold tabular-nums ${toneClass(value)}`}>
           {sign}
           <CompactAmount value={Math.abs(perMonth)} currency={currency} />
-          <span className="text-muted-foreground/50 font-normal">/mo</span>
+          <span className="text-muted-foreground/50 font-normal">
+            {isChinese ? "/月" : "/mo"}
+          </span>
         </span>
       </div>
       <div className="flex items-center gap-2.5">
@@ -58,6 +63,8 @@ export function VelocityCard({
   currency,
   periodLabel,
 }: VelocityCardProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { perMonth, netChange, months, marketGains, contributions, equityBuilt } = velocity;
   const total = Math.abs(marketGains) + Math.abs(contributions) + Math.abs(equityBuilt);
   const multiple =
@@ -69,43 +76,51 @@ export function VelocityCard({
   const monthsRounded = Math.max(1, Math.round(months));
 
   return (
-    <DashboardCard title="Monthly pace" meta={periodLabel}>
+    <DashboardCard title={isChinese ? "月度节奏" : "Monthly pace"} meta={periodLabel}>
       <div className="flex items-baseline gap-0.5">
         <span className={`text-lg font-bold tabular-nums ${toneClass(perMonth)}`}>
           {perMonthSign}
           <CompactAmount value={Math.abs(perMonth)} currency={currency} />
         </span>
-        <span className="text-muted-foreground text-sm">/mo</span>
+        <span className="text-muted-foreground text-sm">{isChinese ? "/月" : "/mo"}</span>
       </div>
       <p className="text-muted-foreground/80 mt-1 text-xs tabular-nums">
         {netSign}
-        <CompactAmount value={Math.abs(netChange)} currency={currency} /> over {monthsRounded}{" "}
-        {monthsRounded === 1 ? "month" : "months"}
-        {multiple != null && ` · ${multiple.toFixed(1)}× trailing-12mo pace`}
+        <CompactAmount value={Math.abs(netChange)} currency={currency} />{" "}
+        {isChinese
+          ? `过去 ${monthsRounded} 个月`
+          : `over ${monthsRounded} ${monthsRounded === 1 ? "month" : "months"}`}
+        {multiple != null &&
+          (isChinese ? ` · ${multiple.toFixed(1)}× 过去 12 个月节奏` : ` · ${multiple.toFixed(1)}× trailing-12mo pace`)}
       </p>
 
-      <p className={`${CARD_LABEL} mb-3 mt-5`}>Drivers of {periodLabel} change</p>
+      <p className={`${CARD_LABEL} mb-3 mt-5`}>
+        {isChinese ? `${periodLabel}变化来源` : `Drivers of ${periodLabel} change`}
+      </p>
       <div className="space-y-3.5">
         <DriverRow
-          label="Market returns"
+          label={isChinese ? "市场收益" : "Market returns"}
           value={marketGains}
           months={months}
           total={total}
           currency={currency}
+          isChinese={isChinese}
         />
         <DriverRow
-          label="Contributions"
+          label={isChinese ? "投入" : "Contributions"}
           value={contributions}
           months={months}
           total={total}
           currency={currency}
+          isChinese={isChinese}
         />
         <DriverRow
-          label="Equity built"
+          label={isChinese ? "权益积累" : "Equity built"}
           value={equityBuilt}
           months={months}
           total={total}
           currency={currency}
+          isChinese={isChinese}
         />
       </div>
     </DashboardCard>

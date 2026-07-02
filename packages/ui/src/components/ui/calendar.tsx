@@ -15,12 +15,14 @@ function Calendar({
   captionLayout = "label",
   buttonVariant = "ghost",
   formatters,
+  labels,
   components,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"];
 }) {
   const defaultClassNames = getDefaultClassNames();
+  const isChinese = typeof document !== "undefined" && document.documentElement.lang === "zh-CN";
 
   return (
     <DayPicker
@@ -34,7 +36,33 @@ function Calendar({
       captionLayout={captionLayout}
       formatters={{
         formatMonthDropdown: (date) => date.toLocaleString("default", { month: "short" }),
+        ...(isChinese
+          ? {
+              formatCaption: (date) =>
+                new Intl.DateTimeFormat("zh-CN", {
+                  year: "numeric",
+                  month: "long",
+                }).format(date),
+              formatMonthDropdown: (date) =>
+                new Intl.DateTimeFormat("zh-CN", { month: "short" }).format(date),
+              formatWeekdayName: (date) =>
+                new Intl.DateTimeFormat("zh-CN", { weekday: "short" }).format(date),
+            }
+          : {}),
         ...formatters,
+      }}
+      labels={{
+        ...(isChinese
+          ? {
+              labelMonthDropdown: () => "选择月份",
+              labelNext: () => "下个月",
+              labelPrevious: () => "上个月",
+              labelWeekday: (date: Date) =>
+                new Intl.DateTimeFormat("zh-CN", { weekday: "long" }).format(date),
+              labelYearDropdown: () => "选择年份",
+            }
+          : {}),
+        ...labels,
       }}
       classNames={{
         root: cn("w-fit", defaultClassNames.root),

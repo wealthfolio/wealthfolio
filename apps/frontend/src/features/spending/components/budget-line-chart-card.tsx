@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 
 import { DashboardCard } from "@/components/dashboard-card";
+import { useI18n } from "@/i18n/i18n-provider";
 import { cn } from "@/lib/utils";
 import { formatCompactAmount, Icons, PrivacyAmount, useBalancePrivacy } from "@wealthfolio/ui";
 
@@ -90,6 +91,8 @@ export function BudgetLineChartCard({
   monthByDay: DayBucket[];
   historicalByDay: DayBucket[];
 }) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   // All hooks must run unconditionally — the `target <= 0` early return below
   // sits between hooks otherwise, which trips "Rendered more hooks than during
   // the previous render" when a target is added or cleared.
@@ -105,13 +108,13 @@ export function BudgetLineChartCard({
       daysInMonth,
       daysRemaining: isCurrentMonth ? Math.max(0, daysInMonth - dayOfMonth) : 0,
       monthLabel: monthDate
-        .toLocaleString("en-US", { month: "long", year: "numeric" })
+        .toLocaleString(isChinese ? "zh-CN" : "en-US", { month: "long", year: "numeric" })
         .toUpperCase(),
       shortLabel: monthDate
-        .toLocaleString("en-US", { month: "short", year: "numeric" })
+        .toLocaleString(isChinese ? "zh-CN" : "en-US", { month: "short", year: "numeric" })
         .toUpperCase(),
     };
-  }, [monthKey, isCurrentMonth, today]);
+  }, [monthKey, isCurrentMonth, today, isChinese]);
   const { dayOfMonth, daysInMonth, daysRemaining, monthLabel } = monthMeta;
 
   const cumulative = useMemo(() => {
@@ -212,6 +215,7 @@ export function BudgetLineChartCard({
     <BudgetCardHeaderActions
       monthLabel={monthMeta.shortLabel}
       monthKey={monthKey}
+      isChinese={isChinese}
       onPreviousMonth={onPreviousMonth}
       onNextMonth={onNextMonth}
       canGoNextMonth={canGoNextMonth}
@@ -221,19 +225,21 @@ export function BudgetLineChartCard({
   if (target <= 0) {
     return (
       <DashboardCard
-        title="Monthly budget"
+        title={isChinese ? "月度预算" : "Monthly budget"}
         subtitle={monthMeta.shortLabel}
         action={headerAction}
         className="text-center"
       >
         <p className="text-muted-foreground text-sm">
-          No monthly target set for this budget month.
+          {isChinese
+            ? "该预算月份未设置月度目标。"
+            : "No monthly target set for this budget month."}
         </p>
         <Link
           to={`/spending/budget?month=${monthKey}`}
           className="text-foreground mt-2 inline-flex text-xs underline-offset-4 hover:underline"
         >
-          Set a budget →
+          {isChinese ? "设置预算 →" : "Set a budget →"}
         </Link>
       </DashboardCard>
     );
@@ -256,7 +262,18 @@ export function BudgetLineChartCard({
   const status: Status = isOver ? "over" : isCurrentMonth && !aheadOfPace ? "warn" : "ok";
   const a = STATUS_ACCENTS[status];
   const { Icon } = a;
-  const statusLabel = !isCurrentMonth && !isOver ? "Under budget" : a.label;
+  const statusLabel =
+    !isCurrentMonth && !isOver
+      ? isChinese
+        ? "低于预算"
+        : "Under budget"
+      : isChinese
+        ? status === "over"
+          ? "超出预算"
+          : status === "warn"
+            ? "趋势偏高"
+            : "进展正常"
+        : a.label;
 
   const xForDay = (day: number) => padL + ((day - 1) / Math.max(1, daysInMonth - 1)) * innerW;
   const yForVal = (v: number) => padT + (1 - v / yMax) * innerH;
@@ -272,13 +289,23 @@ export function BudgetLineChartCard({
   const gapAbs = Math.abs(gapVsPace);
   const gapLabel = isCurrentMonth
     ? isOver
-      ? `${formatCompactAmount(overBy, currency)} over budget`
+      ? isChinese
+        ? `${formatCompactAmount(overBy, currency)} 超出预算`
+        : `${formatCompactAmount(overBy, currency)} over budget`
       : aheadOfPace
-        ? `${formatCompactAmount(gapAbs, currency)} under budget`
-        : `${formatCompactAmount(gapAbs, currency)} over pace`
+        ? isChinese
+          ? `${formatCompactAmount(gapAbs, currency)} 低于预算`
+          : `${formatCompactAmount(gapAbs, currency)} under budget`
+        : isChinese
+          ? `${formatCompactAmount(gapAbs, currency)} 超出节奏`
+          : `${formatCompactAmount(gapAbs, currency)} over pace`
     : isOver
-      ? `${formatCompactAmount(overBy, currency)} over budget`
-      : `${formatCompactAmount(remaining, currency)} left`;
+      ? isChinese
+        ? `${formatCompactAmount(overBy, currency)} 超出预算`
+        : `${formatCompactAmount(overBy, currency)} over budget`
+      : isChinese
+        ? `${formatCompactAmount(remaining, currency)} 剩余`
+        : `${formatCompactAmount(remaining, currency)} left`;
 
   const pillLeftPctRaw = (endX / chartW) * 100;
   const pillLeftPct = Math.min(78, Math.max(8, pillLeftPctRaw - 4));
@@ -288,12 +315,22 @@ export function BudgetLineChartCard({
   const pillTopPx = Math.max(0, endY - 28);
 
   return (
-    <DashboardCard title="Monthly budget" subtitle={monthLabel} action={headerAction}>
+    <DashboardCard
+      title={isChinese ? "月度预算" : "Monthly budget"}
+      subtitle={monthLabel}
+      action={headerAction}
+    >
       <div className="flex items-center gap-2">
         <Icon className="h-4 w-4 shrink-0" style={{ color: a.accent }} />
         <span className="text-foreground text-sm font-semibold">{statusLabel}</span>
         <span className="text-muted-foreground/70 ml-auto text-xs tabular-nums">
-          {isCurrentMonth ? `Day ${dayOfMonth} / ${daysInMonth}` : "Closed"}
+          {isCurrentMonth
+            ? isChinese
+              ? `第 ${dayOfMonth} / ${daysInMonth} 天`
+              : `Day ${dayOfMonth} / ${daysInMonth}`
+            : isChinese
+              ? "已结束"
+              : "Closed"}
         </span>
       </div>
 
@@ -302,22 +339,29 @@ export function BudgetLineChartCard({
           <>
             <div className="text-foreground text-2xl font-bold tabular-nums tracking-tight">
               <PrivacyAmount value={forecast} currency={currency} />{" "}
-              <span className="text-muted-foreground/70 text-base font-medium">forecast</span>
+              <span className="text-muted-foreground/70 text-base font-medium">
+                {isChinese ? "预测" : "forecast"}
+              </span>
             </div>
             <div className="text-destructive mt-0.5 inline-flex items-center gap-1 text-xs font-semibold tabular-nums">
               <Icons.ArrowUp className="h-3 w-3" />
-              <PrivacyAmount value={forecastDelta} currency={currency} /> over budget
+              <PrivacyAmount value={forecastDelta} currency={currency} />{" "}
+              {isChinese ? "超出预算" : "over budget"}
             </div>
             <div className="text-muted-foreground/80 mt-0.5 text-xs tabular-nums">
-              <PrivacyAmount value={remaining} currency={currency} /> left today · of{" "}
-              <PrivacyAmount value={target} currency={currency} /> budgeted this month
+              <PrivacyAmount value={remaining} currency={currency} />{" "}
+              {isChinese ? "今天剩余" : "left today"} · {isChinese ? "本月预算" : "of"}{" "}
+              <PrivacyAmount value={target} currency={currency} />
+              {!isChinese && " budgeted this month"}
             </div>
           </>
         ) : !isCurrentMonth ? (
           <>
             <div className="text-foreground text-2xl font-bold tabular-nums tracking-tight">
               <PrivacyAmount value={spent} currency={currency} />{" "}
-              <span className="text-muted-foreground/70 text-base font-medium">spent</span>
+              <span className="text-muted-foreground/70 text-base font-medium">
+                {isChinese ? "已支出" : "spent"}
+              </span>
             </div>
             <div
               className={cn(
@@ -326,10 +370,11 @@ export function BudgetLineChartCard({
               )}
             >
               <PrivacyAmount value={isOver ? overBy : remaining} currency={currency} />{" "}
-              {isOver ? "over budget" : "left"}
+              {isOver ? (isChinese ? "超出预算" : "over budget") : isChinese ? "剩余" : "left"}
             </div>
             <div className="text-muted-foreground/80 mt-0.5 text-xs tabular-nums">
-              of <PrivacyAmount value={target} currency={currency} /> budgeted
+              {isChinese ? "预算" : "of"} <PrivacyAmount value={target} currency={currency} />
+              {!isChinese && " budgeted"}
             </div>
           </>
         ) : (
@@ -337,11 +382,12 @@ export function BudgetLineChartCard({
             <div className="text-foreground text-2xl font-bold tabular-nums tracking-tight">
               <PrivacyAmount value={isOver ? overBy : remaining} currency={currency} />{" "}
               <span className="text-muted-foreground/70 text-base font-medium">
-                {isOver ? "over" : "left"}
+                {isOver ? (isChinese ? "超出" : "over") : isChinese ? "剩余" : "left"}
               </span>
             </div>
             <div className="text-muted-foreground/80 text-xs tabular-nums">
-              of <PrivacyAmount value={target} currency={currency} /> budgeted this month
+              {isChinese ? "本月预算" : "of"} <PrivacyAmount value={target} currency={currency} />
+              {!isChinese && " budgeted this month"}
             </div>
           </>
         )}
@@ -420,14 +466,20 @@ export function BudgetLineChartCard({
         )}
       </div>
       <div className="text-muted-foreground/70 mt-1 flex justify-between text-[10px] tabular-nums">
-        <span>Day 1</span>
-        <span>Day {daysInMonth}</span>
+        <span>{isChinese ? "第 1 天" : "Day 1"}</span>
+        <span>{isChinese ? `第 ${daysInMonth} 天` : `Day ${daysInMonth}`}</span>
       </div>
 
       <div className="border-border mt-4 grid grid-cols-2 gap-3 border-t pt-3 text-xs">
         <div>
           <div className="text-muted-foreground/70 text-[11px] uppercase tracking-wide">
-            {isCurrentMonth ? "Spent so far" : "Spent"}
+            {isCurrentMonth
+              ? isChinese
+                ? "目前已支出"
+                : "Spent so far"
+              : isChinese
+                ? "已支出"
+                : "Spent"}
           </div>
           <div className="text-foreground text-sm font-semibold tabular-nums">
             <PrivacyAmount value={spent} currency={currency} />
@@ -435,7 +487,7 @@ export function BudgetLineChartCard({
         </div>
         <div className="text-right">
           <div className="text-muted-foreground/70 text-[11px] uppercase tracking-wide">
-            {isCurrentMonth ? "Forecast" : "Result"}
+            {isCurrentMonth ? (isChinese ? "预测" : "Forecast") : isChinese ? "结果" : "Result"}
           </div>
           {isCurrentMonth ? (
             <div
@@ -464,12 +516,22 @@ export function BudgetLineChartCard({
             {isCurrentMonth
               ? forecastReliable
                 ? haveHistory
-                  ? "vs last 3 months"
-                  : "at current pace"
-                : "more data needed"
+                  ? isChinese
+                    ? "对比最近 3 个月"
+                    : "vs last 3 months"
+                  : isChinese
+                    ? "按当前节奏"
+                    : "at current pace"
+                : isChinese
+                  ? "需要更多数据"
+                  : "more data needed"
               : isOver
-                ? "over budget"
-                : "left"}
+                ? isChinese
+                  ? "超出预算"
+                  : "over budget"
+                : isChinese
+                  ? "剩余"
+                  : "left"}
           </div>
         </div>
       </div>
@@ -477,18 +539,18 @@ export function BudgetLineChartCard({
       <div className="border-border mt-5 border-t pt-4">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-muted-foreground/80 text-[11px] font-semibold uppercase tracking-wide">
-            By category
+            {isChinese ? "按分类" : "By category"}
           </span>
-          <BudgetManageLink monthKey={monthKey} />
+          <BudgetManageLink monthKey={monthKey} isChinese={isChinese} />
         </div>
         {rings.length === 0 ? (
           <div className="text-muted-foreground py-2 text-center text-xs">
-            No category budgets set yet.{" "}
+            {isChinese ? "尚未设置分类预算。" : "No category budgets set yet."}{" "}
             <Link
               to="/settings/spending/setup"
               className="hover:text-foreground underline-offset-4 hover:underline"
             >
-              Set one
+              {isChinese ? "设置一个" : "Set one"}
             </Link>
           </div>
         ) : (
@@ -502,7 +564,13 @@ export function BudgetLineChartCard({
             }}
           >
             {rings.map((r) => (
-              <BudgetRing key={r.id} ring={r} currency={currency} activityRange={activityRange} />
+              <BudgetRing
+                key={r.id}
+                ring={r}
+                currency={currency}
+                activityRange={activityRange}
+                isChinese={isChinese}
+              />
             ))}
           </div>
         )}
@@ -604,12 +672,14 @@ function clamp(value: number, min: number, max: number): number {
 function BudgetCardHeaderActions({
   monthLabel,
   monthKey,
+  isChinese,
   onPreviousMonth,
   onNextMonth,
   canGoNextMonth,
 }: {
   monthLabel: string;
   monthKey: string;
+  isChinese: boolean;
   onPreviousMonth: () => void;
   onNextMonth: () => void;
   canGoNextMonth: boolean;
@@ -621,7 +691,7 @@ function BudgetCardHeaderActions({
           type="button"
           onClick={onPreviousMonth}
           className="hover:bg-background flex h-6 w-6 items-center justify-center rounded-full transition-colors"
-          aria-label="Previous budget month"
+          aria-label={isChinese ? "上一个预算月份" : "Previous budget month"}
         >
           <Icons.ChevronLeft className="h-3.5 w-3.5" />
         </button>
@@ -633,22 +703,22 @@ function BudgetCardHeaderActions({
           onClick={onNextMonth}
           disabled={!canGoNextMonth}
           className="hover:bg-background disabled:text-muted-foreground/40 flex h-6 w-6 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed"
-          aria-label="Next budget month"
+          aria-label={isChinese ? "下一个预算月份" : "Next budget month"}
         >
           <Icons.ChevronRight className="h-3.5 w-3.5" />
         </button>
       </div>
-      <BudgetManageLink monthKey={monthKey} />
+      <BudgetManageLink monthKey={monthKey} isChinese={isChinese} />
     </div>
   );
 }
 
-const BudgetManageLink = ({ monthKey }: { monthKey: string }) => (
+const BudgetManageLink = ({ monthKey, isChinese }: { monthKey: string; isChinese: boolean }) => (
   <Link
     to={`/spending/budget?month=${monthKey}`}
     className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
   >
-    Manage →
+    {isChinese ? "管理 →" : "Manage →"}
   </Link>
 );
 
@@ -656,6 +726,7 @@ function BudgetRing({
   ring,
   currency,
   activityRange,
+  isChinese,
 }: {
   ring: {
     categoryId: string;
@@ -668,6 +739,7 @@ function BudgetRing({
   };
   currency: string;
   activityRange: { from: string; to: string };
+  isChinese: boolean;
 }) {
   const { isBalanceHidden } = useBalancePrivacy();
   const isOver = ring.spent > ring.target;
@@ -728,7 +800,7 @@ function BudgetRing({
           isOver ? "text-destructive" : "text-muted-foreground/70",
         )}
       >
-        {isOver ? "over" : "left"}
+        {isOver ? (isChinese ? "超出" : "over") : isChinese ? "剩余" : "left"}
       </div>
     </Link>
   );

@@ -1,22 +1,37 @@
-export function categoryNoun(taxonomyId: string, taxonomyName: string | undefined, count: number) {
+export function categoryNoun(
+  taxonomyId: string,
+  taxonomyName: string | undefined,
+  count: number,
+  language = "en",
+) {
+  const isChinese = language === "zh-CN";
   const normalized = `${taxonomyId} ${taxonomyName ?? ""}`.toLowerCase().replace(/[_-]+/g, " ");
+  if (isChinese) {
+    if (normalized.includes("asset classes")) return "资产类别";
+    if (normalized.includes("regions")) return "地区";
+    if (normalized.includes("industries")) return "行业";
+    return "分类";
+  }
   if (normalized.includes("asset classes")) return count === 1 ? "asset class" : "asset classes";
   if (normalized.includes("regions")) return count === 1 ? "region" : "regions";
   if (normalized.includes("industries")) return count === 1 ? "industry" : "industries";
   return count === 1 ? "category" : "categories";
 }
 
-export function taxonomyLabel(taxonomyId: string, taxonomyName: string | undefined) {
+export function taxonomyLabel(taxonomyId: string, taxonomyName: string | undefined, language = "en") {
+  const isChinese = language === "zh-CN";
   const normalized = `${taxonomyId} ${taxonomyName ?? ""}`.toLowerCase().replace(/[_-]+/g, " ");
-  if (normalized.includes("asset classes")) return "Asset classes";
-  if (normalized.includes("regions")) return "Regions";
-  if (normalized.includes("industries")) return "Industries";
-  return "Categories";
+  if (normalized.includes("asset classes")) return isChinese ? "资产类别" : "Asset classes";
+  if (normalized.includes("regions")) return isChinese ? "地区" : "Regions";
+  if (normalized.includes("industries")) return isChinese ? "行业" : "Industries";
+  return isChinese ? "分类" : "Categories";
 }
 
-export function targetLabel(targetName: string | undefined) {
+export function targetLabel(targetName: string | undefined, language = "en") {
   const trimmed = targetName?.trim();
-  if (!trimmed) return "saved target";
+  const isChinese = language === "zh-CN";
+  if (!trimmed) return isChinese ? "已保存目标" : "saved target";
+  if (isChinese) return trimmed.endsWith("目标") ? trimmed : `${trimmed}目标`;
   return /\btarget$/i.test(trimmed) ? trimmed : `${trimmed} target`;
 }
 

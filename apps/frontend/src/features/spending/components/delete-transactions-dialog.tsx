@@ -9,6 +9,7 @@ import {
   AlertDialogTitle,
 } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useI18n } from "@/i18n/i18n-provider";
 import { formatAmount } from "@/lib/utils";
 
 import { pluralizeTransaction } from "../lib/transactions-helpers";
@@ -37,29 +38,39 @@ export function DeleteTransactionsDialog({
   isPending,
 }: DeleteTransactionsDialogProps) {
   const { isBalanceHidden } = useBalancePrivacy();
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const previewAmount = isBalanceHidden
     ? "••••"
     : formatAmount(parseFloat(preview?.amount ?? "0") || 0, preview?.currency ?? "USD");
   const message =
     count === 1 && preview
-      ? `Are you sure you want to delete this ${preview.activityType.toLowerCase()} of ${previewAmount}?`
-      : `Are you sure you want to delete ${count} transactions?`;
+      ? isChinese
+        ? `确定要删除这笔 ${preview.activityType.toLowerCase()}（${previewAmount}）吗？`
+        : `Are you sure you want to delete this ${preview.activityType.toLowerCase()} of ${previewAmount}?`
+      : isChinese
+        ? `确定要删除 ${count} 笔交易吗？`
+        : `Are you sure you want to delete ${count} transactions?`;
 
   return (
     <AlertDialog open={open} onOpenChange={(o) => !o && onCancel()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete {pluralizeTransaction(count)}</AlertDialogTitle>
-          <AlertDialogDescription>{message} This action cannot be undone.</AlertDialogDescription>
+          <AlertDialogTitle>
+            {isChinese ? `删除${count === 1 ? "交易" : "交易"}` : `Delete ${pluralizeTransaction(count)}`}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {isChinese ? `${message} 此操作无法撤销。` : `${message} This action cannot be undone.`}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isPending}>{isChinese ? "取消" : "Cancel"}</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
             disabled={isPending}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            Delete
+            {isChinese ? "删除" : "Delete"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

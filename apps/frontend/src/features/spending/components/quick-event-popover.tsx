@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useI18n } from "@/i18n/i18n-provider";
 import {
   Command,
   CommandEmpty,
@@ -42,6 +43,8 @@ export function QuickEventPopover({
   activityId,
   defaultDate,
 }: QuickEventPopoverProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const { openEventDialog } = useEventDialog();
@@ -94,27 +97,37 @@ export function QuickEventPopover({
         <Command>
           {loadErrored && (
             <div className="flex items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
-              <span>Couldn't load events.</span>
+              <span>{isChinese ? "无法加载事件。" : "Couldn't load events."}</span>
               <button type="button" onClick={retryLoad} className="text-foreground hover:underline">
-                Retry
+                {isChinese ? "重试" : "Retry"}
               </button>
             </div>
           )}
-          <CommandInput placeholder="Search events..." value={search} onValueChange={setSearch} />
+          <CommandInput
+            placeholder={isChinese ? "搜索事件..." : "Search events..."}
+            value={search}
+            onValueChange={setSearch}
+          />
           <CommandList>
             {events.length === 0 ? (
               <CommandEmpty>
                 <div className="text-muted-foreground p-3 text-center text-xs">
-                  {loadErrored ? "No events available." : "No events yet."}
+                  {loadErrored
+                    ? isChinese
+                      ? "暂无可用事件。"
+                      : "No events available."
+                    : isChinese
+                      ? "还没有事件。"
+                      : "No events yet."}
                 </div>
               </CommandEmpty>
             ) : (
-              <CommandEmpty>No events found.</CommandEmpty>
+              <CommandEmpty>{isChinese ? "未找到事件。" : "No events found."}</CommandEmpty>
             )}
             {Array.from(groups.entries()).map(([typeId, items]) => {
               const t = typeById.get(typeId);
               return (
-                <CommandGroup key={typeId} heading={t?.name ?? "Other"}>
+                <CommandGroup key={typeId} heading={t?.name ?? (isChinese ? "其他" : "Other")}>
                   {items.map((ev) => {
                     const isSelected = selectedEventId === ev.id;
                     return (
@@ -149,7 +162,13 @@ export function QuickEventPopover({
                 className="text-primary flex items-center gap-2"
               >
                 <Icons.Plus className="h-3.5 w-3.5" />
-                {search.trim() ? `Create event "${search.trim()}"` : "Create event"}
+                {search.trim()
+                  ? isChinese
+                    ? `新建事件“${search.trim()}”`
+                    : `Create event "${search.trim()}"`
+                  : isChinese
+                    ? "新建事件"
+                    : "Create event"}
               </CommandItem>
               {selectedEventId && onClear && (
                 <CommandItem
@@ -158,7 +177,7 @@ export function QuickEventPopover({
                   className="text-destructive hover:bg-destructive/10"
                 >
                   <Icons.X className="mr-2 h-3.5 w-3.5" />
-                  Clear event
+                  {isChinese ? "清除事件" : "Clear event"}
                 </CommandItem>
               )}
             </CommandGroup>

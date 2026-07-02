@@ -23,6 +23,7 @@ import { EmptyPlaceholder, GainPercent, AmountDisplay } from "@wealthfolio/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useI18n } from "@/i18n/i18n-provider";
 import type { AlternativeAssetHolding } from "@/lib/types";
 import { ALTERNATIVE_ASSET_KIND_DISPLAY_NAMES } from "@/lib/types";
 
@@ -52,6 +53,8 @@ export function AlternativeHoldingsTable({
   isDeleting = false,
 }: AlternativeHoldingsTableProps) {
   const { isBalanceHidden } = useBalancePrivacy();
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [assetToDelete, setAssetToDelete] = useState<AlternativeAssetHolding | null>(null);
 
   const handleConfirmDelete = () => {
@@ -295,11 +298,19 @@ export function AlternativeHoldingsTable({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Asset</AlertDialogTitle>
+            <AlertDialogTitle>{isChinese ? "删除资产" : "Delete Asset"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete{" "}
-              <span className="font-semibold">{assetToDelete?.name}</span>? This will remove all
-              valuation history and cannot be undone.
+              {isChinese ? (
+                <>
+                  确定要删除 <span className="font-semibold">{assetToDelete?.name}</span> 吗？这会移除所有估值历史，且无法撤销。
+                </>
+              ) : (
+                <>
+                  Are you sure you want to delete{" "}
+                  <span className="font-semibold">{assetToDelete?.name}</span>? This will remove all
+                  valuation history and cannot be undone.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

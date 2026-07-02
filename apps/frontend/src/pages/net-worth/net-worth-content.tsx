@@ -1,6 +1,8 @@
 import { useNetWorth, useNetWorthHistory } from "@/hooks/use-alternative-assets";
 import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
 import { useIsMobileViewport } from "@/hooks/use-platform";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateUiText } from "@/i18n/ui-text";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { DateRange } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
@@ -23,7 +25,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@wealthfolio/ui/components/ui/tooltip";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { BreakdownTable } from "./components/breakdown-table";
 import { CategoryDetailSheet } from "./components/category-detail-sheet";
@@ -47,6 +49,8 @@ const INTERVAL_STORAGE_KEY = "networth-interval";
 const MS_PER_DAY = 86_400_000;
 
 export function NetWorthContent() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { settings } = useSettingsContext();
   const { data: netWorthData, isLoading, isError, error } = useNetWorth();
   const isMobile = useIsMobileViewport();
@@ -54,10 +58,10 @@ export function NetWorthContent() {
   const [intervalCode] = usePersistentState<TimePeriod>(INTERVAL_STORAGE_KEY, DEFAULT_INTERVAL);
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
-    () => getInitialIntervalData(intervalCode).range,
+    () => getInitialIntervalData(intervalCode, language).range,
   );
   const [selectedIntervalDescription, setSelectedIntervalDescription] = useState<string>(
-    () => getInitialIntervalData(intervalCode).description,
+    () => getInitialIntervalData(intervalCode, language).description,
   );
   const [periodCode, setPeriodCode] = useState<TimePeriod>(intervalCode);
 
@@ -103,6 +107,10 @@ export function NetWorthContent() {
     setPeriodCode(code);
     setDateRange(range);
   };
+
+  useEffect(() => {
+    setSelectedIntervalDescription(getInitialIntervalData(periodCode, language).description);
+  }, [language, periodCode]);
 
   const parsedData = useMemo((): ParsedNetWorth | null => {
     if (!netWorthData) return null;
@@ -161,7 +169,11 @@ export function NetWorthContent() {
 
   const currency = netWorthData?.currency || settings?.baseCurrency || "USD";
   const hasStaleValuations = netWorthData && netWorthData.staleAssets.length > 0;
-  const periodLabel = periodCode;
+  const periodLabel = selectedIntervalDescription
+    ? translateUiText(language, selectedIntervalDescription)
+    : periodCode === "ALL" && isChinese
+      ? "全部时间"
+      : periodCode;
 
   // Breakdown row → detail drawer. Investments open the existing asset-class
   // allocation sheet; every other row opens the category detail sheet.
@@ -181,8 +193,12 @@ export function NetWorthContent() {
           <div className="bg-destructive/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
             <Icons.AlertTriangle className="text-destructive h-6 w-6" />
           </div>
-          <p className="text-destructive text-lg font-medium">Failed to load net worth</p>
-          <p className="text-muted-foreground mt-2 text-sm">{error?.message}</p>
+          <p className="text-destructive text-lg font-medium">
+            {isChinese ? "加载净资产失败" : "Failed to load net worth"}
+          </p>
+          <p className="text-muted-foreground mt-2 text-sm">
+            {isChinese ? "请稍后重试。" : error?.message}
+          </p>
         </div>
       </div>
     );
@@ -202,6 +218,7 @@ export function NetWorthContent() {
                 displayCurrency={true}
                 displayDecimal={false}
                 compact={isMobile}
+                language={language}
               />
               {hasStaleValuations && (
                 <TooltipProvider>
@@ -212,7 +229,9 @@ export function NetWorthContent() {
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-[280px]">
-                      <p className="mb-2 text-xs font-medium">Stale valuations (90+ days):</p>
+                      <p className="mb-2 text-xs font-medium">
+                        {isChinese ? "过期估值（90 天以上）：" : "Stale valuations (90+ days):"}
+                      </p>
                       <ul className="space-y-1 text-xs">
                         {netWorthData?.staleAssets.map((asset) => (
                           <li
@@ -221,7 +240,7 @@ export function NetWorthContent() {
                           >
                             <span className="truncate">{asset.name ?? asset.assetId}</span>
                             <span className="text-muted-foreground shrink-0">
-                              {asset.daysStale}d ago
+                              {isChinese ? `${asset.daysStale} 天前` : `${asset.daysStale}d ago`}
                             </span>
                           </li>
                         ))}
@@ -256,7 +275,7 @@ export function NetWorthContent() {
               )}
               {selectedIntervalDescription && (
                 <span className="lg:text-md text-muted-foreground ml-1 text-sm font-light">
-                  {selectedIntervalDescription}
+                  {translateUiText(language, selectedIntervalDescription)}
                 </span>
               )}
             </div>
@@ -285,7 +304,9 @@ export function NetWorthContent() {
           ) : (
             <div className="flex h-full flex-col items-center justify-center">
               <Icons.TrendingUp className="text-muted-foreground/30 mb-3 h-12 w-12" />
-              <p className="text-muted-foreground text-sm">No history data available</p>
+              <p className="text-muted-foreground text-sm">
+                {isChinese ? "暂无历史数据" : "No history data available"}
+              </p>
             </div>
           )}
           {historyData && historyData.length > 0 && (
@@ -296,6 +317,7 @@ export function NetWorthContent() {
                 isLoading={isHistoryLoading}
                 storageKey={INTERVAL_STORAGE_KEY}
                 defaultValue={DEFAULT_INTERVAL}
+                language={language}
               />
             </div>
           )}
@@ -307,7 +329,7 @@ export function NetWorthContent() {
             {/* Left column: Breakdown */}
             <div className="lg:col-span-2">
               {isLoading || isHistoryLoading ? (
-                <DashboardCard title="Breakdown">
+                <DashboardCard title={isChinese ? "明细" : "Breakdown"}>
                   <div className="space-y-4">
                     {Array.from({ length: 5 }).map((_, i) => (
                       <div key={i} className="flex items-center justify-between">
@@ -330,12 +352,12 @@ export function NetWorthContent() {
                   className="rounded-xl border border-orange-200/50 p-6 text-center md:p-8 dark:border-orange-800/50"
                   style={{ backgroundColor: THEME_COLOR_LIGHT }}
                 >
-                  <p className="text-sm">No assets found.</p>
+                  <p className="text-sm">{isChinese ? "未找到资产。" : "No assets found."}</p>
                   <Link
                     to="/holdings"
                     className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
                   >
-                    Add your first asset
+                    {isChinese ? "添加第一个资产" : "Add your first asset"}
                     <Icons.ChevronRight className="h-3 w-3" />
                   </Link>
                 </div>
@@ -363,14 +385,19 @@ export function NetWorthContent() {
                   <div className="mb-2 flex items-center gap-2">
                     <Icons.AlertCircle className="text-warning h-4 w-4 shrink-0" />
                     <h3 className="text-foreground text-sm font-semibold">
-                      Update your valuations
+                      {isChinese ? "更新估值" : "Update your valuations"}
                     </h3>
                     <span className="text-muted-foreground/70 ml-auto text-xs">
-                      {netWorthData?.staleAssets.length}{" "}
-                      {netWorthData?.staleAssets.length === 1 ? "asset" : "assets"}
+                      {isChinese
+                        ? `${netWorthData?.staleAssets.length} 项资产`
+                        : `${netWorthData?.staleAssets.length} ${
+                            netWorthData?.staleAssets.length === 1 ? "asset" : "assets"
+                          }`}
                     </span>
                   </div>
-                  <p className="text-muted-foreground ml-6 text-xs">Not updated in over 90 days.</p>
+                  <p className="text-muted-foreground ml-6 text-xs">
+                    {isChinese ? "超过 90 天未更新。" : "Not updated in over 90 days."}
+                  </p>
                   <div className="ml-6 mt-3 space-y-1.5">
                     {netWorthData?.staleAssets.map((asset) => (
                       <Link
@@ -382,7 +409,7 @@ export function NetWorthContent() {
                           {asset.name ?? asset.assetId}
                         </span>
                         <span className="text-muted-foreground ml-2 shrink-0 text-xs">
-                          {asset.daysStale}d ago
+                          {isChinese ? `${asset.daysStale} 天前` : `${asset.daysStale}d ago`}
                         </span>
                       </Link>
                     ))}

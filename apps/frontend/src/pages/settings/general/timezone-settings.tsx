@@ -19,6 +19,7 @@ import {
   FormMessage,
 } from "@wealthfolio/ui/components/ui/form";
 import { useSettingsContext } from "@/lib/settings-provider";
+import { useI18n } from "@/i18n/i18n-provider";
 import { TimezoneInput } from "./timezone-input";
 
 const timezoneFormSchema = z.object({
@@ -81,6 +82,7 @@ export function resolveInitialTimezone(configuredTimezone: string | null | undef
 
 export function TimezoneSettings() {
   const { settings, updateSettings } = useSettingsContext();
+  const { t } = useI18n();
   const browserTimezone = useMemo(() => detectBrowserTimezone(), []);
   const initialTimezone = resolveInitialTimezone(settings?.timezone);
   const timezones = useMemo(() => {
@@ -108,10 +110,8 @@ export function TimezoneSettings() {
     <Card>
       <CardHeader>
         <div>
-          <CardTitle className="text-lg">Timezone</CardTitle>
-          <CardDescription>
-            Choose the timezone used for dates, daily buckets, and yearly contribution boundaries.
-          </CardDescription>
+          <CardTitle className="text-lg">{t("settings.timezone.title")}</CardTitle>
+          <CardDescription>{t("settings.timezone.description")}</CardDescription>
         </div>
       </CardHeader>
       <CardContent>
@@ -133,7 +133,7 @@ export function TimezoneSettings() {
                 </FormItem>
               )}
             />
-            <Button type="submit">Save Timezone</Button>
+            <Button type="submit">{t("settings.timezone.save")}</Button>
           </form>
         </Form>
       </CardContent>

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 
+import { useI18n } from "@/i18n/i18n-provider";
 import type { Activity } from "@/lib/types";
 import { cn, formatDateISO } from "@/lib/utils";
 import { Icons, PrivacyAmount, Skeleton } from "@wealthfolio/ui";
@@ -30,6 +31,8 @@ export function EventsCard({
   periodStartDate: string;
   theme: Palette;
 }) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const eventSummaryRequest = useMemo(
     () => ({ startDate: eventSummaryStartDate, endDate: eventSummaryEndDate }),
     [eventSummaryEndDate, eventSummaryStartDate],
@@ -131,13 +134,15 @@ export function EventsCard({
   if (eventSummariesErrored) {
     return (
       <div className="border-border/40 bg-card/70 rounded-xl border p-4 text-center text-xs backdrop-blur-xl md:p-5">
-        <div className="text-muted-foreground">Couldn't load events.</div>
+        <div className="text-muted-foreground">
+          {isChinese ? "无法加载事件。" : "Couldn't load events."}
+        </div>
         <button
           type="button"
           onClick={() => void refetchEventSummaries()}
           className="text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
         >
-          Retry
+          {isChinese ? "重试" : "Retry"}
         </button>
       </div>
     );
@@ -167,13 +172,19 @@ export function EventsCard({
         <div className="flex items-center gap-2">
           <Icons.Calendar className="h-4 w-4 shrink-0" style={{ color: theme.deep }} />
           <div className="min-w-0 flex-1">
-            <div className="text-foreground text-sm font-semibold">Events</div>
-            <div className="text-muted-foreground/70 text-[11px]">No events in this period</div>
+            <div className="text-foreground text-sm font-semibold">
+              {isChinese ? "事件" : "Events"}
+            </div>
+            <div className="text-muted-foreground/70 text-[11px]">
+              {isChinese ? "本期间无事件" : "No events in this period"}
+            </div>
           </div>
         </div>
 
         <div className="text-muted-foreground/80 mt-3 text-xs leading-snug">
-          Create an event to track spending around trips, moves, or one-off periods.
+          {isChinese
+            ? "创建事件，追踪旅行、搬家或一次性期间的支出。"
+            : "Create an event to track spending around trips, moves, or one-off periods."}
         </div>
 
         <button
@@ -181,7 +192,7 @@ export function EventsCard({
           onClick={() => openEventDialog()}
           className="text-muted-foreground hover:text-foreground mt-3 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
         >
-          Create event
+          {isChinese ? "创建事件" : "Create event"}
           <Icons.ChevronRight className="h-3 w-3" />
         </button>
       </div>
@@ -201,21 +212,29 @@ export function EventsCard({
         : Icons.Calendar;
   const tag =
     pick.mode === "active"
-      ? "ACTIVE"
+      ? isChinese
+        ? "进行中"
+        : "ACTIVE"
       : pick.mode === "upcoming"
-        ? "SOON"
+        ? isChinese
+          ? "即将开始"
+          : "SOON"
         : pick.mode === "recent"
-          ? "RECENT"
-          : "PERIOD";
+          ? isChinese
+            ? "最近"
+            : "RECENT"
+          : isChinese
+            ? "期间"
+            : "PERIOD";
 
   const dateRangeLabel = (() => {
     const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
     const sameMonth =
       start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
-    const startStr = start.toLocaleDateString(undefined, opts);
+    const startStr = start.toLocaleDateString(isChinese ? "zh-CN" : undefined, opts);
     const endStr = sameMonth
-      ? end.toLocaleDateString(undefined, { day: "numeric" })
-      : end.toLocaleDateString(undefined, opts);
+      ? end.toLocaleDateString(isChinese ? "zh-CN" : undefined, { day: "numeric" })
+      : end.toLocaleDateString(isChinese ? "zh-CN" : undefined, opts);
     return `${startStr} — ${endStr}`;
   })();
 
@@ -225,13 +244,21 @@ export function EventsCard({
     const today = new Date(todayKey + "T00:00:00");
     const dayInto = Math.floor((today.getTime() - start.getTime()) / (24 * 3600 * 1000)) + 1;
     const daysLeft = Math.max(0, totalDays - dayInto);
-    subLine = `Day ${dayInto} of ${totalDays} · ${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`;
+    subLine = isChinese
+      ? `第 ${dayInto} / ${totalDays} 天 · 剩余 ${daysLeft} 天`
+      : `Day ${dayInto} of ${totalDays} · ${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`;
   } else if (pick.mode === "recent") {
-    subLine = `Wrapped ${pick.days} ${pick.days === 1 ? "day" : "days"} ago`;
+    subLine = isChinese
+      ? `${pick.days} 天前结束`
+      : `Wrapped ${pick.days} ${pick.days === 1 ? "day" : "days"} ago`;
   } else if (pick.mode === "upcoming") {
-    subLine = `${pick.days} ${pick.days === 1 ? "day" : "days"} until start`;
+    subLine = isChinese
+      ? `还有 ${pick.days} 天开始`
+      : `${pick.days} ${pick.days === 1 ? "day" : "days"} until start`;
   } else if (pick.mode === "period") {
-    subLine = `${totalDays} ${totalDays === 1 ? "day" : "days"} in selected period`;
+    subLine = isChinese
+      ? `所选期间 ${totalDays} 天`
+      : `${totalDays} ${totalDays === 1 ? "day" : "days"} in selected period`;
   }
 
   return (
@@ -253,10 +280,12 @@ export function EventsCard({
       {pick.mode === "upcoming" && eventSpent <= 0 ? (
         <div className="mt-3">
           <div className="text-foreground text-2xl font-bold tabular-nums tracking-tight">
-            {pick.days} {pick.days === 1 ? "day" : "days"}
+            {isChinese ? `${pick.days} 天` : `${pick.days} ${pick.days === 1 ? "day" : "days"}`}
           </div>
           <div className="text-muted-foreground/80 text-xs">
-            until {ev!.eventName} · {totalDays} {totalDays === 1 ? "day" : "days"} planned
+            {isChinese
+              ? `距离 ${ev!.eventName} · 计划 ${totalDays} 天`
+              : `until ${ev!.eventName} · ${totalDays} ${totalDays === 1 ? "day" : "days"} planned`}
           </div>
         </div>
       ) : eventSpent > 0 ? (
@@ -266,8 +295,15 @@ export function EventsCard({
               <PrivacyAmount value={eventSpent} currency={currency} />
             </div>
             <div className="text-muted-foreground/80 text-xs">
-              {pick.mode === "recent" ? "total" : "spent so far"} · {ev!.transactionCount}{" "}
-              {ev!.transactionCount === 1 ? "transaction" : "transactions"}
+              {pick.mode === "recent"
+                ? isChinese
+                  ? "合计"
+                  : "total"
+                : isChinese
+                  ? "目前已支出"
+                  : "spent so far"}{" "}
+              · {ev!.transactionCount}{" "}
+              {isChinese ? "笔交易" : ev!.transactionCount === 1 ? "transaction" : "transactions"}
               {subLine && (
                 <>
                   {" · "}
@@ -282,7 +318,7 @@ export function EventsCard({
               <span className="text-foreground/90 font-semibold">
                 <PrivacyAmount value={dailyAvg} currency={currency} />
               </span>{" "}
-              / day
+              {isChinese ? "/天" : "/ day"}
             </span>
             {compareMultiple > 0 && (
               <>
@@ -297,8 +333,8 @@ export function EventsCard({
                         : "text-success",
                   )}
                 >
-                  {compareMultiple >= 1 ? "↑" : "↓"} {compareMultiple.toFixed(1)}× vs typical{" "}
-                  {totalDays}-day spend
+                  {compareMultiple >= 1 ? "↑" : "↓"} {compareMultiple.toFixed(1)}×{" "}
+                  {isChinese ? `对比通常 ${totalDays} 天支出` : `vs typical ${totalDays}-day spend`}
                 </span>
               </>
             )}
@@ -306,14 +342,14 @@ export function EventsCard({
         </>
       ) : (
         <div className="text-muted-foreground/80 mt-3 text-xs">
-          {subLine || "No tagged transactions yet"}
+          {subLine || (isChinese ? "还没有已标记交易" : "No tagged transactions yet")}
         </div>
       )}
 
       {eventSpent > 0 && topCategories.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-muted-foreground/60 text-[10px] font-semibold uppercase tracking-wide">
-            Top
+            {isChinese ? "最高" : "Top"}
           </span>
           {topCategories.map((c) => {
             const accent = c.color ?? theme.deep;
@@ -347,7 +383,7 @@ export function EventsCard({
           }}
           className="text-muted-foreground hover:text-foreground mt-3 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
         >
-          Plan event
+          {isChinese ? "规划事件" : "Plan event"}
           <Icons.ChevronRight className="h-3 w-3" />
         </button>
       ) : (
@@ -355,7 +391,13 @@ export function EventsCard({
           to="/spending/insights?stage=when"
           className="text-muted-foreground hover:text-foreground mt-3 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
         >
-          {pick.mode === "recent" ? "See breakdown" : "Open event"}
+          {pick.mode === "recent"
+            ? isChinese
+              ? "查看明细"
+              : "See breakdown"
+            : isChinese
+              ? "打开事件"
+              : "Open event"}
           <Icons.ChevronRight className="h-3 w-3" />
         </Link>
       )}

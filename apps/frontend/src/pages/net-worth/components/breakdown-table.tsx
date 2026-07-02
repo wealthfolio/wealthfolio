@@ -1,4 +1,6 @@
 import { DashboardCard } from "@/components/dashboard-card";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateUiText } from "@/i18n/ui-text";
 import {
   Collapsible,
   CollapsibleContent,
@@ -120,6 +122,8 @@ export function BreakdownTable({
   periodLabel,
   onSelect,
 }: BreakdownTableProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const hasLiabilities = data.liabilities.total > 0 || data.liabilities.breakdown.length > 0;
   const netWorthChange = deriveChange(
     history.map((point) => point.netWorth),
@@ -129,7 +133,10 @@ export function BreakdownTable({
   const [liabilitiesOpen, setLiabilitiesOpen] = useState(true);
 
   return (
-    <DashboardCard title="Breakdown" meta={`Change over ${periodLabel}`}>
+    <DashboardCard
+      title="Breakdown"
+      meta={isChinese ? `${periodLabel}期间变化` : `Change over ${periodLabel}`}
+    >
       {/* Assets — collapsible */}
       <Collapsible open={assetsOpen} onOpenChange={setAssetsOpen}>
         <CollapsibleTrigger className="flex w-full items-center justify-between text-left">
@@ -137,7 +144,7 @@ export function BreakdownTable({
             <Icons.ChevronRight
               className={`text-muted-foreground h-3.5 w-3.5 transition-transform ${assetsOpen ? "rotate-90" : ""}`}
             />
-            Assets
+            {isChinese ? "资产" : "Assets"}
           </span>
           <span className="text-success text-sm font-semibold tabular-nums">
             <CompactAmount value={data.assets.total} currency={currency} />
@@ -151,9 +158,9 @@ export function BreakdownTable({
 
           {/* Column labels */}
           <div className={`${ROW_GRID} pt-2`}>
-            <span className={CARD_LABEL}>Category</span>
+            <span className={CARD_LABEL}>{isChinese ? "分类" : "Category"}</span>
             <span className={`${CARD_LABEL} hidden text-right md:block`}>%</span>
-            <span className={`${CARD_LABEL} justify-self-end`}>Value</span>
+            <span className={`${CARD_LABEL} justify-self-end`}>{isChinese ? "价值" : "Value"}</span>
             <span className={`${CARD_LABEL} justify-self-end`}>Δ {periodLabel}</span>
           </div>
 
@@ -161,7 +168,7 @@ export function BreakdownTable({
             {data.assets.breakdown.map((item) => (
               <BreakdownRow
                 key={item.category}
-                name={item.name}
+                name={translateUiText(language, item.name)}
                 dotColor={CATEGORY_CSS_COLORS[item.category] ?? "var(--muted-foreground)"}
                 value={item.value}
                 percentOfSection={
@@ -172,7 +179,7 @@ export function BreakdownTable({
                 onClick={() =>
                   onSelect({
                     key: item.category,
-                    name: item.name,
+                    name: translateUiText(language, item.name),
                     value: item.value,
                     isLiability: false,
                     isInvestment: item.category === "investments",
@@ -203,7 +210,7 @@ export function BreakdownTable({
               <Icons.ChevronRight
                 className={`text-muted-foreground h-3.5 w-3.5 transition-transform ${liabilitiesOpen ? "rotate-90" : ""}`}
               />
-              Liabilities
+              {isChinese ? "负债" : "Liabilities"}
             </span>
             <span className="text-destructive text-sm font-semibold tabular-nums">
               -<CompactAmount value={data.liabilities.total} currency={currency} />
@@ -217,7 +224,7 @@ export function BreakdownTable({
                 return (
                   <BreakdownRow
                     key={key}
-                    name={item.name}
+                    name={translateUiText(language, item.name)}
                     dotColor={CATEGORY_CSS_COLORS.liabilities}
                     value={item.value}
                     negative
@@ -252,7 +259,7 @@ export function BreakdownTable({
       <div className={`${ROW_GRID} border-border/60 mt-3 border-t pt-3`}>
         <span className="flex items-center gap-1.5 text-sm font-bold">
           <span className="text-muted-foreground w-3.5 shrink-0 text-center font-normal">=</span>
-          Net Worth
+          {isChinese ? "净资产" : "Net Worth"}
         </span>
         <span className="hidden md:block" />
         <span className="justify-self-end text-sm font-bold tabular-nums">

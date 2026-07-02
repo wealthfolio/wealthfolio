@@ -12,6 +12,7 @@ import { Link } from "react-router-dom";
 import { SettingsHeader } from "../settings-header";
 
 import { getSecret, type MarketDataProviderSetting } from "@/adapters";
+import { useI18n } from "@/i18n/i18n-provider";
 import {
   useRecalculatePortfolioMutation,
   useUpdatePortfolioMutation,
@@ -484,6 +485,8 @@ function CustomProviderCard({
   isToggling?: boolean;
   isLast?: boolean;
 }) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const latestSource = provider.sources.find((s) => s.kind === "latest");
   const historicalSource = provider.sources.find((s) => s.kind === "historical");
 
@@ -541,10 +544,14 @@ function CustomProviderCard({
           <ActionConfirm
             handleConfirm={onDelete}
             isPending={isDeleting}
-            confirmTitle="Delete Custom Provider?"
-            confirmMessage={`This will permanently delete "${provider.name}" and remove it from all assets using it.`}
-            confirmButtonText="Delete"
-            cancelButtonText="Cancel"
+            confirmTitle={isChinese ? "要删除自定义数据源吗？" : "Delete Custom Provider?"}
+            confirmMessage={
+              isChinese
+                ? `这会永久删除“${provider.name}”，并将其从所有使用它的资产中移除。`
+                : `This will permanently delete "${provider.name}" and remove it from all assets using it.`
+            }
+            confirmButtonText={isChinese ? "删除" : "Delete"}
+            cancelButtonText={isChinese ? "取消" : "Cancel"}
             confirmButtonVariant="destructive"
             button={
               <Button

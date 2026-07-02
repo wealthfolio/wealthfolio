@@ -25,6 +25,7 @@ import {
   PORTFOLIO_SCOPE_ID,
 } from "@/lib/constants";
 import { AnimatePresence, motion } from "motion/react";
+import { useI18n } from "@/i18n/i18n-provider";
 
 // Custom type for UI purposes that extends the standard AccountType
 type UIAccountType = AccountType | typeof PORTFOLIO_ACCOUNT_TYPE;
@@ -69,10 +70,10 @@ interface UIAccount extends Omit<Account, "accountType"> {
 }
 
 // Create a portfolio account for UI purposes
-function createPortfolioAccount(baseCurrency: string): UIAccount {
+function createPortfolioAccount(baseCurrency: string, isChinese: boolean): UIAccount {
   return {
     id: PORTFOLIO_SCOPE_ID,
-    name: "All Portfolio",
+    name: isChinese ? "全部投资组合" : "All Portfolio",
     accountType: PORTFOLIO_ACCOUNT_TYPE as UIAccountType,
     balance: 0,
     currency: baseCurrency,
@@ -111,6 +112,40 @@ const iconContainerVariants = {
   },
 };
 
+function getAccountTypeLabel(type: string, isChinese: boolean): string {
+  switch (type) {
+    case PORTFOLIO_ACCOUNT_TYPE:
+      return isChinese ? "投资组合" : "Portfolio";
+    case AccountType.SECURITIES:
+      return isChinese ? "证券账户" : "Securities Accounts";
+    case AccountType.CASH:
+      return isChinese ? "现金账户" : "Cash Accounts";
+    case AccountType.CREDIT_CARD:
+      return isChinese ? "信用卡账户" : "Credit Card Accounts";
+    case AccountType.CRYPTOCURRENCY:
+      return isChinese ? "加密货币账户" : "Cryptocurrency Accounts";
+    default:
+      return isChinese ? "其他账户" : "Other Accounts";
+  }
+}
+
+function getAccountTypeShortLabel(type: string, isChinese: boolean): string {
+  switch (type) {
+    case PORTFOLIO_ACCOUNT_TYPE:
+      return isChinese ? "投资组合" : "Portfolio";
+    case AccountType.SECURITIES:
+      return isChinese ? "证券" : "Securities";
+    case AccountType.CASH:
+      return isChinese ? "现金" : "Cash";
+    case AccountType.CREDIT_CARD:
+      return isChinese ? "信用卡" : "Credit Card";
+    case AccountType.CRYPTOCURRENCY:
+      return isChinese ? "加密货币" : "Cryptocurrency";
+    default:
+      return isChinese ? "其他" : "Other";
+  }
+}
+
 // Animation variants for icons
 const iconVariants = {
   initial: { scale: 0.6, opacity: 0 },
@@ -144,6 +179,8 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
     },
     ref,
   ) => {
+    const { language } = useI18n();
+    const isChinese = language === "zh-CN";
     const [open, setOpen] = useState(false);
     const { accounts, isLoading: isLoadingAccounts } = useAccounts({
       filterActive,
@@ -173,7 +210,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
 
     if (includePortfolio) {
       const baseCurrency = settings?.baseCurrency ?? "USD"; // Default to USD if settings not loaded
-      const portfolioAccount = createPortfolioAccount(baseCurrency);
+      const portfolioAccount = createPortfolioAccount(baseCurrency, isChinese);
       // Check if portfolio account already exists to avoid duplication
       const portfolioExists = accounts.some((account) => account.id === PORTFOLIO_SCOPE_ID);
 
@@ -249,7 +286,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              aria-label="Select an account"
+              aria-label={isChinese ? "选择账户" : "Select an account"}
               className={cn(
                 "h-full w-full justify-center rounded-lg border p-2 transition-colors",
                 !selectedAccount && "border-dashed",
@@ -310,7 +347,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                       >
                         <p className="text-xs font-medium">{selectedAccount.name}</p>
                         <p className="text-muted-foreground text-xs">
-                          {selectedAccount.accountType}
+                          {getAccountTypeShortLabel(selectedAccount.accountType, isChinese)}
                         </p>
                       </motion.div>
                     ) : (
@@ -321,8 +358,12 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                         exit={{ opacity: 0, y: -5 }}
                         transition={{ duration: 0.2 }}
                       >
-                        <p className="text-xs font-medium">Click to select an account</p>
-                        <p className="text-muted-foreground text-xs">Required for import</p>
+                        <p className="text-xs font-medium">
+                          {isChinese ? "点击选择账户" : "Click to select an account"}
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                          {isChinese ? "导入时必填" : "Required for import"}
+                        </p>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -337,7 +378,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              aria-label={iconOnly ? "Select account" : undefined}
+              aria-label={iconOnly ? (isChinese ? "选择账户" : "Select account") : undefined}
               size={iconOnly ? "icon" : "sm"}
               className={cn(
                 "bg-secondary/30 hover:bg-muted/80 flex items-center rounded-full border-none",
@@ -367,7 +408,9 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                         <span>{selectedAccount.name}</span>
                       </>
                     ) : (
-                      <span className="text-muted-foreground">Select an account</span>
+                      <span className="text-muted-foreground">
+                        {isChinese ? "选择账户" : "Select an account"}
+                      </span>
                     )}
                   </div>
                   <Icons.ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -399,7 +442,9 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                     <span className="truncate">{selectedAccount.name}</span>
                   </>
                 ) : (
-                  <span className="text-muted-foreground">Select an account</span>
+                  <span className="text-muted-foreground">
+                    {isChinese ? "选择账户" : "Select an account"}
+                  </span>
                 )}
               </div>
               <Icons.ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
@@ -412,7 +457,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              aria-label={iconOnly ? "Add account" : undefined}
+              aria-label={iconOnly ? (isChinese ? "添加账户" : "Add account") : undefined}
               className={cn(
                 "bg-secondary/30 hover:bg-muted/80 flex items-center gap-1.5 rounded-md border-dashed text-sm font-medium",
                 iconOnly ? "h-9 w-9 p-0" : "h-8 px-3 py-1",
@@ -421,7 +466,8 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
               size={iconOnly ? "icon" : "sm"}
             >
               <Icons.Briefcase className="h-4 w-4" />
-              {!iconOnly && buttonText}
+              {!iconOnly &&
+                (isChinese && buttonText === "Select Account" ? "选择账户" : buttonText)}
             </Button>
           );
 
@@ -442,7 +488,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
           }}
         >
           <Command className="w-full">
-            <CommandInput placeholder="Search accounts..." />
+            <CommandInput placeholder={isChinese ? "搜索账户..." : "Search accounts..."} />
             <CommandList>
               {isLoading ? (
                 <div className="px-2 py-6 text-center">
@@ -455,7 +501,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                 </div>
               ) : (
                 <>
-                  <CommandEmpty>No accounts found.</CommandEmpty>
+                  <CommandEmpty>{isChinese ? "未找到账户。" : "No accounts found."}</CommandEmpty>
                   {(() => {
                     // Insert the Portfolios group after the synthetic "PORTFOLIO" entry
                     // so user-created portfolios sit next to "All Portfolio" rather than
@@ -465,7 +511,10 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                       ([t]) => t === PORTFOLIO_ACCOUNT_TYPE,
                     );
                     const portfoliosGroup = showPortfolios ? (
-                      <CommandGroup key="__portfolios__" heading="Portfolios">
+                      <CommandGroup
+                        key="__portfolios__"
+                        heading={isChinese ? "投资组合" : "Portfolios"}
+                      >
                         {portfolios.map((p) => (
                           <CommandItem
                             key={p.id}
@@ -490,7 +539,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                         {showPortfolios && !hasPortfolioGroup && portfoliosGroup}
                         {sortedGroups.map(([type, typeAccounts]) => (
                           <Fragment key={type}>
-                            <CommandGroup heading={type}>
+                            <CommandGroup heading={getAccountTypeLabel(type, isChinese)}>
                               {typeAccounts.map((account) => {
                                 const IconComponent =
                                   accountTypeIcons[account.accountType] ?? Icons.CreditCard;

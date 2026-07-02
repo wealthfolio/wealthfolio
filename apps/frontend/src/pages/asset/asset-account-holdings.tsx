@@ -8,6 +8,7 @@ import {
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useIsMobileViewport } from "@/hooks/use-platform";
+import { useI18n } from "@/i18n/i18n-provider";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, Holding, SnapshotInfo } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
@@ -224,6 +225,8 @@ export function AssetSnapshotHistory({
   const queryClient = useQueryClient();
   const { accounts } = useAccounts();
   const isMobile = useIsMobileViewport();
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
 
   const { data: assetHoldings = [] } = useQuery<Holding[]>({
     queryKey: [QueryKeys.ASSET_HOLDINGS, assetId],
@@ -537,7 +540,7 @@ export function AssetSnapshotHistory({
         <Sheet open={!!editingSnapshot} onOpenChange={() => handleEditClose()}>
           <SheetContent side="right" className="flex h-full w-full flex-col p-0 sm:max-w-2xl">
             <SheetHeader className="border-b px-6 py-4">
-              <SheetTitle>Update Holdings</SheetTitle>
+              <SheetTitle>{isChinese ? "更新持仓" : "Update Holdings"}</SheetTitle>
             </SheetHeader>
             <div className="flex-1 overflow-hidden px-6">
               <HoldingsEditMode
@@ -555,21 +558,27 @@ export function AssetSnapshotHistory({
       <AlertDialog open={!!deletingSnapshot} onOpenChange={() => setDeletingSnapshot(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Position</AlertDialogTitle>
+            <AlertDialogTitle>{isChinese ? "移除仓位" : "Remove Position"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Remove this asset from the {deletingSnapshot?.accountName} snapshot on{" "}
-              {deletingSnapshot?.date ? formatDate(deletingSnapshot.date) : ""}? The other positions
-              in the snapshot will be kept.
+              {isChinese
+                ? `要从 ${deletingSnapshot?.accountName ?? ""} 在 ${
+                    deletingSnapshot?.date ? formatDate(deletingSnapshot.date) : ""
+                  } 的快照中移除此资产吗？快照中的其他仓位会保留。`
+                : `Remove this asset from the ${deletingSnapshot?.accountName ?? ""} snapshot on ${
+                    deletingSnapshot?.date ? formatDate(deletingSnapshot.date) : ""
+                  }? The other positions in the snapshot will be kept.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>
+              {isChinese ? "取消" : "Cancel"}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleRemovePosition}
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting ? "Removing..." : "Remove"}
+              {isDeleting ? (isChinese ? "移除中..." : "Removing...") : isChinese ? "移除" : "Remove"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

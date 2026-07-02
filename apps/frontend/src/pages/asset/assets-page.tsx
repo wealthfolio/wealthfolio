@@ -18,6 +18,7 @@ import { RefreshQuotesConfirmDialog } from "./refresh-quotes-confirm-dialog";
 import { useHoldings } from "@/hooks/use-holdings";
 import { useIsCompactTableViewport } from "@/hooks/use-platform";
 import { useSyncMarketDataMutation } from "@/hooks/use-sync-market-data";
+import { useI18n } from "@/i18n/i18n-provider";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { SettingsHeader } from "../settings/settings-header";
 import { AssetEditSheet } from "./asset-edit-sheet";
@@ -37,6 +38,8 @@ export default function AssetsPage() {
   const isCompactTableViewport = useIsCompactTableViewport();
   const { holdings } = useHoldings({ type: "all" });
   const { settings } = useSettingsContext();
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const appTimezone = settings?.timezone?.trim() || undefined;
 
   const heldAssetIds = useMemo(() => {
@@ -131,11 +134,15 @@ export default function AssetsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete security</AlertDialogTitle>
+            <AlertDialogTitle>{isChinese ? "删除证券" : "Delete security"}</AlertDialogTitle>
             <AlertDialogDescription>
-              {assetPendingDelete
-                ? `Are you sure you want to delete ${assetPendingDelete.displayCode ?? assetPendingDelete.name ?? "this security"}? This will also remove its related quote and cannot be undone.`
-                : "Are you sure you want to delete this security? This will also remove related quotes and cannot be undone."}
+              {isChinese
+                ? assetPendingDelete
+                  ? `确定要删除 ${assetPendingDelete.displayCode ?? assetPendingDelete.name ?? "此证券"} 吗？这也会移除相关报价，且无法撤销。`
+                  : "确定要删除此证券吗？这也会移除相关报价，且无法撤销。"
+                : assetPendingDelete
+                  ? `Are you sure you want to delete ${assetPendingDelete.displayCode ?? assetPendingDelete.name ?? "this security"}? This will also remove its related quote and cannot be undone.`
+                  : "Are you sure you want to delete this security? This will also remove related quotes and cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

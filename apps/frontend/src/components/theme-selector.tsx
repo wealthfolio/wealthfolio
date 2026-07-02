@@ -6,9 +6,10 @@ interface ThemeSelectorProps {
   value?: string;
   onChange: (value: string) => void;
   className?: string;
+  labels?: Partial<Record<"light" | "dark" | "system", string>>;
 }
 
-export function ThemeSelector({ value, onChange, className }: ThemeSelectorProps) {
+export function ThemeSelector({ value, onChange, className, labels }: ThemeSelectorProps) {
   return (
     <RadioGroup
       onValueChange={onChange}
@@ -41,7 +42,7 @@ export function ThemeSelector({ value, onChange, className }: ThemeSelectorProps
             </div>
           </div>
           <span className="block w-full p-1 text-center text-xs font-normal sm:p-2 sm:text-sm">
-            Light
+            {labels?.light ?? "Light"}
           </span>
         </FormLabel>
       </FormItem>
@@ -71,7 +72,7 @@ export function ThemeSelector({ value, onChange, className }: ThemeSelectorProps
             </div>
           </div>
           <span className="block w-full p-1 text-center text-xs font-normal sm:p-2 sm:text-sm">
-            Dark
+            {labels?.dark ?? "Dark"}
           </span>
         </FormLabel>
       </FormItem>
@@ -123,7 +124,7 @@ export function ThemeSelector({ value, onChange, className }: ThemeSelectorProps
             </div>
           </div>
           <span className="block w-full p-1 text-center text-xs font-normal sm:p-2 sm:text-sm">
-            System
+            {labels?.system ?? "System"}
           </span>
         </FormLabel>
       </FormItem>

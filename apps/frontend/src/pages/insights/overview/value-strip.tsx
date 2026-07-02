@@ -1,10 +1,18 @@
+import { useI18n } from "@/i18n/i18n-provider";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
 import { AmountDisplay, Card, formatPercent, Skeleton } from "@wealthfolio/ui";
 import { paletteColor, type ValueStripData } from "./allocation-derivations";
 
-function plural(count: number, noun: string): string {
+function countLabel(count: number, noun: "holding" | "account", language: string): string {
+  if (language === "zh-CN") {
+    return noun === "holding" ? `${count} 项持仓` : `${count} 个账户`;
+  }
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+function portfolioRatioLabel(value: string, language: string): string {
+  return language === "zh-CN" ? `占投资组合 ${value}` : `${value} of portfolio`;
 }
 
 interface ValueStripProps {
@@ -79,6 +87,8 @@ function CurrencyValuePill({
 
 export function ValueStrip({ data, currency, isLoading, compact }: ValueStripProps) {
   const { isBalanceHidden } = useBalancePrivacy();
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
 
   const cashRatio = data.total > 0 ? data.cash / data.total : 0;
   const bookCostRatio = data.total > 0 ? data.bookCost / data.total : 0;
@@ -124,47 +134,50 @@ export function ValueStrip({ data, currency, isLoading, compact }: ValueStripPro
     <>
       <Card className="overflow-hidden sm:hidden">
         <div className="from-muted/60 space-y-1.5 bg-gradient-to-b to-transparent to-[65%] px-4 py-3.5">
-          <MobileEyebrow>Portfolio value</MobileEyebrow>
+          <MobileEyebrow>{isChinese ? "投资组合市值" : "Portfolio value"}</MobileEyebrow>
           <div className="text-foreground text-[24px] font-bold leading-7 tracking-tight">
             <AmountDisplay value={data.total} currency={currency} isHidden={isBalanceHidden} />
           </div>
           <div className="text-muted-foreground leading-3.5 text-[10px] tabular-nums">
-            {plural(data.holdingsCount, "holding")} · {plural(data.accountsCount, "account")}
+            {countLabel(data.holdingsCount, "holding", language)} ·{" "}
+            {countLabel(data.accountsCount, "account", language)}
           </div>
         </div>
 
         <div className="grid grid-cols-3 divide-x border-t">
           <div className="space-y-1.5 px-4 py-3.5">
-            <MobileEyebrow>Cash balance</MobileEyebrow>
+            <MobileEyebrow>{isChinese ? "现金余额" : "Cash balance"}</MobileEyebrow>
             <div className="text-foreground text-[15px] font-bold leading-5 tracking-tight">
               <AmountDisplay value={data.cash} currency={currency} isHidden={isBalanceHidden} />
             </div>
             {data.cashCurrencySplit.length === 0 ? (
-              <div className="text-muted-foreground leading-3.5 text-[10px]">No cash balance</div>
+              <div className="text-muted-foreground leading-3.5 text-[10px]">
+                {isChinese ? "无现金余额" : "No cash balance"}
+              </div>
             ) : (
               <div className="text-muted-foreground leading-3.5 text-[10px] tabular-nums">
-                {formatPercent(cashRatio)} of portfolio
+                {portfolioRatioLabel(formatPercent(cashRatio), language)}
               </div>
             )}
           </div>
 
           <div className="space-y-1.5 px-4 py-3.5">
-            <MobileEyebrow>Invested</MobileEyebrow>
+            <MobileEyebrow>{isChinese ? "已投资" : "Invested"}</MobileEyebrow>
             <div className="text-foreground text-[15px] font-bold leading-5 tracking-tight">
               <AmountDisplay value={data.invested} currency={currency} isHidden={isBalanceHidden} />
             </div>
             <div className="text-muted-foreground leading-3.5 text-[10px] tabular-nums">
-              {formatPercent(data.investedPercent / 100)} of portfolio
+              {portfolioRatioLabel(formatPercent(data.investedPercent / 100), language)}
             </div>
           </div>
 
           <div className="space-y-1.5 px-4 py-3.5">
-            <MobileEyebrow>Book cost</MobileEyebrow>
+            <MobileEyebrow>{isChinese ? "持仓成本" : "Book cost"}</MobileEyebrow>
             <div className="text-foreground text-[15px] font-bold leading-5 tracking-tight">
               <AmountDisplay value={data.bookCost} currency={currency} isHidden={isBalanceHidden} />
             </div>
             <div className="text-muted-foreground leading-3.5 text-[10px] tabular-nums">
-              {formatPercent(bookCostRatio)} of portfolio
+              {portfolioRatioLabel(formatPercent(bookCostRatio), language)}
             </div>
           </div>
         </div>
@@ -173,13 +186,14 @@ export function ValueStrip({ data, currency, isLoading, compact }: ValueStripPro
       <Card className="hidden grid-cols-1 divide-y overflow-hidden sm:grid sm:grid-cols-[2.25fr_1.35fr_1fr_1fr] sm:divide-x sm:divide-y-0">
         {/* Portfolio value — hero cell with a slight top-to-center gradient wash */}
         <div className={cn(gap, pad, "from-muted/60 bg-gradient-to-b to-transparent to-[60%]")}>
-          <Eyebrow>Portfolio value</Eyebrow>
+          <Eyebrow>{isChinese ? "投资组合市值" : "Portfolio value"}</Eyebrow>
           <div className={cn("text-foreground font-bold tabular-nums tracking-tight", totalSize)}>
             <AmountDisplay value={data.total} currency={currency} isHidden={isBalanceHidden} />
           </div>
           <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-1", subSize)}>
             <span className="text-muted-foreground tabular-nums">
-              {plural(data.holdingsCount, "holding")} · {plural(data.accountsCount, "account")}
+              {countLabel(data.holdingsCount, "holding", language)} ·{" "}
+              {countLabel(data.accountsCount, "account", language)}
             </span>
             {data.currencySplit.length > 1 &&
               data.currencySplit
@@ -197,7 +211,7 @@ export function ValueStrip({ data, currency, isLoading, compact }: ValueStripPro
 
         {/* Cash balance */}
         <div className={cn(gap, pad)}>
-          <Eyebrow>Cash balance</Eyebrow>
+          <Eyebrow>{isChinese ? "现金余额" : "Cash balance"}</Eyebrow>
           <div className={cn("text-foreground font-bold tabular-nums tracking-tight", secSize)}>
             <AmountDisplay value={data.cash} currency={currency} isHidden={isBalanceHidden} />
           </div>
@@ -214,26 +228,30 @@ export function ValueStrip({ data, currency, isLoading, compact }: ValueStripPro
               ))}
             </div>
           ) : data.cashCurrencySplit.length === 0 ? (
-            <div className={cn("text-muted-foreground", subSize)}>No cash balance</div>
+            <div className={cn("text-muted-foreground", subSize)}>
+              {isChinese ? "无现金余额" : "No cash balance"}
+            </div>
           ) : (
-            <div className={cn("text-muted-foreground", subSize)}>Available cash</div>
+            <div className={cn("text-muted-foreground", subSize)}>
+              {isChinese ? "可用现金" : "Available cash"}
+            </div>
           )}
         </div>
 
         {/* Invested */}
         <div className={cn(gap, pad)}>
-          <Eyebrow>Invested</Eyebrow>
+          <Eyebrow>{isChinese ? "已投资" : "Invested"}</Eyebrow>
           <div className={cn("text-foreground font-bold tabular-nums tracking-tight", secSize)}>
             <AmountDisplay value={data.invested} currency={currency} isHidden={isBalanceHidden} />
           </div>
           <div className={cn("text-muted-foreground tabular-nums", subSize)}>
-            {formatPercent(data.investedPercent / 100)} of portfolio
+            {portfolioRatioLabel(formatPercent(data.investedPercent / 100), language)}
           </div>
         </div>
 
         {/* Book cost — total cost basis of invested (non-cash) holdings */}
         <div className={cn(gap, pad)}>
-          <Eyebrow>Book cost</Eyebrow>
+          <Eyebrow>{isChinese ? "持仓成本" : "Book cost"}</Eyebrow>
           <div className={cn("text-foreground font-bold tabular-nums tracking-tight", secSize)}>
             <AmountDisplay value={data.bookCost} currency={currency} isHidden={isBalanceHidden} />
           </div>
@@ -251,7 +269,7 @@ export function ValueStrip({ data, currency, isLoading, compact }: ValueStripPro
             </div>
           ) : (
             <div className={cn("text-muted-foreground tabular-nums", subSize)}>
-              {formatPercent(bookCostRatio)} of portfolio
+              {portfolioRatioLabel(formatPercent(bookCostRatio), language)}
             </div>
           )}
         </div>

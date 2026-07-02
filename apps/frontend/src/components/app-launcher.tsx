@@ -7,6 +7,8 @@ import {
 import { useHoldings } from "@/hooks/use-holdings";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useIsMobileViewport } from "@/hooks/use-platform";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateUiText } from "@/i18n/ui-text";
 import {
   AccountType,
   HoldingType,
@@ -76,6 +78,8 @@ const accountTypeIcons: Record<AccountType | typeof PORTFOLIO_ACCOUNT_TYPE, Icon
 };
 
 export function AppLauncher() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -567,9 +571,15 @@ export function AppLauncher() {
   // Filter items based on search
   const searchLower = search.toLowerCase();
   const filteredActions = actionItems.filter((action) => {
-    const displayText = (action.label ?? action.title).toLowerCase();
+    const rawDisplayText = action.label ?? action.title;
+    const displayText = rawDisplayText.toLowerCase();
+    const localizedDisplayText = translateUiText(language, rawDisplayText).toLowerCase();
     const keywords = (action.keywords ?? []).map((k) => k.toLowerCase());
-    return displayText.includes(searchLower) || keywords.some((k) => k.includes(searchLower));
+    return (
+      displayText.includes(searchLower) ||
+      localizedDisplayText.includes(searchLower) ||
+      keywords.some((k) => k.includes(searchLower))
+    );
   });
 
   const filteredHoldings = holdingOptions.filter((holding) => {
@@ -620,7 +630,7 @@ export function AppLauncher() {
   const commandContent = (
     <>
       <CommandInput
-        placeholder="Search actions, holdings, or accounts..."
+        placeholder={translateUiText(language, "Search actions, holdings, or accounts...")}
         autoFocus={!isMobileViewport && open}
         value={search}
         onValueChange={setSearch}
@@ -632,9 +642,11 @@ export function AppLauncher() {
           isMobileViewport ? "max-h-[calc(80vh-160px)] px-2 pb-8" : "max-h-[420px]",
         )}
       >
-        {!hasResults && <CommandEmpty>No matches found.</CommandEmpty>}
+        {!hasResults && (
+          <CommandEmpty>{translateUiText(language, "No matches found.")}</CommandEmpty>
+        )}
         {showRecent && (
-          <CommandGroup heading="Recent">
+          <CommandGroup heading={translateUiText(language, "Recent")}>
             {(searchLower ? filteredRecent : recentItems).map((item) => {
               const getRecentIcon = () => {
                 switch (item.type) {
@@ -657,9 +669,15 @@ export function AppLauncher() {
                   className={cn(isMobileViewport ? "gap-3 py-4 text-base" : undefined)}
                 >
                   {getRecentIcon()}
-                  <span className="font-medium">{item.label}</span>
+                  <span className="font-medium">{translateUiText(language, item.label)}</span>
                   <span className="text-muted-foreground ml-auto text-xs capitalize">
-                    {item.type}
+                    {isChinese
+                      ? item.type === "holding"
+                        ? "持仓"
+                        : item.type === "account"
+                          ? "账户"
+                          : "操作"
+                      : item.type}
                   </span>
                 </CommandItem>
               );
@@ -667,10 +685,10 @@ export function AppLauncher() {
           </CommandGroup>
         )}
         {filteredActions.length > 0 && (
-          <CommandGroup heading="Actions">
+          <CommandGroup heading={translateUiText(language, "Actions")}>
             {filteredActions.map((action, index) => {
               const resizedIcon = renderIcon(action.icon);
-              const displayText = action.label ?? action.title;
+              const displayText = translateUiText(language, action.label ?? action.title);
 
               return (
                 <CommandItem
@@ -689,10 +707,10 @@ export function AppLauncher() {
           </CommandGroup>
         )}
         {(isHoldingsLoading || filteredHoldings.length > 0) && (
-          <CommandGroup heading="Holdings">
+          <CommandGroup heading={translateUiText(language, "Holdings")}>
             {isHoldingsLoading ? (
               <CommandItem disabled className={cn(isMobileViewport ? "py-4 text-base" : undefined)}>
-                Loading holdings...
+                {translateUiText(language, "Loading holdings...")}
               </CommandItem>
             ) : (
               filteredHoldings.map((holding) => (
@@ -720,10 +738,10 @@ export function AppLauncher() {
           </CommandGroup>
         )}
         {(isAccountsLoading || filteredAccounts.length > 0) && (
-          <CommandGroup heading="Accounts">
+          <CommandGroup heading={translateUiText(language, "Accounts")}>
             {isAccountsLoading ? (
               <CommandItem disabled className={cn(isMobileViewport ? "py-4 text-base" : undefined)}>
-                Loading accounts...
+                {translateUiText(language, "Loading accounts...")}
               </CommandItem>
             ) : (
               filteredAccounts.map((account) => {
@@ -758,7 +776,7 @@ export function AppLauncher() {
           className="mx-auto flex h-[85vh] w-full max-w-screen-sm flex-col overflow-hidden rounded-t-3xl border-none px-0 pb-6 pt-4"
         >
           <SheetHeader className="px-6">
-            <SheetTitle>Quick launch</SheetTitle>
+            <SheetTitle>{translateUiText(language, "Quick launch")}</SheetTitle>
           </SheetHeader>
           <Command
             className={cn(
@@ -779,9 +797,13 @@ export function AppLauncher() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <DialogTitle className="sr-only">Command palette</DialogTitle>
+      <DialogTitle className="sr-only">
+        {translateUiText(language, "Command palette")}
+      </DialogTitle>
       <DialogDescription className="sr-only">
-        Search for actions, holdings, accounts, or navigation destinations.
+        {isChinese
+          ? "搜索操作、持仓、账户或导航目标。"
+          : "Search for actions, holdings, accounts, or navigation destinations."}
       </DialogDescription>
       {commandContent}
     </CommandDialog>

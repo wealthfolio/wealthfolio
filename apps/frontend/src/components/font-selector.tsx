@@ -4,6 +4,7 @@ interface FontSelectorProps {
   value?: string;
   onChange: (value: string) => void;
   className?: string;
+  labels?: Partial<Record<(typeof fonts)[number]["value"], string>>;
 }
 
 const fonts = [
@@ -24,7 +25,7 @@ const fonts = [
   },
 ];
 
-export function FontSelector({ value, onChange, className }: FontSelectorProps) {
+export function FontSelector({ value, onChange, className, labels }: FontSelectorProps) {
   return (
     <div className={cn("grid grid-cols-3 gap-2 md:gap-4", className)}>
       {fonts.map((font) => (
@@ -42,7 +43,7 @@ export function FontSelector({ value, onChange, className }: FontSelectorProps) 
           <div className={cn("mb-1 text-xl font-medium sm:text-2xl", font.value)}>
             {font.preview}
           </div>
-          <div className="text-xs font-medium sm:text-sm">{font.label}</div>
+          <div className="text-xs font-medium sm:text-sm">{labels?.[font.value] ?? font.label}</div>
           {value === font.value && (
             <div className="bg-primary absolute right-2 top-2 h-1.5 w-1.5 rounded-full" />
           )}

@@ -15,6 +15,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getHoldingsByAllocation } from "@/adapters";
 import { TickerAvatar } from "@/components/ticker-avatar";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateClassificationLabel } from "@/i18n/ui-text";
 import { HoldingType } from "@/lib/constants";
 import type {
   AccountScope,
@@ -45,6 +47,8 @@ export function AllocationDetailSheet({
   baseCurrency,
   initialCategoryId,
 }: AllocationDetailSheetProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const navigate = useNavigate();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
@@ -193,6 +197,14 @@ export function AllocationDetailSheet({
 
   const categories = allocation?.categories ?? [];
   const hasData = categories.length > 0;
+  const displayedTaxonomyName = allocation?.taxonomyName
+    ? translateClassificationLabel(language, allocation.taxonomyName)
+    : isChinese
+      ? "配置"
+      : "Allocation";
+  const displayedSelectedCategoryName = selectedCategoryName
+    ? translateClassificationLabel(language, selectedCategoryName)
+    : null;
 
   return (
     <Sheet open={isOpen} onOpenChange={handleOpenChange}>
@@ -203,7 +215,7 @@ export function AllocationDetailSheet({
         }}
       >
         <SheetHeader className="mt-4">
-          <SheetTitle>{allocation?.taxonomyName ?? "Allocation"}</SheetTitle>
+          <SheetTitle>{displayedTaxonomyName}</SheetTitle>
         </SheetHeader>
 
         <div className="flex-1 space-y-4 overflow-y-auto py-4">
@@ -255,7 +267,7 @@ export function AllocationDetailSheet({
                         style={{ backgroundColor: category.color }}
                       />
                       <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                        {category.categoryName}
+                        {translateClassificationLabel(language, category.categoryName)}
                       </span>
 
                       {/* Value + percentage */}
@@ -299,7 +311,7 @@ export function AllocationDetailSheet({
                                     style={{ backgroundColor: child.color }}
                                   />
                                   <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
-                                    {child.categoryName}
+                                    {translateClassificationLabel(language, child.categoryName)}
                                   </span>
                                   <AmountDisplay
                                     value={child.value}
@@ -327,11 +339,13 @@ export function AllocationDetailSheet({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium">
-                  Holdings in{" "}
-                  <span style={{ color: selectedColor ?? undefined }}>{selectedCategoryName}</span>
+                  {isChinese ? "分类持仓：" : "Holdings in "}
+                  <span style={{ color: selectedColor ?? undefined }}>
+                    {displayedSelectedCategoryName}
+                  </span>
                 </h3>
                 <Button variant="ghost" size="sm" onClick={handleClearSelection}>
-                  Clear
+                  {isChinese ? "清除" : "Clear"}
                 </Button>
               </div>
 
@@ -355,10 +369,16 @@ export function AllocationDetailSheet({
                 <div className="space-y-3 py-4 text-center">
                   <div className="space-y-1">
                     <p className="text-muted-foreground text-sm">
-                      Could not load holdings for this category.
+                      {isChinese
+                        ? "无法加载此分类下的持仓。"
+                        : "Could not load holdings for this category."}
                     </p>
                     {holdingsQueryError?.message && (
-                      <p className="text-muted-foreground text-xs">{holdingsQueryError.message}</p>
+                      <p className="text-muted-foreground text-xs">
+                        {isChinese
+                          ? "无法加载该分类下的持仓。请重试。"
+                          : holdingsQueryError.message}
+                      </p>
                     )}
                   </div>
                   <Button
@@ -366,7 +386,7 @@ export function AllocationDetailSheet({
                     size="sm"
                     onClick={() => void refetchAllocationHoldings()}
                   >
-                    Retry
+                    {isChinese ? "重试" : "Retry"}
                   </Button>
                 </div>
               ) : holdings && holdings.length > 0 ? (
@@ -379,7 +399,10 @@ export function AllocationDetailSheet({
                       ? (holding.accountName ?? holding.symbol)
                       : holding.symbol;
                     const secondaryLabel = isCash
-                      ? (holding.name ?? `Cash (${holding.currency})`)
+                      ? (holding.name ??
+                        (language === "zh-CN"
+                          ? `现金（${holding.currency}）`
+                          : `Cash (${holding.currency})`))
                       : (holding.name ?? holding.symbol);
                     const rowKey = isCash
                       ? [
@@ -421,21 +444,25 @@ export function AllocationDetailSheet({
                 </div>
               ) : (
                 <p className="text-muted-foreground py-4 text-center text-sm">
-                  No holdings found in this category.
+                  {isChinese
+                    ? "此分类下暂无持仓。"
+                    : "No holdings found in this category."}
                 </p>
               )}
             </div>
           )}
 
           {!hasData && (
-            <p className="text-muted-foreground py-8 text-center">No allocation data available.</p>
+            <p className="text-muted-foreground py-8 text-center">
+              {isChinese ? "暂无配置数据。" : "No allocation data available."}
+            </p>
           )}
         </div>
 
         <SheetFooter className="border-t pt-4">
           <SheetClose asChild>
             <Button variant="outline" className="w-full">
-              Close
+              {isChinese ? "关闭" : "Close"}
             </Button>
           </SheetClose>
         </SheetFooter>

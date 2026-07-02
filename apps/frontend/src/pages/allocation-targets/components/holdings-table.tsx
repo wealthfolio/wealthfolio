@@ -1,3 +1,5 @@
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateClassificationLabel } from "@/i18n/ui-text";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@wealthfolio/ui";
@@ -58,7 +60,15 @@ function HoldingAvatar({
   );
 }
 
-function formatUpdatedAt(date: Date): string {
+function formatUpdatedAt(date: Date, language: string): string {
+  if (language === "zh-CN") {
+    return new Intl.DateTimeFormat("zh-CN", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(date);
+  }
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
@@ -70,11 +80,15 @@ function formatUpdatedAt(date: Date): string {
     .replace(/\bE[DS]T\b/, "ET");
 }
 
-function accountLabelForRow(row: DriftHoldingRow, accountMap: Map<string, string>): string {
+function accountLabelForRow(
+  row: DriftHoldingRow,
+  accountMap: Map<string, string>,
+  language: string,
+): string {
   if (row.sourceAccountIds && row.sourceAccountIds.length > 0) {
     const names = row.sourceAccountIds.map((id) => accountMap.get(id) ?? id).filter(Boolean);
     if (names.length === 1) return names[0];
-    if (names.length > 1) return `${names.length} accounts`;
+    if (names.length > 1) return language === "zh-CN" ? `${names.length} 个账户` : `${names.length} accounts`;
   }
   return accountMap.get(row.accountId) ?? row.accountId;
 }
@@ -84,11 +98,13 @@ function canNavigateToHolding(row: DriftHoldingRow): boolean {
 }
 
 export function HoldingsTable({ report }: HoldingsTableProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const navigate = useNavigate();
   const { accounts } = useAccounts();
 
   const accountMap = useMemo(() => new Map(accounts.map((a) => [a.id, a.name])), [accounts]);
-  const updatedAt = useMemo(() => formatUpdatedAt(new Date()), []);
+  const updatedAt = useMemo(() => formatUpdatedAt(new Date(), language), [language]);
 
   const showAccountCol = report.scopeType !== "account";
   const holdingsReport = report.holdings ?? null;
@@ -105,17 +121,19 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
   return (
     <Card>
       <CardHeader className="px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
-        <CardTitle className="text-base">Holdings</CardTitle>
+        <CardTitle className="text-base">{isChinese ? "持仓" : "Holdings"}</CardTitle>
         <CardDescription>
           {isLoading ? (
-            "Loading…"
+            isChinese ? "加载中…" : "Loading…"
           ) : (
             <>
               <span className="md:hidden">
-                {holdingCount} holdings · {baseCurrency}
+                {holdingCount} {isChinese ? "项持仓" : "holdings"} · {baseCurrency}
               </span>
               <span className="hidden md:inline">
-                {holdingCount} holdings · {baseCurrency} · Updated {updatedAt}
+                {language === "zh-CN"
+                  ? `${holdingCount} 项持仓 · ${baseCurrency} · 更新于 ${updatedAt}`
+                  : `${holdingCount} holdings · ${baseCurrency} · Updated ${updatedAt}`}
               </span>
             </>
           )}
@@ -125,6 +143,7 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
         <div className="divide-y md:hidden">
           {rows.map((row) => {
             const canNavigate = canNavigateToHolding(row);
+            const categoryName = translateClassificationLabel(language, row.categoryName);
             return (
               <button
                 key={row.id}
@@ -158,7 +177,7 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                         style={{ background: row.categoryColor }}
                       />
                     )}
-                    <span className="truncate">{row.categoryName}</span>
+                    <span className="truncate">{categoryName}</span>
                   </div>
                   <span
                     className={cn(
@@ -178,20 +197,35 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
           <table className="w-full text-[13px]">
             <thead>
               <tr className="text-muted-foreground border-b text-[10px] uppercase tracking-wider">
-                <th className="py-2.5 pl-6 pr-3 text-left font-medium">Holding</th>
-                <th className="py-2.5 pr-3 text-left font-medium">Category</th>
-                <th className="py-2.5 pr-3 text-right font-medium">Value</th>
-                <th className="py-2.5 pr-3 text-right font-medium">Current</th>
-                <th className="py-2.5 pr-3 text-right font-medium">Target</th>
-                <th className="py-2.5 pr-3 text-right font-medium">Drift</th>
+                <th className="py-2.5 pl-6 pr-3 text-left font-medium">
+                  {isChinese ? "持仓" : "Holding"}
+                </th>
+                <th className="py-2.5 pr-3 text-left font-medium">
+                  {isChinese ? "分类" : "Category"}
+                </th>
+                <th className="py-2.5 pr-3 text-right font-medium">
+                  {isChinese ? "市值" : "Value"}
+                </th>
+                <th className="py-2.5 pr-3 text-right font-medium">
+                  {isChinese ? "当前" : "Current"}
+                </th>
+                <th className="py-2.5 pr-3 text-right font-medium">
+                  {isChinese ? "目标" : "Target"}
+                </th>
+                <th className="py-2.5 pr-3 text-right font-medium">
+                  {isChinese ? "偏离" : "Drift"}
+                </th>
                 {showAccountCol && (
-                  <th className="py-2.5 pl-2 pr-6 text-right font-medium">Account</th>
+                  <th className="py-2.5 pl-2 pr-6 text-right font-medium">
+                    {isChinese ? "账户" : "Account"}
+                  </th>
                 )}
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => {
                 const canNavigate = canNavigateToHolding(row);
+                const categoryName = translateClassificationLabel(language, row.categoryName);
                 return (
                   <tr
                     key={row.id}
@@ -234,11 +268,13 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                         )}
                         <span className="min-w-0">
                           <span className="text-muted-foreground block truncate text-[12px]">
-                            {row.categoryName}
+                            {categoryName}
                           </span>
                           {row.isUnknownCategory && (
                             <span className="text-muted-foreground/80 block max-w-[220px] truncate text-[10.5px]">
-                              This holding is not mapped to the selected taxonomy.
+                              {language === "zh-CN"
+                                ? "此持仓未映射到所选分类体系。"
+                                : "This holding is not mapped to the selected taxonomy."}
                             </span>
                           )}
                         </span>
@@ -263,7 +299,7 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                     </td>
                     {showAccountCol && (
                       <td className="text-muted-foreground pl-2 pr-6 text-right">
-                        {accountLabelForRow(row, accountMap)}
+                        {accountLabelForRow(row, accountMap, language)}
                       </td>
                     )}
                   </tr>

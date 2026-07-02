@@ -1,4 +1,6 @@
 import { useRef, useState } from "react";
+import type { AppLanguage } from "@/i18n/languages";
+import { translateClassificationLabel } from "@/i18n/ui-text";
 import { cn } from "@/lib/utils";
 import { Icons } from "@wealthfolio/ui";
 import type { BandType, TaxonomyCategory } from "@/lib/types";
@@ -19,6 +21,7 @@ interface TargetWeightEditorProps {
   bandType: BandType;
   driftBandBps: number;
   relativeFactorBps: number;
+  language: AppLanguage;
   onChange: (weights: WeightDraft[]) => void;
 }
 
@@ -92,21 +95,25 @@ function effectiveBandPct(
   return Math.max(relative, driftBandBps / 100);
 }
 
-function driftTone(drift: number, bandPct: number): { label: string; className: string } {
+function driftTone(
+  drift: number,
+  bandPct: number,
+  isChinese: boolean,
+): { label: string; className: string } {
   if (Math.abs(drift) <= bandPct) {
     return {
-      label: "On target",
+      label: isChinese ? "目标内" : "On target",
       className: "bg-muted text-muted-foreground",
     };
   }
   if (drift > 0) {
     return {
-      label: `Over +${drift.toFixed(1)}%`,
+      label: isChinese ? `高于目标 +${drift.toFixed(1)}%` : `Over +${drift.toFixed(1)}%`,
       className: "bg-[#eadbd3] text-[#8a5b45]",
     };
   }
   return {
-    label: `Under ${drift.toFixed(1)}%`,
+    label: isChinese ? `低于目标 ${drift.toFixed(1)}%` : `Under ${drift.toFixed(1)}%`,
     className: "bg-[#dfe8dc] text-[#4f6544]",
   };
 }
@@ -119,8 +126,10 @@ export function TargetWeightEditor({
   bandType,
   driftBandBps,
   relativeFactorBps,
+  language,
   onChange,
 }: TargetWeightEditorProps) {
+  const isChinese = language === "zh-CN";
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [liveBps, setLiveBps] = useState<number | null>(null);
@@ -192,17 +201,17 @@ export function TargetWeightEditor({
         {/* Column headers */}
         <div className="text-muted-foreground grid grid-cols-[minmax(8rem,1fr)_minmax(12rem,2fr)_4.25rem_5rem_6rem_28px] gap-4 border-b px-1 pb-2 text-[10px] font-medium uppercase tracking-wider">
           <span>{categoryLabel}</span>
-          <span>Today vs target</span>
-          <span className="text-right">Current</span>
-          <span className="text-right">Target</span>
-          <span className="text-right">Drift</span>
+          <span>{isChinese ? "当前与目标" : "Today vs target"}</span>
+          <span className="text-right">{isChinese ? "当前" : "Current"}</span>
+          <span className="text-right">{isChinese ? "目标" : "Target"}</span>
+          <span className="text-right">{isChinese ? "偏离" : "Drift"}</span>
           <span />
         </div>
 
         {/* Category rows */}
         <div className="divide-y">
           {rows.map((row) => {
-            const tone = driftTone(row.drift, row.bandPct);
+            const tone = driftTone(row.drift, row.bandPct, isChinese);
             return (
               <div
                 key={row.cat.id}
@@ -215,7 +224,7 @@ export function TargetWeightEditor({
                     style={{ background: row.color }}
                   />
                   <span className="text-foreground truncate text-[13px] font-medium">
-                    {row.cat.name}
+                    {translateClassificationLabel(language, row.cat.name)}
                   </span>
                 </div>
 
@@ -279,7 +288,15 @@ export function TargetWeightEditor({
                       type="button"
                       onClick={() => startEdit(row.cat.id)}
                       disabled={row.isLocked}
-                      title={row.isLocked ? "Locked" : "Edit target"}
+                      title={
+                        row.isLocked
+                          ? isChinese
+                            ? "已锁定"
+                            : "Locked"
+                          : isChinese
+                            ? "编辑目标"
+                            : "Edit target"
+                      }
                       className={cn(
                         "bg-background/45 inline-flex h-7 w-14 items-center justify-end rounded-md border px-2 text-right text-[13px] tabular-nums transition-colors",
                         row.isLocked
@@ -314,7 +331,7 @@ export function TargetWeightEditor({
                       ? "text-foreground"
                       : "text-muted-foreground/40 hover:text-foreground opacity-0 group-hover:opacity-100",
                   )}
-                  title={row.isLocked ? "Unlock" : "Lock"}
+                  title={row.isLocked ? (isChinese ? "解锁" : "Unlock") : isChinese ? "锁定" : "Lock"}
                 >
                   {row.isLocked ? (
                     <Icons.Lock className="h-3.5 w-3.5" />
@@ -330,7 +347,7 @@ export function TargetWeightEditor({
         {/* Total row */}
         <div className="border-t pt-3">
           <div className="grid grid-cols-[minmax(8rem,1fr)_minmax(12rem,2fr)_4.25rem_5rem_6rem_28px] gap-4 px-1">
-            <span className="text-[13px] font-medium">Total</span>
+            <span className="text-[13px] font-medium">{isChinese ? "合计" : "Total"}</span>
             <span />
             <span />
             <span
@@ -347,16 +364,27 @@ export function TargetWeightEditor({
           {!isValid && (
             <p className="text-destructive mt-0.5 px-1 text-[11px]">
               {totalBps < 10000
-                ? `${((10000 - totalBps) / 100).toFixed(1)}% unallocated`
-                : `${((totalBps - 10000) / 100).toFixed(1)}% over 100%`}
+                ? isChinese
+                  ? `${((10000 - totalBps) / 100).toFixed(1)}% 未分配`
+                  : `${((10000 - totalBps) / 100).toFixed(1)}% unallocated`
+                : isChinese
+                  ? `${((totalBps - 10000) / 100).toFixed(1)}% 超出 100%`
+                  : `${((totalBps - 10000) / 100).toFixed(1)}% over 100%`}
             </p>
           )}
         </div>
         {biggestMove && (
           <p className="text-muted-foreground border-t px-1 pt-3 text-[12px]">
-            Biggest move:{" "}
+            {isChinese ? "最大调整：" : "Biggest move:"}{" "}
             <span className="text-foreground font-medium">
-              {biggestMove.drift > 0 ? "trim" : "add"} {biggestMove.cat.name}{" "}
+              {biggestMove.drift > 0
+                ? isChinese
+                  ? "减持"
+                  : "trim"
+                : isChinese
+                  ? "增持"
+                  : "add"}{" "}
+              {translateClassificationLabel(language, biggestMove.cat.name)}{" "}
               {Math.abs(biggestMove.drift).toFixed(1)}%
             </span>
             .

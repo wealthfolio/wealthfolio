@@ -1,5 +1,6 @@
 import { RenderableChartContainer } from "@/components/renderable-chart-container";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import { useI18n } from "@/i18n/i18n-provider";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { Holding } from "@/lib/types";
 import { cn, parseLocalDate } from "@/lib/utils";
@@ -42,7 +43,8 @@ function subscribeToDarkModeChange(onStoreChange: () => void): () => void {
 const DisplayModeToggle: React.FC<{
   displayMode: DisplayMode;
   onToggle: () => void;
-}> = ({ displayMode, onToggle }) => (
+  isChinese: boolean;
+}> = ({ displayMode, onToggle, isChinese }) => (
   <Tooltip>
     <TooltipTrigger asChild>
       <Button variant="secondary" size="icon-sm" className="rounded-full" onClick={onToggle}>
@@ -54,7 +56,15 @@ const DisplayModeToggle: React.FC<{
       </Button>
     </TooltipTrigger>
     <TooltipContent>
-      <p>{displayMode === "symbol" ? "Show full names" : "Show symbols"}</p>
+      <p>
+        {displayMode === "symbol"
+          ? isChinese
+            ? "显示全名"
+            : "Show full names"
+          : isChinese
+            ? "显示代码"
+            : "Show symbols"}
+      </p>
     </TooltipContent>
   </Tooltip>
 );
@@ -236,9 +246,10 @@ interface TooltipProps {
     baseCurrency?: string;
     theme?: string;
   };
+  isChinese?: boolean;
 }
 
-const CompositionTooltip = ({ active, payload, settings }: TooltipProps) => {
+const CompositionTooltip = ({ active, payload, settings, isChinese = false }: TooltipProps) => {
   if (active && payload?.length) {
     const data = payload[0].payload;
     const value = payload[0].value;
@@ -265,7 +276,9 @@ const CompositionTooltip = ({ active, payload, settings }: TooltipProps) => {
           {/* Market Value */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground pr-6 text-sm">Market Value</span>
+              <span className="text-muted-foreground pr-6 text-sm">
+                {isChinese ? "市值" : "Market Value"}
+              </span>
               <span className="text-sm font-semibold">
                 {formatAmount(value, settings?.baseCurrency ?? "USD")}
               </span>
@@ -273,7 +286,7 @@ const CompositionTooltip = ({ active, payload, settings }: TooltipProps) => {
 
             {/* Gain/Loss */}
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground text-sm">Return</span>
+              <span className="text-muted-foreground text-sm">{isChinese ? "回报" : "Return"}</span>
               <span
                 className={cn(
                   "flex items-center gap-1 text-sm font-semibold",
@@ -294,6 +307,8 @@ const CompositionTooltip = ({ active, payload, settings }: TooltipProps) => {
 };
 
 export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositionProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [returnType, setReturnType] = usePersistentState<ReturnType>(
     "composition-performance-mode",
     "daily",
@@ -352,7 +367,7 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
           <div className="flex items-center space-x-2">
             <Icons.LayoutDashboard className="text-muted-foreground h-4 w-4" />
             <CardTitle className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
-              Composition
+              {isChinese ? "构成" : "Composition"}
             </CardTitle>
           </div>
           <div className="flex items-center space-x-3">
@@ -373,14 +388,20 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div className="flex items-center space-x-2">
             <Icons.LayoutDashboard className="text-muted-foreground h-4 w-4" />
-            <CardTitle className="text-md font-medium">Composition</CardTitle>
+            <CardTitle className="text-md font-medium">
+              {isChinese ? "构成" : "Composition"}
+            </CardTitle>
           </div>
         </CardHeader>
         <CardContent className="flex h-[500px] items-center justify-center">
           <EmptyPlaceholder
             icon={<Icons.BarChart className="h-10 w-10" />}
-            title="No holdings data"
-            description="There is no holdings data available for your portfolio."
+            title={isChinese ? "暂无持仓数据" : "No holdings data"}
+            description={
+              isChinese
+                ? "你的投资组合暂无可用持仓数据。"
+                : "There is no holdings data available for your portfolio."
+            }
           />
         </CardContent>
       </Card>
@@ -392,16 +413,20 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center space-x-2">
           <CardTitle className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
-            Composition
+            {isChinese ? "构成" : "Composition"}
           </CardTitle>
         </div>
         <div className="flex items-center space-x-3">
-          <DisplayModeToggle displayMode={displayMode} onToggle={toggleDisplayMode} />
+          <DisplayModeToggle
+            displayMode={displayMode}
+            onToggle={toggleDisplayMode}
+            isChinese={isChinese}
+          />
           <AnimatedToggleGroup
             items={[
-              { value: "daily", label: "Daily" },
-              { value: "pnl", label: "P&L" },
-              { value: "return", label: "Return" },
+              { value: "daily", label: isChinese ? "日涨跌" : "Daily" },
+              { value: "pnl", label: isChinese ? "盈亏" : "P&L" },
+              { value: "return", label: isChinese ? "回报" : "Return" },
             ]}
             value={returnType}
             onValueChange={(value: ReturnType) => setReturnType(value)}
@@ -426,7 +451,11 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
               />
             )}
           >
-            <ChartTooltip content={<CompositionTooltip settings={settings ?? undefined} />} />
+            <ChartTooltip
+              content={
+                <CompositionTooltip settings={settings ?? undefined} isChinese={isChinese} />
+              }
+            />
           </Treemap>
         </RenderableChartContainer>
       </CardContent>

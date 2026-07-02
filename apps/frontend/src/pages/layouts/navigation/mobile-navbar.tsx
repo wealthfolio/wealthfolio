@@ -2,6 +2,7 @@ import { LiquidGlass } from "@/components/liquid-glass";
 import { SyncStatusIcon } from "@/features/wealthfolio-connect/components/sync-status-icon";
 import { useAggregatedSyncStatus } from "@/features/wealthfolio-connect/hooks";
 import { useHapticFeedback } from "@/hooks/use-haptic-feedback";
+import { useI18n } from "@/i18n/i18n-provider";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -30,6 +31,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
   const { triggerHaptic } = useHapticFeedback();
   const uniqueId = useId();
   const { status: syncStatus } = useAggregatedSyncStatus();
+  const { t } = useI18n();
 
   const containerClassName = "pointer-events-none fixed inset-x-0 bottom-0 z-50";
 
@@ -64,7 +66,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
   const addonItems = navigation?.addons ?? [];
 
   const searchItem = {
-    title: "Search",
+    title: t("navigation.search"),
     href: "#search",
     icon: <Icons.Search2 className="size-6" />,
   };
@@ -87,7 +89,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
           className={cn("pointer-events-auto w-full px-1 py-1", "h-[var(--mobile-nav-ui-height)]")}
         >
           <nav
-            aria-label="Primary navigation"
+            aria-label={t("navigation.primary")}
             className={cn("grid place-items-center gap-2")}
             style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}
           >
@@ -149,7 +151,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
                 <DropdownMenuTrigger asChild>
                   <button
                     onClick={triggerHaptic}
-                    aria-label="More options"
+                    aria-label={t("navigation.moreOptions")}
                     className="text-foreground relative z-10 flex h-14 w-full items-center justify-center rounded-full transition-colors"
                   >
                     {(menuItems.some((item) => isPathActive(location.pathname, item.href)) ||
@@ -219,7 +221,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
                       <span className="flex size-6 shrink-0 items-center justify-center">
                         <SyncStatusIcon status={syncStatus} className="size-5" />
                       </span>
-                      <span className="truncate text-left">Connect</span>
+                      <span className="truncate text-left">{t("navigation.connect")}</span>
                     </Link>
                   </LiquidGlass>
 
@@ -236,7 +238,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
                         <span className="flex size-6 shrink-0 items-center justify-center">
                           <Icons.Addons className="size-5" />
                         </span>
-                        <span className="truncate text-left">Add-ons</span>
+                        <span className="truncate text-left">{t("navigation.addons")}</span>
                       </button>
                     </LiquidGlass>
                   )}
@@ -251,7 +253,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
       <Sheet open={addonsSheetOpen} onOpenChange={setAddonsSheetOpen}>
         <SheetContent side="bottom" className="px-4 pb-8">
           <SheetHeader>
-            <SheetTitle>Add-ons</SheetTitle>
+            <SheetTitle>{t("navigation.addons")}</SheetTitle>
           </SheetHeader>
           <div className="mt-4 flex flex-col gap-2">
             {addonItems.map((item) => {

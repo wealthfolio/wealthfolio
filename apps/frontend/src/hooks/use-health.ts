@@ -11,6 +11,7 @@ import {
 } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
 import { useAuth } from "@/context/auth-context";
+import { useI18n } from "@/i18n/i18n-provider";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 
 /**
@@ -32,6 +33,8 @@ export function useHealthStatus() {
  */
 export function useRunHealthChecks(options?: { navigate?: (path: string) => void }) {
   const queryClient = useQueryClient();
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
 
   return useMutation({
     mutationFn: runHealthChecks,
@@ -39,18 +42,29 @@ export function useRunHealthChecks(options?: { navigate?: (path: string) => void
       queryClient.setQueryData([QueryKeys.HEALTH_STATUS], data);
       const issueCount = data.issues?.length ?? 0;
       if (issueCount === 0) {
-        toast.success("All checks passed", { description: "No issues found." });
-      } else {
-        toast.error(`${issueCount} issue${issueCount > 1 ? "s" : ""} found`, {
-          description: "Review the details in the Health Center.",
-          action: options?.navigate
-            ? { label: "View", onClick: () => options.navigate!("/health") }
-            : undefined,
+        toast.success(isChinese ? "所有检查均已通过" : "All checks passed", {
+          description: isChinese ? "未发现问题。" : "No issues found.",
         });
+      } else {
+        toast.error(
+          isChinese
+            ? `发现 ${issueCount} 个问题`
+            : `${issueCount} issue${issueCount > 1 ? "s" : ""} found`,
+          {
+            description: isChinese
+              ? "请在健康中心查看详情。"
+              : "Review the details in the Health Center.",
+            action: options?.navigate
+              ? { label: isChinese ? "查看" : "View", onClick: () => options.navigate!("/health") }
+              : undefined,
+          },
+        );
       }
     },
     onError: (error: Error) => {
-      toast.error("Health check failed", { description: error.message });
+      toast.error(isChinese ? "健康检查失败" : "Health check failed", {
+        description: error.message,
+      });
     },
   });
 }

@@ -30,6 +30,7 @@ import {
 import { Holding, Account, SymbolSearchResult } from "@/lib/types";
 import { getAssetIdFromSearchResult } from "@/lib/asset-utils";
 import { HoldingType } from "@/lib/constants";
+import { useI18n } from "@/i18n/i18n-provider";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { QueryKeys } from "@/lib/query-keys";
@@ -79,6 +80,8 @@ export const HoldingsEditMode = ({
   onClose,
   existingSnapshotDate,
 }: HoldingsEditModeProps) => {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -733,9 +736,11 @@ export const HoldingsEditMode = ({
       <AlertDialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogTitle>{isChinese ? "要放弃更改吗？" : "Discard changes?"}</AlertDialogTitle>
             <AlertDialogDescription>
-              You have unsaved changes. Are you sure you want to discard them?
+              {isChinese
+                ? "你有未保存的更改。确定要放弃吗？"
+                : "You have unsaved changes. Are you sure you want to discard them?"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -749,11 +754,19 @@ export const HoldingsEditMode = ({
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete snapshot?</AlertDialogTitle>
+            <AlertDialogTitle>{isChinese ? "要删除快照吗？" : "Delete snapshot?"}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the holdings snapshot from{" "}
-              <strong>{existingSnapshotDate}</strong>. The portfolio valuations will be recalculated
-              without this data point. This action cannot be undone.
+              {isChinese ? (
+                <>
+                  这会永久删除 <strong>{existingSnapshotDate}</strong> 的持仓快照。投资组合估值会在不包含此数据点的情况下重新计算。此操作无法撤销。
+                </>
+              ) : (
+                <>
+                  This will permanently delete the holdings snapshot from{" "}
+                  <strong>{existingSnapshotDate}</strong>. The portfolio valuations will be
+                  recalculated without this data point. This action cannot be undone.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

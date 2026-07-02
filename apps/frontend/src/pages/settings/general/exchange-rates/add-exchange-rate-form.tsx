@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@wealthfolio/ui/components/ui/select";
 import { useCustomProviders } from "@/hooks/use-custom-providers";
+import { useI18n } from "@/i18n/i18n-provider";
 import { useMarketDataProviders } from "@/hooks/use-market-data-providers";
 import { ExchangeRate } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -78,6 +79,8 @@ interface AddExchangeRateFormProps {
 }
 
 export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { data: providers } = useMarketDataProviders();
   const { data: customProviders = [] } = useCustomProviders();
   const form = useForm<ExchangeRateFormData>({
@@ -127,7 +130,15 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
         name={fieldName}
         render={({ field }) => (
           <FormItem className="flex flex-col">
-            <FormLabel>{fieldName === "fromCurrency" ? "From Currency" : "To Currency"}</FormLabel>
+            <FormLabel>
+              {fieldName === "fromCurrency"
+                ? isChinese
+                  ? "源货币"
+                  : "From Currency"
+                : isChinese
+                  ? "目标货币"
+                  : "To Currency"}
+            </FormLabel>
             <Popover modal={true}>
               <PopoverTrigger asChild>
                 <FormControl>
@@ -139,7 +150,9 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                     {field.value
                       ? worldCurrencies.find((currency) => currency.value === field.value)?.label ||
                         field.value
-                      : "Select currency"}
+                      : isChinese
+                        ? "选择货币"
+                        : "Select currency"}
                     <Icons.ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </FormControl>
@@ -147,7 +160,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
               <PopoverContent className="w-full p-0">
                 <Command>
                   <CommandInput
-                    placeholder="Search currency..."
+                    placeholder={isChinese ? "搜索货币..." : "Search currency..."}
                     onValueChange={handleSearchChange}
                   />
                   <CommandList>
@@ -167,7 +180,9 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                                 searchValue === field.value ? "opacity-100" : "opacity-0",
                               )}
                             />
-                            <span className="font-semibold italic">Custom ({searchValue})</span>
+                            <span className="font-semibold italic">
+                              {isChinese ? `自定义（${searchValue}）` : `Custom (${searchValue})`}
+                            </span>
                           </CommandItem>
                         )}
 
@@ -211,8 +226,10 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
         <DialogHeader>
-          <DialogTitle>Add Exchange Rate</DialogTitle>
-          <DialogDescription>Add a new exchange rate to the system.</DialogDescription>
+          <DialogTitle>{isChinese ? "添加汇率" : "Add Exchange Rate"}</DialogTitle>
+          <DialogDescription>
+            {isChinese ? "向系统添加新的汇率。" : "Add a new exchange rate to the system."}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-10 p-4">
@@ -224,15 +241,17 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
             name="source"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Data Source</FormLabel>
+                <FormLabel>{isChinese ? "数据源" : "Data Source"}</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a data source" />
+                      <SelectValue
+                        placeholder={isChinese ? "选择数据源" : "Select a data source"}
+                      />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="MANUAL">Manual</SelectItem>
+                    <SelectItem value="MANUAL">{isChinese ? "手动" : "Manual"}</SelectItem>
                     {providers
                       ?.filter((p) => p.id !== "CUSTOM_SCRAPER" && p.providerType !== "custom")
                       .map((provider) => (
@@ -251,8 +270,12 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                 </Select>
                 <FormDescription>
                   {isManualSource
-                    ? "You'll need to manually update this rate."
-                    : "Rate will be automatically fetched from the selected provider."}
+                    ? isChinese
+                      ? "你需要手动更新此汇率。"
+                      : "You'll need to manually update this rate."
+                    : isChinese
+                      ? "汇率会从所选服务商自动获取。"
+                      : "Rate will be automatically fetched from the selected provider."}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -265,9 +288,12 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
               name="rate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Exchange Rate</FormLabel>
+                  <FormLabel>{isChinese ? "汇率" : "Exchange Rate"}</FormLabel>
                   <FormControl>
-                    <MoneyInput placeholder="Enter exchange rate" {...field} />
+                    <MoneyInput
+                      placeholder={isChinese ? "输入汇率" : "Enter exchange rate"}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -279,12 +305,14 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
         <DialogFooter>
           <DialogTrigger asChild>
             <Button variant="outline" onClick={onCancel}>
-              Cancel
+              {isChinese ? "取消" : "Cancel"}
             </Button>
           </DialogTrigger>
           <Button type="submit">
             <Icons.Plus className="h-4 w-4" />
-            <span className="hidden sm:ml-2 sm:inline">Add Exchange Rate</span>
+            <span className="hidden sm:ml-2 sm:inline">
+              {isChinese ? "添加汇率" : "Add Exchange Rate"}
+            </span>
           </Button>
         </DialogFooter>
       </form>

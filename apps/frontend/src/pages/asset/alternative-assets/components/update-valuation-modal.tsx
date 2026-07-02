@@ -21,6 +21,7 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { MoneyInput, DatePickerInput } from "@wealthfolio/ui";
+import { useI18n } from "@/i18n/i18n-provider";
 
 import {
   updateValuationSchema,
@@ -60,6 +61,8 @@ export function UpdateValuationModal({
   lastUpdatedDate,
   currency,
 }: UpdateValuationModalProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { updateValuationMutation } = useAlternativeAssetMutations({
     onUpdateSuccess: () => {
       handleClose();
@@ -108,9 +111,13 @@ export function UpdateValuationModal({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <DialogHeader>
-              <DialogTitle>Update Value: {assetName}</DialogTitle>
+              <DialogTitle>
+                {isChinese ? `更新价值：${assetName}` : `Update Value: ${assetName}`}
+              </DialogTitle>
               <DialogDescription>
-                Record a new valuation for this asset. Historical valuations are preserved.
+                {isChinese
+                  ? "记录此资产的新估值。历史估值会保留。"
+                  : "Record a new valuation for this asset. Historical valuations are preserved."}
               </DialogDescription>
             </DialogHeader>
 

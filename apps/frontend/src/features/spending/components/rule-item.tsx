@@ -17,6 +17,7 @@ import {
   Icons,
 } from "@wealthfolio/ui";
 
+import { useI18n } from "@/i18n/i18n-provider";
 import type { CategorizationRule } from "../types/rule";
 
 export interface RuleCategoryMeta {
@@ -62,6 +63,8 @@ const ACTIVITY_TYPE_LABELS: Record<string, string> = {
 export function RuleItem({ rule, categoryMeta, presetMeta, onEdit, onDelete }: RuleItemProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [patternExpanded, setPatternExpanded] = useState(false);
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
 
   const handleDelete = () => {
     onDelete(rule);
@@ -201,19 +204,20 @@ export function RuleItem({ rule, categoryMeta, presetMeta, onEdit, onDelete }: R
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete rule</AlertDialogTitle>
+            <AlertDialogTitle>{isChinese ? "删除规则" : "Delete rule"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the rule &quot;{rule.name}&quot;? This action cannot
-              be undone.
+              {isChinese
+                ? `确定要删除规则“${rule.name}”吗？此操作无法撤销。`
+                : `Are you sure you want to delete the rule "${rule.name}"? This action cannot be undone.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{isChinese ? "取消" : "Cancel"}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {isChinese ? "删除" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

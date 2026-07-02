@@ -10,6 +10,7 @@ import {
 } from "@wealthfolio/ui/components/ui/sheet";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useI18n } from "@/i18n/i18n-provider";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useSettings } from "@/hooks/use-settings";
 import {
@@ -58,10 +59,10 @@ interface UIAccount extends Omit<Account, "accountType"> {
 }
 
 // Create a portfolio account for UI purposes
-function createPortfolioAccount(baseCurrency: string): UIAccount {
+function createPortfolioAccount(baseCurrency: string, isChinese: boolean): UIAccount {
   return {
     id: PORTFOLIO_SCOPE_ID,
-    name: "All Portfolio",
+    name: isChinese ? "全部投资组合" : "All Portfolio",
     accountType: PORTFOLIO_ACCOUNT_TYPE,
     currency: baseCurrency,
     group: undefined,
@@ -90,6 +91,8 @@ export const AccountSelectorMobile = forwardRef<HTMLButtonElement, AccountSelect
     },
     ref,
   ) => {
+    const { language } = useI18n();
+    const isChinese = language === "zh-CN";
     const [internalOpen, setInternalOpen] = useState(false);
     const open = controlledOpen ?? internalOpen;
     const setOpen = onOpenChange ?? setInternalOpen;
@@ -116,7 +119,10 @@ export const AccountSelectorMobile = forwardRef<HTMLButtonElement, AccountSelect
 
     // Add portfolio account if requested
     const allAccounts: UIAccount[] = includePortfolio
-      ? [createPortfolioAccount(settings?.baseCurrency || "USD"), ...(filteredAccounts || [])]
+      ? [
+          createPortfolioAccount(settings?.baseCurrency || "USD", isChinese),
+          ...(filteredAccounts || []),
+        ]
       : filteredAccounts;
 
     // Group accounts by type
@@ -140,17 +146,17 @@ export const AccountSelectorMobile = forwardRef<HTMLButtonElement, AccountSelect
     const getAccountTypeLabel = (type: string): string => {
       switch (type) {
         case PORTFOLIO_ACCOUNT_TYPE:
-          return "Portfolio";
+          return isChinese ? "投资组合" : "Portfolio";
         case "SECURITIES":
-          return "Securities Accounts";
+          return isChinese ? "证券账户" : "Securities Accounts";
         case "CASH":
-          return "Cash Accounts";
+          return isChinese ? "现金账户" : "Cash Accounts";
         case "CREDIT_CARD":
-          return "Credit Card Accounts";
+          return isChinese ? "信用卡账户" : "Credit Card Accounts";
         case "CRYPTOCURRENCY":
-          return "Cryptocurrency Accounts";
+          return isChinese ? "加密货币账户" : "Cryptocurrency Accounts";
         default:
-          return "Other Accounts";
+          return isChinese ? "其他账户" : "Other Accounts";
       }
     };
 
@@ -168,7 +174,7 @@ export const AccountSelectorMobile = forwardRef<HTMLButtonElement, AccountSelect
           <Button
             ref={ref}
             variant="outline"
-            aria-label={iconOnly ? "Add account" : undefined}
+            aria-label={iconOnly ? (isChinese ? "添加账户" : "Add account") : undefined}
             className={cn(
               "bg-secondary/30 hover:bg-muted/80 flex items-center gap-1.5 rounded-md border-[1.5px] border-none text-sm font-medium",
               iconOnly ? "h-9 w-9 p-0" : "h-8 px-3 py-1",
@@ -177,19 +183,23 @@ export const AccountSelectorMobile = forwardRef<HTMLButtonElement, AccountSelect
             size={iconOnly ? "icon" : "sm"}
           >
             <Icons.Briefcase className="h-4 w-4" />
-            {!iconOnly && "Add account"}
+            {!iconOnly && (isChinese ? "添加账户" : "Add account")}
           </Button>
         </SheetTrigger>
         <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[80vh] p-0">
           <SheetHeader className="border-border border-b px-6 py-4">
-            <SheetTitle>Select Account</SheetTitle>
-            <SheetDescription>Choose an account to add to the comparison</SheetDescription>
+            <SheetTitle>{isChinese ? "选择账户" : "Select Account"}</SheetTitle>
+            <SheetDescription>
+              {isChinese ? "选择要加入对比的账户" : "Choose an account to add to the comparison"}
+            </SheetDescription>
           </SheetHeader>
           <ScrollArea className="h-[calc(80vh-5rem)] px-6 py-4">
             <div className="space-y-6">
               {showPortfolios && (
                 <div>
-                  <h3 className="text-muted-foreground mb-3 text-sm font-medium">Portfolios</h3>
+                  <h3 className="text-muted-foreground mb-3 text-sm font-medium">
+                    {isChinese ? "投资组合" : "Portfolios"}
+                  </h3>
                   <div className="space-y-2">
                     {portfolios.map((p) => (
                       <button

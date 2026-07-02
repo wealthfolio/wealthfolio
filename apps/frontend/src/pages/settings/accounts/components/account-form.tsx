@@ -48,6 +48,7 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 
 import { useAccountMutations } from "./use-account-mutations";
+import { useI18n } from "@/i18n/i18n-provider";
 
 const CASH_ALLOCATION_DEFAULT_VALUE = "__default__";
 const CASH_FIXED_INCOME_CATEGORY_ID = "FIXED_INCOME";
@@ -87,12 +88,14 @@ function getSelectableCashCategoryFromMeta(meta?: string | null): string {
     : CASH_ALLOCATION_DEFAULT_VALUE;
 }
 
-const accountTypes: ResponsiveSelectOption[] = [
-  { label: "Securities", value: "SECURITIES" },
-  { label: "Cash", value: "CASH" },
-  { label: "Credit Card", value: "CREDIT_CARD" },
-  { label: "Crypto", value: "CRYPTOCURRENCY" },
-];
+function getAccountTypes(isChinese: boolean): ResponsiveSelectOption[] {
+  return [
+    { label: isChinese ? "证券" : "Securities", value: "SECURITIES" },
+    { label: isChinese ? "现金" : "Cash", value: "CASH" },
+    { label: isChinese ? "信用卡" : "Credit Card", value: "CREDIT_CARD" },
+    { label: isChinese ? "加密货币" : "Crypto", value: "CRYPTOCURRENCY" },
+  ];
+}
 
 const accountTypeIcons = {
   [AccountType.SECURITIES]: Icons.Briefcase,
@@ -121,6 +124,8 @@ interface AccountFormlProps {
 }
 
 export function AccountForm({ defaultValues, onSuccess = () => undefined }: AccountFormlProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { createAccountMutation, updateAccountMutation } = useAccountMutations({ onSuccess });
 
   // Track initial tracking mode to detect changes
@@ -146,13 +151,14 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
   const isCashAccount = currentAccountType === AccountType.CASH;
 
   const { data: assetClassesTaxonomy } = useTaxonomy(isCashAccount ? "asset_classes" : null);
+  const accountTypes = useMemo(() => getAccountTypes(isChinese), [isChinese]);
   const fixedIncomeCategoryName = useMemo(() => {
     return (
       assetClassesTaxonomy?.categories.find(
         (c) => !c.parentId && c.id === CASH_FIXED_INCOME_CATEGORY_ID,
-      )?.name ?? "Fixed Income"
+      )?.name ?? (isChinese ? "固定收益" : "Fixed Income")
     );
-  }, [assetClassesTaxonomy]);
+  }, [assetClassesTaxonomy, isChinese]);
 
   useEffect(() => {
     if (isCreditCardAccount && currentTrackingMode !== "TRANSACTIONS") {
@@ -218,10 +224,27 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
     form.setValue("trackingMode", initialTrackingMode);
   };
 
-  const formTitle = defaultValues?.id ? "Update Account" : "Add Account";
+  const formTitle = defaultValues?.id
+    ? isChinese
+      ? "更新账户"
+      : "Update Account"
+    : isChinese
+      ? "添加账户"
+      : "Add Account";
   const formDescription = defaultValues?.id
-    ? "Update account information"
-    : "Add an investment account to track.";
+    ? isChinese
+      ? "更新账户信息"
+      : "Update account information"
+    : isChinese
+      ? "添加一个要跟踪的投资账户。"
+      : "Add an investment account to track.";
+  const submitLabel = defaultValues?.id
+    ? isChinese
+      ? "更新账户"
+      : "Update Account"
+    : isChinese
+      ? "添加账户"
+      : "Add Account";
   const AccountTypeIcon = accountTypeIcons[currentAccountType] ?? Icons.Wallet;
 
   return (
@@ -242,16 +265,19 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]">
           <input type="hidden" name="id" />
           <section className={formCardClassName}>
-            <h3 className={formSectionLabelClassName}>Identity</h3>
+            <h3 className={formSectionLabelClassName}>{isChinese ? "身份信息" : "Identity"}</h3>
             <div className="mt-4 grid gap-4">
               <FormField
                 control={form.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Account Name</FormLabel>
+                    <FormLabel>{isChinese ? "账户名称" : "Account Name"}</FormLabel>
                     <FormControl>
-                      <Input placeholder="Account display name" {...field} />
+                      <Input
+                        placeholder={isChinese ? "账户显示名称" : "Account display name"}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -262,9 +288,16 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                 name="group"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Account Group</FormLabel>
+                    <FormLabel>{isChinese ? "账户分组" : "Account Group"}</FormLabel>
                     <FormControl>
-                      <Input placeholder="Retirement, 401K, RRSP, TFSA,..." {...field} />
+                      <Input
+                        placeholder={
+                          isChinese
+                            ? "退休账户、401K、RRSP、TFSA..."
+                            : "Retirement, 401K, RRSP, TFSA,..."
+                        }
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -276,15 +309,19 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                 name="accountType"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Account Type</FormLabel>
+                    <FormLabel>{isChinese ? "账户类型" : "Account Type"}</FormLabel>
                     <FormControl>
                       <ResponsiveSelect
                         value={field.value}
                         onValueChange={field.onChange}
                         options={accountTypes}
-                        placeholder="Select an account type"
-                        sheetTitle="Select Account Type"
-                        sheetDescription="Choose the account type that best matches."
+                        placeholder={isChinese ? "选择账户类型" : "Select an account type"}
+                        sheetTitle={isChinese ? "选择账户类型" : "Select Account Type"}
+                        sheetDescription={
+                          isChinese
+                            ? "选择最匹配的账户类型。"
+                            : "Choose the account type that best matches."
+                        }
                         triggerClassName="h-11"
                       />
                     </FormControl>
@@ -298,11 +335,12 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                   name="currency"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
-                      <FormLabel>Currency</FormLabel>
+                      <FormLabel>{isChinese ? "货币" : "Currency"}</FormLabel>
                       <FormControl>
                         <CurrencyInput
                           value={field.value}
                           onChange={(value: string) => field.onChange(value)}
+                          placeholder={isChinese ? "选择账户货币" : "Select account currency"}
                         />
                       </FormControl>
                       <FormMessage />
@@ -314,14 +352,18 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
               {isCashAccount && (
                 <div className="flex flex-col gap-2">
                   <div>
-                    <label className="text-sm font-medium">Cash Classification</label>
+                    <label className="text-sm font-medium">
+                      {isChinese ? "现金分类" : "Cash Classification"}
+                    </label>
                     <p className="text-muted-foreground text-xs">
-                      How this cash is counted in allocation reports
+                      {isChinese
+                        ? "此现金在配置报告中的计入方式"
+                        : "How this cash is counted in allocation reports"}
                     </p>
                   </div>
                   <ToggleGroup
                     type="single"
-                    aria-label="Cash Classification"
+                    aria-label={isChinese ? "现金分类" : "Cash Classification"}
                     value={getSelectableCashCategoryFromMeta(form.watch("meta"))}
                     onValueChange={(v) => {
                       if (!v) return;
@@ -335,7 +377,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                       value={CASH_ALLOCATION_DEFAULT_VALUE}
                       className={cashClassificationItemClassName}
                     >
-                      Cash
+                      {isChinese ? "现金" : "Cash"}
                     </ToggleGroupItem>
                     <ToggleGroupItem
                       value={CASH_FIXED_INCOME_CATEGORY_ID}
@@ -355,7 +397,9 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
               name="trackingMode"
               render={({ field }) => (
                 <FormItem className={cn(formCardClassName, "space-y-4")}>
-                  <FormLabel className={formSectionLabelClassName}>Tracking Mode</FormLabel>
+                  <FormLabel className={formSectionLabelClassName}>
+                    {isChinese ? "跟踪模式" : "Tracking Mode"}
+                  </FormLabel>
                   {needsSetup && !currentTrackingMode && (
                     <Alert
                       variant="warning"
@@ -363,15 +407,16 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                     >
                       <Icons.AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-xs">
-                        Choose how to track this account. This affects what data you enter and what
-                        metrics are available.{" "}
+                        {isChinese
+                          ? "选择此账户的跟踪方式。这会影响你输入的数据以及可用的指标。"
+                          : "Choose how to track this account. This affects what data you enter and what metrics are available."}{" "}
                         <a
                           href="https://wealthfolio.app/docs/concepts/activity-types"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="hover:text-foreground underline"
                         >
-                          Learn more
+                          {isChinese ? "了解更多" : "Learn more"}
                         </a>
                       </AlertDescription>
                     </Alert>
@@ -392,9 +437,13 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                       >
                         <RadioGroupItem value="TRANSACTIONS" className="mt-0.5" />
                         <div className="flex flex-col">
-                          <span className="text-sm font-medium">Transactions</span>
+                          <span className="text-sm font-medium">
+                            {isChinese ? "交易" : "Transactions"}
+                          </span>
                           <span className="text-muted-foreground text-xs">
-                            Track every trade for performance analytics
+                            {isChinese
+                              ? "记录每笔交易，用于绩效分析"
+                              : "Track every trade for performance analytics"}
                           </span>
                         </div>
                       </label>
@@ -409,9 +458,13 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                         >
                           <RadioGroupItem value="HOLDINGS" className="mt-0.5" />
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium">Holdings</span>
+                            <span className="text-sm font-medium">
+                              {isChinese ? "持仓" : "Holdings"}
+                            </span>
                             <span className="text-muted-foreground text-xs">
-                              Add holdings directly as snapshots
+                              {isChinese
+                                ? "直接以快照方式添加持仓"
+                                : "Add holdings directly as snapshots"}
                             </span>
                           </div>
                         </label>
@@ -425,14 +478,16 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                     >
                       <Icons.AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-xs">
-                        Performance metrics will be limited without transaction history.{" "}
+                        {isChinese
+                          ? "没有交易历史时，绩效指标会受限。"
+                          : "Performance metrics will be limited without transaction history."}{" "}
                         <a
                           href="https://wealthfolio.app/docs/concepts/activity-types"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="hover:text-foreground underline"
                         >
-                          Learn more
+                          {isChinese ? "了解更多" : "Learn more"}
                         </a>
                       </AlertDescription>
                     </Alert>
@@ -443,7 +498,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
             />
 
             <section className={formCardClassName}>
-              <h3 className={formSectionLabelClassName}>Visibility</h3>
+              <h3 className={formSectionLabelClassName}>{isChinese ? "可见性" : "Visibility"}</h3>
               <div className="mt-4 grid gap-4">
                 <FormField
                   control={form.control}
@@ -452,9 +507,9 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                     <FormItem className="flex items-center justify-between gap-4 space-y-0">
                       <div className="min-w-0">
                         <FormLabel className="text-sm font-normal">
-                          Hide this account
+                          {isChinese ? "隐藏此账户" : "Hide this account"}
                           <span className="text-muted-foreground ml-1 text-xs font-normal">
-                            — keeps in Total & history
+                            {isChinese ? "— 保留在总计和历史中" : "— keeps in Total & history"}
                           </span>
                         </FormLabel>
                         <FormMessage />
@@ -477,9 +532,11 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                       <FormItem className="flex items-center justify-between gap-4 space-y-0">
                         <div className="min-w-0">
                           <FormLabel className="text-sm font-normal">
-                            Archive this account
+                            {isChinese ? "归档此账户" : "Archive this account"}
                             <span className="text-muted-foreground ml-1 text-xs font-normal">
-                              — removes from portfolio, can restore later
+                              {isChinese
+                                ? "— 从投资组合中移除，可稍后恢复"
+                                : "— removes from portfolio, can restore later"}
                             </span>
                           </FormLabel>
                           <FormMessage />
@@ -498,7 +555,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
         <DialogFooter className="gap-2">
           <DialogClose asChild>
             <Button type="button" variant="outline">
-              Cancel
+              {isChinese ? "取消" : "Cancel"}
             </Button>
           </DialogClose>
           <Button type="submit" disabled={needsSetup && !currentTrackingMode}>
@@ -507,7 +564,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
             ) : (
               <Icons.Plus className="h-4 w-4" />
             )}
-            <span>{defaultValues?.id ? "Update Account" : "Add Account"}</span>
+            <span>{submitLabel}</span>
           </Button>
         </DialogFooter>
       </form>
@@ -522,37 +579,44 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                   <Icons.ArrowRightLeft className="h-4 w-4 text-orange-500 dark:text-orange-300" />
                 </div>
                 <AlertDialogTitle className="text-base font-semibold">
-                  Switch to Transactions mode
+                  {isChinese ? "切换到交易模式" : "Switch to Transactions mode"}
                 </AlertDialogTitle>
               </div>
               <AlertDialogDescription>
-                Your account value and performance history will be rebuilt entirely from
-                transactions. Existing holdings snapshots will be deleted.
+                {isChinese
+                  ? "账户价值和绩效历史将完全根据交易重建。现有持仓快照会被删除。"
+                  : "Your account value and performance history will be rebuilt entirely from transactions. Existing holdings snapshots will be deleted."}
               </AlertDialogDescription>
             </AlertDialogHeader>
 
             {/* Checklist */}
             <div className="mt-4 rounded-lg border border-orange-100/40 bg-orange-100/30 p-3 dark:border-orange-100/20 dark:bg-orange-100/20">
               <p className="mb-2 text-xs font-medium text-orange-600 dark:text-orange-200">
-                Make sure your transactions are complete
+                {isChinese ? "请确保交易记录完整" : "Make sure your transactions are complete"}
               </p>
               <ul className="space-y-2 text-[13px]">
                 <li className="flex items-start gap-2">
                   <Icons.Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-500 dark:text-orange-300" />
                   <span className="text-orange-500 dark:text-orange-200">
-                    All buys, sells, deposits &amp; withdrawals are recorded
+                    {isChinese
+                      ? "所有买入、卖出、存入和取出都已记录"
+                      : "All buys, sells, deposits & withdrawals are recorded"}
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Icons.Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-500 dark:text-orange-300" />
                   <span className="text-orange-500 dark:text-orange-200">
-                    Dates, quantities &amp; prices are accurate
+                    {isChinese
+                      ? "日期、数量和价格准确无误"
+                      : "Dates, quantities & prices are accurate"}
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Icons.AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-600 dark:text-orange-300" />
                   <span className="text-orange-500 dark:text-orange-200">
-                    Gaps in history will lead to incorrect balances &amp; returns
+                    {isChinese
+                      ? "历史记录缺口会导致余额和收益不准确"
+                      : "Gaps in history will lead to incorrect balances & returns"}
                   </span>
                 </li>
               </ul>
@@ -560,8 +624,12 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
           </div>
 
           <AlertDialogFooter className="bg-muted/30 border-t px-5 py-3">
-            <AlertDialogCancel onClick={handleCancelModeSwitch}>Keep Holdings</AlertDialogCancel>
-            <Button onClick={handleConfirmModeSwitch}>Switch to Transactions</Button>
+            <AlertDialogCancel onClick={handleCancelModeSwitch}>
+              {isChinese ? "保留持仓模式" : "Keep Holdings"}
+            </AlertDialogCancel>
+            <Button onClick={handleConfirmModeSwitch}>
+              {isChinese ? "切换到交易模式" : "Switch to Transactions"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -1,4 +1,5 @@
 import { searchTicker } from "@/adapters";
+import { useI18n } from "@/i18n/i18n-provider";
 import { getExchangeDisplayName } from "@/lib/constants";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { SymbolSearchResult } from "@/lib/types";
@@ -62,6 +63,8 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
     const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
     const baseSetOpen = onOpenChange !== undefined ? onOpenChange : setInternalOpen;
     const { settings } = useSettingsContext();
+    const { language } = useI18n();
+    const isChinese = language === "zh-CN";
 
     const [searchQuery, setSearchQuery] = useState("");
     const [showCustomAssetForm, setShowCustomAssetForm] = useState(false);
@@ -195,8 +198,10 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                       <Icons.ArrowLeft className="h-5 w-5" />
                     </button>
                     <div className="flex-1">
-                      <SheetTitle>Create Custom Asset</SheetTitle>
-                      <SheetDescription>Track assets with manual pricing</SheetDescription>
+                      <SheetTitle>{isChinese ? "创建自定义资产" : "Create Custom Asset"}</SheetTitle>
+                      <SheetDescription>
+                        {isChinese ? "跟踪使用手动定价的资产" : "Track assets with manual pricing"}
+                      </SheetDescription>
                     </div>
                   </div>
                 </SheetHeader>
@@ -207,7 +212,9 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                     <div className="form-mobile-spacing px-6 py-4">
                       {/* Symbol */}
                       <div className="space-y-2">
-                        <label className="text-base font-medium">Symbol / Ticker</label>
+                        <label className="text-base font-medium">
+                          {isChinese ? "代码 / Ticker" : "Symbol / Ticker"}
+                        </label>
                         <Input
                           placeholder="e.g., MYCOIN"
                           value={customSymbol}
@@ -219,9 +226,11 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
 
                       {/* Name */}
                       <div className="space-y-2">
-                        <label className="text-base font-medium">Name</label>
+                        <label className="text-base font-medium">
+                          {isChinese ? "名称" : "Name"}
+                        </label>
                         <Input
-                          placeholder="e.g., My Custom Coin"
+                          placeholder={isChinese ? "例如：我的自定义币" : "e.g., My Custom Coin"}
                           value={customName}
                           onChange={(e) => setCustomName(e.target.value)}
                         />
@@ -230,7 +239,9 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                       {/* Asset Type and Currency - side by side */}
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-2">
-                          <label className="text-base font-medium">Asset Type</label>
+                          <label className="text-base font-medium">
+                            {isChinese ? "资产类型" : "Asset Type"}
+                          </label>
                           <Select
                             value={customAssetType}
                             onValueChange={(value) =>
@@ -251,7 +262,9 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                         </div>
 
                         <div className="space-y-2">
-                          <label className="text-base font-medium">Currency</label>
+                          <label className="text-base font-medium">
+                            {isChinese ? "货币" : "Currency"}
+                          </label>
                           <CurrencyInput value={customCurrency} onChange={setCustomCurrency} />
                         </div>
                       </div>
@@ -267,7 +280,7 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                       className="flex-1"
                       type="button"
                     >
-                      Cancel
+                      {isChinese ? "取消" : "Cancel"}
                     </Button>
                     <Button
                       size="lg"
@@ -278,7 +291,7 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                       }
                       type="button"
                     >
-                      Create Asset
+                      {isChinese ? "创建资产" : "Create Asset"}
                     </Button>
                   </div>
                 </div>
@@ -287,9 +300,11 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
               <>
                 {/* Search View Header */}
                 <SheetHeader className="border-border border-b px-6 py-4">
-                  <SheetTitle>Select Symbol</SheetTitle>
+                  <SheetTitle>{isChinese ? "选择代码" : "Select Symbol"}</SheetTitle>
                   <SheetDescription>
-                    Search for a stock, ETF, crypto, or other asset
+                    {isChinese
+                      ? "搜索股票、ETF、加密货币或其他资产"
+                      : "Search for a stock, ETF, crypto, or other asset"}
                   </SheetDescription>
                 </SheetHeader>
 
@@ -300,7 +315,7 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                       <Icons.Search className="text-muted-foreground absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2" />
                       <input
                         type="text"
-                        placeholder="Search symbols..."
+                        placeholder={isChinese ? "搜索代码..." : "Search symbols..."}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="bg-background border-input ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring h-14 w-full rounded-md border px-4 py-3 pl-12 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
@@ -315,7 +330,7 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                     {isLoading && searchQuery.length > 1 && (
                       <div className="space-y-3">
                         <div className="text-muted-foreground text-sm font-medium">
-                          Searching...
+                          {isChinese ? "搜索中..." : "Searching..."}
                         </div>
                         <Skeleton className="h-16 w-full rounded-xl" />
                         <Skeleton className="h-16 w-full rounded-xl" />
@@ -326,7 +341,9 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                     {/* Error state */}
                     {isError && searchQuery.length > 1 && (
                       <div className="text-muted-foreground py-8 text-center text-sm">
-                        Error searching for symbols. Please try again.
+                        {isChinese
+                          ? "搜索代码时出错。请重试。"
+                          : "Error searching for symbols. Please try again."}
                       </div>
                     )}
 
@@ -370,7 +387,9 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                     {searchQuery.length === 0 && (
                       <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-center text-sm">
                         <Icons.Search className="h-12 w-12 opacity-20" />
-                        <p>Start typing to search for symbols</p>
+                        <p>
+                          {isChinese ? "开始输入以搜索代码" : "Start typing to search for symbols"}
+                        </p>
                       </div>
                     )}
 
@@ -381,15 +400,23 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                       sortedSearchResults.length === 0 &&
                       searchQuery.length > 1 && (
                         <div className="text-muted-foreground py-8 text-center text-sm">
-                          <p>No matches found for &quot;{searchQuery}&quot;</p>
-                          <p className="mt-2 text-xs">You can create a custom asset below.</p>
+                          <p>
+                            {isChinese
+                              ? `未找到 “${searchQuery}” 的匹配项`
+                              : `No matches found for "${searchQuery}"`}
+                          </p>
+                          <p className="mt-2 text-xs">
+                            {isChinese
+                              ? "你可以在下方创建自定义资产。"
+                              : "You can create a custom asset below."}
+                          </p>
                         </div>
                       )}
 
                     {/* Too short query state */}
                     {searchQuery.length > 0 && searchQuery.length <= 1 && (
                       <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-                        Type at least 2 characters to search.
+                        {isChinese ? "至少输入 2 个字符以搜索。" : "Type at least 2 characters to search."}
                       </div>
                     )}
 
@@ -405,11 +432,17 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                             <Icons.Plus className="text-muted-foreground h-5 w-5" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="text-foreground font-medium">Create custom asset</div>
+                            <div className="text-foreground font-medium">
+                              {isChinese ? "创建自定义资产" : "Create custom asset"}
+                            </div>
                             <div className="text-muted-foreground mt-0.5 text-sm">
                               {searchQuery.trim()
-                                ? `Create "${searchQuery.trim().toUpperCase()}" with manual pricing`
-                                : "Track assets not found in market data"}
+                                ? isChinese
+                                  ? `创建使用手动定价的 “${searchQuery.trim().toUpperCase()}”`
+                                  : `Create "${searchQuery.trim().toUpperCase()}" with manual pricing`
+                                : isChinese
+                                  ? "跟踪市场数据中找不到的资产"
+                                  : "Track assets not found in market data"}
                             </div>
                           </div>
                           <Icons.ChevronRight className="text-muted-foreground h-5 w-5 shrink-0" />

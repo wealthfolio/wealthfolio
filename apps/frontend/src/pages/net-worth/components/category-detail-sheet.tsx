@@ -1,3 +1,5 @@
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateUiText } from "@/i18n/ui-text";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { CategoryTrendChart } from "./category-trend-chart";
@@ -77,6 +79,8 @@ export function CategoryDetailSheet({
   currency,
   periodLabel,
 }: CategoryDetailSheetProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const trend = selected
     ? history.map((point) => ({ date: point.date, value: point.breakdown[selected.key] ?? 0 }))
     : [];
@@ -94,7 +98,7 @@ export function CategoryDetailSheet({
             <SheetHeader className="mt-4">
               <SheetTitle className="flex items-center gap-2.5">
                 <CategoryAvatar selected={selected} />
-                {selected.name}
+                {translateUiText(language, selected.name)}
               </SheetTitle>
             </SheetHeader>
 
@@ -116,20 +120,24 @@ export function CategoryDetailSheet({
                     {sign}
                     {formatChangePercent(change.percent)}
                   </span>
-                  <span className="text-muted-foreground font-normal">over {periodLabel}</span>
+                  <span className="text-muted-foreground font-normal">
+                    {isChinese ? `${periodLabel}期间` : `over ${periodLabel}`}
+                  </span>
                 </div>
               </div>
 
               {/* Trend */}
               <div>
-                <p className={`${CARD_LABEL} pb-2`}>Trend · {periodLabel}</p>
+                <p className={`${CARD_LABEL} pb-2`}>
+                  {isChinese ? `趋势 · ${periodLabel}` : `Trend · ${periodLabel}`}
+                </p>
                 <CategoryTrendChart data={trend} color={toneColor(change.amount)} />
               </div>
 
               {/* Items rolled into this category */}
               {selected.children.length > 0 && (
                 <div>
-                  <p className={`${CARD_LABEL} pb-1`}>Items</p>
+                  <p className={`${CARD_LABEL} pb-1`}>{isChinese ? "项目" : "Items"}</p>
                   <div className="divide-border/40 divide-y">
                     {selected.children.map((child, index) => (
                       <div

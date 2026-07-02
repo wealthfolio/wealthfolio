@@ -1,4 +1,5 @@
 import { Button, Icons } from "@wealthfolio/ui";
+import { useI18n } from "@/i18n/i18n-provider";
 
 interface ActivityPaginationProps {
   hasMore: boolean;
@@ -15,14 +16,25 @@ export function ActivityPagination({
   totalFetched,
   totalCount,
 }: ActivityPaginationProps) {
+  const { language } = useI18n();
+  const countLabel =
+    language === "zh-CN"
+      ? `${totalFetched} / ${totalCount} 条活动`
+      : `${totalFetched} / ${totalCount} activities`;
+  const loadMoreLabel = isFetching
+    ? language === "zh-CN"
+      ? "加载中…"
+      : "Loading…"
+    : language === "zh-CN"
+      ? "加载更多..."
+      : "Load more...";
+
   return (
     <div className="my-3 flex shrink-0 flex-col gap-3 sm:gap-4">
       <div className="relative flex flex-col items-center justify-center gap-2 sm:flex-row">
         <div className="text-muted-foreground order-2 flex items-center gap-2 text-xs sm:absolute sm:left-0 sm:order-1">
           {isFetching && !hasMore ? <Icons.Spinner className="h-4 w-4 animate-spin" /> : null}
-          <span>
-            {totalFetched} / {totalCount} activities
-          </span>
+          <span>{countLabel}</span>
         </div>
         {hasMore && (
           <Button
@@ -36,7 +48,7 @@ export function ActivityPagination({
             ) : (
               <Icons.ChevronDown className="h-4 w-4" />
             )}
-            {isFetching ? "Loading…" : "Load more..."}
+            {loadMoreLabel}
           </Button>
         )}
       </div>

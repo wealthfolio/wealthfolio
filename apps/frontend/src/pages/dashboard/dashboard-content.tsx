@@ -4,6 +4,7 @@ import { useHapticFeedback } from "@/hooks";
 import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { useHoldings } from "@/hooks/use-holdings";
 import { useValuationHistory } from "@/hooks/use-valuation-history";
+import { useI18n } from "@/i18n/i18n-provider";
 import { HoldingType, isAlternativeAssetKind } from "@/lib/constants";
 import { performanceSummaryReturn, performancePeriodPnl } from "@/lib/performance";
 import { QueryKeys } from "@/lib/query-keys";
@@ -21,7 +22,7 @@ import {
 } from "@wealthfolio/ui";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { format } from "date-fns";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AccountsSummary } from "./accounts-summary";
 import Balance from "./balance";
 import SavingGoals from "./goals";
@@ -71,15 +72,17 @@ function getDashboardNetContributionMaxDomainSpanRatio(period: UITimePeriod): nu
 }
 
 export function DashboardContent() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   // Use the same persisted state as IntervalSelector for the interval code
   const [intervalCode] = usePersistentState<UITimePeriod>(INTERVAL_STORAGE_KEY, DEFAULT_INTERVAL);
 
   // Derive initial values from the persisted interval code
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
-    () => getInitialIntervalData(intervalCode).range,
+    () => getInitialIntervalData(intervalCode, language).range,
   );
   const [selectedIntervalDescription, setSelectedIntervalDescription] = useState<string>(
-    () => getInitialIntervalData(intervalCode).description,
+    () => getInitialIntervalData(intervalCode, language).description,
   );
   const [selectedInterval, setSelectedInterval] = useState<UITimePeriod>(() => intervalCode);
   const [isAllTime, setIsAllTime] = useState<boolean>(() => intervalCode === "ALL");
@@ -167,6 +170,10 @@ export function DashboardContent() {
 
   const isNegative = totalValue < 0;
 
+  useEffect(() => {
+    setSelectedIntervalDescription(getInitialIntervalData(selectedInterval, language).description);
+  }, [language, selectedInterval]);
+
   // Callback for IntervalSelector
   const handleIntervalSelect = (
     code: TimePeriod,
@@ -194,6 +201,7 @@ export function DashboardContent() {
                 targetValue={totalValue}
                 currency={baseCurrency}
                 displayCurrency={true}
+                language={language}
               />
               <div className="text-md flex min-h-5 items-center space-x-3">
                 {isPortfolioPerformanceLoading ? (
@@ -206,7 +214,7 @@ export function DashboardContent() {
                   <>
                     {gainLossAmount == null ? (
                       <span className="text-muted-foreground lg:text-md text-sm font-light">
-                        N/A
+                        {isChinese ? "暂无" : "N/A"}
                       </span>
                     ) : (
                       <GainAmount
@@ -219,7 +227,7 @@ export function DashboardContent() {
                     <div className="border-secondary my-1 border-r pr-2" />
                     {simpleReturn == null ? (
                       <span className="text-muted-foreground lg:text-md text-sm font-light">
-                        N/A
+                        {isChinese ? "暂无" : "N/A"}
                       </span>
                     ) : (
                       <GainPercent
@@ -265,6 +273,7 @@ export function DashboardContent() {
                 isLoading={isValuationHistoryLoading}
                 storageKey={INTERVAL_STORAGE_KEY}
                 defaultValue={DEFAULT_INTERVAL}
+                language={language}
               />
             </div>
           )}

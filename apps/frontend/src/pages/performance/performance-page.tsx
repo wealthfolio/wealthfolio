@@ -1,4 +1,6 @@
 import { BenchmarkSymbolSelector } from "@/components/benchmark-symbol-selector";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateUiText } from "@/i18n/ui-text";
 import {
   ANNUALIZED_RETURN_INFO as annualizedReturnInfo,
   MAX_DRAWDOWN_INFO as maxDrawdownInfo,
@@ -91,6 +93,15 @@ function trackingModeBadge(result: PerformanceResult): {
     return { label: "Holdings mode", variant: "outline" };
   }
   return null;
+}
+
+function localizePerformanceText(language: string, text: string | undefined): string {
+  if (!text) return "";
+  return language === "zh-CN" ? translateUiText("zh-CN", text) : text;
+}
+
+function localizedPerformanceLabel(language: string, label: string | undefined): string {
+  return localizePerformanceText(language, label);
 }
 
 type ChartExclusionKind = "missingData" | "differentReturnMethod" | "dateOverlap";
@@ -298,13 +309,19 @@ function MetricValue({
   value,
   className,
   tone = "gain",
+  language = "en",
 }: {
   value: number | null;
   className?: string;
   tone?: "gain" | "neutral";
+  language?: string;
 }) {
   if (value == null) {
-    return <span className={cn(className, "text-muted-foreground/50 font-normal")}>N/A</span>;
+    return (
+      <span className={cn(className, "text-muted-foreground/50 font-normal")}>
+        {language === "zh-CN" ? "暂无" : "N/A"}
+      </span>
+    );
   }
 
   if (tone === "neutral") {
@@ -326,6 +343,7 @@ function HeaderMetric({
   align = "center",
   valueClassName,
   reason,
+  language = "en",
 }: {
   label: string;
   infoText: string;
@@ -336,7 +354,9 @@ function HeaderMetric({
   align?: "left" | "center" | "right";
   valueClassName?: string;
   reason?: string;
+  language?: string;
 }) {
+  const localizedLabel = localizePerformanceText(language, label);
   return (
     <div
       className={cn(
@@ -347,10 +367,11 @@ function HeaderMetric({
       )}
     >
       <MetricLabelWithInfo
-        label={label}
+        label={localizedLabel}
         infoText={infoText}
         warningText={warningText}
         boldTerms={boldTerms}
+        language={language}
         className={cn(
           align === "left" && "justify-start",
           align === "center" && "justify-center",
@@ -359,12 +380,13 @@ function HeaderMetric({
       />
       {value == null && reason ? (
         <span className="text-muted-foreground line-clamp-2 max-w-[12rem] text-xs leading-snug">
-          {reason}
+          {localizePerformanceText(language, reason)}
         </span>
       ) : (
         <MetricValue
           value={value}
           tone={tone}
+          language={language}
           className={cn("text-base font-semibold", valueClassName)}
         />
       )}
@@ -384,14 +406,16 @@ function StripSection({
   title,
   className,
   children,
+  language = "en",
 }: {
   title: string;
   className?: string;
   children: React.ReactNode;
+  language?: string;
 }) {
   return (
     <section className={cn(STRIP_SECTION_CLASS, className)}>
-      <div className={STRIP_TITLE_CLASS}>{title}</div>
+      <div className={STRIP_TITLE_CLASS}>{localizePerformanceText(language, title)}</div>
       {children}
     </section>
   );
@@ -403,25 +427,27 @@ function StripMetric({
   tone = "gain",
   reason,
   hasWarning = false,
+  language = "en",
 }: {
   label: string;
   value: number | null;
   tone?: "gain" | "neutral";
   reason?: string;
   hasWarning?: boolean;
+  language?: string;
 }) {
   return (
     <div className="flex min-w-0 flex-col items-start gap-2">
       <div className="flex max-w-full items-center gap-1">
-        <span className={STRIP_LABEL_CLASS}>{label}</span>
+        <span className={STRIP_LABEL_CLASS}>{localizePerformanceText(language, label)}</span>
         {hasWarning && <Icons.AlertTriangle className="text-warning h-3 w-3 shrink-0" />}
       </div>
       {value == null && reason ? (
         <span className="text-muted-foreground line-clamp-2 max-w-[12rem] text-xs leading-snug">
-          {reason}
+          {localizePerformanceText(language, reason)}
         </span>
       ) : (
-        <MetricValue value={value} tone={tone} className={STRIP_VALUE_CLASS} />
+        <MetricValue value={value} tone={tone} language={language} className={STRIP_VALUE_CLASS} />
       )}
     </div>
   );
@@ -433,7 +459,13 @@ interface StripHelpItem {
   warningText?: string | string[];
 }
 
-function StripHelpPopover({ items }: { items: StripHelpItem[] }) {
+function StripHelpPopover({
+  items,
+  language = "en",
+}: {
+  items: StripHelpItem[];
+  language?: string;
+}) {
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -441,7 +473,7 @@ function StripHelpPopover({ items }: { items: StripHelpItem[] }) {
           variant="ghost"
           size="icon"
           className="text-muted-foreground hover:text-foreground absolute right-0 top-0 h-6 w-6 rounded-full"
-          aria-label="Performance metric explanations"
+          aria-label={language === "zh-CN" ? "绩效指标说明" : "Performance metric explanations"}
         >
           <Icons.Info className="h-3.5 w-3.5" />
         </Button>
@@ -449,9 +481,13 @@ function StripHelpPopover({ items }: { items: StripHelpItem[] }) {
       <PopoverContent className="w-[34rem] max-w-[calc(100vw-2rem)] p-0" side="bottom" align="end">
         <div className="space-y-4 p-5">
           <div>
-            <div className="text-sm font-semibold">Performance metrics</div>
+            <div className="text-sm font-semibold">
+              {language === "zh-CN" ? "绩效指标" : "Performance metrics"}
+            </div>
             <div className="text-muted-foreground mt-1 text-xs">
-              Explanations and calculation notes for the selected item.
+              {language === "zh-CN"
+                ? "所选项目的说明和计算备注。"
+                : "Explanations and calculation notes for the selected item."}
             </div>
           </div>
           <div className="space-y-3">
@@ -473,15 +509,17 @@ function StripHelpPopover({ items }: { items: StripHelpItem[] }) {
                   key={item.label}
                   className="border-border/60 border-t pt-3 first:border-t-0 first:pt-0"
                 >
-                  <div className="text-xs font-semibold">{item.label}</div>
+                  <div className="text-xs font-semibold">
+                    {localizePerformanceText(language, item.label)}
+                  </div>
                   <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-                    {item.infoText}
+                    {localizePerformanceText(language, item.infoText)}
                   </p>
                   {warnings.length > 0 && (
                     <div className="mt-2 space-y-1">
                       {warnings.map((warning) => (
                         <div key={warning} className="text-warning text-xs leading-relaxed">
-                          {warning}
+                          {localizePerformanceText(language, warning)}
                         </div>
                       ))}
                     </div>
@@ -549,18 +587,24 @@ function AttributionRows({
   rows,
   currency,
   amountTone = "semantic",
+  language,
 }: {
   rows: AttributionRow[];
   currency: string;
   amountTone?: "semantic" | "neutral";
+  language: string;
 }) {
   return (
     <div className="border-border/60 divide-border/60 divide-y divide-dashed border-y">
       {rows.map((row) => (
         <div key={row.label} className="flex items-start justify-between gap-4 py-3.5">
           <div className="min-w-0">
-            <div className="text-sm font-medium">{row.label}</div>
-            <div className="text-muted-foreground mt-1 text-xs">{row.description}</div>
+            <div className="text-sm font-medium">
+              {localizePerformanceText(language, row.label)}
+            </div>
+            <div className="text-muted-foreground mt-1 text-xs">
+              {localizePerformanceText(language, row.description)}
+            </div>
           </div>
           <AttributionAmount
             value={row.value}
@@ -586,6 +630,7 @@ function AttributionDetailMetric({
   labelClassName,
   valueClassName,
   align = "center",
+  language = "en",
 }: {
   result: PerformanceResult | null;
   itemName?: string;
@@ -598,8 +643,10 @@ function AttributionDetailMetric({
   labelClassName?: string;
   valueClassName?: string;
   align?: "left" | "center" | "right";
+  language?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const isChinese = language === "zh-CN";
   if (!result || result.mode === "symbolPriceBased") return null;
   const periodPnl = performancePeriodPnl(result);
   if (periodPnl == null) return null;
@@ -661,7 +708,7 @@ function AttributionDetailMetric({
         labelClassName,
       )}
     >
-      <span>{label}</span>
+      <span>{localizedPerformanceLabel(language, label)}</span>
       {showLabelIcon && <Icons.Info className="h-3 w-3" />}
     </div>
   );
@@ -704,7 +751,9 @@ function AttributionDetailMetric({
       >
         {sectionTitle ? (
           <div className="w-full min-w-0">
-            <div className={STRIP_TITLE_CLASS}>{sectionTitle}</div>
+            <div className={STRIP_TITLE_CLASS}>
+              {localizedPerformanceLabel(language, sectionTitle)}
+            </div>
             <div className="flex min-w-0 flex-col items-start gap-2">
               {labelNode}
               {amountNode}
@@ -729,9 +778,11 @@ function AttributionDetailMetric({
         <SheetHeader className="border-border border-b px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 space-y-2">
-              <SheetTitle className="text-xl">Attribution</SheetTitle>
+              <SheetTitle className="text-xl">{isChinese ? "归因" : "Attribution"}</SheetTitle>
               <SheetDescription className="truncate">
-                {[itemName, dateRangeLabel].filter(Boolean).join(" · ")}
+                {[itemName, localizePerformanceText(language, dateRangeLabel)]
+                  .filter(Boolean)
+                  .join(" · ")}
               </SheetDescription>
             </div>
             <SheetClose asChild>
@@ -741,13 +792,13 @@ function AttributionDetailMetric({
                 className="text-muted-foreground h-8 w-8 shrink-0"
               >
                 <Icons.X className="h-4 w-4" />
-                <span className="sr-only">Close attribution</span>
+                <span className="sr-only">{isChinese ? "关闭归因" : "Close attribution"}</span>
               </Button>
             </SheetClose>
           </div>
           <div className="pt-3">
             <div className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
-              Period gain/loss
+              {isChinese ? "期间盈亏" : "Period gain/loss"}
             </div>
             <AttributionAmount
               value={periodPnl}
@@ -759,20 +810,27 @@ function AttributionDetailMetric({
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-2">
           <div className="py-3.5">
             <div className="text-muted-foreground mb-3 text-xs font-medium uppercase tracking-wide">
-              Performance drivers
+              {isChinese ? "绩效驱动" : "Performance drivers"}
             </div>
-            <AttributionRows rows={driverRows} currency={currency} />
+            <AttributionRows rows={driverRows} currency={currency} language={language} />
           </div>
 
           <div className="py-3.5">
             <div className="text-muted-foreground mb-3 text-xs font-medium uppercase tracking-wide">
-              Cash flows
+              {isChinese ? "现金流" : "Cash flows"}
             </div>
-            <AttributionRows rows={flowRows} currency={currency} amountTone="neutral" />
+            <AttributionRows
+              rows={flowRows}
+              currency={currency}
+              amountTone="neutral"
+              language={language}
+            />
           </div>
         </div>
         <div className="border-border bg-background flex items-center justify-between gap-4 border-t px-6 py-4">
-          <div className="text-xs font-medium uppercase tracking-wide">Total gain/loss</div>
+          <div className="text-xs font-medium uppercase tracking-wide">
+            {isChinese ? "总盈亏" : "Total gain/loss"}
+          </div>
           <AttributionAmount
             value={periodPnl}
             currency={currency}
@@ -790,13 +848,16 @@ function PerformanceContent({
   hasErrors,
   errorMessages,
   isMobile,
+  language = "en",
 }: {
   chartData: ChartDataItem[] | undefined;
   isLoading: boolean;
   hasErrors: boolean;
   errorMessages: string[];
   isMobile: boolean;
+  language?: string;
 }) {
+  const isChinese = language === "zh-CN";
   return (
     <div className="relative flex h-full w-full flex-col">
       {chartData && chartData.length > 0 && (
@@ -813,8 +874,12 @@ function PerformanceContent({
         <EmptyPlaceholder
           className="mx-auto flex max-w-[420px] items-center justify-center"
           icon={<Icons.BarChart className="h-10 w-10" />}
-          title="No performance data"
-          description="Select accounts to compare their performance over time."
+          title={isChinese ? "暂无绩效数据" : "No performance data"}
+          description={
+            isChinese
+              ? "选择账户以比较其随时间的绩效。"
+              : "Select accounts to compare their performance over time."
+          }
         />
       )}
 
@@ -828,7 +893,7 @@ function PerformanceContent({
             <div className="bg-background/80 rounded-md border px-3 py-1.5 shadow-sm backdrop-blur-sm">
               <p className="text-muted-foreground flex items-center text-xs font-medium">
                 <span className="bg-primary mr-2 inline-block h-2 w-2 animate-pulse rounded-full"></span>
-                Calculating...
+                {isChinese ? "计算中..." : "Calculating..."}
               </p>
             </div>
           </div>
@@ -838,17 +903,20 @@ function PerformanceContent({
       {/* Error display using AlertFeedback component */}
       {hasErrors && (
         <div className="w-full">
-          <AlertFeedback title="Error calculating performance data" variant="error">
+          <AlertFeedback
+            title={isChinese ? "绩效数据计算失败" : "Error calculating performance data"}
+            variant="error"
+          >
             <div>
               {errorMessages.map((error, index) => (
                 <p key={index} className="text-sm">
-                  {error}
+                  {localizePerformanceText(isChinese ? "zh-CN" : "en", error)}
                 </p>
               ))}
             </div>
             <div className="mt-4 flex justify-end">
               <Button size="sm" onClick={() => window.location.reload()} variant="default">
-                Retry
+                {isChinese ? "重试" : "Retry"}
               </Button>
             </div>
           </AlertFeedback>
@@ -864,6 +932,7 @@ const SelectedItemBadge = ({
   isPlotted,
   plotReason,
   contextLabel,
+  isChinese,
   onSelect,
   onDelete,
   color,
@@ -873,6 +942,7 @@ const SelectedItemBadge = ({
   isPlotted: boolean;
   plotReason?: string;
   contextLabel?: string;
+  isChinese: boolean;
   onSelect: () => void;
   onDelete: (e: React.MouseEvent) => void;
   color?: string;
@@ -891,7 +961,9 @@ const SelectedItemBadge = ({
       role="button"
       variant="secondary"
       tabIndex={0}
-      title={plotReason}
+      title={
+        plotReason ? localizePerformanceText(isChinese ? "zh-CN" : "en", plotReason) : undefined
+      }
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -919,12 +991,12 @@ const SelectedItemBadge = ({
         </span>
         {!isPlotted && (
           <span className="bg-background/70 text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium">
-            Not plotted
+            {isChinese ? "未绘制" : "Not plotted"}
           </span>
         )}
         {isPlotted && contextLabel && (
           <span className="bg-background/70 text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium">
-            {contextLabel}
+            {isChinese ? translateUiText("zh-CN", contextLabel) : contextLabel}
           </span>
         )}
       </div>
@@ -937,7 +1009,7 @@ const SelectedItemBadge = ({
           "focus-visible:ring-destructive/50 focus-visible:ring-2",
         )}
         onClick={onDelete}
-        aria-label={`Remove ${item.name}`}
+        aria-label={isChinese ? `移除 ${item.name}` : `Remove ${item.name}`}
       >
         <Icons.Close className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
       </Button>
@@ -946,6 +1018,8 @@ const SelectedItemBadge = ({
 };
 
 export default function PerformancePage() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const isMobile = useIsMobileViewport();
   const [storedSelectedItems, setSelectedItems] = usePersistentState<TrackedItem[]>(
     "performance:selectedItems",
@@ -1408,6 +1482,7 @@ export default function PerformancePage() {
                             ? "Reference"
                             : undefined
                         }
+                        isChinese={isChinese}
                         onSelect={() => handleBadgeSelect(item)}
                         onDelete={(e) => handleBadgeDelete(e, item)}
                         color={plotState.isPlotted ? chartColorMap.get(item.id) : undefined}
@@ -1426,7 +1501,7 @@ export default function PerformancePage() {
                 variant="outline"
                 size="icon"
                 className="bg-secondary/30 hover:bg-muted/80 size-9 flex-shrink-0 rounded-md border-[1.5px] border-none"
-                aria-label="Add item"
+                aria-label={isChinese ? "添加项目" : "Add item"}
               >
                 <Icons.Plus className="h-4 w-4" />
               </Button>
@@ -1434,14 +1509,14 @@ export default function PerformancePage() {
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem onSelect={() => setAccountSheetOpen(true)} className="py-4 md:py-2">
                 <Icons.Briefcase className="mr-2 h-4 w-4" />
-                Add Account
+                {isChinese ? "添加账户" : "Add Account"}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => setBenchmarkSheetOpen(true)}
                 className="py-4 md:py-2"
               >
                 <Icons.TrendingUp className="mr-2 h-4 w-4" />
-                Add Benchmark
+                {isChinese ? "添加基准" : "Add Benchmark"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1474,6 +1549,7 @@ export default function PerformancePage() {
                               ? "Reference"
                               : undefined
                           }
+                          isChinese={isChinese}
                           onSelect={() => handleBadgeSelect(item)}
                           onDelete={(e) => handleBadgeDelete(e, item)}
                           color={plotState.isPlotted ? chartColorMap.get(item.id) : undefined}
@@ -1494,7 +1570,7 @@ export default function PerformancePage() {
             <AccountSelector
               setSelectedAccount={handleAccountSelect}
               variant="button"
-              buttonText="Add account"
+              buttonText={isChinese ? "添加账户" : "Add account"}
               includePortfolio={true}
               accountPurpose={AccountPurpose.PERFORMANCE}
               onPortfolioSelect={handlePortfolioSelect}
@@ -1541,7 +1617,7 @@ export default function PerformancePage() {
                   )}
                 >
                   <CardTitle className={cn("min-w-0 text-lg sm:text-xl", isMobile && "text-sm")}>
-                    Performance
+                    {isChinese ? "绩效" : "Performance"}
                   </CardTitle>
                   <CardDescription
                     className={cn(
@@ -1560,7 +1636,10 @@ export default function PerformancePage() {
                         !isMobile && "col-start-1 mt-1 w-fit 2xl:mt-2",
                       )}
                     >
-                      {selectedItemData.trackingModeBadge.label}
+                      {localizedPerformanceLabel(
+                        language,
+                        selectedItemData.trackingModeBadge.label,
+                      )}
                     </Badge>
                   )}
                 </div>
@@ -1580,7 +1659,10 @@ export default function PerformancePage() {
                           <CarouselItem className="basis-[42%] pl-2">
                             <div className="bg-muted/30 rounded-lg px-3 py-2">
                               <HeaderMetric
-                                label={selectedItemData?.mobileLabel ?? "Return"}
+                                label={localizedPerformanceLabel(
+                                  language,
+                                  selectedItemData?.mobileLabel ?? "Return",
+                                )}
                                 infoText={selectedItemData?.infoText ?? SIMPLE_RETURN_INFO}
                                 warningText={selectedItemData?.returnWarnings}
                                 boldTerms={selectedItemData?.warningTerms}
@@ -1588,6 +1670,7 @@ export default function PerformancePage() {
                                 reason={selectedItemData?.selectedMetricReason}
                                 align="left"
                                 valueClassName="text-base"
+                                language={language}
                               />
                             </div>
                           </CarouselItem>
@@ -1596,13 +1679,14 @@ export default function PerformancePage() {
                               <HeaderMetric
                                 label={
                                   selectedItemData?.annualizedReturnLabel === "Annualized TWR"
-                                    ? "Ann. TWR"
-                                    : "Annualized"
+                                    ? localizedPerformanceLabel(language, "Ann. TWR")
+                                    : localizedPerformanceLabel(language, "Annualized")
                                 }
                                 infoText={annualizedReturnInfo}
                                 value={selectedItemData?.annualizedReturn ?? null}
                                 align="left"
                                 valueClassName="text-base"
+                                language={language}
                               />
                             </div>
                           </CarouselItem>
@@ -1610,13 +1694,17 @@ export default function PerformancePage() {
                             <CarouselItem className="basis-[42%] pl-2">
                               <div className="bg-muted/30 rounded-lg px-3 py-2">
                                 <HeaderMetric
-                                  label={selectedItemData.moneyWeightedReturnMobileLabel}
+                                  label={localizedPerformanceLabel(
+                                    language,
+                                    selectedItemData.moneyWeightedReturnMobileLabel,
+                                  )}
                                   infoText={MONEY_WEIGHTED_RETURN_INFO}
                                   warningText={selectedItemData.moneyWeightedWarnings}
                                   value={selectedItemData.moneyWeightedReturn}
                                   reason={selectedItemData.moneyWeightedReason}
                                   align="left"
                                   valueClassName="text-base"
+                                  language={language}
                                 />
                               </div>
                             </CarouselItem>
@@ -1624,24 +1712,26 @@ export default function PerformancePage() {
                           <CarouselItem className="basis-[42%] pl-2">
                             <div className="bg-muted/30 rounded-lg px-3 py-2">
                               <HeaderMetric
-                                label="Volatility"
+                                label={localizedPerformanceLabel(language, "Volatility")}
                                 infoText={volatilityInfo}
                                 warningText={selectedItemData?.volatilityWarnings}
                                 value={selectedItemData?.volatility ?? null}
                                 tone="neutral"
                                 align="left"
                                 valueClassName="text-base"
+                                language={language}
                               />
                             </div>
                           </CarouselItem>
                           <CarouselItem className="basis-[42%] pl-2">
                             <div className="bg-muted/30 rounded-lg px-3 py-2">
                               <HeaderMetric
-                                label="Max Drawdown"
+                                label={localizedPerformanceLabel(language, "Max Drawdown")}
                                 infoText={maxDrawdownInfo}
                                 value={selectedItemData?.maxDrawdown ?? null}
                                 align="left"
                                 valueClassName="text-base"
+                                language={language}
                               />
                             </div>
                           </CarouselItem>
@@ -1655,6 +1745,7 @@ export default function PerformancePage() {
                                 align="left"
                                 className="bg-muted/30 hover:bg-muted/50 h-auto rounded-lg px-3 py-2"
                                 valueClassName="text-base"
+                                language={language}
                               />
                             </CarouselItem>
                           )}
@@ -1663,7 +1754,10 @@ export default function PerformancePage() {
                     ) : (
                       <div className="relative w-full overflow-x-auto pb-1 pr-8 2xl:w-auto 2xl:overflow-visible">
                         {selectedItemData && (
-                          <StripHelpPopover items={selectedItemData.helpItems} />
+                          <StripHelpPopover
+                            items={selectedItemData.helpItems}
+                            language={language}
+                          />
                         )}
                         <div className="flex min-w-max items-stretch justify-start 2xl:justify-end">
                           <StripSection
@@ -1671,6 +1765,7 @@ export default function PerformancePage() {
                             className={
                               selectedItemData?.showMoneyWeightedReturn ? "w-[28rem]" : "w-[19rem]"
                             }
+                            language={language}
                           >
                             <div
                               className={cn(
@@ -1688,6 +1783,7 @@ export default function PerformancePage() {
                                   selectedItemData?.returnWarnings.length ||
                                   selectedItemData?.selectedMetricReason,
                                 )}
+                                language={language}
                               />
                               {selectedItemData?.showMoneyWeightedReturn && (
                                 <StripMetric
@@ -1697,26 +1793,30 @@ export default function PerformancePage() {
                                   hasWarning={Boolean(
                                     selectedItemData.moneyWeightedWarnings.length,
                                   )}
+                                  language={language}
                                 />
                               )}
                               <StripMetric
                                 label="Annualized"
                                 value={selectedItemData?.annualizedReturn ?? null}
+                                language={language}
                               />
                             </div>
                           </StripSection>
 
-                          <StripSection title="Risk" className="w-[19rem]">
+                          <StripSection title="Risk" className="w-[19rem]" language={language}>
                             <div className="grid grid-cols-2 gap-5">
                               <StripMetric
                                 label="Volatility"
                                 value={selectedItemData?.volatility ?? null}
                                 tone="neutral"
                                 hasWarning={Boolean(selectedItemData?.volatilityWarnings.length)}
+                                language={language}
                               />
                               <StripMetric
                                 label="Max drawdown"
                                 value={selectedItemData?.maxDrawdown ?? null}
+                                language={language}
                               />
                             </div>
                           </StripSection>
@@ -1732,6 +1832,7 @@ export default function PerformancePage() {
                               showLabelIcon={false}
                               align="left"
                               className="w-[11.75rem]"
+                              language={language}
                             />
                           )}
                         </div>
@@ -1750,10 +1851,15 @@ export default function PerformancePage() {
                     </div>
                     <div className="min-w-0">
                       <div className="text-foreground font-medium">
-                        {comparisonNotice.count} selected{" "}
-                        {comparisonNotice.count === 1 ? "item is" : "items are"} not plotted
+                        {isChinese
+                          ? `${comparisonNotice.count} 项未绘制`
+                          : `${comparisonNotice.count} selected ${
+                              comparisonNotice.count === 1 ? "item is" : "items are"
+                            } not plotted`}
                       </div>
-                      <div className="text-muted-foreground mt-0.5">{comparisonNotice.message}</div>
+                      <div className="text-muted-foreground mt-0.5">
+                        {localizePerformanceText(language, comparisonNotice.message)}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1764,6 +1870,7 @@ export default function PerformancePage() {
                     hasErrors={hasErrors}
                     errorMessages={errorMessages}
                     isMobile={isMobile}
+                    language={language}
                   />
                 </div>
               </div>

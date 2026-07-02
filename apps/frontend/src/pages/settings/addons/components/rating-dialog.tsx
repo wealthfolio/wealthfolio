@@ -10,6 +10,7 @@ import {
   StarRating,
   Textarea,
 } from "@wealthfolio/ui";
+import { useI18n } from "@/i18n/i18n-provider";
 import React from "react";
 import { useAddonRatingMutation } from "../hooks/use-addon-rating-mutation";
 
@@ -28,6 +29,8 @@ export function RatingDialog({
   addonName,
   onRatingSubmitted,
 }: RatingDialogProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [rating, setRating] = React.useState<number>(0);
   const [review, setReview] = React.useState("");
 
@@ -68,19 +71,27 @@ export function RatingDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader className="space-y-4 pt-4">
-          <DialogTitle className="text-lg sm:text-xl">Rate {addonName}</DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">
+            {isChinese ? `为 ${addonName} 评分` : `Rate ${addonName}`}
+          </DialogTitle>
           <DialogDescription className="text-sm">
-            Share your experience with this addon to help other users.
+            {isChinese
+              ? "分享你对此插件的体验，帮助其他用户做选择。"
+              : "Share your experience with this addon to help other users."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-8">
           {/* Star Rating */}
           <div className="flex flex-col items-center space-y-6">
-            <span className="text-center text-sm font-medium">How would you rate this addon?</span>
+            <span className="text-center text-sm font-medium">
+              {isChinese ? "你会如何评价这个插件？" : "How would you rate this addon?"}
+            </span>
             <StarRating rating={rating} interactive onRatingChange={setRating} size="lg" />
             {rating > 0 && (
-              <span className="text-muted-foreground text-sm">{rating} out of 5 stars</span>
+              <span className="text-muted-foreground text-sm">
+                {isChinese ? `${rating} / 5 星` : `${rating} out of 5 stars`}
+              </span>
             )}
           </div>
 
@@ -88,7 +99,9 @@ export function RatingDialog({
           <div className="space-y-2">
             <Textarea
               id="review"
-              placeholder="Share your thoughts about this addon..."
+              placeholder={
+                isChinese ? "分享你对此插件的想法..." : "Share your thoughts about this addon..."
+              }
               value={review}
               onChange={(e) => setReview(e.target.value)}
               rows={4}
@@ -97,7 +110,7 @@ export function RatingDialog({
               className="resize-none"
             />
             <div className="text-muted-foreground text-right text-xs">
-              {review.length}/500 characters
+              {isChinese ? `${review.length}/500 个字符` : `${review.length}/500 characters`}
             </div>
           </div>
         </div>
@@ -109,7 +122,7 @@ export function RatingDialog({
             disabled={isSubmittingRating}
             className="w-full sm:w-auto"
           >
-            Cancel
+            {isChinese ? "取消" : "Cancel"}
           </Button>
           <Button
             onClick={handleSubmit}
@@ -119,10 +132,10 @@ export function RatingDialog({
             {isSubmittingRating ? (
               <>
                 <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
-                Submitting...
+                {isChinese ? "提交中..." : "Submitting..."}
               </>
             ) : (
-              "Submit Rating"
+              isChinese ? "提交评分" : "Submit Rating"
             )}
           </Button>
         </DialogFooter>

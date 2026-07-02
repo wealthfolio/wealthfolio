@@ -26,6 +26,7 @@ import {
 } from "@/features/spending/hooks/use-spending-events";
 import { useSpendingSettings } from "@/features/spending/hooks/use-spending-settings";
 import type { EventType, SpendingEvent } from "@/features/spending/types/event";
+import { useI18n } from "@/i18n/i18n-provider";
 
 import { SettingsHeader } from "../../settings-header";
 import { SpendingBackLink } from "../components/spending-back-link";
@@ -197,6 +198,8 @@ function EventTypeRow({
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
 
   const paletteGroups: ActionPaletteGroup[] = [
     {
@@ -285,15 +288,29 @@ function EventTypeRow({
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete event type</AlertDialogTitle>
+            <AlertDialogTitle>{isChinese ? "删除事件类型" : "Delete event type"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{type.name}&quot;?
-              {hasEvents && (
-                <span className="text-destructive mt-2 block font-medium">
-                  This will also delete all {typeEvents.length} event(s) under this type.
-                </span>
+              {isChinese ? (
+                <>
+                  确定要删除“{type.name}”吗？
+                  {hasEvents && (
+                    <span className="text-destructive mt-2 block font-medium">
+                      这也会删除此类型下的全部 {typeEvents.length} 个事件。
+                    </span>
+                  )}
+                  此操作无法撤销。
+                </>
+              ) : (
+                <>
+                  Are you sure you want to delete &quot;{type.name}&quot;?
+                  {hasEvents && (
+                    <span className="text-destructive mt-2 block font-medium">
+                      This will also delete all {typeEvents.length} event(s) under this type.
+                    </span>
+                  )}
+                  This action cannot be undone.
+                </>
               )}
-              This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -324,6 +341,8 @@ function EventRow({
 }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
 
   const paletteGroups: ActionPaletteGroup[] = [
     {
@@ -400,10 +419,11 @@ function EventRow({
         <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete event</AlertDialogTitle>
+              <AlertDialogTitle>{isChinese ? "删除事件" : "Delete event"}</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete &quot;{event.name}&quot;? This action cannot be
-                undone.
+                {isChinese
+                  ? `确定要删除“${event.name}”吗？此操作无法撤销。`
+                  : `Are you sure you want to delete "${event.name}"? This action cannot be undone.`}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

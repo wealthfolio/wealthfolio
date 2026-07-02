@@ -11,6 +11,7 @@ import {
   FormMessage,
 } from "@wealthfolio/ui/components/ui/form";
 import { CurrencyInput } from "@wealthfolio/ui";
+import { useI18n } from "@/i18n/i18n-provider";
 import { useSettingsContext } from "@/lib/settings-provider";
 import {
   Card,
@@ -29,6 +30,7 @@ type BaseCurrencyFormValues = z.infer<typeof baseCurrencyFormSchema>;
 // Extracted form component
 export function BaseCurrencyForm() {
   const { settings, updateBaseCurrency } = useSettingsContext();
+  const { t } = useI18n();
   const defaultValues: Partial<BaseCurrencyFormValues> = {
     baseCurrency: settings?.baseCurrency || "USD",
   };
@@ -62,7 +64,7 @@ export function BaseCurrencyForm() {
             </FormItem>
           )}
         />
-        <Button type="submit">Save Currency</Button> {/* Changed button text slightly */}
+        <Button type="submit">{t("settings.currency.save")}</Button>
       </form>
     </Form>
   );
@@ -70,12 +72,14 @@ export function BaseCurrencyForm() {
 
 // Original component now uses the extracted form inside a Card
 export function BaseCurrencySettings() {
+  const { t } = useI18n();
+
   return (
     <Card>
       <CardHeader>
         <div>
-          <CardTitle className="text-lg">Base Currency</CardTitle>
-          <CardDescription>Select your portfolio base currency.</CardDescription>
+          <CardTitle className="text-lg">{t("settings.currency.title")}</CardTitle>
+          <CardDescription>{t("settings.currency.description")}</CardDescription>
         </div>
       </CardHeader>
       <CardContent>

@@ -36,6 +36,7 @@ import {
   prependDefaultActivityTemplate,
 } from "../utils/default-activity-template";
 import { mergeDetectedParseConfig } from "../utils/import-flow-utils";
+import { useI18n } from "@/i18n/i18n-provider";
 import {
   activityTypeAllowedForImportProfile,
   getActivityImportProfileForImportContext,
@@ -52,6 +53,8 @@ import type { Account, CsvRowData, ImportTemplateData } from "@/lib/types";
 import { ImportType } from "@/lib/types";
 
 export function MappingStepUnified() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { state, dispatch } = useImportContext();
   const { headers, parsedRows, mapping, accountId } = state;
   const queryClient = useQueryClient();
@@ -681,7 +684,9 @@ export function MappingStepUnified() {
     if (!state.selectedTemplateId || state.selectedTemplateScope !== "USER") {
       return;
     }
-    if (!window.confirm(`Delete template "${templateName || localMapping.name}"?`)) {
+    const name = templateName || localMapping.name;
+    const confirmMessage = isChinese ? `要删除模板“${name}”吗？` : `Delete template "${name}"?`;
+    if (!window.confirm(confirmMessage)) {
       return;
     }
     deleteTemplateMutation.mutate(state.selectedTemplateId);
@@ -691,6 +696,7 @@ export function MappingStepUnified() {
     state.selectedTemplateId,
     state.selectedTemplateScope,
     templateName,
+    isChinese,
   ]);
 
   if (!data || data.length === 0) {

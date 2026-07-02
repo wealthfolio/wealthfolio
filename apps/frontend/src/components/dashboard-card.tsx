@@ -1,3 +1,5 @@
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateUiText } from "@/i18n/ui-text";
 import type { ReactNode } from "react";
 
 interface DashboardCardProps {
@@ -32,11 +34,15 @@ export function DashboardCard({
   className,
   children,
 }: DashboardCardProps) {
+  const { language } = useI18n();
+
   return (
     <div className="w-full">
       <div className="flex items-baseline justify-between pb-2">
         <div className="flex items-baseline gap-2">
-          <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
+          <h2 className="text-sm font-semibold tracking-tight">
+            {translateUiText(language, title)}
+          </h2>
           {subtitle != null && subtitle !== "" && (
             <span className="text-muted-foreground/60 text-xs">{subtitle}</span>
           )}

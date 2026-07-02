@@ -1,4 +1,6 @@
 import { useHapticFeedback } from "@/hooks";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateUiText } from "@/i18n/ui-text";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
@@ -37,6 +39,7 @@ export function ActionPalette({
   side = "bottom",
 }: ActionPaletteProps) {
   const { triggerHaptic } = useHapticFeedback();
+  const { language } = useI18n();
 
   const handleItemClick = React.useCallback(
     (item: ActionPaletteItem) => {
@@ -85,7 +88,7 @@ export function ActionPalette({
                 "transition-colors duration-150",
                 "focus-visible:ring-ring focus:outline-none focus-visible:ring-2",
               )}
-              aria-label="Close"
+              aria-label={translateUiText(language, "Close")}
             >
               <Icons.X className="h-4 w-4" />
             </button>

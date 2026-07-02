@@ -13,6 +13,7 @@ import {
 } from "@wealthfolio/ui/components/ui/dialog";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { useEffect, useState } from "react";
+import { useI18n } from "@/i18n/i18n-provider";
 import { useGoalMutations } from "../hooks/use-goals";
 
 const GOAL_TYPE_LABELS: Record<Goal["goalType"], string> = {
@@ -61,6 +62,8 @@ interface Props {
 }
 
 export function GoalEditDialog({ goal, open, onClose }: Props) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { updateMutation } = useGoalMutations();
   const [title, setTitle] = useState(goal.title);
   const [description, setDescription] = useState(goal.description ?? "");
@@ -76,6 +79,39 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
   const isRetirement = goal.goalType === "retirement";
   const trimmedTitle = title.trim();
   const trimmedDescription = description.trim();
+  const goalTypeLabels = isChinese
+    ? {
+        retirement: "退休",
+        education: "教育",
+        home: "购房",
+        car: "购车",
+        wedding: "婚礼",
+        custom_save_up: "储蓄目标",
+      }
+    : GOAL_TYPE_LABELS;
+  const lifecycleLabels = {
+    active: isChinese
+      ? {
+          label: "进行中",
+          hint: "仍在推进",
+          description: "显示在规划、进度和活跃目标列表中。",
+        }
+      : LIFECYCLE_OPTIONS[0],
+    achieved: isChinese
+      ? {
+          label: "已完成",
+          hint: "目标已完成",
+          description: "将目标标记为完成，并释放已分配的账户份额。",
+        }
+      : LIFECYCLE_OPTIONS[1],
+    archived: isChinese
+      ? {
+          label: "已归档",
+          hint: "从活跃目标隐藏",
+          description: "保留目标用于参考，但从活跃规划中移除。",
+        }
+      : LIFECYCLE_OPTIONS[2],
+  };
 
   const handleSave = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -102,13 +138,24 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
       <DialogContent className="sm:max-w-xl">
         <form onSubmit={handleSave} className="space-y-6">
           <DialogHeader>
-            <DialogTitle>Edit goal</DialogTitle>
+            <DialogTitle>{isChinese ? "编辑目标" : "Edit goal"}</DialogTitle>
             <DialogDescription>
-              Update the goal name, notes, and status. Completed means the goal is done. Archived
-              means you want to hide it from active goals without deleting it.{" "}
-              {isRetirement
-                ? "Retirement assumptions, spending, taxes, and account shares stay in the planner."
-                : "Target amount, target date, and funding stay in the goal plan."}
+              {isChinese ? (
+                <>
+                  更新目标名称、备注和状态。已完成表示目标已达成；已归档表示从活跃目标中隐藏但不删除。
+                  {isRetirement
+                    ? " 退休假设、支出、税费和账户份额会保留在规划器中。"
+                    : " 目标金额、目标日期和资金安排会保留在目标计划中。"}
+                </>
+              ) : (
+                <>
+                  Update the goal name, notes, and status. Completed means the goal is done.
+                  Archived means you want to hide it from active goals without deleting it.{" "}
+                  {isRetirement
+                    ? "Retirement assumptions, spending, taxes, and account shares stay in the planner."
+                    : "Target amount, target date, and funding stay in the goal plan."}
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -116,48 +163,56 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
             <div className="bg-muted/30 rounded-xl border p-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium">Goal type</p>
+                  <p className="text-sm font-medium">{isChinese ? "目标类型" : "Goal type"}</p>
                   <p className="text-muted-foreground text-xs">
-                    Fixed after creation so the planner logic stays consistent.
+                    {isChinese
+                      ? "创建后固定，确保规划逻辑保持一致。"
+                      : "Fixed after creation so the planner logic stays consistent."}
                   </p>
                 </div>
-                <Badge variant="secondary">{GOAL_TYPE_LABELS[goal.goalType]}</Badge>
+                <Badge variant="secondary">{goalTypeLabels[goal.goalType]}</Badge>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="goal-title">Title</Label>
+              <Label htmlFor="goal-title">{isChinese ? "标题" : "Title"}</Label>
               <Input
                 id="goal-title"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder="Goal name"
+                placeholder={isChinese ? "目标名称" : "Goal name"}
                 autoFocus
               />
-              {!trimmedTitle && <p className="text-destructive text-xs">Title is required.</p>}
+              {!trimmedTitle && (
+                <p className="text-destructive text-xs">
+                  {isChinese ? "请输入标题。" : "Title is required."}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="goal-description">Notes</Label>
+              <Label htmlFor="goal-description">{isChinese ? "备注" : "Notes"}</Label>
               <Textarea
                 id="goal-description"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
-                placeholder="Optional context for this goal"
+                placeholder={isChinese ? "此目标的可选说明" : "Optional context for this goal"}
                 rows={3}
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Goal status</Label>
+              <Label>{isChinese ? "目标状态" : "Goal status"}</Label>
               <p className="text-muted-foreground text-xs">
-                Choose what should happen next: keep working on it, mark it done, or hide it from
-                active planning.
+                {isChinese
+                  ? "选择下一步：继续推进、标记完成，或从活跃规划中隐藏。"
+                  : "Choose what should happen next: keep working on it, mark it done, or hide it from active planning."}
               </p>
               <div className="grid gap-3 sm:grid-cols-3">
                 {LIFECYCLE_OPTIONS.map((option) => {
                   const selected = lifecycle === option.value;
                   const Icon = option.icon;
+                  const display = lifecycleLabels[option.value];
 
                   return (
                     <button
@@ -184,12 +239,12 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
                           <Icon className="h-4 w-4" />
                         </span>
                         <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wider">
-                          {option.hint}
+                          {display.hint}
                         </span>
                       </span>
-                      <span className="block text-sm font-medium">{option.label}</span>
+                      <span className="block text-sm font-medium">{display.label}</span>
                       <span className="text-muted-foreground mt-1.5 block text-xs leading-relaxed">
-                        {option.description}
+                        {display.description}
                       </span>
                     </button>
                   );
@@ -200,10 +255,16 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
+              {isChinese ? "取消" : "Cancel"}
             </Button>
             <Button type="submit" disabled={updateMutation.isPending || !trimmedTitle}>
-              {updateMutation.isPending ? "Saving..." : "Save changes"}
+              {updateMutation.isPending
+                ? isChinese
+                  ? "保存中..."
+                  : "Saving..."
+                : isChinese
+                  ? "保存更改"
+                  : "Save changes"}
             </Button>
           </DialogFooter>
         </form>

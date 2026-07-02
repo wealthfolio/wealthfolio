@@ -3,6 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
 import { DashboardCard } from "@/components/dashboard-card";
+import { useI18n } from "@/i18n/i18n-provider";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Activity } from "@/lib/types";
 import { cn, formatDateISO } from "@/lib/utils";
@@ -31,6 +32,8 @@ export function RecentActivityCard({
   currency: string;
   uncategorizedCount?: number;
 }) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const recent = useMemo(() => {
     return activities
       .slice()
@@ -99,9 +102,9 @@ export function RecentActivityCard({
     const yest = new Date(today);
     yest.setDate(today.getDate() - 1);
     const yestKey = formatDateISO(yest);
-    if (key === todayKey) return "Today";
-    if (key === yestKey) return "Yesterday";
-    return new Date(key + "T00:00:00").toLocaleDateString(undefined, {
+    if (key === todayKey) return isChinese ? "今天" : "Today";
+    if (key === yestKey) return isChinese ? "昨天" : "Yesterday";
+    return new Date(key + "T00:00:00").toLocaleDateString(isChinese ? "zh-CN" : undefined, {
       weekday: "short",
       month: "short",
       day: "numeric",
@@ -110,7 +113,7 @@ export function RecentActivityCard({
 
   return (
     <DashboardCard
-      title="Recent activity"
+      title={isChinese ? "近期活动" : "Recent activity"}
       padded={false}
       className="overflow-hidden"
       action={
@@ -122,13 +125,19 @@ export function RecentActivityCard({
           }
           className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
         >
-          {uncategorizedCount > 0 ? `View all · ${uncategorizedCount} to tag →` : "View all →"}
+          {uncategorizedCount > 0
+            ? isChinese
+              ? `查看全部 · ${uncategorizedCount} 笔待标记 →`
+              : `View all · ${uncategorizedCount} to tag →`
+            : isChinese
+              ? "查看全部 →"
+              : "View all →"}
         </Link>
       }
     >
       {recent.length === 0 ? (
         <div className="text-muted-foreground px-4 py-6 text-center text-xs md:px-5">
-          No recent activity.
+          {isChinese ? "暂无近期活动。" : "No recent activity."}
         </div>
       ) : (
         grouped.map(([dateKey, items], gi) => (
@@ -171,13 +180,17 @@ export function RecentActivityCard({
                 >
                   <div className="min-w-0 flex-1">
                     <div className="text-foreground/90 truncate text-xs font-medium">
-                      {payee || <span className="text-muted-foreground italic">No payee</span>}
+                      {payee || (
+                        <span className="text-muted-foreground italic">
+                          {isChinese ? "无收款方" : "No payee"}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {badge ? (
                     <CategoryBadge name={badge.name} color={badge.color} icon={badge.icon} />
                   ) : needsReview ? (
-                    <ReviewPill label="Uncategorized" />
+                    <ReviewPill label={isChinese ? "未分类" : "Uncategorized"} />
                   ) : null}
                   <div
                     className={cn(

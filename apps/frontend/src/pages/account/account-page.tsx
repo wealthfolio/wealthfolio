@@ -29,6 +29,7 @@ import { useRecalculatePortfolioMutation } from "@/hooks/use-calculate-portfolio
 import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { useHoldings } from "@/hooks/use-holdings";
 import { useIsMobileViewport } from "@/hooks/use-platform";
+import { useI18n } from "@/i18n/i18n-provider";
 import { useValuationHistory } from "@/hooks/use-valuation-history";
 import { canAddHoldings, getActivityRestrictionLevel } from "@/lib/activity-restrictions";
 import {
@@ -164,6 +165,8 @@ async function getCashAuditActivities(
 
 const AccountPage = () => {
   const { settings } = useSettingsContext();
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const appTimezone = settings?.timezone?.trim() || undefined;
   const { id = "" } = useParams<{ id: string }>();
@@ -872,8 +875,10 @@ const AccountPage = () => {
                   </SheetTrigger>
                   <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[80vh] p-0">
                     <SheetHeader className="border-border border-b px-6 py-4">
-                      <SheetTitle>Switch Account</SheetTitle>
-                      <SheetDescription>Choose an account to view</SheetDescription>
+                      <SheetTitle>{isChinese ? "切换账户" : "Switch Account"}</SheetTitle>
+                      <SheetDescription>
+                        {isChinese ? "选择要查看的账户" : "Choose an account to view"}
+                      </SheetDescription>
                     </SheetHeader>
                     <ScrollArea className="h-[calc(80vh-5rem)] px-6 py-4">
                       <div className="space-y-6">
@@ -1099,9 +1104,11 @@ const AccountPage = () => {
         <Sheet open={isEditingHoldings} onOpenChange={setIsEditingHoldings}>
           <SheetContent side="right" className="flex h-full w-full flex-col p-0 sm:max-w-2xl">
             <SheetHeader className="border-b px-6 py-4">
-              <SheetTitle>Update Holdings</SheetTitle>
+              <SheetTitle>{isChinese ? "更新持仓" : "Update Holdings"}</SheetTitle>
               <SheetDescription>
-                Edit positions and cash balances for {account.name}
+                {isChinese
+                  ? `编辑 ${account.name} 的持仓和现金余额`
+                  : `Edit positions and cash balances for ${account.name}`}
               </SheetDescription>
             </SheetHeader>
             <div className="flex-1 overflow-hidden px-6">

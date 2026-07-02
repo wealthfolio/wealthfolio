@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n/i18n-provider";
 import type { IncomeByAccount } from "@/lib/types";
 import { AnimatedToggleGroup, formatAmount } from "@wealthfolio/ui";
 import {
@@ -51,8 +52,18 @@ function getAlignedTicks(maxValue: number, tickCount: number): number[] {
   return Array.from({ length: tickCount }, (_, i) => i * step);
 }
 
-function formatK(value: number): string {
+function formatK(value: number, isChinese: boolean): string {
   if (value === 0) return "0";
+  if (isChinese) {
+    try {
+      return new Intl.NumberFormat("zh-CN", {
+        notation: "compact",
+        maximumFractionDigits: 1,
+      }).format(value);
+    } catch {
+      return value.toString();
+    }
+  }
   if (Math.abs(value) >= 1000) {
     const k = value / 1000;
     return `${Number.isInteger(k) ? k : k.toFixed(1)}k`;
@@ -69,10 +80,28 @@ interface IncomeHistoryChartProps {
   byAccount?: Record<string, IncomeByAccount>;
 }
 
-const viewModes = [
-  { value: "combined" as const, label: "Combined" },
-  { value: "byAccount" as const, label: "By Account" },
-];
+function getViewModes(isChinese: boolean) {
+  return [
+    { value: "combined" as const, label: isChinese ? "合并" : "Combined" },
+    { value: "byAccount" as const, label: isChinese ? "按账户" : "By Account" },
+  ];
+}
+
+function formatIncomeMonth(
+  date: Date,
+  isMobile: boolean,
+  isChinese: boolean,
+  includeYear = false,
+): string {
+  if (isChinese) {
+    return new Intl.DateTimeFormat("zh-CN", {
+      month: includeYear || !isMobile ? "long" : "short",
+      year: includeYear ? "numeric" : isMobile ? undefined : "2-digit",
+    }).format(date);
+  }
+  if (includeYear) return format(date, isMobile ? "MMM yyyy" : "MMMM yyyy");
+  return isMobile ? format(date, "MMM") : format(date, "MMM yy");
+}
 
 export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
   monthlyIncomeData,
@@ -82,8 +111,11 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
   isBalanceHidden,
   byAccount,
 }) => {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [isMobile, setIsMobile] = React.useState(false);
   const [viewMode, setViewMode] = useState<"combined" | "byAccount">("combined");
+  const localizedViewModes = useMemo(() => getViewModes(isChinese), [isChinese]);
 
   React.useEffect(() => {
     const checkMobile = () => {
@@ -149,7 +181,17 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
   );
 
   const periodDescription =
-    selectedPeriod === "ALL" ? "All Time" : selectedPeriod === "YTD" ? "Year to Date" : "Last Year";
+    selectedPeriod === "ALL"
+      ? isChinese
+        ? "全部时间"
+        : "All Time"
+      : selectedPeriod === "YTD"
+        ? isChinese
+          ? "今年至今"
+          : "Year to Date"
+        : isChinese
+          ? "去年"
+          : "Last Year";
 
   // Render evenly-spaced labels (every Nth month) instead of letting Recharts
   // auto-thin, which produced irregular 2-then-3-month gaps.
@@ -166,7 +208,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
     tick: { fontSize: isMobile ? 11 : 12 },
     tickFormatter: (value: string) => {
       const date = parseISO(`${value}-01`);
-      return isMobile ? format(date, "MMM") : format(date, "MMM yy");
+      return formatIncomeMonth(date, isMobile, isChinese);
     },
   };
 
@@ -195,12 +237,12 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
     width: isMobile ? 45 : 60,
     ticks: yTicks,
     domain: [0, yTicks[yTicks.length - 1] || 0] as [number, number],
-    tickFormatter: formatK,
+    tickFormatter: (value: number) => formatK(value, isChinese),
   };
 
   const tooltipLabelFormatter = (label: unknown) => {
     if (typeof label !== "string") return "";
-    return format(parseISO(`${label}-01`), isMobile ? "MMM yyyy" : "MMMM yyyy");
+    return formatIncomeMonth(parseISO(`${label}-01`), isMobile, isChinese, true);
   };
 
   return (
@@ -208,7 +250,9 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
       <CardHeader className="pb-4 md:pb-6">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-sm font-medium">Income History</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {isChinese ? "收入历史" : "Income History"}
+            </CardTitle>
             <CardDescription className="text-xs md:text-sm">{periodDescription}</CardDescription>
           </div>
           {showToggle && (
@@ -217,7 +261,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
                 <AnimatedToggleGroup
                   variant="secondary"
                   size="sm"
-                  items={viewModes}
+                  items={localizedViewModes}
                   value={viewMode}
                   onValueChange={setViewMode}
                 />
@@ -226,7 +270,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
                 <AnimatedToggleGroup
                   variant="secondary"
                   size="xs"
-                  items={viewModes}
+                  items={localizedViewModes}
                   value={viewMode}
                   onValueChange={setViewMode}
                 />
@@ -240,8 +284,12 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
           <EmptyPlaceholder
             className="mx-auto flex h-[250px] max-w-[420px] items-center justify-center md:h-[300px]"
             icon={<Icons.Activity className="h-8 w-8 md:h-10 md:w-10" />}
-            title="No income history available"
-            description="There is no income history for the selected period. Try selecting a different time range or check back later."
+            title={isChinese ? "暂无收入历史" : "No income history available"}
+            description={
+              isChinese
+                ? "所选期间没有收入历史。请尝试其他时间范围或稍后再查看。"
+                : "There is no income history for the selected period. Try selecting a different time range or check back later."
+            }
           />
         ) : effectiveViewMode === "byAccount" ? (
           <ChartContainer
@@ -315,15 +363,15 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
           <ChartContainer
             config={{
               income: {
-                label: "Monthly Income",
+                label: isChinese ? "月度收入" : "Monthly Income",
                 color: "var(--chart-1)",
               },
               cumulative: {
-                label: "Cumulative Income",
+                label: isChinese ? "累计收入" : "Cumulative Income",
                 color: "var(--chart-2)",
               },
               previousIncome: {
-                label: "Previous Period Income",
+                label: isChinese ? "上一期间收入" : "Previous Period Income",
                 color: "var(--chart-stone)",
               },
             }}
@@ -352,7 +400,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
                 ticks={rightTicks}
                 domain={[0, rightTicks[rightTicks.length - 1] || 0]}
                 tick={{ fontSize: 12, fill: "var(--chart-2)" }}
-                tickFormatter={formatK}
+                tickFormatter={(value: number) => formatK(value, isChinese)}
               />
               <ChartTooltip
                 content={
@@ -377,12 +425,20 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
                             <span className="text-muted-foreground text-xs md:text-sm">
                               {name === "income"
                                 ? isMobile
-                                  ? "Monthly"
-                                  : "Monthly Income"
+                                  ? isChinese
+                                    ? "月度"
+                                    : "Monthly"
+                                  : isChinese
+                                    ? "月度收入"
+                                    : "Monthly Income"
                                 : name === "previousIncome"
-                                  ? "Previous"
+                                  ? isChinese
+                                    ? "上一期"
+                                    : "Previous"
                                   : name === "cumulative"
-                                    ? "Cumulative"
+                                    ? isChinese
+                                      ? "累计"
+                                      : "Cumulative"
                                     : name}
                             </span>
                             <span className="text-foreground font-mono text-xs font-medium tabular-nums md:text-sm">

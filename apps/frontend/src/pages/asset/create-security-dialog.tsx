@@ -1,5 +1,6 @@
 import { getExchanges, resolveSymbolQuote } from "@/adapters";
 import TickerSearchInput from "@/components/ticker-search";
+import { useI18n } from "@/i18n/i18n-provider";
 import { quoteModeFromSearchResult } from "@/lib/asset-utils";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { NewAsset, SymbolSearchResult } from "@/lib/types";
@@ -113,6 +114,8 @@ export function CreateSecurityDialog({
   submitLabel = "Create Security",
 }: CreateSecurityDialogProps) {
   const { settings } = useSettingsContext();
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const defaultCurrency = settings?.baseCurrency || "USD";
   const [selectedResult, setSelectedResult] = useState<SymbolSearchResult | undefined>();
   const [isResolvingSubmit, setIsResolvingSubmit] = useState(false);
@@ -329,8 +332,13 @@ export function CreateSecurityDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogTitle>{isChinese && title === "Add Security" ? "添加证券" : title}</DialogTitle>
+          <DialogDescription>
+            {isChinese &&
+            description === "Search for a security to auto-fill details, or enter them manually."
+              ? "搜索证券以自动填充详情，或手动输入。"
+              : description}
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
@@ -338,7 +346,7 @@ export function CreateSecurityDialog({
             {/* Ticker search - auto-populates form fields on selection */}
             {open && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Search</label>
+                <label className="text-sm font-medium">{isChinese ? "搜索" : "Search"}</label>
                 <TickerSearchInput
                   onSelectResult={handleTickerSelect}
                   placeholder="Search by ticker, name or ISIN…"
@@ -355,7 +363,7 @@ export function CreateSecurityDialog({
                 name="symbol"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Symbol</FormLabel>
+                    <FormLabel>{isChinese ? "代码" : "Symbol"}</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="e.g., AAPL"
@@ -388,11 +396,11 @@ export function CreateSecurityDialog({
                 name="instrumentType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Type</FormLabel>
+                    <FormLabel>{isChinese ? "类型" : "Type"}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
+                          <SelectValue placeholder={isChinese ? "选择类型" : "Select type"} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -414,7 +422,7 @@ export function CreateSecurityDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{isChinese ? "名称" : "Name"}</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., Apple Inc." {...field} />
                   </FormControl>
@@ -429,7 +437,7 @@ export function CreateSecurityDialog({
                 name="quoteCcy"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Currency</FormLabel>
+                    <FormLabel>{isChinese ? "货币" : "Currency"}</FormLabel>
                     <FormControl>
                       <CurrencyInput
                         value={field.value}
@@ -439,7 +447,7 @@ export function CreateSecurityDialog({
                           }
                           field.onChange(nextCurrency);
                         }}
-                        placeholder="Select currency"
+                        placeholder={isChinese ? "选择货币" : "Select currency"}
                         valueDisplay="code"
                         allowCustom
                       />
@@ -454,7 +462,7 @@ export function CreateSecurityDialog({
                 name="quoteMode"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Quote Mode</FormLabel>
+                    <FormLabel>{isChinese ? "报价模式" : "Quote Mode"}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -481,15 +489,18 @@ export function CreateSecurityDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Exchange <span className="text-muted-foreground text-xs">(optional)</span>
+                    {isChinese ? "交易所" : "Exchange"}{" "}
+                    <span className="text-muted-foreground text-xs">
+                      {isChinese ? "（可选）" : "(optional)"}
+                    </span>
                   </FormLabel>
                   <FormControl>
                     <SearchableSelect
                       options={exchangeOptions}
                       value={field.value ?? ""}
                       onValueChange={field.onChange}
-                      placeholder="Select exchange"
-                      searchPlaceholder="Search exchanges..."
+                      placeholder={isChinese ? "选择交易所" : "Select exchange"}
+                      searchPlaceholder={isChinese ? "搜索交易所..." : "Search exchanges..."}
                     />
                   </FormControl>
                   <FormMessage />
@@ -503,10 +514,17 @@ export function CreateSecurityDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Notes <span className="text-muted-foreground text-xs">(optional)</span>
+                    {isChinese ? "备注" : "Notes"}{" "}
+                    <span className="text-muted-foreground text-xs">
+                      {isChinese ? "（可选）" : "(optional)"}
+                    </span>
                   </FormLabel>
                   <FormControl>
-                    <Textarea rows={2} placeholder="Any additional notes..." {...field} />
+                    <Textarea
+                      rows={2}
+                      placeholder={isChinese ? "其他备注..." : "Any additional notes..."}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -520,7 +538,7 @@ export function CreateSecurityDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={isPending || isResolvingSubmit}
               >
-                Cancel
+                {isChinese ? "取消" : "Cancel"}
               </Button>
               <Button
                 type="button"
@@ -529,10 +547,11 @@ export function CreateSecurityDialog({
               >
                 {isPending || isResolvingSubmit ? (
                   <span className="flex items-center gap-2">
-                    <Icons.Spinner className="h-4 w-4 animate-spin" /> Creating...
+                    <Icons.Spinner className="h-4 w-4 animate-spin" />{" "}
+                    {isChinese ? "创建中..." : "Creating..."}
                   </span>
                 ) : (
-                  submitLabel
+                  isChinese && submitLabel === "Create Security" ? "创建证券" : submitLabel
                 )}
               </Button>
             </DialogFooter>

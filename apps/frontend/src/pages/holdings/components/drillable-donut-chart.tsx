@@ -1,5 +1,7 @@
 import { AllocationBreadcrumb } from "@/components/allocation-breadcrumb";
 import { useDrillDownState } from "@/hooks/use-drill-down-state";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateClassificationLabel } from "@/i18n/ui-text";
 import type { TaxonomyAllocation, CategoryAllocation } from "@/lib/types";
 import {
   Card,
@@ -34,6 +36,8 @@ export function DrillableDonutChart({
   onCategoryClick,
   onCardClick,
 }: DrillableDonutChartProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [activeIndex, setActiveIndex] = useState(0);
   const { path, drillDown, navigateTo, isAtRoot } = useDrillDownState();
 
@@ -50,12 +54,13 @@ export function DrillableDonutChart({
       .filter((cat) => cat.value > 0)
       .map((cat) => ({
         id: cat.categoryId,
-        name: cat.categoryName,
+        name: translateClassificationLabel(language, cat.categoryName),
+        originalName: cat.categoryName,
         value: cat.value,
         currency: baseCurrency,
         color: cat.color,
       }));
-  }, [allocation, baseCurrency]);
+  }, [allocation, baseCurrency, language]);
 
   // Drilled-down data from allocation.categories[].children
   const drilledData = useMemo(() => {
@@ -70,13 +75,14 @@ export function DrillableDonutChart({
       .filter((child) => child.value > 0)
       .map((child) => ({
         id: child.categoryId,
-        name: child.categoryName,
+        name: translateClassificationLabel(language, child.categoryName),
+        originalName: child.categoryName,
         value: child.value,
         currency: baseCurrency,
         color: child.color,
       }))
       .sort((a, b) => b.value - a.value);
-  }, [path, allocation, baseCurrency]);
+  }, [path, allocation, baseCurrency, language]);
 
   const data = isAtRoot ? rootData : drilledData;
 
@@ -101,7 +107,7 @@ export function DrillableDonutChart({
     }
 
     // No children or already drilled - open the sheet
-    onCategoryClick?.(clickedItem.id, clickedItem.name);
+    onCategoryClick?.(clickedItem.id, clickedItem.originalName ?? clickedItem.name);
   };
 
   const handleBreadcrumbNavigate = (index: number) => {
@@ -155,7 +161,7 @@ export function DrillableDonutChart({
           />
         ) : (
           <EmptyPlaceholder
-            description={`No ${title.toLowerCase()} data available.`}
+            description={isChinese ? "暂无对应分类数据。" : `No ${title.toLowerCase()} data available.`}
             className="max-h-[160px]"
           />
         )}

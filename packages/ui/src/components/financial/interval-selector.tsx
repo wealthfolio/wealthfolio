@@ -17,6 +17,8 @@ interface IntervalData {
   calculateRange: () => DateRange | undefined;
 }
 
+type IntervalLanguage = "en" | "zh-CN";
+
 const intervalDescriptions: Record<TimePeriod, string> = {
   "1D": "past day",
   "1W": "past week",
@@ -28,6 +30,22 @@ const intervalDescriptions: Record<TimePeriod, string> = {
   "5Y": "past 5 years",
   ALL: "All Time",
 };
+
+const zhCNIntervalDescriptions: Record<TimePeriod, string> = {
+  "1D": "最近 1 天",
+  "1W": "最近 1 周",
+  "1M": "最近 1 个月",
+  "3M": "最近 3 个月",
+  "6M": "最近 6 个月",
+  YTD: "今年以来",
+  "1Y": "最近 1 年",
+  "5Y": "最近 5 年",
+  ALL: "全部时间",
+};
+
+function getIntervalDescription(code: TimePeriod, language?: IntervalLanguage) {
+  return language === "zh-CN" ? zhCNIntervalDescriptions[code] : intervalDescriptions[code];
+}
 
 const intervals: IntervalData[] = [
   {
@@ -89,6 +107,7 @@ interface IntervalSelectorProps {
   className?: string;
   isLoading?: boolean;
   defaultValue?: TimePeriod;
+  language?: IntervalLanguage;
   /** LocalStorage key to persist selection. When provided, selection is persisted. */
   storageKey?: string;
   /** Optional callback for haptic feedback */
@@ -99,6 +118,7 @@ const IntervalSelector: React.FC<IntervalSelectorProps> = ({
   onIntervalSelect,
   className,
   defaultValue = DEFAULT_INTERVAL_CODE,
+  language = "en",
   storageKey,
   onHaptic,
 }) => {
@@ -122,17 +142,17 @@ const IntervalSelector: React.FC<IntervalSelectorProps> = ({
       }
       // Notify parent
       const data = getIntervalData(value);
-      onIntervalSelect(data.code, data.description, data.calculateRange());
+      onIntervalSelect(data.code, getIntervalDescription(data.code, language), data.calculateRange());
       // Trigger haptic feedback
       onHaptic?.();
     },
-    [onIntervalSelect, storageKey, setPersistedValue, onHaptic],
+    [onIntervalSelect, language, storageKey, setPersistedValue, onHaptic],
   );
 
   const items = intervals.map((interval) => ({
     value: interval.code,
     label: interval.code,
-    title: interval.description,
+    title: getIntervalDescription(interval.code, language),
   }));
 
   return (
@@ -161,11 +181,11 @@ const IntervalSelector: React.FC<IntervalSelectorProps> = ({
 };
 
 /** Helper to get interval data for a given code - use to derive range/description from a code */
-const getInitialIntervalData = (code: TimePeriod = DEFAULT_INTERVAL_CODE) => {
+const getInitialIntervalData = (code: TimePeriod = DEFAULT_INTERVAL_CODE, language: IntervalLanguage = "en") => {
   const data = getIntervalData(code);
   return {
     code: data.code,
-    description: data.description,
+    description: getIntervalDescription(data.code, language),
     range: data.calculateRange(),
   };
 };

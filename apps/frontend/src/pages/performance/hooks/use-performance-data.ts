@@ -5,6 +5,21 @@ import { DateRange } from "react-day-picker";
 import { QueryKeys } from "@/lib/query-keys";
 import { TrackedItem } from "@/lib/types";
 
+function isChineseLocale(): boolean {
+  return typeof document !== "undefined" && document.documentElement.lang === "zh-CN";
+}
+
+function formatDisplayDate(date: Date): string {
+  if (isChineseLocale()) {
+    return new Intl.DateTimeFormat("zh-CN", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(date);
+  }
+  return format(date, "MMM d, yyyy");
+}
+
 /**
  * Hook to calculate cumulative returns for a list of comparison items.
  * Uses the user-selected date range directly for queries, except when the
@@ -99,16 +114,20 @@ export function useCalculatePerformanceHistory({
     })
     .filter(Boolean);
 
-  const displayStartDate = dateRange?.from ? format(dateRange.from, "MMM d, yyyy") : "";
+  const displayStartDate = dateRange?.from ? formatDisplayDate(dateRange.from) : "";
 
-  const displayEndDate = dateRange?.to ? format(dateRange.to, "MMM d, yyyy") : "";
+  const displayEndDate = dateRange?.to ? formatDisplayDate(dateRange.to) : "";
 
   const displayDateRange =
     dateRange === undefined
-      ? "All Time"
+      ? isChineseLocale()
+        ? "全部时间"
+        : "All Time"
       : displayStartDate && displayEndDate
         ? `${displayStartDate} - ${displayEndDate}`
-        : "Compare account performance over time";
+        : isChineseLocale()
+          ? "比较账户随时间的绩效"
+          : "Compare account performance over time";
 
   return {
     data: chartData,

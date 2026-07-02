@@ -5,6 +5,7 @@ import {
   getTransferPairForActivity,
   searchActivities,
 } from "@/adapters";
+import { useI18n } from "@/i18n/i18n-provider";
 import { ActivityStatus, ActivityType, ActivityTypeNames } from "@/lib/constants";
 import type { Account, Activity, ActivityDetails, TransferMatchCandidate } from "@/lib/types";
 import { cn, formatDateISO, formatDateTime } from "@/lib/utils";
@@ -391,6 +392,8 @@ export function TransferMatchDialog({
   onOpenChange,
   onComplete,
 }: TransferMatchDialogProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const accountMap = useMemo(
     () => new Map(accounts.map((account) => [account.id, account])),
     [accounts],
@@ -694,13 +697,26 @@ export function TransferMatchDialog({
     updateActivityMutation,
   ]);
 
-  const title = mode === "link" ? "Link transfer" : "Unlink transfer";
+  const title =
+    mode === "link"
+      ? isChinese
+        ? "关联转账"
+        : "Link transfer"
+      : isChinese
+        ? "取消转账关联"
+        : "Unlink transfer";
   const description =
     mode === "link"
-      ? "Choose the existing opposite transfer to pair with this activity."
+      ? isChinese
+        ? "选择已有的反向转账，与此活动配对。"
+        : "Choose the existing opposite transfer to pair with this activity."
       : canClearInvalidLink
-        ? "This stale transfer link will be cleared and the transfer will be marked external."
-        : "This transfer pair will be split back into two external transfers.";
+        ? isChinese
+          ? "这个失效的转账关联会被清除，并将该转账标记为外部转账。"
+          : "This stale transfer link will be cleared and the transfer will be marked external."
+        : isChinese
+          ? "这组转账会拆回两笔外部转账。"
+          : "This transfer pair will be split back into two external transfers.";
 
   if (!sourceActivity || !source || !isTransferType(source.activityType)) {
     return null;

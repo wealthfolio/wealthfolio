@@ -1,3 +1,5 @@
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateClassificationLabel } from "@/i18n/ui-text";
 import type { DriftRow } from "@/lib/types";
 import { formatCompactAmount } from "@wealthfolio/ui";
 import { Sector } from "recharts";
@@ -28,6 +30,8 @@ export function AllocationDonut({
   hoveredId,
   onHoverChange,
 }: AllocationDonutProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const thickness = Math.round(size * 0.11);
   const outerR = size / 2 - 8;
   const innerR = outerR - thickness;
@@ -57,6 +61,9 @@ export function AllocationDonut({
   });
 
   const hoveredRow = hoveredId ? rows.find((r) => r.categoryId === hoveredId) : null;
+  const hoveredCategoryName = hoveredRow
+    ? translateClassificationLabel(language, hoveredRow.categoryName)
+    : "";
   const popDist = 5;
 
   return (
@@ -99,7 +106,7 @@ export function AllocationDonut({
         {hoveredRow ? (
           <>
             <div className="text-muted-foreground max-w-[75%] truncate text-[10px] uppercase tracking-wider">
-              {hoveredRow.categoryName}
+              {hoveredCategoryName}
             </div>
             <div
               className="text-foreground mt-0.5 font-semibold tabular-nums"
@@ -123,14 +130,20 @@ export function AllocationDonut({
                       : "#2563eb",
                 }}
               >
-                {hoveredRow.status === "underweight" ? "▼ Below target" : "▲ Above target"}
+                {hoveredRow.status === "underweight"
+                  ? isChinese
+                    ? "▼ 低于目标"
+                    : "▼ Below target"
+                  : isChinese
+                    ? "▲ 高于目标"
+                    : "▲ Above target"}
               </div>
             )}
           </>
         ) : (
           <>
             <div className="text-muted-foreground text-[10px] uppercase tracking-wider">
-              Portfolio
+              {isChinese ? "投资组合" : "Portfolio"}
             </div>
             <div
               className="text-foreground mt-1 font-semibold tabular-nums"

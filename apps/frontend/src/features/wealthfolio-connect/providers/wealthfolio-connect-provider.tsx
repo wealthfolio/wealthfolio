@@ -21,7 +21,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { authenticate as authenticateWithASWebAuth } from "tauri-plugin-web-auth-api";
 import { clearSyncSession, restoreSyncSession, storeSyncSession } from "../services/auth-service";
 import { getUserInfo } from "../services/broker-service";
 import type { UserInfo } from "../types";
@@ -608,6 +607,9 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
         // This opens a secure Safari sheet that Google accepts for OAuth
         if (useASWebAuth && data.url) {
           try {
+            const { authenticate: authenticateWithASWebAuth } = await import(
+              "tauri-plugin-web-auth-api"
+            );
             const result = await authenticateWithASWebAuth({
               url: data.url,
               callbackScheme: "wealthfolio",

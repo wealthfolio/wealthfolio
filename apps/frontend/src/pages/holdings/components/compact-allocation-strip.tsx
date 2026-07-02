@@ -1,3 +1,5 @@
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateClassificationLabel } from "@/i18n/ui-text";
 import type { TaxonomyAllocation } from "@/lib/types";
 import { formatPercent, PrivacyAmount } from "@wealthfolio/ui";
 import { Card } from "@wealthfolio/ui/components/ui/card";
@@ -62,6 +64,8 @@ export function CompactAllocationStrip({
   variant = "security-types",
   onSegmentClick,
 }: CompactAllocationStripProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const processedCategories = useMemo(() => {
     if (!allocation?.categories?.length) return [];
 
@@ -79,7 +83,13 @@ export function CompactAllocationStrip({
         return {
           id: found?.categoryId ?? riskLevel,
           name: found?.categoryName ?? riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1),
-          label: RISK_LABELS[riskLevel] ?? riskLevel,
+          label:
+            language === "zh-CN"
+              ? translateClassificationLabel(
+                  language,
+                  found?.categoryName ?? riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1),
+                )
+              : (RISK_LABELS[riskLevel] ?? riskLevel),
           value,
           percent,
           color: RISK_COLORS[riskLevel] ?? RISK_COLORS.unknown,
@@ -95,7 +105,7 @@ export function CompactAllocationStrip({
       .map((c) => ({
         id: c.categoryId,
         name: c.categoryName,
-        label: c.categoryName,
+        label: translateClassificationLabel(language, c.categoryName),
         value: c.value,
         percent: (c.value / total) * 100,
         isEmpty: false,
@@ -123,14 +133,14 @@ export function CompactAllocationStrip({
       {
         id: "other",
         name: "Other",
-        label: "Other",
+        label: language === "zh-CN" ? "其他" : "Other",
         value: otherValue,
         percent: otherPercent,
         color: THEME_COLORS[THEME_COLORS.length - 1],
         isEmpty: false,
       },
     ];
-  }, [allocation, variant]);
+  }, [allocation, language, variant]);
 
   if (isLoading) {
     return (
@@ -151,7 +161,9 @@ export function CompactAllocationStrip({
         <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
           {title}
         </p>
-        <p className="text-muted-foreground mt-2 text-xs">No data</p>
+        <p className="text-muted-foreground mt-2 text-xs">
+          {isChinese ? "暂无数据" : "No data"}
+        </p>
       </Card>
     );
   }
@@ -197,7 +209,7 @@ export function CompactAllocationStrip({
                   <TooltipContent side="top" align="center">
                     <div className="text-center">
                       <span className="text-muted-foreground text-[0.70rem] uppercase">
-                        {category.name}
+                        {translateClassificationLabel(language, category.name)}
                       </span>
                       <div className="font-medium">{formatPercent(category.percent / 100)}</div>
                       <div className="text-muted-foreground text-xs">

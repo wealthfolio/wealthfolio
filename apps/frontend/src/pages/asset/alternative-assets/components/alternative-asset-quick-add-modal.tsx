@@ -19,6 +19,8 @@ import {
   QuantityInput,
 } from "@wealthfolio/ui";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateUiText } from "@/i18n/ui-text";
 import { useSettingsContext } from "@/lib/settings-provider";
 
 import { METAL_TYPES, LIABILITY_TYPES, WEIGHT_UNITS } from "./alternative-asset-quick-add-schema";
@@ -152,6 +154,8 @@ export function AlternativeAssetQuickAddModal({
   onAssetCreated,
   onOpenLiabilityQuickAdd,
 }: AlternativeAssetQuickAddModalProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
@@ -291,24 +295,26 @@ export function AlternativeAssetQuickAddModal({
   }, [linkableAssets]);
 
   const getValueLabel = () => {
-    if (formData.kind === AlternativeAssetKind.LIABILITY) return "Current Balance";
-    return "Current Value";
+    if (formData.kind === AlternativeAssetKind.LIABILITY) {
+      return isChinese ? "当前余额" : "Current Balance";
+    }
+    return isChinese ? "当前价值" : "Current Value";
   };
 
   const getPlaceholder = () => {
     switch (formData.kind) {
       case AlternativeAssetKind.PROPERTY:
-        return "Beach House, City Apartment...";
+        return isChinese ? "海边别墅、城市公寓..." : "Beach House, City Apartment...";
       case AlternativeAssetKind.VEHICLE:
-        return "Tesla Model 3, Porsche 911...";
+        return isChinese ? "特斯拉 Model 3、保时捷 911..." : "Tesla Model 3, Porsche 911...";
       case AlternativeAssetKind.PRECIOUS_METAL:
-        return "Gold Bars, Silver Coins...";
+        return isChinese ? "金条、银币..." : "Gold Bars, Silver Coins...";
       case AlternativeAssetKind.LIABILITY:
-        return "Home Mortgage, Car Loan...";
+        return isChinese ? "住房贷款、车贷..." : "Home Mortgage, Car Loan...";
       case AlternativeAssetKind.COLLECTIBLE:
-        return "Rolex Daytona, Picasso Print...";
+        return isChinese ? "劳力士 Daytona、毕加索版画..." : "Rolex Daytona, Picasso Print...";
       default:
-        return "Asset name...";
+        return isChinese ? "资产名称..." : "Asset name...";
     }
   };
 
@@ -324,7 +330,13 @@ export function AlternativeAssetQuickAddModal({
         <DialogHeader className="border-b px-6 py-4">
           <div className="flex flex-col items-center space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
             <DialogTitle className="text-foreground text-lg font-semibold">
-              {step === 1 ? "Add New Asset" : selectedAssetType?.label}
+              {step === 1
+                ? isChinese
+                  ? "添加新资产"
+                  : "Add New Asset"
+                : selectedAssetType
+                  ? translateUiText(language, selectedAssetType.label)
+                  : ""}
             </DialogTitle>
             <div className="flex items-center gap-1.5">
               <div
@@ -343,10 +355,16 @@ export function AlternativeAssetQuickAddModal({
           </div>
           <p className="text-muted-foreground text-sm">
             {step === 1
-              ? "Select the type of asset you want to add"
+              ? isChinese
+                ? "选择要添加的资产类型"
+                : "Select the type of asset you want to add"
               : formData.kind === AlternativeAssetKind.LIABILITY
-                ? "Add a liability to track against your net worth"
-                : "Enter the details for your asset"}
+                ? isChinese
+                  ? "添加负债以跟踪净资产"
+                  : "Add a liability to track against your net worth"
+                : isChinese
+                  ? "输入资产详情"
+                  : "Enter the details for your asset"}
           </p>
         </DialogHeader>
 
@@ -408,10 +426,10 @@ export function AlternativeAssetQuickAddModal({
                             isSelected ? "text-foreground" : "text-foreground/80",
                           )}
                         >
-                          {type.label}
+                          {translateUiText(language, type.label)}
                         </span>
                         <span className="text-muted-foreground mt-0.5 text-xs">
-                          {type.description}
+                          {translateUiText(language, type.description)}
                         </span>
                       </motion.button>
                     );
@@ -431,21 +449,25 @@ export function AlternativeAssetQuickAddModal({
                 {formData.kind === AlternativeAssetKind.PRECIOUS_METAL && (
                   <>
                     <div className="space-y-2">
-                      <Label className="text-foreground text-sm font-medium">Metal Type</Label>
+                      <Label className="text-foreground text-sm font-medium">
+                        {isChinese ? "金属类型" : "Metal Type"}
+                      </Label>
                       <ResponsiveSelect
                         value={formData.metalType || "gold"}
                         onValueChange={(v) => updateFormData("metalType", v)}
                         options={METAL_TYPES.map((metal) => ({
                           value: metal.value,
-                          label: metal.label,
+                          label: translateUiText(language, metal.label),
                         }))}
-                        placeholder="Select metal"
-                        sheetTitle="Select Metal Type"
+                        placeholder={isChinese ? "选择金属" : "Select metal"}
+                        sheetTitle={isChinese ? "选择金属类型" : "Select Metal Type"}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label className="text-foreground text-sm font-medium">Quantity</Label>
+                        <Label className="text-foreground text-sm font-medium">
+                          {isChinese ? "数量" : "Quantity"}
+                        </Label>
                         <QuantityInput
                           value={formData.quantity || ""}
                           onValueChange={(v) => updateFormData("quantity", v)}
@@ -454,16 +476,18 @@ export function AlternativeAssetQuickAddModal({
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-foreground text-sm font-medium">Unit</Label>
+                        <Label className="text-foreground text-sm font-medium">
+                          {isChinese ? "单位" : "Unit"}
+                        </Label>
                         <ResponsiveSelect
                           value={formData.unit || "oz"}
                           onValueChange={(v) => updateFormData("unit", v)}
                           options={WEIGHT_UNITS.map((unit) => ({
                             value: unit.value,
-                            label: unit.label,
+                            label: translateUiText(language, unit.label),
                           }))}
-                          placeholder="Select unit"
-                          sheetTitle="Select Unit"
+                          placeholder={isChinese ? "选择单位" : "Select unit"}
+                          sheetTitle={isChinese ? "选择单位" : "Select Unit"}
                         />
                       </div>
                     </div>
@@ -472,23 +496,27 @@ export function AlternativeAssetQuickAddModal({
 
                 {formData.kind === AlternativeAssetKind.LIABILITY && (
                   <div className="space-y-2">
-                    <Label className="text-foreground text-sm font-medium">Liability Type</Label>
+                    <Label className="text-foreground text-sm font-medium">
+                      {isChinese ? "负债类型" : "Liability Type"}
+                    </Label>
                     <ResponsiveSelect
                       value={formData.liabilityType || "mortgage"}
                       onValueChange={(v) => updateFormData("liabilityType", v)}
                       options={LIABILITY_TYPES.map((type) => ({
                         value: type.value,
-                        label: type.label,
+                        label: translateUiText(language, type.label),
                       }))}
-                      placeholder="Select type"
-                      sheetTitle="Select Liability Type"
+                      placeholder={isChinese ? "选择类型" : "Select type"}
+                      sheetTitle={isChinese ? "选择负债类型" : "Select Liability Type"}
                     />
                   </div>
                 )}
 
                 {/* Name field */}
                 <div className="space-y-2">
-                  <Label className="text-foreground text-sm font-medium">Name</Label>
+                  <Label className="text-foreground text-sm font-medium">
+                    {isChinese ? "名称" : "Name"}
+                  </Label>
                   <Input
                     value={formData.name}
                     onChange={(e) => updateFormData("name", e.target.value)}
@@ -499,11 +527,13 @@ export function AlternativeAssetQuickAddModal({
 
                 {/* Currency row */}
                 <div className="space-y-2">
-                  <Label className="text-foreground text-sm font-medium">Currency</Label>
+                  <Label className="text-foreground text-sm font-medium">
+                    {isChinese ? "货币" : "Currency"}
+                  </Label>
                   <CurrencyInput
                     value={formData.currency}
                     onChange={(v) => updateFormData("currency", v)}
-                    placeholder="Select currency"
+                    placeholder={isChinese ? "选择货币" : "Select currency"}
                   />
                 </div>
 
@@ -521,8 +551,12 @@ export function AlternativeAssetQuickAddModal({
                   <div className="space-y-2">
                     <Label className="text-foreground text-sm font-medium">
                       {formData.kind === AlternativeAssetKind.LIABILITY
-                        ? "Balance Date"
-                        : "Value Date"}
+                        ? isChinese
+                          ? "余额日期"
+                          : "Balance Date"
+                        : isChinese
+                          ? "估值日期"
+                          : "Value Date"}
                     </Label>
                     <DatePickerInput
                       value={formData.valueDate}
@@ -536,10 +570,14 @@ export function AlternativeAssetQuickAddModal({
                   <div className="space-y-2">
                     <Label className="text-foreground text-sm font-medium">
                       {formData.kind === AlternativeAssetKind.LIABILITY
-                        ? "Original Amount"
-                        : "Purchase Price"}
+                        ? isChinese
+                          ? "原始金额"
+                          : "Original Amount"
+                        : isChinese
+                          ? "购买价格"
+                          : "Purchase Price"}
                       <span className="text-muted-foreground ml-1 text-xs font-normal">
-                        (optional)
+                        {isChinese ? "（可选）" : "(optional)"}
                       </span>
                     </Label>
                     <MoneyInput
@@ -550,17 +588,25 @@ export function AlternativeAssetQuickAddModal({
                     />
                     <p className="text-muted-foreground text-xs">
                       {formData.kind === AlternativeAssetKind.LIABILITY
-                        ? "Used to track debt paydown"
-                        : "Used to calculate unrealized gain"}
+                        ? isChinese
+                          ? "用于跟踪债务偿还"
+                          : "Used to track debt paydown"
+                        : isChinese
+                          ? "用于计算未实现收益"
+                          : "Used to calculate unrealized gain"}
                     </p>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-foreground text-sm font-medium">
                       {formData.kind === AlternativeAssetKind.LIABILITY
-                        ? "Origination Date"
-                        : "Purchase Date"}
+                        ? isChinese
+                          ? "起始日期"
+                          : "Origination Date"
+                        : isChinese
+                          ? "购买日期"
+                          : "Purchase Date"}
                       <span className="text-muted-foreground ml-1 text-xs font-normal">
-                        (optional)
+                        {isChinese ? "（可选）" : "(optional)"}
                       </span>
                     </Label>
                     <DatePickerInput
@@ -581,7 +627,7 @@ export function AlternativeAssetQuickAddModal({
                       }
                     />
                     <label htmlFor="hasMortgage" className="text-foreground cursor-pointer text-sm">
-                      Create and link a mortgage
+                      {isChinese ? "创建并关联抵押贷款" : "Create and link a mortgage"}
                     </label>
                   </div>
                 )}
@@ -592,15 +638,21 @@ export function AlternativeAssetQuickAddModal({
                   !initialLinkedAssetId && (
                     <div className="space-y-2">
                       <Label className="text-foreground text-sm font-medium">
-                        Link to Asset (optional)
+                        {isChinese ? "关联资产（可选）" : "Link to Asset (optional)"}
                       </Label>
                       <ResponsiveSelect
                         value={formData.linkedAssetId}
                         onValueChange={(v) => updateFormData("linkedAssetId", v)}
                         options={linkableAssetOptions}
-                        placeholder="Select asset to link (optional)"
-                        sheetTitle="Link to Asset"
-                        sheetDescription="Link this liability to a property or vehicle for grouped display"
+                        placeholder={
+                          isChinese ? "选择要关联的资产（可选）" : "Select asset to link (optional)"
+                        }
+                        sheetTitle={isChinese ? "关联资产" : "Link to Asset"}
+                        sheetDescription={
+                          isChinese
+                            ? "将此负债关联到房产或车辆，以便分组显示"
+                            : "Link this liability to a property or vehicle for grouped display"
+                        }
                       />
                     </div>
                   )}
@@ -622,7 +674,7 @@ export function AlternativeAssetQuickAddModal({
                 className="flex-1"
               >
                 <Icons.ArrowLeft className="mr-2 h-4 w-4" />
-                Back
+                {isChinese ? "返回" : "Back"}
               </Button>
             )}
             <Button
@@ -634,15 +686,21 @@ export function AlternativeAssetQuickAddModal({
               {isSubmitting ? (
                 <>
                   <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
+                  {isChinese ? "创建中..." : "Creating..."}
                 </>
               ) : step === 1 ? (
                 <>
-                  Continue
+                  {isChinese ? "继续" : "Continue"}
                   <Icons.ArrowRight className="ml-2 h-4 w-4" />
                 </>
               ) : formData.kind === AlternativeAssetKind.LIABILITY ? (
-                "Add Liability"
+                isChinese ? (
+                  "添加负债"
+                ) : (
+                  "Add Liability"
+                )
+              ) : isChinese ? (
+                "创建资产"
               ) : (
                 "Create Asset"
               )}

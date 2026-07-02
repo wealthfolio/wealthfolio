@@ -95,7 +95,19 @@ function currencySymbol(currency: string): string {
 }
 
 /** Compact money for tight spots (donut center, legend): $1.28M, $361K. */
-export function formatCompact(value: number, currency: string): string {
+export function formatCompact(value: number, currency: string, locale = "en-US"): string {
+  if (locale === "zh-CN") {
+    try {
+      return new Intl.NumberFormat("zh-CN", {
+        style: "currency",
+        currency,
+        notation: "compact",
+        maximumFractionDigits: 1,
+      }).format(value);
+    } catch {
+      return `${Math.round(value)}`;
+    }
+  }
   const symbol = currencySymbol(currency);
   const abs = Math.abs(value);
   const sign = value < 0 ? "-" : "";

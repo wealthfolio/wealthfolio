@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/compone
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useI18n } from "@/i18n/i18n-provider";
 
 const MAX_DISPLAYED_HOLDINGS = 7;
 const MAX_STACKED_AVATARS = 5;
@@ -35,6 +36,7 @@ interface HoldingRowProps {
   isHidden?: boolean;
   performanceMode: PerformanceMode;
   showName: boolean;
+  isChinese: boolean;
   onClick?: () => void;
 }
 
@@ -44,6 +46,7 @@ function HoldingRow({
   isHidden,
   performanceMode,
   showName,
+  isChinese,
   onClick,
 }: HoldingRowProps) {
   const symbol = holding.instrument?.symbol ?? holding.id;
@@ -52,8 +55,10 @@ function HoldingRow({
   const nameLabel = holding.instrument?.name?.trim() || symbolLabel;
   const title = showName ? nameLabel : symbolLabel;
   const subtitle = parsedOption
-    ? `${new Date(parsedOption.expiration + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} $${parsedOption.strikePrice} ${parsedOption.optionType}`
-    : `${(holding.quantity ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} shares`;
+    ? `${new Date(parsedOption.expiration + "T12:00:00").toLocaleDateString(isChinese ? "zh-CN" : "en-US", { month: "short", day: "numeric" })} $${parsedOption.strikePrice} ${parsedOption.optionType}`
+    : `${(holding.quantity ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} ${
+        isChinese ? "股" : "shares"
+      }`;
   const avatarSymbol = parsedOption ? parsedOption.underlying : symbol;
   const marketValue = holding.marketValue?.base ?? 0;
   const gainAmount =
@@ -112,10 +117,11 @@ function HoldingRow({
 interface StackedAvatarsProps {
   holdings: Holding[];
   totalRemaining: number;
+  isChinese: boolean;
   onClick?: () => void;
 }
 
-function StackedAvatars({ holdings, totalRemaining, onClick }: StackedAvatarsProps) {
+function StackedAvatars({ holdings, totalRemaining, isChinese, onClick }: StackedAvatarsProps) {
   const displayedHoldings = holdings.slice(0, MAX_STACKED_AVATARS);
   const extraCount = totalRemaining - displayedHoldings.length;
 
@@ -144,7 +150,13 @@ function StackedAvatars({ holdings, totalRemaining, onClick }: StackedAvatarsPro
         })}
       </div>
       <span className="text-muted-foreground text-xs">
-        {extraCount > 0 ? `+${totalRemaining} more holdings` : `+${totalRemaining} more`}
+        {isChinese
+          ? extraCount > 0
+            ? `+${extraCount} 项更多持仓`
+            : `+${totalRemaining} 更多`
+          : extraCount > 0
+            ? `+${extraCount} more holdings`
+            : `+${totalRemaining} more`}
       </span>
       <Icons.ChevronRight className="text-muted-foreground ml-auto h-3 w-3" />
     </div>
@@ -152,8 +164,11 @@ function StackedAvatars({ holdings, totalRemaining, onClick }: StackedAvatarsPro
 }
 
 function TopHoldingsSkeleton() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
+
   return (
-    <DashboardCard title="Holdings" elevated>
+    <DashboardCard title={isChinese ? "持仓" : "Holdings"} elevated>
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="border-border border-b py-3 last:border-0">
           <div className="flex items-center justify-between">
@@ -179,15 +194,18 @@ function TopHoldingsSkeleton() {
 }
 
 function TopHoldingsEmptyState() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
+
   return (
-    <DashboardCard title="Holdings" elevated>
+    <DashboardCard title={isChinese ? "持仓" : "Holdings"} elevated>
       <div className="py-2 text-center">
-        <p className="text-sm">No holdings yet.</p>
+        <p className="text-sm">{isChinese ? "还没有持仓。" : "No holdings yet."}</p>
         <Link
           to="/activities/manage"
           className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
         >
-          Add your first transaction
+          {isChinese ? "添加第一笔交易" : "Add your first transaction"}
           <Icons.ChevronRight className="h-3 w-3" />
         </Link>
       </div>
@@ -196,6 +214,8 @@ function TopHoldingsEmptyState() {
 }
 
 export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const navigate = useNavigate();
   const { isBalanceHidden } = useBalancePrivacy();
   const [performanceMode, setPerformanceMode] = usePersistentState<PerformanceMode>(
@@ -261,7 +281,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
 
   return (
     <DashboardCard
-      title="Holdings"
+      title={isChinese ? "持仓" : "Holdings"}
       elevated
       action={
         <div className="flex items-center gap-1">
@@ -280,7 +300,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
               className="border-border/50 bg-card min-w-[200px] rounded-2xl border p-2 shadow-lg backdrop-blur-xl"
             >
               <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium uppercase tracking-wider">
-                Show
+                {isChinese ? "显示" : "Show"}
               </p>
               {(["daily", "pnl", "return"] as const).map((v) => (
                 <button
@@ -288,7 +308,17 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
                   className="hover:bg-accent flex w-full items-center justify-between rounded-xl px-3 py-3 text-sm font-medium transition-colors"
                   onClick={() => setPerformanceMode(v)}
                 >
-                  {v === "daily" ? "Daily Change" : v === "pnl" ? "Total P&L" : "Total Return"}
+                  {v === "daily"
+                    ? isChinese
+                      ? "日涨跌"
+                      : "Daily Change"
+                    : v === "pnl"
+                      ? isChinese
+                        ? "总盈亏"
+                        : "Total P&L"
+                      : isChinese
+                        ? "总回报"
+                        : "Total Return"}
                   <span
                     className={cn(
                       "flex h-4 w-4 items-center justify-center rounded-full border-2",
@@ -305,7 +335,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
               ))}
               <div className="bg-border/70 mx-2 my-1.5 h-px" />
               <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium uppercase tracking-wider">
-                Sort by
+                {isChinese ? "排序依据" : "Sort by"}
               </p>
               {(["value", "gain"] as const).map((v) => (
                 <button
@@ -313,7 +343,13 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
                   className="hover:bg-accent flex w-full items-center justify-between rounded-xl px-3 py-3 text-sm font-medium transition-colors"
                   onClick={() => setSortBy(v)}
                 >
-                  {v === "value" ? "Total Value" : "Gain"}
+                  {v === "value"
+                    ? isChinese
+                      ? "总市值"
+                      : "Total Value"
+                    : isChinese
+                      ? "收益"
+                      : "Gain"}
                   <span
                     className={cn(
                       "flex h-4 w-4 items-center justify-center rounded-full border-2",
@@ -328,7 +364,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
               ))}
               <div className="bg-border/70 mx-2 my-1.5 h-px" />
               <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium uppercase tracking-wider">
-                Display
+                {isChinese ? "显示方式" : "Display"}
               </p>
               {(["symbol", "name"] as const).map((v) => (
                 <button
@@ -336,7 +372,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
                   className="hover:bg-accent flex w-full items-center justify-between rounded-xl px-3 py-3 text-sm font-medium transition-colors"
                   onClick={() => setDisplayMode(v)}
                 >
-                  {v === "symbol" ? "Symbol" : "Name"}
+                  {v === "symbol" ? (isChinese ? "代码" : "Symbol") : isChinese ? "名称" : "Name"}
                   <span
                     className={cn(
                       "flex h-4 w-4 items-center justify-center rounded-full border-2",
@@ -357,7 +393,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
             className="text-muted-foreground hover:bg-success/10 text-xs"
             onClick={() => navigate("/holdings")}
           >
-            View All
+            {isChinese ? "查看全部" : "View All"}
             <Icons.ChevronRight className="ml-1 h-3 w-3" />
           </Button>
         </div>
@@ -373,6 +409,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
             isHidden={isBalanceHidden}
             performanceMode={performanceMode}
             showName={displayMode === "name"}
+            isChinese={isChinese}
             onClick={() => navigate(`/holdings/${encodeURIComponent(assetId)}`)}
           />
         );
@@ -381,6 +418,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
         <StackedAvatars
           holdings={remainingHoldings}
           totalRemaining={remainingHoldings.length}
+          isChinese={isChinese}
           onClick={() => navigate("/holdings")}
         />
       )}

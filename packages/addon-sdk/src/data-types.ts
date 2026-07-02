@@ -662,6 +662,7 @@ export interface QuoteUpdate {
 export interface Settings {
   theme: string;
   font: string;
+  language?: 'en' | 'zh-CN';
   baseCurrency: string;
   defaultReturnMetric: 'twr' | 'irr' | 'valueReturn';
   timezone?: string;

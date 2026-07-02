@@ -4,6 +4,7 @@ import { PrivacyToggle } from "@/components/privacy-toggle";
 import { AlternativeAssetQuickAddModal } from "@/pages/asset/alternative-assets/components";
 import { useNavigationMode } from "@/pages/layouts/navigation/navigation-mode-context";
 import { AlternativeAssetKind } from "@/lib/types";
+import { useI18n } from "@/i18n/i18n-provider";
 import SpendingTabContent from "@/features/spending/components/spending-tab-content";
 import { useSpendingSettings } from "@/features/spending/hooks/use-spending-settings";
 import { Button, Icons, type Icon } from "@wealthfolio/ui";
@@ -43,6 +44,8 @@ const PageLoader = () => (
 );
 
 export default function PortfolioPage() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { isFocusMode, toggleFocusMode } = useNavigationMode();
 
   // Alternative asset quick-add modal state
@@ -66,11 +69,13 @@ export default function PortfolioPage() {
     (propertyId: string, _purchaseDate?: Date, propertyName?: string) => {
       setPendingLiabilityLink(propertyId);
       setPendingLiabilityType("mortgage");
-      setPendingMortgageName(propertyName ? `${propertyName} Mortgage` : undefined);
+      setPendingMortgageName(
+        propertyName ? (isChinese ? `${propertyName} 贷款` : `${propertyName} Mortgage`) : undefined,
+      );
       setModalDefaultKind(AlternativeAssetKind.LIABILITY);
       setIsQuickAddOpen(true);
     },
-    [],
+    [isChinese],
   );
 
   const commonActions = (
@@ -110,7 +115,7 @@ export default function PortfolioPage() {
     const items: SwipablePageView[] = [
       {
         value: "investments",
-        label: "Investments",
+        label: isChinese ? "投资" : "Investments",
         icon: InvestmentsTabIcon,
         content: (
           <Suspense fallback={<PageLoader />}>
@@ -121,7 +126,7 @@ export default function PortfolioPage() {
       },
       {
         value: "net-worth",
-        label: "Net Worth",
+        label: isChinese ? "净资产" : "Net Worth",
         icon: NetWorthTabIcon,
         content: (
           <Suspense fallback={<PageLoader />}>
@@ -134,7 +139,7 @@ export default function PortfolioPage() {
     if (spendingEnabled) {
       items.push({
         value: "spending",
-        label: "Spending",
+        label: isChinese ? "支出" : "Spending",
         icon: SpendingTabIcon,
         content: (
           <Suspense fallback={<PageLoader />}>
@@ -151,6 +156,7 @@ export default function PortfolioPage() {
     commonActions,
     handleAddAsset,
     handleAddLiability,
+    isChinese,
     spendingEnabled,
   ]);
 

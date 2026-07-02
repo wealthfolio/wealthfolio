@@ -5,6 +5,7 @@ import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { HoldingType, isAlternativeAssetKind } from "@/lib/constants";
 import { useSettingsContext } from "@/lib/settings-provider";
+import { useI18n } from "@/i18n/i18n-provider";
 import type { AccountScope, AllocationTarget, TaxonomyAllocation } from "@/lib/types";
 import { OverviewTab } from "@/pages/allocation-targets/components/overview-tab";
 import { RebalanceTab } from "@/pages/allocation-targets/components/rebalance-tab";
@@ -46,6 +47,8 @@ export function OverviewPage({
   onFilterChange,
   onToolbarActionsChange,
 }: OverviewPageProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
@@ -282,10 +285,12 @@ export function OverviewPage({
                 onClick={() => backTo(effectiveTargetId ? "details" : "current")}
               >
                 <Icons.ArrowLeft className="mr-1.5 h-4 w-4" />
-                Back to allocation
+                {isChinese ? "返回配置" : "Back to allocation"}
               </Button>
               <span className="bg-border hidden h-5 w-px sm:block" />
-              <h2 className="text-foreground text-[16px] font-semibold">Target allocation</h2>
+              <h2 className="text-foreground text-[16px] font-semibold">
+                {isChinese ? "目标配置" : "Target allocation"}
+              </h2>
             </div>
           </div>
           {targetsLoading ? (
@@ -336,10 +341,12 @@ export function OverviewPage({
             onClick={() => backTo("details")}
           >
             <Icons.ArrowLeft className="mr-1.5 h-4 w-4" />
-            Back to overview
+            {isChinese ? "返回概览" : "Back to overview"}
           </Button>
           <span className="bg-border hidden h-5 w-px sm:block" />
-          <h2 className="text-foreground min-w-0 text-[16px] font-semibold">Rebalance</h2>
+          <h2 className="text-foreground min-w-0 text-[16px] font-semibold">
+            {isChinese ? "再平衡" : "Rebalance"}
+          </h2>
         </div>
         <RebalanceTab
           profile={effectiveTarget ?? null}
@@ -385,11 +392,15 @@ export function OverviewPage({
         ) : (
           <EmptyPlaceholder
             icon={<Icons.Target className="text-muted-foreground h-10 w-10" />}
-            title="No target selected"
-            description="Create a target allocation to compare current weights against intended weights."
+            title={isChinese ? "未选择目标配置" : "No target selected"}
+            description={
+              isChinese
+                ? "创建目标配置，用于对比当前权重和目标权重。"
+                : "Create a target allocation to compare current weights against intended weights."
+            }
           >
             <Button size="sm" onClick={handleCreateTarget}>
-              Set target allocation
+              {isChinese ? "设置目标配置" : "Set target allocation"}
             </Button>
           </EmptyPlaceholder>
         )}
@@ -411,7 +422,7 @@ export function OverviewPage({
             accountValuations={currentValuation?.accounts}
           />
           <DrillableDonutChart
-            title="Classes"
+            title={isChinese ? "资产类别" : "Classes"}
             allocation={allocations?.assetClasses}
             baseCurrency={baseCurrency}
             isLoading={isLoading}
@@ -421,7 +432,7 @@ export function OverviewPage({
             onCardClick={() => openAllocationSheet(allocations?.assetClasses)}
           />
           <DrillableDonutChart
-            title="Regions"
+            title={isChinese ? "地区" : "Regions"}
             allocation={allocations?.regions}
             baseCurrency={baseCurrency}
             isLoading={isLoading}
@@ -429,7 +440,7 @@ export function OverviewPage({
             onCardClick={() => openAllocationSheet(allocations?.regions)}
           />
           <DrillableDonutChart
-            title="Sectors"
+            title={isChinese ? "行业" : "Sectors"}
             allocation={allocations?.sectors}
             baseCurrency={baseCurrency}
             isLoading={isLoading}

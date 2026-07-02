@@ -1,4 +1,6 @@
 import { searchTicker } from "@/adapters";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateUiText } from "@/i18n/ui-text";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { ScrollArea } from "@wealthfolio/ui/components/ui/scroll-area";
@@ -125,6 +127,8 @@ export function BenchmarkSymbolSelectorMobile({
   open: controlledOpen,
   onOpenChange,
 }: BenchmarkSymbolSelectorMobileProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setOpen = onOpenChange !== undefined ? onOpenChange : setInternalOpen;
@@ -175,7 +179,7 @@ export function BenchmarkSymbolSelectorMobile({
       <SheetTrigger asChild>
         <Button
           variant="outline"
-          aria-label={iconOnly ? "Add benchmark" : undefined}
+          aria-label={iconOnly ? (isChinese ? "添加基准" : "Add benchmark") : undefined}
           className={cn(
             "bg-secondary/30 hover:bg-muted/80 flex items-center gap-1.5 rounded-md border-[1.5px] border-none text-sm font-medium",
             iconOnly ? "h-9 w-9 p-0" : "h-8 px-3 py-1",
@@ -184,13 +188,17 @@ export function BenchmarkSymbolSelectorMobile({
           size={iconOnly ? "icon" : "sm"}
         >
           <Icons.TrendingUp className="h-4 w-4" />
-          {!iconOnly && "Add Benchmark"}
+          {!iconOnly && (isChinese ? "添加基准" : "Add Benchmark")}
         </Button>
       </SheetTrigger>
       <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[85vh] p-0">
         <SheetHeader className="border-border border-b px-6 py-4">
-          <SheetTitle>Select Benchmark</SheetTitle>
-          <SheetDescription>Choose a benchmark or search for any symbol</SheetDescription>
+          <SheetTitle>{isChinese ? "选择基准" : "Select Benchmark"}</SheetTitle>
+          <SheetDescription>
+            {isChinese
+              ? "选择一个基准，或搜索任意代码"
+              : "Choose a benchmark or search for any symbol"}
+          </SheetDescription>
         </SheetHeader>
 
         <div className="flex h-[calc(85vh-5rem)] flex-col">
@@ -200,7 +208,9 @@ export function BenchmarkSymbolSelectorMobile({
               <Icons.Search className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search benchmarks or any symbol..."
+                placeholder={
+                  isChinese ? "搜索基准或任意代码..." : "Search benchmarks or any symbol..."
+                }
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="bg-background border-input ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring h-10 w-full rounded-md border px-3 py-2 pl-9 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
@@ -213,7 +223,9 @@ export function BenchmarkSymbolSelectorMobile({
             {/* Loading state for search results */}
             {isLoading && searchQuery.length > 2 && (
               <div className="space-y-2">
-                <div className="text-muted-foreground mb-3 text-sm font-medium">Searching...</div>
+                <div className="text-muted-foreground mb-3 text-sm font-medium">
+                  {isChinese ? "搜索中..." : "Searching..."}
+                </div>
                 <Skeleton className="h-16 w-full" />
                 <Skeleton className="h-16 w-full" />
                 <Skeleton className="h-16 w-full" />
@@ -223,7 +235,9 @@ export function BenchmarkSymbolSelectorMobile({
             {/* Error state for search results */}
             {isError && searchQuery.length > 2 && (
               <div className="text-muted-foreground py-8 text-center text-sm">
-                Error searching for symbols. Please try again.
+                {isChinese
+                  ? "搜索代码时出错。请重试。"
+                  : "Error searching for symbols. Please try again."}
               </div>
             )}
 
@@ -233,7 +247,9 @@ export function BenchmarkSymbolSelectorMobile({
               filteredSearchResults.length > 0 &&
               searchQuery.length > 2 && (
                 <div className="mb-6">
-                  <h3 className="text-muted-foreground mb-3 text-sm font-medium">Search Results</h3>
+                  <h3 className="text-muted-foreground mb-3 text-sm font-medium">
+                    {isChinese ? "搜索结果" : "Search Results"}
+                  </h3>
                   <div className="space-y-2">
                     {filteredSearchResults.slice(0, 8).map((ticker) => (
                       <button
@@ -281,7 +297,7 @@ export function BenchmarkSymbolSelectorMobile({
                   return (
                     <div key={group.group}>
                       <h3 className="text-muted-foreground mb-3 text-sm font-medium">
-                        {group.group}
+                        {translateUiText(language, group.group)}
                       </h3>
                       <div className="space-y-2">
                         {filteredItems.map((benchmark) => (
@@ -303,7 +319,7 @@ export function BenchmarkSymbolSelectorMobile({
                                 </span>
                               </div>
                               <div className="text-muted-foreground text-sm">
-                                {benchmark.description}
+                                {translateUiText(language, benchmark.description)}
                               </div>
                             </div>
                             <Icons.ChevronRight className="text-muted-foreground h-5 w-5 flex-shrink-0" />
@@ -330,7 +346,7 @@ export function BenchmarkSymbolSelectorMobile({
                   ).length === 0,
               ) && (
                 <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-                  No benchmarks or symbols found.
+                  {isChinese ? "未找到基准或代码。" : "No benchmarks or symbols found."}
                 </div>
               )}
           </ScrollArea>

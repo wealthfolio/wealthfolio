@@ -8,6 +8,7 @@ import type { Goal } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import { cn, formatCompactAmount } from "@wealthfolio/ui";
 import { Link } from "react-router-dom";
+import { useI18n } from "@/i18n/i18n-provider";
 
 const MAX_DISPLAYED_GOALS = 5;
 
@@ -43,36 +44,42 @@ function statusDotClass(status: Goal["statusHealth"]) {
   return "bg-muted-foreground/35";
 }
 
-function formatTimeRemaining(targetDate?: string): string {
-  if (!targetDate) return "NO DEADLINE";
+function formatTimeRemaining(targetDate: string | undefined, isChinese: boolean): string {
+  if (!targetDate) return isChinese ? "无截止日期" : "NO DEADLINE";
   const target = new Date(targetDate);
   const now = new Date();
-  if (!Number.isFinite(target.getTime())) return "NO DEADLINE";
-  if (target.getTime() <= now.getTime()) return "DUE";
+  if (!Number.isFinite(target.getTime())) return isChinese ? "无截止日期" : "NO DEADLINE";
+  if (target.getTime() <= now.getTime()) return isChinese ? "已到期" : "DUE";
   let months =
     (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth());
   if (target.getDate() < now.getDate()) months -= 1;
   if (months < 0) months = 0;
   const years = Math.floor(months / 12);
   const remMonths = months % 12;
-  if (years === 0) return `${Math.max(1, remMonths)}M`;
-  if (remMonths === 0) return `${years} YR${years === 1 ? "" : "S"}`;
-  return `${years}Y ${remMonths}M`;
+  if (years === 0)
+    return isChinese ? `${Math.max(1, remMonths)}个月` : `${Math.max(1, remMonths)}M`;
+  if (remMonths === 0) return isChinese ? `${years}年` : `${years} YR${years === 1 ? "" : "S"}`;
+  return isChinese ? `${years}年 ${remMonths}个月` : `${years}Y ${remMonths}M`;
 }
 
 function ViewAllLink() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
+
   return (
     <Link
       to="/goals"
       className="text-muted-foreground hover:bg-success/10 inline-flex h-8 items-center rounded-md px-3 text-xs font-medium transition-colors"
     >
-      View All
+      {isChinese ? "查看全部" : "View All"}
       <Icons.ChevronRight className="ml-1 h-3 w-3" />
     </Link>
   );
 }
 
 export function SavingGoals() {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { isBalanceHidden } = useBalancePrivacy();
 
   const { data: goals, isLoading } = useQuery<Goal[], Error>({
@@ -82,7 +89,7 @@ export function SavingGoals() {
 
   if (isLoading) {
     return (
-      <DashboardCard title="Goals" elevated>
+      <DashboardCard title={isChinese ? "目标" : "Goals"} elevated>
         <div className="space-y-6">
           {[0, 1, 2].map((i) => (
             <div key={i} className="space-y-2">
@@ -104,14 +111,14 @@ export function SavingGoals() {
 
   if (activeGoals.length === 0) {
     return (
-      <DashboardCard title="Goals" elevated action={<ViewAllLink />}>
+      <DashboardCard title={isChinese ? "目标" : "Goals"} elevated action={<ViewAllLink />}>
         <div className="py-2 text-center">
-          <p className="text-sm">No goals set.</p>
+          <p className="text-sm">{isChinese ? "还没有设置目标。" : "No goals set."}</p>
           <Link
             to="/goals/new"
             className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
           >
-            Create your first goal
+            {isChinese ? "创建第一个目标" : "Create your first goal"}
             <Icons.ChevronRight className="h-3 w-3" />
           </Link>
         </div>
@@ -120,7 +127,7 @@ export function SavingGoals() {
   }
 
   return (
-    <DashboardCard title="Goals" elevated action={<ViewAllLink />}>
+    <DashboardCard title={isChinese ? "目标" : "Goals"} elevated action={<ViewAllLink />}>
       {visibleGoals.map((goal) => {
         const progress = goal.summaryProgress ?? 0;
         const pct = Math.max(0, Math.min(1, progress));
@@ -128,7 +135,7 @@ export function SavingGoals() {
         const target = goal.summaryTargetAmount ?? goal.targetAmount ?? 0;
         const currency = goal.currency ?? "USD";
         const deadline = goal.targetDate ?? goal.projectedCompletionDate;
-        const timeStr = formatTimeRemaining(deadline);
+        const timeStr = formatTimeRemaining(deadline, isChinese);
         const pctDisplay = Math.round(pct * 100);
 
         const currentDisplay = isBalanceHidden
@@ -196,7 +203,9 @@ export function SavingGoals() {
           className="text-muted-foreground hover:text-foreground flex items-center justify-between pt-3 text-xs transition-colors"
         >
           <span>
-            +{hiddenGoalsCount} more {hiddenGoalsCount === 1 ? "goal" : "goals"}
+            {isChinese
+              ? `+${hiddenGoalsCount} 个更多目标`
+              : `+${hiddenGoalsCount} more ${hiddenGoalsCount === 1 ? "goal" : "goals"}`}
           </span>
           <Icons.ChevronRight className="h-4 w-4" />
         </Link>

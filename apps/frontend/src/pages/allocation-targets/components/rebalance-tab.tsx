@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Button, Card, CardContent, Icons, Skeleton } from "@wealthfolio/ui";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateClassificationLabel } from "@/i18n/ui-text";
 import { cn, formatAmount } from "@/lib/utils";
 import { toast } from "sonner";
 import type {
@@ -74,6 +76,14 @@ function roundedCurrency(amount: number, currency: string): string {
   }
 }
 
+function isChineseLanguage(language: string): boolean {
+  return language === "zh-CN";
+}
+
+function localizedCategoryName(language: string, name: string): string {
+  return translateClassificationLabel(language === "zh-CN" ? "zh-CN" : "en", name);
+}
+
 function cashInputLimit(availableCash: number, currency: string): number {
   const factor = 10 ** currencyFractionDigits(currency);
   return Math.round((availableCash + Number.EPSILON) * factor) / factor;
@@ -108,6 +118,7 @@ function formatTolerancePct(bps: number): string {
 function driftToleranceRange(
   profile: AllocationTarget,
   driftReport: DriftReport | null,
+  language = "en",
 ): DriftToleranceRange {
   const bands =
     driftReport?.rows
@@ -119,7 +130,9 @@ function driftToleranceRange(
     return {
       minBps: bps,
       maxBps: bps,
-      label: `tolerance ±${formatTolerancePct(bps)}%`,
+      label: isChineseLanguage(language)
+        ? `容差 ±${formatTolerancePct(bps)}%`
+        : `tolerance ±${formatTolerancePct(bps)}%`,
     };
   }
 
@@ -127,8 +140,12 @@ function driftToleranceRange(
   const maxBps = Math.max(...bands);
   const label =
     minBps === maxBps
-      ? `tolerance ±${formatTolerancePct(maxBps)}%`
-      : `tolerance range ±${formatTolerancePct(minBps)}-${formatTolerancePct(maxBps)}%`;
+      ? isChineseLanguage(language)
+        ? `容差 ±${formatTolerancePct(maxBps)}%`
+        : `tolerance ±${formatTolerancePct(maxBps)}%`
+      : isChineseLanguage(language)
+        ? `容差范围 ±${formatTolerancePct(minBps)}-${formatTolerancePct(maxBps)}%`
+        : `tolerance range ±${formatTolerancePct(minBps)}-${formatTolerancePct(maxBps)}%`;
 
   return { minBps, maxBps, label };
 }
@@ -162,29 +179,37 @@ function computeSleeveSummary(driftReport: DriftReport, plan: RebalancePlan): Sl
 }
 
 /** "Cash sits 42% over a 0% target." — describes the largest current drift driver. */
-function driftDriverSentence(driftReport: DriftReport): string | null {
+function driftDriverSentence(driftReport: DriftReport, language = "en"): string | null {
   let top: { name: string; drift: number; cur: number; tgt: number } | null = null;
   for (const r of driftReport.rows) {
     if (r.status === "not_targeted" && r.currentBps === 0) continue;
     const drift = r.currentBps - r.targetBps;
     if (!top || Math.abs(drift) > Math.abs(top.drift)) {
-      top = { name: r.categoryName, drift, cur: r.currentBps, tgt: r.targetBps };
+      top = { name: localizedCategoryName(language, r.categoryName), drift, cur: r.currentBps, tgt: r.targetBps };
     }
   }
   if (!top) return null;
+  if (isChineseLanguage(language)) {
+    return `${top.name} 当前 ${(top.cur / 100).toFixed(0)}%，${top.drift >= 0 ? "高于" : "低于"} ${(top.tgt / 100).toFixed(0)}% 的目标。`;
+  }
   return `${top.name} sits ${(top.cur / 100).toFixed(0)}% ${top.drift >= 0 ? "over" : "under"} a ${(top.tgt / 100).toFixed(0)}% target.`;
 }
 
-function modeVerb(mode: ScenarioMode): string {
+function modeVerb(mode: ScenarioMode, language = "en"): string {
+  if (isChineseLanguage(language)) {
+    if (mode === "sell_to_rebalance") return "卖出并买入";
+    if (mode === "hybrid") return "现金和卖出";
+    return "现金流买入";
+  }
   if (mode === "sell_to_rebalance") return "Sells and buys";
   if (mode === "hybrid") return "Cash and sells";
   return "Cash-flow buys";
 }
 
 /** Narrative for the Now · After · Target card. */
-function reshapeNarrative(sleeves: SleeveSummaryRow[], mode: ScenarioMode): string {
+function reshapeNarrative(sleeves: SleeveSummaryRow[], mode: ScenarioMode, language = "en"): string {
   const movers = sleeves.map((s) => ({
-    name: s.categoryName,
+    name: localizedCategoryName(language, s.categoryName),
     before: s.currentBps - s.targetBps,
     after: s.afterDriftBps,
     lifted: s.afterBps - s.currentBps,
@@ -196,24 +221,56 @@ function reshapeNarrative(sleeves: SleeveSummaryRow[], mode: ScenarioMode): stri
   const under = movers.filter((m) => m.after < -50).sort((a, b) => a.after - b.after)[0];
 
   const parts: string[] = [];
-  const verb = modeVerb(mode);
+  const verb = modeVerb(mode, language);
   if (lifted && shrank) {
     parts.push(
-      `${verb} lift ${lifted.name} toward target and shrink the ${shrank.name} overweight from ${ppSigned(shrank.before)} to ${ppSigned(shrank.after)}.`,
+      isChineseLanguage(language)
+        ? `${verb}会让 ${lifted.name} 向目标靠拢，并把 ${shrank.name} 的超配从 ${ppSigned(shrank.before)} 缩小到 ${ppSigned(shrank.after)}。`
+        : `${verb} lift ${lifted.name} toward target and shrink the ${shrank.name} overweight from ${ppSigned(shrank.before)} to ${ppSigned(shrank.after)}.`,
     );
   } else if (lifted) {
-    parts.push(`${verb} lift ${lifted.name} toward target.`);
+    parts.push(
+      isChineseLanguage(language)
+        ? `${verb}会让 ${lifted.name} 向目标靠拢。`
+        : `${verb} lift ${lifted.name} toward target.`,
+    );
   } else if (shrank) {
     parts.push(
-      `${verb} shrink the ${shrank.name} overweight from ${ppSigned(shrank.before)} to ${ppSigned(shrank.after)}.`,
+      isChineseLanguage(language)
+        ? `${verb}会把 ${shrank.name} 的超配从 ${ppSigned(shrank.before)} 缩小到 ${ppSigned(shrank.after)}。`
+        : `${verb} shrink the ${shrank.name} overweight from ${ppSigned(shrank.before)} to ${ppSigned(shrank.after)}.`,
     );
   }
   if (under && under.name !== shrank?.name) {
     parts.push(
-      `${under.name} stays underweight — closing it needs a sell or a buy above the minimum lot.`,
+      isChineseLanguage(language)
+        ? `${under.name} 仍然低配，想完全补齐需要卖出或买入金额高于最低交易额。`
+        : `${under.name} stays underweight — closing it needs a sell or a buy above the minimum lot.`,
     );
   }
   return parts.join(" ");
+}
+
+function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function tradeCountSummary(buys: number, sells: number, language = "en"): string {
+  if (isChineseLanguage(language)) {
+    return sells > 0 ? `${buys} 笔买入 · ${sells} 笔卖出` : `${buys} 笔买入 · 0 笔卖出`;
+  }
+  return sells > 0
+    ? `${pluralize(buys, "buy")} · ${pluralize(sells, "sell")}`
+    : `${pluralize(buys, "buy")} · 0 sells`;
+}
+
+function tradeActionSummary(buys: number, sells: number, language = "en"): string {
+  if (isChineseLanguage(language)) {
+    return sells > 0 ? `${buys} 笔买入和 ${sells} 笔卖出` : `${buys} 笔买入`;
+  }
+  return sells > 0
+    ? `${pluralize(buys, "buy")} and ${pluralize(sells, "sell")}`
+    : pluralize(buys, "buy");
 }
 
 function planCashTotals(plan: RebalancePlan) {
@@ -234,58 +291,80 @@ function csvCell(value: string): string {
   return `"${escaped}"`;
 }
 
-function exportCsv(plan: RebalancePlan, currency: string, profileName: string) {
+function tradeReason(trade: SuggestedManualTrade, language: string): string {
+  if (!isChineseLanguage(language)) {
+    return trade.reason;
+  }
+
+  const categoryName = localizedCategoryName(language, trade.categoryName);
+  if (/ improves portfolio drift\.$/.test(trade.reason)) {
+    return `${trade.symbol ?? categoryName} 可改善组合偏离。`;
+  }
+
+  if (/ is overweight — selling reduces portfolio drift\.$/.test(trade.reason)) {
+    return `${trade.symbol ?? categoryName} 超配，卖出可降低组合偏离。`;
+  }
+
+  if (/^Category .+ is underweight\. Allocate manually\.$/.test(trade.reason)) {
+    return `${categoryName} 低配，请手动配置。`;
+  }
+
+  return "该交易用于改善组合偏离。";
+}
+
+function exportCsv(plan: RebalancePlan, currency: string, profileName: string, language = "en") {
   const generated = new Date().toISOString().slice(0, 10);
   const fractionDigits = currencyFractionDigits(currency);
   const cashTotals = planCashTotals(plan);
+  const isChinese = isChineseLanguage(language);
   const cashRows = cashTotals.hasSells
     ? [
-        ["Buy total", cashTotals.buyTotal.toFixed(fractionDigits)],
-        ["Sell proceeds", cashTotals.sellProceeds.toFixed(fractionDigits)],
-        ["New cash used", cashTotals.newCashUsed.toFixed(fractionDigits)],
-        ["Cash remaining", plan.cashRemaining.toFixed(fractionDigits)],
-        ["Cash available", plan.availableCash.toFixed(fractionDigits)],
+        [isChinese ? "买入合计" : "Buy total", cashTotals.buyTotal.toFixed(fractionDigits)],
+        [isChinese ? "卖出所得" : "Sell proceeds", cashTotals.sellProceeds.toFixed(fractionDigits)],
+        [isChinese ? "新增现金使用" : "New cash used", cashTotals.newCashUsed.toFixed(fractionDigits)],
+        [isChinese ? "剩余现金" : "Cash remaining", plan.cashRemaining.toFixed(fractionDigits)],
+        [isChinese ? "可用现金" : "Cash available", plan.availableCash.toFixed(fractionDigits)],
       ]
     : [
-        ["Cash deployed", plan.cashUsed.toFixed(fractionDigits)],
-        ["Cash remaining", plan.cashRemaining.toFixed(fractionDigits)],
-        ["Cash available", plan.availableCash.toFixed(fractionDigits)],
+        [isChinese ? "已投入现金" : "Cash deployed", plan.cashUsed.toFixed(fractionDigits)],
+        [isChinese ? "剩余现金" : "Cash remaining", plan.cashRemaining.toFixed(fractionDigits)],
+        [isChinese ? "可用现金" : "Cash available", plan.availableCash.toFixed(fractionDigits)],
       ];
 
   const meta = [
-    ["Generated", generated],
-    ["Profile", profileName],
-    ["Currency", currency],
+    [isChinese ? "生成日期" : "Generated", generated],
+    [isChinese ? "配置" : "Profile", profileName],
+    [isChinese ? "币种" : "Currency", currency],
     ...cashRows,
-    ["Max drift before", fmtBps(plan.maxDriftBpsBefore)],
-    ["Max drift after", fmtBps(plan.maxDriftBpsAfter)],
+    [isChinese ? "调整前最大偏离" : "Max drift before", fmtBps(plan.maxDriftBpsBefore)],
+    [isChinese ? "调整后最大偏离" : "Max drift after", fmtBps(plan.maxDriftBpsAfter)],
   ]
     .map((row) => row.map(csvCell).join(","))
     .join("\n");
 
   const header = [
-    "Action",
-    "Symbol",
-    "Name",
-    "Category",
-    `Amount (${currency})`,
-    "Shares",
-    `Last Price (${currency})`,
-    "Reason",
+    isChinese ? "操作" : "Action",
+    isChinese ? "代码" : "Symbol",
+    isChinese ? "名称" : "Name",
+    isChinese ? "分类" : "Category",
+    `${isChinese ? "金额" : "Amount"} (${currency})`,
+    isChinese ? "股数" : "Shares",
+    `${isChinese ? "最新价" : "Last Price"} (${currency})`,
+    isChinese ? "原因" : "Reason",
   ]
     .map(csvCell)
     .join(",");
 
   const rows = plan.trades.map((t) =>
     [
-      t.action,
+      isChinese ? (t.action === "sell" ? "卖出" : "买入") : t.action,
       t.symbol ?? "",
       t.name ?? "",
-      t.categoryName,
+      localizedCategoryName(language, t.categoryName),
       t.estimatedAmount.toFixed(fractionDigits),
       t.quantity != null ? t.quantity.toFixed(t.quantity % 1 === 0 ? 0 : 4) : "",
       t.estimatedPrice != null ? t.estimatedPrice.toFixed(fractionDigits) : "",
-      t.reason,
+      tradeReason(t, language),
     ]
       .map(csvCell)
       .join(","),
@@ -301,26 +380,33 @@ function exportCsv(plan: RebalancePlan, currency: string, profileName: string) {
   URL.revokeObjectURL(url);
 }
 
-function copyToText(plan: RebalancePlan, currency: string) {
+function copyToText(plan: RebalancePlan, currency: string, language = "en") {
   const cashTotals = planCashTotals(plan);
+  const isChinese = isChineseLanguage(language);
   const lines = [
-    `Rebalance plan · ${new Date().toLocaleDateString()}`,
+    `${isChinese ? "再平衡方案" : "Rebalance plan"} · ${new Date().toLocaleDateString(isChinese ? "zh-CN" : undefined)}`,
     cashTotals.hasSells
-      ? `New cash used: ${formatAmount(cashTotals.newCashUsed, currency)} (buy total ${formatAmount(cashTotals.buyTotal, currency)}, sell proceeds ${formatAmount(cashTotals.sellProceeds, currency)}, cash remaining ${formatAmount(plan.cashRemaining, currency)})`
-      : `Cash deployed: ${formatAmount(plan.cashUsed, currency)} of ${formatAmount(plan.availableCash, currency)}`,
-    `Max drift: ${fmtBps(plan.maxDriftBpsBefore)} → ${fmtBps(plan.maxDriftBpsAfter)}`,
+      ? isChinese
+        ? `新增现金使用：${formatAmount(cashTotals.newCashUsed, currency)}（买入合计 ${formatAmount(cashTotals.buyTotal, currency)}，卖出所得 ${formatAmount(cashTotals.sellProceeds, currency)}，剩余现金 ${formatAmount(plan.cashRemaining, currency)}）`
+        : `New cash used: ${formatAmount(cashTotals.newCashUsed, currency)} (buy total ${formatAmount(cashTotals.buyTotal, currency)}, sell proceeds ${formatAmount(cashTotals.sellProceeds, currency)}, cash remaining ${formatAmount(plan.cashRemaining, currency)})`
+      : isChinese
+        ? `已投入现金：${formatAmount(plan.cashUsed, currency)}，可用现金 ${formatAmount(plan.availableCash, currency)}`
+        : `Cash deployed: ${formatAmount(plan.cashUsed, currency)} of ${formatAmount(plan.availableCash, currency)}`,
+    `${isChinese ? "最大偏离" : "Max drift"}: ${fmtBps(plan.maxDriftBpsBefore)} -> ${fmtBps(plan.maxDriftBpsAfter)}`,
     "",
-    "PROPOSED TRADES",
+    isChinese ? "建议交易" : "PROPOSED TRADES",
     ...plan.trades.map(
       (t) =>
-        `${t.action.toUpperCase()}  ${t.symbol ?? t.categoryName}  ${formatAmount(t.estimatedAmount, currency)}` +
-        (t.quantity != null ? `  ${t.quantity.toFixed(t.quantity % 1 === 0 ? 0 : 4)} sh` : "") +
+        `${isChinese ? (t.action === "sell" ? "卖出" : "买入") : t.action.toUpperCase()}  ${t.symbol ?? localizedCategoryName(language, t.categoryName)}  ${formatAmount(t.estimatedAmount, currency)}` +
+        (t.quantity != null
+          ? `  ${t.quantity.toFixed(t.quantity % 1 === 0 ? 0 : 4)} ${isChinese ? "股" : "sh"}`
+          : "") +
         (t.estimatedPrice != null ? ` @ ${formatAmount(t.estimatedPrice, currency)}` : ""),
     ),
   ];
   if (plan.warnings.length) {
-    lines.push("", `${plan.warnings.length} warning(s):`);
-    plan.warnings.forEach((w) => lines.push(`  · ${w.message}`));
+    lines.push("", isChinese ? `${plan.warnings.length} 条提示：` : `${plan.warnings.length} warning(s):`);
+    plan.warnings.forEach((w) => lines.push(`  · ${warningMessage(w, language)}`));
   }
   void navigator.clipboard.writeText(lines.join("\n"));
 }
@@ -347,26 +433,34 @@ function ModeSwitch({
   allowSells,
   value,
   onChange,
+  language,
 }: {
   currency: string;
   allowSells: boolean;
   value: ScenarioMode;
   onChange: (mode: ScenarioMode) => void;
+  language: string;
 }) {
+  const isChinese = isChineseLanguage(language);
   const modes: { id: ScenarioMode; label: string; shortLabel: string; hint: string }[] = [
     {
       id: "cash_flow_only",
-      label: "Cash-flow only",
-      shortLabel: "Cash-flow",
-      hint: `deploy new ${currencySymbol(currency)}`,
+      label: isChinese ? "仅现金流" : "Cash-flow only",
+      shortLabel: isChinese ? "现金流" : "Cash-flow",
+      hint: isChinese ? `投入新增${currencySymbol(currency)}` : `deploy new ${currencySymbol(currency)}`,
     },
     {
       id: "sell_to_rebalance",
-      label: "Sell to rebalance",
-      shortLabel: "Sell",
-      hint: "sells fund buys",
+      label: isChinese ? "卖出再平衡" : "Sell to rebalance",
+      shortLabel: isChinese ? "卖出" : "Sell",
+      hint: isChinese ? "卖出资金买入" : "sells fund buys",
     },
-    { id: "hybrid", label: "Hybrid", shortLabel: "Hybrid", hint: "cash + sells" },
+    {
+      id: "hybrid",
+      label: isChinese ? "混合" : "Hybrid",
+      shortLabel: isChinese ? "混合" : "Hybrid",
+      hint: isChinese ? "现金 + 卖出" : "cash + sells",
+    },
   ];
 
   return (
@@ -404,7 +498,7 @@ function ModeSwitch({
               <span className="flex min-w-0 cursor-not-allowed">{button}</span>
             </TooltipTrigger>
             <TooltipContent className="text-xs">
-              Enable &apos;Allow sells&apos; on this target to use this mode
+              {isChinese ? "请在此目标中启用“允许卖出”后使用该模式" : "Enable 'Allow sells' on this target to use this mode"}
             </TooltipContent>
           </Tooltip>
         );
@@ -425,6 +519,7 @@ function PlannerInput({
   hasPlan,
   isCalculating,
   isSourceLoading,
+  language,
 }: {
   description: string;
   cashValue: string;
@@ -435,7 +530,9 @@ function PlannerInput({
   hasPlan: boolean;
   isCalculating: boolean;
   isSourceLoading: boolean;
+  language: string;
 }) {
+  const isChinese = isChineseLanguage(language);
   const limit = cashInputLimit(availableCash, currency);
   const deploy = parseCashValue(cashValue);
   const overBudget = deploy > limit;
@@ -446,7 +543,7 @@ function PlannerInput({
     { id: "25", label: "25%", value: limit * 0.25 },
     { id: "50", label: "50%", value: limit * 0.5 },
     { id: "75", label: "75%", value: limit * 0.75 },
-    { id: "all", label: "All", value: limit },
+    { id: "all", label: isChinese ? "全部" : "All", value: limit },
   ];
   const activePreset = presets.find((p) => Math.abs(p.value - deploy) <= 0.5 + limit * 0.001)?.id;
 
@@ -455,9 +552,11 @@ function PlannerInput({
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
-        <Eyebrow>Cash to deploy</Eyebrow>
+        <Eyebrow>{isChinese ? "可投入现金" : "Cash to deploy"}</Eyebrow>
         <span className="text-muted-foreground font-mono text-[11px] sm:text-xs">
-          of {roundedCurrency(availableCash, currency)} in scope
+          {isChinese
+            ? `当前范围内可用 ${roundedCurrency(availableCash, currency)}`
+            : `of ${roundedCurrency(availableCash, currency)} in scope`}
         </span>
       </div>
 
@@ -517,7 +616,9 @@ function PlannerInput({
       </p>
 
       {overBudget && (
-        <p className="text-destructive mt-2 font-mono text-xs">Exceeds available cash</p>
+        <p className="text-destructive mt-2 font-mono text-xs">
+          {isChinese ? "超过可用现金" : "Exceeds available cash"}
+        </p>
       )}
 
       <div className="mt-auto pt-4 sm:pt-5">
@@ -534,12 +635,20 @@ function PlannerInput({
             <Icons.BarChart className="mr-1.5 h-3.5 w-3.5" />
           )}
           {isCalculating
-            ? "Calculating…"
+            ? isChinese
+              ? "计算中…"
+              : "Calculating…"
             : isSourceLoading
-              ? "Loading…"
+              ? isChinese
+                ? "加载中…"
+                : "Loading…"
               : hasPlan
-                ? "Recalculate"
-                : "Calculate plan"}
+                ? isChinese
+                  ? "重新计算"
+                  : "Recalculate"
+                : isChinese
+                  ? "计算方案"
+                  : "Calculate plan"}
         </Button>
       </div>
     </div>
@@ -553,12 +662,15 @@ function DriftBar({
   afterBps,
   tolerance,
   scaleMaxBps,
+  language,
 }: {
   beforeBps: number;
   afterBps: number | null;
   tolerance: DriftToleranceRange;
   scaleMaxBps: number;
+  language: string;
 }) {
+  const isChinese = isChineseLanguage(language);
   const clamp = (bps: number) => Math.min(100, Math.max(0, (bps / scaleMaxBps) * 100));
   const beforePos = clamp(beforeBps);
   const afterPos = afterBps != null ? clamp(afterBps) : 0;
@@ -625,7 +737,7 @@ function DriftBar({
             {isAfter ? pp1(afterBps) : fmtBps(beforeBps)}
           </span>
           <span className="text-muted-foreground font-mono text-xs uppercase tracking-wider">
-            {isAfter ? "After" : "Now"}
+            {isAfter ? (isChinese ? "调整后" : "After") : isChinese ? "当前" : "Now"}
           </span>
         </div>
         {isAfter && (
@@ -637,7 +749,7 @@ function DriftBar({
               {pp1(beforeBps)}
             </span>
             <span className="text-muted-foreground font-mono text-xs uppercase tracking-wider">
-              Before
+              {isChinese ? "调整前" : "Before"}
             </span>
           </div>
         )}
@@ -672,6 +784,7 @@ function PlannerResult({
   scaleMaxBps,
   mode,
   onReview,
+  language,
 }: {
   driftReport: DriftReport;
   plan: RebalancePlan | null;
@@ -680,13 +793,15 @@ function PlannerResult({
   scaleMaxBps: number;
   mode: ScenarioMode;
   onReview: () => void;
+  language: string;
 }) {
+  const isChinese = isChineseLanguage(language);
   if (!plan) {
     // ── Before Calculate ──
-    const driver = driftDriverSentence(driftReport);
+    const driver = driftDriverSentence(driftReport, language);
     return (
       <div className="flex h-full flex-col">
-        <Eyebrow>Current max drift</Eyebrow>
+        <Eyebrow>{isChinese ? "当前最大偏离" : "Current max drift"}</Eyebrow>
         <div className="text-muted-foreground mt-0.5 font-mono text-2xl font-semibold tabular-nums leading-none">
           {fmtBps(driftReport.maxDriftBps)}
         </div>
@@ -698,11 +813,12 @@ function PlannerResult({
             afterBps={null}
             tolerance={tolerance}
             scaleMaxBps={scaleMaxBps}
+            language={language}
           />
         </div>
 
         <div className="border-border/70 mt-4 grid grid-cols-3 gap-4 border-t pt-3">
-          {["Trades", "Impact", "Drift after"].map((label) => (
+          {(isChinese ? ["交易", "影响", "调整后偏离"] : ["Trades", "Impact", "Drift after"]).map((label) => (
             <div key={label}>
               <Eyebrow>{label}</Eyebrow>
               <div className="text-muted-foreground mt-1 font-mono text-sm">—</div>
@@ -711,7 +827,7 @@ function PlannerResult({
         </div>
 
         <p className="text-muted-foreground mt-auto pt-4 font-mono text-xs">
-          Set your inputs, then Calculate to project the plan →
+          {isChinese ? "设置输入后，点击“计算方案”来预估结果 →" : "Set your inputs, then Calculate to project the plan →"}
         </p>
       </div>
     );
@@ -721,26 +837,20 @@ function PlannerResult({
   const cashTotals = planCashTotals(plan);
   const buys = plan.trades.filter((t) => t.action === "buy").length;
   const sells = plan.trades.filter((t) => t.action === "sell").length;
-  const tradeSub =
-    sells > 0
-      ? `${buys} buy${buys !== 1 ? "s" : ""} · ${sells} sell${sells !== 1 ? "s" : ""}`
-      : `${buys} buy${buys !== 1 ? "s" : ""} · 0 sells`;
+  const tradeSub = tradeCountSummary(buys, sells, language);
   const deployed = sells > 0 ? cashTotals.newCashUsed : plan.cashUsed;
   const scopePct =
     plan.availableCash > 0 ? Math.round((plan.cashUsed / plan.availableCash) * 100) : 0;
   const improvedBps = plan.maxDriftBpsBefore - plan.maxDriftBpsAfter;
   const improved = improvedBps > 0;
 
-  const tradesWord = `${plan.trades.length} trade${plan.trades.length !== 1 ? "s" : ""}`;
-  const tradesActionSummary =
-    sells > 0
-      ? `${buys} buy${buys !== 1 ? "s" : ""}${sells ? ` and ${sells} sell${sells !== 1 ? "s" : ""}` : ""}`
-      : `${buys} buy${buys !== 1 ? "s" : ""}`;
+  const tradesWord = isChinese ? `${plan.trades.length} 笔交易` : pluralize(plan.trades.length, "trade");
+  const tradesActionSummary = tradeActionSummary(buys, sells, language);
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-start justify-between gap-3">
-        <Eyebrow>Projected max drift</Eyebrow>
+        <Eyebrow>{isChinese ? "预计最大偏离" : "Projected max drift"}</Eyebrow>
         {improvedBps !== 0 && (
           <span
             className={cn(
@@ -769,12 +879,13 @@ function PlannerResult({
           afterBps={plan.maxDriftBpsAfter}
           tolerance={tolerance}
           scaleMaxBps={scaleMaxBps}
+          language={language}
         />
       </div>
 
       <div className="border-border/70 mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t pt-3 sm:grid-cols-3 sm:gap-4">
         <div>
-          <Eyebrow>Trades</Eyebrow>
+          <Eyebrow>{isChinese ? "交易" : "Trades"}</Eyebrow>
           <div className="text-foreground mt-1 font-mono text-sm font-semibold tabular-nums leading-none sm:text-base">
             {plan.trades.length}
           </div>
@@ -782,34 +893,48 @@ function PlannerResult({
         </div>
         <div>
           <Eyebrow>
-            <span className="sm:hidden">Deployed</span>
-            <span className="hidden sm:inline">Cash deployed</span>
+            <span className="sm:hidden">{isChinese ? "已投入" : "Deployed"}</span>
+            <span className="hidden sm:inline">{isChinese ? "已投入现金" : "Cash deployed"}</span>
           </Eyebrow>
           <div className="text-foreground mt-1 font-mono text-sm font-semibold tabular-nums leading-none sm:text-base">
             {roundedCurrency(deployed, currency)}
           </div>
-          <div className="text-muted-foreground mt-1 font-mono text-xs">{scopePct}% of scope</div>
+          <div className="text-muted-foreground mt-1 font-mono text-xs">
+            {isChinese ? `占范围 ${scopePct}%` : `${scopePct}% of scope`}
+          </div>
         </div>
         <div>
           <Eyebrow>
-            <span className="sm:hidden">Remaining</span>
-            <span className="hidden sm:inline">Cash remaining</span>
+            <span className="sm:hidden">{isChinese ? "剩余" : "Remaining"}</span>
+            <span className="hidden sm:inline">{isChinese ? "剩余现金" : "Cash remaining"}</span>
           </Eyebrow>
           <div className="text-foreground mt-1 font-mono text-sm font-semibold tabular-nums leading-none sm:text-base">
             {roundedCurrency(plan.cashRemaining, currency)}
           </div>
           <div className="text-muted-foreground mt-1 font-mono text-xs">
-            {sells > 0 ? "cash + proceeds" : "below min lot"}
+            {isChinese
+              ? sells > 0
+                ? "现金 + 卖出所得"
+                : "低于最低交易额"
+              : sells > 0
+                ? "cash + proceeds"
+                : "below min lot"}
           </div>
         </div>
       </div>
 
       <p className="text-foreground/80 mt-4 hidden font-mono text-xs leading-relaxed sm:block">
-        {modeVerb(mode) === "Cash-flow buys" ? "Deploying" : "This plan deploys"}{" "}
+        {isChinese
+          ? "此方案将投入"
+          : modeVerb(mode, language) === "Cash-flow buys"
+            ? "Deploying"
+            : "This plan deploys"}{" "}
         <span className="text-foreground font-semibold">{roundedCurrency(deployed, currency)}</span>{" "}
-        across {tradesActionSummary} — cutting max drift{" "}
-        <span className="text-foreground font-semibold">{fmtBps(plan.maxDriftBpsBefore)}</span> to{" "}
-        <span className="text-foreground font-semibold">{fmtBps(plan.maxDriftBpsAfter)}</span>.
+        {isChinese ? `，执行 ${tradesActionSummary}，将最大偏离从 ` : `across ${tradesActionSummary} — cutting max drift `}
+        <span className="text-foreground font-semibold">{fmtBps(plan.maxDriftBpsBefore)}</span>
+        {isChinese ? " 降至 " : " to "}
+        <span className="text-foreground font-semibold">{fmtBps(plan.maxDriftBpsAfter)}</span>
+        {isChinese ? "。" : "."}
       </p>
 
       {plan.trades.length > 0 && (
@@ -818,7 +943,8 @@ function PlannerResult({
           onClick={onReview}
           className="mt-4 inline-flex w-fit items-center gap-1 font-mono text-xs font-medium text-[#2f6b46] underline-offset-4 hover:underline sm:mt-3 dark:text-emerald-400"
         >
-          Review {tradesWord} <Icons.ArrowRight className="h-3.5 w-3.5" />
+          {isChinese ? `查看${tradesWord}` : `Review ${tradesWord}`}{" "}
+          <Icons.ArrowRight className="h-3.5 w-3.5" />
         </button>
       )}
     </div>
@@ -832,11 +958,13 @@ function StackedBar({
   field,
   sleeves,
   bold,
+  language,
 }: {
   label: string;
   field: "currentBps" | "targetBps" | "afterBps";
   sleeves: SleeveSummaryRow[];
   bold?: boolean;
+  language: string;
 }) {
   return (
     <div className="flex items-center gap-3">
@@ -857,7 +985,7 @@ function StackedBar({
               key={s.categoryId}
               className="flex items-center justify-start overflow-hidden whitespace-nowrap pl-2 font-mono text-xs font-medium text-white/95"
               style={{ width: `${pct}%`, background: s.color }}
-              title={`${s.categoryName}: ${pct.toFixed(1)}%`}
+              title={`${localizedCategoryName(language, s.categoryName)}: ${pct.toFixed(1)}%`}
             >
               {pct >= 9 ? `${pct.toFixed(0)}%` : ""}
             </div>
@@ -868,7 +996,8 @@ function StackedBar({
   );
 }
 
-function SleeveTable({ sleeves }: { sleeves: SleeveSummaryRow[] }) {
+function SleeveTable({ sleeves, language }: { sleeves: SleeveSummaryRow[]; language: string }) {
+  const isChinese = isChineseLanguage(language);
   let maxIdx = -1;
   let maxAbs = -1;
   sleeves.forEach((s, i) => {
@@ -882,11 +1011,11 @@ function SleeveTable({ sleeves }: { sleeves: SleeveSummaryRow[] }) {
     <table className="w-full font-mono text-xs">
       <thead>
         <tr className="text-muted-foreground border-border border-b text-xs uppercase tracking-wider">
-          <th className="pb-2 text-left font-medium">Sleeve</th>
-          <th className="pb-2 pr-2 text-right font-medium">Now</th>
-          <th className="pb-2 pr-2 text-right font-medium">After</th>
-          <th className="pb-2 pr-2 text-right font-medium">Tgt</th>
-          <th className="pb-2 text-right font-medium">Drift</th>
+          <th className="pb-2 text-left font-medium">{isChinese ? "分类" : "Sleeve"}</th>
+          <th className="pb-2 pr-2 text-right font-medium">{isChinese ? "当前" : "Now"}</th>
+          <th className="pb-2 pr-2 text-right font-medium">{isChinese ? "调整后" : "After"}</th>
+          <th className="pb-2 pr-2 text-right font-medium">{isChinese ? "目标" : "Tgt"}</th>
+          <th className="pb-2 text-right font-medium">{isChinese ? "偏离" : "Drift"}</th>
         </tr>
       </thead>
       <tbody>
@@ -901,10 +1030,10 @@ function SleeveTable({ sleeves }: { sleeves: SleeveSummaryRow[] }) {
                     className="h-2.5 w-2.5 shrink-0 rounded-sm"
                     style={{ background: s.color }}
                   />
-                  <span className="text-foreground">{s.categoryName}</span>
+                  <span className="text-foreground">{localizedCategoryName(language, s.categoryName)}</span>
                   {i === maxIdx && maxAbs >= 5 && (
                     <span className="text-muted-foreground border-border rounded border px-1 py-px text-xs font-medium uppercase tracking-wide">
-                      Max
+                      {isChinese ? "最大" : "Max"}
                     </span>
                   )}
                 </div>
@@ -929,16 +1058,28 @@ function SleeveTable({ sleeves }: { sleeves: SleeveSummaryRow[] }) {
   );
 }
 
-function SleeveReshapeCard({ sleeves, mode }: { sleeves: SleeveSummaryRow[]; mode: ScenarioMode }) {
-  const narrative = reshapeNarrative(sleeves, mode);
+function SleeveReshapeCard({
+  sleeves,
+  mode,
+  language,
+}: {
+  sleeves: SleeveSummaryRow[];
+  mode: ScenarioMode;
+  language: string;
+}) {
+  const isChinese = isChineseLanguage(language);
+  const narrative = reshapeNarrative(sleeves, mode, language);
   return (
     <Card>
       <CardContent className="p-0">
         <div className="px-5 pt-4">
-          <h3 className="text-foreground font-mono text-sm font-semibold">Now · After · Target</h3>
+          <h3 className="text-foreground font-mono text-sm font-semibold">
+            {isChinese ? "当前 · 调整后 · 目标" : "Now · After · Target"}
+          </h3>
           <p className="text-muted-foreground mt-1 font-mono text-xs leading-relaxed">
-            How deploying this cash reshapes the portfolio by sleeve. Sleeves are stacked in the
-            same order across all three bars.
+            {isChinese
+              ? "查看投入这笔现金后，各分类在组合中的变化。三条堆叠条使用相同顺序。"
+              : "How deploying this cash reshapes the portfolio by sleeve. Sleeves are stacked in the same order across all three bars."}
           </p>
         </div>
 
@@ -946,9 +1087,25 @@ function SleeveReshapeCard({ sleeves, mode }: { sleeves: SleeveSummaryRow[]; mod
           {/* Bars */}
           <div className="border-border/60 px-5 py-5 lg:border-r">
             <div className="space-y-3">
-              <StackedBar label="Now" field="currentBps" sleeves={sleeves} />
-              <StackedBar label="After" field="afterBps" sleeves={sleeves} bold />
-              <StackedBar label="Target" field="targetBps" sleeves={sleeves} />
+              <StackedBar
+                label={isChinese ? "当前" : "Now"}
+                field="currentBps"
+                sleeves={sleeves}
+                language={language}
+              />
+              <StackedBar
+                label={isChinese ? "调整后" : "After"}
+                field="afterBps"
+                sleeves={sleeves}
+                bold
+                language={language}
+              />
+              <StackedBar
+                label={isChinese ? "目标" : "Target"}
+                field="targetBps"
+                sleeves={sleeves}
+                language={language}
+              />
             </div>
             <div className="border-border/60 mt-5 flex flex-wrap gap-x-5 gap-y-2 border-t pt-4">
               {sleeves
@@ -959,7 +1116,9 @@ function SleeveReshapeCard({ sleeves, mode }: { sleeves: SleeveSummaryRow[]; mod
                     className="flex items-center gap-1.5 whitespace-nowrap font-mono text-xs"
                   >
                     <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: s.color }} />
-                    <span className="text-foreground">{s.categoryName}</span>
+                    <span className="text-foreground">
+                      {localizedCategoryName(language, s.categoryName)}
+                    </span>
                   </div>
                 ))}
             </div>
@@ -967,7 +1126,7 @@ function SleeveReshapeCard({ sleeves, mode }: { sleeves: SleeveSummaryRow[]; mod
 
           {/* Table + narrative */}
           <div className="px-5 py-5">
-            <SleeveTable sleeves={sleeves} />
+            <SleeveTable sleeves={sleeves} language={language} />
             {narrative && (
               <p className="text-muted-foreground mt-5 font-mono text-xs leading-relaxed">
                 {narrative}
@@ -990,8 +1149,53 @@ const WARN_LABEL: Record<string, string> = {
   partial_classification: "Partial classification",
 };
 
-function Warnings({ items }: { items: RebalanceWarning[] }) {
+const WARN_LABEL_ZH: Record<string, string> = {
+  missing_quote: "缺少报价",
+  no_buy_candidate: "没有买入候选",
+  tagged_cash: "已标记现金",
+  unclassified_asset: "未分类",
+  partial_classification: "部分分类",
+};
+
+function warningMessage(warning: RebalanceWarning, language: string): string {
+  if (!isChineseLanguage(language)) {
+    return warning.message;
+  }
+
+  const categoryName =
+    warning.categoryId && warning.categoryId !== "__UNKNOWN__"
+      ? localizedCategoryName(language, warning.categoryId)
+      : "";
+
+  switch (warning.kind) {
+    case "missing_quote": {
+      const symbol = warning.message.split(":")[0] || "该资产";
+      return `${symbol} 没有有效价格，整股模式下已跳过。`;
+    }
+    case "no_buy_candidate": {
+      const match = warning.message.match(/Allocate ([0-9.,-]+) to this category manually\./);
+      const amount = match?.[1] ? ` ${match[1]}` : "";
+      return `没有可自动归类到该分类的持仓，请手动向${categoryName || "此分类"}配置${amount}。`;
+    }
+    case "tagged_cash": {
+      return `${categoryName || "该分类"}包含已标记现金。这部分现金不会计入可投入现金；请移动或重新分类后再再平衡。`;
+    }
+    case "unclassified_asset": {
+      const symbol = warning.message.split(" ")[0] || "该资产";
+      return `${symbol} 未按此目标分类，因此已从方案中排除。分类后即可纳入。`;
+    }
+    case "partial_classification": {
+      const symbol = warning.message.split(" ")[0] || "该资产";
+      return `${symbol} 只有部分分类，因此方案只计算已知敞口，其余部分会忽略。`;
+    }
+    default:
+      return "此方案有一条未分类提示，请检查设置。";
+  }
+}
+
+function Warnings({ items, language }: { items: RebalanceWarning[]; language: string }) {
   const [open, setOpen] = useState(false);
+  const isChinese = isChineseLanguage(language);
   if (!items.length) return null;
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
@@ -1001,7 +1205,9 @@ function Warnings({ items }: { items: RebalanceWarning[] }) {
       >
         <Icons.AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
         <span className="flex-1 font-mono text-xs font-semibold text-amber-800 dark:text-amber-300">
-          {items.length} thing{items.length > 1 ? "s" : ""} to know about this plan
+          {isChinese
+            ? `此方案有 ${items.length} 条提示`
+            : `${items.length} thing${items.length > 1 ? "s" : ""} to know about this plan`}
         </span>
         <Icons.ChevronDown
           className={cn(
@@ -1015,9 +1221,11 @@ function Warnings({ items }: { items: RebalanceWarning[] }) {
           {items.map((w, i) => (
             <li key={i} className="flex items-start gap-3 px-4 py-2.5">
               <span className="mt-px shrink-0 whitespace-nowrap rounded border border-amber-300 px-1.5 py-0.5 font-mono text-xs font-medium uppercase tracking-wide text-amber-700 dark:border-amber-700 dark:text-amber-400">
-                {WARN_LABEL[w.kind] ?? w.kind}
+                {isChinese ? (WARN_LABEL_ZH[w.kind] ?? w.kind) : (WARN_LABEL[w.kind] ?? w.kind)}
               </span>
-              <span className="text-foreground/80 text-xs leading-snug">{w.message}</span>
+              <span className="text-foreground/80 text-xs leading-snug">
+                {warningMessage(w, language)}
+              </span>
             </li>
           ))}
         </ul>
@@ -1033,8 +1241,9 @@ function tradeQuantityLabel(quantity: number | null | undefined): string {
   return quantity.toFixed(quantity % 1 === 0 ? 0 : 4);
 }
 
-function TradeActionBadge({ action }: { action: string }) {
+function TradeActionBadge({ action, language }: { action: string; language: string }) {
   const isSell = action === "sell";
+  const label = isChineseLanguage(language) ? (isSell ? "卖出" : "买入") : isSell ? "Sell" : "Buy";
   return (
     <span
       className={cn(
@@ -1044,12 +1253,21 @@ function TradeActionBadge({ action }: { action: string }) {
           : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
       )}
     >
-      {isSell ? "Sell" : "Buy"}
+      {label}
     </span>
   );
 }
 
-function TradesTable({ trades, currency }: { trades: SuggestedManualTrade[]; currency: string }) {
+function TradesTable({
+  trades,
+  currency,
+  language,
+}: {
+  trades: SuggestedManualTrade[];
+  currency: string;
+  language: string;
+}) {
+  const isChinese = isChineseLanguage(language);
   const buys = trades.filter((t) => t.action === "buy");
   const sells = trades.filter((t) => t.action === "sell");
   const buyTotal = buys.reduce((s, t) => s + t.estimatedAmount, 0);
@@ -1062,37 +1280,43 @@ function TradesTable({ trades, currency }: { trades: SuggestedManualTrade[]; cur
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
-                  <TradeActionBadge action={t.action} />
+                  <TradeActionBadge action={t.action} language={language} />
                   <span className="text-foreground truncate font-mono text-sm font-semibold">
-                    {t.symbol ?? "Trade"}
+                    {t.symbol ?? (isChinese ? "交易" : "Trade")}
                   </span>
                 </div>
                 {t.name && (
                   <div className="text-muted-foreground mt-1 truncate text-xs">{t.name}</div>
                 )}
-                <div className="text-muted-foreground mt-1 font-mono text-xs">{t.categoryName}</div>
+                <div className="text-muted-foreground mt-1 font-mono text-xs">
+                  {localizedCategoryName(language, t.categoryName)}
+                </div>
               </div>
               <div className="shrink-0 text-right">
                 <div className="text-foreground font-mono text-sm font-semibold tabular-nums">
                   {formatAmount(t.estimatedAmount, currency)}
                 </div>
                 <div className="text-muted-foreground mt-1 font-mono text-xs tabular-nums">
-                  {tradeQuantityLabel(t.quantity)} shares
+                  {tradeQuantityLabel(t.quantity)} {isChinese ? "股" : "shares"}
                 </div>
               </div>
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-3 font-mono text-xs">
               <div>
-                <div className="text-muted-foreground uppercase tracking-[0.14em]">Price</div>
+                <div className="text-muted-foreground uppercase tracking-[0.14em]">
+                  {isChinese ? "价格" : "Price"}
+                </div>
                 <div className="text-foreground mt-1 tabular-nums">
                   {t.estimatedPrice != null ? formatAmount(t.estimatedPrice, currency) : "—"}
                 </div>
               </div>
               <div className="min-w-0">
-                <div className="text-muted-foreground uppercase tracking-[0.14em]">Reason</div>
-                <div className="text-foreground mt-1 truncate" title={t.reason}>
-                  {t.reason}
+                <div className="text-muted-foreground uppercase tracking-[0.14em]">
+                  {isChinese ? "原因" : "Reason"}
+                </div>
+                <div className="text-foreground mt-1 truncate" title={tradeReason(t, language)}>
+                  {tradeReason(t, language)}
                 </div>
               </div>
             </div>
@@ -1100,8 +1324,7 @@ function TradesTable({ trades, currency }: { trades: SuggestedManualTrade[]; cur
         ))}
         <div className="bg-muted/20 flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs">
           <span className="text-muted-foreground">
-            {buys.length} buy{buys.length !== 1 ? "s" : ""}
-            {sells.length > 0 && ` · ${sells.length} sell${sells.length !== 1 ? "s" : ""}`}
+            {tradeCountSummary(buys.length, sells.length, language)}
           </span>
           <span className="text-foreground font-semibold tabular-nums">
             {formatAmount(buyTotal, currency)}
@@ -1122,20 +1345,34 @@ function TradesTable({ trades, currency }: { trades: SuggestedManualTrade[]; cur
           </colgroup>
           <thead>
             <tr className="border-border text-muted-foreground border-b font-mono text-xs uppercase tracking-wider">
-              <th className="py-2.5 pl-5 pr-2 text-left font-medium">Action</th>
-              <th className="py-2.5 pr-3 text-left font-medium">Ticker</th>
-              <th className="py-2.5 pl-14 pr-3 text-left font-medium">Category</th>
-              <th className="py-2.5 pr-3 text-right font-medium">Amount</th>
-              <th className="py-2.5 pr-3 text-right font-medium">Shares</th>
-              <th className="py-2.5 pr-7 text-right font-medium">Last price</th>
-              <th className="py-2.5 pl-10 pr-5 text-left font-medium">Reason</th>
+              <th className="py-2.5 pl-5 pr-2 text-left font-medium">
+                {isChinese ? "操作" : "Action"}
+              </th>
+              <th className="py-2.5 pr-3 text-left font-medium">
+                {isChinese ? "代码" : "Ticker"}
+              </th>
+              <th className="py-2.5 pl-14 pr-3 text-left font-medium">
+                {isChinese ? "分类" : "Category"}
+              </th>
+              <th className="py-2.5 pr-3 text-right font-medium">
+                {isChinese ? "金额" : "Amount"}
+              </th>
+              <th className="py-2.5 pr-3 text-right font-medium">
+                {isChinese ? "股数" : "Shares"}
+              </th>
+              <th className="py-2.5 pr-7 text-right font-medium">
+                {isChinese ? "最新价" : "Last price"}
+              </th>
+              <th className="py-2.5 pl-10 pr-5 text-left font-medium">
+                {isChinese ? "原因" : "Reason"}
+              </th>
             </tr>
           </thead>
           <tbody>
             {trades.map((t, i) => (
               <tr key={i} className="border-border hover:bg-muted/30 h-12 border-b last:border-b-0">
                 <td className="pl-5 pr-2">
-                  <TradeActionBadge action={t.action} />
+                  <TradeActionBadge action={t.action} language={language} />
                 </td>
                 <td className="pr-3">
                   {t.symbol ? (
@@ -1151,7 +1388,9 @@ function TradesTable({ trades, currency }: { trades: SuggestedManualTrade[]; cur
                     <span className="text-muted-foreground">—</span>
                   )}
                 </td>
-                <td className="text-muted-foreground pl-14 pr-3 text-xs">{t.categoryName}</td>
+                <td className="text-muted-foreground pl-14 pr-3 text-xs">
+                  {localizedCategoryName(language, t.categoryName)}
+                </td>
                 <td className="text-foreground pr-3 text-right font-semibold tabular-nums">
                   {formatAmount(t.estimatedAmount, currency)}
                 </td>
@@ -1163,9 +1402,9 @@ function TradesTable({ trades, currency }: { trades: SuggestedManualTrade[]; cur
                 </td>
                 <td
                   className="text-muted-foreground max-w-0 truncate pl-10 pr-5 text-xs"
-                  title={t.reason}
+                  title={tradeReason(t, language)}
                 >
-                  {t.reason}
+                  {tradeReason(t, language)}
                 </td>
               </tr>
             ))}
@@ -1173,8 +1412,7 @@ function TradesTable({ trades, currency }: { trades: SuggestedManualTrade[]; cur
           <tfoot>
             <tr className="text-xs">
               <td colSpan={3} className="text-muted-foreground py-3 pl-5 font-mono">
-                {buys.length} buy{buys.length !== 1 ? "s" : ""}
-                {sells.length > 0 && ` · ${sells.length} sell${sells.length !== 1 ? "s" : ""}`}
+                {tradeCountSummary(buys.length, sells.length, language)}
               </td>
               <td className="text-foreground py-3 pr-3 text-right font-semibold tabular-nums">
                 {formatAmount(buyTotal, currency)}
@@ -1207,6 +1445,8 @@ export function RebalanceTab({
   sourceVersion,
   isSourceLoading,
 }: RebalanceTabProps) {
+  const { language } = useI18n();
+  const isChinese = isChineseLanguage(language);
   const [cashDraft, setCashDraft] = useState<{ key: string; value: string } | null>(null);
   const [scenarioMode, setScenarioMode] = useState<ScenarioMode>("cash_flow_only");
   const tradesRef = useRef<HTMLDivElement>(null);
@@ -1247,23 +1487,29 @@ export function RebalanceTab({
   function handleCalculate() {
     if (!profile) return;
     if (!sourceReady) {
-      toast.error("Portfolio data is still loading");
+      toast.error(isChinese ? "投资组合数据仍在加载" : "Portfolio data is still loading");
       return;
     }
     if (availableCashLimit <= 0 && !isSellMode) {
-      toast.error("No cash available in scope");
+      toast.error(isChinese ? "当前范围内没有可用现金" : "No cash available in scope");
       return;
     }
     if (cash <= 0 && !isSellMode) {
-      toast.error("Enter a valid cash amount");
+      toast.error(isChinese ? "请输入有效现金金额" : "Enter a valid cash amount");
       return;
     }
     if (cash > availableCashLimit) {
-      toast.error("Cash to deploy exceeds available cash");
+      toast.error(isChinese ? "可投入现金超过可用现金" : "Cash to deploy exceeds available cash");
       return;
     }
     void planQuery.refetch().then((res) => {
-      if (res.error) toast.error(`Failed to calculate plan: ${res.error.message}`);
+      if (res.error) {
+        toast.error(
+          isChinese
+            ? "计算方案失败。请调整输入后重试。"
+            : `Failed to calculate plan: ${res.error.message}`,
+        );
+      }
     });
   }
 
@@ -1271,9 +1517,11 @@ export function RebalanceTab({
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-20 text-center">
         <Icons.Target className="text-muted-foreground h-10 w-10" />
-        <div className="text-foreground text-sm font-semibold">No profile selected</div>
+        <div className="text-foreground text-sm font-semibold">
+          {isChinese ? "未选择配置" : "No profile selected"}
+        </div>
         <div className="text-muted-foreground max-w-sm text-sm">
-          Select a target profile to calculate a rebalance plan.
+          {isChinese ? "请选择目标配置以计算再平衡方案。" : "Select a target profile to calculate a rebalance plan."}
         </div>
       </div>
     );
@@ -1281,12 +1529,18 @@ export function RebalanceTab({
 
   const description =
     scenarioMode === "sell_to_rebalance"
-      ? "Sell what you're overweight to buy what you're underweight. Your cash stays put. Tax impact is not estimated."
+      ? isChinese
+        ? "卖出超配分类，用所得资金买入低配分类。现金保持不动，税务影响未估算。"
+        : "Sell what you're overweight to buy what you're underweight. Your cash stays put. Tax impact is not estimated."
       : scenarioMode === "hybrid"
-        ? "Invest your cash first, then sell overweight sleeves only if cash alone can't close the gap. Cash can add to a holding but can't shrink one you already own too much of. Tax impact is not estimated."
-        : "Put your new cash to work in the sleeves you're light on. Buys only — nothing is sold.";
+        ? isChinese
+          ? "先投入现金；如果现金不足以缩小差距，再卖出超配分类。现金只能加仓，不能减少已有超配仓位。税务影响未估算。"
+          : "Invest your cash first, then sell overweight sleeves only if cash alone can't close the gap. Cash can add to a holding but can't shrink one you already own too much of. Tax impact is not estimated."
+        : isChinese
+          ? "把新增现金投入低配分类。仅建议买入，不会卖出任何仓位。"
+          : "Put your new cash to work in the sleeves you're light on. Buys only — nothing is sold.";
 
-  const tolerance = driftToleranceRange(profile, driftReport);
+  const tolerance = driftToleranceRange(profile, driftReport, language);
   const baseDrift = driftReport?.maxDriftBps ?? 0;
   const beforeDrift = plan?.maxDriftBpsBefore ?? baseDrift;
   const scaleMaxBps = driftScaleMaxBps(Math.max(beforeDrift, baseDrift), tolerance.maxBps);
@@ -1304,6 +1558,7 @@ export function RebalanceTab({
         allowSells={profile.allowSells ?? false}
         value={scenarioMode}
         onChange={setScenarioMode}
+        language={language}
       />
 
       {/* ── Rebalance planner ── */}
@@ -1321,6 +1576,7 @@ export function RebalanceTab({
                 hasPlan={!!plan || hasStalePlan}
                 isCalculating={isCalculating}
                 isSourceLoading={!sourceReady}
+                language={language}
               />
             </div>
             <div className="px-4 py-4 sm:px-5 sm:py-5">
@@ -1347,6 +1603,7 @@ export function RebalanceTab({
                   scaleMaxBps={scaleMaxBps}
                   mode={scenarioMode}
                   onReview={reviewTrades}
+                  language={language}
                 />
               )}
             </div>
@@ -1356,41 +1613,52 @@ export function RebalanceTab({
 
       {hasStalePlan && sourceReady && !isCalculating && (
         <div className="border-border bg-muted/40 text-muted-foreground rounded-lg border px-4 py-3 font-mono text-xs">
-          Portfolio data changed. Recalculate to refresh this plan.
+          {isChinese
+            ? "投资组合数据已变化。请重新计算以刷新此方案。"
+            : "Portfolio data changed. Recalculate to refresh this plan."}
         </div>
       )}
 
       {/* ── Plan results ── */}
       {plan && !isCalculating && (
         <>
-          <Warnings items={plan.warnings} />
+          <Warnings items={plan.warnings} language={language} />
 
           {sleeveSummary.length > 0 && (
-            <SleeveReshapeCard sleeves={sleeveSummary} mode={scenarioMode} />
+            <SleeveReshapeCard sleeves={sleeveSummary} mode={scenarioMode} language={language} />
           )}
 
           <Card ref={tradesRef}>
             <CardContent className="p-0">
               <div className="px-5 pb-2 pt-4">
-                <h3 className="text-foreground font-mono text-sm font-semibold">Proposed trades</h3>
+                <h3 className="text-foreground font-mono text-sm font-semibold">
+                  {isChinese ? "建议交易" : "Proposed trades"}
+                </h3>
                 <p className="text-muted-foreground mt-1 font-mono text-xs">
                   {(() => {
                     const buys = plan.trades.filter((t) => t.action === "buy").length;
                     const sells = plan.trades.filter((t) => t.action === "sell").length;
                     const cashTotals = planCashTotals(plan);
+                    if (isChinese) {
+                      return sells > 0
+                        ? `${buys} 笔买入 · ${sells} 笔卖出 · ${formatAmount(cashTotals.newCashUsed, currency)} 新增现金`
+                        : `${buys} 笔买入 · 已投入 ${formatAmount(plan.cashUsed, currency)}`;
+                    }
                     return sells > 0
-                      ? `${buys} buy${buys !== 1 ? "s" : ""} · ${sells} sell${sells !== 1 ? "s" : ""} · ${formatAmount(cashTotals.newCashUsed, currency)} new cash`
-                      : `${buys} buy${buys !== 1 ? "s" : ""} · ${formatAmount(plan.cashUsed, currency)} deployed`;
+                      ? `${pluralize(buys, "buy")} · ${pluralize(sells, "sell")} · ${formatAmount(cashTotals.newCashUsed, currency)} new cash`
+                      : `${pluralize(buys, "buy")} · ${formatAmount(plan.cashUsed, currency)} deployed`;
                   })()}
                 </p>
               </div>
               {plan.trades.length > 0 ? (
                 <div className="pb-1 pt-2">
-                  <TradesTable trades={plan.trades} currency={currency} />
+                  <TradesTable trades={plan.trades} currency={currency} language={language} />
                 </div>
               ) : (
                 <p className="text-muted-foreground px-6 py-4 font-mono text-xs">
-                  No trades — all sleeves are already within band or no holdings found.
+                  {isChinese
+                    ? "暂无交易：所有分类已在容差范围内，或没有找到持仓。"
+                    : "No trades — all sleeves are already within band or no holdings found."}
                 </p>
               )}
             </CardContent>
@@ -1399,8 +1667,8 @@ export function RebalanceTab({
           {/* Footer */}
           <div className="border-border flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-muted-foreground font-mono text-xs leading-relaxed">
-              {profile.name} · Calculated{" "}
-              {new Date().toLocaleDateString(undefined, {
+              {profile.name} · {isChinese ? "计算于" : "Calculated"}{" "}
+              {new Date().toLocaleDateString(isChinese ? "zh-CN" : undefined, {
                 year: "numeric",
                 month: "short",
                 day: "numeric",
@@ -1412,23 +1680,23 @@ export function RebalanceTab({
                 size="sm"
                 className="min-w-0 justify-center"
                 onClick={() => {
-                  copyToText(plan, currency);
-                  toast.success("Copied to clipboard");
+                  copyToText(plan, currency, language);
+                  toast.success(isChinese ? "已复制到剪贴板" : "Copied to clipboard");
                 }}
               >
                 <Icons.Copy className="mr-1.5 h-4 w-4" />
-                Copy as text
+                {isChinese ? "复制为文本" : "Copy as text"}
               </Button>
               <Button
                 size="sm"
                 className="min-w-0 justify-center"
                 onClick={() => {
-                  exportCsv(plan, currency, profile.name);
-                  toast.success("CSV downloaded");
+                  exportCsv(plan, currency, profile.name, language);
+                  toast.success(isChinese ? "CSV 已下载" : "CSV downloaded");
                 }}
               >
                 <Icons.Download className="mr-1.5 h-4 w-4" />
-                Export CSV
+                {isChinese ? "导出 CSV" : "Export CSV"}
               </Button>
             </div>
           </div>

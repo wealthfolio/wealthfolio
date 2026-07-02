@@ -7,6 +7,7 @@ import { ActionConfirm } from "@wealthfolio/ui/components/common";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
+import { useI18n } from "@/i18n/i18n-provider";
 import { cn } from "@/lib/utils";
 import { useRuntimeContext } from "../hooks/use-runtime-context";
 import {
@@ -353,6 +354,10 @@ const ThreadListItemCustom: FC<ThreadListItemCustomProps> = ({
   onDelete,
   onTogglePin,
 }) => {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
+  const threadTitle = thread.title || (isChinese ? "此对话" : "this conversation");
+
   return (
     <div
       className={cn(
@@ -394,12 +399,16 @@ const ThreadListItemCustom: FC<ThreadListItemCustomProps> = ({
             )}
           </Button>
           <ActionConfirm
-            confirmTitle="Delete conversation?"
-            confirmMessage={`This will permanently delete "${thread.title || "this conversation"}" and all its messages.`}
-            confirmButtonText="Delete"
+            confirmTitle={isChinese ? "要删除对话吗？" : "Delete conversation?"}
+            confirmMessage={
+              isChinese
+                ? `这会永久删除“${threadTitle}”及其全部消息。`
+                : `This will permanently delete "${threadTitle}" and all its messages.`
+            }
+            confirmButtonText={isChinese ? "删除" : "Delete"}
             confirmButtonVariant="destructive"
             isPending={isDeleting ?? false}
-            pendingText="Deleting..."
+            pendingText={isChinese ? "删除中..." : "Deleting..."}
             handleConfirm={() => onDelete(thread.id)}
             side="right"
             button={

@@ -1,4 +1,6 @@
 import { searchTicker } from "@/adapters";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateUiText } from "@/i18n/ui-text";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Command,
@@ -121,6 +123,8 @@ export function BenchmarkSymbolSelector({
   className,
   iconOnly = false,
 }: BenchmarkSymbolSelectorProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -173,7 +177,7 @@ export function BenchmarkSymbolSelector({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          aria-label={iconOnly ? "Add benchmark" : undefined}
+          aria-label={iconOnly ? (isChinese ? "添加基准" : "Add benchmark") : undefined}
           className={cn(
             "bg-secondary/30 hover:bg-muted/80 flex items-center gap-1.5 rounded-md border-dashed text-sm font-medium",
             iconOnly ? "h-9 w-9 p-0" : "h-8 px-3 py-1",
@@ -182,26 +186,34 @@ export function BenchmarkSymbolSelector({
           size={iconOnly ? "icon" : "sm"}
         >
           <Icons.TrendingUp className="h-4 w-4" />
-          {!iconOnly && "Add Benchmark"}
+          {!iconOnly && (isChinese ? "添加基准" : "Add Benchmark")}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[350px] p-0">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search benchmarks or any symbol..."
+            placeholder={
+              isChinese ? "搜索基准或任意代码..." : "Search benchmarks or any symbol..."
+            }
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
           <CommandList className="max-h-[300px] overflow-y-auto">
             <CommandEmpty>
-              {isLoading ? "Searching..." : "No benchmarks or symbols found."}
+              {isLoading
+                ? isChinese
+                  ? "搜索中..."
+                  : "Searching..."
+                : isChinese
+                  ? "未找到基准或代码。"
+                  : "No benchmarks or symbols found."}
             </CommandEmpty>
 
             {/* Predefined benchmark groups */}
             {BENCHMARKS.map((group) => (
               <CommandGroup
                 key={group.group}
-                heading={group.group}
+                heading={translateUiText(language, group.group)}
                 className="[&_[cmdk-group-heading]]:bg-popover [&_[cmdk-group-heading]]:border-border/10 [&_[cmdk-group-heading]]:sticky [&_[cmdk-group-heading]]:top-0 [&_[cmdk-group-heading]]:z-10 [&_[cmdk-group-heading]]:border-b"
               >
                 {group.items
@@ -226,7 +238,7 @@ export function BenchmarkSymbolSelector({
                           </span>
                         </div>
                         <span className="text-muted-foreground text-xs">
-                          {benchmark.description}
+                          {translateUiText(language, benchmark.description)}
                         </span>
                       </div>
                       <Icons.Check
@@ -243,7 +255,7 @@ export function BenchmarkSymbolSelector({
             {/* Loading state for search results */}
             {isLoading && searchQuery.length > 2 && (
               <CommandGroup
-                heading="Search Results"
+                heading={isChinese ? "搜索结果" : "Search Results"}
                 className="[&_[cmdk-group-heading]]:bg-popover [&_[cmdk-group-heading]]:border-border/10 [&_[cmdk-group-heading]]:sticky [&_[cmdk-group-heading]]:top-0 [&_[cmdk-group-heading]]:z-10 [&_[cmdk-group-heading]]:border-b"
               >
                 <div className="space-y-2 p-2">
@@ -257,11 +269,13 @@ export function BenchmarkSymbolSelector({
             {/* Error state for search results */}
             {isError && searchQuery.length > 2 && (
               <CommandGroup
-                heading="Search Results"
+                heading={isChinese ? "搜索结果" : "Search Results"}
                 className="[&_[cmdk-group-heading]]:bg-popover [&_[cmdk-group-heading]]:border-border/10 [&_[cmdk-group-heading]]:sticky [&_[cmdk-group-heading]]:top-0 [&_[cmdk-group-heading]]:z-10 [&_[cmdk-group-heading]]:border-b"
               >
                 <div className="text-muted-foreground p-4 text-sm">
-                  Error searching for symbols. Please try again.
+                  {isChinese
+                    ? "搜索代码时出错。请重试。"
+                    : "Error searching for symbols. Please try again."}
                 </div>
               </CommandGroup>
             )}
@@ -272,7 +286,7 @@ export function BenchmarkSymbolSelector({
               filteredSearchResults.length > 0 &&
               searchQuery.length > 2 && (
                 <CommandGroup
-                  heading="Search Results"
+                  heading={isChinese ? "搜索结果" : "Search Results"}
                   className="[&_[cmdk-group-heading]]:bg-popover [&_[cmdk-group-heading]]:border-border/10 [&_[cmdk-group-heading]]:sticky [&_[cmdk-group-heading]]:top-0 [&_[cmdk-group-heading]]:z-10 [&_[cmdk-group-heading]]:border-b"
                 >
                   {filteredSearchResults.slice(0, 8).map((ticker) => (

@@ -77,6 +77,56 @@ interface DateRangeSelectorProps {
   hiddenRanges?: readonly DateRangePresetLabel[];
 }
 
+function isChineseLocale(): boolean {
+  return typeof document !== "undefined" && document.documentElement.lang === "zh-CN";
+}
+
+function localizedRangeName(name: string): string {
+  if (!isChineseLocale()) return name;
+  const names: Record<string, string> = {
+    "Last Day": "最近 1 天",
+    "Last Week": "最近 1 周",
+    "Last Month": "最近 1 个月",
+    "Last 3 Months": "最近 3 个月",
+    "Last 6 Months": "最近 6 个月",
+    "Year to Date": "今年至今",
+    "Last Year": "最近 1 年",
+    "Last 3 Years": "最近 3 年",
+    "Last 5 Years": "最近 5 年",
+    "All Time": "全部时间",
+  };
+  return names[name] ?? name;
+}
+
+function localizedRangeLabel(label: DateRangePresetLabel): string {
+  if (!isChineseLocale()) return label;
+  const labels: Record<DateRangePresetLabel, string> = {
+    "1D": "1天",
+    "1W": "1周",
+    "1M": "1月",
+    "3M": "3月",
+    "6M": "6月",
+    YTD: "今年",
+    "1Y": "1年",
+    "3Y": "3年",
+    "5Y": "5年",
+    ALL: "全部",
+  };
+  return labels[label];
+}
+
+function formatRangeDateLabel(date: Date | undefined): string {
+  if (!date) return isChineseLocale() ? "未设置" : "Not set";
+  if (isChineseLocale()) {
+    return new Intl.DateTimeFormat("zh-CN", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(date);
+  }
+  return format(date, "MMM d, yyyy");
+}
+
 export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRangeSelectorProps) {
   const isMobile = useIsMobile();
   const [isCustomPickerOpen, setIsCustomPickerOpen] = React.useState(false);
@@ -121,7 +171,7 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
     setIsCustomPickerOpen(false);
   };
 
-  const formatRangeDate = (date: Date | undefined) => (date ? format(date, "MMM d, yyyy") : "Not set");
+  const formatRangeDate = formatRangeDateLabel;
 
   const triggerButton = (
     <Button
@@ -132,7 +182,7 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
         "h-8 w-9 rounded-full p-0",
         isCustomRange && "bg-primary text-primary-foreground hover:bg-primary/90",
       )}
-      aria-label="Choose custom date range"
+      aria-label={isChineseLocale() ? "选择自定义日期范围" : "Choose custom date range"}
     >
       <Icons.Calendar className="h-4 w-4" />
     </Button>
@@ -143,8 +193,8 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
       <AnimatedToggleGroup
         items={visibleRanges.map((range) => ({
           value: range.label,
-          label: range.label,
-          title: range.name,
+          label: localizedRangeLabel(range.label),
+          title: localizedRangeName(range.name),
         }))}
         value={selectedLabel}
         onValueChange={(newValue) => {
@@ -165,19 +215,21 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
           <SheetTrigger asChild>{triggerButton}</SheetTrigger>
           <SheetContent side="bottom" className="rounded-t-4xl mx-1 flex max-h-[85vh] flex-col p-0">
             <SheetHeader className="border-border border-b px-6 py-4">
-              <SheetTitle>Custom range</SheetTitle>
+              <SheetTitle>{isChineseLocale() ? "自定义范围" : "Custom range"}</SheetTitle>
             </SheetHeader>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
               <div className="grid grid-cols-2 gap-3">
                 <div className="border-border/70 bg-muted/30 rounded-lg border px-3 py-2">
-                  <div className="text-muted-foreground text-xs font-medium">Start</div>
+                  <div className="text-muted-foreground text-xs font-medium">
+                    {isChineseLocale() ? "开始" : "Start"}
+                  </div>
                   <div className="text-foreground mt-1 truncate text-sm font-medium">
                     {formatRangeDate(draftRange?.from)}
                   </div>
                 </div>
                 <div className="border-border/70 bg-muted/30 rounded-lg border px-3 py-2">
-                  <div className="text-muted-foreground text-xs font-medium">End</div>
+                  <div className="text-muted-foreground text-xs font-medium">{isChineseLocale() ? "结束" : "End"}</div>
                   <div className="text-foreground mt-1 truncate text-sm font-medium">
                     {formatRangeDate(draftRange?.to)}
                   </div>
@@ -206,7 +258,7 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
                 onClick={() => setDraftRange(allTimeRange)}
                 disabled={!draftRange && !allTimeRange}
               >
-                Clear
+                {isChineseLocale() ? "清除" : "Clear"}
               </Button>
               <Button
                 type="button"
@@ -214,7 +266,7 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
                 onClick={handleApplyDraftRange}
                 disabled={!isDraftRangeComplete}
               >
-                Done
+                {isChineseLocale() ? "完成" : "Done"}
               </Button>
             </SheetFooter>
           </SheetContent>

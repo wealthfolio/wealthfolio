@@ -3,6 +3,7 @@ import { createContext, ReactNode, useContext, useEffect, useState } from "react
 
 import { useSettings } from "@/hooks/use-settings";
 import { useSettingsMutation } from "@/hooks/use-settings-mutation";
+import { LANGUAGE_STORAGE_KEY, languageToHtmlLang } from "@/i18n/languages";
 import { Settings, SettingsContextType } from "@/lib/types";
 
 interface ExtendedSettingsContextType extends SettingsContextType {
@@ -12,6 +13,7 @@ interface ExtendedSettingsContextType extends SettingsContextType {
         Settings,
         | "theme"
         | "font"
+        | "language"
         | "baseCurrency"
         | "defaultReturnMetric"
         | "timezone"
@@ -45,6 +47,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         Settings,
         | "theme"
         | "font"
+        | "language"
         | "baseCurrency"
         | "defaultReturnMetric"
         | "timezone"
@@ -137,10 +140,12 @@ const applySettingsToDocument = (newSettings: Settings) => {
   // Font classes
   document.body.classList.remove("font-mono", "font-sans", "font-serif");
   document.body.classList.add(newSettings.font);
+  document.documentElement.lang = languageToHtmlLang(newSettings.language);
 
   // Cache theme/font in localStorage for pre-auth usage (login screen)
   try {
     localStorage.setItem("wealthfolio-theme", newSettings.theme);
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, newSettings.language);
   } catch {
     // noop – localStorage may be unavailable
   }

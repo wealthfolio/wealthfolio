@@ -4,6 +4,7 @@
 import { Link } from "react-router-dom";
 import { Skeleton, formatCompactAmount } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useI18n } from "@/i18n/i18n-provider";
 import { cn } from "@/lib/utils";
 
 export interface CashFlowStripProps {
@@ -28,6 +29,8 @@ export function CashFlowStrip({
   spendingHref,
   savingHref,
 }: CashFlowStripProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const net = income - spending - saving;
   const netPositive = net >= 0;
   const showSaving = saving > 0;
@@ -48,7 +51,7 @@ export function CashFlowStrip({
   return (
     <div className="flex items-end gap-6 sm:gap-8">
       <KpiStat
-        label="Income"
+        label={isChinese ? "收入" : "Income"}
         value={income}
         sign="+"
         currency={currency}
@@ -56,7 +59,7 @@ export function CashFlowStrip({
         href={incomeHref}
       />
       <KpiStat
-        label="Spending"
+        label={isChinese ? "支出" : "Spending"}
         value={spending}
         currency={currency}
         tone="muted"
@@ -64,7 +67,7 @@ export function CashFlowStrip({
       />
       {showSaving && (
         <KpiStat
-          label="Saving"
+          label={isChinese ? "储蓄" : "Saving"}
           value={saving}
           currency={currency}
           tone="saving"
@@ -72,7 +75,7 @@ export function CashFlowStrip({
         />
       )}
       <KpiStat
-        label="Net"
+        label={isChinese ? "净额" : "Net"}
         value={Math.abs(net)}
         sign={netPositive ? "+" : "−"}
         currency={currency}

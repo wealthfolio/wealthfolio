@@ -11,6 +11,8 @@ import {
   useUpdatePortfolioMutation,
   useRecalculatePortfolioMutation,
 } from "@/hooks/use-calculate-portfolio";
+import { useI18n } from "@/i18n/i18n-provider";
+import { translateUiText } from "@/i18n/ui-text";
 import { formatDateTime } from "@/lib/utils";
 
 // Rename interface
@@ -21,12 +23,26 @@ interface PortfolioUpdateTriggerProps {
   notices?: string[];
 }
 
+function isLikelyEnglishSentence(text: string) {
+  return /[A-Za-z]{3,}/.test(text);
+}
+
+function localizeNotice(language: "en" | "zh-CN", notice: string) {
+  const translated = translateUiText(language, notice);
+  if (language === "zh-CN" && translated === notice && isLikelyEnglishSentence(notice)) {
+    return "部分绩效数据暂不可用。";
+  }
+  return translated;
+}
+
 // Rename function
 export function PortfolioUpdateTrigger({
   lastCalculatedAt,
   children,
   notices = [],
 }: PortfolioUpdateTriggerProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   // Instantiate the mutation hooks inside the component
   const updatePortfolioMutation = useUpdatePortfolioMutation();
   const recalculatePortfolioMutation = useRecalculatePortfolioMutation();
@@ -54,7 +70,7 @@ export function PortfolioUpdateTrigger({
               <div className="space-y-1.5">
                 {notices.map((notice) => (
                   <p key={notice} className="text-foreground/80 text-xs font-light leading-relaxed">
-                    {notice}
+                    {localizeNotice(language, notice)}
                   </p>
                 ))}
               </div>
@@ -63,7 +79,7 @@ export function PortfolioUpdateTrigger({
           <div className="space-y-2">
             <h4 className="flex text-sm font-light">
               <Icons.Calendar className="mr-2 h-4 w-4" />
-              As of:{" "}
+              {isChinese ? "截至：" : "As of:"}{" "}
               <Badge className="ml-1 font-medium" variant="secondary">
                 {/* Use lastCalculatedAt prop */}
                 {formattedLastCalculatedAt
@@ -84,7 +100,13 @@ export function PortfolioUpdateTrigger({
             ) : (
               <Icons.Refresh className="mr-2 h-4 w-4" />
             )}
-            {updatePortfolioMutation.isPending ? "Updating quotes..." : "Update quotes"}
+            {updatePortfolioMutation.isPending
+              ? isChinese
+                ? "正在更新报价..."
+                : "Updating quotes..."
+              : isChinese
+                ? "更新报价"
+                : "Update quotes"}
           </Button>
           <Button
             onClick={handleRecalculate}
@@ -99,8 +121,12 @@ export function PortfolioUpdateTrigger({
               <Icons.Clock className="mr-2 h-4 w-4" />
             )}
             {recalculatePortfolioMutation.isPending
-              ? "Rebuilding history..."
-              : "Rebuild full history"}
+              ? isChinese
+                ? "正在重建历史..."
+                : "Rebuilding history..."
+              : isChinese
+                ? "重建完整历史"
+                : "Rebuild full history"}
           </Button>
         </div>
       </HoverCardContent>

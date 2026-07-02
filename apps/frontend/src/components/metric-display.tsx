@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { formatPercent, GainAmount, GainPercent } from "@wealthfolio/ui";
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { translateUiText } from "@/i18n/ui-text";
 
 // Explanatory texts for info popovers
 export const TIME_WEIGHTED_RETURN_INFO =
@@ -52,6 +53,7 @@ export interface MetricDisplayProps {
   labelComponent?: React.ReactNode; // Allow passing a full component for label + info
   emptyReason?: string;
   tone?: "gain" | "neutral";
+  language?: string;
 }
 
 export const MetricDisplay: React.FC<MetricDisplayProps> = ({
@@ -68,12 +70,17 @@ export const MetricDisplay: React.FC<MetricDisplayProps> = ({
   labelComponent,
   emptyReason,
   tone = "gain",
+  language = "en",
 }) => {
+  const isChinese = language === "zh-CN";
   const [mobilePopoverOpen, setMobilePopoverOpen] = useState(false);
+  const localizedInfoText = isChinese ? translateUiText("zh-CN", infoText) : infoText;
 
   const displayValue =
     value === undefined ? (
-      <span className={cn("text-muted-foreground text-base font-medium", valueClassName)}>N/A</span>
+      <span className={cn("text-muted-foreground text-base font-medium", valueClassName)}>
+        {isChinese ? "暂无" : "N/A"}
+      </span>
     ) : isPercentage && tone === "neutral" ? (
       <span className={cn("text-foreground text-base font-medium", valueClassName)}>
         {formatPercent(value)}
@@ -107,11 +114,13 @@ export const MetricDisplay: React.FC<MetricDisplayProps> = ({
             className="text-muted-foreground hover:text-foreground absolute right-2 top-2 hidden h-4 w-4 rounded-full p-0 md:inline-flex"
           >
             <Icons.Info className="h-3 w-3" />
-            <span className="sr-only">More info about {label}</span>
+            <span className="sr-only">
+              {isChinese ? `关于 ${label} 的更多信息` : `More info about ${label}`}
+            </span>
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-60 text-xs" side="top" align="end">
-          {infoText}
+          {localizedInfoText}
         </PopoverContent>
       </Popover>
     </>
@@ -129,10 +138,13 @@ export const MetricDisplay: React.FC<MetricDisplayProps> = ({
       ? []
       : [
           annualizedValue !== undefined && annualizedValue !== null
-            ? { label: "Annualized", value: annualizedValue }
+            ? { label: isChinese ? "年化" : "Annualized", value: annualizedValue }
             : null,
           secondaryValue !== undefined && secondaryValue !== null
-            ? { label: secondaryValueLabel ?? "Related", value: secondaryValue }
+            ? {
+                label: secondaryValueLabel ?? (isChinese ? "相关" : "Related"),
+                value: secondaryValue,
+              }
             : null,
         ].filter((row): row is { label: string; value: number } => row !== null);
 
@@ -163,7 +175,9 @@ export const MetricDisplay: React.FC<MetricDisplayProps> = ({
         <Link
           to="/health"
           title={emptyReason}
-          aria-label={`Open Health Center for ${label} issue`}
+          aria-label={
+            isChinese ? `打开健康中心查看 ${label} 问题` : `Open Health Center for ${label} issue`
+          }
           className="text-muted-foreground hover:text-foreground focus-visible:ring-ring line-clamp-2 max-w-[11rem] rounded-sm text-center text-[10px] leading-tight underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
           onClick={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
@@ -188,7 +202,7 @@ export const MetricDisplay: React.FC<MetricDisplayProps> = ({
         </div>
       </PopoverTrigger>
       <PopoverContent className="w-60 text-xs md:hidden" side="top" align="center">
-        {infoText}
+        {localizedInfoText}
       </PopoverContent>
     </Popover>
   );
@@ -203,6 +217,7 @@ export interface MetricLabelWithInfoProps {
   /** Substrings (e.g. account names) to render in bold within each warning. */
   boldTerms?: string[];
   className?: string;
+  language?: string;
 }
 
 /** Render a warning string, bolding any occurrences of the provided terms. */
@@ -228,7 +243,10 @@ export const MetricLabelWithInfo: React.FC<MetricLabelWithInfoProps> = ({
   warningText,
   boldTerms = [],
   className,
+  language = "en",
 }) => {
+  const isChinese = language === "zh-CN";
+  const localizedInfoText = isChinese ? translateUiText("zh-CN", infoText) : infoText;
   const warningItems = Array.from(
     new Set(
       (Array.isArray(warningText) ? warningText : warningText ? [warningText] : [])
@@ -257,7 +275,14 @@ export const MetricLabelWithInfo: React.FC<MetricLabelWithInfoProps> = ({
               <Icons.Info className="h-3 w-3" />
             )}
             <span className="sr-only">
-              {hasWarnings ? "Calculation note for" : "More info about"} {label}
+              {hasWarnings
+                ? isChinese
+                  ? `${label} 的计算说明`
+                  : "Calculation note for"
+                : isChinese
+                  ? `关于 ${label} 的更多信息`
+                  : "More info about"}{" "}
+              {!isChinese && label}
             </span>
           </Button>
         </PopoverTrigger>
@@ -267,15 +292,19 @@ export const MetricLabelWithInfo: React.FC<MetricLabelWithInfoProps> = ({
           align="center"
         >
           <div className="space-y-3 p-5">
-            <p className="text-muted-foreground leading-relaxed">{infoText}</p>
+            <p className="text-muted-foreground leading-relaxed">{localizedInfoText}</p>
             {hasWarnings && (
               <div className="space-y-2 border-t pt-3">
                 <div className="text-warning flex items-center gap-1.5 font-medium">
                   <Icons.AlertTriangle className="h-4 w-4 shrink-0" />
                   <span>
                     {warningItems.length === 1
-                      ? "Calculation note"
-                      : `Calculation notes (${warningItems.length})`}
+                      ? isChinese
+                        ? "计算说明"
+                        : "Calculation note"
+                      : isChinese
+                        ? `计算说明（${warningItems.length}）`
+                        : `Calculation notes (${warningItems.length})`}
                   </span>
                 </div>
                 <ul className="text-muted-foreground max-h-[60vh] space-y-2 overflow-y-auto pr-1 leading-relaxed">

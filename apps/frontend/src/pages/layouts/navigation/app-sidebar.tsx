@@ -1,6 +1,7 @@
 import { isWeb } from "@/adapters";
-import { isAppleDevice } from "@/lib/device-utils";
 import { useAuth } from "@/context/auth-context";
+import { useI18n } from "@/i18n/i18n-provider";
+import { isAppleDevice } from "@/lib/device-utils";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -25,6 +26,7 @@ const modKey = isAppleDevice() ? "⌘" : "Ctrl";
 export function AppSidebar({ navigation }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(true);
   const { logout, requiresAuth } = useAuth();
+  const { t } = useI18n();
 
   return (
     <div
@@ -94,7 +96,7 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
                       ? "justify-center rounded-md"
                       : "bg-muted/50 hover:bg-muted/80 justify-start rounded-full px-4 shadow-none",
                   )}
-                  title={`Search (${modKey}+K)`}
+                  title={`${t("navigation.search")} (${modKey}+K)`}
                 >
                   <span aria-hidden="true">
                     <Icons.Search2 className="h-5 w-5 opacity-60" />
@@ -106,7 +108,7 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
                       "block opacity-100": !collapsed,
                     })}
                   >
-                    Search...
+                    {t("navigation.search.placeholder")}
                   </span>
                   {!collapsed && (
                     <kbd className="bg-background text-muted-foreground pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100">
@@ -139,7 +141,7 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
                     "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300",
                     collapsed ? "justify-center" : "justify-start",
                   )}
-                  title="Logout"
+                  title={t("navigation.logout")}
                 >
                   <span aria-hidden="true">
                     <Icons.LogOut className="h-5 w-5" />
@@ -151,23 +153,27 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
                       "block opacity-100": !collapsed,
                     })}
                   >
-                    Logout
+                    {t("navigation.logout")}
                   </span>
                 </Button>
               )}
               <Separator className="mt-0" />
               <div className="flex justify-end">
                 <Button
-                  title="Toggle Sidebar"
+                  title={t("navigation.toggleSidebar")}
                   variant="ghost"
                   onClick={() => setCollapsed(!collapsed)}
                   className="text-muted-foreground [&_svg]:size-5! cursor-pointer rounded-md hover:bg-transparent"
-                  aria-label={collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                  aria-label={
+                    collapsed ? t("navigation.expandSidebar") : t("navigation.collapseSidebar")
+                  }
                 >
                   <Icons.PanelLeftOpen
                     size={18}
                     className={`h-5 w-5 transition-transform duration-500 ease-in-out ${!collapsed ? "rotate-180" : ""}`}
-                    aria-label={collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                    aria-label={
+                      collapsed ? t("navigation.expandSidebar") : t("navigation.collapseSidebar")
+                    }
                   />
                 </Button>
               </div>
@@ -231,6 +237,7 @@ interface AddonsMenuProps {
 
 function AddonsMenu({ addons, collapsed }: AddonsMenuProps) {
   const location = useLocation();
+  const { t } = useI18n();
   const hasActiveAddon = addons.some((addon) => isPathActive(location.pathname, addon.href));
 
   return (
@@ -253,7 +260,7 @@ function AddonsMenu({ addons, collapsed }: AddonsMenuProps) {
               "block opacity-100": !collapsed,
             })}
           >
-            Add-ons
+            {t("navigation.addons")}
           </span>
         </Button>
       </DropdownMenuTrigger>

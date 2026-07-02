@@ -466,6 +466,7 @@ function createSettings(): Settings {
   return {
     theme: "light",
     font: "font-sans",
+    language: "en",
     baseCurrency: "USD",
     defaultReturnMetric: "twr",
     timezone: "America/Chicago",

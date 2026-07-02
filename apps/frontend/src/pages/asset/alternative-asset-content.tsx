@@ -33,6 +33,7 @@ import { LinkedLiabilitiesSection, LinkedAssetSection } from "./linked-liabiliti
 import { useQuoteMutations } from "./hooks/use-quote-mutations";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useLinkedLiabilities, useAlternativeHoldings } from "@/hooks/use-alternative-assets";
+import { useI18n } from "@/i18n/i18n-provider";
 import type { AlternativeAssetHolding, Quote, Asset, TimePeriod, DateRange } from "@/lib/types";
 import { AlternativeAssetKind } from "@/lib/types";
 import { parseLocalDate } from "@/lib/utils";
@@ -762,6 +763,8 @@ export function useAlternativeAssetActions({
   allHoldings,
   onNavigateBack,
 }: AlternativeAssetActionsProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   // Modal state
   const [updateValuationOpen, setUpdateValuationOpen] = useState(false);
   const [editDetailsOpen, setEditDetailsOpen] = useState(false);
@@ -903,10 +906,19 @@ export function useAlternativeAssetActions({
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Asset</AlertDialogTitle>
+            <AlertDialogTitle>{isChinese ? "删除资产" : "Delete Asset"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <span className="font-semibold">{holding.name}</span>?
-              This will remove all valuation history and cannot be undone.
+              {isChinese ? (
+                <>
+                  确定要删除 <span className="font-semibold">{holding.name}</span> 吗？这会移除所有估值历史，且无法撤销。
+                </>
+              ) : (
+                <>
+                  Are you sure you want to delete{" "}
+                  <span className="font-semibold">{holding.name}</span>? This will remove all
+                  valuation history and cannot be undone.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

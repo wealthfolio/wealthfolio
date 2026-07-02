@@ -16,6 +16,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { ActionConfirm } from "@wealthfolio/ui";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useI18n } from "@/i18n/i18n-provider";
 import { AddExchangeRateForm } from "./add-exchange-rate-form";
 import { RateCell } from "./rate-cell";
 import { useExchangeRates } from "./use-exchange-rate";
@@ -29,6 +30,8 @@ export function ExchangeRatesSettings() {
     deleteExchangeRate,
     isDeletingRate,
   } = useExchangeRates();
+  const { t, language } = useI18n();
+  const isChinese = language === "zh-CN";
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
   const columns: ColumnDef<ExchangeRate>[] = [
@@ -113,22 +116,33 @@ export function ExchangeRatesSettings() {
 
         return (
           <ActionConfirm
-            confirmTitle="Delete Exchange Rate"
+            confirmTitle={isChinese ? "删除汇率" : "Delete Exchange Rate"}
             confirmMessage={
               <>
                 <p className="mb-2">
-                  Are you sure you want to delete the <strong>{currencyPair}</strong> exchange rate?
+                  {isChinese ? (
+                    <>
+                      确定要删除 <strong>{currencyPair}</strong> 汇率吗？
+                    </>
+                  ) : (
+                    <>
+                      Are you sure you want to delete the <strong>{currencyPair}</strong> exchange
+                      rate?
+                    </>
+                  )}
                 </p>
                 <p className="text-xs text-amber-600 dark:text-amber-400">
                   <Icons.AlertTriangle className="mr-1 inline h-3 w-3" />
-                  If you have holdings or transactions in {rate.fromCurrency}, you may need to
-                  recreate this exchange rate for accurate portfolio calculations.
+                  {isChinese
+                    ? `如果你有以 ${rate.fromCurrency} 计价的持仓或交易，可能需要重新创建此汇率，以保证投资组合计算准确。`
+                    : `If you have holdings or transactions in ${rate.fromCurrency}, you may need to recreate this exchange rate for accurate portfolio calculations.`}
                 </p>
               </>
             }
             handleConfirm={() => deleteExchangeRate(rate.id)}
             isPending={isDeletingRate}
-            confirmButtonText="Delete"
+            confirmButtonText={isChinese ? "删除" : "Delete"}
+            cancelButtonText={isChinese ? "取消" : "Cancel"}
             confirmButtonVariant="destructive"
             button={
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -147,16 +161,14 @@ export function ExchangeRatesSettings() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-lg">Exchange Rates</CardTitle>
-            <CardDescription>
-              Manage exchange rates for currencies in your portfolio.
-            </CardDescription>
+            <CardTitle className="text-lg">{t("settings.exchangeRates.title")}</CardTitle>
+            <CardDescription>{t("settings.exchangeRates.description")}</CardDescription>
           </div>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Icons.PlusCircle className="mr-2 h-4 w-4" />
-                Add rate
+                {t("settings.exchangeRates.add")}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -183,11 +195,11 @@ export function ExchangeRatesSettings() {
         ) : (
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <Icons.DollarSign className="text-muted-foreground h-12 w-12" />
-            <h3 className="mt-4 text-lg font-semibold">No exchange rates defined yet</h3>
+            <h3 className="mt-4 text-lg font-semibold">{t("settings.exchangeRates.empty")}</h3>
 
             <Button className="mt-4" onClick={() => setIsAddDialogOpen(true)}>
               <Icons.PlusCircle className="mr-2 h-4 w-4" />
-              Add rate
+              {t("settings.exchangeRates.add")}
             </Button>
           </div>
         )}

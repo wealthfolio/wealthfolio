@@ -22,6 +22,15 @@ interface PerformanceChartMobileProps {
   }[];
 }
 
+function isChineseLocale(): boolean {
+  return typeof document !== "undefined" && document.documentElement.lang === "zh-CN";
+}
+
+function formatChartDate(date: Date, options: Intl.DateTimeFormatOptions): string {
+  if (!isChineseLocale()) return "";
+  return new Intl.DateTimeFormat("zh-CN", options).format(date);
+}
+
 export function PerformanceChartMobile({ data }: PerformanceChartMobileProps) {
   const formattedData = data[0]?.returns?.map((item) => {
     const dataPoint: Record<string, number | string> = { date: item.date };
@@ -63,15 +72,23 @@ export function PerformanceChartMobile({ data }: PerformanceChartMobileProps) {
     const daysDiff = differenceInDays(lastDate, firstDate);
 
     if (daysDiff <= 7) {
+      const localized = formatChartDate(date, { month: "short", day: "numeric" });
+      if (localized) return localized;
       return format(date, "MMM d"); // e.g., "Sep 15"
     }
     if (daysDiff <= 31) {
+      const localized = formatChartDate(date, { month: "short", day: "numeric" });
+      if (localized) return localized;
       return format(date, "MMM d"); // e.g., "Sep 15"
     }
     if (monthsDiff <= 12) {
+      const localized = formatChartDate(date, { month: "short" });
+      if (localized) return localized;
       return format(date, "MMM"); // e.g., "Sep"
     }
     if (monthsDiff <= 36) {
+      const localized = formatChartDate(date, { year: "2-digit", month: "short" });
+      if (localized) return localized;
       return format(date, "MMM yy"); // e.g., "Sep 23"
     }
     return format(date, "yyyy"); // e.g., "2023"
@@ -94,7 +111,10 @@ export function PerformanceChartMobile({ data }: PerformanceChartMobileProps) {
   };
 
   const tooltipLabelFormatter = (label: React.ReactNode) =>
-    typeof label === "string" ? format(parseISO(label), "MMM d, yyyy") : "";
+    typeof label === "string"
+      ? formatChartDate(parseISO(label), { year: "numeric", month: "short", day: "numeric" }) ||
+        format(parseISO(label), "MMM d, yyyy")
+      : "";
 
   return (
     <div className="h-full w-full">

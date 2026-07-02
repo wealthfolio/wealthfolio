@@ -1,4 +1,5 @@
 import type { CashAuditReviewTarget } from "@/pages/account/cash-audit";
+import { useI18n } from "@/i18n/i18n-provider";
 import type { ActivityDetails } from "@/lib/types";
 import { Icons } from "@wealthfolio/ui";
 import {
@@ -33,12 +34,22 @@ export function ActivityDateSheet({
   cashCurrency,
   cashAuditTarget,
 }: ActivityDateSheetProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
+  const formattedDate = date ? formatActivityDate(date) : "";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex h-full w-full flex-col p-0 sm:max-w-xl">
         <SheetHeader className="border-b px-6 py-4">
-          <SheetTitle>Activities on {date ? formatActivityDate(date) : ""}</SheetTitle>
-          <SheetDescription>{activities.length} activities recorded on this date</SheetDescription>
+          <SheetTitle>
+            {isChinese ? `${formattedDate} 的活动` : `Activities on ${formattedDate}`}
+          </SheetTitle>
+          <SheetDescription>
+            {isChinese
+              ? `此日期记录了 ${activities.length} 条活动`
+              : `${activities.length} activities recorded on this date`}
+          </SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-auto px-4 py-4">
           {isLoading ? (

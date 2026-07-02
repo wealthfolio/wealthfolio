@@ -106,6 +106,7 @@ const mockUseQuery = vi.mocked(useQuery);
 const mockSettings: Settings = {
   theme: "light",
   font: "font-sans",
+  language: "en",
   baseCurrency: "USD",
   defaultReturnMetric: "twr",
   timezone: "America/Chicago",

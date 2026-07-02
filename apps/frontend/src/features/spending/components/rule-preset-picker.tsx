@@ -19,6 +19,7 @@ import {
   useRemoveRulePreset,
   useRulePresets,
 } from "../hooks/use-categorization-rules";
+import { useI18n } from "@/i18n/i18n-provider";
 import { PRESET_FLAGS } from "./rule-preset-constants";
 
 interface RulePresetPickerProps {
@@ -33,6 +34,8 @@ interface RulePresetPickerProps {
  * rules are detached and kept).
  */
 export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const { data: presets = [], isLoading, isError: presetsErrored } = useRulePresets();
   const { data: rules = [], isError: rulesErrored } = useCategorizationRules();
   const importMutation = useImportRulePreset();
@@ -156,9 +159,24 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove {pendingPreset?.name ?? "preset"}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {isChinese
+                ? `要移除 ${pendingPreset?.name ?? "预设"} 吗？`
+                : `Remove ${pendingPreset?.name ?? "preset"}?`}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingCounts && unmodifiedToRemove !== null ? (
+              {isChinese ? (
+                pendingCounts && unmodifiedToRemove !== null ? (
+                  <>
+                    此预设中会移除 {unmodifiedToRemove} 条规则。
+                    {pendingCounts.modified > 0 && (
+                      <> 你编辑过的 {pendingCounts.modified} 条规则会保留为独立规则。</>
+                    )}
+                  </>
+                ) : (
+                  <>此预设中的规则会被移除。你的编辑会保留。</>
+                )
+              ) : pendingCounts && unmodifiedToRemove !== null ? (
                 <>
                   {unmodifiedToRemove} rule{unmodifiedToRemove === 1 ? "" : "s"} will be removed
                   from this preset.
@@ -177,7 +195,7 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{isChinese ? "取消" : "Cancel"}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (pendingRemove) {
@@ -187,7 +205,7 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Remove
+              {isChinese ? "移除" : "Remove"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

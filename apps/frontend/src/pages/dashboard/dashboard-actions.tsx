@@ -10,6 +10,7 @@ import {
   useUpdatePortfolioMutation,
 } from "@/hooks/use-calculate-portfolio";
 import { useRunHealthChecks } from "@/hooks/use-health";
+import { useI18n } from "@/i18n/i18n-provider";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useMemo, useState } from "react";
@@ -21,6 +22,8 @@ interface DashboardActionsProps {
 }
 
 export function DashboardActions({ onAddAsset, onAddLiability }: DashboardActionsProps) {
+  const { language } = useI18n();
+  const isChinese = language === "zh-CN";
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
@@ -44,19 +47,19 @@ export function DashboardActions({ onAddAsset, onAddLiability }: DashboardAction
         ? [
             {
               icon: Icons.Plus,
-              label: "Add Asset",
+              label: isChinese ? "添加资产" : "Add Asset",
               onClick: onAddAsset,
             },
             {
               icon: Icons.Plus,
-              label: "Add Liability",
+              label: isChinese ? "添加负债" : "Add Liability",
               onClick: onAddLiability,
             },
           ]
         : [
             {
               icon: Icons.Plus,
-              label: "Record Transaction",
+              label: isChinese ? "记录交易" : "Record Transaction",
               onClick: () => navigate("/activities/manage"),
             },
           ];
@@ -69,7 +72,7 @@ export function DashboardActions({ onAddAsset, onAddLiability }: DashboardAction
             ? [
                 {
                   icon: Icons.Download,
-                  label: "Sync Broker Accounts",
+                  label: isChinese ? "同步券商账户" : "Sync Broker Accounts",
                   onClick: () => syncBrokerData(),
                 },
               ]
@@ -78,24 +81,24 @@ export function DashboardActions({ onAddAsset, onAddLiability }: DashboardAction
             ? [
                 {
                   icon: Icons.CloudSync,
-                  label: "Sync Devices",
+                  label: isChinese ? "同步设备" : "Sync Devices",
                   onClick: () => void syncService.triggerSyncCycle(),
                 },
               ]
             : []),
           {
             icon: Icons.Refresh,
-            label: "Update Prices",
+            label: isChinese ? "更新价格" : "Update Prices",
             onClick: () => updatePortfolioMutation.mutate(),
           },
           {
             icon: Icons.History,
-            label: "Rebuild Full History",
+            label: isChinese ? "重建完整历史" : "Rebuild Full History",
             onClick: () => recalculatePortfolioMutation.mutate(),
           },
           {
             icon: Icons.ShieldCheck,
-            label: "Verify Data",
+            label: isChinese ? "校验数据" : "Verify Data",
             onClick: () => runHealthChecksMutation.mutate(),
           },
         ],
@@ -105,6 +108,7 @@ export function DashboardActions({ onAddAsset, onAddLiability }: DashboardAction
     navigate,
     onAddAsset,
     onAddLiability,
+    isChinese,
     showSyncAction,
     showDeviceSyncAction,
     syncBrokerData,
