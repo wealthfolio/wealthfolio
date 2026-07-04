@@ -1,15 +1,34 @@
 import { isWeb } from "@/adapters";
 import { setAddonQueryClient } from "@/addons/addons-runtime-context";
-import { AuthGate, AuthProvider } from "@/context/auth-context";
+import { loadAllAddons } from "@/addons/addons-loader";
+import { AuthGate, AuthProvider, useAuth } from "@/context/auth-context";
 import { EventDialogProvider } from "@/features/spending/components/event-dialog-provider";
 import { WealthfolioConnectProvider } from "@/features/wealthfolio-connect";
 import { SettingsProvider } from "@/lib/settings-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@wealthfolio/ui";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PrivacyProvider } from "./context/privacy-context";
 import { LoginPage } from "./pages/auth/login-page";
 import { AppRoutes } from "./routes";
+
+// In web mode, addon discovery requires an authenticated session, so addons
+// cannot be loaded at startup (see main.tsx). This loads them once the session
+// is authenticated. Desktop loads at startup and is handled in main.tsx.
+function AddonRuntimeLoader() {
+  const { isAuthenticated } = useAuth();
+  const loadedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isWeb || !isAuthenticated || loadedRef.current) {
+      return;
+    }
+    loadedRef.current = true;
+    void loadAllAddons();
+  }, [isAuthenticated]);
+
+  return null;
+}
 
 function App() {
   const [queryClient] = useState(
@@ -40,6 +59,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <AddonRuntimeLoader />
         <WealthfolioConnectProvider>
           <PrivacyProvider>
             <SettingsProvider>

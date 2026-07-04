@@ -32,8 +32,12 @@ if (import.meta.env.DEV) {
   });
 }
 
-// Load addons after context is injected
-loadAllAddons();
+// Load addons after context is injected. On web, addon discovery requires an
+// authenticated session, so loading is deferred until after login (handled by
+// AddonRuntimeLoader in App). On desktop there is no auth gate, so load now.
+if (isDesktop) {
+  loadAllAddons();
+}
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
