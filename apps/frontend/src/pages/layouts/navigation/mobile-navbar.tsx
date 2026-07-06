@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { type NavLink, type NavigationProps, isPathActive } from "./app-navigation";
 import { resolveNavigationIcon } from "./navigation-icons";
-
+import { createPortal } from "react-dom";
 interface MobileNavBarProps {
   navigation: NavigationProps;
 }
@@ -71,7 +71,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
   const hasMenu = moreItems.length > 0;
   const columnCount = visibleItems.length + (hasMenu ? 1 : 0);
 
-  return (
+  return createPortal(
     <div className={containerClassName}>
       {/* Lift off bottom by the design gap while respecting safe area */}
       <div className="flex justify-center px-4 pb-[var(--mobile-nav-bottom-offset)]">
@@ -260,6 +260,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
           </div>
         </SheetContent>
       </Sheet>
-    </div>
+    </div>,
+    document.body,
   );
 }
