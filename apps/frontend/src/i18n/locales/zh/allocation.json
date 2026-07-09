@@ -87,6 +87,9 @@
     "hybrid": "混合",
     "hybridShort": "混合",
     "hybridHint": "现金 + 卖出",
+    "transferOnly": "仅转移",
+    "transferShort": "转移",
+    "transferHint": "移动价值，无买卖",
     "enableSellsTip": "在此目标上启用“允许卖出”以使用此模式"
   },
   "planner": {
@@ -102,7 +105,8 @@
     "driverSentenceUnder": "{{name}} 位于 {{current}}%，低于 {{target}}% 的目标。",
     "modeVerbSells": "卖出并买入",
     "modeVerbHybrid": "现金与卖出",
-    "modeVerbCashFlow": "现金流买入"
+    "modeVerbCashFlow": "现金流买入",
+    "modeVerbTransfer": "转移"
   },
   "narrative": {
     "liftAndShrink": "{{verb}}将 {{lifted}} 提升至目标，并将 {{shrank}} 的超配从 {{before}} 缩减至 {{after}}。",
@@ -192,6 +196,12 @@
     "tradesSummarySells": "{{buys}} · {{sells}} · {{cash}} 新现金",
     "tradesSummaryDeployed": "{{buys}} · 已投入 {{cash}}",
     "noTrades": "无交易——所有类别均已在容差带内，或未找到持仓。",
+    "transferSummary_one": "{{count}} 笔转移 · 已移动 {{amount}}",
+    "transferSummary_other": "{{count}} 笔转移 · 已移动 {{amount}}",
+    "proposedTransfers": "建议转移",
+    "noTransfers": "无转移——所有类别均已在容差带内。",
+    "residualGapTitle": "近似方案——剩余 {{gap}} 差距",
+    "descriptionTransfer": "通过在持仓之间移动价值进行再平衡——无需买入或卖出。",
     "calculatedFooter": "{{name}} · 计算于 {{date}}",
     "copyAsText": "复制为文本",
     "exportCsv": "导出 CSV"
@@ -217,7 +227,11 @@
     "amount": "金额（{{currency}}）",
     "shares": "股数",
     "lastPrice": "最新价格（{{currency}}）",
-    "reason": "原因"
+    "reason": "原因",
+    "from": "从",
+    "fromName": "来源名称",
+    "to": "至",
+    "toName": "目标名称"
   },
   "copyText": {
     "header": "再平衡方案 · {{date}}",
@@ -225,6 +239,8 @@
     "cashDeployed": "已投入现金：{{available}} 中的 {{used}}",
     "maxDrift": "最大偏离：{{before}} → {{after}}",
     "proposedTrades": "建议交易",
+    "proposedTransfers": "建议转移",
+    "transfer": "转移  {{from}} → {{to}}  {{amount}}",
     "account": "账户 {{account}}",
     "shares": "{{qty}} 股",
     "warnings_one": "{{count}} 条警告：",

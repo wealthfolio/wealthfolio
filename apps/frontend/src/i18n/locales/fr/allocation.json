@@ -87,6 +87,9 @@
     "hybrid": "Hybride",
     "hybridShort": "Hybride",
     "hybridHint": "trésorerie + ventes",
+    "transferOnly": "Transfert uniquement",
+    "transferShort": "Transfert",
+    "transferHint": "déplacer la valeur, sans achats/ventes",
     "enableSellsTip": "Activez « Autoriser les ventes » sur cette cible pour utiliser ce mode"
   },
   "planner": {
@@ -102,7 +105,8 @@
     "driverSentenceUnder": "{{name}} est à {{current}} % en dessous d'une cible de {{target}} %.",
     "modeVerbSells": "Les ventes et achats",
     "modeVerbHybrid": "La trésorerie et les ventes",
-    "modeVerbCashFlow": "Les achats par flux de trésorerie"
+    "modeVerbCashFlow": "Les achats par flux de trésorerie",
+    "modeVerbTransfer": "Les transferts"
   },
   "narrative": {
     "liftAndShrink": "{{verb}} rapprochent {{lifted}} de la cible et réduisent la surpondération de {{shrank}} de {{before}} à {{after}}.",
@@ -192,6 +196,12 @@
     "tradesSummarySells": "{{buys}} · {{sells}} · {{cash}} de nouvelle trésorerie",
     "tradesSummaryDeployed": "{{buys}} · {{cash}} déployé",
     "noTrades": "Aucune transaction — toutes les poches sont déjà dans la bande ou aucune position trouvée.",
+    "transferSummary_one": "{{count}} transfert · {{amount}} déplacé",
+    "transferSummary_other": "{{count}} transferts · {{amount}} déplacés",
+    "proposedTransfers": "Transferts proposés",
+    "noTransfers": "Aucun transfert — toutes les poches sont déjà dans la bande.",
+    "residualGapTitle": "Plan approximatif — {{gap}} d'écart restant",
+    "descriptionTransfer": "Rééquilibrer en déplaçant la valeur entre les positions — aucun achat ni vente requis.",
     "calculatedFooter": "{{name}} · Calculé le {{date}}",
     "copyAsText": "Copier comme texte",
     "exportCsv": "Exporter en CSV"
@@ -217,7 +227,11 @@
     "amount": "Montant ({{currency}})",
     "shares": "Parts",
     "lastPrice": "Dernier prix ({{currency}})",
-    "reason": "Motif"
+    "reason": "Motif",
+    "from": "De",
+    "fromName": "Nom source",
+    "to": "Vers",
+    "toName": "Nom destination"
   },
   "copyText": {
     "header": "Plan de rééquilibrage · {{date}}",
@@ -225,6 +239,8 @@
     "cashDeployed": "Trésorerie déployée : {{used}} sur {{available}}",
     "maxDrift": "Écart max : {{before}} → {{after}}",
     "proposedTrades": "TRANSACTIONS PROPOSÉES",
+    "proposedTransfers": "TRANSFERTS PROPOSÉS",
+    "transfer": "TRANSFERT  {{from}} → {{to}}  {{amount}}",
     "account": "compte {{account}}",
     "shares": "{{qty}} parts",
     "warnings_one": "{{count}} avertissement :",

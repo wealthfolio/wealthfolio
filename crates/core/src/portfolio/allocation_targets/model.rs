@@ -67,6 +67,7 @@ pub enum ScenarioMode {
     CashFlowOnly,
     SellToRebalance,
     Hybrid,
+    TransferOnly,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -453,6 +454,33 @@ pub struct SuggestedManualTrade {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SuggestedTransfer {
+    pub from_asset_id: String,
+    pub from_symbol: String,
+    pub from_name: Option<String>,
+    pub from_account_id: Option<String>,
+    pub from_holding_id: Option<String>,
+    pub to_asset_id: String,
+    pub to_symbol: String,
+    pub to_name: Option<String>,
+    pub to_account_id: Option<String>,
+    pub to_holding_id: Option<String>,
+    pub amount: Decimal,
+    pub reason: String,
+    pub drift_improvement_bps: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResidualGap {
+    pub category_id: String,
+    pub category_name: String,
+    pub gap_bps: i32,
+    pub cause: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RebalancePlan {
     pub target_id: String,
     pub available_cash: Decimal,
@@ -467,6 +495,10 @@ pub struct RebalancePlan {
     /// instead of re-deriving from trades (which only carry the primary category).
     #[serde(default)]
     pub after_bps_by_category: std::collections::HashMap<String, i32>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub transfer_pairs: Vec<SuggestedTransfer>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub residual_gaps: Vec<ResidualGap>,
 }
 
 #[cfg(test)]

@@ -16,12 +16,14 @@ use super::cash::{
 use super::drift_service::DriftServiceTrait;
 use super::model::{
     CalculateRebalancePlanInput, RebalancePlan, RebalanceWarning, RebalanceWarningKind,
+    ScenarioMode,
 };
 use super::optimizer::{
     AssetCandidate, CategoryState, DriftPriorityOptimizer, RebalanceInput, RebalanceOptimizer,
     RebalanceProfile, SellCandidate,
 };
 use super::target_service::AllocationTargetServiceTrait;
+use super::transfer_optimizer::TransferOptimizer;
 
 // ── Service trait ─────────────────────────────────────────────────────────────
 
@@ -491,6 +493,8 @@ impl RebalanceServiceTrait for RebalanceService {
                 trades: vec![],
                 warnings: vec![],
                 after_bps_by_category: std::collections::HashMap::new(),
+                transfer_pairs: vec![],
+                residual_gaps: vec![],
             });
         }
 
@@ -610,6 +614,10 @@ impl RebalanceServiceTrait for RebalanceService {
             warnings: classification_warnings,
             max_turnover_bps,
         };
+
+        if matches!(optimizer_input.scenario_mode, ScenarioMode::TransferOnly) {
+            return TransferOptimizer.plan(optimizer_input);
+        }
 
         DriftPriorityOptimizer.plan(optimizer_input)
     }
@@ -2154,6 +2162,36 @@ mod tests {
             plan.max_drift_bps_after <= plan.max_drift_bps_before,
             "drift must not increase after buying"
         );
+    }
+
+    // ── TransferOnly tests ──────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn transfer_only_never_generates_buy_or_sell_trades() {
+        let total = dec!(10000);
+        let h_vti = make_holding("h1", "VTI", dec!(10), dec!(6000));
+        let h_bnd = make_holding("h2", "BND", dec!(40), dec!(4000));
+        let c_vti = make_contribution(&h_vti, "equity", dec!(6000));
+        let c_bnd = make_contribution(&h_bnd, "bond", dec!(4000));
+        let rows = vec![
+            make_drift_row("equity", 6000, 7000, total),
+            make_drift_row("bond", 4000, 3000, total),
+        ];
+        let svc = make_service(
+            make_profile(RebalanceGoal::ExactTarget, false),
+            make_report(rows, total),
+            make_contributions(vec![c_vti, c_bnd]),
+            vec![make_cash_holding(dec!(0), "USD"), h_vti, h_bnd],
+        );
+        let plan = svc
+            .calculate_plan(make_input_with_mode(dec!(0), ScenarioMode::TransferOnly))
+            .await
+            .unwrap();
+        assert!(
+            plan.trades.is_empty(),
+            "transfer_only must not produce trades"
+        );
+        assert_eq!(plan.cash_used, dec!(0));
     }
 
     // ── Sell-to-rebalance tests ────────────────────────────────────────────────

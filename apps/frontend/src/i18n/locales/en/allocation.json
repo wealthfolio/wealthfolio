@@ -87,6 +87,9 @@
     "hybrid": "Hybrid",
     "hybridShort": "Hybrid",
     "hybridHint": "cash + sells",
+    "transferOnly": "Transfer only",
+    "transferShort": "Transfer",
+    "transferHint": "move value, no buys/sells",
     "enableSellsTip": "Enable 'Allow sells' on this target to use this mode"
   },
   "planner": {
@@ -102,7 +105,8 @@
     "driverSentenceUnder": "{{name}} sits {{current}}% under a {{target}}% target.",
     "modeVerbSells": "Sells and buys",
     "modeVerbHybrid": "Cash and sells",
-    "modeVerbCashFlow": "Cash-flow buys"
+    "modeVerbCashFlow": "Cash-flow buys",
+    "modeVerbTransfer": "Transfers"
   },
   "narrative": {
     "liftAndShrink": "{{verb}} lift {{lifted}} toward target and shrink the {{shrank}} overweight from {{before}} to {{after}}.",
@@ -187,11 +191,17 @@
     "descriptionSell": "Sell what you're overweight to buy what you're underweight. Your cash stays put. Tax impact is not estimated.",
     "descriptionHybrid": "Invest your cash first, then sell overweight sleeves only if cash alone can't close the gap. Cash can add to a holding but can't shrink one you already own too much of. Tax impact is not estimated.",
     "descriptionCashFlow": "Put your new cash to work in the sleeves you're light on. Buys only — nothing is sold.",
+    "descriptionTransfer": "Rebalance by moving value between holdings — no buys or sells required.",
     "stalePlan": "Portfolio data changed. Recalculate to refresh this plan.",
     "proposedTrades": "Proposed trades",
     "tradesSummarySells": "{{buys}} · {{sells}} · {{cash}} new cash",
     "tradesSummaryDeployed": "{{buys}} · {{cash}} deployed",
     "noTrades": "No trades — all sleeves are already within band or no holdings found.",
+    "transferSummary_one": "{{count}} transfer · {{amount}} moved",
+    "transferSummary_other": "{{count}} transfers · {{amount}} moved",
+    "proposedTransfers": "Proposed transfers",
+    "noTransfers": "No transfers — all sleeves are already within band.",
+    "residualGapTitle": "Approximate plan — {{gap}} gap remaining",
     "calculatedFooter": "{{name}} · Calculated {{date}}",
     "copyAsText": "Copy as text",
     "exportCsv": "Export CSV"
@@ -217,7 +227,11 @@
     "amount": "Amount ({{currency}})",
     "shares": "Shares",
     "lastPrice": "Last Price ({{currency}})",
-    "reason": "Reason"
+    "reason": "Reason",
+    "from": "From",
+    "fromName": "From Name",
+    "to": "To",
+    "toName": "To Name"
   },
   "copyText": {
     "header": "Rebalance plan · {{date}}",
@@ -225,6 +239,8 @@
     "cashDeployed": "Cash deployed: {{used}} of {{available}}",
     "maxDrift": "Max drift: {{before}} → {{after}}",
     "proposedTrades": "PROPOSED TRADES",
+    "proposedTransfers": "PROPOSED TRANSFERS",
+    "transfer": "TRANSFER  {{from}} → {{to}}  {{amount}}",
     "account": "account {{account}}",
     "shares": "{{qty}} sh",
     "warnings_one": "{{count}} warning:",

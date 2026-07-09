@@ -1,25 +1,27 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Button, Card, CardContent, Icons, Skeleton } from "@wealthfolio/ui";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
-import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
-import { cn, formatAmount } from "@/lib/utils";
-import { toast } from "sonner";
 import type {
   AccountScope,
+  AllocationTarget,
   DriftReport,
   RebalancePlan,
   RebalanceWarning,
+  ResidualGap,
   ScenarioMode,
   SuggestedManualTrade,
-  AllocationTarget,
+  SuggestedTransfer,
 } from "@/lib/types";
+import { cn, formatAmount } from "@/lib/utils";
+import { Button, Card, CardContent, Icons, Skeleton } from "@wealthfolio/ui";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
+import type { TFunction } from "i18next";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { useRebalancePlan } from "../hooks/use-rebalance";
 import {
   allocationTargetColorForRow,
   buildAllocationTargetColorMap,
 } from "./allocation-target-colors";
 import { accountScopeKey } from "./target-scope";
-import { useRebalancePlan } from "../hooks/use-rebalance";
 
 // Drift direction colors — clay for overweight (+), slate-blue for underweight (−).
 const DRIFT_OVER = "#b4664a";
@@ -184,7 +186,7 @@ function driftDriverSentence(driftReport: DriftReport, t: TFunction): string | n
       : "allocation:planner.driverSentenceUnder",
     {
       name: top.name,
-      current: (top.cur / 100).toFixed(0),
+      current: (Math.abs(top.drift) / 100).toFixed(0),
       target: (top.tgt / 100).toFixed(0),
     },
   );
@@ -193,6 +195,7 @@ function driftDriverSentence(driftReport: DriftReport, t: TFunction): string | n
 function modeVerb(mode: ScenarioMode, t: TFunction): string {
   if (mode === "sell_to_rebalance") return t("allocation:planner.modeVerbSells");
   if (mode === "hybrid") return t("allocation:planner.modeVerbHybrid");
+  if (mode === "transfer_only") return t("allocation:planner.modeVerbTransfer");
   return t("allocation:planner.modeVerbCashFlow");
 }
 
@@ -287,6 +290,41 @@ function exportCsv(plan: RebalancePlan, currency: string, profileName: string, t
     .map((row) => row.map(csvCell).join(","))
     .join("\n");
 
+  // Transfer-only mode: export transfer pairs instead of trades.
+  if (plan.transferPairs && plan.transferPairs.length > 0) {
+    const header = [
+      t("allocation:csv.from"),
+      t("allocation:csv.fromName"),
+      t("allocation:csv.to"),
+      t("allocation:csv.toName"),
+      t("allocation:csv.amount", { currency }),
+      t("allocation:csv.reason"),
+    ]
+      .map(csvCell)
+      .join(",");
+    const rows = plan.transferPairs.map((p) =>
+      [
+        p.fromSymbol,
+        p.fromName ?? "",
+        p.toSymbol,
+        p.toName ?? "",
+        p.amount.toFixed(fractionDigits),
+        p.reason,
+      ]
+        .map(csvCell)
+        .join(","),
+    );
+    const csv = [meta, "", header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rebalance-plan-${profileName.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${generated}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    return;
+  }
+
   const header = [
     t("allocation:csv.action"),
     t("allocation:csv.symbol"),
@@ -330,38 +368,61 @@ function exportCsv(plan: RebalancePlan, currency: string, profileName: string, t
 }
 
 function copyToText(plan: RebalancePlan, currency: string, t: TFunction) {
-  const cashTotals = planCashTotals(plan);
-  const lines = [
-    t("allocation:copyText.header", { date: new Date().toLocaleDateString() }),
-    cashTotals.hasSells
-      ? t("allocation:copyText.newCashUsed", {
-          used: formatAmount(cashTotals.newCashUsed, currency),
-          buyTotal: formatAmount(cashTotals.buyTotal, currency),
-          sellProceeds: formatAmount(cashTotals.sellProceeds, currency),
-          cashRemaining: formatAmount(plan.cashRemaining, currency),
-        })
-      : t("allocation:copyText.cashDeployed", {
-          used: formatAmount(plan.cashUsed, currency),
-          available: formatAmount(plan.availableCash, currency),
+  const lines = [t("allocation:copyText.header", { date: new Date().toLocaleDateString() })];
+
+  // Transfer-only mode.
+  if (plan.transferPairs && plan.transferPairs.length > 0) {
+    lines.push(
+      t("allocation:copyText.maxDrift", {
+        before: fmtBps(plan.maxDriftBpsBefore),
+        after: fmtBps(plan.maxDriftBpsAfter),
+      }),
+      "",
+      t("allocation:copyText.proposedTransfers"),
+      ...plan.transferPairs.map((p) =>
+        t("allocation:copyText.transfer", {
+          from: p.fromSymbol,
+          to: p.toSymbol,
+          amount: formatAmount(p.amount, currency),
         }),
-    t("allocation:copyText.maxDrift", {
-      before: fmtBps(plan.maxDriftBpsBefore),
-      after: fmtBps(plan.maxDriftBpsAfter),
-    }),
-    "",
-    t("allocation:copyText.proposedTrades"),
-    ...plan.trades.map(
-      (trade) =>
-        `${trade.action.toUpperCase()}  ${trade.symbol ?? trade.categoryName}  ${formatAmount(trade.estimatedAmount, currency)}` +
-        (trade.accountId
-          ? `  ${t("allocation:copyText.account", { account: trade.accountId })}`
-          : "") +
-        (trade.quantity != null
-          ? `  ${t("allocation:copyText.shares", { qty: trade.quantity.toFixed(trade.quantity % 1 === 0 ? 0 : 4) })}`
-          : "") +
-        (trade.estimatedPrice != null ? ` @ ${formatAmount(trade.estimatedPrice, currency)}` : ""),
-    ),
-  ];
+      ),
+    );
+  } else {
+    const cashTotals = planCashTotals(plan);
+    lines.push(
+      cashTotals.hasSells
+        ? t("allocation:copyText.newCashUsed", {
+            used: formatAmount(cashTotals.newCashUsed, currency),
+            buyTotal: formatAmount(cashTotals.buyTotal, currency),
+            sellProceeds: formatAmount(cashTotals.sellProceeds, currency),
+            cashRemaining: formatAmount(plan.cashRemaining, currency),
+          })
+        : t("allocation:copyText.cashDeployed", {
+            used: formatAmount(plan.cashUsed, currency),
+            available: formatAmount(plan.availableCash, currency),
+          }),
+      t("allocation:copyText.maxDrift", {
+        before: fmtBps(plan.maxDriftBpsBefore),
+        after: fmtBps(plan.maxDriftBpsAfter),
+      }),
+      "",
+      t("allocation:copyText.proposedTrades"),
+      ...plan.trades.map(
+        (trade) =>
+          `${trade.action.toUpperCase()}  ${trade.symbol ?? trade.categoryName}  ${formatAmount(trade.estimatedAmount, currency)}` +
+          (trade.accountId
+            ? `  ${t("allocation:copyText.account", { account: trade.accountId })}`
+            : "") +
+          (trade.quantity != null
+            ? `  ${t("allocation:copyText.shares", { qty: trade.quantity.toFixed(trade.quantity % 1 === 0 ? 0 : 4) })}`
+            : "") +
+          (trade.estimatedPrice != null
+            ? ` @ ${formatAmount(trade.estimatedPrice, currency)}`
+            : ""),
+      ),
+    );
+  }
+
   if (plan.warnings.length) {
     lines.push("", t("allocation:copyText.warnings", { count: plan.warnings.length }));
     plan.warnings.forEach((w) => lines.push(`  · ${w.message}`));
@@ -417,12 +478,18 @@ function ModeSwitch({
       shortLabel: t("allocation:mode.hybridShort"),
       hint: t("allocation:mode.hybridHint"),
     },
+    {
+      id: "transfer_only",
+      label: t("allocation:mode.transferOnly"),
+      shortLabel: t("allocation:mode.transferShort"),
+      hint: t("allocation:mode.transferHint"),
+    },
   ];
 
   return (
-    <div className="border-border/60 bg-card/40 grid w-full max-w-full grid-cols-3 gap-1 rounded-2xl border p-1 backdrop-blur-xl sm:inline-flex sm:w-auto sm:grid-cols-none">
+    <div className="border-border/60 bg-card/40 grid w-full max-w-full grid-cols-2 gap-1 rounded-2xl border p-1 backdrop-blur-xl sm:inline-flex sm:w-auto sm:grid-cols-none">
       {modes.map((m) => {
-        const disabled = !allowSells && m.id !== "cash_flow_only";
+        const disabled = !allowSells && m.id !== "cash_flow_only" && m.id !== "transfer_only";
         const active = value === m.id;
         const button = (
           <button
@@ -1303,6 +1370,54 @@ function TradesTable({ trades, currency }: { trades: SuggestedManualTrade[]; cur
   );
 }
 
+// ── Transfer pair row ─────────────────────────────────────────────────────────
+
+function TransferPairRow({ pair, currency }: { pair: SuggestedTransfer; currency: string }) {
+  return (
+    <div className="bg-muted/30 flex items-center gap-3 rounded-lg border p-3">
+      <div className="min-w-0 flex-1">
+        <div className="text-foreground truncate text-sm font-semibold">{pair.fromSymbol}</div>
+        <div className="text-muted-foreground truncate text-xs">{pair.fromName}</div>
+      </div>
+      <div className="flex flex-col items-center gap-0.5">
+        <span className="text-lg text-emerald-500">→</span>
+        <span className="font-mono text-xs font-bold text-emerald-500">
+          {formatAmount(pair.amount, currency)}
+        </span>
+      </div>
+      <div className="min-w-0 flex-1 text-right">
+        <div className="text-foreground truncate text-sm font-semibold">{pair.toSymbol}</div>
+        <div className="text-muted-foreground truncate text-xs">{pair.toName}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Residual gap banner ───────────────────────────────────────────────────────
+
+function ResidualGapBanner({ gaps }: { gaps: ResidualGap[] }) {
+  const { t } = useTranslation();
+  const maxGap = Math.max(...gaps.map((g) => g.gapBps));
+
+  return (
+    <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+      <Icons.AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+      <div>
+        <div className="text-sm font-semibold text-amber-200">
+          {t("allocation:rebalance.residualGapTitle", { gap: fmtBps(maxGap) })}
+        </div>
+        <div className="mt-1 space-y-0.5 text-xs text-amber-200/70">
+          {gaps.map((g) => (
+            <div key={g.categoryId}>
+              {g.categoryName}: {fmtBps(g.gapBps)} gap — {g.cause}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface RebalanceTabProps {
@@ -1347,7 +1462,8 @@ export function RebalanceTab({
   const cachedPlan = planQuery.data ?? null;
   const hasStalePlan = !!cachedPlan && cachedPlan.sourceKey !== sourceKey;
   const plan = hasStalePlan ? null : (cachedPlan?.plan ?? null);
-  const isSellMode = scenarioMode !== "cash_flow_only";
+  const isTransferMode = scenarioMode === "transfer_only";
+  const isSellMode = scenarioMode !== "cash_flow_only" && !isTransferMode;
 
   useEffect(() => {
     if (!profile?.allowSells && isSellMode) {
@@ -1365,17 +1481,19 @@ export function RebalanceTab({
       toast.error(t("allocation:toast.dataLoading"));
       return;
     }
-    if (availableCashLimit <= 0 && !isSellMode) {
-      toast.error(t("allocation:toast.noCashAvailable"));
-      return;
-    }
-    if (cash <= 0 && !isSellMode) {
-      toast.error(t("allocation:toast.enterValidCash"));
-      return;
-    }
-    if (cash > availableCashLimit) {
-      toast.error(t("allocation:toast.cashExceeds"));
-      return;
+    if (!isTransferMode) {
+      if (availableCashLimit <= 0 && !isSellMode) {
+        toast.error(t("allocation:toast.noCashAvailable"));
+        return;
+      }
+      if (cash <= 0 && !isSellMode) {
+        toast.error(t("allocation:toast.enterValidCash"));
+        return;
+      }
+      if (cash > availableCashLimit) {
+        toast.error(t("allocation:toast.cashExceeds"));
+        return;
+      }
     }
     void planQuery.refetch().then((res) => {
       if (res.error)
@@ -1397,8 +1515,9 @@ export function RebalanceTab({
     );
   }
 
-  const description =
-    scenarioMode === "sell_to_rebalance"
+  const description = isTransferMode
+    ? t("allocation:rebalance.descriptionTransfer")
+    : scenarioMode === "sell_to_rebalance"
       ? t("allocation:rebalance.descriptionSell")
       : scenarioMode === "hybrid"
         ? t("allocation:rebalance.descriptionHybrid")
@@ -1429,17 +1548,36 @@ export function RebalanceTab({
         <CardContent className="p-0">
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
             <div className="border-border/60 border-b px-4 py-4 sm:px-5 sm:py-5 lg:border-b-0 lg:border-r">
-              <PlannerInput
-                description={description}
-                cashValue={cashValue}
-                availableCash={availableCash}
-                currency={currency}
-                onCashChange={handleCashChange}
-                onCalculate={handleCalculate}
-                hasPlan={!!plan || hasStalePlan}
-                isCalculating={isCalculating}
-                isSourceLoading={!sourceReady}
-              />
+              {isTransferMode ? (
+                <div className="flex h-full flex-col">
+                  <Eyebrow>{t("allocation:rebalance.descriptionTransfer")}</Eyebrow>
+                  <div className="mt-auto flex pt-4">
+                    <Button
+                      className="flex-1"
+                      onClick={handleCalculate}
+                      disabled={isCalculating || !sourceReady}
+                    >
+                      {isCalculating
+                        ? t("allocation:planner.calculating")
+                        : plan || hasStalePlan
+                          ? t("allocation:planner.recalculate")
+                          : t("allocation:planner.calculatePlan")}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <PlannerInput
+                  description={description}
+                  cashValue={cashValue}
+                  availableCash={availableCash}
+                  currency={currency}
+                  onCashChange={handleCashChange}
+                  onCalculate={handleCalculate}
+                  hasPlan={!!plan || hasStalePlan}
+                  isCalculating={isCalculating}
+                  isSourceLoading={!sourceReady}
+                />
+              )}
             </div>
             <div className="px-4 py-4 sm:px-5 sm:py-5">
               {!driftReport ? (
@@ -1482,46 +1620,84 @@ export function RebalanceTab({
         <>
           <Warnings items={plan.warnings} />
 
+          {plan.residualGaps && plan.residualGaps.length > 0 && (
+            <ResidualGapBanner gaps={plan.residualGaps} />
+          )}
+
           {sleeveSummary.length > 0 && (
             <SleeveReshapeCard sleeves={sleeveSummary} mode={scenarioMode} />
           )}
 
-          <Card ref={tradesRef}>
-            <CardContent className="p-0">
-              <div className="px-5 pb-2 pt-4">
-                <h3 className="text-foreground font-mono text-sm font-semibold">
-                  {t("allocation:rebalance.proposedTrades")}
-                </h3>
-                <p className="text-muted-foreground mt-1 font-mono text-xs">
-                  {(() => {
-                    const buys = plan.trades.filter((trade) => trade.action === "buy").length;
-                    const sells = plan.trades.filter((trade) => trade.action === "sell").length;
-                    const cashTotals = planCashTotals(plan);
-                    const buysWord = t("allocation:result.buysCount", { count: buys });
-                    return sells > 0
-                      ? t("allocation:rebalance.tradesSummarySells", {
-                          buys: buysWord,
-                          sells: t("allocation:result.sellsCount", { count: sells }),
-                          cash: formatAmount(cashTotals.newCashUsed, currency),
-                        })
-                      : t("allocation:rebalance.tradesSummaryDeployed", {
-                          buys: buysWord,
-                          cash: formatAmount(plan.cashUsed, currency),
-                        });
-                  })()}
-                </p>
-              </div>
-              {plan.trades.length > 0 ? (
-                <div className="pb-1 pt-2">
-                  <TradesTable trades={plan.trades} currency={currency} />
+          {isTransferMode && plan.transferPairs ? (
+            <Card ref={tradesRef}>
+              <CardContent className="p-0">
+                <div className="px-5 pb-2 pt-4">
+                  <h3 className="text-foreground font-mono text-sm font-semibold">
+                    {t("allocation:rebalance.proposedTransfers")}
+                  </h3>
+                  {plan.transferPairs.length > 0 && (
+                    <p className="text-muted-foreground mt-1 font-mono text-xs">
+                      {t("allocation:rebalance.transferSummary", {
+                        count: plan.transferPairs.length,
+                        amount: formatAmount(
+                          plan.transferPairs.reduce((sum, p) => sum + p.amount, 0),
+                          currency,
+                        ),
+                      })}
+                    </p>
+                  )}
                 </div>
-              ) : (
-                <p className="text-muted-foreground px-6 py-4 font-mono text-xs">
-                  {t("allocation:rebalance.noTrades")}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+                {plan.transferPairs.length > 0 ? (
+                  <div className="space-y-2 px-5 pb-4">
+                    {plan.transferPairs.map((pair, i) => (
+                      <TransferPairRow key={i} pair={pair} currency={currency} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground px-6 py-4 font-mono text-xs">
+                    {t("allocation:rebalance.noTransfers")}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card ref={tradesRef}>
+              <CardContent className="p-0">
+                <div className="px-5 pb-2 pt-4">
+                  <h3 className="text-foreground font-mono text-sm font-semibold">
+                    {t("allocation:rebalance.proposedTrades")}
+                  </h3>
+                  <p className="text-muted-foreground mt-1 font-mono text-xs">
+                    {(() => {
+                      const buys = plan.trades.filter((trade) => trade.action === "buy").length;
+                      const sells = plan.trades.filter((trade) => trade.action === "sell").length;
+                      const cashTotals = planCashTotals(plan);
+                      const buysWord = t("allocation:result.buysCount", { count: buys });
+                      return sells > 0
+                        ? t("allocation:rebalance.tradesSummarySells", {
+                            buys: buysWord,
+                            sells: t("allocation:result.sellsCount", { count: sells }),
+                            cash: formatAmount(cashTotals.newCashUsed, currency),
+                          })
+                        : t("allocation:rebalance.tradesSummaryDeployed", {
+                            buys: buysWord,
+                            cash: formatAmount(plan.cashUsed, currency),
+                          });
+                    })()}
+                  </p>
+                </div>
+                {plan.trades.length > 0 ? (
+                  <div className="pb-1 pt-2">
+                    <TradesTable trades={plan.trades} currency={currency} />
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground px-6 py-4 font-mono text-xs">
+                    {t("allocation:rebalance.noTrades")}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Footer */}
           <div className="border-border flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">

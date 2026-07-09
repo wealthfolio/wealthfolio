@@ -87,6 +87,9 @@
     "hybrid": "Hybrid",
     "hybridShort": "Hybrid",
     "hybridHint": "Bargeld + Verkäufe",
+    "transferOnly": "Nur Umschichtung",
+    "transferShort": "Umschichtung",
+    "transferHint": "Wert verschieben, keine Käufe/Verkäufe",
     "enableSellsTip": "Aktivieren Sie „Verkäufe zulassen“ für dieses Ziel, um diesen Modus zu verwenden"
   },
   "planner": {
@@ -102,7 +105,8 @@
     "driverSentenceUnder": "{{name}} liegt {{current}} % unter einem Ziel von {{target}} %.",
     "modeVerbSells": "Verkäufe und Käufe",
     "modeVerbHybrid": "Bargeld und Verkäufe",
-    "modeVerbCashFlow": "Cashflow-Käufe"
+    "modeVerbCashFlow": "Cashflow-Käufe",
+    "modeVerbTransfer": "Umschichtungen"
   },
   "narrative": {
     "liftAndShrink": "{{verb}} führen {{lifted}} näher an das Ziel und verringern die Übergewichtung von {{shrank}} von {{before}} auf {{after}}.",
@@ -192,6 +196,12 @@
     "tradesSummarySells": "{{buys}} · {{sells}} · {{cash}} neues Bargeld",
     "tradesSummaryDeployed": "{{buys}} · {{cash}} eingesetzt",
     "noTrades": "Keine Transaktionen — alle Positionen sind bereits im Band oder es wurden keine Bestände gefunden.",
+    "transferSummary_one": "{{count}} Umschichtung · {{amount}} bewegt",
+    "transferSummary_other": "{{count}} Umschichtungen · {{amount}} bewegt",
+    "proposedTransfers": "Vorgeschlagene Umschichtungen",
+    "noTransfers": "Keine Umschichtungen — alle Positionen sind bereits im Band.",
+    "residualGapTitle": "Angenäherter Plan — {{gap}} Lücke verbleibend",
+    "descriptionTransfer": "Rebalancing durch Verschiebung von Werten zwischen Positionen — keine Käufe oder Verkäufe erforderlich.",
     "calculatedFooter": "{{name}} · Berechnet am {{date}}",
     "copyAsText": "Als Text kopieren",
     "exportCsv": "CSV exportieren"
@@ -217,7 +227,11 @@
     "amount": "Betrag ({{currency}})",
     "shares": "Anteile",
     "lastPrice": "Letzter Preis ({{currency}})",
-    "reason": "Grund"
+    "reason": "Grund",
+    "from": "Von",
+    "fromName": "Name Quelle",
+    "to": "Nach",
+    "toName": "Name Ziel"
   },
   "copyText": {
     "header": "Rebalancing-Plan · {{date}}",
@@ -225,6 +239,8 @@
     "cashDeployed": "Eingesetztes Bargeld: {{used}} von {{available}}",
     "maxDrift": "Max. Abweichung: {{before}} → {{after}}",
     "proposedTrades": "VORGESCHLAGENE TRANSAKTIONEN",
+    "proposedTransfers": "VORGESCHLAGENE UMSCHICHTUNGEN",
+    "transfer": "UMSCHICHTUNG  {{from}} → {{to}}  {{amount}}",
     "account": "Konto {{account}}",
     "shares": "{{qty}} Anteile",
     "warnings_one": "{{count}} Warnung:",
