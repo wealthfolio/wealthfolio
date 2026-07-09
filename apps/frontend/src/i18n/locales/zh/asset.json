@@ -231,6 +231,8 @@
     "name_placeholder": "资产显示名称",
     "isin": "ISIN",
     "isin_placeholder": "例如 FR0010959676",
+    "expense_ratio": "费用比率 (%)",
+    "expense_ratio_placeholder": "例如 0.03",
     "notes": "备注",
     "notes_placeholder": "添加任何背景信息或链接",
     "symbol": "代码",

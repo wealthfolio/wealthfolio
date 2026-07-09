@@ -231,6 +231,8 @@
     "name_placeholder": "Nombre para mostrar del activo",
     "isin": "ISIN",
     "isin_placeholder": "p. ej. FR0010959676",
+    "expense_ratio": "Ratio de gastos (%)",
+    "expense_ratio_placeholder": "p. ej. 0.03",
     "notes": "Notas",
     "notes_placeholder": "Añade cualquier contexto o enlace",
     "symbol": "Símbolo",

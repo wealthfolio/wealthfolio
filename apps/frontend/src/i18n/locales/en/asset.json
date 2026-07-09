@@ -231,6 +231,8 @@
     "name_placeholder": "Asset display name",
     "isin": "ISIN",
     "isin_placeholder": "e.g. FR0010959676",
+    "expense_ratio": "Expense Ratio (%)",
+    "expense_ratio_placeholder": "e.g. 0.03",
     "notes": "Notes",
     "notes_placeholder": "Add any context or links",
     "symbol": "Symbol",
