@@ -136,6 +136,7 @@ export const HoldingsTable = ({
           holdingType: false,
           avgPrice: false,
           weight: false,
+          expenseRatio: false,
           bookValue: false,
           totalPnl: false,
           unrealizedPnl: false,
@@ -694,6 +695,39 @@ const getColumns = (
       <DataTableColumnHeader column={column} title={t("holdings:asset_type")} />
     ),
     filterFn: "arrIncludesSome",
+  },
+  {
+    id: "expenseRatio",
+    accessorFn: (row) => row.instrument?.expenseRatio ?? null,
+    enableHiding: true,
+    enableSorting: true,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        className="justify-end text-right"
+        column={column}
+        title={t("holdings:expense_ratio")}
+      />
+    ),
+    meta: {
+      label: t("holdings:expense_ratio"),
+    },
+    cell: ({ row }) => {
+      const expenseRatio = row.original.instrument?.expenseRatio;
+      return (
+        <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
+          {expenseRatio == null ? (
+            <span className="text-muted-foreground">-</span>
+          ) : (
+            <span className="tabular-nums">{formatPercent(expenseRatio)}</span>
+          )}
+        </div>
+      );
+    },
+    sortingFn: (rowA, rowB) => {
+      const valueA = rowA.original.instrument?.expenseRatio ?? -1;
+      const valueB = rowB.original.instrument?.expenseRatio ?? -1;
+      return valueA - valueB;
+    },
   },
   {
     id: "currency",

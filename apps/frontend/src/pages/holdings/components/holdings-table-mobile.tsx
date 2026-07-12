@@ -4,7 +4,7 @@ import { HoldingType } from "@/lib/constants";
 import { parseOccSymbol } from "@/lib/occ-symbol";
 import { Account, AccountScope, Holding } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { AmountDisplay, GainPercent, Input, Separator } from "@wealthfolio/ui";
+import { AmountDisplay, formatPercent, GainPercent, Input, Separator } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -201,6 +201,12 @@ export const HoldingsTableMobile = ({
                       </div>
                       {subtitle && (
                         <p className="text-muted-foreground truncate text-sm">{subtitle}</p>
+                      )}
+                      {holding.instrument?.expenseRatio != null && (
+                        <p className="text-muted-foreground truncate text-xs">
+                          {t("holdings:expense_ratio")}:{" "}
+                          {formatPercent(holding.instrument.expenseRatio)}
+                        </p>
                       )}
                     </div>
                   </div>

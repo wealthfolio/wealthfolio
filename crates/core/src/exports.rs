@@ -459,6 +459,7 @@ mod tests {
                 isin: Some("US0378331005".to_string()),
                 exchange_mic: Some("XNAS".to_string()),
                 classifications: None,
+                expense_ratio: None,
             }),
             asset_kind: Some(AssetKind::Investment),
             quantity: dec!(10),
