@@ -87,6 +87,9 @@
     "hybrid": "Híbrido",
     "hybridShort": "Híbrido",
     "hybridHint": "efectivo + ventas",
+    "transferOnly": "Solo traspasos",
+    "transferShort": "Traspasos",
+    "transferHint": "mover valor, sin compras/ventas",
     "enableSellsTip": "Activa 'Permitir ventas' en este objetivo para usar este modo"
   },
   "planner": {
@@ -102,7 +105,8 @@
     "driverSentenceUnder": "{{name}} está {{current}}% por debajo de un objetivo del {{target}}%.",
     "modeVerbSells": "Ventas y compras",
     "modeVerbHybrid": "Efectivo y ventas",
-    "modeVerbCashFlow": "Compras con flujo de efectivo"
+    "modeVerbCashFlow": "Compras con flujo de efectivo",
+    "modeVerbTransfer": "Traspasos"
   },
   "narrative": {
     "liftAndShrink": "{{verb}} elevar {{lifted}} hacia el objetivo y reducir el sobrepeso de {{shrank}} de {{before}} a {{after}}.",
@@ -187,11 +191,17 @@
     "descriptionSell": "Vende lo que tienes sobreponderado para comprar lo que tienes infraponderado. Tu efectivo se mantiene. No se estima el impacto fiscal.",
     "descriptionHybrid": "Invierte primero tu efectivo y luego vende los tramos sobreponderados solo si el efectivo por sí solo no puede cerrar la brecha. El efectivo puede aumentar una posición, pero no puede reducir una que ya tienes en exceso. No se estima el impacto fiscal.",
     "descriptionCashFlow": "Pon a trabajar tu nuevo efectivo en los tramos donde estás corto. Solo compras; no se vende nada.",
+    "descriptionTransfer": "Reequilibra moviendo valor entre posiciones — sin compras ni ventas.",
     "stalePlan": "Los datos de la cartera cambiaron. Recalcula para actualizar este plan.",
     "proposedTrades": "Operaciones propuestas",
     "tradesSummarySells": "{{buys}} · {{sells}} · {{cash}} de efectivo nuevo",
     "tradesSummaryDeployed": "{{buys}} · {{cash}} desplegado",
     "noTrades": "Sin operaciones: todos los tramos ya están dentro de la banda o no se encontraron posiciones.",
+    "transferSummary_one": "{{count}} traspaso · {{amount}} movido",
+    "transferSummary_other": "{{count}} traspasos · {{amount}} movidos",
+    "proposedTransfers": "Traspasos propuestos",
+    "noTransfers": "Sin traspasos — todos los tramos ya están dentro de la banda.",
+    "residualGapTitle": "Plan aproximado — {{gap}} de diferencia restante",
     "calculatedFooter": "{{name}} · Calculado {{date}}",
     "copyAsText": "Copiar como texto",
     "exportCsv": "Exportar CSV"
@@ -217,7 +227,11 @@
     "amount": "Importe ({{currency}})",
     "shares": "Acciones",
     "lastPrice": "Último precio ({{currency}})",
-    "reason": "Motivo"
+    "reason": "Motivo",
+    "from": "Desde",
+    "fromName": "Nombre origen",
+    "to": "Hacia",
+    "toName": "Nombre destino"
   },
   "copyText": {
     "header": "Plan de reequilibrio · {{date}}",
@@ -225,6 +239,8 @@
     "cashDeployed": "Efectivo desplegado: {{used}} de {{available}}",
     "maxDrift": "Desviación máxima: {{before}} → {{after}}",
     "proposedTrades": "OPERACIONES PROPUESTAS",
+    "proposedTransfers": "TRASPASOS PROPUESTOS",
+    "transfer": "TRASPASO  {{from}} → {{to}}  {{amount}}",
     "account": "cuenta {{account}}",
     "shares": "{{qty}} acc",
     "warnings_one": "{{count}} advertencia:",

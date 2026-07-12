@@ -2526,7 +2526,7 @@ export interface SaveUpProjectionPointDTO extends SaveUpTrajectoryPointDTO {
 export type TargetScopeType = "all" | "portfolio" | "account";
 export type TriggerType = "manual" | "threshold";
 export type RebalanceGoal = "nearest_band" | "exact_target";
-export type ScenarioMode = "cash_flow_only" | "sell_to_rebalance" | "hybrid";
+export type ScenarioMode = "cash_flow_only" | "sell_to_rebalance" | "hybrid" | "transfer_only";
 export type DriftStatus = "in_band" | "underweight" | "overweight" | "not_targeted";
 export type RebalanceTo = "nearest_band" | "exact_target";
 
@@ -2695,6 +2695,29 @@ export interface SuggestedManualTrade {
   reason: string;
 }
 
+export interface SuggestedTransfer {
+  fromAssetId: string;
+  fromSymbol: string;
+  fromName?: string | null;
+  fromAccountId?: string | null;
+  fromHoldingId?: string | null;
+  toAssetId: string;
+  toSymbol: string;
+  toName?: string | null;
+  toAccountId?: string | null;
+  toHoldingId?: string | null;
+  amount: number;
+  reason: string;
+  driftImprovementBps: number;
+}
+
+export interface ResidualGap {
+  categoryId: string;
+  categoryName: string;
+  gapBps: number;
+  cause: string;
+}
+
 export interface RebalancePlan {
   targetId: string;
   availableCash: number;
@@ -2705,4 +2728,6 @@ export interface RebalancePlan {
   trades: SuggestedManualTrade[];
   warnings: RebalanceWarning[];
   afterBpsByCategory: Record<string, number>;
+  transferPairs?: SuggestedTransfer[];
+  residualGaps?: ResidualGap[];
 }

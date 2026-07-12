@@ -849,6 +849,8 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
                 trades: vec![],
                 warnings,
                 after_bps_by_category: HashMap::new(),
+                transfer_pairs: vec![],
+                residual_gaps: vec![],
             });
         }
 
@@ -1258,6 +1260,8 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
             trades,
             warnings,
             after_bps_by_category,
+            transfer_pairs: vec![],
+            residual_gaps: vec![],
         })
     }
 }
