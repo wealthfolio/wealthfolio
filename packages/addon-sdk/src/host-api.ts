@@ -15,7 +15,10 @@ import type {
   ActivitySearchResponse,
   ActivityUpdate,
   AccountValuation,
+  AlternativeAssetHolding,
   CheckSnapshotImportResult,
+  CreateAlternativeAssetRequest,
+  CreateAlternativeAssetResponse,
   ImportActivitiesResult,
   Asset,
   ContributionLimit,
@@ -37,6 +40,8 @@ import type {
   SnapshotInfo,
   SnapshotInput,
   SymbolSearchResult,
+  UpdateAlternativeAssetValuationRequest,
+  UpdateAlternativeAssetValuationResponse,
   UpdateAssetProfile,
 } from './data-types';
 
@@ -54,6 +59,34 @@ export interface ActivitySort {
 /**
  * Account management APIs
  */
+export interface AlternativeAssetsAPI {
+  /**
+   * Get all alternative asset holdings (properties, vehicles, collectibles,
+   * precious metals, liabilities, other) as shown on the Holdings page
+   * @returns Promise resolving to array of alternative asset holdings
+   */
+  getHoldings(): Promise<AlternativeAssetHolding[]>;
+
+  /**
+   * Create a new alternative asset with an initial valuation.
+   * No account or activity is created - alternative assets are standalone.
+   * @param request New alternative asset data
+   * @returns Promise resolving to the created asset and initial quote IDs
+   */
+  create(request: CreateAlternativeAssetRequest): Promise<CreateAlternativeAssetResponse>;
+
+  /**
+   * Update the valuation of an alternative asset (creates a new quote record)
+   * @param assetId ID of the asset to revalue
+   * @param request New valuation data
+   * @returns Promise resolving to the created quote details
+   */
+  updateValuation(
+    assetId: string,
+    request: UpdateAlternativeAssetValuationRequest,
+  ): Promise<UpdateAlternativeAssetValuationResponse>;
+}
+
 export interface AccountsAPI {
   /**
    * Get all accounts
@@ -833,6 +866,9 @@ export interface HostAPI {
 
   /** Asset management operations */
   assets: AssetsAPI;
+
+  /** Alternative assets (properties, vehicles, collectibles, liabilities) operations */
+  alternativeAssets: AlternativeAssetsAPI;
 
   /** Quote management operations */
   quotes: QuotesAPI;

@@ -31,6 +31,11 @@ import {
 import { openCsvFileDialog, openFileSaveDialog } from "@/adapters";
 import { createGoal, getGoals, getGoalFunding, saveGoalFunding, updateGoal } from "@/adapters";
 import {
+  createAlternativeAsset,
+  getAlternativeHoldings,
+  updateAlternativeAssetValuation,
+} from "@/adapters";
+import {
   listenFileDrop as listenImportFileDrop,
   listenFileDropCancelled as listenImportFileDropCancelled,
   listenFileDropHover as listenImportFileDropHover,
@@ -471,6 +476,9 @@ export function createAddonHostAPI(
       getAssetProfile,
       updateAssetProfile,
       updateQuoteMode,
+      getAlternativeHoldings,
+      createAlternativeAsset,
+      updateAlternativeAssetValuation,
       updateQuote,
       syncMarketData,
       getQuoteHistory,

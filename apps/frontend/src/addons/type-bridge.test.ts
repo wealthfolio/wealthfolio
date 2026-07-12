@@ -106,6 +106,46 @@ describe("Addon Type Bridge", () => {
       );
     });
 
+    it("gates alternative-assets functions behind the alternative-assets permission", () => {
+      const mockGetAlternativeHoldings = vi.fn();
+      const mockCreateAlternativeAsset = vi.fn();
+      const guard = createPermissionGuard("test-addon", [
+        {
+          category: "alternative-assets",
+          purpose: "Alternative assets access",
+          functions: [{ name: "getHoldings", isDeclared: true, isDetected: false }],
+        },
+      ]);
+
+      const sdkAPI = createSDKHostAPIBridge(
+        {
+          getAlternativeHoldings: mockGetAlternativeHoldings,
+          createAlternativeAsset: mockCreateAlternativeAsset,
+          logError: vi.fn(),
+          logInfo: vi.fn(),
+          logWarn: vi.fn(),
+          logTrace: vi.fn(),
+          logDebug: vi.fn(),
+        } as unknown as InternalHostAPI,
+        "test-addon",
+        guard,
+      );
+
+      sdkAPI.alternativeAssets.getHoldings();
+
+      expect(mockGetAlternativeHoldings).toHaveBeenCalled();
+      expect(() =>
+        sdkAPI.alternativeAssets.create({
+          kind: "vehicle",
+          name: "Car",
+          currency: "USD",
+          currentValue: "1000",
+          valueDate: "2026-01-01",
+        }),
+      ).toThrow("Addon 'test-addon' is not allowed to call alternative-assets.create");
+      expect(mockCreateAlternativeAsset).not.toHaveBeenCalled();
+    });
+
     it("should not grant detected-only function permissions", () => {
       const guard = createPermissionGuard("test-addon", [
         {

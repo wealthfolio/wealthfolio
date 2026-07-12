@@ -38,6 +38,11 @@ import type {
   Settings,
   SimplePerformanceResult,
   UpdateAssetProfile,
+  AlternativeAssetHolding,
+  CreateAlternativeAssetRequest,
+  CreateAlternativeAssetResponse,
+  UpdateValuationRequest,
+  UpdateValuationResponse,
 } from "@/lib/types";
 import type { HoldingInput } from "@/adapters";
 import type {
@@ -98,6 +103,14 @@ export interface InternalHostAPI {
   getAssetProfile(assetId: string): Promise<Asset>;
   updateAssetProfile(payload: UpdateAssetProfile): Promise<Asset>;
   updateQuoteMode(assetId: string, quoteMode: string): Promise<Asset>;
+  getAlternativeHoldings(): Promise<AlternativeAssetHolding[]>;
+  createAlternativeAsset(
+    request: CreateAlternativeAssetRequest,
+  ): Promise<CreateAlternativeAssetResponse>;
+  updateAlternativeAssetValuation(
+    assetId: string,
+    request: UpdateValuationRequest,
+  ): Promise<UpdateValuationResponse>;
   updateQuote(symbol: string, quote: Quote): Promise<void>;
   syncMarketData(
     assetIds: string[],
@@ -459,6 +472,15 @@ export function createSDKHostAPIBridge(
     "assets",
     guard,
   );
+  const alternativeAssets = guardNamespace(
+    {
+      getHoldings: internalAPI.getAlternativeHoldings,
+      create: internalAPI.createAlternativeAsset,
+      updateValuation: internalAPI.updateAlternativeAssetValuation,
+    },
+    "alternative-assets",
+    guard,
+  );
   const quotes = guardNamespace(
     {
       update: internalAPI.updateQuote,
@@ -571,6 +593,7 @@ export function createSDKHostAPIBridge(
     activities: activities as unknown as SDKApiWithoutSecrets["activities"],
     market: market as unknown as SDKApiWithoutSecrets["market"],
     assets: assets as unknown as SDKApiWithoutSecrets["assets"],
+    alternativeAssets: alternativeAssets as unknown as SDKApiWithoutSecrets["alternativeAssets"],
     quotes: quotes as unknown as SDKApiWithoutSecrets["quotes"],
     performance: performance as unknown as SDKApiWithoutSecrets["performance"],
     exchangeRates: exchangeRates as unknown as SDKApiWithoutSecrets["exchangeRates"],

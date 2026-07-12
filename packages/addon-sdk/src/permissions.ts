@@ -107,6 +107,14 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
     riskLevel: 'medium',
   },
   {
+    id: 'alternative-assets',
+    name: 'Alternative Assets',
+    description:
+      'Access to alternative assets (properties, vehicles, collectibles, liabilities) and their valuations',
+    functions: ['getHoldings', 'create', 'updateValuation'],
+    riskLevel: 'high',
+  },
+  {
     id: 'quotes',
     name: 'Quote Management',
     description: 'Access to price quotes and historical data',

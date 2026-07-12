@@ -1110,3 +1110,109 @@ export interface SnapshotImportResult {
   snapshotsFailed: number;
   errors: string[];
 }
+
+/**
+ * Alternative asset kind for API requests (lowercase variants)
+ */
+export type AlternativeAssetKind =
+  | 'property'
+  | 'vehicle'
+  | 'collectible'
+  | 'precious'
+  | 'liability'
+  | 'other';
+
+/**
+ * An alternative asset holding (property, vehicle, collectible, precious metal,
+ * liability, or other) as shown on the Holdings assets/liabilities tabs.
+ * Monetary values are decimal strings to preserve precision.
+ */
+export interface AlternativeAssetHolding {
+  /** Asset ID (e.g., "PROP-a1b2c3d4") */
+  id: string;
+  /** Asset kind (property, vehicle, collectible, precious, liability, other) */
+  kind: string;
+  /** Asset name */
+  name: string;
+  /** Asset symbol (display type label, e.g., "Property", "Vehicle") */
+  symbol: string;
+  /** Currency */
+  currency: string;
+  /** Current market value from latest quote */
+  marketValue: string;
+  /** Purchase price if available (from metadata) */
+  purchasePrice?: string;
+  /** Purchase date if available (from metadata) */
+  purchaseDate?: string;
+  /** Unrealized gain (market_value - purchase_price) */
+  unrealizedGain?: string;
+  /** Unrealized gain percentage */
+  unrealizedGainPct?: string;
+  /** Date of the latest valuation (ISO format) */
+  valuationDate: string;
+  /** Kind-specific metadata */
+  metadata?: Record<string, unknown>;
+  /** For liabilities: linked asset ID if any */
+  linkedAssetId?: string;
+  /** Asset notes */
+  notes?: string | null;
+}
+
+/**
+ * Request to create a new alternative asset.
+ * NOTE: Alternative assets don't create accounts or activities - just asset + quotes.
+ */
+export interface CreateAlternativeAssetRequest {
+  /** The kind of alternative asset */
+  kind: AlternativeAssetKind;
+  /** User-provided name for the asset */
+  name: string;
+  /** Currency code (e.g., "USD", "EUR") */
+  currency: string;
+  /** Current total value as decimal string */
+  currentValue: string;
+  /** Valuation date in ISO format (YYYY-MM-DD) */
+  valueDate: string;
+  /** Optional purchase price as decimal string - for gain calculation */
+  purchasePrice?: string;
+  /** Optional purchase date in ISO format */
+  purchaseDate?: string;
+  /** Kind-specific metadata (e.g., property_type, metal_type, unit) */
+  metadata?: Record<string, string>;
+  /** For liabilities: optional ID of the financed asset (UI-only linking) */
+  linkedAssetId?: string;
+}
+
+/**
+ * Response after creating an alternative asset
+ */
+export interface CreateAlternativeAssetResponse {
+  /** Generated asset ID with prefix (e.g., "PROP-a1b2c3d4") */
+  assetId: string;
+  /** ID of the initial valuation quote */
+  quoteId: string;
+}
+
+/**
+ * Request to update the valuation of an alternative asset
+ */
+export interface UpdateAlternativeAssetValuationRequest {
+  /** New value as decimal string */
+  value: string;
+  /** Valuation date in ISO format (YYYY-MM-DD) */
+  date: string;
+  /** Optional notes about this valuation */
+  notes?: string;
+}
+
+/**
+ * Response after updating a valuation
+ */
+export interface UpdateAlternativeAssetValuationResponse {
+  /** ID of the created quote */
+  quoteId: string;
+  /** The valuation date */
+  valuationDate: string;
+  /** The value as decimal string */
+  value: string;
+}
