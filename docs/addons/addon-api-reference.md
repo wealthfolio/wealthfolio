@@ -453,6 +453,65 @@ Save import mapping configuration.
 const savedMapping = await ctx.api.activities.saveImportMapping(mapping);
 ```
 
+#### `getTransferPair(activityId: string): Promise<InternalTransferPairResponse>`
+
+Get the linked transfer pair (if any) for a given activity.
+
+```typescript
+const { transferOut, transferIn } =
+  await ctx.api.activities.getTransferPair("activity-123");
+```
+
+#### `findTransferMatchCandidates(request: TransferMatchCandidateRequest): Promise<TransferMatchCandidate[]>`
+
+Find candidate activities that could be the opposite leg of a transfer.
+
+```typescript
+const candidates = await ctx.api.activities.findTransferMatchCandidates({
+  activityId: "activity-123",
+  windowDays: 7,
+});
+```
+
+#### `saveTransferPair(request: InternalTransferPairRequest): Promise<InternalTransferPairResponse>`
+
+Create or update an internal transfer pair, linking two activities via a shared
+source group.
+
+```typescript
+const pair = await ctx.api.activities.saveTransferPair({
+  fromAccountId: "account-123",
+  toAccountId: "account-456",
+  activityDate: "2026-01-01",
+  sourceAmount: 500,
+  destinationAmount: 500,
+  sourceCurrency: "USD",
+  destinationCurrency: "USD",
+});
+```
+
+#### `linkTransfer(activityAId: string, activityBId: string): Promise<[Activity, Activity]>`
+
+Link two existing activities together as a transfer pair.
+
+```typescript
+const [a, b] = await ctx.api.activities.linkTransfer(
+  "activity-123",
+  "activity-456",
+);
+```
+
+#### `unlinkTransfer(activityAId: string, activityBId: string): Promise<[Activity, Activity]>`
+
+Unlink two activities that were previously paired as a transfer.
+
+```typescript
+const [a, b] = await ctx.api.activities.unlinkTransfer(
+  "activity-123",
+  "activity-456",
+);
+```
+
 ```typescript
 try {
   const accounts = await ctx.api.accounts.getAll();
