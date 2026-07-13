@@ -28,6 +28,8 @@ import type {
   Holding,
   ImportMappingData,
   IncomeSummary,
+  InternalTransferPairRequest,
+  InternalTransferPairResponse,
   MarketDataProviderInfo,
   NewContributionLimit,
   PerformanceResult,
@@ -39,6 +41,8 @@ import type {
   SnapshotInfo,
   SnapshotInput,
   SymbolSearchResult,
+  TransferMatchCandidate,
+  TransferMatchCandidateRequest,
   UpdateAssetProfile,
 } from './data-types';
 
@@ -206,6 +210,47 @@ export interface ActivitiesAPI {
    * @returns Promise resolving to saved mapping data
    */
   saveImportMapping(mapping: ImportMappingData): Promise<ImportMappingData>;
+
+  /**
+   * Get the linked transfer pair (if any) for a given activity
+   * @param activityId Activity identifier
+   * @returns Promise resolving to the transfer pair response
+   */
+  getTransferPair(activityId: string): Promise<InternalTransferPairResponse>;
+
+  /**
+   * Find candidate activities that could be the opposite leg of a transfer
+   * @param request Match candidate search criteria
+   * @returns Promise resolving to array of candidate matches
+   */
+  findTransferMatchCandidates(
+    request: TransferMatchCandidateRequest,
+  ): Promise<TransferMatchCandidate[]>;
+
+  /**
+   * Create or update an internal transfer pair, linking two activities via a shared source group
+   * @param request Transfer pair details
+   * @returns Promise resolving to the created/updated transfer pair
+   */
+  saveTransferPair(
+    request: InternalTransferPairRequest,
+  ): Promise<InternalTransferPairResponse>;
+
+  /**
+   * Link two existing activities together as a transfer pair
+   * @param activityAId First activity identifier
+   * @param activityBId Second activity identifier
+   * @returns Promise resolving to the two linked activities
+   */
+  linkTransfer(activityAId: string, activityBId: string): Promise<[Activity, Activity]>;
+
+  /**
+   * Unlink two activities that were previously paired as a transfer
+   * @param activityAId First activity identifier
+   * @param activityBId Second activity identifier
+   * @returns Promise resolving to the two unlinked activities
+   */
+  unlinkTransfer(activityAId: string, activityBId: string): Promise<[Activity, Activity]>;
 }
 
 /**

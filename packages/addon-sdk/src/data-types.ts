@@ -363,6 +363,42 @@ export interface ActivityBulkMutationResult {
   errors: ActivityBulkMutationError[];
 }
 
+export interface InternalTransferPairRequest {
+  transferOutId?: string;
+  transferInId?: string;
+  sourceGroupId?: string;
+  fromAccountId: string;
+  toAccountId: string;
+  activityDate: string | Date;
+  sourceAmount: string | number;
+  destinationAmount: string | number;
+  sourceCurrency: string;
+  destinationCurrency: string;
+  fxRate?: string | number | null;
+  notes?: string | null;
+  transferMode?: 'cash';
+}
+
+export interface InternalTransferPairResponse {
+  transferOut: Activity;
+  transferIn: Activity;
+}
+
+export interface TransferMatchCandidateRequest {
+  activityId: string;
+  windowDays?: number;
+  limit?: number;
+}
+
+export interface TransferMatchCandidate {
+  activity: Activity;
+  matchKind: 'cash' | 'security' | 'cash_fx_conversion';
+  confidence: 'high' | 'medium' | 'low';
+  score: number;
+  reasons: string[];
+  warnings: string[];
+}
+
 export interface ActivityImport {
   id?: string;
   accountId: string;
