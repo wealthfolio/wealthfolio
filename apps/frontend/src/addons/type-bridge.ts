@@ -31,6 +31,8 @@ import type {
   ImportHoldingsCsvResult,
   ImportMappingData,
   IncomeSummary,
+  InternalTransferPairRequest,
+  InternalTransferPairResponse,
   MarketDataProviderInfo,
   NewContributionLimit,
   PerformanceResult,
@@ -39,6 +41,8 @@ import type {
   SymbolSearchResult,
   Settings,
   SimplePerformanceResult,
+  TransferMatchCandidate,
+  TransferMatchCandidateRequest,
   UpdateAssetProfile,
 } from "@/lib/types";
 import type { HoldingInput } from "@/adapters";
@@ -177,6 +181,17 @@ export interface InternalHostAPI {
   checkActivitiesImport(params: { activities: ActivityImport[] }): Promise<ActivityImport[]>;
   getAccountImportMapping(accountId: string, contextKind?: string): Promise<ImportMappingData>;
   saveAccountImportMapping(mapping: ImportMappingData): Promise<ImportMappingData>;
+
+  // Transfer pairing
+  getTransferPairForActivity(activityId: string): Promise<InternalTransferPairResponse>;
+  findTransferMatchCandidates(
+    request: TransferMatchCandidateRequest,
+  ): Promise<TransferMatchCandidate[]>;
+  saveInternalTransferPair(
+    request: InternalTransferPairRequest,
+  ): Promise<InternalTransferPairResponse>;
+  linkTransferActivities(activityAId: string, activityBId: string): Promise<[Activity, Activity]>;
+  unlinkTransferActivities(activityAId: string, activityBId: string): Promise<[Activity, Activity]>;
 
   // Snapshots
   getSnapshots(accountId: string, dateFrom?: string, dateTo?: string): Promise<SnapshotInfo[]>;
@@ -438,6 +453,11 @@ export function createSDKHostAPIBridge(
         internalAPI.checkActivitiesImport({ activities }),
       getImportMapping: internalAPI.getAccountImportMapping,
       saveImportMapping: internalAPI.saveAccountImportMapping,
+      getTransferPair: internalAPI.getTransferPairForActivity,
+      findTransferMatchCandidates: internalAPI.findTransferMatchCandidates,
+      saveTransferPair: internalAPI.saveInternalTransferPair,
+      linkTransfer: internalAPI.linkTransferActivities,
+      unlinkTransfer: internalAPI.unlinkTransferActivities,
     },
     "activities",
     guard,
