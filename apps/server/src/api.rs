@@ -85,21 +85,48 @@ pub async fn readyz() -> &'static str {
 pub struct ApiDoc;
 
 const SERVER_CSP: &str = "default-src 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://wealthfolio.app https://auth.wealthfolio.app https://connect.wealthfolio.app https://connect-staging.wealthfolio.app; frame-src 'self' blob: about:; child-src 'self' blob: about:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; worker-src 'self' blob:";
-const ADDON_SANDBOX_CSP: &str = "default-src 'none'; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src data: blob:; font-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
+
+fn addon_sandbox_csp(origin: &str) -> String {
+    format!(
+        "default-src 'none'; script-src {} 'unsafe-inline' blob:; style-src {} 'unsafe-inline'; img-src data: blob:; font-src {} data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'",
+        origin, origin, origin
+    )
+}
 
 pub async fn security_headers(request: Request<Body>, next: Next) -> Response {
     let path = request.uri().path().to_string();
+    let origin = request
+        .headers()
+        .get("host")
+        .and_then(|h| h.to_str().ok())
+        .map(|host| {
+            let scheme = if request
+                .headers()
+                .get("x-forwarded-proto")
+                .and_then(|h| h.to_str().ok())
+                .unwrap_or("http")
+                == "https"
+            {
+                "https"
+            } else {
+                "http"
+            };
+            format!("{}://{}", scheme, host)
+        })
+        .unwrap_or_else(|| "'self'".to_string());
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
-    let csp = if path.ends_with("/addon-sandbox.html") {
-        ADDON_SANDBOX_CSP
+    if path.ends_with("/addon-sandbox.html") {
+        let csp = addon_sandbox_csp(&origin);
+        if let Ok(value) = HeaderValue::from_str(&csp) {
+            headers.insert(HeaderName::from_static("content-security-policy"), value);
+        }
     } else {
-        SERVER_CSP
+        headers.insert(
+            HeaderName::from_static("content-security-policy"),
+            HeaderValue::from_static(SERVER_CSP),
+        );
     };
-    headers.insert(
-        HeaderName::from_static("content-security-policy"),
-        HeaderValue::from_static(csp),
-    );
     if !path.starts_with("/api/") && !path.starts_with("/mcp") {
         headers.insert(
             HeaderName::from_static("access-control-allow-origin"),
