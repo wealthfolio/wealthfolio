@@ -5,12 +5,14 @@ import {
   Icons,
   Input,
   useDataGrid,
-  formatAmount,
+  formatPrice,
 } from "@wealthfolio/ui";
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createColumnHelper } from "@tanstack/react-table";
-import type { AssetKind, Quote } from "@/lib/types";
+import type { Quote } from "@/lib/types";
 import { QuoteHistoryToolbar } from "./quote-history-toolbar";
+import { toQuoteEntry, type QuoteEntry } from "./quote-history-utils";
 import { format } from "date-fns";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 
@@ -20,36 +22,10 @@ const normalizeDate = (value: Date | string): Date => {
   return new Date(value);
 };
 
-// Get decimal precision based on asset kind
-const getDecimalPrecision = (assetKind?: AssetKind | null): number => {
-  switch (assetKind) {
-    case "FX":
-      return 6; // FX rates need high precision
-    default:
-      return 2; // Standard precision for stocks, ETFs, etc.
-  }
-};
+const QUOTE_DECIMAL_PRECISION = 8;
 
-// Round number to specified decimal places
-const roundToDecimals = (value: number, decimals: number): number => {
-  const factor = Math.pow(10, decimals);
-  return Math.round(value * factor) / factor;
-};
-
-/**
- * Local representation of a quote entry for the data grid.
- */
-export interface QuoteEntry {
-  id: string;
-  date: Date;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  currency: string;
-  isNew?: boolean;
-}
+const renderPriceCellValue = (value: number | string | null, rowData: unknown) =>
+  formatPrice(value, (rowData as QuoteEntry).currency, false);
 
 interface QuoteHistoryDataGridProps {
   /** Quote data from the backend */
@@ -58,8 +34,6 @@ interface QuoteHistoryDataGridProps {
   assetId: string;
   /** Currency for the asset */
   currency: string;
-  /** Asset kind for decimal precision */
-  assetKind?: AssetKind | null;
   /** Whether manual tracking is enabled */
   isManualDataSource?: boolean;
   /** Callback to save a quote */
@@ -72,19 +46,6 @@ interface QuoteHistoryDataGridProps {
 
 // Generate a temporary ID for new entries
 const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-
-// Convert Quote to QuoteEntry with optional rounding
-const toQuoteEntry = (quote: Quote, decimals?: number): QuoteEntry => ({
-  id: quote.id,
-  date: new Date(quote.timestamp),
-  open: decimals !== undefined ? roundToDecimals(quote.open, decimals) : quote.open,
-  high: decimals !== undefined ? roundToDecimals(quote.high, decimals) : quote.high,
-  low: decimals !== undefined ? roundToDecimals(quote.low, decimals) : quote.low,
-  close: decimals !== undefined ? roundToDecimals(quote.close, decimals) : quote.close,
-  volume: Math.round(quote.volume), // Volume is always integer
-  currency: quote.currency,
-  isNew: false,
-});
 
 // Convert QuoteEntry back to Quote for saving
 const toQuote = (entry: QuoteEntry, assetId: string): Quote => {
@@ -125,23 +86,17 @@ export function QuoteHistoryDataGrid({
   data,
   assetId,
   currency,
-  assetKind,
   isManualDataSource = false,
   onSaveQuote,
   onDeleteQuote,
   onChangeDataSource,
 }: QuoteHistoryDataGridProps) {
+  const { t } = useTranslation();
   const isMobile = useIsMobileViewport();
-  // Get decimal precision based on asset kind
-  const decimalPrecision = getDecimalPrecision(assetKind);
-
-  // Convert quotes to local entries with rounding
+  // Convert quotes to local entries without changing their stored precision.
   const initialEntries = useMemo(
-    () =>
-      data
-        .map((quote) => toQuoteEntry(quote, decimalPrecision))
-        .sort((a, b) => b.date.getTime() - a.date.getTime()),
-    [data, decimalPrecision],
+    () => data.map(toQuoteEntry).sort((a, b) => b.date.getTime() - a.date.getTime()),
+    [data],
   );
 
   const [localEntries, setLocalEntries] = useState<QuoteEntry[]>(initialEntries);
@@ -162,7 +117,7 @@ export function QuoteHistoryDataGrid({
   const columnHelper = createColumnHelper<QuoteEntry>();
 
   // Calculate step value for number inputs based on precision
-  const stepValue = Math.pow(10, -decimalPrecision);
+  const stepValue = Math.pow(10, -QUOTE_DECIMAL_PRECISION);
 
   // Delete a single row
   const handleDeleteRow = useCallback((entry: QuoteEntry) => {
@@ -184,32 +139,40 @@ export function QuoteHistoryDataGrid({
   const columns = useMemo(
     () => [
       columnHelper.accessor("date", {
-        header: "Date",
+        header: t("asset:quoteGrid.date"),
         size: 140,
         meta: { cell: { variant: "date-input" } },
       }),
       columnHelper.accessor("open", {
-        header: "Open",
+        header: t("asset:quoteGrid.open"),
         size: 120,
-        meta: { cell: { variant: "number", min: 0, step: stepValue } },
+        meta: {
+          cell: { variant: "number", min: 0, step: stepValue, valueRenderer: renderPriceCellValue },
+        },
       }),
       columnHelper.accessor("high", {
-        header: "High",
+        header: t("asset:quoteGrid.high"),
         size: 120,
-        meta: { cell: { variant: "number", min: 0, step: stepValue } },
+        meta: {
+          cell: { variant: "number", min: 0, step: stepValue, valueRenderer: renderPriceCellValue },
+        },
       }),
       columnHelper.accessor("low", {
-        header: "Low",
+        header: t("asset:quoteGrid.low"),
         size: 120,
-        meta: { cell: { variant: "number", min: 0, step: stepValue } },
+        meta: {
+          cell: { variant: "number", min: 0, step: stepValue, valueRenderer: renderPriceCellValue },
+        },
       }),
       columnHelper.accessor("close", {
-        header: "Close",
+        header: t("asset:quoteGrid.close"),
         size: 120,
-        meta: { cell: { variant: "number", min: 0, step: stepValue } },
+        meta: {
+          cell: { variant: "number", min: 0, step: stepValue, valueRenderer: renderPriceCellValue },
+        },
       }),
       columnHelper.accessor("volume", {
-        header: "Volume",
+        header: t("asset:quoteGrid.volume"),
         size: 120,
         meta: { cell: { variant: "number", min: 0 } },
       }),
@@ -239,7 +202,7 @@ export function QuoteHistoryDataGrid({
           ]
         : []),
     ],
-    [columnHelper, stepValue, isManualDataSource, handleDeleteRow],
+    [columnHelper, stepValue, isManualDataSource, handleDeleteRow, t],
   );
 
   // Handle data changes from the grid
@@ -455,7 +418,9 @@ export function QuoteHistoryDataGrid({
 
         <div className="divide-y rounded-md border">
           {mobilePageEntries.length === 0 ? (
-            <p className="text-muted-foreground p-6 text-center text-sm">No quotes available.</p>
+            <p className="text-muted-foreground p-6 text-center text-sm">
+              {t("asset:quoteGrid.no_quotes_available")}
+            </p>
           ) : (
             mobilePageEntries.map((entry) => {
               const isEditing = mobileEditingId === entry.id;
@@ -465,7 +430,9 @@ export function QuoteHistoryDataGrid({
                   <div key={entry.id} className="bg-muted/30 space-y-3 p-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium uppercase tracking-wide">
-                        {entry.isNew ? "New Quote" : "Edit Quote"}
+                        {entry.isNew
+                          ? t("asset:quoteGrid.new_quote")
+                          : t("asset:quoteGrid.edit_quote")}
                       </span>
                       <div className="flex gap-1">
                         <Button
@@ -480,7 +447,9 @@ export function QuoteHistoryDataGrid({
                     </div>
                     <div className="space-y-2">
                       <div>
-                        <label className="text-muted-foreground mb-1 block text-xs">Date</label>
+                        <label className="text-muted-foreground mb-1 block text-xs">
+                          {t("asset:quoteGrid.date")}
+                        </label>
                         <DatePickerInput
                           value={entry.date}
                           onChange={(date) =>
@@ -490,7 +459,9 @@ export function QuoteHistoryDataGrid({
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="text-muted-foreground mb-1 block text-xs">Close</label>
+                          <label className="text-muted-foreground mb-1 block text-xs">
+                            {t("asset:quoteGrid.close")}
+                          </label>
                           <Input
                             type="number"
                             value={entry.close || ""}
@@ -506,7 +477,9 @@ export function QuoteHistoryDataGrid({
                           />
                         </div>
                         <div>
-                          <label className="text-muted-foreground mb-1 block text-xs">Open</label>
+                          <label className="text-muted-foreground mb-1 block text-xs">
+                            {t("asset:quoteGrid.open")}
+                          </label>
                           <Input
                             type="number"
                             value={entry.open || ""}
@@ -522,7 +495,9 @@ export function QuoteHistoryDataGrid({
                           />
                         </div>
                         <div>
-                          <label className="text-muted-foreground mb-1 block text-xs">High</label>
+                          <label className="text-muted-foreground mb-1 block text-xs">
+                            {t("asset:quoteGrid.high")}
+                          </label>
                           <Input
                             type="number"
                             value={entry.high || ""}
@@ -538,7 +513,9 @@ export function QuoteHistoryDataGrid({
                           />
                         </div>
                         <div>
-                          <label className="text-muted-foreground mb-1 block text-xs">Low</label>
+                          <label className="text-muted-foreground mb-1 block text-xs">
+                            {t("asset:quoteGrid.low")}
+                          </label>
                           <Input
                             type="number"
                             value={entry.low || ""}
@@ -554,7 +531,9 @@ export function QuoteHistoryDataGrid({
                           />
                         </div>
                         <div>
-                          <label className="text-muted-foreground mb-1 block text-xs">Volume</label>
+                          <label className="text-muted-foreground mb-1 block text-xs">
+                            {t("asset:quoteGrid.volume")}
+                          </label>
                           <Input
                             type="number"
                             value={entry.volume || ""}
@@ -584,7 +563,7 @@ export function QuoteHistoryDataGrid({
                     <span className="text-sm font-medium">{format(entry.date, "yyyy-MM-dd")}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold">
-                        {formatAmount(entry.close, entry.currency, false)}
+                        {formatPrice(entry.close, entry.currency, false)}
                       </span>
                       {isManualDataSource && (
                         <Button
@@ -603,25 +582,25 @@ export function QuoteHistoryDataGrid({
                   </div>
                   <div className="text-muted-foreground grid grid-cols-4 gap-x-2 text-xs">
                     <div>
-                      <span className="block">Open</span>
+                      <span className="block">{t("asset:quoteGrid.open")}</span>
                       <span className="text-foreground">
-                        {formatAmount(entry.open, entry.currency, false)}
+                        {formatPrice(entry.open, entry.currency, false)}
                       </span>
                     </div>
                     <div>
-                      <span className="block">High</span>
+                      <span className="block">{t("asset:quoteGrid.high")}</span>
                       <span className="text-foreground">
-                        {formatAmount(entry.high, entry.currency, false)}
+                        {formatPrice(entry.high, entry.currency, false)}
                       </span>
                     </div>
                     <div>
-                      <span className="block">Low</span>
+                      <span className="block">{t("asset:quoteGrid.low")}</span>
                       <span className="text-foreground">
-                        {formatAmount(entry.low, entry.currency, false)}
+                        {formatPrice(entry.low, entry.currency, false)}
                       </span>
                     </div>
                     <div>
-                      <span className="block">Vol</span>
+                      <span className="block">{t("asset:quoteGrid.vol")}</span>
                       <span className="text-foreground">{entry.volume.toLocaleString()}</span>
                     </div>
                   </div>
@@ -635,7 +614,7 @@ export function QuoteHistoryDataGrid({
         {mobilePageCount > 1 && (
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
-              Page {mobilePage + 1} of {mobilePageCount}
+              {t("asset:quoteGrid.page_of", { page: mobilePage + 1, total: mobilePageCount })}
             </span>
             <div className="flex gap-2">
               <Button
@@ -644,7 +623,7 @@ export function QuoteHistoryDataGrid({
                 onClick={() => setMobilePage((p) => p - 1)}
                 disabled={mobilePage === 0}
               >
-                Previous
+                {t("asset:quoteGrid.previous")}
               </Button>
               <Button
                 variant="outline"
@@ -652,7 +631,7 @@ export function QuoteHistoryDataGrid({
                 onClick={() => setMobilePage((p) => p + 1)}
                 disabled={mobilePage >= mobilePageCount - 1}
               >
-                Next
+                {t("asset:quoteGrid.next")}
               </Button>
             </div>
           </div>

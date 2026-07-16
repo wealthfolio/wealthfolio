@@ -19,6 +19,7 @@ import { EmptyPlaceholder } from "@wealthfolio/ui/components/ui/empty-placeholde
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { format, parseISO } from "date-fns";
 import React, { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Area, Bar, BarChart, CartesianGrid, ComposedChart, XAxis, YAxis } from "recharts";
 
 // Round a raw step up to a "nice" value (1, 2, 2.5, 5, 10 × 10ⁿ).
@@ -69,11 +70,6 @@ interface IncomeHistoryChartProps {
   byAccount?: Record<string, IncomeByAccount>;
 }
 
-const viewModes = [
-  { value: "combined" as const, label: "Combined" },
-  { value: "byAccount" as const, label: "By Account" },
-];
-
 export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
   monthlyIncomeData,
   previousMonthlyIncomeData,
@@ -82,8 +78,14 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
   isBalanceHidden,
   byAccount,
 }) => {
+  const { t } = useTranslation();
   const [isMobile, setIsMobile] = React.useState(false);
   const [viewMode, setViewMode] = useState<"combined" | "byAccount">("combined");
+
+  const viewModes = [
+    { value: "combined" as const, label: t("income:view_combined") },
+    { value: "byAccount" as const, label: t("income:view_by_account") },
+  ];
 
   React.useEffect(() => {
     const checkMobile = () => {
@@ -149,7 +151,11 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
   );
 
   const periodDescription =
-    selectedPeriod === "ALL" ? "All Time" : selectedPeriod === "YTD" ? "Year to Date" : "Last Year";
+    selectedPeriod === "ALL"
+      ? t("income:all_time")
+      : selectedPeriod === "YTD"
+        ? t("income:year_to_date")
+        : t("income:last_year");
 
   // Render evenly-spaced labels (every Nth month) instead of letting Recharts
   // auto-thin, which produced irregular 2-then-3-month gaps.
@@ -208,7 +214,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
       <CardHeader className="pb-4 md:pb-6">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-sm font-medium">Income History</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("income:income_history")}</CardTitle>
             <CardDescription className="text-xs md:text-sm">{periodDescription}</CardDescription>
           </div>
           {showToggle && (
@@ -240,8 +246,8 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
           <EmptyPlaceholder
             className="mx-auto flex h-[250px] max-w-[420px] items-center justify-center md:h-[300px]"
             icon={<Icons.Activity className="h-8 w-8 md:h-10 md:w-10" />}
-            title="No income history available"
-            description="There is no income history for the selected period. Try selecting a different time range or check back later."
+            title={t("income:no_income_history")}
+            description={t("income:no_income_history_desc")}
           />
         ) : effectiveViewMode === "byAccount" ? (
           <ChartContainer
@@ -315,15 +321,15 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
           <ChartContainer
             config={{
               income: {
-                label: "Monthly Income",
+                label: t("income:monthly_income"),
                 color: "var(--chart-1)",
               },
               cumulative: {
-                label: "Cumulative Income",
+                label: t("income:cumulative_income_label"),
                 color: "var(--chart-2)",
               },
               previousIncome: {
-                label: "Previous Period Income",
+                label: t("income:previous_period_income"),
                 color: "var(--chart-stone)",
               },
             }}
@@ -377,12 +383,12 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
                             <span className="text-muted-foreground text-xs md:text-sm">
                               {name === "income"
                                 ? isMobile
-                                  ? "Monthly"
-                                  : "Monthly Income"
+                                  ? t("income:monthly")
+                                  : t("income:monthly_income")
                                 : name === "previousIncome"
-                                  ? "Previous"
+                                  ? t("income:previous")
                                   : name === "cumulative"
-                                    ? "Cumulative"
+                                    ? t("income:cumulative")
                                     : name}
                             </span>
                             <span className="text-foreground font-mono text-xs font-medium tabular-nums md:text-sm">

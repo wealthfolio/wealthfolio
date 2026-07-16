@@ -12,6 +12,7 @@ import {
 } from "@wealthfolio/ui/components/ui/alert-dialog";
 import { Icons } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
+import { useTranslation } from "react-i18next";
 import { useSyncActions } from "../hooks";
 
 interface RecoveryDialogProps {
@@ -20,6 +21,7 @@ interface RecoveryDialogProps {
 }
 
 export function RecoveryDialog({ open, onOpenChange }: RecoveryDialogProps) {
+  const { t } = useTranslation();
   const { handleRecovery } = useSyncActions();
 
   const onRecovery = async () => {
@@ -35,25 +37,24 @@ export function RecoveryDialog({ open, onOpenChange }: RecoveryDialogProps) {
             <Icons.AlertTriangle className="h-6 w-6 text-amber-500" />
           </div>
           <AlertDialogTitle className="text-center text-xl">
-            Set Up This Device Again
+            {t("sync:recovery.title")}
           </AlertDialogTitle>
           <AlertDialogDescription className="text-center text-sm">
-            Sync was turned off for this device. Set it up again to keep your data up to date across
-            your devices.
+            {t("sync:recovery.description")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
           <Button variant="ghost" onClick={() => onOpenChange?.(false)}>
-            Not now
+            {t("sync:recovery.notNow")}
           </Button>
           <AlertDialogAction onClick={onRecovery} disabled={handleRecovery.isPending}>
             {handleRecovery.isPending ? (
               <>
                 <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                Setting up...
+                {t("sync:recovery.settingUp")}
               </>
             ) : (
-              "Set Up This Device Again"
+              t("sync:recovery.setUpAgain")
             )}
           </AlertDialogAction>
         </div>

@@ -152,6 +152,13 @@ impl MarketDataAppProvider {
             .map(|c| c.to_string())
             .unwrap_or_else(|| "USD".to_string())
     }
+
+    fn historical_candles_url(symbol: &str, start: &str, end: &str) -> String {
+        format!(
+            "{}/stocks/candles/D/{}?from={}&to={}&adjustsplits=true&adjustdividends=false",
+            BASE_URL, symbol, start, end
+        )
+    }
 }
 
 #[async_trait]
@@ -262,10 +269,7 @@ impl MarketDataProvider for MarketDataAppProvider {
         let start_str = start.format("%Y-%m-%d").to_string();
         let end_str = end.format("%Y-%m-%d").to_string();
 
-        let url = format!(
-            "{}/stocks/candles/D/{}?from={}&to={}",
-            BASE_URL, symbol, start_str, end_str
-        );
+        let url = Self::historical_candles_url(&symbol, &start_str, &end_str);
 
         let response_text = self.fetch(&url).await?;
         let candles: CandlesResponse =
@@ -404,6 +408,7 @@ mod tests {
                 base: Cow::Borrowed("EUR"),
                 quote: Cow::Borrowed(quote),
             },
+            identifiers: Default::default(),
             overrides: None,
             currency_hint: currency_hint.map(Cow::Borrowed),
             preferred_provider: None,
@@ -480,6 +485,16 @@ mod tests {
             result.unwrap_err(),
             MarketDataError::UnsupportedAssetType(_)
         ));
+    }
+
+    #[test]
+    fn test_historical_candles_url_uses_split_only_adjustment() {
+        let url = MarketDataAppProvider::historical_candles_url("NVDA", "2023-07-10", "2023-07-11");
+
+        assert_eq!(
+            url,
+            "https://api.marketdata.app/v1/stocks/candles/D/NVDA?from=2023-07-10&to=2023-07-11&adjustsplits=true&adjustdividends=false"
+        );
     }
 
     #[test]

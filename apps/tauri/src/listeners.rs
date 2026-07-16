@@ -136,6 +136,7 @@ fn handle_portfolio_request(handle: AppHandle, payload_str: &str, force_recalc: 
                                 let result_payload = MarketSyncResult {
                                     failed_syncs,
                                     skipped_reasons,
+                                    show_skipped_reasons: false,
                                 };
                                 if let Err(e) =
                                     handle_clone.emit(MARKET_SYNC_COMPLETE, &result_payload)
@@ -356,6 +357,8 @@ fn handle_portfolio_calculation(
                 );
             }
         }
+
+        context.health_service().clear_cache().await;
 
         if let Err(e) = app_handle.emit(PORTFOLIO_UPDATE_COMPLETE, ()) {
             error!("Failed to emit {} event: {}", PORTFOLIO_UPDATE_COMPLETE, e);

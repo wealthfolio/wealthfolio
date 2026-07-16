@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { ImportFormat, ImportMappingData, type SymbolSearchResult } from "@/lib/types";
 import { quoteModeFromSearchResult } from "@/lib/asset-utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -145,9 +146,6 @@ const COLUMN_ALIASES: Record<string, string[]> = {
     "grossamount",
     "gross amount",
     "gross_amount",
-    "marketvalue",
-    "market value",
-    "market_value",
     "netvalue",
     "net value",
     "proceeds",
@@ -186,6 +184,20 @@ const COLUMN_ALIASES: Record<string, string[]> = {
     "fees & commission",
     "fees and commissions",
     "fees and comm",
+  ],
+  [ImportFormat.TAX]: [
+    "tax",
+    "taxes",
+    "transaction tax",
+    "stamp duty",
+    "sdrt",
+    "levy",
+    "withholding tax",
+    "tax withheld",
+    "withholding",
+    "foreign tax",
+    "foreign withholding tax",
+    "non-resident tax",
   ],
   [ImportFormat.ACCOUNT]: [
     "account",
@@ -299,6 +311,17 @@ function headerMatchesAliases(header: string, aliases: readonly string[]): boole
   });
 }
 
+function headerIsBlockedForField(header: string, field: ImportFormat): boolean {
+  if (field !== ImportFormat.AMOUNT) {
+    return false;
+  }
+
+  const normalized = normalizeHeader(header);
+  const compact = normalized.replace(/\s/g, "");
+
+  return normalized.includes("market value") || compact.includes("marketvalue");
+}
+
 /**
  * Initialize column mapping by matching CSV headers to ImportFormat fields.
  * Uses tiered matching: exact → word-boundary contains → substring contains.
@@ -319,6 +342,7 @@ export function initializeColumnMapping(
 
     const match = headerRow.find((header) => {
       if (usedHeaders.has(header)) return false;
+      if (headerIsBlockedForField(header, field)) return false;
       const nh = normalizeHeader(header);
       return aliases.some((alias) => nh === normalizeHeader(alias));
     });
@@ -336,6 +360,7 @@ export function initializeColumnMapping(
 
     const match = headerRow.find((header) => {
       if (usedHeaders.has(header)) return false;
+      if (headerIsBlockedForField(header, field)) return false;
       const nh = normalizeHeader(header);
       return aliases.some((alias) => {
         const na = normalizeHeader(alias);
@@ -360,6 +385,7 @@ export function initializeColumnMapping(
 
     const match = headerRow.find((header) => {
       if (usedHeaders.has(header)) return false;
+      if (headerIsBlockedForField(header, field)) return false;
       const nh = normalizeHeader(header).replace(/\s/g, "");
       return aliases.some((alias) => {
         const na = normalizeHeader(alias).replace(/\s/g, "");
@@ -396,7 +422,11 @@ export function computeFieldMappings(
 
   if (isTransactionImportProfile(profile)) {
     const amountAliases = aliasesForField(ImportFormat.AMOUNT, profile);
-    const amountHeaders = headers.filter((header) => headerMatchesAliases(header, amountAliases));
+    const amountHeaders = headers.filter(
+      (header) =>
+        !headerIsBlockedForField(header, ImportFormat.AMOUNT) &&
+        headerMatchesAliases(header, amountAliases),
+    );
     if (amountHeaders.length > 1) {
       result[ImportFormat.AMOUNT] = amountHeaders;
     }
@@ -437,6 +467,7 @@ export function useImportMapping({
 }: UseImportMappingProps = {}) {
   const [mapping, setMapping] = useState<ImportMappingData>(defaultMapping ?? emptyMapping);
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
 
   // Save mapping mutation
   const saveMappingMutation = useMutation({
@@ -450,8 +481,8 @@ export function useImportMapping({
     onError: (error) => {
       logger.error(`Error saving import mapping: ${error}`);
       toast({
-        title: "Error saving mapping",
-        description: "There was a problem saving your import mapping.",
+        title: t("activity:import.errors.saveMappingTitle"),
+        description: t("activity:import.errors.saveMappingDescription"),
         variant: "destructive",
       });
     },

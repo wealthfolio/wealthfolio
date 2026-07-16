@@ -5,7 +5,7 @@ use diesel::sqlite::SqliteConnection;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use super::model::{AllocationTargetDB, AllocationTargetWeightDB};
+use super::model::{AllocationTargetConstraintDB, AllocationTargetDB, AllocationTargetWeightDB};
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
 use crate::schema::{allocation_target_weights, allocation_targets};
@@ -301,6 +301,134 @@ impl AllocationTargetRepositoryTrait for AllocationTargetRepository {
         let weights = self.list_weights_for_target(&target_id)?;
         Ok(SaveAllocationTargetResult { target, weights })
     }
+
+    fn list_target_constraints(
+        &self,
+        target_id: &str,
+    ) -> Result<Vec<wealthfolio_core::portfolio::allocation_targets::AllocationTargetConstraint>>
+    {
+        use crate::schema::allocation_target_constraints;
+        let conn = &mut get_connection(&self.pool)?;
+        let rows = allocation_target_constraints::table
+            .filter(allocation_target_constraints::target_id.eq(target_id))
+            .order(allocation_target_constraints::created_at.asc())
+            .load::<AllocationTargetConstraintDB>(conn)
+            .map_err(StorageError::from)?;
+        rows.into_iter()
+            .map(|db| {
+                let subject_type =
+                    wealthfolio_core::portfolio::allocation_targets::ConstraintSubjectType::try_from(
+                        db.subject_type.as_str(),
+                    )
+                    .map_err(|e| {
+                        wealthfolio_core::errors::Error::Validation(
+                            wealthfolio_core::errors::ValidationError::InvalidInput(e),
+                        )
+                    })?;
+                let action =
+                    wealthfolio_core::portfolio::allocation_targets::ConstraintAction::try_from(
+                        db.action.as_str(),
+                    )
+                    .map_err(|e| {
+                        wealthfolio_core::errors::Error::Validation(
+                            wealthfolio_core::errors::ValidationError::InvalidInput(e),
+                        )
+                    })?;
+                let effect =
+                    wealthfolio_core::portfolio::allocation_targets::ConstraintEffect::try_from(
+                        db.effect.as_str(),
+                    )
+                    .map_err(|e| {
+                        wealthfolio_core::errors::Error::Validation(
+                            wealthfolio_core::errors::ValidationError::InvalidInput(e),
+                        )
+                    })?;
+                Ok(
+                    wealthfolio_core::portfolio::allocation_targets::AllocationTargetConstraint {
+                        id: db.id,
+                        target_id: db.target_id,
+                        subject_type,
+                        subject_id: db.subject_id,
+                        action,
+                        effect,
+                        reason: db.reason,
+                        metadata_json: db.metadata_json,
+                        created_at: db.created_at,
+                        updated_at: db.updated_at,
+                    },
+                )
+            })
+            .collect()
+    }
+
+    async fn save_target_constraints(
+        &self,
+        target_id: &str,
+        constraints: Vec<
+            wealthfolio_core::portfolio::allocation_targets::AllocationTargetConstraint,
+        >,
+    ) -> Result<Vec<wealthfolio_core::portfolio::allocation_targets::AllocationTargetConstraint>>
+    {
+        use crate::schema::allocation_target_constraints;
+        let target_id_owned = target_id.to_string();
+        let row_target_id = target_id_owned.clone();
+        let db_rows: Vec<AllocationTargetConstraintDB> = constraints
+            .iter()
+            .map(|c| AllocationTargetConstraintDB {
+                id: c.id.clone(),
+                target_id: row_target_id.clone(),
+                subject_type: c.subject_type.as_str().to_string(),
+                subject_id: c.subject_id.clone(),
+                action: c.action.as_str().to_string(),
+                effect: c.effect.as_str().to_string(),
+                reason: c.reason.clone(),
+                metadata_json: c.metadata_json.clone(),
+                created_at: c.created_at.clone(),
+                updated_at: c.updated_at.clone(),
+            })
+            .collect();
+
+        self.writer
+            .exec_tx(move |tx| {
+                let existing_ids = allocation_target_constraints::table
+                    .filter(allocation_target_constraints::target_id.eq(&target_id_owned))
+                    .select(allocation_target_constraints::id)
+                    .load::<String>(tx.conn())
+                    .map_err(StorageError::from)?
+                    .into_iter()
+                    .collect::<HashSet<_>>();
+                let incoming_ids: HashSet<String> = db_rows.iter().map(|r| r.id.clone()).collect();
+
+                diesel::delete(
+                    allocation_target_constraints::table
+                        .filter(allocation_target_constraints::target_id.eq(&target_id_owned)),
+                )
+                .execute(tx.conn())
+                .map_err(StorageError::from)?;
+
+                if !db_rows.is_empty() {
+                    diesel::insert_into(allocation_target_constraints::table)
+                        .values(&db_rows)
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                }
+
+                for old_id in existing_ids.difference(&incoming_ids) {
+                    tx.delete::<AllocationTargetConstraintDB>(old_id.clone());
+                }
+                for row in &db_rows {
+                    if existing_ids.contains(&row.id) {
+                        tx.update(row)?;
+                    } else {
+                        tx.insert(row)?;
+                    }
+                }
+                Ok(())
+            })
+            .await?;
+
+        self.list_target_constraints(target_id)
+    }
 }
 
 #[cfg(test)]
@@ -311,7 +439,10 @@ mod tests {
     use crate::taxonomies::TaxonomyRepository;
     use diesel::dsl::count_star;
     use tempfile::tempdir;
-    use wealthfolio_core::portfolio::allocation_targets::{RebalanceGoal, ScopeType, TriggerType};
+    use wealthfolio_core::portfolio::allocation_targets::{
+        AllocationTargetConstraint, BandType, ConstraintAction, ConstraintEffect,
+        ConstraintSubjectType, RebalanceGoal, ScopeType, TriggerType,
+    };
     use wealthfolio_core::taxonomies::TaxonomyRepositoryTrait;
 
     fn setup_repos() -> (AllocationTargetRepository, TaxonomyRepository) {
@@ -344,10 +475,13 @@ mod tests {
             taxonomy_id: taxonomy_id.to_string(),
             trigger_type: TriggerType::Threshold,
             drift_band_bps: 500,
+            band_type: BandType::Absolute,
+            relative_factor_bps: 2000,
             rebalance_goal: RebalanceGoal::NearestBand,
             min_trade_amount: "0".to_string(),
             whole_shares_only: false,
             allow_sells: false,
+            max_turnover_bps: None,
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
             archived_at: None,
@@ -363,6 +497,21 @@ mod tests {
             target_bps: 10000,
             is_locked: false,
             is_required: true,
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            updated_at: "2026-01-01T00:00:00Z".to_string(),
+        }
+    }
+
+    fn constraint(id: &str, target_id: &str) -> AllocationTargetConstraint {
+        AllocationTargetConstraint {
+            id: id.to_string(),
+            target_id: target_id.to_string(),
+            subject_type: ConstraintSubjectType::Asset,
+            subject_id: "asset-1".to_string(),
+            action: ConstraintAction::Sell,
+            effect: ConstraintEffect::Block,
+            reason: None,
+            metadata_json: None,
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
         }
@@ -398,6 +547,24 @@ mod tests {
         assert_eq!(saved.len(), 1);
         assert_eq!(saved[0].taxonomy_id, "asset_classes");
         assert_eq!(saved[0].category_id, "CASH");
+    }
+
+    #[tokio::test]
+    async fn save_target_constraints_uses_route_target_id() {
+        let repo = setup_repo();
+        repo.create_target(target("asset_classes")).await.unwrap();
+        let mut other = target("asset_classes");
+        other.id = "target-2".to_string();
+        repo.create_target(other).await.unwrap();
+
+        let saved = repo
+            .save_target_constraints("target-1", vec![constraint("constraint-1", "target-2")])
+            .await
+            .unwrap();
+
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].target_id, "target-1");
+        assert!(repo.list_target_constraints("target-2").unwrap().is_empty());
     }
 
     #[tokio::test]

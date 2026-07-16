@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, Skeleton } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { useTranslation } from "react-i18next";
 
 export function RiskLabSkeleton() {
   return (
@@ -95,16 +96,16 @@ export function RiskLabSkeleton() {
 }
 
 function CalculatingBanner() {
+  const { t } = useTranslation();
   return (
     <div className="bg-muted/20 flex items-start gap-4 rounded-xl border px-5 py-4 md:px-6">
       <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[hsl(91,34%,29%)]/10 text-[hsl(91,34%,29%)]">
         <Icons.Spinner className="size-5 animate-spin" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold">Calculating scenarios</p>
+        <p className="text-sm font-semibold">{t("goals:skeleton.calculating_title")}</p>
         <p className="text-muted-foreground mt-1 max-w-[720px] text-sm leading-relaxed">
-          Running stress tests, market-path simulations, and sensitivity maps against your plan.
-          This usually takes a few seconds — results appear below as each section finishes.
+          {t("goals:skeleton.calculating_desc")}
         </p>
       </div>
     </div>

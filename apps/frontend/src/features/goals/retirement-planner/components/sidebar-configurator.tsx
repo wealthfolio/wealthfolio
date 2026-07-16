@@ -25,6 +25,8 @@ import {
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { DEFAULT_DC_PAYOUT_ESTIMATE_RATE } from "../lib/constants";
 import { incomeStreamMonthlyAmount, modeLabel, type PlannerMode } from "../lib/dashboard-math";
 import {
@@ -67,6 +69,7 @@ const HIGH_CONTRIBUTION_GROWTH_WARNING_THRESHOLD = DEFAULT_CONTRIBUTION_GROWTH_S
 
 /** Read-only label:value row */
 function InfoLabel({ label, children }: { label: string; children: React.ReactNode }) {
+  const { t } = useTranslation();
   return (
     <span className="inline-flex items-center gap-1">
       <span>{label}</span>
@@ -75,7 +78,7 @@ function InfoLabel({ label, children }: { label: string; children: React.ReactNo
           <button
             type="button"
             className="text-muted-foreground/70 hover:text-foreground inline-flex rounded-full transition-colors"
-            aria-label={`More info about ${label}`}
+            aria-label={t("goals:sidebar.more_info_about", { label })}
           >
             <Icons.Info className="h-3 w-3" />
           </button>
@@ -125,9 +128,12 @@ function SidebarMonthlyRow({
 
 /** Sidebar totals row: uppercase tracked label on the left, amount + /mo on the right. */
 function SidebarTotalRow({ amount, currency }: { amount: number; currency: string }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center justify-between gap-3 py-3">
-      <span className="text-muted-foreground text-xs uppercase tracking-[0.15em]">Total</span>
+      <span className="text-muted-foreground text-xs uppercase tracking-[0.15em]">
+        {t("common:total")}
+      </span>
       <div className="whitespace-nowrap tabular-nums">
         <span className="text-foreground text-sm font-semibold">
           {formatAmount(amount, currency)}
@@ -142,27 +148,25 @@ function pctOfTotal(value: number, total: number) {
   return total > 0 ? ((value / total) * 100).toFixed(0) + "%" : "0%";
 }
 
-function highInflationWarning(value: number) {
+function highInflationWarning(value: number, t: TFunction) {
   return value > HIGH_INFLATION_WARNING_THRESHOLD
-    ? "High inflation assumption. Long-range spending needs become more sensitive at this rate."
+    ? t("goals:sidebar.warnings.high_inflation")
     : undefined;
 }
 
-function highFeeWarning(value: number) {
-  return value > HIGH_FEE_WARNING_THRESHOLD
-    ? "High fee assumption. Fee drag materially reduces long-term returns."
-    : undefined;
+function highFeeWarning(value: number, t: TFunction) {
+  return value > HIGH_FEE_WARNING_THRESHOLD ? t("goals:sidebar.warnings.high_fee") : undefined;
 }
 
-function highVolatilityWarning(value: number) {
+function highVolatilityWarning(value: number, t: TFunction) {
   return value > HIGH_VOLATILITY_WARNING_THRESHOLD
-    ? "High volatility assumption. Outcome ranges can become very wide."
+    ? t("goals:sidebar.warnings.high_volatility")
     : undefined;
 }
 
-function highContributionGrowthWarning(value: number) {
+function highContributionGrowthWarning(value: number, t: TFunction) {
   return value > HIGH_CONTRIBUTION_GROWTH_WARNING_THRESHOLD
-    ? "High contribution growth assumption. This assumes sustained large savings increases."
+    ? t("goals:sidebar.warnings.high_contribution_growth")
     : undefined;
 }
 
@@ -307,13 +311,14 @@ function SidebarCard({
   readContent: React.ReactNode;
   editContent: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const renderEditActions = () => (
     <div className="flex items-center justify-end gap-1.5">
       <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onCancel}>
-        Cancel
+        {t("common:cancel")}
       </Button>
       <Button size="sm" className="h-7 text-xs" onClick={onSave} disabled={!dirty}>
-        Save
+        {t("common:save")}
       </Button>
     </div>
   );
@@ -335,11 +340,11 @@ function SidebarCard({
           <button
             type="button"
             onClick={onEdit}
-            aria-label={`Edit ${title}`}
+            aria-label={t("goals:sidebar.edit_section", { title })}
             className="text-muted-foreground hover:text-foreground inline-flex shrink-0 items-center gap-1.5 text-sm transition-colors"
           >
             <Icons.Pencil className="h-3.5 w-3.5" />
-            Edit
+            {t("common:edit")}
           </button>
         )}
       </CardHeader>
@@ -377,6 +382,7 @@ export function SidebarConfigurator({
   goalId?: string;
   dcLinkedAccountIds?: string[];
 }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<RetirementPlan>(() => structuredClone(plan));
   const [draftMode, setDraftMode] = useState<PlannerMode>(plannerMode);
   const [dirty, setDirty] = useState(false);
@@ -473,7 +479,9 @@ export function SidebarConfigurator({
         ...d.incomeStreams,
         {
           id,
-          label: preset?.label ?? `Income ${d.incomeStreams.length + 1}`,
+          label:
+            preset?.label ??
+            t("goals:sidebar.income.default_label", { n: d.incomeStreams.length + 1 }),
           streamType: "db" as const,
           startAge: preset?.startAge ?? d.personal.targetRetirementAge,
           adjustForInflation: preset?.adjustForInflation ?? true,
@@ -543,8 +551,8 @@ export function SidebarConfigurator({
     <div className="space-y-4">
       {/* ── Plan ── */}
       <SidebarCard
-        kicker="Plan"
-        title="Plan inputs"
+        kicker={t("goals:sidebar.plan.kicker")}
+        title={t("goals:sidebar.plan.title")}
         editing={editingSection === "plan"}
         onEdit={() => setEditingSection("plan")}
         onSave={saveDraft}
@@ -552,11 +560,15 @@ export function SidebarConfigurator({
         dirty={dirty}
         readContent={
           <div className="divide-border divide-y">
-            <ConfigRow label="Plan type">{draftMode === "fire" ? "FIRE" : "Traditional"}</ConfigRow>
-            <ConfigRow label="Current age">{draft.personal.currentAge}</ConfigRow>
+            <ConfigRow label={t("goals:sidebar.plan.plan_type")}>
+              {draftMode === "fire" ? "FIRE" : t("goals:sidebar.plan.traditional")}
+            </ConfigRow>
+            <ConfigRow label={t("goals:sidebar.plan.current_age")}>
+              {draft.personal.currentAge}
+            </ConfigRow>
             <ConfigRow label={L.targetAge}>{draft.personal.targetRetirementAge}</ConfigRow>
             <ConfigRow label={L.horizonAge}>{draft.personal.planningHorizonAge}</ConfigRow>
-            <ConfigRow label="Monthly contribution until retirement">
+            <ConfigRow label={t("goals:sidebar.plan.monthly_contribution_until_retirement")}>
               {formatAmount(draft.investment.monthlyContribution, currency)}
             </ConfigRow>
           </div>
@@ -566,10 +578,9 @@ export function SidebarConfigurator({
             <div className="space-y-3 py-4 first:pt-0">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold">Plan type</p>
+                  <p className="text-sm font-semibold">{t("goals:sidebar.plan.plan_type")}</p>
                   <p className="text-muted-foreground mt-1 max-w-[260px] text-xs leading-snug">
-                    Choose whether your target age is a traditional retirement date or the age you
-                    want to reach financial independence.
+                    {t("goals:sidebar.plan.plan_type_help")}
                   </p>
                 </div>
                 <AnimatedToggleGroup<PlannerMode>
@@ -577,7 +588,7 @@ export function SidebarConfigurator({
                   onValueChange={setPlannerModeDraft}
                   items={[
                     { value: "fire", label: "FIRE" },
-                    { value: "traditional", label: "Traditional" },
+                    { value: "traditional", label: t("goals:sidebar.plan.traditional") },
                   ]}
                   size="xs"
                   rounded="md"
@@ -586,10 +597,10 @@ export function SidebarConfigurator({
               </div>
               {draftMode !== plannerMode && (
                 <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:text-amber-300">
-                  This changes the calculation model only.{" "}
+                  {t("goals:sidebar.plan.mode_change_prefix")}{" "}
                   {draftMode === "traditional"
-                    ? "Your desired retirement age becomes a fixed retirement start age."
-                    : "Your retirement age becomes the desired FI age; the planner will search for the first sustainable age."}
+                    ? t("goals:sidebar.plan.mode_change_traditional")
+                    : t("goals:sidebar.plan.mode_change_fire")}
                 </p>
               )}
             </div>
@@ -597,10 +608,10 @@ export function SidebarConfigurator({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-foreground text-sm font-semibold leading-tight">
-                    Birth month
+                    {t("goals:sidebar.plan.birth_month")}
                   </div>
                   <div className="text-muted-foreground mt-1 max-w-[240px] text-xs leading-tight">
-                    Keeps your age updated automatically.
+                    {t("goals:sidebar.plan.birth_month_help")}
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -612,17 +623,21 @@ export function SidebarConfigurator({
                     className="bg-muted/70 text-foreground h-8 w-36 rounded-md border px-2.5 text-right text-sm tabular-nums outline-none"
                   />
                   <span className="text-muted-foreground text-xs">
-                    Current age {draft.personal.currentAge}
+                    {t("goals:sidebar.plan.current_age_value", { age: draft.personal.currentAge })}
                   </span>
                 </div>
               </div>
             </div>
             <LeverRow
-              label={draftMode === "fire" ? "Desired retirement age" : "Retirement age"}
+              label={
+                draftMode === "fire"
+                  ? t("goals:sidebar.plan.desired_retirement_age")
+                  : t("goals:sidebar.plan.retirement_age")
+              }
               hint={
                 draftMode === "fire"
-                  ? "Age you want to become financially independent."
-                  : "Age you want to retire."
+                  ? t("goals:sidebar.plan.desired_retirement_age_hint")
+                  : t("goals:sidebar.plan.retirement_age_hint")
               }
               value={draft.personal.targetRetirementAge}
               onChange={(v) => {
@@ -645,7 +660,7 @@ export function SidebarConfigurator({
             />
             <LeverRow
               label={L.horizonAge}
-              hint="Age the plan should cover through."
+              hint={t("goals:sidebar.plan.horizon_hint")}
               value={draft.personal.planningHorizonAge}
               onChange={(v) =>
                 setPersonal(
@@ -659,8 +674,8 @@ export function SidebarConfigurator({
               format={(v) => String(Math.round(v))}
             />
             <LeverRow
-              label="Monthly contribution"
-              hint="How much you add each month until retirement."
+              label={t("goals:sidebar.plan.monthly_contribution")}
+              hint={t("goals:sidebar.plan.monthly_contribution_hint")}
               kind="money"
               value={draft.investment.monthlyContribution}
               onChange={(v) => setInvestment("monthlyContribution", v)}
@@ -671,8 +686,8 @@ export function SidebarConfigurator({
               format={(v) => String(Math.round(v))}
             />
             <LeverRow
-              label="Return before retirement"
-              hint="Expected yearly return while you are saving."
+              label={t("goals:sidebar.assumptions.return_before_retirement")}
+              hint={t("goals:sidebar.plan.return_before_hint")}
               value={draft.investment.preRetirementAnnualReturn}
               onChange={(v) => setInvestment("preRetirementAnnualReturn", v)}
               min={0}
@@ -689,8 +704,8 @@ export function SidebarConfigurator({
               warning={highReturnWarning(draft.investment.preRetirementAnnualReturn)}
             />
             <LeverRow
-              label="Return during retirement"
-              hint="Expected yearly return after withdrawals begin."
+              label={t("goals:sidebar.assumptions.return_during_retirement")}
+              hint={t("goals:sidebar.plan.return_during_hint")}
               value={draft.investment.retirementAnnualReturn}
               onChange={(v) => setInvestment("retirementAnnualReturn", v)}
               min={0}
@@ -707,8 +722,8 @@ export function SidebarConfigurator({
               warning={highReturnWarning(draft.investment.retirementAnnualReturn)}
             />
             <LeverRow
-              label="Annual investment fee"
-              hint="Estimated yearly portfolio fees."
+              label={t("goals:sidebar.assumptions.annual_investment_fee")}
+              hint={t("goals:sidebar.plan.annual_fee_hint")}
               value={draft.investment.annualInvestmentFeeRate}
               onChange={(v) => setInvestment("annualInvestmentFeeRate", v)}
               min={0}
@@ -722,11 +737,11 @@ export function SidebarConfigurator({
               step={0.0005}
               suffix="%"
               format={(v) => (v * 100).toFixed(2)}
-              warning={highFeeWarning(draft.investment.annualInvestmentFeeRate)}
+              warning={highFeeWarning(draft.investment.annualInvestmentFeeRate, t)}
             />
             <LeverRow
-              label="Inflation"
-              hint="Expected yearly increase in prices."
+              label={t("goals:sidebar.assumptions.inflation")}
+              hint={t("goals:sidebar.plan.inflation_hint")}
               value={draft.investment.inflationRate}
               onChange={(v) => setInvestment("inflationRate", v)}
               min={0}
@@ -740,7 +755,7 @@ export function SidebarConfigurator({
               step={0.001}
               suffix="%"
               format={(v) => (v * 100).toFixed(1)}
-              warning={highInflationWarning(draft.investment.inflationRate)}
+              warning={highInflationWarning(draft.investment.inflationRate, t)}
             />
           </div>
         }
@@ -748,8 +763,8 @@ export function SidebarConfigurator({
 
       {/* ── Expenses ── */}
       <SidebarCard
-        kicker="Spending"
-        title="Retirement Spending"
+        kicker={t("goals:sidebar.spending.kicker")}
+        title={t("goals:sidebar.spending.title")}
         editing={editingSection === "expenses"}
         onEdit={() => {
           setEditingSection("expenses");
@@ -766,7 +781,9 @@ export function SidebarConfigurator({
           if (items.length === 0) {
             return (
               <div className="space-y-2">
-                <p className="text-muted-foreground text-xs">No retirement spending configured</p>
+                <p className="text-muted-foreground text-xs">
+                  {t("goals:sidebar.spending.none_configured")}
+                </p>
                 <SidebarTotalRow amount={0} currency={currency} />
               </div>
             );
@@ -779,9 +796,13 @@ export function SidebarConfigurator({
                   label={it.label}
                   meta={[
                     expenseAgeRangeLabel(it, horizonAge),
-                    (it.essential ?? true) ? "Must-have" : "Flexible",
+                    (it.essential ?? true)
+                      ? t("goals:sidebar.spending.must_have")
+                      : t("goals:sidebar.spending.flexible"),
                     it.inflationRate !== undefined
-                      ? `${(it.inflationRate * 100).toFixed(1)}% inflation`
+                      ? t("goals:sidebar.spending.inflation_meta", {
+                          pct: (it.inflationRate * 100).toFixed(1),
+                        })
                       : undefined,
                   ]
                     .filter(Boolean)
@@ -800,9 +821,13 @@ export function SidebarConfigurator({
               const expanded = expandedExpenseId === item.id;
               const meta = [
                 expenseAgeRangeLabel(item, draft.personal.planningHorizonAge),
-                (item.essential ?? true) ? "Must-have" : "Flexible",
+                (item.essential ?? true)
+                  ? t("goals:sidebar.spending.must_have")
+                  : t("goals:sidebar.spending.flexible"),
                 item.inflationRate !== undefined
-                  ? `${(item.inflationRate * 100).toFixed(1)}% inflation`
+                  ? t("goals:sidebar.spending.inflation_meta", {
+                      pct: (item.inflationRate * 100).toFixed(1),
+                    })
                   : undefined,
               ].join(" · ");
 
@@ -827,7 +852,7 @@ export function SidebarConfigurator({
                       />
                       <span className="min-w-0 flex-1">
                         <span className="text-foreground block truncate text-sm font-semibold">
-                          {item.label || "Spending"}
+                          {item.label || t("goals:sidebar.spending.default_label")}
                         </span>
                         <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">
                           {meta}
@@ -842,7 +867,9 @@ export function SidebarConfigurator({
                       type="button"
                       onClick={() => removeExpenseItem(item.id)}
                       className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground mr-2 rounded-md p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                      aria-label={`Remove ${item.label || "spending item"}`}
+                      aria-label={t("goals:sidebar.spending.remove", {
+                        label: item.label || t("goals:sidebar.spending.item_fallback"),
+                      })}
                     >
                       <Icons.X className="h-3.5 w-3.5" />
                     </button>
@@ -853,11 +880,11 @@ export function SidebarConfigurator({
                       <Input
                         value={item.label}
                         onChange={(e) => updateExpenseItem(item.id, { label: e.target.value })}
-                        placeholder="Spending name"
+                        placeholder={t("goals:sidebar.spending.name_placeholder")}
                         className="bg-muted/70 h-8 px-2 text-sm font-semibold shadow-none"
                       />
                       <LeverRow
-                        label="Monthly spending"
+                        label={t("goals:sidebar.spending.monthly_spending")}
                         kind="money"
                         value={item.monthlyAmount}
                         onChange={(v) => updateExpenseItem(item.id, { monthlyAmount: v })}
@@ -870,15 +897,15 @@ export function SidebarConfigurator({
                       />
                       <div className="grid grid-cols-2 gap-3">
                         <AgeBoundInput
-                          label="From age"
+                          label={t("goals:sidebar.spending.from_age")}
                           value={item.startAge}
                           onChange={(v) => updateExpenseItem(item.id, { startAge: v })}
-                          placeholder="Retirement"
+                          placeholder={t("goals:sidebar.spending.from_age_placeholder")}
                           min={draft.personal.currentAge}
                           max={draft.personal.planningHorizonAge}
                         />
                         <AgeBoundInput
-                          label="To age"
+                          label={t("goals:sidebar.spending.to_age")}
                           value={item.endAge}
                           onChange={(v) => updateExpenseItem(item.id, { endAge: v })}
                           placeholder={`${draft.personal.planningHorizonAge}`}
@@ -890,18 +917,18 @@ export function SidebarConfigurator({
                         <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-3">
                           <div className="min-w-0">
                             <div className="text-foreground text-xs font-semibold">
-                              Spending type
+                              {t("goals:sidebar.spending.spending_type")}
                             </div>
                             <div className="text-muted-foreground mt-0.5 text-[11px] leading-tight">
-                              Must-have spending is protected before flexible spending.
+                              {t("goals:sidebar.spending.spending_type_help")}
                             </div>
                           </div>
                           <AnimatedToggleGroup<"essential" | "flexible">
                             variant="secondary"
                             size="xs"
                             items={[
-                              { value: "essential", label: "Must-have" },
-                              { value: "flexible", label: "Flexible" },
+                              { value: "essential", label: t("goals:sidebar.spending.must_have") },
+                              { value: "flexible", label: t("goals:sidebar.spending.flexible") },
                             ]}
                             value={(item.essential ?? true) ? "essential" : "flexible"}
                             onValueChange={(value) =>
@@ -912,15 +939,17 @@ export function SidebarConfigurator({
                         <div className="border-border grid gap-2 border-t pt-3 sm:grid-cols-[1fr_8rem] sm:items-center sm:gap-3">
                           <div className="min-w-0">
                             <div className="text-foreground text-xs font-semibold">
-                              Inflation override
+                              {t("goals:sidebar.spending.inflation_override")}
                             </div>
                             <div className="text-muted-foreground mt-0.5 text-[11px] leading-tight">
-                              Leave blank to use plan inflation.
+                              {t("goals:sidebar.spending.inflation_override_help")}
                             </div>
                           </div>
                           <PercentOverrideInput
                             value={item.inflationRate}
-                            placeholder={`Plan ${(draft.investment.inflationRate * 100).toFixed(1)}`}
+                            placeholder={t("goals:sidebar.spending.plan_inflation_placeholder", {
+                              pct: (draft.investment.inflationRate * 100).toFixed(1),
+                            })}
                             max={MAX_RETIREMENT_INFLATION}
                             onChange={(value) =>
                               updateExpenseItem(item.id, { inflationRate: value })
@@ -935,39 +964,51 @@ export function SidebarConfigurator({
             })}
             {expenseItems(draft.expenses).length === 0 && (
               <p className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs leading-relaxed">
-                No spending items. Add a preset below, then adjust the amount and dates.
+                {t("goals:sidebar.spending.empty_hint")}
               </p>
             )}
             <div className="grid grid-cols-2 gap-2 pt-3">
               <button
                 className="text-muted-foreground hover:text-foreground rounded-md border border-dashed py-1.5 text-xs transition-colors"
-                onClick={() => addExpenseItem("Living", { essential: true })}
+                onClick={() =>
+                  addExpenseItem(t("goals:sidebar.spending.preset_living"), { essential: true })
+                }
               >
-                + Living
+                {t("goals:sidebar.spending.add_living")}
               </button>
               <button
                 className="text-muted-foreground hover:text-foreground rounded-md border border-dashed py-1.5 text-xs transition-colors"
-                onClick={() => addExpenseItem("Healthcare", { essential: true })}
+                onClick={() =>
+                  addExpenseItem(t("goals:sidebar.spending.preset_healthcare"), {
+                    essential: true,
+                  })
+                }
               >
-                + Healthcare
+                {t("goals:sidebar.spending.add_healthcare")}
               </button>
               <button
                 className="text-muted-foreground hover:text-foreground rounded-md border border-dashed py-1.5 text-xs transition-colors"
-                onClick={() => addExpenseItem("Housing", { essential: false })}
+                onClick={() =>
+                  addExpenseItem(t("goals:sidebar.spending.preset_housing"), { essential: false })
+                }
               >
-                + Housing
+                {t("goals:sidebar.spending.add_housing")}
               </button>
               <button
                 className="text-muted-foreground hover:text-foreground rounded-md border border-dashed py-1.5 text-xs transition-colors"
-                onClick={() => addExpenseItem("Travel", { essential: false })}
+                onClick={() =>
+                  addExpenseItem(t("goals:sidebar.spending.preset_travel"), { essential: false })
+                }
               >
-                + Travel
+                {t("goals:sidebar.spending.add_travel")}
               </button>
               <button
                 className="text-muted-foreground hover:text-foreground col-span-2 rounded-md border border-dashed py-1.5 text-xs transition-colors"
-                onClick={() => addExpenseItem("Other spending", { essential: false })}
+                onClick={() =>
+                  addExpenseItem(t("goals:sidebar.spending.preset_other"), { essential: false })
+                }
               >
-                + Other
+                {t("goals:sidebar.spending.add_other")}
               </button>
             </div>
           </div>
@@ -976,8 +1017,8 @@ export function SidebarConfigurator({
 
       {/* ── Income Streams ── */}
       <SidebarCard
-        kicker="Income"
-        title="Retirement Income"
+        kicker={t("goals:sidebar.income.kicker")}
+        title={t("goals:sidebar.income.title")}
         editing={editingSection === "income"}
         onEdit={() => {
           setEditingSection("income");
@@ -993,8 +1034,15 @@ export function SidebarConfigurator({
                 {draft.incomeStreams.map((s) => (
                   <SidebarMonthlyRow
                     key={s.id}
-                    label={s.label || "Stream"}
-                    meta={`${s.streamType === "dc" ? "Pension fund" : "Income"} · Age ${s.startAge} → ${draft.personal.planningHorizonAge}`}
+                    label={s.label || t("goals:sidebar.income.stream_fallback")}
+                    meta={t("goals:sidebar.income.read_meta", {
+                      type:
+                        s.streamType === "dc"
+                          ? t("goals:sidebar.income.pension_fund")
+                          : t("goals:sidebar.income.income"),
+                      start: s.startAge,
+                      end: draft.personal.planningHorizonAge,
+                    })}
                     amount={incomeStreamMonthlyAmount(draft, s)}
                     currency={currency}
                   />
@@ -1010,10 +1058,11 @@ export function SidebarConfigurator({
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-muted-foreground text-xs">No retirement income configured</p>
+              <p className="text-muted-foreground text-xs">
+                {t("goals:sidebar.income.none_configured")}
+              </p>
               <p className="text-muted-foreground rounded-md border border-dashed px-2.5 py-2 text-xs leading-relaxed">
-                Public pensions (e.g. CPP/OAS in Canada, Social Security in the US) aren't included
-                automatically. Add them here if you want them in the projection.
+                {t("goals:sidebar.income.public_pensions_note")}
               </p>
             </div>
           )
@@ -1025,14 +1074,19 @@ export function SidebarConfigurator({
               const amount = incomeStreamMonthlyAmount(draft, s);
               const growthMeta =
                 s.streamType === "dc"
-                  ? "Balance-derived payout"
+                  ? t("goals:sidebar.income.balance_derived_payout")
                   : s.annualGrowthRate !== undefined
-                    ? `${(s.annualGrowthRate * 100).toFixed(1)}% growth`
+                    ? t("goals:sidebar.income.growth_meta", {
+                        pct: (s.annualGrowthRate * 100).toFixed(1),
+                      })
                     : s.adjustForInflation
-                      ? "Inflation indexed"
-                      : "Fixed nominal";
+                      ? t("goals:sidebar.income.inflation_indexed")
+                      : t("goals:sidebar.income.fixed_nominal");
               const meta = [
-                `Age ${s.startAge} → ${draft.personal.planningHorizonAge}`,
+                t("goals:sidebar.income.age_range", {
+                  start: s.startAge,
+                  end: draft.personal.planningHorizonAge,
+                }),
                 growthMeta,
               ].join(" · ");
 
@@ -1057,7 +1111,7 @@ export function SidebarConfigurator({
                       />
                       <span className="min-w-0 flex-1">
                         <span className="text-foreground block truncate text-sm font-semibold">
-                          {s.label || "Income"}
+                          {s.label || t("goals:sidebar.income.income")}
                         </span>
                         <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">
                           {meta}
@@ -1072,7 +1126,9 @@ export function SidebarConfigurator({
                       type="button"
                       onClick={() => removeStream(s.id)}
                       className="text-muted-foreground hover:text-foreground mr-2 rounded-md p-1 transition-colors"
-                      aria-label={`Remove ${s.label || "retirement income"}`}
+                      aria-label={t("goals:sidebar.income.remove", {
+                        label: s.label || t("goals:sidebar.income.item_fallback"),
+                      })}
                     >
                       <Icons.X className="h-3.5 w-3.5" />
                     </button>
@@ -1083,23 +1139,24 @@ export function SidebarConfigurator({
                       <Input
                         value={s.label}
                         onChange={(e) => updateStream(s.id, { label: e.target.value })}
-                        placeholder="Income name"
+                        placeholder={t("goals:sidebar.income.name_placeholder")}
                         className="bg-muted/70 h-8 px-2 text-sm font-semibold shadow-none"
                       />
                       <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-3">
                         <div className="min-w-0">
-                          <div className="text-foreground text-xs font-semibold">Income type</div>
+                          <div className="text-foreground text-xs font-semibold">
+                            {t("goals:sidebar.income.income_type")}
+                          </div>
                           <div className="text-muted-foreground mt-0.5 text-[11px] leading-tight">
-                            Use income for pensions paid monthly. Use fund for balances that convert
-                            to an estimated payout (e.g. RRSP/RRIF in Canada, 401(k)/IRA in the US).
+                            {t("goals:sidebar.income.income_type_help")}
                           </div>
                         </div>
                         <AnimatedToggleGroup<"db" | "dc">
                           variant="secondary"
                           size="xs"
                           items={[
-                            { value: "db", label: "Income" },
-                            { value: "dc", label: "Fund" },
+                            { value: "db", label: t("goals:sidebar.income.income") },
+                            { value: "dc", label: t("goals:sidebar.income.fund") },
                           ]}
                           value={s.streamType}
                           onValueChange={(value) =>
@@ -1122,7 +1179,7 @@ export function SidebarConfigurator({
                       <div className="divide-border divide-y">
                         {s.streamType !== "dc" && (
                           <LeverRow
-                            label="Monthly income after tax"
+                            label={t("goals:sidebar.income.monthly_income_after_tax")}
                             kind="money"
                             value={s.monthlyAmount ?? 0}
                             onChange={(v) => updateStream(s.id, { monthlyAmount: v })}
@@ -1137,7 +1194,7 @@ export function SidebarConfigurator({
                         {s.streamType === "dc" && (
                           <>
                             <LeverRow
-                              label="Current fund balance"
+                              label={t("goals:sidebar.income.current_fund_balance")}
                               kind="money"
                               value={s.currentValue ?? 0}
                               onChange={(v) => updateStream(s.id, { currentValue: v })}
@@ -1148,7 +1205,7 @@ export function SidebarConfigurator({
                               format={(v) => String(Math.round(v))}
                             />
                             <LeverRow
-                              label="Monthly fund contribution"
+                              label={t("goals:sidebar.income.monthly_fund_contribution")}
                               kind="money"
                               value={s.monthlyContribution ?? 0}
                               onChange={(v) => updateStream(s.id, { monthlyContribution: v })}
@@ -1160,7 +1217,7 @@ export function SidebarConfigurator({
                               format={(v) => String(Math.round(v))}
                             />
                             <LeverRow
-                              label="Fund return before payout"
+                              label={t("goals:sidebar.income.fund_return_before_payout")}
                               value={
                                 s.accumulationReturn ?? draft.investment.preRetirementAnnualReturn
                               }
@@ -1182,7 +1239,7 @@ export function SidebarConfigurator({
                             />
                             {s.startAge <= draft.personal.currentAge && (
                               <LeverRow
-                                label="Monthly payout after tax"
+                                label={t("goals:sidebar.income.monthly_payout_after_tax")}
                                 kind="money"
                                 value={s.monthlyAmount ?? amount}
                                 onChange={(v) => updateStream(s.id, { monthlyAmount: v })}
@@ -1195,14 +1252,14 @@ export function SidebarConfigurator({
                               />
                             )}
                             <p className="text-muted-foreground px-1 text-[11px] leading-relaxed">
-                              Estimated payout uses{" "}
-                              {(DEFAULT_DC_PAYOUT_ESTIMATE_RATE * 100).toFixed(1)}%/yr of the
-                              projected fund balance unless you enter a monthly payout.
+                              {t("goals:sidebar.income.payout_estimate_note", {
+                                pct: (DEFAULT_DC_PAYOUT_ESTIMATE_RATE * 100).toFixed(1),
+                              })}
                             </p>
                           </>
                         )}
                         <LeverRow
-                          label="Start age"
+                          label={t("goals:sidebar.income.start_age")}
                           value={s.startAge}
                           onChange={(v) => updateStream(s.id, { startAge: Math.round(v) })}
                           min={draft.personal.currentAge}
@@ -1215,18 +1272,18 @@ export function SidebarConfigurator({
                         <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-3">
                           <div className="min-w-0">
                             <div className="text-foreground text-xs font-semibold">
-                              Income growth
+                              {t("goals:sidebar.income.income_growth")}
                             </div>
                             <div className="text-muted-foreground mt-0.5 text-[11px] leading-tight">
-                              Choose whether this income rises with plan inflation or stays fixed.
+                              {t("goals:sidebar.income.income_growth_help")}
                             </div>
                           </div>
                           <AnimatedToggleGroup<"indexed" | "fixed">
                             variant="secondary"
                             size="xs"
                             items={[
-                              { value: "indexed", label: "Indexed" },
-                              { value: "fixed", label: "Fixed" },
+                              { value: "indexed", label: t("goals:sidebar.income.indexed") },
+                              { value: "fixed", label: t("goals:sidebar.income.fixed") },
                             ]}
                             value={s.adjustForInflation ? "indexed" : "fixed"}
                             onValueChange={(value) =>
@@ -1240,18 +1297,20 @@ export function SidebarConfigurator({
                         <div className="border-border grid gap-2 border-t pt-3 sm:grid-cols-[1fr_8rem] sm:items-center sm:gap-3">
                           <div className="min-w-0">
                             <div className="text-foreground text-xs font-semibold">
-                              Custom annual growth
+                              {t("goals:sidebar.income.custom_annual_growth")}
                             </div>
                             <div className="text-muted-foreground mt-0.5 text-[11px] leading-tight">
-                              Optional override for pensions or fixed-step benefits.
+                              {t("goals:sidebar.income.custom_annual_growth_help")}
                             </div>
                           </div>
                           <PercentOverrideInput
                             value={s.annualGrowthRate}
                             placeholder={
                               s.adjustForInflation
-                                ? `Inflation ${(draft.investment.inflationRate * 100).toFixed(1)}`
-                                : "Fixed 0.0"
+                                ? t("goals:sidebar.income.growth_placeholder_inflation", {
+                                    pct: (draft.investment.inflationRate * 100).toFixed(1),
+                                  })
+                                : t("goals:sidebar.income.growth_placeholder_fixed")
                             }
                             max={MAX_RETIREMENT_INCOME_GROWTH}
                             onChange={(value) => updateStream(s.id, { annualGrowthRate: value })}
@@ -1267,13 +1326,13 @@ export function SidebarConfigurator({
               className="text-muted-foreground hover:text-foreground flex w-full items-center justify-center gap-1 rounded-md border border-dashed py-1.5 text-xs transition-colors"
               onClick={() => addStream()}
             >
-              <Icons.Plus className="h-3 w-3" /> Add retirement income
+              <Icons.Plus className="h-3 w-3" /> {t("goals:sidebar.income.add_income")}
             </button>
             <button
               className="text-muted-foreground hover:text-foreground flex w-full items-center justify-center gap-1 rounded-md border border-dashed py-1.5 text-xs transition-colors"
               onClick={() =>
                 addStream({
-                  label: "Pension fund",
+                  label: t("goals:sidebar.income.pension_fund"),
                   streamType: "dc",
                   startAge: draft.personal.targetRetirementAge,
                   monthlyAmount: undefined,
@@ -1284,7 +1343,7 @@ export function SidebarConfigurator({
                 })
               }
             >
-              <Icons.Plus className="h-3 w-3" /> Add pension fund
+              <Icons.Plus className="h-3 w-3" /> {t("goals:sidebar.income.add_pension_fund")}
             </button>
           </div>
         }
@@ -1292,8 +1351,8 @@ export function SidebarConfigurator({
 
       {/* ── Investment ── */}
       <SidebarCard
-        kicker="Assumptions"
-        title="Projection Assumptions"
+        kicker={t("goals:sidebar.assumptions.kicker")}
+        title={t("goals:sidebar.assumptions.title")}
         editing={editingSection === "investment"}
         onEdit={() => setEditingSection("investment")}
         onSave={saveDraft}
@@ -1301,34 +1360,35 @@ export function SidebarConfigurator({
         dirty={dirty}
         readContent={
           <div className="divide-border divide-y">
-            <ConfigRow label="Return before retirement">
+            <ConfigRow label={t("goals:sidebar.assumptions.return_before_retirement")}>
               {formatPercent(draft.investment.preRetirementAnnualReturn)}
             </ConfigRow>
-            <ConfigRow label="Return during retirement">
+            <ConfigRow label={t("goals:sidebar.assumptions.return_during_retirement")}>
               {formatPercent(draft.investment.retirementAnnualReturn)}
             </ConfigRow>
-            <ConfigRow label="Annual investment fee">
+            <ConfigRow label={t("goals:sidebar.assumptions.annual_investment_fee")}>
               {formatPercent(draft.investment.annualInvestmentFeeRate)}
             </ConfigRow>
-            <ConfigRow label="Effective before-retirement return">
+            <ConfigRow label={t("goals:sidebar.assumptions.effective_before_return")}>
               {formatPercent(effectivePreRetirementReturn)}
             </ConfigRow>
-            <ConfigRow label="Effective retirement return">
+            <ConfigRow label={t("goals:sidebar.assumptions.effective_retirement_return")}>
               {formatPercent(effectiveRetirementReturn)}
             </ConfigRow>
             <ConfigRow
               label={
-                <InfoLabel label="Annual volatility">
-                  How much yearly returns can vary around the expected return. Higher volatility
-                  widens the market-path outcome range.
+                <InfoLabel label={t("goals:sidebar.assumptions.annual_volatility")}>
+                  {t("goals:sidebar.assumptions.annual_volatility_tip")}
                 </InfoLabel>
               }
             >
               {formatPercent(draft.investment.annualVolatility)}
             </ConfigRow>
-            <ConfigRow label="Inflation">{formatPercent(draft.investment.inflationRate)}</ConfigRow>
+            <ConfigRow label={t("goals:sidebar.assumptions.inflation")}>
+              {formatPercent(draft.investment.inflationRate)}
+            </ConfigRow>
             {draft.investment.contributionGrowthRate > 0 && (
-              <ConfigRow label="Contribution growth per year">
+              <ConfigRow label={t("goals:sidebar.assumptions.contribution_growth_per_year")}>
                 {formatPercent(draft.investment.contributionGrowthRate)}
               </ConfigRow>
             )}
@@ -1337,7 +1397,7 @@ export function SidebarConfigurator({
         editContent={
           <div className="divide-border -my-1 divide-y">
             <LeverRow
-              label="Return before retirement"
+              label={t("goals:sidebar.assumptions.return_before_retirement")}
               value={draft.investment.preRetirementAnnualReturn}
               onChange={(v) => setInvestment("preRetirementAnnualReturn", v)}
               min={0}
@@ -1354,7 +1414,7 @@ export function SidebarConfigurator({
               warning={highReturnWarning(draft.investment.preRetirementAnnualReturn)}
             />
             <LeverRow
-              label="Return during retirement"
+              label={t("goals:sidebar.assumptions.return_during_retirement")}
               value={draft.investment.retirementAnnualReturn}
               onChange={(v) => setInvestment("retirementAnnualReturn", v)}
               min={0}
@@ -1371,7 +1431,7 @@ export function SidebarConfigurator({
               warning={highReturnWarning(draft.investment.retirementAnnualReturn)}
             />
             <LeverRow
-              label="Annual investment fee"
+              label={t("goals:sidebar.assumptions.annual_investment_fee")}
               value={draft.investment.annualInvestmentFeeRate}
               onChange={(v) => setInvestment("annualInvestmentFeeRate", v)}
               min={0}
@@ -1385,13 +1445,12 @@ export function SidebarConfigurator({
               step={0.0005}
               suffix="%"
               format={(v) => (v * 100).toFixed(2)}
-              warning={highFeeWarning(draft.investment.annualInvestmentFeeRate)}
+              warning={highFeeWarning(draft.investment.annualInvestmentFeeRate, t)}
             />
             <LeverRow
               label={
-                <InfoLabel label="Annual volatility">
-                  How much yearly returns can vary around the expected return. Higher volatility
-                  widens the market-path outcome range.
+                <InfoLabel label={t("goals:sidebar.assumptions.annual_volatility")}>
+                  {t("goals:sidebar.assumptions.annual_volatility_tip")}
                 </InfoLabel>
               }
               value={draft.investment.annualVolatility}
@@ -1407,10 +1466,10 @@ export function SidebarConfigurator({
               step={0.005}
               suffix="%"
               format={(v) => (v * 100).toFixed(1)}
-              warning={highVolatilityWarning(draft.investment.annualVolatility)}
+              warning={highVolatilityWarning(draft.investment.annualVolatility, t)}
             />
             <LeverRow
-              label="Inflation"
+              label={t("goals:sidebar.assumptions.inflation")}
               value={draft.investment.inflationRate}
               onChange={(v) => setInvestment("inflationRate", v)}
               min={0}
@@ -1424,10 +1483,10 @@ export function SidebarConfigurator({
               step={0.001}
               suffix="%"
               format={(v) => (v * 100).toFixed(1)}
-              warning={highInflationWarning(draft.investment.inflationRate)}
+              warning={highInflationWarning(draft.investment.inflationRate, t)}
             />
             <LeverRow
-              label="Contribution growth per year"
+              label={t("goals:sidebar.assumptions.contribution_growth_per_year")}
               value={draft.investment.contributionGrowthRate}
               onChange={(v) => setInvestment("contributionGrowthRate", v)}
               min={0}
@@ -1441,7 +1500,7 @@ export function SidebarConfigurator({
               step={0.001}
               suffix="%"
               format={(v) => (v * 100).toFixed(1)}
-              warning={highContributionGrowthWarning(draft.investment.contributionGrowthRate)}
+              warning={highContributionGrowthWarning(draft.investment.contributionGrowthRate, t)}
             />
           </div>
         }
@@ -1449,8 +1508,8 @@ export function SidebarConfigurator({
 
       {/* ── Tax ── */}
       <SidebarCard
-        kicker="Taxes"
-        title="Withdrawal Taxes"
+        kicker={t("goals:sidebar.taxes.kicker")}
+        title={t("goals:sidebar.taxes.title")}
         editing={editingSection === "tax"}
         onEdit={() => setEditingSection("tax")}
         onSave={saveDraft}
@@ -1461,10 +1520,8 @@ export function SidebarConfigurator({
             <div className="divide-border divide-y">
               <ConfigRow
                 label={
-                  <InfoLabel label="Taxable account rate">
-                    Effective tax rate applied when the planner withdraws from regular taxable or
-                    non-registered accounts. Higher rates increase gross withdrawals and can delay
-                    FI.
+                  <InfoLabel label={t("goals:sidebar.taxes.taxable_account_rate")}>
+                    {t("goals:sidebar.taxes.taxable_account_rate_tip")}
                   </InfoLabel>
                 }
               >
@@ -1472,10 +1529,8 @@ export function SidebarConfigurator({
               </ConfigRow>
               <ConfigRow
                 label={
-                  <InfoLabel label="Tax-deferred account rate">
-                    Effective tax rate applied to RRSP, IRA, pension, or similar tax-deferred
-                    withdrawals. The planner grosses up withdrawals so spending is funded after
-                    taxes.
+                  <InfoLabel label={t("goals:sidebar.taxes.tax_deferred_account_rate")}>
+                    {t("goals:sidebar.taxes.tax_deferred_account_rate_tip")}
                   </InfoLabel>
                 }
               >
@@ -1483,9 +1538,8 @@ export function SidebarConfigurator({
               </ConfigRow>
               <ConfigRow
                 label={
-                  <InfoLabel label="Tax-free account rate">
-                    Effective tax rate applied to TFSA, Roth, or similar tax-free withdrawals. This
-                    is usually 0%.
+                  <InfoLabel label={t("goals:sidebar.taxes.tax_free_account_rate")}>
+                    {t("goals:sidebar.taxes.tax_free_account_rate_tip")}
                   </InfoLabel>
                 }
               >
@@ -1493,9 +1547,8 @@ export function SidebarConfigurator({
               </ConfigRow>
               <ConfigRow
                 label={
-                  <InfoLabel label="Early withdrawal penalty">
-                    Extra penalty applied to tax-deferred withdrawals before the cutoff age. Use 0%
-                    when the country or account wrapper has no early-withdrawal penalty.
+                  <InfoLabel label={t("goals:sidebar.taxes.early_withdrawal_penalty")}>
+                    {t("goals:sidebar.taxes.early_withdrawal_penalty_tip")}
                   </InfoLabel>
                 }
               >
@@ -1504,9 +1557,8 @@ export function SidebarConfigurator({
               {(draft.tax?.earlyWithdrawalPenaltyRate ?? 0) > 0 && (
                 <ConfigRow
                   label={
-                    <InfoLabel label="Penalty cutoff age">
-                      Age when the early-withdrawal penalty stops applying to tax-deferred
-                      withdrawals.
+                    <InfoLabel label={t("goals:sidebar.taxes.penalty_cutoff_age")}>
+                      {t("goals:sidebar.taxes.penalty_cutoff_age_tip_read")}
                     </InfoLabel>
                   }
                 >
@@ -1516,10 +1568,8 @@ export function SidebarConfigurator({
               {averageWithdrawalTaxRate > 0 && (
                 <ConfigRow
                   label={
-                    <InfoLabel label="Estimated average withdrawal tax">
-                      Weighted average tax rate based on included account balances and each account
-                      bucket's withdrawal tax rate. This is a portfolio-level estimate; yearly
-                      withdrawals still follow the withdrawal order.
+                    <InfoLabel label={t("goals:sidebar.taxes.estimated_avg_withdrawal_tax")}>
+                      {t("goals:sidebar.taxes.estimated_avg_withdrawal_tax_tip")}
                     </InfoLabel>
                   }
                 >
@@ -1531,29 +1581,27 @@ export function SidebarConfigurator({
             {taxBucketBalances && taxBucketTotal > 0 && (
               <div className="border-t pt-3">
                 <p className="text-muted-foreground mb-1.5 flex items-center gap-1 text-[10px] uppercase tracking-wider">
-                  Account buckets
+                  {t("goals:sidebar.taxes.account_buckets")}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
                         className="text-muted-foreground/70 hover:text-foreground rounded-full transition-colors"
-                        aria-label="More info about account tax buckets"
+                        aria-label={t("goals:sidebar.taxes.account_buckets_aria")}
                       >
                         <Icons.Info className="h-3 w-3" />
                       </button>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs text-xs">
-                      Value-weighted account shares used by the withdrawal engine. These come from
-                      the Account Shares section, not from the tax rate fields above.
+                      {t("goals:sidebar.taxes.account_buckets_tip")}
                     </TooltipContent>
                   </Tooltip>
                 </p>
                 <div className="divide-border divide-y">
                   <ConfigRow
                     label={
-                      <InfoLabel label="Taxable bucket">
-                        Portion of the retirement portfolio assigned to taxable or non-registered
-                        accounts.
+                      <InfoLabel label={t("goals:sidebar.taxes.taxable_bucket")}>
+                        {t("goals:sidebar.taxes.taxable_bucket_tip")}
                       </InfoLabel>
                     }
                   >
@@ -1564,9 +1612,8 @@ export function SidebarConfigurator({
                   </ConfigRow>
                   <ConfigRow
                     label={
-                      <InfoLabel label="Tax-deferred bucket">
-                        Portion assigned to tax-deferred accounts such as RRSP, IRA, or pension-like
-                        accounts.
+                      <InfoLabel label={t("goals:sidebar.taxes.tax_deferred_bucket")}>
+                        {t("goals:sidebar.taxes.tax_deferred_bucket_tip")}
                       </InfoLabel>
                     }
                   >
@@ -1577,8 +1624,8 @@ export function SidebarConfigurator({
                   </ConfigRow>
                   <ConfigRow
                     label={
-                      <InfoLabel label="Tax-free bucket">
-                        Portion assigned to tax-free accounts such as TFSA or Roth-style accounts.
+                      <InfoLabel label={t("goals:sidebar.taxes.tax_free_bucket")}>
+                        {t("goals:sidebar.taxes.tax_free_bucket_tip")}
                       </InfoLabel>
                     }
                   >
@@ -1593,8 +1640,7 @@ export function SidebarConfigurator({
 
             {allTaxRatesZero && taxBucketTotal > 0 && (
               <p className="text-muted-foreground text-[10px]">
-                Account bucket tags are applied, but 0% withdrawal rates mean no tax drag is
-                modeled.
+                {t("goals:sidebar.taxes.zero_rates_note")}
               </p>
             )}
           </div>
@@ -1603,9 +1649,8 @@ export function SidebarConfigurator({
           <div className="divide-border -my-1 divide-y">
             <LeverRow
               label={
-                <InfoLabel label="Taxable account rate">
-                  Effective tax rate applied when withdrawing from taxable or non-registered
-                  accounts.
+                <InfoLabel label={t("goals:sidebar.taxes.taxable_account_rate")}>
+                  {t("goals:sidebar.taxes.taxable_account_rate_edit_tip")}
                 </InfoLabel>
               }
               value={draft.tax?.taxableWithdrawalRate ?? 0}
@@ -1618,8 +1663,8 @@ export function SidebarConfigurator({
             />
             <LeverRow
               label={
-                <InfoLabel label="Tax-deferred account rate">
-                  Effective tax rate applied to RRSP, IRA, pension, or similar withdrawals.
+                <InfoLabel label={t("goals:sidebar.taxes.tax_deferred_account_rate")}>
+                  {t("goals:sidebar.taxes.tax_deferred_account_rate_edit_tip")}
                 </InfoLabel>
               }
               value={draft.tax?.taxDeferredWithdrawalRate ?? 0}
@@ -1632,8 +1677,8 @@ export function SidebarConfigurator({
             />
             <LeverRow
               label={
-                <InfoLabel label="Tax-free account rate">
-                  Effective tax rate applied to TFSA, Roth, or similar withdrawals. Usually 0%.
+                <InfoLabel label={t("goals:sidebar.taxes.tax_free_account_rate")}>
+                  {t("goals:sidebar.taxes.tax_free_account_rate_edit_tip")}
                 </InfoLabel>
               }
               value={draft.tax?.taxFreeWithdrawalRate ?? 0}
@@ -1646,11 +1691,11 @@ export function SidebarConfigurator({
             />
             <LeverRow
               label={
-                <InfoLabel label="Early withdrawal penalty">
-                  Extra penalty applied to tax-deferred withdrawals before the cutoff age.
+                <InfoLabel label={t("goals:sidebar.taxes.early_withdrawal_penalty")}>
+                  {t("goals:sidebar.taxes.early_withdrawal_penalty_edit_tip")}
                 </InfoLabel>
               }
-              hint="Leave at 0% unless your jurisdiction applies an early-withdrawal penalty (e.g. US 10% before 59½). Canadian RRSPs don't use a separate penalty."
+              hint={t("goals:sidebar.taxes.early_withdrawal_penalty_hint")}
               value={draft.tax?.earlyWithdrawalPenaltyRate ?? 0}
               onChange={(v) => setTax("earlyWithdrawalPenaltyRate", v)}
               min={0}
@@ -1661,9 +1706,8 @@ export function SidebarConfigurator({
             />
             <LeverRow
               label={
-                <InfoLabel label="Penalty cutoff age">
-                  Age when the early-withdrawal penalty stops applying. The tax rate above still
-                  applies after this age.
+                <InfoLabel label={t("goals:sidebar.taxes.penalty_cutoff_age")}>
+                  {t("goals:sidebar.taxes.penalty_cutoff_age_edit_tip")}
                 </InfoLabel>
               }
               value={draft.tax?.earlyWithdrawalPenaltyAge ?? 59}

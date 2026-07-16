@@ -1,0 +1,11 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "accounts": [],
+    "baseCurrency": "USD",
+    "grandTotalBase": 0.0
+  }
+}

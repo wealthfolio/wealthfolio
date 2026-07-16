@@ -10,6 +10,7 @@ export const useAssetProfileMutations = () => {
     queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS] });
     queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA, assetId] });
     queryClient.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] });
+    queryClient.invalidateQueries({ queryKey: [QueryKeys.CURRENT_VALUATION] });
     toast({
       title: message,
       variant: "success",

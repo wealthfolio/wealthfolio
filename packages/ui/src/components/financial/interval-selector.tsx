@@ -1,4 +1,5 @@
 import { AnimatedToggleGroup } from "../ui/animated-toggle-group";
+import { useTranslation } from "react-i18next";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { usePersistentState } from "../../hooks/use-persistent-state";
 import { cn } from "../../lib/utils";
@@ -102,6 +103,7 @@ const IntervalSelector: React.FC<IntervalSelectorProps> = ({
   storageKey,
   onHaptic,
 }) => {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   // State for selection - persisted or local
   const [persistedValue, setPersistedValue] = usePersistentState<TimePeriod>(
@@ -131,8 +133,8 @@ const IntervalSelector: React.FC<IntervalSelectorProps> = ({
 
   const items = intervals.map((interval) => ({
     value: interval.code,
-    label: interval.code,
-    title: interval.description,
+    label: t("ui:interval.label." + interval.code, interval.code),
+    title: t("ui:interval." + interval.code, interval.description),
   }));
 
   return (

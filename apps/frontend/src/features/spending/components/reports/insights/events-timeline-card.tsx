@@ -3,6 +3,7 @@
  * 4-cell summary strip below. The mobile alternative is `events-calendar-card`.
  */
 import { useEffect, useMemo, useRef, useState, type FC } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   Button,
@@ -56,6 +57,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
   onPrevWindow,
   onNextWindow,
 }) => {
+  const { t: tr } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const { openEventDialog } = useEventDialog();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -213,7 +215,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
       const c = getEventColors(ev);
       map.set(ev.eventTypeId, {
         id: ev.eventTypeId,
-        name: ev.eventTypeName ?? "Event",
+        name: ev.eventTypeName ?? tr("spending:eventsCard.title"),
         stroke: c.stroke,
         fill: c.fill,
       });
@@ -226,10 +228,14 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
       {/* HEADER */}
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="text-foreground text-base font-semibold tracking-tight">Events</div>
+          <div className="text-foreground text-base font-semibold tracking-tight">
+            {tr("spending:eventsCard.title")}
+          </div>
           <div className="text-muted-foreground/80 mt-0.5 text-[11px]">
-            {events.length} tagged event{events.length === 1 ? "" : "s"} across{" "}
-            {computed.totalEventDays} days · click any band to inspect
+            {tr("spending:timeline.headerSummary", {
+              events: tr("spending:timeline.taggedEvents", { count: events.length }),
+              days: computed.totalEventDays,
+            })}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -251,21 +257,21 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
                 <Button
                   variant="outline"
                   size="icon"
-                  aria-label="Previous period"
+                  aria-label={tr("spending:timeline.previousPeriod")}
                   className="h-7 w-7 rounded-full"
                   onClick={onPrevWindow}
                 >
                   <Icons.ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Previous period</TooltipContent>
+              <TooltipContent>{tr("spending:timeline.previousPeriod")}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="outline"
                   size="icon"
-                  aria-label="Next period"
+                  aria-label={tr("spending:timeline.nextPeriod")}
                   className="h-7 w-7 rounded-full"
                   onClick={onNextWindow}
                   disabled={windowOffset === 0}
@@ -274,7 +280,9 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {windowOffset === 0 ? "Already at current period" : "Next period"}
+                {windowOffset === 0
+                  ? tr("spending:timeline.alreadyCurrent")
+                  : tr("spending:timeline.nextPeriod")}
               </TooltipContent>
             </Tooltip>
           </div>
@@ -283,7 +291,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
               <Button
                 variant="outline"
                 size="icon"
-                aria-label="Create event"
+                aria-label={tr("spending:events.createEvent")}
                 className="h-7 w-7 rounded-full"
                 onClick={() =>
                   openEventDialog({
@@ -295,7 +303,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
                 <Icons.Plus className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Create event</TooltipContent>
+            <TooltipContent>{tr("spending:events.createEvent")}</TooltipContent>
           </Tooltip>
         </div>
       </div>
@@ -526,7 +534,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
               />
               <circle cx={todayX} cy={4} r={3} fill="var(--event-today)" />
               <text x={todayX + 6} y={14} fontSize={9.5} fontWeight={600} fill="var(--event-today)">
-                TODAY
+                {tr("spending:timeline.today")}
               </text>
             </>
           )}
@@ -542,7 +550,8 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
             textAnchor="end"
             className="fill-muted-foreground"
           >
-            {formatBookendDate(rangeEnd)} · {periodDays} DAYS
+            {formatBookendDate(rangeEnd)} ·{" "}
+            {tr("spending:timeline.daysUpper", { count: periodDays })}
           </text>
           <text
             x={padL + innerW / 2}
@@ -551,23 +560,25 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
             textAnchor="middle"
             className="fill-muted-foreground/70"
           >
-            DAILY SPEND
+            {tr("spending:timeline.dailySpend")}
           </text>
         </svg>
       </div>
 
       {/* Summary strip */}
       <div className="border-border/40 mt-3 grid grid-cols-2 gap-x-0 gap-y-3 border-t pt-3 md:grid-cols-4">
-        <SummaryCell label={`ACROSS ${events.length} EVENT${events.length === 1 ? "" : "S"}`}>
+        <SummaryCell label={tr("spending:timeline.acrossEvents", { count: events.length })}>
           <div className="text-foreground text-sm font-semibold tabular-nums tracking-tight">
             <PrivacyAmount value={computed.totalSpent} currency={currency} />
           </div>
           <div className="text-muted-foreground/80 mt-0.5 text-[10px]">
-            {computed.totalEventDays} event-days ·{" "}
-            {Math.round((computed.totalEventDays / periodDays) * 100)}% of period
+            {tr("spending:timeline.eventDaysOfPeriod", {
+              days: computed.totalEventDays,
+              pct: Math.round((computed.totalEventDays / periodDays) * 100),
+            })}
           </div>
         </SummaryCell>
-        <SummaryCell label="COMBINED LIFT" divided>
+        <SummaryCell label={tr("spending:timeline.combinedLift")} divided>
           <div
             className={cn(
               "text-sm font-semibold tabular-nums tracking-tight",
@@ -578,11 +589,11 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
             <PrivacyAmount value={Math.abs(computed.lift)} currency={currency} />
           </div>
           <div className="text-muted-foreground/80 mt-0.5 text-[10px]">
-            on event days, vs normal pace
+            {tr("spending:timeline.onEventDays")}
           </div>
         </SummaryCell>
         {biggest && (
-          <SummaryCell label="BIGGEST EVENT" divided>
+          <SummaryCell label={tr("spending:timeline.biggestEvent")} divided>
             <div className="text-foreground truncate text-sm font-semibold tracking-tight">
               {biggest.eventName}
             </div>
@@ -592,7 +603,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
           </SummaryCell>
         )}
         {selected && (
-          <SummaryCell label="SELECTED" divided>
+          <SummaryCell label={tr("spending:timeline.selected")} divided>
             <div className="mt-0.5 inline-flex items-center gap-2">
               <span
                 className="inline-block h-2 w-2 shrink-0 rounded-[2px]"

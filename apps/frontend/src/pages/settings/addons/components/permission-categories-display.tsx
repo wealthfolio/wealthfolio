@@ -1,7 +1,8 @@
 import type { FunctionPermission, Permission } from "@/adapters";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
+import { useTranslation } from "react-i18next";
 import { getFunctionDisplayName } from "@/pages/settings/addons/components/addon-function-names";
-import { getPermissionCategory } from "@wealthfolio/addon-sdk";
+import { getPermissionCategory, isBaselineCategory } from "@wealthfolio/addon-sdk";
 
 interface PermissionForDisplay {
   category: string;
@@ -40,21 +41,28 @@ const getFunctionBadgeVariant = (func: FunctionPermission) => {
 };
 
 export function PermissionCategoriesDisplay({ permissions }: PermissionCategoriesDisplayProps) {
-  if (permissions.length === 0) {
+  const { t } = useTranslation();
+
+  // Hide implicit baseline capabilities (ui/query/toast/logger/storage) — they
+  // carry no user-data or external-access risk and are not consented, so legacy
+  // manifests that still declare them must not render stray badges here.
+  const consentedPermissions = permissions.filter((p) => !isBaselineCategory(p.category));
+
+  if (consentedPermissions.length === 0) {
     return (
       <div className="text-muted-foreground bg-muted/30 rounded-lg p-3 text-sm">
-        No data access permissions detected. This addon appears to have minimal system access.
+        {t("settings:addon_permission_none_detected")}
       </div>
     );
   }
 
   // Convert SDK permissions to display format
-  const displayPermissions = permissions.map(convertToDisplayPermission);
+  const displayPermissions = consentedPermissions.map(convertToDisplayPermission);
 
   return (
     <div className="space-y-4">
       <div className="space-y-3">
-        <h4 className="font-medium">Permissions</h4>
+        <h4 className="font-medium">{t("settings:addon_permission_list_title")}</h4>
         <div className="max-h-[400px] space-y-2 overflow-y-auto pr-2">
           {displayPermissions.map((permission) => (
             <div

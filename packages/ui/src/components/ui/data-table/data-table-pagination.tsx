@@ -4,12 +4,14 @@ import { Input } from "../input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../select";
 import type { Table } from "@tanstack/react-table";
 import { KeyboardEvent, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
 }
 
 export function DataTablePagination<TData>({ table }: DataTablePaginationProps<TData>) {
+  const { t } = useTranslation();
   const [pageInput, setPageInput] = useState<string>("");
 
   const totalRows = table.getFilteredRowModel().rows.length;
@@ -47,18 +49,18 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
       <div className="text-muted-foreground text-center text-sm sm:text-left">
         <p className="flex items-center justify-center gap-1 sm:justify-start">
           {totalRows === 0 ? (
-            <span>No results</span>
+            <span>{t("ui:dataTable.noResults", "No results")}</span>
           ) : (
             <>
-              <span className="hidden sm:inline">Showing</span>
+              <span className="hidden sm:inline">{t("ui:dataTable.showing", "Showing")}</span>
               <span className="text-foreground font-medium">{startRow}</span>
-              <span className="hidden sm:inline">to</span>
+              <span className="hidden sm:inline">{t("ui:dataTable.to", "to")}</span>
               <span className="sm:hidden">-</span>
               <span className="text-foreground font-medium">{endRow}</span>
-              <span className="hidden sm:inline">of</span>
+              <span className="hidden sm:inline">{t("ui:dataTable.of", "of")}</span>
               <span className="sm:hidden">/</span>
               <span className="text-foreground font-medium">{totalRows}</span>
-              <span className="hidden sm:inline">results</span>
+              <span className="hidden sm:inline">{t("ui:dataTable.results", "results")}</span>
             </>
           )}
         </p>
@@ -69,8 +71,8 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
         {/* Rows per page selector */}
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium">
-            <span className="hidden sm:inline">Rows per page</span>
-            <span className="sm:hidden">Show</span>
+            <span className="hidden sm:inline">{t("ui:dataTable.rowsPerPage", "Rows per page")}</span>
+            <span className="sm:hidden">{t("ui:dataTable.show", "Show")}</span>
           </p>
           <Select
             value={`${pageSize}`}
@@ -103,10 +105,10 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
             onBlur={handleBlur}
             placeholder={`${currentPage}`}
             className="h-9 w-[60px] text-center sm:h-8"
-            title={`Enter a page number between 1 and ${totalPages}`}
+            title={t("ui:dataTable.jumpToPage", "Enter a page number between 1 and {{totalPages}}", { totalPages })}
           />
           <span className="text-muted-foreground whitespace-nowrap text-sm">
-            <span className="hidden sm:inline">of</span>
+            <span className="hidden sm:inline">{t("ui:dataTable.of", "of")}</span>
             <span className="sm:hidden">/</span> {totalPages}
           </span>
         </div>
@@ -120,9 +122,9 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
             className="hover:bg-muted hidden h-9 w-9 transition-colors sm:flex sm:h-8 sm:w-8"
             onClick={() => table.setPageIndex(0)}
             disabled={!table.getCanPreviousPage()}
-            title="Go to first page"
+            title={t("ui:dataTable.firstPage", "Go to first page")}
           >
-            <span className="sr-only">Go to first page</span>
+            <span className="sr-only">{t("ui:dataTable.firstPage", "Go to first page")}</span>
             <Icons.ChevronsLeft className="h-4 w-4" />
           </Button>
           {/* Previous page */}
@@ -132,9 +134,9 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
             className="hover:bg-muted h-9 w-9 transition-colors sm:h-8 sm:w-8"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            title="Previous page"
+            title={t("ui:dataTable.previousPage", "Previous page")}
           >
-            <span className="sr-only">Go to previous page</span>
+            <span className="sr-only">{t("ui:dataTable.previousPageFull", "Go to previous page")}</span>
             <Icons.ChevronLeft className="h-4 w-4" />
           </Button>
           {/* Next page */}
@@ -144,9 +146,9 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
             className="hover:bg-muted h-9 w-9 transition-colors sm:h-8 sm:w-8"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            title="Next page"
+            title={t("ui:dataTable.nextPage", "Next page")}
           >
-            <span className="sr-only">Go to next page</span>
+            <span className="sr-only">{t("ui:dataTable.nextPageFull", "Go to next page")}</span>
             <Icons.ChevronRight className="h-4 w-4" />
           </Button>
           {/* Last page - hidden on mobile */}
@@ -156,9 +158,9 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
             className="hover:bg-muted hidden h-9 w-9 transition-colors sm:flex sm:h-8 sm:w-8"
             onClick={() => table.setPageIndex(table.getPageCount() - 1)}
             disabled={!table.getCanNextPage()}
-            title="Go to last page"
+            title={t("ui:dataTable.lastPage", "Go to last page")}
           >
-            <span className="sr-only">Go to last page</span>
+            <span className="sr-only">{t("ui:dataTable.lastPage", "Go to last page")}</span>
             <Icons.ChevronsRight className="h-4 w-4" />
           </Button>
         </div>

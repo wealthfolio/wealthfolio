@@ -4,10 +4,48 @@ import {
   validateActivityImport,
   normalizeNumericValue,
   parseAndAbsoluteValue,
+  validateTickerSymbol,
 } from "./validation-utils";
 import { ImportFormat, ActivityType, ImportType } from "@/lib/types";
 
 describe("validation-utils", () => {
+  describe("validateTickerSymbol (length)", () => {
+    it("accepts common ticker formats", () => {
+      expect(validateTickerSymbol("AAPL")).toBe(true);
+      expect(validateTickerSymbol("CASH:USD")).toBe(true);
+      expect(validateTickerSymbol("BRK.B")).toBe(true);
+    });
+
+    it("accepts symbols longer than the old 20/21 cap (issue #1145)", () => {
+      expect(validateTickerSymbol("A".repeat(21))).toBe(true);
+      expect(validateTickerSymbol("A".repeat(50))).toBe(true);
+      expect(validateTickerSymbol("A".repeat(100))).toBe(true);
+    });
+
+    it("still rejects symbols beyond the 100-char bound", () => {
+      expect(validateTickerSymbol("A".repeat(101))).toBe(false);
+    });
+
+    it("bounds the full symbol, not just the first segment", () => {
+      // The 100-char limit must apply to the whole symbol including suffixes.
+      expect(validateTickerSymbol("A".repeat(100) + ".B")).toBe(false);
+      expect(validateTickerSymbol("A".repeat(98) + "-" + "B".repeat(50))).toBe(false);
+    });
+
+    it("accepts underscores used by custom-provider symbols", () => {
+      expect(validateTickerSymbol("GOLD_KRUGERRAND")).toBe(true);
+      expect(validateTickerSymbol("XAU_1OZ")).toBe(true);
+      // underscores are allowed in suffix segments too, not just the first token
+      expect(validateTickerSymbol("FUND.CLASS_A")).toBe(true);
+      expect(validateTickerSymbol("ABC-DEF_GHI")).toBe(true);
+    });
+
+    it("still rejects free-text/whitespace garbage", () => {
+      expect(validateTickerSymbol("bad symbol")).toBe(false);
+      expect(validateTickerSymbol("Some Company Inc.")).toBe(false);
+    });
+  });
+
   describe("normalizeNumericValue", () => {
     it("should handle currency symbols", () => {
       expect(normalizeNumericValue("$48.945")).toBe(48.945);
@@ -95,11 +133,13 @@ describe("validation-utils", () => {
         [ImportFormat.UNIT_PRICE]: "unitPrice",
         [ImportFormat.AMOUNT]: "amount",
         [ImportFormat.FEE]: "fee",
+        [ImportFormat.TAX]: "tax",
         [ImportFormat.CURRENCY]: "currency",
       },
       activityMappings: {
         [ActivityType.BUY]: ["BUY"],
         [ActivityType.SELL]: ["SELL"],
+        [ActivityType.DIVIDEND]: ["DIVIDEND"],
         [ActivityType.DEPOSIT]: ["DEPOSIT"],
         [ActivityType.TAX]: ["TAX"],
         [ActivityType.FEE]: ["FEE"],
@@ -122,6 +162,7 @@ describe("validation-utils", () => {
           unitPrice: "-150.50",
           amount: "-1505.00",
           fee: "-5.00",
+          tax: "-2.00",
           currency: "USD",
         },
       ];
@@ -135,6 +176,7 @@ describe("validation-utils", () => {
       expect(activity.unitPrice).toBe(150.5);
       expect(activity.amount).toBe(1505); // quantity * unitPrice (10 * 150.50 = 1505)
       expect(activity.fee).toBe(5.0);
+      expect(activity.tax).toBe(2.0);
     });
 
     it("should apply symbol mappings using trimmed CSV symbol keys", () => {
@@ -180,6 +222,7 @@ describe("validation-utils", () => {
           unitPrice: "-300.00",
           amount: "-1500.00",
           fee: "-2.50",
+          tax: "-1.25",
           currency: "USD",
         },
       ];
@@ -193,6 +236,61 @@ describe("validation-utils", () => {
       expect(activity.unitPrice).toBe(300.0);
       expect(activity.amount).toBe(1500); // quantity * unitPrice
       expect(activity.fee).toBe(2.5);
+      expect(activity.tax).toBe(1.25);
+    });
+
+    it("should preserve dividend withholding tax", () => {
+      const testData = [
+        {
+          lineNumber: "1",
+          date: "2024-01-01T00:00:00.000Z",
+          symbol: "MSFT",
+          activityType: "DIVIDEND",
+          quantity: "1",
+          unitPrice: "0.75",
+          amount: "0.75",
+          fee: "0",
+          tax: "-0.11",
+          currency: "USD",
+        },
+      ];
+
+      const result = validateActivityImport(testData, testMapping, "test-account", "USD");
+
+      expect(result.activities).toHaveLength(1);
+      const activity = result.activities[0];
+
+      expect(activity.activityType).toBe(ActivityType.DIVIDEND);
+      expect(activity.amount).toBe(0.75);
+      expect(activity.tax).toBe(0.11);
+    });
+
+    it("should use a tax column as the cash amount for standalone TAX activities", () => {
+      const testData = [
+        {
+          lineNumber: "1",
+          date: "2024-01-01T00:00:00.000Z",
+          symbol: "",
+          activityType: "TAX",
+          quantity: "",
+          unitPrice: "",
+          amount: "",
+          fee: "0",
+          tax: "-58.22",
+          currency: "USD",
+        },
+      ];
+
+      const result = validateActivityImport(testData, testMapping, "test-account", "USD");
+
+      expect(result.activities).toHaveLength(1);
+      const activity = result.activities[0];
+
+      expect(activity.isValid).toBe(true);
+      expect(activity.activityType).toBe(ActivityType.TAX);
+      expect(activity.amount).toBe(58.22);
+      expect(activity.fee).toBe(0);
+      expect(activity.tax).toBe(0);
     });
 
     it("should convert negative values to positive for DEPOSIT activities", () => {

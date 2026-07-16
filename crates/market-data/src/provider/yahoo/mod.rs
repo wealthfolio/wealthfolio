@@ -31,7 +31,9 @@ use crate::models::{
 use crate::provider::{MarketDataProvider, ProviderCapabilities, RateLimit};
 use crate::resolver::{yahoo_equity_search_queries, yahoo_exchange_to_mic, ResolverChain};
 
-use models::{YahooQuoteSummaryResponse, YahooQuoteSummaryResult};
+use models::{
+    YahooPriceDetail, YahooQuoteSummaryResponse, YahooQuoteSummaryResult, YahooTopHoldings,
+};
 
 // ============================================================================
 // Crumb/Cookie Authentication
@@ -755,8 +757,8 @@ impl YahooProvider {
             symbol,
         );
 
-        // Build sector/sectors based on asset type
-        let (sector, sectors) = match quote_type_upper.as_str() {
+        // Build sector/sectors and asset allocation based on asset type
+        let (sector, sectors, asset_allocation) = match quote_type_upper.as_str() {
             "ETF" | "MUTUALFUND" => {
                 // For ETFs/Mutual Funds: extract sector weightings from topHoldings
                 let sectors_json = top_holdings.and_then(|th| {
@@ -783,14 +785,18 @@ impl YahooProvider {
                         serde_json::to_string(&sector_data).ok()
                     }
                 });
-                (None, sectors_json)
+                (
+                    None,
+                    sectors_json,
+                    top_holdings.and_then(asset_allocation_json),
+                )
             }
             _ => {
                 // For stocks: use single sector from summaryProfile
                 let sector = summary
                     .and_then(|s| s.sector.as_ref())
                     .map(|s| format_sector(s));
-                (sector, None)
+                (sector, None, None)
             }
         };
 
@@ -802,6 +808,7 @@ impl YahooProvider {
                 .map(|t| t.to_uppercase()),
             sector,
             sectors,
+            asset_allocation,
             industry: summary.and_then(|s| s.industry.clone()),
             website: summary.and_then(|s| s.website.clone()),
             description: summary
@@ -1200,6 +1207,40 @@ fn format_sector(sector: &str) -> String {
         .join(" ")
 }
 
+fn asset_allocation_json(top_holdings: &YahooTopHoldings) -> Option<String> {
+    let positions = [
+        ("stock", &top_holdings.stock_position),
+        ("bond", &top_holdings.bond_position),
+        ("cash", &top_holdings.cash_position),
+        ("preferred", &top_holdings.preferred_position),
+        ("convertible", &top_holdings.convertible_position),
+        ("other", &top_holdings.other_position),
+    ];
+
+    let allocation: Vec<serde_json::Value> = positions
+        .into_iter()
+        .filter_map(|(name, detail)| allocation_position(name, detail.as_ref()))
+        .collect();
+
+    if allocation.is_empty() {
+        None
+    } else {
+        serde_json::to_string(&allocation).ok()
+    }
+}
+
+fn allocation_position(name: &str, detail: Option<&YahooPriceDetail>) -> Option<serde_json::Value> {
+    let weight = detail?.raw?;
+    if !weight.is_finite() || weight <= 0.0 {
+        return None;
+    }
+
+    Some(serde_json::json!({
+        "name": name,
+        "weight": weight
+    }))
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -1247,6 +1288,30 @@ mod tests {
         assert_eq!(format_sector("consumer_cyclical"), "Consumer Cyclical");
     }
 
+    #[test]
+    fn test_asset_allocation_json() {
+        let holdings = YahooTopHoldings {
+            sector_weightings: Vec::new(),
+            stock_position: Some(YahooPriceDetail { raw: Some(0.60) }),
+            bond_position: Some(YahooPriceDetail { raw: Some(0.30) }),
+            cash_position: Some(YahooPriceDetail { raw: Some(0.0) }),
+            other_position: Some(YahooPriceDetail { raw: Some(0.10) }),
+            preferred_position: None,
+            convertible_position: None,
+        };
+
+        let json = asset_allocation_json(&holdings).unwrap();
+        let allocation: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(allocation.len(), 3);
+        assert_eq!(allocation[0]["name"], "stock");
+        assert_eq!(allocation[0]["weight"].as_f64(), Some(0.60));
+        assert_eq!(allocation[1]["name"], "bond");
+        assert_eq!(allocation[1]["weight"].as_f64(), Some(0.30));
+        assert_eq!(allocation[2]["name"], "other");
+        assert_eq!(allocation[2]["weight"].as_f64(), Some(0.10));
+    }
+
     fn create_test_context() -> QuoteContext {
         use crate::models::InstrumentId;
 
@@ -1255,6 +1320,7 @@ mod tests {
                 ticker: Arc::from("AAPL"),
                 mic: None,
             },
+            identifiers: Default::default(),
             overrides: None,
             currency_hint: Some(Cow::Borrowed("USD")),
             preferred_provider: None,
@@ -1274,6 +1340,7 @@ mod tests {
                 base: Cow::Borrowed("EUR"),
                 quote: Cow::Borrowed(quote),
             },
+            identifiers: Default::default(),
             overrides: None,
             currency_hint: currency_hint.map(Cow::Borrowed),
             preferred_provider: None,
@@ -1370,6 +1437,7 @@ mod tests {
                 ticker: Arc::from("BATS"),
                 mic: Some("XLON".into()),
             },
+            identifiers: Default::default(),
             currency_hint: Some(Cow::Borrowed("GBP")),
             overrides: None,
             preferred_provider: None,

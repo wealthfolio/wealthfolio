@@ -5,95 +5,77 @@ import { Label } from "@wealthfolio/ui/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@wealthfolio/ui/components/ui/radio-group";
 import { ExportDataType, ExportedFileFormat } from "@/lib/types";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useExportData } from "./use-export-data";
 
-const dataFormats = [
-  {
-    name: "CSV",
-    icon: Icons.FileCsv,
-    description: "Simple, widely compatible spreadsheet format",
-  },
-  {
-    name: "JSON",
-    icon: Icons.FileJson,
-    description: "Structured data for easy programmatic access",
-  },
-  {
-    name: "SQLite",
-    icon: Icons.Database,
-    description: "Compact, self-contained database file",
-  },
-];
-
-const dataTypes = {
-  CSV: [
-    {
-      key: "accounts",
-      name: "Accounts",
-      icon: Icons.Holdings,
-      description: "Your financial accounts",
-    },
-    {
-      key: "activities",
-      name: "Activities",
-      icon: Icons.Activity,
-      description: "Detailed transaction history and logs",
-    },
-    {
-      key: "goals",
-      name: "Goals",
-      icon: Icons.Goals,
-      description: "Financial objectives and progress tracking",
-    },
-    {
-      key: "portfolio-history",
-      name: "Portfolio History",
-      icon: Icons.Files,
-      description:
-        "Your portfolio's performance over time, including valuations, gains, and cash flow activities.",
-    },
-  ],
-  JSON: [
-    {
-      key: "accounts",
-      name: "Accounts",
-      icon: Icons.Holdings,
-      description: "Your financial accounts",
-    },
-    {
-      key: "activities",
-      name: "Activities",
-      icon: Icons.Activity,
-      description: "Detailed transaction history and logs",
-    },
-    {
-      key: "goals",
-      name: "Goals",
-      icon: Icons.Goals,
-      description: "Financial objectives and progress tracking",
-    },
-    {
-      key: "portfolio-history",
-      name: "Portfolio History",
-      icon: Icons.Files,
-      description:
-        "Your portfolio's performance over time, including valuations, gains, and cash flow activities.",
-    },
-  ],
-  SQLite: [
-    {
-      key: "full",
-      name: "Export the full SQLite Database",
-      icon: Icons.Database,
-      description: "Complete database backup with WAL/SHM files - choose your backup location",
-    },
-  ],
-};
-
 export const ExportForm = () => {
+  const { t } = useTranslation();
   const [selectedFormat, setSelectedFormat] = useState<string | undefined>();
 
   const { exportData, isExporting, exportingFormat, exportingData } = useExportData();
+
+  // `name` values (CSV/JSON/SQLite) are format identifiers used as radio values —
+  // do NOT translate those; only the descriptions/labels are localized.
+  const dataFormats = [
+    { name: "CSV", icon: Icons.FileCsv, description: t("settings:export_format_csv_description") },
+    {
+      name: "JSON",
+      icon: Icons.FileJson,
+      description: t("settings:export_format_json_description"),
+    },
+    {
+      name: "SQLite",
+      icon: Icons.Database,
+      description: t("settings:export_format_sqlite_description"),
+    },
+  ];
+
+  // CSV and JSON expose the same set of data types.
+  const csvJsonTypes = [
+    {
+      key: "accounts",
+      name: t("settings:accounts_title"),
+      icon: Icons.Holdings,
+      description: t("settings:export_type_accounts_description"),
+    },
+    {
+      key: "activities",
+      name: t("settings:export_type_activities"),
+      icon: Icons.Activity,
+      description: t("settings:export_type_activities_description"),
+    },
+    {
+      key: "holdings",
+      name: t("common:holdings"),
+      icon: Icons.Holdings,
+      description: t("settings:export_type_holdings_description"),
+    },
+    {
+      key: "goals",
+      name: t("settings:goals_title"),
+      icon: Icons.Goals,
+      description: t("settings:export_type_goals_description"),
+    },
+    {
+      key: "portfolio-history",
+      name: t("settings:export_type_portfolio_history"),
+      icon: Icons.Files,
+      description: t("settings:export_type_portfolio_history_description"),
+    },
+  ];
+
+  const dataTypes = {
+    CSV: csvJsonTypes,
+    JSON: csvJsonTypes,
+    SQLite: [
+      {
+        key: "full",
+        name: t("settings:export_type_full_database"),
+        icon: Icons.Database,
+        description: t("settings:export_type_full_database_description"),
+      },
+    ],
+  };
 
   const handleExport = (item: (typeof dataTypes)[ExportedFileFormat][number]) => {
     if (!selectedFormat) return;
@@ -107,7 +89,7 @@ export const ExportForm = () => {
   return (
     <>
       <div className="mt-8 px-2">
-        <h3 className="pb-3 pt-5 font-semibold">Choose Your Preferred Format</h3>
+        <h3 className="pb-3 pt-5 font-semibold">{t("settings:export_format_title")}</h3>
         <RadioGroup
           onValueChange={setSelectedFormat}
           className="grid grid-cols-1 gap-4 md:grid-cols-3"
@@ -132,7 +114,7 @@ export const ExportForm = () => {
 
       {selectedFormat && (
         <div className="px-2 pt-4">
-          <h3 className="pb-3 pt-5 font-semibold">Customize Your Export</h3>
+          <h3 className="pb-3 pt-5 font-semibold">{t("settings:export_customize_title")}</h3>
           {dataTypes[selectedFormat as keyof typeof dataTypes].map((item) => (
             <Card key={item.key} className="mb-4">
               <CardContent className="flex items-center justify-between p-4">
@@ -154,12 +136,16 @@ export const ExportForm = () => {
                   exportingData === item.key ? (
                     <>
                       <Icons.Spinner className="h-4 w-4 animate-spin" />
-                      <span className="sr-only">Exporting {item.name}...</span>
+                      <span className="sr-only">
+                        {t("settings:export_exporting_item", { name: item.name })}
+                      </span>
                     </>
                   ) : (
                     <>
                       <Icons.Download className="h-4 w-4" />
-                      <span className="sr-only">Export {item.name}</span>
+                      <span className="sr-only">
+                        {t("settings:export_export_item", { name: item.name })}
+                      </span>
                     </>
                   )}
                 </Button>

@@ -250,6 +250,22 @@ pub struct Account {
     pub tracking_mode: TrackingMode,
 }
 
+impl Account {
+    pub fn cash_allocation_category_id(&self) -> Option<String> {
+        let meta = self.meta.as_deref()?.trim();
+        if meta.is_empty() {
+            return None;
+        }
+        let parsed: serde_json::Value = serde_json::from_str(meta).ok()?;
+        parsed
+            .get("allocation")?
+            .get("cashCategoryId")?
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+    }
+}
+
 /// Input model for creating a new account.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

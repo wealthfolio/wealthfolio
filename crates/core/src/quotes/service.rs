@@ -3222,6 +3222,7 @@ mod tests {
             _date_from: Option<NaiveDate>,
             _date_to: Option<NaiveDate>,
             _instrument_type_filter: Option<Vec<String>>,
+            _activity_id_filter: Option<Vec<String>>,
         ) -> Result<crate::activities::ActivitySearchResponse> {
             unimplemented!("unused in this test")
         }

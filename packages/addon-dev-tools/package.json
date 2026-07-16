@@ -1,9 +1,10 @@
 {
   "name": "@wealthfolio/addon-dev-tools",
-  "version": "3.5.2",
+  "version": "3.6.3",
   "description": "Development tools for Wealthfolio addons - hot reload server and CLI",
   "main": "index.js",
   "bin": {
+    "wealthfolio-addon": "cli.js",
     "wealthfolio": "cli.js"
   },
   "keywords": [

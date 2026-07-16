@@ -8,37 +8,41 @@ Development tools for Wealthfolio addons including hot reload server and CLI.
 npm install -g @wealthfolio/addon-dev-tools
 ```
 
+> **Deprecation note:** the CLI command is now `wealthfolio-addon`. The old
+> `wealthfolio` alias still works but will be removed in a future release — the
+> `wealthfolio` name is reserved for the upcoming native Wealthfolio CLI.
+
 ## CLI Commands
 
 ### Create New Addon
 
 ```bash
-wealthfolio create my-awesome-addon
+wealthfolio-addon create my-awesome-addon
 ```
 
 ### Start Development Server
 
 ```bash
 # In your addon directory
-wealthfolio dev
+wealthfolio-addon dev
 ```
 
 ### Build Addon
 
 ```bash
-wealthfolio build
+wealthfolio-addon build
 ```
 
 ### Package for Distribution
 
 ```bash
-wealthfolio package
+wealthfolio-addon package
 ```
 
 ### Test Setup
 
 ```bash
-wealthfolio test
+wealthfolio-addon test
 ```
 
 ## Development Server
@@ -66,7 +70,7 @@ Add to your addon's `package.json`:
 ```json
 {
   "scripts": {
-    "dev:server": "wealthfolio dev"
+    "dev:server": "wealthfolio-addon dev"
   },
   "devDependencies": {
     "@wealthfolio/addon-dev-tools": "^1.0.0"

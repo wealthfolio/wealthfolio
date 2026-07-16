@@ -80,6 +80,47 @@ describe("import asset rules", () => {
     expect(key).toBe("SHOP::EQUITY::::XTSE::CAD::");
   });
 
+  it("omits default-sourced currency from asset preview candidates", () => {
+    const candidate = buildImportAssetCandidateFromDraft(
+      createDraft({
+        symbol: "VOD.L",
+        instrumentType: "EQUITY",
+        currency: "CAD",
+        currencySource: "default",
+      }),
+    );
+
+    expect(candidate?.currency).toBeUndefined();
+    expect(candidate?.key).toBe(
+      buildImportAssetCandidateKey({
+        accountId: "acc-1",
+        symbol: "VOD.L",
+        instrumentType: "EQUITY",
+      }),
+    );
+  });
+
+  it("keeps explicit CSV currency in asset preview candidates", () => {
+    const candidate = buildImportAssetCandidateFromDraft(
+      createDraft({
+        symbol: "VOD.L",
+        instrumentType: "EQUITY",
+        currency: "USD",
+        currencySource: "csv",
+      }),
+    );
+
+    expect(candidate?.currency).toBe("USD");
+    expect(candidate?.key).toBe(
+      buildImportAssetCandidateKey({
+        accountId: "acc-1",
+        symbol: "VOD.L",
+        instrumentType: "EQUITY",
+        quoteCcy: "USD",
+      }),
+    );
+  });
+
   it("keeps same-symbol provider variants distinct for asset preview", () => {
     const staleKey = buildImportAssetCandidateKey({
       accountId: "acc-1",

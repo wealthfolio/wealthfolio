@@ -103,8 +103,9 @@ async fn run_scheduled_sync(state: &Arc<AppState>) {
             if e.contains("No refresh token")
                 || e.contains("not authenticated")
                 || e.contains("Session expired")
+                || e.contains("Broker sync already running")
             {
-                debug!("Scheduled sync skipped: user not authenticated");
+                debug!("Scheduled sync skipped: {}", e);
             } else {
                 warn!("Scheduled broker sync failed: {}", e);
             }

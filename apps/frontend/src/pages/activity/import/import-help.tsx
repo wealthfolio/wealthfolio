@@ -1,4 +1,5 @@
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
@@ -19,88 +20,92 @@ import { downloadSampleCsv, downloadSampleHoldingsCsv } from "./utils/sample-csv
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ActivitiesHelpContent() {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <div className="space-y-4">
         <div>
-          <h4 className="text-lg font-semibold">Importing Account Activities</h4>
+          <h4 className="text-lg font-semibold">{t("activity:import.help.activitiesTitle")}</h4>
           <p className="text-muted-foreground mt-2 text-sm">
-            Import your account activities from CSV files with automatic data normalization and
-            flexible column mapping.
+            {t("activity:import.help.activitiesIntro")}
           </p>
         </div>
 
         <div>
-          <p className="font-semibold">Steps:</p>
+          <p className="font-semibold">{t("activity:import.help.stepsLabel")}</p>
           <ol className="mt-2 list-inside list-decimal space-y-1 text-sm">
             <li>
-              <strong>Upload</strong> — Select a built-in or custom format template, or upload your
-              CSV directly
+              <strong>{t("activity:import.help.activitiesStep1Bold")}</strong>
+              {t("activity:import.help.activitiesStep1")}
             </li>
             <li>
-              <strong>Mapping</strong> — Map CSV columns to fields, map activity types and symbols
-              to recognized values
+              <strong>{t("activity:import.help.activitiesStep2Bold")}</strong>
+              {t("activity:import.help.activitiesStep2")}
             </li>
             <li>
-              <strong>Review Assets</strong> — Review and resolve asset matches for imported symbols
+              <strong>{t("activity:import.help.activitiesStep3Bold")}</strong>
+              {t("activity:import.help.activitiesStep3")}
             </li>
             <li>
-              <strong>Review Activities</strong> — Validate, edit, skip, or fix activities inline
-              before importing
+              <strong>{t("activity:import.help.activitiesStep4Bold")}</strong>
+              {t("activity:import.help.activitiesStep4")}
             </li>
             <li>
-              <strong>Import</strong> — Confirm and import your activities
+              <strong>{t("activity:import.help.activitiesStep5Bold")}</strong>
+              {t("activity:import.help.activitiesStep5")}
             </li>
           </ol>
         </div>
 
         <div>
-          <p className="text-sm font-semibold">Required fields:</p>
+          <p className="text-sm font-semibold">{t("activity:import.help.requiredFields")}</p>
           <p className="text-muted-foreground mt-1 text-xs">
-            date, activityType, symbol, quantity, unitPrice, amount
+            {t("activity:import.help.activitiesRequiredFields")}
           </p>
-          <p className="mt-2 text-sm font-semibold">Optional fields:</p>
+          <p className="mt-2 text-sm font-semibold">{t("activity:import.help.optionalFields")}</p>
           <p className="text-muted-foreground mt-1 text-xs">
-            account, currency, fee, comment, fxRate, subtype, instrumentType, isin
+            {t("activity:import.help.activitiesOptionalFields")}
           </p>
         </div>
 
         <div className="space-y-3">
           <div className="border-blue-500 bg-blue-50 p-3 dark:bg-blue-900/50">
             <p className="text-sm">
-              <strong className="text-blue-700 dark:text-blue-300">💡 Tip:</strong> Column names and
-              activity types don&apos;t need to match exactly — you can map them during import.
-              Mappings can be saved as custom templates for future imports.
+              <strong className="text-blue-700 dark:text-blue-300">
+                {t("activity:import.help.tipBold")}
+              </strong>
+              {t("activity:import.help.activitiesTip")}
             </p>
           </div>
 
           <div className="border-green-500 bg-green-50 p-3 dark:bg-green-900/50">
             <p className="text-sm">
-              <strong className="text-green-700 dark:text-green-300">💰 Amount field:</strong> For
-              cash activities (DIVIDEND, DEPOSIT, WITHDRAWAL, TAX, FEE, INTEREST, TRANSFER_IN,
-              TRANSFER_OUT), amount is preferred when provided, otherwise calculated from quantity ×
-              unitPrice.
+              <strong className="text-green-700 dark:text-green-300">
+                {t("activity:import.help.amountBold")}
+              </strong>
+              {t("activity:import.help.activitiesAmount")}
             </p>
           </div>
 
           <div className="border-purple-500 bg-purple-50 p-3 dark:bg-purple-900/50">
             <p className="text-sm">
-              <strong className="text-purple-700 dark:text-purple-300">⚡ Auto-formatting:</strong>{" "}
-              Negative values, currency symbols ($, £, €), commas, and parentheses are automatically
-              handled. No manual data cleanup needed.
+              <strong className="text-purple-700 dark:text-purple-300">
+                {t("activity:import.help.autoFormattingBold")}
+              </strong>{" "}
+              {t("activity:import.help.activitiesAutoFormatting")}
             </p>
           </div>
         </div>
 
         <p className="text-xs">
-          For more details, see the{" "}
+          {t("activity:import.help.activitiesDocsPrefix")}
           <a
             href="https://wealthfolio.app/docs/concepts/activity-types"
             target="_blank"
             rel="noopener noreferrer"
             className="underline"
           >
-            Activity Reference documentation
+            {t("activity:import.help.activitiesDocsLink")}
           </a>
           .
         </p>
@@ -108,22 +113,26 @@ function ActivitiesHelpContent() {
 
       <div className="space-y-4">
         <div>
-          <p className="font-semibold">Example CSV format:</p>
+          <p className="font-semibold">{t("activity:import.help.exampleFormat")}</p>
           <pre className="bg-muted mt-2 select-all overflow-x-auto p-3 text-xs leading-relaxed">
-            <span className="text-muted-foreground"># Standard format:</span>
+            <span className="text-muted-foreground">
+              {t("activity:import.help.exampleStandard")}
+            </span>
             <br />
-            date,symbol,instrumentType,quantity,activityType,unitPrice,currency,fee,amount,fxRate,subtype
+            date,symbol,instrumentType,quantity,activityType,unitPrice,currency,fee,tax,amount,fxRate,subtype
             <br />
-            2024-01-15,MSFT,EQUITY,10,BUY,380.50,USD,4.95,,,
+            2024-01-15,MSFT,EQUITY,10,BUY,380.50,USD,4.95,0,,,
             <br />
-            2024-02-01,MSFT,EQUITY,1,DIVIDEND,0.75,USD,0,0.75,,QUALIFIED
+            2024-02-01,MSFT,EQUITY,1,DIVIDEND,0.75,USD,0,0.11,0.75,,QUALIFIED
             <br />
-            2024-02-15,,,1,DEPOSIT,1,USD,0,1000.00,,
+            2024-02-15,,,1,DEPOSIT,1,USD,0,0,1000.00,,
             <br />
-            2024-06-01,TD.TO,EQUITY,10,BUY,85.00,CAD,9.99,,1.36,
+            2024-06-01,TD.TO,EQUITY,10,BUY,85.00,CAD,9.99,0,,1.36,
             <br />
             <br />
-            <span className="text-muted-foreground"># With currency symbols (auto-parsed):</span>
+            <span className="text-muted-foreground">
+              {t("activity:import.help.exampleCurrencySymbols")}
+            </span>
             <br />
             06/27/2025,AAPL,25,SELL,$48.95,USD,,$1223.63,,
             <br />
@@ -137,12 +146,12 @@ function ActivitiesHelpContent() {
             onClick={downloadSampleCsv}
           >
             <Icons.Download className="h-4 w-4" />
-            Download Sample CSV
+            {t("activity:import.help.downloadSample")}
           </Button>
         </div>
 
         <div>
-          <p className="font-semibold">Supported Activity Types:</p>
+          <p className="font-semibold">{t("activity:import.help.supportedActivityTypes")}</p>
           <pre className="bg-muted mt-2 overflow-x-auto p-4 text-xs">
             <ul className="list-inside list-disc space-y-1">
               <li>BUY</li>
@@ -171,52 +180,57 @@ function ActivitiesHelpContent() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function HoldingsHelpContent() {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <div className="space-y-4">
         <div>
-          <h4 className="text-lg font-semibold">Importing Holdings Snapshots</h4>
+          <h4 className="text-lg font-semibold">{t("activity:import.help.holdingsTitle")}</h4>
           <p className="text-muted-foreground mt-2 text-sm">
-            Import point-in-time snapshots of your portfolio holdings. Each row represents a
-            position held on a specific date.
+            {t("activity:import.help.holdingsIntro")}
           </p>
         </div>
 
         <div>
-          <p className="font-semibold">Steps:</p>
+          <p className="font-semibold">{t("activity:import.help.stepsLabel")}</p>
           <ol className="mt-2 list-inside list-decimal space-y-1 text-sm">
-            <li>Ensure your CSV has headers with the required fields</li>
-            <li>Select account and upload your CSV file</li>
+            <li>{t("activity:import.help.holdingsStep1")}</li>
+            <li>{t("activity:import.help.holdingsStep2")}</li>
             <li>
-              Map CSV columns to fields:
+              {t("activity:import.help.holdingsStep3")}
               <span className="text-muted-foreground ml-2 text-xs">
-                date, symbol, quantity, avgCost, currency
+                {t("activity:import.help.holdingsStep3Fields")}
               </span>
             </li>
-            <li>Review grouped snapshots and import</li>
+            <li>{t("activity:import.help.holdingsStep4")}</li>
           </ol>
         </div>
 
         <div>
-          <p className="font-semibold">Required fields:</p>
+          <p className="font-semibold">{t("activity:import.help.requiredFields")}</p>
           <ul className="mt-2 list-inside list-disc space-y-1 text-sm">
             <li>
-              <strong>date</strong> — snapshot date (YYYY-MM-DD)
+              <strong>{t("activity:import.help.holdingsDateBold")}</strong>
+              {t("activity:import.help.holdingsDateDesc")}
             </li>
             <li>
-              <strong>symbol</strong> — ticker symbol (e.g. AAPL, MSFT)
+              <strong>{t("activity:import.help.holdingsSymbolBold")}</strong>
+              {t("activity:import.help.holdingsSymbolDesc")}
             </li>
             <li>
-              <strong>quantity</strong> — number of shares held
+              <strong>{t("activity:import.help.holdingsQuantityBold")}</strong>
+              {t("activity:import.help.holdingsQuantityDesc")}
             </li>
           </ul>
-          <p className="mt-3 font-semibold">Optional fields:</p>
+          <p className="mt-3 font-semibold">{t("activity:import.help.optionalFields")}</p>
           <ul className="mt-2 list-inside list-disc space-y-1 text-sm">
             <li>
-              <strong>avgCost</strong> — average cost per share
+              <strong>{t("activity:import.help.holdingsAvgCostBold")}</strong>
+              {t("activity:import.help.holdingsAvgCostDesc")}
             </li>
             <li>
-              <strong>currency</strong> — currency code (defaults to account currency)
+              <strong>{t("activity:import.help.holdingsCurrencyBold")}</strong>
+              {t("activity:import.help.holdingsCurrencyDesc")}
             </li>
           </ul>
         </div>
@@ -224,25 +238,30 @@ function HoldingsHelpContent() {
         <div className="space-y-3">
           <div className="border-blue-500 bg-blue-50 p-3 dark:bg-blue-900/50">
             <p className="text-sm">
-              <strong className="text-blue-700 dark:text-blue-300">💡 Tip:</strong> Column names are
-              auto-detected (e.g. &quot;ticker&quot; maps to symbol, &quot;shares&quot; maps to
-              quantity). You can adjust mappings during import.
+              <strong className="text-blue-700 dark:text-blue-300">
+                {t("activity:import.help.tipBold")}
+              </strong>
+              {t("activity:import.help.holdingsTip")}
             </p>
           </div>
 
           <div className="border-green-500 bg-green-50 p-3 dark:bg-green-900/50">
             <p className="text-sm">
-              <strong className="text-green-700 dark:text-green-300">💰 Cash balances:</strong> Use{" "}
-              <code className="bg-muted rounded px-1">$CASH</code> as the symbol to import cash
-              balances. The quantity represents the cash amount.
+              <strong className="text-green-700 dark:text-green-300">
+                {t("activity:import.help.cashBalancesBold")}
+              </strong>{" "}
+              {t("activity:import.help.holdingsCashBalancesUse")}{" "}
+              <code className="bg-muted rounded px-1">$CASH</code>
+              {t("activity:import.help.holdingsCashBalances")}
             </p>
           </div>
 
           <div className="border-purple-500 bg-purple-50 p-3 dark:bg-purple-900/50">
             <p className="text-sm">
-              <strong className="text-purple-700 dark:text-purple-300">⚡ Snapshots:</strong> Rows
-              with the same date are grouped into a single snapshot. Multiple snapshots across
-              different dates can be imported at once.
+              <strong className="text-purple-700 dark:text-purple-300">
+                {t("activity:import.help.snapshotsBold")}
+              </strong>
+              {t("activity:import.help.holdingsSnapshots")}
             </p>
           </div>
         </div>
@@ -250,9 +269,11 @@ function HoldingsHelpContent() {
 
       <div className="space-y-4">
         <div>
-          <p className="font-semibold">Example CSV format:</p>
+          <p className="font-semibold">{t("activity:import.help.exampleFormat")}</p>
           <pre className="bg-muted mt-2 select-all overflow-x-auto p-3 text-xs leading-relaxed">
-            <span className="text-muted-foreground"># Holdings snapshot:</span>
+            <span className="text-muted-foreground">
+              {t("activity:import.help.holdingsExampleSnapshot")}
+            </span>
             <br />
             date,symbol,quantity,avgCost,currency
             <br />
@@ -265,7 +286,9 @@ function HoldingsHelpContent() {
             2024-03-31,$CASH,5000,,USD
             <br />
             <br />
-            <span className="text-muted-foreground"># Multiple snapshot dates:</span>
+            <span className="text-muted-foreground">
+              {t("activity:import.help.holdingsExampleMultiple")}
+            </span>
             <br />
             2024-06-30,AAPL,55,210.62,USD
             <br />
@@ -283,12 +306,12 @@ function HoldingsHelpContent() {
             onClick={downloadSampleHoldingsCsv}
           >
             <Icons.Download className="h-4 w-4" />
-            Download Sample CSV
+            {t("activity:import.help.downloadSample")}
           </Button>
         </div>
 
         <div>
-          <p className="font-semibold">Supported date formats:</p>
+          <p className="font-semibold">{t("activity:import.help.supportedDateFormats")}</p>
           <pre className="bg-muted mt-2 overflow-x-auto p-4 text-xs">
             <ul className="list-inside list-disc space-y-1">
               <li>YYYY-MM-DD (2024-03-31)</li>
@@ -314,12 +337,13 @@ interface ImportHelpPopoverProps {
 
 export function ImportHelpPopover({ defaultTab = "activities" }: ImportHelpPopoverProps) {
   const { isMobile } = usePlatform();
+  const { t } = useTranslation();
 
   const helpContent = (
     <Tabs defaultValue={defaultTab}>
       <TabsList className="mb-4 w-auto">
-        <TabsTrigger value="activities">Activities</TabsTrigger>
-        <TabsTrigger value="holdings">Holdings</TabsTrigger>
+        <TabsTrigger value="activities">{t("activity:import.help.tabActivities")}</TabsTrigger>
+        <TabsTrigger value="holdings">{t("activity:import.help.tabHoldings")}</TabsTrigger>
       </TabsList>
       <TabsContent value="activities" className="m-0">
         <ActivitiesHelpContent />
@@ -340,7 +364,7 @@ export function ImportHelpPopover({ defaultTab = "activities" }: ImportHelpPopov
         </SheetTrigger>
         <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[85vh]">
           <SheetHeader>
-            <SheetTitle>How to Import CSV</SheetTitle>
+            <SheetTitle>{t("activity:import.help.mobileTitle")}</SheetTitle>
           </SheetHeader>
           <ScrollArea className="h-[calc(85vh-4rem)] pr-4">{helpContent}</ScrollArea>
         </SheetContent>
@@ -353,7 +377,7 @@ export function ImportHelpPopover({ defaultTab = "activities" }: ImportHelpPopov
       <PopoverTrigger asChild>
         <Button type="button" variant="link" className="flex items-center">
           <Icons.HelpCircle className="mr-1 h-5 w-5" />
-          How to Import CSV?
+          {t("activity:import.help.button")}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="m-4 max-h-[80vh] w-[900px] max-w-[calc(100vw-2rem)] overflow-y-auto p-6 text-sm">

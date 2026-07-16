@@ -3,6 +3,16 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Preserve the distinction between an omitted update field and an explicit
+/// `null`, which clears the stored value.
+fn deserialize_nullable_update<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
+}
+
 /// Current schema version for AI provider settings.
 /// Increment when making breaking changes to the settings structure.
 ///
@@ -493,11 +503,19 @@ pub struct UpdateProviderSettingsRequest {
     pub favorite_models: Option<Vec<String>>,
     /// Update tools allowlist.
     /// Use Some(None) to clear (all tools enabled), Some(Some([])) to set specific tools.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_nullable_update",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub tools_allowlist: Option<Option<Vec<String>>>,
     /// Update user tuning overrides.
     /// Use Some(None) to reset to catalog defaults, Some(Some(...)) to set overrides.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_nullable_update",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub tuning_overrides: Option<Option<ProviderTuningOverrides>>,
 }
 
@@ -608,6 +626,33 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::collections::HashMap;
+
+    #[test]
+    fn provider_update_preserves_nullable_field_intent() {
+        let omitted: UpdateProviderSettingsRequest =
+            serde_json::from_value(json!({ "providerId": "openai" })).unwrap();
+        assert_eq!(omitted.tools_allowlist, None);
+        assert_eq!(omitted.tuning_overrides, None);
+
+        let cleared: UpdateProviderSettingsRequest = serde_json::from_value(json!({
+            "providerId": "openai",
+            "toolsAllowlist": null,
+            "tuningOverrides": null
+        }))
+        .unwrap();
+        assert_eq!(cleared.tools_allowlist, Some(None));
+        assert_eq!(cleared.tuning_overrides, Some(None));
+
+        let restricted: UpdateProviderSettingsRequest = serde_json::from_value(json!({
+            "providerId": "openai",
+            "toolsAllowlist": ["get_accounts"]
+        }))
+        .unwrap();
+        assert_eq!(
+            restricted.tools_allowlist,
+            Some(Some(vec!["get_accounts".to_string()]))
+        );
+    }
 
     #[test]
     fn sanitized_for_provider_removes_unsupported_anthropic_sampling_overrides() {

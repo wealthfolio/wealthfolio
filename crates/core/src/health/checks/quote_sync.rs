@@ -8,7 +8,8 @@ use std::collections::{HashMap, HashSet};
 use crate::assets::{AssetServiceTrait, QuoteMode};
 use crate::errors::Result;
 use crate::health::model::{
-    AffectedItem, FixAction, HealthCategory, HealthIssue, NavigateAction, Severity,
+    AffectedItem, DiagnosticDomain, Evidence, FixAction, HealthCategory, HealthDiagnostic,
+    HealthEntityRef, HealthIssue, NavigateAction, Severity,
 };
 use crate::health::traits::{HealthCheck, HealthContext};
 use crate::quotes::QuoteServiceTrait;
@@ -198,6 +199,9 @@ impl QuoteSyncCheck {
                     .id(format!("quote_sync:error:{}", data_hash))
                     .severity(severity)
                     .category(HealthCategory::PriceStaleness)
+                    .code("quote_sync_error")
+                    .param("count", count as u32)
+                    .param("symbol", persistent_errors[0].symbol.clone())
                     .title(title)
                     .message(
                         "These assets have repeatedly failed to sync prices. Check the symbols or data provider settings.",
@@ -207,6 +211,7 @@ impl QuoteSyncCheck {
                     .affected_items(affected_items)
                     .fix_action(FixAction::retry_sync(asset_ids))
                     .navigate_action(NavigateAction::to_market_data())
+                    .diagnostics(vec![quote_sync_diagnostic(&persistent_errors)])
                     .details(details)
                     .data_hash(data_hash)
                     .build(),
@@ -242,6 +247,9 @@ impl QuoteSyncCheck {
                     .id(format!("quote_sync:warning:{}", data_hash))
                     .severity(Severity::Warning)
                     .category(HealthCategory::PriceStaleness)
+                    .code("quote_sync_warning")
+                    .param("count", count as u32)
+                    .param("symbol", warning_errors[0].symbol.clone())
                     .title(title)
                     .message(
                         "Some assets are having trouble syncing prices. This may resolve automatically.",
@@ -250,6 +258,7 @@ impl QuoteSyncCheck {
                     .affected_mv_pct(mv_pct)
                     .affected_items(affected_items)
                     .fix_action(FixAction::retry_sync(asset_ids))
+                    .diagnostics(vec![quote_sync_diagnostic(&warning_errors)])
                     .details(details)
                     .data_hash(data_hash)
                     .build(),
@@ -258,6 +267,61 @@ impl QuoteSyncCheck {
 
         issues
     }
+}
+
+/// Builds a diagnostic for a group of quote-sync failures. Assets that have
+/// never returned a quote are classified as a symbol/provider problem
+/// (`INVALID_SYMBOL_OR_PROVIDER`); assets that synced before are a transient/
+/// provider sync failure (`QUOTE_SYNC_FAILED`). Evidence carries the failure
+/// count and (truncated) last provider error.
+fn quote_sync_diagnostic(errors: &[&QuoteSyncErrorInfo]) -> HealthDiagnostic {
+    let never_synced = errors.iter().all(|e| !e.has_synced_before);
+    let (code, title, explanation) = if never_synced {
+        (
+            "INVALID_SYMBOL_OR_PROVIDER",
+            "Symbol or provider problem",
+            "These assets have never returned a quote, which usually means the symbol is \
+             unresolved or the configured data provider can't price them. Check the symbol and \
+             provider in Market Data settings.",
+        )
+    } else {
+        (
+            "QUOTE_SYNC_FAILED",
+            "Price sync failing",
+            "These assets have repeatedly failed to sync a quote. This may be a temporary \
+             provider issue, or the symbol/provider may need correcting.",
+        )
+    };
+
+    let mut diagnostic =
+        HealthDiagnostic::new(code, title, explanation).domain(DiagnosticDomain::MarketData);
+    for error in errors {
+        let asset_route = format!(
+            "/holdings/{}?tab=quotes&healthContext=price",
+            urlencoding::encode(&error.asset_id)
+        );
+        let last_error = error
+            .last_error
+            .as_deref()
+            .map(|message| {
+                let truncated: String = message.chars().take(80).collect();
+                format!(" — {truncated}")
+            })
+            .unwrap_or_default();
+        let value = format!("{} failure(s){}", error.error_count, last_error);
+        diagnostic = diagnostic
+            .entity(
+                HealthEntityRef::new("asset", error.asset_id.clone())
+                    .label(error.symbol.clone())
+                    .route(asset_route.clone()),
+            )
+            .evidence(Evidence::new(error.symbol.clone(), value).with_route(asset_route));
+    }
+
+    let asset_ids: Vec<String> = errors.iter().map(|e| e.asset_id.clone()).collect();
+    diagnostic
+        .fix(true, FixAction::retry_sync(asset_ids))
+        .navigate(false, NavigateAction::to_market_data())
 }
 
 impl Default for QuoteSyncCheck {
@@ -358,6 +422,34 @@ mod tests {
         let issues = check.analyze(&sync_errors, &ctx);
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].severity, Severity::Warning);
+
+        // Synced-before failures classify as a transient sync failure, and the
+        // evidence surfaces the failure count + provider error.
+        let diagnostics = issues[0].diagnostics.as_ref().expect("diagnostics");
+        assert_eq!(diagnostics[0].code, "QUOTE_SYNC_FAILED");
+        assert!(diagnostics[0].evidence[0].value.contains("Network timeout"));
+    }
+
+    #[test]
+    fn test_never_synced_classifies_as_invalid_symbol_or_provider() {
+        let check = QuoteSyncCheck::new();
+        let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
+
+        let sync_errors = vec![QuoteSyncErrorInfo {
+            asset_id: "SEC:BADSYM:XNAS".to_string(),
+            symbol: "BADSYM".to_string(),
+            error_count: 3,
+            last_error: Some("Symbol not found".to_string()),
+            market_value: 0.0,
+            has_synced_before: false,
+        }];
+
+        let issues = check.analyze(&sync_errors, &ctx);
+        assert_eq!(issues.len(), 1);
+        let diagnostics = issues[0].diagnostics.as_ref().expect("diagnostics");
+        assert_eq!(diagnostics[0].code, "INVALID_SYMBOL_OR_PROVIDER");
+        // Retry is the primary fix; market-data settings is the secondary nav.
+        assert!(diagnostics[0].actions[0].primary);
     }
 
     #[test]

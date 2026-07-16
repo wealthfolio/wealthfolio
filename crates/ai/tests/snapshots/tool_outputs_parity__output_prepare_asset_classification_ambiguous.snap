@@ -1,0 +1,80 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+assertion_line: 719
+expression: result
+---
+{
+  "ok": {
+    "assetCandidates": [
+      {
+        "assetId": "asset-vt-xnas",
+        "currency": "USD",
+        "displayCode": "VT",
+        "exchangeMic": "XNAS",
+        "label": "VT - Vanguard Total World Stock Index Fund ETF Shares",
+        "matchedBy": "candidate",
+        "name": "Vanguard Total World Stock Index Fund ETF Shares",
+        "symbol": "VT"
+      },
+      {
+        "assetId": "asset-vt-arcx",
+        "currency": "USD",
+        "displayCode": "VT",
+        "exchangeMic": "ARCX",
+        "label": "VT - Vanguard Total World Stock Index Fund ETF Shares",
+        "matchedBy": "candidate",
+        "name": "Vanguard Total World Stock Index Fund ETF Shares",
+        "symbol": "VT"
+      }
+    ],
+    "assetQuery": "VT",
+    "candidateCurrentAssignments": [
+      {
+        "assetId": "asset-vt-xnas",
+        "changes": {
+          "addCount": 1,
+          "removeCount": 0,
+          "unchangedCount": 0,
+          "updateCount": 0
+        },
+        "currentAssignments": []
+      },
+      {
+        "assetId": "asset-vt-arcx",
+        "changes": {
+          "addCount": 1,
+          "removeCount": 0,
+          "unchangedCount": 0,
+          "updateCount": 0
+        },
+        "currentAssignments": []
+      }
+    ],
+    "changes": {
+      "addCount": 0,
+      "removeCount": 0,
+      "unchangedCount": 0,
+      "updateCount": 0
+    },
+    "currentAssignments": [],
+    "draftStatus": "needsAssetSelection",
+    "proposedAssignments": [
+      {
+        "assignmentId": null,
+        "categoryColor": "#64748b",
+        "categoryId": "equity",
+        "categoryKey": "equity",
+        "categoryName": "Equity",
+        "source": "ai",
+        "sourceLabel": "Equity",
+        "weightBasisPoints": 9000
+      }
+    ],
+    "taxonomy": {
+      "isSingleSelect": false,
+      "name": "Asset Class",
+      "taxonomyId": "asset-tax"
+    },
+    "unallocatedBasisPoints": 1000
+  }
+}

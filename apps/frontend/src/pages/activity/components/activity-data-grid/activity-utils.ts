@@ -22,7 +22,7 @@ import { generateTempActivityId } from "./use-activity-grid-state";
 /**
  * Set of numeric field names for value comparison
  */
-const NUMERIC_FIELDS = new Set(["quantity", "unitPrice", "amount", "fee", "fxRate"]);
+const NUMERIC_FIELDS = new Set(["quantity", "unitPrice", "amount", "fee", "tax", "fxRate"]);
 
 const isTransferActivity = (activityType: string | undefined): boolean => {
   return activityType === ActivityType.TRANSFER_IN || activityType === ActivityType.TRANSFER_OUT;
@@ -147,6 +147,7 @@ export function createDraftTransaction(
     unitPrice: null,
     amount: null,
     fee: null,
+    tax: null,
     currency: defaultAccount?.currency ?? fallbackCurrency,
     needsReview: false,
     comment: "",
@@ -288,6 +289,8 @@ export function applyTransactionUpdate(params: TransactionUpdateParams): LocalTr
     }
   } else if (field === "fee") {
     updated = { ...updated, fee: normalizedDecimalOrNull(value) };
+  } else if (field === "tax") {
+    updated = { ...updated, tax: normalizedDecimalOrNull(value) };
   } else if (field === "assetSymbol") {
     const upper = (typeof value === "string" ? value : "").trim().toUpperCase();
     // Only update assetSymbol, NOT assetId
@@ -508,6 +511,7 @@ export function buildSavePayload(
       amount: toDecimalString(transaction.amount),
       currency: currencyForPayload,
       fee: toDecimalString(transaction.fee),
+      tax: toDecimalString(transaction.tax),
       fxRate,
       notes: transaction.comment?.trim() || undefined,
       metadata: metadataJson,
@@ -634,6 +638,7 @@ export const TRACKED_FIELDS: (keyof LocalTransaction)[] = [
   "unitPrice",
   "amount",
   "fee",
+  "tax",
   "fxRate",
   "accountId",
   "currency",
@@ -738,6 +743,14 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
       transactionId: transaction.id,
       field: "fee",
       message: "Fee cannot be negative",
+    });
+  }
+
+  if (transaction.tax != null && parseFloat(transaction.tax) < 0) {
+    errors.push({
+      transactionId: transaction.id,
+      field: "tax",
+      message: "Tax cannot be negative",
     });
   }
 

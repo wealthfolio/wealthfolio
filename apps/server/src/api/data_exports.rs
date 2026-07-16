@@ -11,18 +11,23 @@ use axum::{
 use wealthfolio_core::{
     accounts::AccountServiceTrait,
     activities::Sort,
-    exports::{export_file_name, format_records, ExportDataType, ExportFileFormat},
+    exports::{
+        export_file_name, format_holding_list_records, format_records, ExportDataType,
+        ExportFileFormat,
+    },
+    portfolio::holdings::HoldingListItem,
     portfolios::AccountScope,
 };
 
 use crate::{
+    api::shared::holdings_account_ids,
     error::{ApiError, ApiResult},
     main_lib::AppState,
 };
 
 const EXPORT_ACTIVITY_PAGE_SIZE: i64 = 9_007_199_254_740_991;
 
-fn build_data_export_content(
+async fn build_data_export_content(
     state: &AppState,
     data_type: ExportDataType,
     format: ExportFileFormat,
@@ -49,9 +54,37 @@ fn build_data_export_content(
                     None,
                     None,
                     None,
+                    None,
                 )?
                 .data;
             Ok(format_records(&records, format)?)
+        }
+        ExportDataType::Holdings => {
+            let base = state.base_currency.read().unwrap().clone();
+            let resolved = state
+                .portfolio_service
+                .resolve_account_scope(&AccountScope::All, &base)?;
+            let account_ids = holdings_account_ids(state, &resolved.account_ids)?;
+            if account_ids.is_empty() {
+                return Ok(None);
+            }
+
+            let holdings = if account_ids.len() == 1 {
+                state
+                    .holdings_service
+                    .get_holdings(&account_ids[0], &base)
+                    .await?
+            } else {
+                state
+                    .holdings_service
+                    .get_holdings_for_accounts(&account_ids, &base, &resolved.scope_id)
+                    .await?
+            };
+            let records = holdings
+                .into_iter()
+                .map(HoldingListItem::from)
+                .collect::<Vec<_>>();
+            Ok(format_holding_list_records(&records, format)?)
         }
         ExportDataType::Goals => {
             let records = state.goal_service.get_goals()?;
@@ -82,7 +115,7 @@ async fn export_data_route(
 ) -> ApiResult<Response<Body>> {
     let data_type = ExportDataType::parse(&data_type)?;
     let format = ExportFileFormat::parse(&format)?;
-    let Some(content) = build_data_export_content(&state, data_type, format)? else {
+    let Some(content) = build_data_export_content(&state, data_type, format).await? else {
         return Ok(StatusCode::NO_CONTENT.into_response());
     };
 

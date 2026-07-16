@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import {
@@ -76,6 +77,7 @@ function currentMonthKey() {
 }
 
 export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
+  const { t } = useTranslation();
   const { data: budget, isLoading: budgetLoading, error, refetch } = useBudget(periodKey);
   const mutations = useBudgetMutations(periodKey);
 
@@ -203,7 +205,7 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
             variant="ghost"
             onClick={() =>
               mutations.createGroup.mutate({
-                name: "New group",
+                name: t("spending:budgetEditor.newGroup"),
                 color: FOREST_THEME.deep,
                 icon: "Folder",
               })
@@ -211,7 +213,7 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
             className="text-muted-foreground hover:text-foreground h-8 gap-1.5 px-2 text-xs"
           >
             <Icons.Plus className="h-3.5 w-3.5" />
-            Add group
+            {t("spending:budgetEditor.addGroup")}
           </Button>
           <Button
             size="sm"
@@ -220,7 +222,7 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
             className="text-muted-foreground hover:text-foreground h-8 gap-1.5 px-2 text-xs"
           >
             <Icons.Refresh className="h-3.5 w-3.5" />
-            Reset to defaults
+            {t("spending:budgetEditor.resetDefaults")}
           </Button>
         </div>
       )}
@@ -296,7 +298,11 @@ function BudgetSummary({
   const fullyAllocated = income > 0 && Math.abs(income - planned) < 0.01;
   const overAllocated = income > 0 && planned > income;
   const hasPlan = planned > 0;
-  const headingLabel = mode === "setup" ? "Default monthly plan" : "Monthly plan";
+  const { t } = useTranslation();
+  const headingLabel =
+    mode === "setup"
+      ? t("spending:budgetEditor.defaultMonthlyPlan")
+      : t("spending:budgetEditor.monthlyPlan");
 
   return (
     <section className={cn(CARD_CLASS, "overflow-hidden p-3 sm:p-4")}>
@@ -352,11 +358,12 @@ function BudgetSummary({
 }
 
 function BudgetFxNote({ budget, currency }: { budget: BudgetSnapshot; currency: string }) {
+  const { t } = useTranslation();
   if (!budget.computed.fxAsOf) return null;
 
   return (
     <div className="border-border/60 bg-muted/30 text-muted-foreground rounded-lg border px-3 py-2 text-xs">
-      Targets are entered in {currency}; actuals use FX rates around {budget.computed.fxAsOf}.
+      {t("spending:budgetEditor.fxNote", { currency, asOf: budget.computed.fxAsOf })}
     </div>
   );
 }
@@ -370,10 +377,11 @@ function SegmentedGroupBar({
   total: number;
   hasPlan: boolean;
 }) {
+  const { t } = useTranslation();
   if (!hasPlan) {
     return (
       <div className="bg-muted/40 mt-3 h-1.5 rounded-full">
-        <div className="sr-only">No budget allocated yet</div>
+        <div className="sr-only">{t("spending:budgetEditor.noBudgetAllocated")}</div>
       </div>
     );
   }
@@ -472,6 +480,7 @@ function GroupBudgetSection({
   onSaveGroupRollover: (enabled: boolean, startingBalance?: string) => void;
   onToggleCategoryRollover: (row: BudgetCategoryRow, enabled: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -479,7 +488,10 @@ function GroupBudgetSection({
   const groupRollover = findGroupRollover(rolloverSettings, row.group.id);
   const accent = row.group.color ?? FOREST_THEME.deep;
   const spentPct = safePercent(Math.max(0, row.actual), row.plannedTotal);
-  const totalSuffix = mode === "setup" ? "/ default month" : "/ month";
+  const totalSuffix =
+    mode === "setup"
+      ? t("spending:budgetEditor.perDefaultMonth")
+      : t("spending:budgetEditor.perMonth");
 
   return (
     <section className={cn(CARD_CLASS, "overflow-hidden")}>
@@ -488,7 +500,9 @@ function GroupBudgetSection({
           type="button"
           onClick={() => setOpen((v) => !v)}
           className="text-muted-foreground hover:text-foreground -ml-1 flex h-6 w-6 shrink-0 items-center justify-center rounded transition-colors"
-          aria-label={open ? "Collapse group" : "Expand group"}
+          aria-label={
+            open ? t("spending:budgetEditor.collapseGroup") : t("spending:budgetEditor.expandGroup")
+          }
           aria-expanded={open}
         >
           <Icons.ChevronRight
@@ -502,7 +516,11 @@ function GroupBudgetSection({
           disabled={mode !== "setup"}
           className="ring-offset-background focus-visible:ring-ring flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 enabled:hover:scale-105 disabled:cursor-default disabled:hover:scale-100"
           style={{ backgroundColor: `${accent}1f`, color: accent }}
-          aria-label={mode === "setup" ? `Edit ${row.group.name}` : row.group.name}
+          aria-label={
+            mode === "setup"
+              ? t("spending:budgetEditor.editGroupName", { name: row.group.name })
+              : row.group.name
+          }
         >
           <CategoryIcon icon={row.group.icon ?? null} className="h-3.5 w-3.5" />
         </button>
@@ -559,14 +577,14 @@ function GroupBudgetSection({
                 variant="ghost"
                 size="sm"
                 className="text-muted-foreground hover:text-foreground h-7 w-7 shrink-0 p-0"
-                aria-label="Group actions"
+                aria-label={t("spending:budgetEditor.groupActions")}
               >
                 <Icons.MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel className="text-muted-foreground/70 text-[10px] font-normal uppercase tracking-wide">
-                {row.categories.length} {row.categories.length === 1 ? "category" : "categories"}
+                {t("spending:budgetEditor.categoryCount", { count: row.categories.length })}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -577,7 +595,7 @@ function GroupBudgetSection({
                 className="text-xs"
               >
                 <Icons.Pencil className="mr-2 h-3.5 w-3.5" />
-                Edit
+                {t("common:edit")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={(event) => {
@@ -587,9 +605,11 @@ function GroupBudgetSection({
                 className="text-xs"
               >
                 <Icons.Refresh className="mr-2 h-3.5 w-3.5" />
-                <span className="flex-1">Group rollover</span>
+                <span className="flex-1">{t("spending:budgetEditor.groupRollover")}</span>
                 <span className="text-muted-foreground text-[10px]">
-                  {groupRollover?.enabled ? "On" : "Off"}
+                  {groupRollover?.enabled
+                    ? t("spending:budgetEditor.on")
+                    : t("spending:budgetEditor.off")}
                 </span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -602,7 +622,7 @@ function GroupBudgetSection({
                 className="text-destructive focus:text-destructive text-xs"
               >
                 <Icons.Trash className="mr-2 h-3.5 w-3.5" />
-                Delete group
+                {t("spending:budgetEditor.deleteGroup")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -613,17 +633,19 @@ function GroupBudgetSection({
         <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete {row.group.name}?</AlertDialogTitle>
+              <AlertDialogTitle>
+                {t("spending:budgetEditor.deleteGroupTitle", { name: row.group.name })}
+              </AlertDialogTitle>
               <AlertDialogDescription>
                 {row.categories.length > 0
-                  ? `Its ${row.categories.length} ${
-                      row.categories.length === 1 ? "category" : "categories"
-                    } will be moved to another group. This can't be undone.`
-                  : "This can't be undone."}
+                  ? t("spending:budgetEditor.deleteGroupWithCategories", {
+                      count: row.categories.length,
+                    })
+                  : t("spending:budgetEditor.cannotUndo")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={(event) => {
                   event.preventDefault();
@@ -633,7 +655,7 @@ function GroupBudgetSection({
                 disabled={deletePending}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {deletePending ? "Deleting..." : "Delete"}
+                {deletePending ? t("spending:budgetEditor.deleting") : t("common:delete")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -697,6 +719,7 @@ function AddCategoryRow({
   pool: CategoryPoolEntry[];
   onMoveCategory: (categoryId: string, groupId: string) => void;
 }) {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [pendingMove, setPendingMove] = useState<{
@@ -729,18 +752,18 @@ function AddCategoryRow({
       <span className="border-border/50 group-hover:border-foreground/30 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-dashed">
         <Icons.Plus className="h-3 w-3" />
       </span>
-      <span className="text-xs">Add category</span>
+      <span className="text-xs">{t("spending:budgetEditor.addCategory")}</span>
     </button>
   );
 
   const emptyState = (
     <div className="text-muted-foreground p-4 text-xs">
-      No other categories available. Create one in{" "}
+      {t("spending:budgetEditor.noOtherCategories")}{" "}
       <Link
         to="/settings/spending/categories?tab=expense"
         className="text-foreground underline-offset-2 hover:underline"
       >
-        Manage categories
+        {t("spending:budgetEditor.manageCategories")}
       </Link>
       .
     </div>
@@ -780,7 +803,7 @@ function AddCategoryRow({
               </div>
               {entry.fromGroupName && (
                 <div className="text-muted-foreground truncate text-xs">
-                  from {entry.fromGroupName}
+                  {t("spending:budgetEditor.fromGroup", { name: entry.fromGroupName })}
                 </div>
               )}
             </div>
@@ -809,7 +832,7 @@ function AddCategoryRow({
         <Icons.Plus className={isMobile ? "h-4 w-4" : "h-3.5 w-3.5"} />
       </span>
       <span className={cn("font-medium", isMobile ? "text-base" : "text-sm")}>
-        Create new category
+        {t("spending:budgetEditor.createNewCategory")}
       </span>
     </Link>
   );
@@ -825,7 +848,9 @@ function AddCategoryRow({
               <div className="bg-muted-foreground/30 h-1 w-10 rounded-full" />
             </div>
             <SheetHeader className="px-4 pb-3 pt-1 text-left">
-              <SheetTitle className="text-base">Add category to {groupName}</SheetTitle>
+              <SheetTitle className="text-base">
+                {t("spending:budgetEditor.addCategoryTo", { name: groupName })}
+              </SheetTitle>
             </SheetHeader>
             {pool.length === 0 ? (
               emptyState
@@ -844,7 +869,7 @@ function AddCategoryRow({
             ) : (
               <>
                 <div className="text-muted-foreground border-border/60 border-b px-3 py-2 text-[10px] font-medium uppercase tracking-widest">
-                  Move existing category
+                  {t("spending:budgetEditor.moveExistingCategory")}
                 </div>
                 {list}
                 {footer}
@@ -863,16 +888,21 @@ function AddCategoryRow({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Move {pendingMove?.categoryName} to {groupName}?
+              {t("spending:budgetEditor.moveCategoryTitle", {
+                name: pendingMove?.categoryName,
+                group: groupName,
+              })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingMove?.categoryName} is currently in {pendingMove?.fromGroupName}. Moving it
-              re-groups its budget total under {groupName}. The category's target amount and history
-              are preserved.
+              {t("spending:budgetEditor.moveCategoryBody", {
+                name: pendingMove?.categoryName,
+                from: pendingMove?.fromGroupName,
+                group: groupName,
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (pendingMove) {
@@ -881,7 +911,7 @@ function AddCategoryRow({
                 }
               }}
             >
-              Move category
+              {t("spending:budgetEditor.moveCategory")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -922,6 +952,7 @@ function GroupEditDialogBody({
   rolloverStartingBalance,
   onSaveRollover,
 }: GroupEditDialogProps) {
+  const { t } = useTranslation();
   const [draftName, setDraftName] = useState(group.name);
   const [draftColor, setDraftColor] = useState(color);
   const [draftIcon, setDraftIcon] = useState<string | null>(group.icon ?? null);
@@ -957,14 +988,14 @@ function GroupEditDialogBody({
           >
             <CategoryIcon icon={draftIcon} className="h-4 w-4" />
           </span>
-          Edit group
+          {t("spending:budgetEditor.editGroup")}
         </DialogTitle>
       </DialogHeader>
 
       <div className="space-y-4 py-2">
         <div className="space-y-1.5">
           <label className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
-            Name
+            {t("common:name")}
           </label>
           <div className="bg-muted/60 border-border/60 focus-within:ring-ring/50 flex h-9 items-center rounded-md border px-3 transition-shadow focus-within:ring-2">
             <input
@@ -982,14 +1013,14 @@ function GroupEditDialogBody({
 
         <div className="space-y-1.5">
           <label className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
-            Color
+            {t("spending:category.color")}
           </label>
           <GroupColorSwatchGrid value={draftColor} onChange={setDraftColor} />
         </div>
 
         <div className="space-y-1.5">
           <label className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
-            Icon
+            {t("spending:category.icon")}
           </label>
           <IconPicker value={draftIcon} accent={draftColor} onChange={setDraftIcon} />
         </div>
@@ -997,15 +1028,17 @@ function GroupEditDialogBody({
         <div className="border-border/40 space-y-2 border-t pt-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 space-y-0.5">
-              <div className="text-foreground text-sm font-medium">Monthly rollover</div>
+              <div className="text-foreground text-sm font-medium">
+                {t("spending:budgetEditor.monthlyRollover")}
+              </div>
               <p className="text-muted-foreground text-[11px] leading-snug">
-                Carry unspent budget into next month for this group.
+                {t("spending:budgetEditor.rolloverDesc")}
               </p>
             </div>
             <Switch
               checked={draftRollover}
               onCheckedChange={setDraftRollover}
-              aria-label="Enable monthly rollover"
+              aria-label={t("spending:budgetEditor.enableRollover")}
             />
           </div>
           {draftRollover && (
@@ -1014,7 +1047,7 @@ function GroupEditDialogBody({
                 htmlFor="rollover-starting-balance"
                 className="text-muted-foreground text-[11px]"
               >
-                Starting balance
+                {t("spending:budgetEditor.startingBalance")}
               </label>
               <div className="w-[120px]">
                 <input
@@ -1034,10 +1067,10 @@ function GroupEditDialogBody({
 
       <DialogFooter className="gap-2">
         <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-          Cancel
+          {t("common:cancel")}
         </Button>
         <Button size="sm" onClick={handleSave} disabled={!draftName.trim()}>
-          Save
+          {t("common:save")}
         </Button>
       </DialogFooter>
     </>
@@ -1071,6 +1104,7 @@ function BudgetCategoryLine({
   onMoveCategory: (categoryId: string, groupId: string) => void;
   onToggleRollover: (row: BudgetCategoryRow, enabled: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const accent = row.color ?? FOREST_THEME.deep;
   const hasOverride = monthMode && !!target;
   const overBudget = row.target > 0 && row.actual > row.target;
@@ -1097,13 +1131,13 @@ function BudgetCategoryLine({
                 type="button"
                 onClick={() => onDeleteOverride(target)}
                 className="bg-warning/15 text-warning hover:bg-warning/25 border-background absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border transition-colors"
-                aria-label="Revert override"
+                aria-label={t("spending:budgetEditor.revertOverride")}
               >
                 <Icons.X className="h-2 w-2" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={4} className="text-xs">
-              Month override · click to revert
+              {t("spending:budgetEditor.monthOverrideRevert")}
             </TooltipContent>
           </Tooltip>
         )}
@@ -1126,9 +1160,10 @@ function BudgetCategoryLine({
           </div>
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={4} className="text-xs">
-          <PrivacyAmount value={row.actual} currency={currency} /> spent of{" "}
-          <PrivacyAmount value={row.target} currency={currency} /> ({formatPercent(sharePct)} of
-          group)
+          <PrivacyAmount value={row.actual} currency={currency} />{" "}
+          {t("spending:budgetEditor.spentOf")}{" "}
+          <PrivacyAmount value={row.target} currency={currency} />{" "}
+          {t("spending:budgetEditor.ofGroup", { pct: formatPercent(sharePct) })}
         </TooltipContent>
       </Tooltip>
 
@@ -1138,7 +1173,7 @@ function BudgetCategoryLine({
             variant="ghost"
             size="sm"
             className="text-muted-foreground hover:text-foreground h-6 w-6 shrink-0 p-0"
-            aria-label="Row options"
+            aria-label={t("spending:budgetEditor.rowOptions")}
           >
             <Icons.MoreHorizontal className="h-3.5 w-3.5" />
           </Button>
@@ -1147,7 +1182,7 @@ function BudgetCategoryLine({
           {mode === "setup" && (
             <>
               <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wide">
-                Move to group
+                {t("spending:budgetEditor.moveToGroup")}
               </DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={row.groupId ?? ""}
@@ -1175,9 +1210,13 @@ function BudgetCategoryLine({
                 className="text-xs"
               >
                 <Icons.Refresh className="mr-2 h-3.5 w-3.5" />
-                <span className="flex-1">Rollover</span>
+                <span className="flex-1">{t("spending:budgetEditor.rollover")}</span>
                 <span className="text-muted-foreground text-[10px]">
-                  {groupRolloverEnabled ? "Group-wide" : row.rolloverEnabled ? "On" : "Off"}
+                  {groupRolloverEnabled
+                    ? t("spending:budgetEditor.groupWide")
+                    : row.rolloverEnabled
+                      ? t("spending:budgetEditor.on")
+                      : t("spending:budgetEditor.off")}
                 </span>
               </DropdownMenuItem>
             </>
@@ -1190,7 +1229,7 @@ function BudgetCategoryLine({
                 className="text-warning text-xs"
               >
                 <Icons.X className="mr-2 h-3.5 w-3.5" />
-                Revert month override
+                {t("spending:budgetEditor.revertMonthOverride")}
               </DropdownMenuItem>
             </>
           )}
@@ -1215,9 +1254,13 @@ function GroupBufferLine({
   onSaveGroupBuffer: (row: BudgetGroupRow, amount: string) => void;
   onDeleteOverride: (target: BudgetTarget | undefined) => void;
 }) {
+  const { t } = useTranslation();
   const hasOverride = monthMode && !!target;
   const sharePct = safePercent(row.buffer, row.plannedTotal);
-  const label = mode === "setup" ? "Group buffer default" : "Group buffer";
+  const label =
+    mode === "setup"
+      ? t("spending:budgetEditor.groupBufferDefault")
+      : t("spending:budgetEditor.groupBuffer");
   return (
     <div className="hover:bg-muted/15 flex items-center gap-2 px-3 py-1.5 text-xs sm:gap-3 sm:px-4">
       <span
@@ -1229,7 +1272,7 @@ function GroupBufferLine({
           <span className="text-muted-foreground min-w-0 flex-1 truncate">{label}</span>
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={4} className="max-w-[220px] text-xs">
-          Extra headroom for this group that isn't assigned to a category.
+          {t("spending:budgetEditor.groupBufferTooltip")}
         </TooltipContent>
       </Tooltip>
 
@@ -1244,7 +1287,7 @@ function GroupBufferLine({
             type="button"
             onClick={() => onDeleteOverride(target)}
             className="bg-warning/15 text-warning hover:bg-warning/25 border-background absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border transition-colors"
-            aria-label="Revert override"
+            aria-label={t("spending:budgetEditor.revertOverride")}
           >
             <Icons.X className="h-2 w-2" />
           </button>
@@ -1279,7 +1322,9 @@ function IncomeSourcesPanel({
   onSaveTarget: (row: BudgetCategoryRow, amount: string) => void;
   onDeleteOverride: (target: BudgetTarget | undefined) => void;
 }) {
-  const title = mode === "setup" ? "Income defaults" : "Income";
+  const { t } = useTranslation();
+  const title =
+    mode === "setup" ? t("spending:budgetEditor.incomeDefaults") : t("spending:cashFlow.income");
   const isMonthly = mode === "monthly";
   const [showAll, setShowAll] = useState(false);
 
@@ -1306,9 +1351,9 @@ function IncomeSourcesPanel({
       </div>
       <div className="mt-2 space-y-0.5">
         {rows.length === 0 ? (
-          <EmptyPanelLine>No income categories yet.</EmptyPanelLine>
+          <EmptyPanelLine>{t("spending:budgetEditor.noIncomeCategories")}</EmptyPanelLine>
         ) : visibleRows.length === 0 ? (
-          <EmptyPanelLine>No income set for this month.</EmptyPanelLine>
+          <EmptyPanelLine>{t("spending:budgetEditor.noIncomeThisMonth")}</EmptyPanelLine>
         ) : (
           visibleRows.map((row) => {
             const target = findCategoryTarget(targets, periodKey, row.taxonomyId, row.categoryId);
@@ -1323,7 +1368,7 @@ function IncomeSourcesPanel({
                       onClick={() => onDeleteOverride(target)}
                       className="text-warning hover:text-warning/80 text-[10px] underline-offset-4 hover:underline"
                     >
-                      Revert override
+                      {t("spending:budgetEditor.revertOverride")}
                     </button>
                   )}
                 </div>
@@ -1342,12 +1387,16 @@ function IncomeSourcesPanel({
           className="text-muted-foreground hover:text-foreground mt-1 inline-flex items-center gap-1 text-[11px] underline-offset-4 hover:underline"
         >
           <Icons.Plus className="h-3 w-3" />
-          {showAll ? "Hide empty sources" : `Add source (${hiddenCount} available)`}
+          {showAll
+            ? t("spending:budgetEditor.hideEmptySources")
+            : t("spending:budgetEditor.addSource", { count: hiddenCount })}
         </button>
       )}
       {!isMonthly && (
         <div className="border-border/40 mt-2.5 flex items-center justify-between border-t pt-2.5">
-          <span className="text-muted-foreground text-xs">Total default</span>
+          <span className="text-muted-foreground text-xs">
+            {t("spending:budgetEditor.totalDefault")}
+          </span>
           <span className="text-sm font-semibold tabular-nums">
             <PrivacyAmount value={total} currency={currency} />
           </span>
@@ -1364,6 +1413,7 @@ function GroupColorSwatchGrid({
   value: string;
   onChange: (color: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-5 gap-1.5">
       {EXTENDED_PALETTE.map((color) => {
@@ -1378,7 +1428,7 @@ function GroupColorSwatchGrid({
               isActive ? "border-foreground" : "border-transparent",
             )}
             style={{ backgroundColor: color }}
-            aria-label={`Use color ${color}`}
+            aria-label={t("spending:category.useColor", { color })}
           />
         );
       })}
@@ -1397,6 +1447,7 @@ function OverridesSummary({
   currency: string;
   onRevert: (target: BudgetTarget) => void;
 }) {
+  const { t: tr } = useTranslation();
   // Memoize the two-map build + flatMap so we don't redo the O(n*m) walks on
   // every parent re-render of the budget editor.
   const overrides = useMemo(() => {
@@ -1452,7 +1503,7 @@ function OverridesSummary({
         return [
           {
             target,
-            name: `${group.name} · group buffer`,
+            name: tr("spending:budgetEditor.groupBufferName", { name: group.name }),
             color: group.color,
             monthAmount,
             defaultAmount,
@@ -1461,7 +1512,7 @@ function OverridesSummary({
       }
       return [];
     });
-  }, [budget, periodKey]);
+  }, [budget, periodKey, tr]);
 
   if (overrides.length === 0) return null;
 
@@ -1469,7 +1520,7 @@ function OverridesSummary({
     <section className={cn(CARD_CLASS, "p-3 sm:p-4")}>
       <div className="flex items-center justify-between gap-2">
         <PanelHeader
-          title={`Overrides · ${overrides.length}`}
+          title={tr("spending:budgetEditor.overridesTitle", { count: overrides.length })}
           icon={<Icons.Pencil className="h-3.5 w-3.5" />}
         />
         <Button
@@ -1479,7 +1530,7 @@ function OverridesSummary({
           className="text-muted-foreground hover:text-foreground h-6 gap-1 px-1.5 text-[10px]"
         >
           <Icons.X className="h-3 w-3" />
-          Revert all
+          {tr("spending:budgetEditor.revertAll")}
         </Button>
       </div>
       <div className="mt-2 space-y-2">
@@ -1500,7 +1551,7 @@ function OverridesSummary({
                   variant="ghost"
                   size="sm"
                   className="text-muted-foreground hover:text-foreground h-5 w-5 shrink-0 p-0 opacity-0 transition-opacity group-hover/override:opacity-100"
-                  aria-label="Revert this override"
+                  aria-label={tr("spending:budgetEditor.revertThisOverride")}
                   onClick={() => onRevert(o.target)}
                 >
                   <Icons.X className="h-3 w-3" />
@@ -1511,7 +1562,8 @@ function OverridesSummary({
                   <PrivacyAmount value={o.monthAmount} currency={currency} />
                 </span>
                 <span className="text-muted-foreground/70">
-                  vs <PrivacyAmount value={o.defaultAmount} currency={currency} />
+                  {tr("spending:budgetEditor.vs")}{" "}
+                  <PrivacyAmount value={o.defaultAmount} currency={currency} />
                 </span>
                 <span
                   className={cn(
@@ -1556,20 +1608,21 @@ function CopyFromMonthRow({
     const date = new Date(year, (month ?? 1) - 2, 1);
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
   }, [currentPeriodKey]);
+  const { t } = useTranslation();
   const [sourceMonth, setSourceMonth] = useState(previousMonth);
   const [overwrite, setOverwrite] = useState(false);
 
   return (
     <section className={cn(CARD_CLASS, "p-3 sm:p-4")}>
       <PanelHeader
-        title="Copy plan from another month"
+        title={t("spending:budgetEditor.copyPlanTitle")}
         icon={<Icons.Copy className="h-3.5 w-3.5" />}
       />
       <p className="text-muted-foreground mt-1 text-[11px]">
-        Copies all overrides from the source month into this one.{" "}
+        {t("spending:budgetEditor.copyPlanDesc")}{" "}
         {overwrite
-          ? "Existing overrides this month will be replaced."
-          : "Existing overrides are preserved."}
+          ? t("spending:budgetEditor.copyOverwrite")
+          : t("spending:budgetEditor.copyPreserve")}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <div className="bg-background border-input flex items-center rounded-md border px-2">
@@ -1589,7 +1642,7 @@ function CopyFromMonthRow({
             onChange={(event) => setOverwrite(event.target.checked)}
             className="accent-foreground h-3 w-3"
           />
-          Replace existing overrides
+          {t("spending:budgetEditor.replaceExisting")}
         </label>
         <Button
           size="sm"
@@ -1598,7 +1651,7 @@ function CopyFromMonthRow({
           onClick={() => onCopy(sourceMonth, overwrite)}
           className="ml-auto h-7 px-3 text-xs"
         >
-          {pending ? "Copying…" : "Copy plan"}
+          {pending ? t("spending:budgetEditor.copying") : t("spending:budgetEditor.copyPlan")}
         </Button>
       </div>
     </section>
@@ -1612,21 +1665,45 @@ function BudgetTotalsPanel({
   totals: BudgetSnapshot["computed"]["totals"];
   currency: string;
 }) {
+  const { t } = useTranslation();
   return (
     <section className={cn(CARD_CLASS, "p-3 sm:p-4")}>
-      <PanelHeader title="Totals" icon={<Icons.PieChart className="h-3.5 w-3.5" />} />
+      <PanelHeader
+        title={t("spending:budgetEditor.totals")}
+        icon={<Icons.PieChart className="h-3.5 w-3.5" />}
+      />
       <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
-        <TotalLine label="Planned" value={totals.spendingPlanned} currency={currency} />
-        <TotalLine label="Actual" value={totals.spendingActual} currency={currency} />
         <TotalLine
-          label="Remaining"
+          label={t("spending:budgetEditor.planned")}
+          value={totals.spendingPlanned}
+          currency={currency}
+        />
+        <TotalLine
+          label={t("spending:budgetEditor.actual")}
+          value={totals.spendingActual}
+          currency={currency}
+        />
+        <TotalLine
+          label={t("spending:budgetEditor.remaining")}
           value={totals.spendingRemaining}
           currency={currency}
           destructive={totals.spendingRemaining < 0}
         />
-        <TotalLine label="Income" value={totals.incomePlanned} currency={currency} />
-        <TotalLine label="Unassigned" value={totals.groupBuffer} currency={currency} />
-        <TotalLine label="Rollover in" value={totals.rolloverIn} currency={currency} />
+        <TotalLine
+          label={t("spending:cashFlow.income")}
+          value={totals.incomePlanned}
+          currency={currency}
+        />
+        <TotalLine
+          label={t("spending:budgetEditor.unassigned")}
+          value={totals.groupBuffer}
+          currency={currency}
+        />
+        <TotalLine
+          label={t("spending:budgetEditor.rolloverIn")}
+          value={totals.rolloverIn}
+          currency={currency}
+        />
       </div>
     </section>
   );
@@ -1670,6 +1747,7 @@ function PanelHeader({ title, icon }: { title: string; icon: ReactNode }) {
 }
 
 function BudgetErrorState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const { t } = useTranslation();
   const message = error instanceof Error ? error.message : String(error);
   const missingTables = message.includes("no such table: budget_groups");
 
@@ -1679,16 +1757,14 @@ function BudgetErrorState({ error, onRetry }: { error: unknown; onRetry: () => v
         <Icons.AlertCircle className="text-destructive mt-0.5 h-5 w-5 shrink-0" />
         <div className="min-w-0 space-y-3">
           <div>
-            <h2 className="font-semibold">Budget data is not available</h2>
+            <h2 className="font-semibold">{t("spending:budgetEditor.dataUnavailable")}</h2>
             <p className="text-muted-foreground mt-1 text-sm">
-              {missingTables
-                ? "The current local database was created before the updated spending migration."
-                : message}
+              {missingTables ? t("spending:budgetEditor.migrationNeeded") : message}
             </p>
           </div>
           <Button size="sm" variant="outline" onClick={onRetry}>
             <Icons.Refresh className="mr-2 h-4 w-4" />
-            Retry
+            {t("common:retry")}
           </Button>
         </div>
       </div>

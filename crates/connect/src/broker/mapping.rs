@@ -19,6 +19,29 @@ use wealthfolio_core::fx::currency::{get_normalization_rule, normalize_amount, r
 /// Minimum confidence score to consider a mapping reliable
 const CONFIDENCE_THRESHOLD: f64 = 0.7;
 
+fn normalize_activity_token(value: &str) -> String {
+    value
+        .split(|c: char| c.is_whitespace() || c == '-' || c == '_')
+        .filter(|part| !part.is_empty())
+        .map(str::to_ascii_uppercase)
+        .collect::<Vec<_>>()
+        .join("_")
+}
+
+fn fold_position_intent_activity_type(activity_type: String) -> (String, Option<String>) {
+    match normalize_activity_token(&activity_type).as_str() {
+        "SELL_SHORT" | "SHORT_SELL" | "SELL_SHORT_TO_OPEN" => (
+            activities::ACTIVITY_TYPE_SELL.to_string(),
+            Some(activities::ACTIVITY_SUBTYPE_POSITION_OPEN.to_string()),
+        ),
+        "BUY_TO_COVER" | "BUY_COVER" | "COVER_SHORT" => (
+            activities::ACTIVITY_TYPE_BUY.to_string(),
+            Some(activities::ACTIVITY_SUBTYPE_POSITION_CLOSE.to_string()),
+        ),
+        _ => (activity_type, None),
+    }
+}
+
 /// Determine if an activity needs user review based on various signals.
 ///
 /// Returns `true` if the activity should be flagged for review.
@@ -309,12 +332,14 @@ pub fn map_broker_activity(
         .filter(|c| !c.trim().is_empty());
 
     // Get activity type from API
-    let activity_type = activity
+    let raw_activity_type = activity
         .activity_type
         .clone()
         .map(|t| t.trim().to_uppercase())
         .filter(|t| !t.is_empty())
         .unwrap_or_else(|| "UNKNOWN".to_string());
+    let (activity_type, activity_type_position_intent) =
+        fold_position_intent_activity_type(raw_activity_type);
 
     let option_leg_type = activity
         .option_type
@@ -323,11 +348,12 @@ pub fn map_broker_activity(
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string());
 
-    let subtype = activity
-        .subtype
-        .clone()
+    let subtype = activity_type_position_intent
         .or(option_leg_type.clone())
+        .or(activity.subtype.clone())
         .or(activity.raw_type.clone());
+    let subtype =
+        NewActivity::canonicalize_subtype_for_activity(&activity_type, subtype.as_deref());
 
     // Calculate needs_review flag
     let needs_review_flag = needs_review(activity);
@@ -540,6 +566,7 @@ pub fn map_broker_activity(
         unit_price,
         currency: currency_code,
         fee,
+        tax: None,
         amount,
         status: Some(status),
         notes: activity
@@ -560,6 +587,7 @@ pub fn map_broker_activity(
             .or(activity.id.clone()),
         source_group_id: activity.source_group_id.clone(),
         idempotency_key: None,
+        import_run_id: None,
     })
 }
 
@@ -677,6 +705,7 @@ mod tests {
 
         assert_eq!(mapped.amount.unwrap().round_dp(4), decimal("997.6000"));
         assert_eq!(mapped.fee.unwrap().round_dp(4), decimal("4.9000"));
+        assert_eq!(mapped.tax, None);
     }
 
     #[test]
@@ -760,7 +789,71 @@ mod tests {
 
         assert_eq!(symbol.kind.as_deref(), Some("OPTION"));
         assert_eq!(symbol.exchange_mic, None);
-        assert_eq!(mapped.subtype.as_deref(), Some("BUY_TO_OPEN"));
+        assert_eq!(mapped.subtype.as_deref(), Some("POSITION_OPEN"));
+    }
+
+    #[test]
+    fn test_map_broker_activity_folds_raw_stock_short_activity_type() {
+        let activity = AccountUniversalActivity {
+            id: Some("act-short".to_string()),
+            activity_type: Some("SELL_SHORT".to_string()),
+            symbol: Some(crate::broker::models::AccountUniversalActivitySymbol {
+                symbol: Some("AAPL".to_string()),
+                raw_symbol: Some("AAPL".to_string()),
+                ..Default::default()
+            }),
+            units: Some(1.0),
+            price: Some(200.0),
+            ..Default::default()
+        };
+
+        let mapped = map_broker_activity(&activity, "acct-1", Some("USD"), Some("USD")).unwrap();
+
+        assert_eq!(mapped.activity_type, activities::ACTIVITY_TYPE_SELL);
+        assert_eq!(mapped.subtype.as_deref(), Some("POSITION_OPEN"));
+    }
+
+    #[test]
+    fn test_map_broker_activity_raw_short_intent_outranks_unrelated_subtype() {
+        let activity = AccountUniversalActivity {
+            id: Some("act-short-subtype".to_string()),
+            activity_type: Some("sell  short".to_string()),
+            subtype: Some("tax_lot_label".to_string()),
+            symbol: Some(crate::broker::models::AccountUniversalActivitySymbol {
+                symbol: Some("AAPL".to_string()),
+                raw_symbol: Some("AAPL".to_string()),
+                ..Default::default()
+            }),
+            units: Some(1.0),
+            price: Some(200.0),
+            ..Default::default()
+        };
+
+        let mapped = map_broker_activity(&activity, "acct-1", Some("USD"), Some("USD")).unwrap();
+
+        assert_eq!(mapped.activity_type, activities::ACTIVITY_TYPE_SELL);
+        assert_eq!(mapped.subtype.as_deref(), Some("POSITION_OPEN"));
+    }
+
+    #[test]
+    fn test_map_broker_activity_folds_raw_buy_to_cover_activity_type() {
+        let activity = AccountUniversalActivity {
+            id: Some("act-cover".to_string()),
+            activity_type: Some("BUY_TO_COVER".to_string()),
+            symbol: Some(crate::broker::models::AccountUniversalActivitySymbol {
+                symbol: Some("AAPL".to_string()),
+                raw_symbol: Some("AAPL".to_string()),
+                ..Default::default()
+            }),
+            units: Some(1.0),
+            price: Some(180.0),
+            ..Default::default()
+        };
+
+        let mapped = map_broker_activity(&activity, "acct-1", Some("USD"), Some("USD")).unwrap();
+
+        assert_eq!(mapped.activity_type, activities::ACTIVITY_TYPE_BUY);
+        assert_eq!(mapped.subtype.as_deref(), Some("POSITION_CLOSE"));
     }
 
     #[test]

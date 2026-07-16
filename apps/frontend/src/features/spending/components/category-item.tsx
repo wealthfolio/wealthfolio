@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   AlertDialog,
@@ -45,6 +46,7 @@ export function CategoryItem({
   isSubcategory = false,
   activityCounts,
 }: CategoryItemProps) {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -58,14 +60,14 @@ export function CategoryItem({
           ? [
               {
                 icon: Icons.Plus,
-                label: "Add subcategory",
+                label: t("spending:category.addSubcategory"),
                 onClick: () => onAddSubcategory(category),
               },
             ]
           : []),
         {
           icon: Icons.Pencil,
-          label: "Edit",
+          label: t("common:edit"),
           onClick: () => onEdit(category),
         },
       ],
@@ -74,7 +76,7 @@ export function CategoryItem({
       items: [
         {
           icon: Icons.Trash,
-          label: "Delete",
+          label: t("common:delete"),
           variant: "destructive" as const,
           onClick: () => setConfirmDeleteOpen(true),
         },
@@ -128,9 +130,7 @@ export function CategoryItem({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>
-                    {activityCount} transaction{activityCount !== 1 ? "s" : ""}
-                  </p>
+                  <p>{t("spending:category.transactionCount", { count: activityCount })}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -144,19 +144,24 @@ export function CategoryItem({
               variant="ghost"
               size="sm"
               onClick={() => onAddSubcategory(category)}
-              title="Add subcategory"
+              title={t("spending:category.addSubcategory")}
             >
               <Icons.Plus className="h-4 w-4" />
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={() => onEdit(category)} title="Edit category">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onEdit(category)}
+            title={t("spending:category.editCategoryTitle")}
+          >
             <Icons.Pencil className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setConfirmDeleteOpen(true)}
-            title="Delete category"
+            title={t("spending:category.deleteCategoryTitle")}
           >
             <Icons.Trash className="h-4 w-4" />
           </Button>
@@ -174,7 +179,7 @@ export function CategoryItem({
               variant="ghost"
               size="sm"
               className="text-muted-foreground hover:text-foreground h-8 w-8 shrink-0 p-0 sm:hidden"
-              aria-label="Category actions"
+              aria-label={t("spending:category.categoryActions")}
             >
               <Icons.DotsThreeVertical className="h-4 w-4" />
             </Button>
@@ -184,24 +189,24 @@ export function CategoryItem({
         <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete Category</AlertDialogTitle>
+              <AlertDialogTitle>{t("spending:category.deleteTitle")}</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete &quot;{category.name}&quot;?
+                {t("spending:category.deleteConfirm", { name: category.name })}
                 {hasChildren && (
                   <span className="text-destructive mt-2 block font-medium">
-                    This will also delete all subcategories.
+                    {t("spending:category.deleteSubcategoriesWarning")}
                   </span>
-                )}
-                This action cannot be undone.
+                )}{" "}
+                {t("spending:category.deleteUndoNote")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => onDelete(category)}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                Delete
+                {t("common:delete")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

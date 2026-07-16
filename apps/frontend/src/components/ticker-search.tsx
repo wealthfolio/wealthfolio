@@ -4,6 +4,7 @@ import { debounce } from "@/lib/debounce";
 import { SymbolSearchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
+import { formatPrice } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Command,
@@ -18,6 +19,7 @@ import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useComposedRefs } from "@wealthfolio/ui/hooks";
 import { Command as CommandPrimitive } from "cmdk";
 import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CreateCustomAssetDialog } from "./create-custom-asset-dialog";
 
 interface QuoteInfo {
@@ -87,6 +89,7 @@ const SearchResults = memo(
     onCreateCustomAsset,
     hideCustomCreate,
   }: SearchResultsProps) => {
+    const { t } = useTranslation();
     const hasResults = results && results.length > 0;
     const showNoResults = !isLoading && !hasResults && query.length > 1;
     const selectedKey = selectedResult ? getSearchResultKey(selectedResult) : null;
@@ -106,7 +109,7 @@ const SearchResults = memo(
         {/* No results message */}
         {showNoResults && (
           <div className="text-muted-foreground px-2 py-3 text-center text-sm">
-            No matches found for &quot;{query}&quot;
+            {t("common:component.no_matches_for", { query })}
           </div>
         )}
 
@@ -156,7 +159,9 @@ const SearchResults = memo(
                 <span className="font-mono text-xs font-semibold uppercase">
                   {query.trim().toUpperCase() || "..."}
                 </span>
-                <span className="text-muted-foreground text-xs">Create custom (manual)</span>
+                <span className="text-muted-foreground text-xs">
+                  {t("common:component.create_custom_manual")}
+                </span>
               </div>
             </CommandItem>
           </>
@@ -205,7 +210,7 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
       selectedResult,
       defaultValue,
       value,
-      placeholder = "Select symbol...",
+      placeholder,
       onSelectResult,
       open: openProp,
       onOpenChange,
@@ -220,6 +225,8 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
     },
     ref,
   ) => {
+    const { t } = useTranslation();
+    const resolvedPlaceholder = placeholder ?? t("common:component.select_symbol");
     const isControlled = openProp !== undefined;
     const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
     const open = isControlled ? openProp : uncontrolledOpen;
@@ -511,10 +518,7 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
                         ) : (
                           quoteInfo?.price != null && (
                             <span className="tabular-nums">
-                              {quoteInfo.price.toLocaleString(undefined, {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 4,
-                              })}
+                              {formatPrice(quoteInfo.price, quoteInfo.currency ?? "USD", false)}
                             </span>
                           )
                         )}
@@ -538,7 +542,7 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
                 </div>
               ) : (
                 <>
-                  <span className="text-muted-foreground">{placeholder}</span>
+                  <span className="text-muted-foreground">{resolvedPlaceholder}</span>
                   <Icons.Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </>
               )}
@@ -559,7 +563,7 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
                 autoFocus={autoFocusSearch}
                 value={searchQuery}
                 onValueChange={handleSearchChange}
-                placeholder="Search for symbol"
+                placeholder={t("common:search_symbol")}
                 onKeyDown={handleInputKeyDown}
               />
 

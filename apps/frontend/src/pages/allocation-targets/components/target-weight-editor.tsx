@@ -1,7 +1,9 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
 import { Icons } from "@wealthfolio/ui";
-import type { TaxonomyCategory } from "@/lib/types";
+import type { BandType, TaxonomyCategory } from "@/lib/types";
 import { allocationTargetColor } from "./allocation-target-colors";
 
 export interface WeightDraft {
@@ -16,6 +18,9 @@ interface TargetWeightEditorProps {
   weights: WeightDraft[];
   currentAllocation?: Record<string, number>; // categoryId → pct 0-100
   categoryLabel?: string;
+  bandType: BandType;
+  driftBandBps: number;
+  relativeFactorBps: number;
   onChange: (weights: WeightDraft[]) => void;
 }
 
@@ -78,21 +83,36 @@ function redistribute(weights: WeightDraft[], changedId: string, newBps: number)
   return result;
 }
 
-function driftTone(drift: number): { label: string; className: string } {
-  if (Math.abs(drift) < 0.05) {
+function effectiveBandPct(
+  targetBps: number,
+  bandType: BandType,
+  driftBandBps: number,
+  relativeFactorBps: number,
+): number {
+  if (bandType === "absolute") return driftBandBps / 100;
+  const relative = (targetBps * relativeFactorBps) / 10_000 / 100;
+  return Math.max(relative, driftBandBps / 100);
+}
+
+function driftTone(
+  drift: number,
+  bandPct: number,
+  t: TFunction,
+): { label: string; className: string } {
+  if (Math.abs(drift) <= bandPct) {
     return {
-      label: "On target",
+      label: t("allocation:editor.onTarget"),
       className: "bg-muted text-muted-foreground",
     };
   }
   if (drift > 0) {
     return {
-      label: `Over +${drift.toFixed(1)}%`,
+      label: t("allocation:editor.over", { value: drift.toFixed(1) }),
       className: "bg-[#eadbd3] text-[#8a5b45]",
     };
   }
   return {
-    label: `Under ${drift.toFixed(1)}%`,
+    label: t("allocation:editor.under", { value: drift.toFixed(1) }),
     className: "bg-[#dfe8dc] text-[#4f6544]",
   };
 }
@@ -101,9 +121,14 @@ export function TargetWeightEditor({
   categories,
   weights,
   currentAllocation = {},
-  categoryLabel = "Asset class",
+  categoryLabel,
+  bandType,
+  driftBandBps,
+  relativeFactorBps,
   onChange,
 }: TargetWeightEditorProps) {
+  const { t } = useTranslation();
+  const resolvedCategoryLabel = categoryLabel ?? t("allocation:editor.assetClass");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [liveBps, setLiveBps] = useState<number | null>(null);
@@ -151,12 +176,14 @@ export function TargetWeightEditor({
     const currentPct = currentAllocation[cat.id] ?? 0;
     const targetPct = bps / 100;
     const drift = currentPct - targetPct;
+    const bandPct = effectiveBandPct(bps, bandType, driftBandBps, relativeFactorBps);
     return {
       cat,
       bps,
       currentPct,
       targetPct,
       drift,
+      bandPct,
       color: allocationTargetColor(cat.id, cat.name, index),
       isLocked: getIsLocked(cat.id),
       isEditing: editingId === cat.id,
@@ -164,7 +191,7 @@ export function TargetWeightEditor({
   });
 
   const biggestMove = [...rows]
-    .filter((row) => Math.abs(row.drift) >= 0.05)
+    .filter((row) => Math.abs(row.drift) > row.bandPct)
     .sort((a, b) => Math.abs(b.drift) - Math.abs(a.drift))[0];
 
   return (
@@ -172,18 +199,18 @@ export function TargetWeightEditor({
       <div className="min-w-[58rem]">
         {/* Column headers */}
         <div className="text-muted-foreground grid grid-cols-[minmax(8rem,1fr)_minmax(12rem,2fr)_4.25rem_5rem_6rem_28px] gap-4 border-b px-1 pb-2 text-[10px] font-medium uppercase tracking-wider">
-          <span>{categoryLabel}</span>
-          <span>Today vs target</span>
-          <span className="text-right">Current</span>
-          <span className="text-right">Target</span>
-          <span className="text-right">Drift</span>
+          <span>{resolvedCategoryLabel}</span>
+          <span>{t("allocation:editor.todayVsTarget")}</span>
+          <span className="text-right">{t("allocation:editor.current")}</span>
+          <span className="text-right">{t("allocation:editor.target")}</span>
+          <span className="text-right">{t("allocation:editor.drift")}</span>
           <span />
         </div>
 
         {/* Category rows */}
         <div className="divide-y">
           {rows.map((row) => {
-            const tone = driftTone(row.drift);
+            const tone = driftTone(row.drift, row.bandPct, t);
             return (
               <div
                 key={row.cat.id}
@@ -260,7 +287,11 @@ export function TargetWeightEditor({
                       type="button"
                       onClick={() => startEdit(row.cat.id)}
                       disabled={row.isLocked}
-                      title={row.isLocked ? "Locked" : "Edit target"}
+                      title={
+                        row.isLocked
+                          ? t("allocation:editor.locked")
+                          : t("allocation:editor.editTarget")
+                      }
                       className={cn(
                         "bg-background/45 inline-flex h-7 w-14 items-center justify-end rounded-md border px-2 text-right text-[13px] tabular-nums transition-colors",
                         row.isLocked
@@ -295,7 +326,7 @@ export function TargetWeightEditor({
                       ? "text-foreground"
                       : "text-muted-foreground/40 hover:text-foreground opacity-0 group-hover:opacity-100",
                   )}
-                  title={row.isLocked ? "Unlock" : "Lock"}
+                  title={row.isLocked ? t("allocation:editor.unlock") : t("allocation:editor.lock")}
                 >
                   {row.isLocked ? (
                     <Icons.Lock className="h-3.5 w-3.5" />
@@ -311,7 +342,7 @@ export function TargetWeightEditor({
         {/* Total row */}
         <div className="border-t pt-3">
           <div className="grid grid-cols-[minmax(8rem,1fr)_minmax(12rem,2fr)_4.25rem_5rem_6rem_28px] gap-4 px-1">
-            <span className="text-[13px] font-medium">Total</span>
+            <span className="text-[13px] font-medium">{t("allocation:editor.total")}</span>
             <span />
             <span />
             <span
@@ -328,17 +359,28 @@ export function TargetWeightEditor({
           {!isValid && (
             <p className="text-destructive mt-0.5 px-1 text-[11px]">
               {totalBps < 10000
-                ? `${((10000 - totalBps) / 100).toFixed(1)}% unallocated`
-                : `${((totalBps - 10000) / 100).toFixed(1)}% over 100%`}
+                ? t("allocation:editor.unallocated", {
+                    value: ((10000 - totalBps) / 100).toFixed(1),
+                  })
+                : t("allocation:editor.over100", {
+                    value: ((totalBps - 10000) / 100).toFixed(1),
+                  })}
             </p>
           )}
         </div>
         {biggestMove && (
           <p className="text-muted-foreground border-t px-1 pt-3 text-[12px]">
-            Biggest move:{" "}
+            {t("allocation:editor.biggestMovePrefix")}{" "}
             <span className="text-foreground font-medium">
-              {biggestMove.drift > 0 ? "trim" : "add"} {biggestMove.cat.name}{" "}
-              {Math.abs(biggestMove.drift).toFixed(1)} pts
+              {biggestMove.drift > 0
+                ? t("allocation:editor.biggestMoveTrim", {
+                    category: biggestMove.cat.name,
+                    value: Math.abs(biggestMove.drift).toFixed(1),
+                  })
+                : t("allocation:editor.biggestMoveAdd", {
+                    category: biggestMove.cat.name,
+                    value: Math.abs(biggestMove.drift).toFixed(1),
+                  })}
             </span>
             .
           </p>

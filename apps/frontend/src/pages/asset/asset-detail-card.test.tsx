@@ -42,9 +42,54 @@ describe("AssetDetailCard", () => {
     );
 
     expect(screen.getByText("Income")).toBeInTheDocument();
+    expect(screen.queryByText("FX effect")).not.toBeInTheDocument();
     expect(screen.getByText("Total P&L")).toBeInTheDocument();
     expect(screen.getByText("Total Return")).toBeInTheDocument();
   });
+
+  it.each([
+    { currency: "USD", baseCurrency: "USD", fxEffect: 25, visible: false },
+    { currency: "USD", baseCurrency: "CAD", fxEffect: 0, visible: true },
+    { currency: "USD", baseCurrency: "CAD", fxEffect: 25, visible: true },
+  ])(
+    "renders the FX row only for available foreign-currency effects: $currency/$baseCurrency at $fxEffect",
+    ({ currency, baseCurrency, fxEffect, visible }) => {
+      render(
+        <AssetDetailCard
+          assetData={{
+            numShares: 10,
+            marketValue: 1250,
+            costBasis: 1000,
+            averagePrice: 100,
+            portfolioPercent: 0.25,
+            todaysReturn: null,
+            todaysReturnPercent: null,
+            unrealizedPnl: 200,
+            unrealizedPnlPercent: 0.2,
+            realizedPnl: null,
+            realizedPnlPercent: null,
+            income: 0,
+            fxEffect,
+            priceReturnPercent: 0.12,
+            totalPnl: 200,
+            totalPnlPercent: 0.2,
+            totalReturn: 200,
+            totalReturnPercent: 0.2,
+            currency,
+            baseCurrency,
+            quoteCurrency: null,
+            quote: null,
+          }}
+        />,
+      );
+
+      if (visible) {
+        expect(screen.getByText("FX effect")).toBeInTheDocument();
+      } else {
+        expect(screen.queryByText("FX effect")).not.toBeInTheDocument();
+      }
+    },
+  );
 
   it("uses option-specific quantity and average-cost labels", () => {
     render(

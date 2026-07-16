@@ -237,6 +237,7 @@ export const ImportFormat = {
   AMOUNT: "amount",
   CURRENCY: "currency",
   FEE: "fee",
+  TAX: "tax",
   COMMENT: "comment",
   FX_RATE: "fxRate",
   SUBTYPE: "subtype",
@@ -256,6 +257,7 @@ export const importFormatSchema = z.enum([
   ImportFormat.AMOUNT,
   ImportFormat.CURRENCY,
   ImportFormat.FEE,
+  ImportFormat.TAX,
   ImportFormat.COMMENT,
   ImportFormat.FX_RATE,
   ImportFormat.SUBTYPE,
@@ -276,6 +278,7 @@ export type ImportRequiredField = (typeof IMPORT_REQUIRED_FIELDS)[number];
 export const ExportDataType = {
   ACCOUNTS: "accounts",
   ACTIVITIES: "activities",
+  HOLDINGS: "holdings",
   GOALS: "goals",
   PORTFOLIO_HISTORY: "portfolio-history",
 } as const;
@@ -285,6 +288,7 @@ export type ExportDataType = (typeof ExportDataType)[keyof typeof ExportDataType
 export const exportDataTypeSchema = z.enum([
   ExportDataType.ACCOUNTS,
   ExportDataType.ACTIVITIES,
+  ExportDataType.HOLDINGS,
   ExportDataType.GOALS,
   ExportDataType.PORTFOLIO_HISTORY,
 ]);
@@ -424,13 +428,68 @@ export const ACTIVITY_SUBTYPES = {
   REBATE: "REBATE",
   // REFUND: internal flow (fee correction/reversal, no net_contribution change)
   REFUND: "REFUND",
+  // REIMBURSEMENT: spending flow that offsets an expense category
+  REIMBURSEMENT: "REIMBURSEMENT",
 
   // ADJUSTMENT subtypes
   // OPTION_EXPIRY: removes option lots with no cash effect
   OPTION_EXPIRY: "OPTION_EXPIRY",
+
+  // BUY/SELL position intent subtypes
+  // POSITION_OPEN: opens or extends a long/short position
+  POSITION_OPEN: "POSITION_OPEN",
+  // POSITION_CLOSE: closes or reduces an existing long/short position
+  POSITION_CLOSE: "POSITION_CLOSE",
 } as const;
 
 export type ActivitySubtype = (typeof ACTIVITY_SUBTYPES)[keyof typeof ACTIVITY_SUBTYPES];
+
+/**
+ * Broker/export aliases for BUY/SELL position-intent subtypes, grouped by trade
+ * side and resulting intent. Single source of truth shared by the activity-utils
+ * canonicalizer and the CSV import draft inference.
+ *
+ * Aliases are stored separator-stripped + uppercased (the canonical form produced
+ * by {@link normalizePositionIntentAlias}); BUY_TO_OPEN and BUYTOOPEN both
+ * normalize to "BUYTOOPEN".
+ *
+ * The Rust backend (NewActivity::canonicalize_subtype_for_activity in
+ * crates/core/src/activities/activities_model.rs) is the authority — keep these
+ * lists in sync with it.
+ */
+export const POSITION_INTENT_ALIASES = {
+  [ActivityType.BUY]: {
+    [ACTIVITY_SUBTYPES.POSITION_OPEN]: ["BTO", "BUYTOOPEN", "BUYOPEN", "OPENBUY"],
+    [ACTIVITY_SUBTYPES.POSITION_CLOSE]: [
+      "BTC",
+      "BUYTOCLOSE",
+      "BUYCLOSE",
+      "CLOSEBUY",
+      "BUYTOCOVER",
+      "BUYCOVER",
+      "COVERSHORT",
+    ],
+  },
+  [ActivityType.SELL]: {
+    [ACTIVITY_SUBTYPES.POSITION_OPEN]: [
+      "STO",
+      "SELLTOOPEN",
+      "SELLOPEN",
+      "OPENSELL",
+      "SELLSHORT",
+      "SHORTSELL",
+      "SELLSHORTTOOPEN",
+    ],
+    [ACTIVITY_SUBTYPES.POSITION_CLOSE]: ["STC", "SELLTOCLOSE", "SELLCLOSE", "CLOSESELL"],
+  },
+} as const;
+
+/** Normalize a raw subtype label to the canonical alias form (uppercase, no spaces/dashes/underscores). */
+export const normalizePositionIntentAlias = (value: string): string =>
+  value
+    .trim()
+    .toUpperCase()
+    .replace(/[\s_-]+/g, "");
 
 // Display names for subtypes
 export const SUBTYPE_DISPLAY_NAMES: Record<string, string> = {
@@ -440,17 +499,23 @@ export const SUBTYPE_DISPLAY_NAMES: Record<string, string> = {
   [ACTIVITY_SUBTYPES.BONUS]: "Bonus",
   [ACTIVITY_SUBTYPES.REBATE]: "Trading Rebate",
   [ACTIVITY_SUBTYPES.REFUND]: "Fee Refund",
+  [ACTIVITY_SUBTYPES.REIMBURSEMENT]: "Reimbursement",
   [ACTIVITY_SUBTYPES.OPTION_EXPIRY]: "Option Expiry",
+  [ACTIVITY_SUBTYPES.POSITION_OPEN]: "Open Position",
+  [ACTIVITY_SUBTYPES.POSITION_CLOSE]: "Close Position",
 };
 
 // Suggested subtypes per activity type
 export const SUBTYPES_BY_ACTIVITY_TYPE: Record<string, string[]> = {
+  [ActivityType.BUY]: [ACTIVITY_SUBTYPES.POSITION_OPEN, ACTIVITY_SUBTYPES.POSITION_CLOSE],
+  [ActivityType.SELL]: [ACTIVITY_SUBTYPES.POSITION_OPEN, ACTIVITY_SUBTYPES.POSITION_CLOSE],
   [ActivityType.DIVIDEND]: [ACTIVITY_SUBTYPES.DRIP, ACTIVITY_SUBTYPES.DIVIDEND_IN_KIND],
   [ActivityType.INTEREST]: [ACTIVITY_SUBTYPES.STAKING_REWARD],
   [ActivityType.CREDIT]: [
     ACTIVITY_SUBTYPES.BONUS,
     ACTIVITY_SUBTYPES.REBATE,
     ACTIVITY_SUBTYPES.REFUND,
+    ACTIVITY_SUBTYPES.REIMBURSEMENT,
   ],
   [ActivityType.ADJUSTMENT]: [ACTIVITY_SUBTYPES.OPTION_EXPIRY],
 };

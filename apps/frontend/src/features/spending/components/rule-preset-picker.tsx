@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   AlertDialog,
@@ -33,6 +34,7 @@ interface RulePresetPickerProps {
  * rules are detached and kept).
  */
 export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
+  const { t } = useTranslation();
   const { data: presets = [], isLoading, isError: presetsErrored } = useRulePresets();
   const { data: rules = [], isError: rulesErrored } = useCategorizationRules();
   const importMutation = useImportRulePreset();
@@ -52,10 +54,10 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
   }, [rules]);
 
   if (isLoading) {
-    return <div className="text-muted-foreground text-xs">Loading presets…</div>;
+    return <div className="text-muted-foreground text-xs">{t("spending:presets.loading")}</div>;
   }
   if (presetsErrored || rulesErrored) {
-    return <div className="text-destructive text-xs">Presets could not load.</div>;
+    return <div className="text-destructive text-xs">{t("spending:presets.loadError")}</div>;
   }
   if (presets.length === 0) return null;
 
@@ -69,10 +71,8 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
     <div className={compact ? "space-y-2" : "space-y-3"}>
       {!compact && (
         <div className="space-y-0.5">
-          <div className="text-foreground text-sm font-medium">Start with a preset</div>
-          <p className="text-muted-foreground text-xs">
-            Pick your country to seed common merchant rules. Skips rules you already have.
-          </p>
+          <div className="text-foreground text-sm font-medium">{t("spending:presets.title")}</div>
+          <p className="text-muted-foreground text-xs">{t("spending:presets.subtitle")}</p>
         </div>
       )}
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch">
@@ -90,8 +90,14 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
                 disabled={busy}
                 aria-label={
                   preset.installed
-                    ? `Re-import ${preset.name} preset (${preset.ruleCount} rules)`
-                    : `Import ${preset.name} preset (${preset.ruleCount} rules)`
+                    ? t("spending:presets.reimportLabel", {
+                        name: preset.name,
+                        count: preset.ruleCount,
+                      })
+                    : t("spending:presets.importLabel", {
+                        name: preset.name,
+                        count: preset.ruleCount,
+                      })
                 }
                 className={cn(
                   "border-input bg-card hover:bg-muted/50 group flex w-full items-center gap-3 rounded-lg border py-2.5 pl-3 text-left transition-colors sm:w-auto sm:min-w-[160px]",
@@ -109,7 +115,7 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
                     {preset.name}
                   </span>
                   <span className="text-muted-foreground text-[11px] leading-tight">
-                    {preset.ruleCount} rules
+                    {t("spending:presets.rulesCount", { count: preset.ruleCount })}
                   </span>
                 </div>
                 {isImporting || isRemoving ? (
@@ -131,8 +137,8 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
                   type="button"
                   onClick={() => setPendingRemove(preset.presetId)}
                   disabled={busy}
-                  aria-label={`Remove ${preset.name} preset`}
-                  title={`Remove ${preset.name} preset`}
+                  aria-label={t("spending:presets.removeLabel", { name: preset.name })}
+                  title={t("spending:presets.removeLabel", { name: preset.name })}
                   className={cn(
                     "text-muted-foreground hover:bg-destructive/10 hover:text-destructive absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-md transition-all",
                     "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2",
@@ -156,28 +162,29 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove {pendingPreset?.name ?? "preset"}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("spending:presets.removeTitle", {
+                name: pendingPreset?.name ?? t("spending:presets.presetFallback"),
+              })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingCounts && unmodifiedToRemove !== null ? (
                 <>
-                  {unmodifiedToRemove} rule{unmodifiedToRemove === 1 ? "" : "s"} will be removed
-                  from this preset.
+                  {t("spending:presets.removeCount", { count: unmodifiedToRemove })}
                   {pendingCounts.modified > 0 && (
                     <>
                       {" "}
-                      Your {pendingCounts.modified} edited rule
-                      {pendingCounts.modified === 1 ? "" : "s"} will be kept as standalone rule
-                      {pendingCounts.modified === 1 ? "" : "s"}.
+                      {t("spending:presets.removeKeptEdited", { count: pendingCounts.modified })}
                     </>
                   )}
                 </>
               ) : (
-                <>Rules from this preset will be removed. Your edits are kept.</>
+                <>{t("spending:presets.removeGeneric")}</>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (pendingRemove) {
@@ -187,7 +194,7 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Remove
+              {t("spending:presets.remove")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

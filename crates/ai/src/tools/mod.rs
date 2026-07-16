@@ -1,115 +1,80 @@
 //! AI assistant tools for portfolio data access.
 //!
-//! This module provides tools that implement rig-core's Tool trait:
-//! - GetAccountsTool: Fetch active investment accounts
-//! - GetHoldingsTool: Fetch portfolio holdings
-//! - GetAssetAllocationTool: Calculate portfolio allocation by category
-//! - GetPerformanceTool: Fetch portfolio performance metrics
-//! - GetValuationHistoryTool: Fetch portfolio valuation history
-//! - SearchActivitiesTool: Search transactions
-//! - GetIncomeTool: Fetch income summaries (dividends, interest, other income)
-//! - GetGoalsTool: Fetch investment goals with progress
-//! - RecordActivityTool: Create activity drafts from natural language
-//! - RecordActivitiesTool: Create multiple activity drafts from natural language
+//! Read, draft, and suggest tools live in `wealthfolio-agent-tools` (shared
+//! with MCP) and are exposed to rig agents through `rig_adapter::RigAgentTool`.
+//! The only tool remaining here implements rig-core's Tool trait directly:
+//! - ImportCsvTool: Infer CSV column mappings and validate for import
 //!
-//! All tools are designed to work with the AiEnvironment trait for dependency injection.
+//! It is designed to work with the AiEnvironment trait for dependency injection.
 
-pub mod accounts;
-pub mod activities;
-pub mod allocation;
-pub mod asset_classification;
-pub mod cash_balances;
 pub mod constants;
-pub mod create_categorization_rule;
-pub mod goals;
-pub mod health;
-pub mod holdings;
 pub mod import_csv;
-pub mod income;
-pub mod list_categorization_context;
-pub mod performance;
-pub mod propose_categories;
-pub mod record_activities;
-pub mod record_activity;
-pub mod valuation;
+pub mod rig_adapter;
 
 // Re-export constants
 pub use constants::*;
 
-// Re-export tools
-pub use accounts::GetAccountsTool;
-pub use activities::SearchActivitiesTool;
-pub use allocation::GetAssetAllocationTool;
-pub use asset_classification::{
-    GetAssetTaxonomyAssignmentsTool, ListAssetTaxonomiesTool, PrepareAssetClassificationTool,
+// Re-export migrated agent tools (DTOs, arg/output types, and unit structs) for
+// compatibility so existing import paths via `crate::tools::` keep resolving.
+// `allocation::HoldingDto` is skipped: it collides with `holdings::HoldingDto`
+// (reach it as `wealthfolio_agent_tools::tools::allocation::HoldingDto`).
+pub use wealthfolio_agent_tools::tools::{
+    AccountCashSummary, AccountDto, AccountOption, ActivityDraft, ActivityDraftRow, ActivityDto,
+    AiProposal, AllocationDto, AssetTaxonomyAssignmentDto, AssetTaxonomyCategoryDto,
+    AssetTaxonomyDto, AssignmentPreviewDto, BatchValidationSummary, CandidateAssignmentPreviewDto,
+    CashBalanceEntry, CategoryExample, CategoryOption, ClassificationChangesDto, ContextSummary,
+    CreateCategorizationRule, CreateCategorizationRuleArgs, CreateCategorizationRuleOutput,
+    GetAccounts, GetAccountsArgs, GetAccountsOutput, GetAssetAllocation, GetAssetAllocationArgs,
+    GetAssetAllocationOutput, GetAssetTaxonomyAssignments, GetAssetTaxonomyAssignmentsArgs,
+    GetAssetTaxonomyAssignmentsOutput, GetCashBalances, GetCashBalancesArgs, GetCashBalancesOutput,
+    GetGoals, GetGoalsArgs, GetGoalsOutput, GetHealthStatus, GetHealthStatusArgs,
+    GetHealthStatusOutput, GetHoldings, GetHoldingsArgs, GetHoldingsOutput, GetIncome,
+    GetIncomeArgs, GetIncomeOutput, GetPerformance, GetPerformanceArgs, GetPerformanceOutput,
+    GetValuationHistory, GetValuationHistoryArgs, GetValuationHistoryOutput, GoalDto,
+    HealthIssueDto, HoldingDto, ListAssetTaxonomies, ListAssetTaxonomiesArgs,
+    ListAssetTaxonomiesOutput, ListCategorizationContext, ListCategorizationContextArgs,
+    ListCategorizationContextOutput, PerformanceAttributionOutput, PerformanceDataQualityOutput,
+    PerformanceReturnsOutput, PerformanceRiskOutput, PrepareAssetClassification,
+    PrepareAssetClassificationArgs, PrepareAssetClassificationOutput, PreparedAssignmentInput,
+    PreparedTaxonomyDto, Proposal, ProposalSummary, ProposeCategories, ProposeCategoriesArgs,
+    ProposeCategoriesOutput, RecordActivities, RecordActivitiesArgs, RecordActivitiesOutput,
+    RecordActivity, RecordActivityArgs, RecordActivityOutput, ResolvedAsset, ResolvedAssetDto,
+    SearchActivities, SearchActivitiesArgs, SearchActivitiesOutput, SubtypeOption, TaxonomySummary,
+    TopAssetDto, UnproposedActivity, ValidationError, ValidationResult, ValuationPointDto,
 };
-pub use cash_balances::GetCashBalancesTool;
-pub use create_categorization_rule::CreateCategorizationRuleTool;
-pub use goals::GetGoalsTool;
-pub use health::GetHealthStatusTool;
-pub use holdings::GetHoldingsTool;
-pub use import_csv::ImportCsvTool;
-pub use income::GetIncomeTool;
-pub use list_categorization_context::ListCategorizationContextTool;
-pub use performance::GetPerformanceTool;
-pub use propose_categories::{
-    AiProposal, CategoryExample, CategoryOption, Proposal, ProposeCategoriesTool, TaxonomySummary,
-    UnproposedActivity,
-};
-pub use record_activities::RecordActivitiesTool;
-pub use record_activity::RecordActivityTool;
-pub use valuation::GetValuationHistoryTool;
 
+// Re-export the assistant-local tool and the rig adapter.
+pub use import_csv::ImportCsvTool;
+pub use rig_adapter::RigAgentTool;
+
+use once_cell::sync::Lazy;
 use std::sync::Arc;
+use wealthfolio_agent_tools::AgentToolCatalog;
 
 use crate::env::AiEnvironment;
 
-/// Container for all AI tools, simplifying tool registration across providers.
+/// Process-wide catalog of agent tools available to the in-app assistant
+/// (read + draft/suggest), shared by every chat session (tools are stateless;
+/// the environment arrives per call). Commit tools are MCP-only and excluded.
+static AGENT_CATALOG: Lazy<AgentToolCatalog> = Lazy::new(AgentToolCatalog::assistant_catalog);
+
+/// The shared agent-tool catalog exposed to rig via [`RigAgentTool`].
+pub fn agent_catalog() -> &'static AgentToolCatalog {
+    &AGENT_CATALOG
+}
+
+/// Container for the assistant-only rig tools. The migrated read/draft/suggest
+/// tools are not listed here; they come from [`agent_catalog`]. Only `import_csv`
+/// still implements rig's `Tool` trait directly.
 pub struct ToolSet<E: AiEnvironment> {
-    pub holdings: GetHoldingsTool<E>,
-    pub allocation: GetAssetAllocationTool<E>,
-    pub accounts: GetAccountsTool<E>,
-    pub cash_balances: GetCashBalancesTool<E>,
-    pub activities: SearchActivitiesTool<E>,
-    pub income: GetIncomeTool<E>,
-    pub valuation: GetValuationHistoryTool<E>,
-    pub goals: GetGoalsTool<E>,
-    pub performance: GetPerformanceTool<E>,
-    pub record_activity: RecordActivityTool<E>,
-    pub record_activities: RecordActivitiesTool<E>,
     pub import_csv: ImportCsvTool<E>,
-    pub health_status: GetHealthStatusTool<E>,
-    pub propose_categories: ProposeCategoriesTool<E>,
-    pub list_categorization_context: ListCategorizationContextTool<E>,
-    pub create_categorization_rule: CreateCategorizationRuleTool<E>,
-    pub list_asset_taxonomies: ListAssetTaxonomiesTool<E>,
-    pub get_asset_taxonomy_assignments: GetAssetTaxonomyAssignmentsTool<E>,
-    pub prepare_asset_classification: PrepareAssetClassificationTool<E>,
 }
 
 impl<E: AiEnvironment> ToolSet<E> {
-    /// Create a new tool set with all portfolio tools.
+    /// Create a new tool set with the assistant-only rig tools.
     pub fn new(env: Arc<E>, base_currency: String) -> Self {
         Self {
-            holdings: GetHoldingsTool::new(env.clone(), base_currency.clone()),
-            allocation: GetAssetAllocationTool::new(env.clone(), base_currency.clone()),
-            accounts: GetAccountsTool::new(env.clone()),
-            cash_balances: GetCashBalancesTool::new(env.clone(), base_currency.clone()),
-            activities: SearchActivitiesTool::new(env.clone()),
-            income: GetIncomeTool::new(env.clone()),
-            valuation: GetValuationHistoryTool::new(env.clone(), base_currency.clone()),
-            goals: GetGoalsTool::new(env.clone()),
-            performance: GetPerformanceTool::new(env.clone(), base_currency.clone()),
-            record_activity: RecordActivityTool::new(env.clone()),
-            record_activities: RecordActivitiesTool::new(env.clone()),
-            import_csv: ImportCsvTool::new(env.clone(), base_currency),
-            health_status: GetHealthStatusTool::new(env.clone()),
-            propose_categories: ProposeCategoriesTool::new(env.clone()),
-            list_categorization_context: ListCategorizationContextTool::new(env.clone()),
-            create_categorization_rule: CreateCategorizationRuleTool::new(env.clone()),
-            list_asset_taxonomies: ListAssetTaxonomiesTool::new(env.clone()),
-            get_asset_taxonomy_assignments: GetAssetTaxonomyAssignmentsTool::new(env.clone()),
-            prepare_asset_classification: PrepareAssetClassificationTool::new(env),
+            import_csv: ImportCsvTool::new(env, base_currency),
         }
     }
 }
@@ -132,41 +97,27 @@ mod tests {
     #[test]
     fn tool_names_are_exactly_the_strings_used_by_allowlist() {
         use crate::types::DEFAULT_TOOLS_ALLOWLIST;
-        let env = Arc::new(MockEnvironment::new());
-        let tools = ToolSet::new(env, "USD".to_string());
 
-        // Every tool's NAME must be in DEFAULT_TOOLS_ALLOWLIST. The reverse is
-        // checked separately (some allowlist entries are read-only data tools
-        // that aren't in ToolSet's ergonomic field list, which is fine).
-        let registered_names = vec![
-            <GetHoldingsTool<MockEnvironment> as Tool>::NAME,
-            <GetAssetAllocationTool<MockEnvironment> as Tool>::NAME,
-            <GetAccountsTool<MockEnvironment> as Tool>::NAME,
-            <GetCashBalancesTool<MockEnvironment> as Tool>::NAME,
-            <SearchActivitiesTool<MockEnvironment> as Tool>::NAME,
-            <GetIncomeTool<MockEnvironment> as Tool>::NAME,
-            <GetValuationHistoryTool<MockEnvironment> as Tool>::NAME,
-            <GetGoalsTool<MockEnvironment> as Tool>::NAME,
-            <GetPerformanceTool<MockEnvironment> as Tool>::NAME,
-            <RecordActivityTool<MockEnvironment> as Tool>::NAME,
-            <RecordActivitiesTool<MockEnvironment> as Tool>::NAME,
-            <ImportCsvTool<MockEnvironment> as Tool>::NAME,
-            <GetHealthStatusTool<MockEnvironment> as Tool>::NAME,
-            <ProposeCategoriesTool<MockEnvironment> as Tool>::NAME,
-            <ListCategorizationContextTool<MockEnvironment> as Tool>::NAME,
-            <CreateCategorizationRuleTool<MockEnvironment> as Tool>::NAME,
-            <ListAssetTaxonomiesTool<MockEnvironment> as Tool>::NAME,
-            <GetAssetTaxonomyAssignmentsTool<MockEnvironment> as Tool>::NAME,
-            <PrepareAssetClassificationTool<MockEnvironment> as Tool>::NAME,
-        ];
-        for name in &registered_names {
+        // The assistant-local rig tool (`import_csv`) plus every agent-catalog
+        // tool name must be present in DEFAULT_TOOLS_ALLOWLIST.
+        assert!(
+            DEFAULT_TOOLS_ALLOWLIST.contains(&<ImportCsvTool<MockEnvironment> as Tool>::NAME),
+            "import_csv is registered but missing from DEFAULT_TOOLS_ALLOWLIST",
+        );
+    }
+
+    /// Every catalog tool (read + draft/suggest) must stay in
+    /// DEFAULT_TOOLS_ALLOWLIST under its original name — names are the contract
+    /// chat threads snapshot.
+    #[test]
+    fn agent_catalog_names_are_in_default_allowlist() {
+        use crate::types::DEFAULT_TOOLS_ALLOWLIST;
+        for tool in agent_catalog().iter() {
             assert!(
-                DEFAULT_TOOLS_ALLOWLIST.contains(name),
-                "Tool {name} is registered in ToolSet but missing from DEFAULT_TOOLS_ALLOWLIST — \
-                 add it or it'll never be enabled by default. Drift between tool NAME and \
-                 allowlist is the most common cause of 'I added a tool and the agent ignores it'.",
+                DEFAULT_TOOLS_ALLOWLIST.contains(&tool.name()),
+                "Catalog tool {} missing from DEFAULT_TOOLS_ALLOWLIST",
+                tool.name()
             );
         }
-        let _ = tools;
     }
 }

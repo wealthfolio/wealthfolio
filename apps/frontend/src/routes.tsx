@@ -1,13 +1,19 @@
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { AppLayout } from "@/pages/layouts/app-layout";
 import { OnboardingLayout } from "@/pages/layouts/onboarding-layout";
 import SettingsLayout from "@/pages/settings/settings-layout";
 
-import { getDynamicRoutes, subscribeToNavigationUpdates } from "@/addons/addons-runtime-context";
+import {
+  getDynamicRoutes,
+  subscribeToNavigationUpdates,
+  type DynamicRouteEntry,
+} from "@/addons/addons-runtime-context";
+import { AddonIframeRoute } from "@/addons/iframe/addon-iframe-route";
 import AuthCallbackPage from "@/features/wealthfolio-connect/pages/auth-callback-page";
 import ConnectPage from "@/features/wealthfolio-connect/pages/connect-page";
+import useNavigationEventListener from "@/hooks/use-navigation-event-listener";
 import ActivityManagerPage from "@/pages/activity/activity-manager-page";
 import ActivityPage from "@/pages/activity/activity-page";
 import ActivityImportPage from "@/pages/activity/import/activity-import-page";
@@ -28,6 +34,7 @@ import HealthPage from "./pages/health/health-page";
 import OnboardingPage from "./pages/onboarding/onboarding-page";
 import AboutSettingsPage from "./pages/settings/about/about-page";
 import AddonSettingsPage from "./pages/settings/addons/addon-settings";
+import AgentAccessPage from "./pages/settings/agent-access/agent-access-page";
 import AiProvidersPage from "./pages/settings/ai-providers/ai-providers-page";
 import ContributionLimitPage from "./pages/settings/contribution-limits/contribution-limits-page";
 import ExportSettingsPage from "./pages/settings/exports/exports-page";
@@ -48,10 +55,13 @@ import GoalNewPage from "@/features/goals/pages/goal-new-page";
 import GoalDetailPage from "@/features/goals/pages/goal-detail-page";
 import GoalRetirementGuidePage from "@/features/goals/pages/goal-retirement-guide-page";
 
+function NavigationEventBridge() {
+  useNavigationEventListener();
+  return null;
+}
+
 export function AppRoutes() {
-  const [dynamicRoutes, setDynamicRoutes] = useState<
-    { path: string; component: React.LazyExoticComponent<React.ComponentType<unknown>> }[]
-  >([]);
+  const [dynamicRoutes, setDynamicRoutes] = useState<DynamicRouteEntry[]>([]);
 
   // Subscribe to dynamic route updates
   useEffect(() => {
@@ -72,6 +82,7 @@ export function AppRoutes() {
 
   return (
     <BrowserRouter>
+      <NavigationEventBridge />
       <Routes>
         {/* QR Scanner - No layout for fullscreen camera access */}
         {/* <Route path="/qr-scanner" element={<QRScannerPage />} /> */}
@@ -111,17 +122,11 @@ export function AppRoutes() {
           <Route path="spending/insights" element={<SpendingInsightsPage />} />
           <Route path="spending/budget" element={<SpendingBudgetPage />} />
           {/* Dynamic addon routes */}
-          {dynamicRoutes.map(({ path, component: Component }) => (
+          {dynamicRoutes.map(({ path, addonId, routeId }) => (
             <Route
-              key={path}
+              key={`${addonId}:${routeId}`}
               path={path}
-              element={
-                <Suspense
-                  fallback={<div className="flex h-64 items-center justify-center">Loading...</div>}
-                >
-                  <Component />
-                </Suspense>
-              }
+              element={<AddonIframeRoute addonId={addonId} routeId={routeId} />}
             />
           ))}
           <Route path="settings" element={<SettingsLayout />}>
@@ -144,6 +149,7 @@ export function AppRoutes() {
             <Route path="taxonomies" element={<TaxonomiesPage />} />
             <Route path="connect" element={<ConnectSettingsPage />} />
             <Route path="ai-providers" element={<AiProvidersPage />} />
+            <Route path="agent-access" element={<AgentAccessPage />} />
             <Route path="addons" element={<AddonSettingsPage />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />

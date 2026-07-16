@@ -12,47 +12,9 @@ import {
   DialogTitle,
 } from "@wealthfolio/ui/components/ui/dialog";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useGoalMutations } from "../hooks/use-goals";
-
-const GOAL_TYPE_LABELS: Record<Goal["goalType"], string> = {
-  retirement: "Retirement",
-  education: "Education",
-  home: "Home Purchase",
-  car: "Car Purchase",
-  wedding: "Wedding",
-  custom_save_up: "Savings Goal",
-};
-
-const LIFECYCLE_OPTIONS: {
-  value: Goal["statusLifecycle"];
-  label: string;
-  hint: string;
-  description: string;
-  icon: typeof Icons.Target;
-}[] = [
-  {
-    value: "active",
-    label: "Active",
-    hint: "Still in progress",
-    description: "Shows in planning, progress, and active goal lists.",
-    icon: Icons.Target,
-  },
-  {
-    value: "achieved",
-    label: "Completed",
-    hint: "Goal is done",
-    description: "Marks the goal complete and releases its assigned account shares.",
-    icon: Icons.CheckCircle,
-  },
-  {
-    value: "archived",
-    hint: "Hide from active goals",
-    label: "Archived",
-    description: "Keeps the goal for reference, but removes it from active planning.",
-    icon: Icons.FileArchive,
-  },
-];
 
 interface Props {
   goal: Goal;
@@ -61,7 +23,56 @@ interface Props {
 }
 
 export function GoalEditDialog({ goal, open, onClose }: Props) {
+  const { t } = useTranslation();
   const { updateMutation } = useGoalMutations();
+
+  const goalTypeLabels = useMemo<Record<Goal["goalType"], string>>(
+    () => ({
+      retirement: t("goals:edit.type_retirement"),
+      education: t("goals:edit.type_education"),
+      home: t("goals:edit.type_home"),
+      car: t("goals:edit.type_car"),
+      wedding: t("goals:edit.type_wedding"),
+      custom_save_up: t("goals:edit.type_custom_save_up"),
+    }),
+    [t],
+  );
+
+  const lifecycleOptions = useMemo<
+    {
+      value: Goal["statusLifecycle"];
+      label: string;
+      hint: string;
+      description: string;
+      icon: typeof Icons.Target;
+    }[]
+  >(
+    () => [
+      {
+        value: "active",
+        label: t("goals:edit.lifecycle_active_label"),
+        hint: t("goals:edit.lifecycle_active_hint"),
+        description: t("goals:edit.lifecycle_active_description"),
+        icon: Icons.Target,
+      },
+      {
+        value: "achieved",
+        label: t("goals:edit.lifecycle_achieved_label"),
+        hint: t("goals:edit.lifecycle_achieved_hint"),
+        description: t("goals:edit.lifecycle_achieved_description"),
+        icon: Icons.CheckCircle,
+      },
+      {
+        value: "archived",
+        hint: t("goals:edit.lifecycle_archived_hint"),
+        label: t("goals:edit.lifecycle_archived_label"),
+        description: t("goals:edit.lifecycle_archived_description"),
+        icon: Icons.FileArchive,
+      },
+    ],
+    [t],
+  );
+
   const [title, setTitle] = useState(goal.title);
   const [description, setDescription] = useState(goal.description ?? "");
   const [lifecycle, setLifecycle] = useState<Goal["statusLifecycle"]>(goal.statusLifecycle);
@@ -102,13 +113,12 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
       <DialogContent className="sm:max-w-xl">
         <form onSubmit={handleSave} className="space-y-6">
           <DialogHeader>
-            <DialogTitle>Edit goal</DialogTitle>
+            <DialogTitle>{t("goals:edit.title")}</DialogTitle>
             <DialogDescription>
-              Update the goal name, notes, and status. Completed means the goal is done. Archived
-              means you want to hide it from active goals without deleting it.{" "}
+              {t("goals:edit.description")}{" "}
               {isRetirement
-                ? "Retirement assumptions, spending, taxes, and account shares stay in the planner."
-                : "Target amount, target date, and funding stay in the goal plan."}
+                ? t("goals:edit.description_retirement")
+                : t("goals:edit.description_standard")}
             </DialogDescription>
           </DialogHeader>
 
@@ -116,46 +126,43 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
             <div className="bg-muted/30 rounded-xl border p-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium">Goal type</p>
-                  <p className="text-muted-foreground text-xs">
-                    Fixed after creation so the planner logic stays consistent.
-                  </p>
+                  <p className="text-sm font-medium">{t("goals:edit.goal_type")}</p>
+                  <p className="text-muted-foreground text-xs">{t("goals:edit.goal_type_hint")}</p>
                 </div>
-                <Badge variant="secondary">{GOAL_TYPE_LABELS[goal.goalType]}</Badge>
+                <Badge variant="secondary">{goalTypeLabels[goal.goalType]}</Badge>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="goal-title">Title</Label>
+              <Label htmlFor="goal-title">{t("goals:edit.title_label")}</Label>
               <Input
                 id="goal-title"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder="Goal name"
+                placeholder={t("goals:edit.title_placeholder")}
                 autoFocus
               />
-              {!trimmedTitle && <p className="text-destructive text-xs">Title is required.</p>}
+              {!trimmedTitle && (
+                <p className="text-destructive text-xs">{t("goals:edit.title_required")}</p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="goal-description">Notes</Label>
+              <Label htmlFor="goal-description">{t("goals:edit.notes_label")}</Label>
               <Textarea
                 id="goal-description"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
-                placeholder="Optional context for this goal"
+                placeholder={t("goals:edit.notes_placeholder")}
                 rows={3}
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Goal status</Label>
-              <p className="text-muted-foreground text-xs">
-                Choose what should happen next: keep working on it, mark it done, or hide it from
-                active planning.
-              </p>
+              <Label>{t("goals:edit.status_label")}</Label>
+              <p className="text-muted-foreground text-xs">{t("goals:edit.status_hint")}</p>
               <div className="grid gap-3 sm:grid-cols-3">
-                {LIFECYCLE_OPTIONS.map((option) => {
+                {lifecycleOptions.map((option) => {
                   const selected = lifecycle === option.value;
                   const Icon = option.icon;
 
@@ -200,10 +207,10 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button type="submit" disabled={updateMutation.isPending || !trimmedTitle}>
-              {updateMutation.isPending ? "Saving..." : "Save changes"}
+              {updateMutation.isPending ? t("goals:edit.saving") : t("goals:edit.save_changes")}
             </Button>
           </DialogFooter>
         </form>

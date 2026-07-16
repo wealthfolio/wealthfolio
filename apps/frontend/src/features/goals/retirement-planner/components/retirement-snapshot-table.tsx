@@ -11,6 +11,7 @@ import {
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const PAGE_SIZE = 10;
 
@@ -51,6 +52,7 @@ export function RetirementSnapshotTable({
   currency: string;
   scaleForModeAtAge: (value: number, age: number) => number;
 }) {
+  const { t } = useTranslation();
   const [tablePage, setTablePage] = useState(0);
   const totalPages = Math.ceil(snapshots.length / PAGE_SIZE);
   const pagedSnapshots = snapshots.slice(tablePage * PAGE_SIZE, (tablePage + 1) * PAGE_SIZE);
@@ -62,14 +64,11 @@ export function RetirementSnapshotTable({
       <CardHeader className="flex-row items-start justify-between pb-3">
         <div>
           <div className="text-muted-foreground mb-0.5 text-[10px] font-semibold uppercase tracking-wider">
-            Table
+            {t("goals:snapshot.table")}
           </div>
-          <CardTitle className="text-sm">Year-by-Year Snapshot</CardTitle>
+          <CardTitle className="text-sm">{t("goals:snapshot.title")}</CardTitle>
           {hasPensionFunds && (
-            <p className="text-muted-foreground mt-1 text-xs">
-              Pension fund balances are shown until payout starts. After that, the stream appears as
-              retirement income.
-            </p>
+            <p className="text-muted-foreground mt-1 text-xs">{t("goals:snapshot.pension_note")}</p>
           )}
         </div>
         {totalPages > 1 && (
@@ -110,12 +109,12 @@ export function RetirementSnapshotTable({
               : isIncomeRow
                 ? "border-l-blue-500 bg-blue-50/70 dark:bg-blue-950/20"
                 : "border-l-transparent bg-background/40";
-            const phaseText = isFire ? phaseLabel : "Acc.";
+            const phaseText = isFire ? phaseLabel : t("goals:snapshot.phase_acc");
             const mobileMetrics = [
-              { label: "Contrib", value: snap.annualContribution },
-              { label: "Income", value: snap.annualIncome },
-              { label: "Spend", value: plannedSpending },
-              { label: "Draw", value: snap.netWithdrawalFromPortfolio },
+              { label: t("goals:snapshot.metric_contrib"), value: snap.annualContribution },
+              { label: t("goals:snapshot.metric_income"), value: snap.annualIncome },
+              { label: t("goals:snapshot.metric_spend"), value: plannedSpending },
+              { label: t("goals:snapshot.metric_draw"), value: snap.netWithdrawalFromPortfolio },
             ];
 
             return (
@@ -164,7 +163,7 @@ export function RetirementSnapshotTable({
                   ))}
                   {hasPensionFunds && (
                     <div className="col-span-4 min-w-0">
-                      <span className="text-muted-foreground mr-1">Fund</span>
+                      <span className="text-muted-foreground mr-1">{t("goals:snapshot.fund")}</span>
                       <span className="font-medium tabular-nums">
                         <SnapshotAmount
                           value={snap.pensionAssets}
@@ -186,15 +185,19 @@ export function RetirementSnapshotTable({
           <table className="w-full min-w-[860px] text-xs">
             <thead>
               <tr className="text-muted-foreground border-b">
-                <th className="pb-2 text-left">Age</th>
-                <th className="pb-2 text-left">Year</th>
-                <th className="pb-2 text-left">Phase</th>
-                <th className="pb-2 text-right">End Portfolio</th>
-                {hasPensionFunds && <th className="pb-2 text-right">Pension Fund</th>}
-                <th className="pb-2 text-right">Contribution/yr</th>
-                <th className="pb-2 text-right">Retirement income/yr</th>
-                <th className="pb-2 text-right">Planned spending/yr</th>
-                <th className="pb-2 text-right">Portfolio withdrawal/yr</th>
+                <th className="pb-2 text-left">{t("goals:snapshot.col_age")}</th>
+                <th className="pb-2 text-left">{t("goals:snapshot.col_year")}</th>
+                <th className="pb-2 text-left">{t("goals:snapshot.col_phase")}</th>
+                <th className="pb-2 text-right">{t("goals:snapshot.col_end_portfolio")}</th>
+                {hasPensionFunds && (
+                  <th className="pb-2 text-right">{t("goals:snapshot.col_pension_fund")}</th>
+                )}
+                <th className="pb-2 text-right">{t("goals:snapshot.col_contribution_yr")}</th>
+                <th className="pb-2 text-right">{t("goals:snapshot.col_retirement_income_yr")}</th>
+                <th className="pb-2 text-right">{t("goals:snapshot.col_planned_spending_yr")}</th>
+                <th className="pb-2 text-right">
+                  {t("goals:snapshot.col_portfolio_withdrawal_yr")}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -217,7 +220,7 @@ export function RetirementSnapshotTable({
                     <td className="py-1.5">{snap.year}</td>
                     <td className="py-1.5">
                       <Badge variant={isFire ? "default" : "secondary"} className="text-xs">
-                        {isFire ? phaseLabel : "Acc."}
+                        {isFire ? phaseLabel : t("goals:snapshot.phase_acc")}
                       </Badge>
                     </td>
                     <td className="py-1.5 text-right">

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,25 +24,27 @@ export function RefreshQuotesConfirmDialog({
   onConfirm,
   assetName,
 }: RefreshQuotesConfirmDialogProps) {
+  const { t } = useTranslation();
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Refresh history</AlertDialogTitle>
+          <AlertDialogTitle>{t("asset:refreshDialog.title")}</AlertDialogTitle>
           <AlertDialogDescription>
-            This will delete and replace all provider quotes with fresh data
-            {assetName ? ` for ${assetName}` : ""}. Manual quotes will be preserved. Continue?
+            {assetName
+              ? t("asset:refreshDialog.description_named", { name: assetName })
+              : t("asset:refreshDialog.description_generic")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => {
               onConfirm();
               onOpenChange(false);
             }}
           >
-            Refresh
+            {t("asset:refreshDialog.refresh")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

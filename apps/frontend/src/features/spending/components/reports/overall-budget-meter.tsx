@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { PrivacyAmount, Skeleton, formatCompactAmount } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -30,6 +31,7 @@ export function OverallBudgetMeter({
   currency,
   isLoading,
 }: OverallBudgetMeterProps) {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const monthlyTarget = budget?.computed.totals.spendingPlanned ?? 0;
   const targetForRange = monthlyTarget * Math.max(1, monthsInRange);
@@ -48,12 +50,12 @@ export function OverallBudgetMeter({
   if (monthlyTarget <= 0) {
     return (
       <div className="border-border bg-card shadow-xs rounded-xl border p-4 text-center md:p-5">
-        <p className="text-muted-foreground text-sm">No monthly budget target set.</p>
+        <p className="text-muted-foreground text-sm">{t("spending:overallBudget.noTarget")}</p>
         <Link
           to="/settings/spending/setup"
           className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
         >
-          Set a budget
+          {t("spending:overallBudget.setBudget")}
         </Link>
       </div>
     );
@@ -72,16 +74,16 @@ export function OverallBudgetMeter({
         ? "var(--status-warn)"
         : "var(--success)";
 
-  const monthsLabel = monthsInRange === 1 ? "month" : "months";
-
   return (
     <div className="border-border bg-card shadow-xs rounded-xl border p-4 md:p-5">
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <div>
-          <h3 className="text-foreground text-sm font-semibold">Overall budget</h3>
+          <h3 className="text-foreground text-sm font-semibold">
+            {t("spending:overallBudget.title")}
+          </h3>
           <p className="text-muted-foreground/70 text-xs tabular-nums">
             <PrivacyAmount value={monthlyTarget} currency={currency} />
-            /mo × {monthsInRange} {monthsLabel}
+            {t("spending:overallBudget.perMonthTimes", { count: monthsInRange })}
           </p>
         </div>
         <div className="text-right">
@@ -97,8 +99,12 @@ export function OverallBudgetMeter({
             {isBalanceHidden
               ? "••••"
               : isOver
-                ? `+${formatCompactAmount(overage, currency)} over`
-                : `${formatCompactAmount(remaining, currency)} left`}
+                ? t("spending:overallBudget.overAmount", {
+                    amount: formatCompactAmount(overage, currency),
+                  })
+                : t("spending:overallBudget.leftAmount", {
+                    amount: formatCompactAmount(remaining, currency),
+                  })}
           </div>
         </div>
       </div>
@@ -124,10 +130,11 @@ export function OverallBudgetMeter({
 
       <div className="text-muted-foreground/70 mt-1.5 flex justify-between text-[11px] tabular-nums">
         <span>
-          <PrivacyAmount value={spent} currency={currency} /> spent
+          <PrivacyAmount value={spent} currency={currency} /> {t("spending:overallBudget.spent")}
         </span>
         <span>
-          <PrivacyAmount value={targetForRange} currency={currency} /> target
+          <PrivacyAmount value={targetForRange} currency={currency} />{" "}
+          {t("spending:overallBudget.target")}
         </span>
       </div>
     </div>

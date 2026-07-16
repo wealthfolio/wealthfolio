@@ -13,6 +13,7 @@ import { WalletIcon } from "@phosphor-icons/react/dist/csr/Wallet";
 import { Card, CardContent, CardHeader } from "@wealthfolio/ui/components/ui/card";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Suspense, useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { NetWorthContent } from "../net-worth/net-worth-content";
 import { DashboardActions } from "./dashboard-actions";
 import { DashboardContent } from "./dashboard-content";
@@ -43,6 +44,7 @@ const PageLoader = () => (
 );
 
 export default function PortfolioPage() {
+  const { t } = useTranslation();
   const { isFocusMode, toggleFocusMode } = useNavigationMode();
 
   // Alternative asset quick-add modal state
@@ -110,7 +112,7 @@ export default function PortfolioPage() {
     const items: SwipablePageView[] = [
       {
         value: "investments",
-        label: "Investments",
+        label: t("dashboard:tabs.investments"),
         icon: InvestmentsTabIcon,
         content: (
           <Suspense fallback={<PageLoader />}>
@@ -121,7 +123,7 @@ export default function PortfolioPage() {
       },
       {
         value: "net-worth",
-        label: "Net Worth",
+        label: t("dashboard:tabs.net_worth"),
         icon: NetWorthTabIcon,
         content: (
           <Suspense fallback={<PageLoader />}>
@@ -134,7 +136,7 @@ export default function PortfolioPage() {
     if (spendingEnabled) {
       items.push({
         value: "spending",
-        label: "Spending",
+        label: t("dashboard:tabs.spending"),
         icon: SpendingTabIcon,
         content: (
           <Suspense fallback={<PageLoader />}>
@@ -146,6 +148,7 @@ export default function PortfolioPage() {
     }
     return items;
   }, [
+    t,
     investmentActions,
     netWorthActions,
     commonActions,

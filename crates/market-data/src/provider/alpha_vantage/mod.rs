@@ -425,6 +425,7 @@ impl EtfProfileResponse {
             quote_type: Some("ETF".to_string()),
             sector: None, // ETFs have multiple sectors
             sectors: self.sectors_to_json(),
+            asset_allocation: None,
             industry: None,
             website: None,
             description: None,
@@ -480,6 +481,7 @@ impl CompanyOverviewResponse {
             quote_type,
             sector: self.sector.clone(),
             sectors: None, // Alpha Vantage doesn't provide weighted sectors
+            asset_allocation: None,
             industry: self.industry.clone(),
             website: None, // Alpha Vantage doesn't provide website
             description: self.description.clone(),
@@ -1337,6 +1339,7 @@ mod tests {
                 base: Cow::Borrowed("EUR"),
                 quote: Cow::Borrowed(quote),
             },
+            identifiers: Default::default(),
             overrides: None,
             currency_hint: currency_hint.map(Cow::Borrowed),
             preferred_provider: None,

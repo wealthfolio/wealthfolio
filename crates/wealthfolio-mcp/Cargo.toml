@@ -1,0 +1,32 @@
+[package]
+name = "wealthfolio-mcp"
+version.workspace = true
+edition.workspace = true
+description = "MCP protocol layer exposing the Wealthfolio agent-tool catalog"
+license = "AGPL-3.0"
+repository = "https://github.com/wealthfolio/wealthfolio"
+
+[dependencies]
+async-trait = { workspace = true }
+base64 = "0.22"
+chrono = { workspace = true }
+http = "1"
+log = { workspace = true }
+rand = { workspace = true }
+rmcp = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+subtle = "2"
+thiserror = { workspace = true }
+tokio = { workspace = true }
+
+wealthfolio-agent-tools = { workspace = true }
+wealthfolio-storage-sqlite = { workspace = true }
+
+[dev-dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json"] }
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+wealthfolio-core = { workspace = true }
+wealthfolio-spending = { workspace = true }

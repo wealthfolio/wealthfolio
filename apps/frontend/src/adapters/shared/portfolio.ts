@@ -5,6 +5,7 @@ import type {
   AllocationHoldings,
   IncomeSummary,
   AccountValuation,
+  CurrentValuationResponse,
   PerformanceSummaryMap,
   PerformanceSummaryProfile,
   PerformanceSummaryScope,
@@ -32,6 +33,10 @@ export const getHoldings = async (filter: AccountScope): Promise<Holding[]> => {
   return invoke<Holding[]>("get_holdings", { filter });
 };
 
+export const getHoldingsList = async (filter: AccountScope): Promise<Holding[]> => {
+  return invoke<Holding[]>("get_holdings_list", { filter });
+};
+
 export const getIncomeSummary = async (filter?: AccountScope): Promise<IncomeSummary[]> => {
   return invoke<IncomeSummary[]>("get_income_summary", { filter });
 };
@@ -57,6 +62,19 @@ export const getHistoricalValuations = async (
 
 export const getLatestValuations = async (accountIds: string[]): Promise<AccountValuation[]> => {
   return invoke<AccountValuation[]>("get_latest_valuations", { accountIds });
+};
+
+export const getCurrentValuation = async ({
+  filter,
+  includeAccounts = false,
+}: {
+  filter: AccountScope;
+  includeAccounts?: boolean;
+}): Promise<CurrentValuationResponse> => {
+  return invoke<CurrentValuationResponse>("get_current_valuation", {
+    filter,
+    includeAccounts,
+  });
 };
 
 export const calculatePerformanceHistory = async (

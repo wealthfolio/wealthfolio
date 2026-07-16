@@ -1,11 +1,15 @@
 import { expect, Page, test } from "@playwright/test";
-import { gotoActivities } from "./helpers";
+import {
+  completeOnboardingIfNeeded,
+  createAccount,
+  gotoActivities,
+  gotoAppPath,
+  selectAccountOption,
+} from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
 test.describe("FX Cash Balance - Cross-currency Buy", () => {
-  const BASE_URL = process.env.WF_E2E_BASE_URL || "http://localhost:1420";
-  const TEST_PASSWORD = "password001";
   let page: Page;
 
   // Test scenario: EUR account buys USD-denominated asset
@@ -94,9 +98,9 @@ test.describe("FX Cash Balance - Cross-currency Buy", () => {
 
   async function openAddActivitySheet() {
     await waitForOverlayClose();
-    await page.getByRole("button", { name: "Add Activities" }).click();
-    await page.getByRole("button", { name: "Add Transaction" }).click();
-    await expect(page.getByRole("heading", { name: "Add Activity" })).toBeVisible();
+    await page.getByTestId("add-activities-button").click();
+    await page.getByTestId("add-transaction-action").click();
+    await expect(page.getByTestId("activity-form-dialog")).toBeVisible();
   }
 
   test.beforeAll(async ({ browser }) => {
@@ -109,101 +113,11 @@ test.describe("FX Cash Balance - Cross-currency Buy", () => {
 
   test("1. Login or onboard", async () => {
     test.setTimeout(180000);
-    await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
-
-    const loginInput = page.getByPlaceholder("Enter your password");
-    const continueButton = page.getByRole("button", { name: "Continue" });
-    const dashboardHeading = page.getByRole("heading", { name: "Dashboard" });
-    const accountsHeading = page.getByRole("heading", { name: "Accounts" });
-
-    await expect(
-      loginInput.or(continueButton).or(dashboardHeading).or(accountsHeading),
-    ).toBeVisible({ timeout: 120000 });
-
-    if (await loginInput.isVisible()) {
-      // Login page
-      await loginInput.fill(TEST_PASSWORD);
-      await page.getByRole("button", { name: "Sign In" }).click();
-
-      // After login, might land on onboarding or dashboard
-      await expect(continueButton.or(dashboardHeading).or(accountsHeading)).toBeVisible({
-        timeout: 15000,
-      });
-    }
-
-    // Handle onboarding if needed (fresh DB)
-    if (await continueButton.isVisible().catch(() => false)) {
-      // Step 1: Info screen - click Continue
-      await continueButton.click();
-
-      // Step 2: Currency - select EUR
-      const eurButton = page.getByTestId("currency-eur-button");
-      await expect(eurButton).toBeVisible({ timeout: 5000 });
-      await eurButton.click();
-      await page.getByRole("button", { name: "Continue" }).click();
-
-      // Step 3: Appearance - just continue with default
-      await expect(page.getByRole("button", { name: "Continue" })).toBeVisible({ timeout: 5000 });
-      await page.getByRole("button", { name: "Continue" }).click();
-
-      // Step 4: Connect - finish
-      const finishButton = page.getByTestId("onboarding-finish-button");
-      await expect(finishButton).toBeVisible({ timeout: 15000 });
-      await finishButton.click();
-
-      await expect(page.getByRole("heading", { name: "Accounts" })).toBeVisible({
-        timeout: 10000,
-      });
-    }
+    await completeOnboardingIfNeeded(page);
   });
 
   test("2. Create EUR account", async () => {
-    await page.goto(`${BASE_URL}/settings/accounts`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Accounts", exact: true })).toBeVisible();
-
-    // Skip if account already exists
-    const existingAccount = page.getByRole("link", { name: ACCOUNT_NAME });
-    if (await existingAccount.isVisible().catch(() => false)) {
-      return;
-    }
-
-    const addAccountButton = page.getByRole("button", { name: /Add account/i });
-    await addAccountButton.click();
-    await expect(page.getByRole("heading", { name: /Add Account/i })).toBeVisible();
-
-    await page.getByLabel("Account Name").fill(ACCOUNT_NAME);
-
-    // Select EUR currency
-    const currencyTrigger = page.getByLabel("Currency");
-    const currentCurrencyText = await currencyTrigger.textContent();
-    if (!currentCurrencyText?.includes(ACCOUNT_CURRENCY)) {
-      await currencyTrigger.click();
-      await page.waitForSelector('[role="listbox"], [role="option"]', {
-        state: "visible",
-        timeout: 5000,
-      });
-      const searchInput = page.getByPlaceholder("Search currency...");
-      if (await searchInput.isVisible()) {
-        await searchInput.fill(ACCOUNT_CURRENCY);
-        await page.waitForTimeout(200);
-      }
-      const option = page.getByRole("option", { name: new RegExp(ACCOUNT_CURRENCY) }).first();
-      await expect(option).toBeVisible({ timeout: 5000 });
-      await option.click();
-    }
-
-    // Select Transactions tracking mode
-    const transactionsRadio = page.getByRole("radio", { name: /Transactions/i });
-    await transactionsRadio.click();
-
-    const submitButton = page.getByRole("button", { name: /Add Account/i }).last();
-    await submitButton.click();
-
-    await expect(page.getByRole("heading", { name: /Add Account/i })).not.toBeVisible({
-      timeout: 10000,
-    });
-    await page.waitForTimeout(500);
-    await expect(page.getByRole("link", { name: ACCOUNT_NAME })).toBeVisible({ timeout: 10000 });
+    await createAccount(page, ACCOUNT_NAME, ACCOUNT_CURRENCY);
   });
 
   test("3. Deposit 10,000 EUR", async () => {
@@ -212,17 +126,12 @@ test.describe("FX Cash Balance - Cross-currency Buy", () => {
     await openAddActivitySheet();
 
     // Select Deposit type
-    const depositButton = page.getByRole("button", { name: "Deposit", exact: true });
+    const depositButton = page.getByTestId("activity-type-deposit");
     await depositButton.click();
     await page.waitForTimeout(200);
 
     // Select account
-    const accountSelect = page.getByTestId("account-select");
-    await accountSelect.click();
-    await page
-      .getByRole("option", { name: new RegExp(`${ACCOUNT_NAME}.*\\(${ACCOUNT_CURRENCY}\\)`) })
-      .first()
-      .click();
+    await selectAccountOption(page, ACCOUNT_NAME, ACCOUNT_CURRENCY);
 
     // Fill date (15 days ago - before the buy)
     await fillDateField(page, 15);
@@ -251,17 +160,12 @@ test.describe("FX Cash Balance - Cross-currency Buy", () => {
     await openAddActivitySheet();
 
     // Select Buy type
-    const buyButton = page.getByRole("button", { name: "Buy", exact: true });
+    const buyButton = page.getByTestId("activity-type-buy");
     await buyButton.click();
     await page.waitForTimeout(200);
 
     // Select EUR account
-    const accountSelect = page.getByTestId("account-select");
-    await accountSelect.click();
-    await page
-      .getByRole("option", { name: new RegExp(`${ACCOUNT_NAME}.*\\(${ACCOUNT_CURRENCY}\\)`) })
-      .first()
-      .click();
+    await selectAccountOption(page, ACCOUNT_NAME, ACCOUNT_CURRENCY);
 
     // Search and select PANW
     const escapedSymbol = BUY.symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -331,14 +235,14 @@ test.describe("FX Cash Balance - Cross-currency Buy", () => {
     test.setTimeout(120000);
 
     // Navigate to dashboard first to trigger any sync/recalculation
-    await page.goto(`${BASE_URL}/dashboard`, { waitUntil: "domcontentloaded" });
+    await gotoAppPath(page, "/dashboard");
     await page.waitForTimeout(3000);
 
     // Navigate to accounts list
-    await page.goto(`${BASE_URL}/settings/accounts`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Accounts", exact: true })).toBeVisible({
-      timeout: 10000,
-    });
+    await gotoAppPath(page, "/settings/accounts");
+    await expect(
+      page.getByTestId("settings-accounts-page").filter({ visible: true }).first(),
+    ).toBeVisible({ timeout: 10000 });
 
     // Click on the EUR test account to go to its detail page
     const accountLink = page.getByRole("link", { name: ACCOUNT_NAME });

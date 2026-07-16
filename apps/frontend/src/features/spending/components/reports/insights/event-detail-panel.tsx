@@ -9,6 +9,8 @@
  */
 import { useMemo, type FC } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 import {
   Button,
@@ -54,6 +56,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
   dailySpendByDate,
   onSelect,
 }) => {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const isPhone = useIsMobileViewport();
   const chart = useEventChartData(
@@ -93,8 +96,8 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
   const nextEvent = canNav ? events[(currentIdx + 1) % events.length] : null;
 
   const caption = useMemo(
-    () => buildEventCaption({ days, lift, currency, top: categories, isBalanceHidden }),
-    [days, lift, currency, categories, isBalanceHidden],
+    () => buildEventCaption({ days, lift, currency, top: categories, isBalanceHidden, t }),
+    [days, lift, currency, categories, isBalanceHidden, t],
   );
 
   const { update } = useSpendingEventMutations();
@@ -148,7 +151,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
                 <Button
                   variant="outline"
                   size="icon"
-                  aria-label="Previous event"
+                  aria-label={t("spending:eventDetail.previousEvent")}
                   className="h-7 w-7"
                   onClick={() => prevEvent && onSelect(prevEvent.eventId)}
                   disabled={!canNav}
@@ -156,14 +159,14 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
                   <Icons.ChevronLeft className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Previous event</TooltipContent>
+              <TooltipContent>{t("spending:eventDetail.previousEvent")}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="outline"
                   size="icon"
-                  aria-label="Next event"
+                  aria-label={t("spending:eventDetail.nextEvent")}
                   className="h-7 w-7"
                   onClick={() => nextEvent && onSelect(nextEvent.eventId)}
                   disabled={!canNav}
@@ -171,14 +174,14 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
                   <Icons.ChevronRight className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Next event</TooltipContent>
+              <TooltipContent>{t("spending:eventDetail.nextEvent")}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="outline"
                   size="icon"
-                  aria-label="Edit event"
+                  aria-label={t("spending:eventDetail.editEvent")}
                   className="h-7 w-7"
                   onClick={handleEdit}
                   disabled={!fullEvent}
@@ -186,27 +189,27 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
                   <Icons.Pencil className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Edit event</TooltipContent>
+              <TooltipContent>{t("spending:eventDetail.editEvent")}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="outline"
                   size="icon"
-                  aria-label="Tag transactions in this period"
+                  aria-label={t("spending:eventDetail.tagTransactionsInPeriod")}
                   className="h-7 w-7"
                   onClick={handleViewTransactions}
                 >
                   <Icons.Activity className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Tag transactions</TooltipContent>
+              <TooltipContent>{t("spending:eventDetail.tagTransactions")}</TooltipContent>
             </Tooltip>
           </div>
         </div>
         <div className="text-muted-foreground/80 mt-1 text-[11px]">
-          {formatRange(startDate, endDate)} · {days} day{days === 1 ? "" : "s"} ·{" "}
-          {event.transactionCount} transaction{event.transactionCount === 1 ? "" : "s"}
+          {formatRange(startDate, endDate)} · {t("spending:eventDetail.daysCount", { count: days })}{" "}
+          · {t("spending:eventDetail.transactionCount", { count: event.transactionCount })}
           {event.eventTypeName ? ` · ${event.eventTypeName.toLowerCase()}` : ""}
         </div>
       </div>
@@ -214,8 +217,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
       {outOfRange.length > 0 && (
         <div className="bg-warning/10 border-warning/40 mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-[11px]">
           <span className="text-foreground/90">
-            <span className="font-medium tabular-nums">{outOfRange.length}</span> tagged transaction
-            {outOfRange.length === 1 ? "" : "s"} outside event dates
+            {t("spending:eventDetail.taggedOutside", { count: outOfRange.length })}
             <span className="text-muted-foreground/80 ml-1 tabular-nums">
               ({formatOutOfRangeDate(outOfRange[0])}
               {outOfRange.length > 1
@@ -230,22 +232,29 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
             disabled={update.isPending}
             className="text-foreground hover:bg-warning/15 rounded px-2 py-0.5 text-[11px] font-medium underline-offset-2 hover:underline disabled:opacity-50"
           >
-            {update.isPending ? "Expanding…" : "Expand event window →"}
+            {update.isPending
+              ? t("spending:eventDetail.expanding")
+              : t("spending:eventDetail.expandWindow")}
           </button>
         </div>
       )}
 
       {/* STAT BLOCK */}
       <div className="mt-2 grid grid-cols-2 gap-y-3 md:grid-cols-4 md:gap-x-0 md:gap-y-4">
-        <StatCell label="EVENT TOTAL">
+        <StatCell label={t("spending:eventDetail.eventTotal")}>
           <div className="text-foreground text-sm font-semibold tabular-nums tracking-tight md:text-base">
             <PrivacyAmount value={event.totalSpending} currency={currency} />
           </div>
           <div className="text-muted-foreground/80 mt-1 text-[10px]">
-            across {event.transactionCount} transactions
+            {t("spending:eventDetail.acrossTransactions", { count: event.transactionCount })}
           </div>
         </StatCell>
-        <StatCell label={isPhone ? "LIFT" : "LIFT VS NORMAL"} divided>
+        <StatCell
+          label={
+            isPhone ? t("spending:eventDetail.liftShort") : t("spending:eventDetail.liftVsNormal")
+          }
+          divided
+        >
           <div
             className={cn(
               "text-sm font-semibold tabular-nums tracking-tight md:text-base",
@@ -256,27 +265,36 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
             <PrivacyAmount value={Math.abs(lift)} currency={currency} />
           </div>
           <div className="text-muted-foreground/80 mt-1 text-[10px]">
-            vs <PrivacyAmount value={Math.max(0, expected)} currency={currency} /> expected
+            {t("spending:eventDetail.vsLabel")}{" "}
+            <PrivacyAmount value={Math.max(0, expected)} currency={currency} />{" "}
+            {t("spending:eventDetail.expected")}
           </div>
         </StatCell>
-        <StatCell label={isPhone ? "DAILY" : "DAILY DURING"} divided>
+        <StatCell
+          label={
+            isPhone ? t("spending:eventDetail.dailyShort") : t("spending:eventDetail.dailyDuring")
+          }
+          divided
+        >
           <div className="text-foreground text-sm font-semibold tabular-nums tracking-tight md:text-base">
             <PrivacyAmount value={dailyDuring} currency={currency} />
           </div>
           <div className="text-muted-foreground/80 mt-1 text-[10px]">
             {baseline > 0
-              ? `${dailyDeltaPct >= 0 ? "+" : "−"}${Math.abs(dailyDeltaPct)}% vs ${
-                  isBalanceHidden ? "••••" : formatAmount(baseline, currency)
-                }`
-              : "no baseline available"}
+              ? t("spending:eventDetail.dailyDeltaVs", {
+                  sign: dailyDeltaPct >= 0 ? "+" : "−",
+                  pct: Math.abs(dailyDeltaPct),
+                  baseline: isBalanceHidden ? "••••" : formatAmount(baseline, currency),
+                })
+              : t("spending:eventDetail.noBaseline")}
           </div>
         </StatCell>
-        <StatCell label="PEAK DAY" divided>
+        <StatCell label={t("spending:eventDetail.peakDay")} divided>
           <div className="text-foreground text-sm font-semibold tabular-nums tracking-tight md:text-base">
             {peak ? <PrivacyAmount value={peak.amount} currency={currency} /> : "—"}
           </div>
           <div className="text-muted-foreground/80 mt-1 text-[10px]">
-            {peak ? formatPeakDay(peak.date) : ""}
+            {peak ? formatPeakDay(peak.date, t) : ""}
           </div>
         </StatCell>
       </div>
@@ -284,7 +302,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
       {/* TAKEAWAY */}
       <p className="text-foreground/90 mt-6 text-[13px] leading-relaxed">
         <span className="text-primary mr-2 text-[10px] font-semibold uppercase tracking-[0.12em]">
-          TAKEAWAY
+          {t("spending:eventDetail.takeaway")}
         </span>
         {caption}
       </p>
@@ -294,15 +312,15 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
         {/* LEFT: DAY BY DAY */}
         <div>
           <div className="flex items-center justify-between gap-3">
-            <div className={LABEL_CLASS}>DAY BY DAY</div>
+            <div className={LABEL_CLASS}>{t("spending:eventDetail.dayByDay")}</div>
             <div className={cn(LABEL_CLASS, "text-right")}>
               {isBalanceHidden
-                ? `BASELINE ••••${peak ? " · PEAK ••••" : ""}`
+                ? `${t("spending:eventDetail.baseline")} ••••${peak ? ` · ${t("spending:eventDetail.peak")} ••••` : ""}`
                 : isPhone
-                  ? `BASELINE ${formatCompactAmount(baseline, currency)}`
+                  ? `${t("spending:eventDetail.baseline")} ${formatCompactAmount(baseline, currency)}`
                   : peak
-                    ? `PEAK ${formatAmount(peak.amount, currency)} · BASELINE ${formatAmount(baseline, currency)}`
-                    : `BASELINE ${formatAmount(baseline, currency)}`}
+                    ? `${t("spending:eventDetail.peak")} ${formatAmount(peak.amount, currency)} · ${t("spending:eventDetail.baseline")} ${formatAmount(baseline, currency)}`
+                    : `${t("spending:eventDetail.baseline")} ${formatAmount(baseline, currency)}`}
             </div>
           </div>
           <DailyBars
@@ -315,15 +333,16 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
             currency={currency}
             compact={isPhone}
             isBalanceHidden={isBalanceHidden}
+            t={t}
           />
         </div>
 
         {/* RIGHT: WHAT DROVE IT */}
         <div>
           <div className="flex items-center justify-between gap-3">
-            <div className={LABEL_CLASS}>WHAT DROVE IT</div>
+            <div className={LABEL_CLASS}>{t("spending:eventDetail.whatDroveIt")}</div>
             <div className={cn(LABEL_CLASS, "text-right")}>
-              {categories.length} CATEGOR{categories.length === 1 ? "Y" : "IES"}
+              {t("spending:eventDetail.categoriesCount", { count: categories.length })}
             </div>
           </div>
           {categories.length > 0 && (
@@ -374,26 +393,32 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
       <Hr />
 
       {/* AFTER */}
-      <SubLabel right={isPhone ? `${days}D WINDOW` : `${days}D EVENT WINDOW`}>
-        {isPhone ? "AFTER" : "AFTER · DID YOUR RHYTHM RETURN?"}
+      <SubLabel
+        right={
+          isPhone
+            ? t("spending:eventDetail.dayWindowShort", { days })
+            : t("spending:eventDetail.dayWindow", { days })
+        }
+      >
+        {isPhone ? t("spending:eventDetail.after") : t("spending:eventDetail.afterRhythm")}
       </SubLabel>
       <div className="mt-3 grid grid-cols-1 gap-2.5 md:grid-cols-3">
         <RhythmCard
-          label="7D BEFORE"
+          label={t("spending:eventDetail.before7d")}
           value={beforeAvg}
           currency={currency}
           series={beforeSeries}
           accent="muted"
         />
         <RhythmCard
-          label="DURING"
+          label={t("spending:eventDetail.during")}
           value={dailyDuring}
           currency={currency}
           series={dailySeries}
           accent="during"
         />
         <RhythmCard
-          label="3D AFTER"
+          label={t("spending:eventDetail.after3d")}
           value={afterAvg}
           currency={currency}
           series={afterSeries}
@@ -405,7 +430,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
       <Hr />
 
       {/* JUMP TO */}
-      <SubLabel>JUMP TO</SubLabel>
+      <SubLabel>{t("spending:eventDetail.jumpTo")}</SubLabel>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {events.map((ev) => {
           const c = getEventColors(ev);
@@ -484,6 +509,7 @@ function DailyBars({
   currency,
   compact,
   isBalanceHidden,
+  t,
 }: {
   isBalanceHidden: boolean;
   series: number[];
@@ -494,6 +520,7 @@ function DailyBars({
   baseline: number;
   currency: string;
   compact?: boolean;
+  t: TFunction;
 }) {
   const max = Math.max(1, baseline, ...series);
   const hasOutOfWindow = inWindow.some((v) => !v);
@@ -520,7 +547,7 @@ function DailyBars({
               style={{ height: `${(Math.max(v, 0) / max) * 100}%` }}
               title={
                 (isBalanceHidden ? "••••" : formatAmount(v, currency)) +
-                (isOut ? " · outside event window" : "")
+                (isOut ? ` · ${t("spending:eventDetail.outsideWindow")}` : "")
               }
             />
           );
@@ -536,12 +563,12 @@ function DailyBars({
         })}
       </div>
       <div className="text-muted-foreground/80 mt-2 flex items-center justify-between text-[10px] tracking-wide">
-        <span className="tabular-nums">{formatPeakDay(chartStartDate)}</span>
+        <span className="tabular-nums">{formatPeakDay(chartStartDate, t)}</span>
         <span className="text-muted-foreground/60">
-          {eventDays} day{eventDays === 1 ? "" : "s"}
-          {hasOutOfWindow ? " · incl. outside window" : ""}
+          {t("spending:eventDetail.daysCount", { count: eventDays })}
+          {hasOutOfWindow ? ` · ${t("spending:eventDetail.inclOutside")}` : ""}
         </span>
-        <span className="tabular-nums">{formatPeakDay(chartEndDate)}</span>
+        <span className="tabular-nums">{formatPeakDay(chartEndDate, t)}</span>
       </div>
     </div>
   );
@@ -564,6 +591,7 @@ function RhythmCard({
   accent: RhythmAccent;
   hangoverPct?: number;
 }) {
+  const { t } = useTranslation();
   const palette = {
     muted: {
       bg: "bg-muted/20",
@@ -602,7 +630,9 @@ function RhythmCard({
               hangoverPct > 0 ? "bg-destructive/15 text-destructive" : "bg-success/15 text-success",
             )}
           >
-            {hangoverPct > 0 ? `HANGOVER +${hangoverPct}%` : `UNDER ${Math.abs(hangoverPct)}%`}
+            {hangoverPct > 0
+              ? t("spending:eventDetail.hangover", { pct: hangoverPct })
+              : t("spending:eventDetail.under", { pct: Math.abs(hangoverPct) })}
           </span>
         )}
       </div>
@@ -613,7 +643,9 @@ function RhythmCard({
           ) : (
             <>
               <PrivacyAmount value={value} currency={currency} />
-              <span className="text-muted-foreground/70 font-normal">/d</span>
+              <span className="text-muted-foreground/70 font-normal">
+                {t("spending:eventDetail.perDayShort")}
+              </span>
             </>
           )}
         </span>
@@ -654,9 +686,18 @@ function Sparkline({
 
 // ─── Formatters / text builders ──────────────────────────────────────────
 
-function formatPeakDay(d: Date): string {
-  const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-  return `${dayNames[d.getDay()]}, ${MONTH_LABELS[d.getMonth()]} ${d.getDate()}`;
+const PEAK_DAY_KEYS = [
+  "spending:eventDetail.daySun",
+  "spending:eventDetail.dayMon",
+  "spending:eventDetail.dayTue",
+  "spending:eventDetail.dayWed",
+  "spending:eventDetail.dayThu",
+  "spending:eventDetail.dayFri",
+  "spending:eventDetail.daySat",
+];
+
+function formatPeakDay(d: Date, t: TFunction): string {
+  return `${t(PEAK_DAY_KEYS[d.getDay()])}, ${MONTH_LABELS[d.getMonth()]} ${d.getDate()}`;
 }
 
 function formatChipDate(d: Date): string {
@@ -669,29 +710,37 @@ function buildEventCaption({
   currency,
   top,
   isBalanceHidden,
+  t,
 }: {
   days: number;
   lift: number;
   currency: string;
   top: readonly { readonly name: string }[];
   isBalanceHidden: boolean;
+  t: TFunction;
 }): string {
   const amt = (v: number) => (isBalanceHidden ? "••••" : formatAmount(v, currency));
   if (top.length === 0) {
     return lift > 0
-      ? `Lift vs your normal week: +${amt(lift)} over ${days} days.`
-      : `In line with your normal week.`;
+      ? t("spending:eventDetail.captionLift", { amount: `+${amt(lift)}`, days })
+      : t("spending:eventDetail.captionInLine");
   }
   if (lift > 0 && days <= 4) {
     if (top.length === 1) {
-      return `One-off — ${top[0].name} drove the spike.`;
+      return t("spending:eventDetail.captionOneOffSingle", { name: top[0].name });
     }
-    return `One-off — ${top[0].name} and ${top[1].name} drove the spike.`;
+    return t("spending:eventDetail.captionOneOffDouble", {
+      name1: top[0].name,
+      name2: top[1].name,
+    });
   }
   if (Math.abs(lift) < 50) {
-    return `Mostly ${top[0].name.toLowerCase()} — modest lift over a normal stretch.`;
+    return t("spending:eventDetail.captionMostly", { name: top[0].name.toLowerCase() });
   }
-  return `Lift vs your normal week: ${lift >= 0 ? "+" : "−"}${amt(Math.abs(lift))} over ${days} days.`;
+  return t("spending:eventDetail.captionLift", {
+    amount: `${lift >= 0 ? "+" : "−"}${amt(Math.abs(lift))}`,
+    days,
+  });
 }
 
 function formatRange(start: Date, end: Date): string {

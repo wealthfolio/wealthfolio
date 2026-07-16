@@ -2,8 +2,10 @@ import {
   logger,
   storeSyncSession as storeSyncSessionApi,
   clearSyncSession as clearSyncSessionApi,
+  postLoginBootstrap as postLoginBootstrapApi,
   restoreSyncSession as restoreSyncSessionApi,
 } from "@/adapters";
+import type { PostLoginBootstrapResult } from "@/adapters/types";
 
 /**
  * Store Wealthfolio Connect tokens in the backend's encrypted secret store.
@@ -33,6 +35,10 @@ export const restoreSyncSession = async (): Promise<{
   refreshToken: string;
 }> => {
   return restoreSyncSessionApi();
+};
+
+export const postLoginBootstrap = async (): Promise<PostLoginBootstrapResult> => {
+  return postLoginBootstrapApi();
 };
 
 export const clearSyncSession = async (): Promise<void> => {

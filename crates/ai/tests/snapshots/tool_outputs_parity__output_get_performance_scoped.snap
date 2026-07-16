@@ -1,0 +1,47 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "attribution": {
+      "contributions": 0.0,
+      "distributions": 0.0,
+      "fees": 0.0,
+      "fxEffect": 0.0,
+      "income": 0.0,
+      "realizedPnl": 0.0,
+      "residual": 0.0,
+      "taxes": 0.0,
+      "unrealizedPnlChange": 0.0
+    },
+    "basisStatus": "notApplicable",
+    "currency": "USD",
+    "dataQuality": {
+      "status": "ok"
+    },
+    "id": "acc-1",
+    "isMixedTrackingMode": false,
+    "mode": "notApplicable",
+    "returns": {
+      "annualizedIrr": 0.0,
+      "annualizedTwr": 0.0,
+      "annualizedValueReturn": 0.0,
+      "irr": 0.0,
+      "twr": 0.0,
+      "valueReturn": 0.0
+    },
+    "risk": {
+      "maxDrawdown": 0.0,
+      "volatility": 0.0
+    },
+    "summary": {
+      "amountStatus": "unavailable",
+      "basis": "notApplicable",
+      "basisStatus": "notApplicable",
+      "method": "notApplicable",
+      "percentStatus": "unavailable",
+      "quality": "notApplicable"
+    }
+  }
+}

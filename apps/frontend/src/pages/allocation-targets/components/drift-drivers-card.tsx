@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
 import type { DriftReport, DriftRow } from "@/lib/types";
 import {
@@ -12,6 +14,7 @@ import { isOutOfBand } from "./drift-row-utils";
 interface DriftDriversCardProps {
   report: DriftReport;
   statusDescription: string;
+  bandLabel?: string | null;
   onRebalanceClick?: () => void;
 }
 
@@ -20,16 +23,17 @@ function formatPercent(bps: number, decimals = 1): string {
   return Number.isInteger(pct) ? pct.toFixed(0) : pct.toFixed(decimals);
 }
 
-function buildDriver(row: DriftRow, currency: string) {
+function buildDriver(row: DriftRow, currency: string, t: TFunction) {
   const current = formatPercent(row.currentBps);
   const target = formatPercent(row.targetBps);
   const absDelta = Math.abs(row.valueDelta);
+  const amount = formatRoundedCurrency(absDelta, currency);
   const drift = formatPp(row.driftBps);
 
   if (row.status === "not_targeted") {
     return {
-      title: `${row.categoryName} is outside target`,
-      detail: `Current ${current}% · Target 0% · ${formatRoundedCurrency(absDelta, currency)} not in target`,
+      title: t("allocation:drivers.outsideTargetTitle", { category: row.categoryName }),
+      detail: t("allocation:drivers.notTargetedDetail", { current, amount }),
       drift,
       isOver: true,
     };
@@ -37,15 +41,15 @@ function buildDriver(row: DriftRow, currency: string) {
 
   if (row.status === "overweight") {
     return {
-      title: `${row.categoryName} is above target`,
-      detail: `Current ${current}% · Target ${target}% · ${formatRoundedCurrency(absDelta, currency)} above target`,
+      title: t("allocation:drivers.aboveTargetTitle", { category: row.categoryName }),
+      detail: t("allocation:drivers.overweightDetail", { current, target, amount }),
       drift,
       isOver: true,
     };
   }
   return {
-    title: `${row.categoryName} is below target`,
-    detail: `Current ${current}% · Target ${target}% · Needs about ${formatRoundedCurrency(absDelta, currency)}`,
+    title: t("allocation:drivers.belowTargetTitle", { category: row.categoryName }),
+    detail: t("allocation:drivers.underweightDetail", { current, target, amount }),
     drift,
     isOver: false,
   };
@@ -64,8 +68,10 @@ function markerTextColor(color: string): string {
 export function DriftDriversCard({
   report,
   statusDescription,
+  bandLabel,
   onRebalanceClick,
 }: DriftDriversCardProps) {
+  const { t } = useTranslation();
   const colorByCategory = useMemo(() => buildAllocationTargetColorMap(report.rows), [report.rows]);
   const oobRows = report.rows
     .filter(isOutOfBand)
@@ -77,18 +83,26 @@ export function DriftDriversCard({
   return (
     <Card className="flex h-full flex-col">
       <CardHeader className="pb-4">
-        <CardTitle className="text-base">Largest gaps</CardTitle>
-        <CardDescription>{statusDescription}</CardDescription>
+        <CardTitle className="text-base">{t("allocation:drivers.title")}</CardTitle>
+        <CardDescription>
+          {statusDescription}
+          {bandLabel && (
+            <>
+              {" · "}
+              <span className="text-muted-foreground">{bandLabel}</span>
+            </>
+          )}
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col">
         {oobRows.length === 0 ? (
           <p className="text-muted-foreground py-6 text-center text-[13px]">
-            {statusDescription}. No action required.
+            {t("allocation:drivers.noActionRequired", { status: statusDescription })}
           </p>
         ) : (
           <ul className="space-y-3">
             {visibleRows.map((row, index) => {
-              const driver = buildDriver(row, report.baseCurrency);
+              const driver = buildDriver(row, report.baseCurrency, t);
               const rowColor = allocationTargetColorForRow(row, colorByCategory, index);
               return (
                 <li key={row.categoryId} className="bg-muted/35 rounded-lg px-3.5 py-3">
@@ -125,7 +139,7 @@ export function DriftDriversCard({
             {remainingRows.length > 0 && (
               <li className="bg-muted/20 text-muted-foreground rounded-lg px-3.5 py-2.5 text-[11.5px] leading-relaxed">
                 <span className="text-foreground font-medium">
-                  {remainingRows.length} more outside target
+                  {t("allocation:drivers.moreOutsideTarget", { count: remainingRows.length })}
                 </span>
                 <span className="px-1.5">·</span>
                 {remainingRows
@@ -140,7 +154,7 @@ export function DriftDriversCard({
         {showRebalanceCta && (
           <div className="mt-auto pt-4">
             <Button size="sm" onClick={onRebalanceClick} className="w-fit">
-              Review rebalance →
+              {t("allocation:drivers.reviewRebalance")}
             </Button>
           </div>
         )}

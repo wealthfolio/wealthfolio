@@ -1,13 +1,4 @@
-fn stable_id(prefix: &str, components: &[&str]) -> String {
-    let mut id = prefix.to_string();
-    for component in components {
-        id.push(':');
-        id.push_str(&component.len().to_string());
-        id.push(':');
-        id.push_str(component);
-    }
-    id
-}
+use crate::utils::stable_id;
 
 pub(super) fn activity_taxonomy_assignment_id(activity_id: &str, taxonomy_id: &str) -> String {
     stable_id("activity_taxonomy_assignment", &[activity_id, taxonomy_id])
@@ -74,11 +65,6 @@ pub(crate) fn preset_rule_deletion_id(preset_id: &str, preset_rule_key: &str) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn stable_id_preserves_component_boundaries() {
-        assert_ne!(stable_id("x", &["ab", "c"]), stable_id("x", &["a", "bc"]));
-    }
 
     #[test]
     fn singleton_ids_are_stable() {

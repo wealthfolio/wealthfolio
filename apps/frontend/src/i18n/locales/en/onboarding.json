@@ -1,0 +1,96 @@
+{
+  "buttons": {
+    "continue": "Continue",
+    "subscribeConnect": "Subscribe & Connect",
+    "getStarted": "Get Started"
+  },
+  "steps": {
+    "chooseMode": {
+      "subtitle": "Two ways to track your portfolio.",
+      "holdings": {
+        "title": "Holdings",
+        "subtitle": "Value Tracking",
+        "badge": "Best for low-maintenance tracking.",
+        "features": {
+          "netWorth": "Net worth & allocation",
+          "unrealizedPnl": "Value & unrealized P&L",
+          "priceBased": "Price-based performance",
+          "fastSetup": "Fast & lightweight setup"
+        },
+        "limit": "Limit: No transaction-based TWR/IRR.",
+        "note": "Note: Requires maintaining holdings/positions."
+      },
+      "transactions": {
+        "title": "Transactions",
+        "subtitle": "Performance Tracking",
+        "badge": "Best for full performance analytics.",
+        "features": {
+          "totalReturn": "Total return over time",
+          "attribution": "Gains & cashflow attribution",
+          "completeView": "Most complete performance view",
+          "brokerSync": "Best with broker sync or CSV import"
+        },
+        "limit": "Limit: Requires tracking all transactions.",
+        "note": "Note: Automated if synced with a broker."
+      },
+      "footnote": "You can use different modes for different accounts.",
+      "learnMore": "Learn more"
+    },
+    "preferences": {
+      "subtitle": "Just a couple preferences to get you started",
+      "currencyLabel": "Currency",
+      "timezoneLabel": "Timezone",
+      "other": "Other",
+      "selectCurrency": "Select Currency",
+      "selectTimezone": "Select Timezone",
+      "searchCurrenciesPlaceholder": "Search currencies...",
+      "searchTimezonesPlaceholder": "Search timezones...",
+      "noCurrenciesFound": "No currencies found",
+      "noTimezonesFound": "No timezones found",
+      "currencyRequired": "Please select a base currency.",
+      "timezoneRequired": "Please select a timezone.",
+      "languageLabel": "Language"
+    }
+  },
+  "appearance": {
+    "subtitle": "Customize your experience",
+    "themeLabel": "Theme",
+    "fontLabel": "Font",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "themeLightPreviewAlt": "Light theme preview",
+    "themeDarkPreviewAlt": "Dark theme preview",
+    "themeSystemPreviewAlt": "System theme preview",
+    "fontSample": "Invest with clarity.",
+    "fonts": {
+      "monoLabel": "Mono",
+      "monoDescription": "Technical & precise",
+      "sansLabel": "Sans",
+      "sansDescription": "Clean & modern",
+      "serifLabel": "Serif",
+      "serifDescription": "Classic & elegant"
+    },
+    "navigationLabel": "Navigation"
+  },
+  "connect": {
+    "optional": "Optional",
+    "title": "Wealthfolio Connect",
+    "subtitle": "Automatically sync your brokers while keeping your data private.",
+    "learnMore": "Learn more about Connect",
+    "features": {
+      "brokerageSync": {
+        "title": "Brokerage Sync",
+        "description": "Auto-sync your accounts and transactions into your local database."
+      },
+      "deviceSync": {
+        "title": "Device Sync",
+        "description": "Keep your database in sync across all devices with end-to-end encryption."
+      },
+      "householdView": {
+        "title": "Household View",
+        "description": "Share selected accounts with family and see an aggregated view together."
+      }
+    }
+  }
+}

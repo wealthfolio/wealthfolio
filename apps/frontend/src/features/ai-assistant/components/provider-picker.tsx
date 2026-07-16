@@ -8,11 +8,13 @@ import {
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import type { FC } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ProviderIcon } from "./provider-icons";
 import { useProviderPicker } from "../hooks/use-provider-picker";
 
 export const ProviderPicker: FC = () => {
+  const { t } = useTranslation();
   const { isLoading, activeProviders, currentProviderId, currentProvider, selectProvider } =
     useProviderPicker();
 
@@ -29,7 +31,7 @@ export const ProviderPicker: FC = () => {
     return (
       <div className="text-muted-foreground hover:bg-muted flex h-9 items-center gap-2 rounded-md px-2 text-sm transition-colors">
         <Icons.Settings className="h-4 w-4" />
-        <span>No providers configured</span>
+        <span>{t("ai:provider.noProvidersConfigured")}</span>
       </div>
     );
   }

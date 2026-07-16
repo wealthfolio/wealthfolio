@@ -122,7 +122,7 @@ pub struct ResolvedAccountScope {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum AccountScope {
-    /// All active, non-archived accounts.
+    /// All non-archived accounts.
     All,
     /// A single specific account.
     #[serde(rename_all = "camelCase")]

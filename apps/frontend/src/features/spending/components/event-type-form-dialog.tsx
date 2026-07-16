@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
@@ -28,12 +29,10 @@ interface EventTypePrefill {
   color?: string;
 }
 
-const eventTypeSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  color: z.string().optional(),
-});
-
-type EventTypeFormValues = z.infer<typeof eventTypeSchema>;
+interface EventTypeFormValues {
+  name: string;
+  color?: string;
+}
 
 const PRESET_COLORS = [
   "#ef4444",
@@ -56,9 +55,19 @@ interface Props {
 }
 
 export function EventTypeFormDialog({ eventType, open, onOpenChange, prefill, onCreated }: Props) {
+  const { t } = useTranslation();
   const { create, update } = useEventTypeMutations();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = !!eventType;
+
+  const eventTypeSchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, t("spending:events.typeNameRequired")),
+        color: z.string().optional(),
+      }),
+    [t],
+  );
 
   const form = useForm<EventTypeFormValues>({
     resolver: zodResolver(eventTypeSchema),
@@ -103,11 +112,13 @@ export function EventTypeFormDialog({ eventType, open, onOpenChange, prefill, on
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Event Type" : "Create Event Type"}</DialogTitle>
+          <DialogTitle>
+            {isEditing ? t("spending:events.editTypeTitle") : t("spending:events.createTypeTitle")}
+          </DialogTitle>
           <DialogDescription>
             {isEditing
-              ? "Update the event type name and color."
-              : "Create a new event type to categorize events."}
+              ? t("spending:events.editTypeDescription")
+              : t("spending:events.createTypeDescription")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -117,9 +128,9 @@ export function EventTypeFormDialog({ eventType, open, onOpenChange, prefill, on
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{t("common:name")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Travel, Holiday, Business" {...field} />
+                    <Input placeholder={t("spending:events.typeNamePlaceholder")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -130,7 +141,7 @@ export function EventTypeFormDialog({ eventType, open, onOpenChange, prefill, on
               name="color"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Color</FormLabel>
+                  <FormLabel>{t("spending:category.color")}</FormLabel>
                   <FormControl>
                     <div className="flex flex-wrap gap-2">
                       {PRESET_COLORS.map((color) => (
@@ -159,16 +170,16 @@ export function EventTypeFormDialog({ eventType, open, onOpenChange, prefill, on
                 onClick={() => onOpenChange(false)}
                 disabled={isSubmitting}
               >
-                Cancel
+                {t("common:cancel")}
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting
                   ? isEditing
-                    ? "Updating..."
-                    : "Creating..."
+                    ? t("spending:common.updating")
+                    : t("spending:common.creating")
                   : isEditing
-                    ? "Update"
-                    : "Create"}
+                    ? t("spending:common.update")
+                    : t("spending:common.create")}
               </Button>
             </DialogFooter>
           </form>

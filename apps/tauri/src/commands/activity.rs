@@ -29,6 +29,7 @@ pub async fn search_activities(
     date_from: Option<String>,         // Optional start date filter (YYYY-MM-DD, inclusive)
     date_to: Option<String>,           // Optional end date filter (YYYY-MM-DD, inclusive)
     instrument_type_filter: Option<Vec<String>>, // Optional instrument_type filter
+    activity_id_filter: Option<Vec<String>>, // Optional exact activity-id filter
     state: State<'_, Arc<ServiceContext>>,
 ) -> Result<ActivitySearchResponse, String> {
     debug!("Search activities... {}, {}", page, page_size);
@@ -59,6 +60,7 @@ pub async fn search_activities(
         date_from_utc,
         date_to_utc_exclusive,
         instrument_type_filter,
+        activity_id_filter,
     )?)
 }
 

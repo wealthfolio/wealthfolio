@@ -10,13 +10,14 @@ import { importActivitySchema } from "@/lib/schemas";
 import { tryParseDate } from "@/lib/utils";
 import { logger } from "@/adapters";
 import { SUBTYPE_DISPLAY_NAMES } from "@/lib/constants";
+import { canonicalizeActivitySubtype } from "@/lib/activity-utils";
 import { looksLikeOccSymbol, normalizeOptionSymbol } from "@/lib/occ-symbol";
 import { looksLikeIsin } from "@/lib/isin";
 import { findMappedActivityType } from "./activity-type-mapping";
 import { normalizeInstrumentType, splitInstrumentPrefixedSymbol } from "./instrument-type";
 
-// Ticker symbol validation regex
-const tickerRegex = /^(CASH:[A-Z]{3}|[A-Z0-9]{1,21}([.-][A-Z0-9]+){0,2})$/;
+// Ticker symbol validation regex (full symbol bounded to 100 chars via the leading lookahead)
+const tickerRegex = /^(?=.{1,100}$)(CASH:[A-Z]{3}|[A-Z0-9_]+([.-][A-Z0-9_]+){0,2})$/;
 
 // CUSIP: 9 alphanumeric chars ending in a digit
 const cusipRegex = /^[A-Z0-9]{8}\d$/;
@@ -78,9 +79,9 @@ function normalizeSubtype(rawSubtype: string): string | undefined {
     return withUnderscores;
   }
 
-  // Return the uppercase version if no match found
-  // It will be validated later against allowed subtypes for the activity type
-  return upper;
+  // Preserve unknown provider labels as metadata. Canonicalization only applies
+  // to known subtype codes, display names, and activity-specific aliases.
+  return trimmed;
 }
 
 /**
@@ -93,9 +94,9 @@ function validateSubtypeForActivityType(
 ): string | undefined {
   if (!subtype || !activityType) return undefined;
 
-  if (subtype === activityType) return undefined;
+  if (subtype.toUpperCase() === activityType) return undefined;
 
-  return subtype;
+  return canonicalizeActivitySubtype(activityType, subtype);
 }
 
 /**
@@ -443,6 +444,7 @@ function transformRowToActivity(
   const rawQuantity = parseAndAbsoluteValue(getMappedValue(ImportFormat.QUANTITY));
   const rawUnitPrice = parseAndAbsoluteValue(getMappedValue(ImportFormat.UNIT_PRICE));
   const rawFee = parseAndAbsoluteValue(getMappedValue(ImportFormat.FEE));
+  const rawTax = parseAndAbsoluteValue(getMappedValue(ImportFormat.TAX));
   const rawAmount = parseAndAbsoluteValue(getMappedValue(ImportFormat.AMOUNT));
 
   // Assign potentially NaN values first, they will be cleaned up later
@@ -450,6 +452,7 @@ function transformRowToActivity(
   activity.unitPrice = rawUnitPrice;
   activity.currency = getMappedValue(ImportFormat.CURRENCY) || accountCurrency;
   activity.fee = rawFee;
+  activity.tax = rawTax;
   activity.amount = rawAmount;
   activity.lineNumber = parseInt(row.lineNumber);
   activity.comment = getMappedValue(ImportFormat.COMMENT)?.trim() || undefined;
@@ -513,7 +516,19 @@ function transformRowToActivity(
   if (activity.quantity !== undefined && isNaN(activity.quantity)) activity.quantity = undefined;
   if (activity.unitPrice !== undefined && isNaN(activity.unitPrice)) activity.unitPrice = undefined;
   if (activity.fee !== undefined && isNaN(activity.fee)) activity.fee = 0; // Ensure fee is 0 if NaN
+  if (activity.tax !== undefined && isNaN(activity.tax)) activity.tax = 0;
   if (activity.amount !== undefined && isNaN(activity.amount)) activity.amount = undefined;
+
+  const standaloneTaxAmount = toNum(activity.tax);
+  if (
+    activity.activityType === ActivityType.TAX &&
+    !toNum(activity.amount) &&
+    !toNum(activity.fee) &&
+    standaloneTaxAmount
+  ) {
+    activity.amount = Math.abs(standaloneTaxAmount);
+    activity.tax = undefined;
+  }
 
   if (activity.activityType === ActivityType.SPLIT) {
     activity.quantity = undefined;
@@ -535,6 +550,7 @@ function transformRowToActivity(
 
   // Ensure fee is always a number (default to 0 if undefined)
   activity.fee = activity.fee ?? 0;
+  activity.tax = activity.tax ?? 0;
 
   return activity;
 }

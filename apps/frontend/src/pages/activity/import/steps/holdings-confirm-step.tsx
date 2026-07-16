@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/
 
 import { useMemo, useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { createAsset, importHoldingsCsv, saveAccountImportMapping, logger } from "@/adapters";
 import { useImportContext } from "../context";
@@ -61,6 +62,7 @@ export function HoldingsConfirmStep() {
     assetPreviewItems,
   } = state;
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [isPreparingAssets, setIsPreparingAssets] = useState(false);
 
@@ -314,13 +316,15 @@ export function HoldingsConfirmStep() {
       } catch (error) {
         persistCreatedAssets(createdAssetIdsByKey);
         setPrepareError(
-          error instanceof Error ? error.message : "Failed to prepare assets for import.",
+          error instanceof Error
+            ? error.message
+            : t("activity:import.holdings.failedToPrepareAssets"),
         );
       } finally {
         setIsPreparingAssets(false);
       }
     })();
-  }, [buildSnapshots, draftActivities, mutateImport, pendingImportAssets, persistCreatedAssets]);
+  }, [buildSnapshots, draftActivities, mutateImport, pendingImportAssets, persistCreatedAssets, t]);
 
   const handleCancel = useCallback(() => {
     navigate(-1);
@@ -337,35 +341,44 @@ export function HoldingsConfirmStep() {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader className="px-4 py-3">
-          <CardTitle className="text-sm font-medium">Confirm Holdings Import</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            {t("activity:import.holdings.confirmTitle")}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <Alert>
               <Icons.AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Important</AlertTitle>
+              <AlertTitle>{t("activity:import.holdings.importantTitle")}</AlertTitle>
               <AlertDescription>
-                Importing will create or update snapshots for each date in your CSV. Existing
-                snapshots for the same dates will be replaced.
+                {t("activity:import.holdings.importantDescription")}
               </AlertDescription>
             </Alert>
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <div className="bg-muted/30 rounded-lg p-3 text-center">
                 <div className="text-primary text-2xl font-bold">{snapshots.length}</div>
-                <div className="text-muted-foreground text-xs">Snapshots</div>
+                <div className="text-muted-foreground text-xs">
+                  {t("activity:import.holdings.snapshots")}
+                </div>
               </div>
               <div className="bg-muted/30 rounded-lg p-3 text-center">
                 <div className="text-2xl font-bold">{totalPositions}</div>
-                <div className="text-muted-foreground text-xs">Positions</div>
+                <div className="text-muted-foreground text-xs">
+                  {t("activity:import.holdings.positions")}
+                </div>
               </div>
               <div className="bg-muted/30 rounded-lg p-3 text-center">
                 <div className="text-2xl font-bold">{totalCashEntries}</div>
-                <div className="text-muted-foreground text-xs">Cash Balances</div>
+                <div className="text-muted-foreground text-xs">
+                  {t("activity:import.holdings.cashBalances")}
+                </div>
               </div>
               <div className="bg-muted/30 rounded-lg p-3 text-center">
                 <div className="text-2xl font-bold">{parsedRows.length}</div>
-                <div className="text-muted-foreground text-xs">CSV Rows</div>
+                <div className="text-muted-foreground text-xs">
+                  {t("activity:import.holdings.csvRows")}
+                </div>
               </div>
             </div>
 
@@ -373,7 +386,10 @@ export function HoldingsConfirmStep() {
               <div className="text-muted-foreground flex items-center justify-center gap-2 text-sm">
                 <Icons.Calendar className="h-4 w-4" />
                 <span>
-                  {snapshots[snapshots.length - 1].date} to {snapshots[0].date}
+                  {t("activity:import.holdings.dateRange", {
+                    from: snapshots[snapshots.length - 1].date,
+                    to: snapshots[0].date,
+                  })}
                 </span>
               </div>
             )}
@@ -384,25 +400,27 @@ export function HoldingsConfirmStep() {
       {prepareError && (
         <Alert variant="destructive">
           <Icons.AlertCircle className="h-4 w-4" />
-          <AlertTitle>Import preparation failed</AlertTitle>
+          <AlertTitle>{t("activity:import.holdings.prepareFailedTitle")}</AlertTitle>
           <AlertDescription>{prepareError}</AlertDescription>
         </Alert>
       )}
 
       <div className="flex justify-end gap-3">
         <Button variant="outline" onClick={handleCancel} disabled={isImporting}>
-          Cancel
+          {t("activity:import.holdings.cancel")}
         </Button>
         <Button onClick={handleImport} disabled={isImporting || snapshots.length === 0}>
           {isImporting ? (
             <>
               <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-              {isPreparingAssets ? "Preparing assets..." : "Importing..."}
+              {isPreparingAssets
+                ? t("activity:import.holdings.preparingAssets")
+                : t("activity:import.holdings.importing")}
             </>
           ) : (
             <>
               <Icons.Upload className="mr-2 h-4 w-4" />
-              Import {snapshots.length} Snapshot{snapshots.length !== 1 ? "s" : ""}
+              {t("activity:import.holdings.importSnapshots", { count: snapshots.length })}
             </>
           )}
         </Button>

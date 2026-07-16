@@ -58,8 +58,9 @@ mod tests;
 // Re-export commonly used types
 pub use errors::HealthError;
 pub use model::{
-    AffectedItem, FixAction, HealthCategory, HealthConfig, HealthIssue, HealthIssueBuilder,
-    HealthStatus, IssueDismissal, NavigateAction, Severity,
+    AffectedItem, DiagnosticAction, DiagnosticDomain, DiagnosticLevel, Evidence, FixAction,
+    HealthCategory, HealthConfig, HealthDateRange, HealthDiagnostic, HealthEntityRef, HealthImpact,
+    HealthIssue, HealthIssueBuilder, HealthStatus, IssueDismissal, NavigateAction, Severity,
 };
 pub use traits::{HealthCheck, HealthContext, HealthDismissalStore, HealthServiceTrait};
 
@@ -72,4 +73,6 @@ pub use fixes::{
 };
 
 // Re-export data gathering functions from checks
-pub use checks::{gather_legacy_migration_status, gather_quote_sync_errors};
+pub use checks::{
+    gather_legacy_migration_status, gather_quote_sync_errors, gather_unclassified_assets,
+};

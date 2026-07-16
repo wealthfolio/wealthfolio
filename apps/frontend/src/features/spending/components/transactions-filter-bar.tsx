@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { DateRange } from "react-day-picker";
+import { useTranslation } from "react-i18next";
 
 import {
   Button,
@@ -18,7 +19,6 @@ import {
 import { AmountRangeFilter, type AmountRange } from "./amount-range-filter";
 import { DateRangeFilter } from "./date-range-filter";
 import type { CashActivityStatusFilter } from "../types/cash-activity";
-import { pluralizeTransaction } from "../lib/transactions-helpers";
 
 export interface FilterOption {
   value: string;
@@ -99,11 +99,12 @@ export function TransactionsFilterBar({
   isRefreshing,
   isMobile = false,
 }: TransactionsFilterBarProps) {
+  const { t } = useTranslation();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const statusOptions = [
-    { value: "needs_review", label: "Needs review" },
-    { value: "uncategorized", label: "Uncategorized" },
-    { value: "categorized", label: "Categorized" },
+    { value: "needs_review", label: t("spending:filters.statusNeedsReview") },
+    { value: "uncategorized", label: t("spending:filters.statusUncategorized") },
+    { value: "categorized", label: t("spending:filters.statusCategorized") },
   ];
   const controlFiltersActive =
     statusFilter !== "all" ||
@@ -118,13 +119,17 @@ export function TransactionsFilterBar({
     !!dateRange?.to;
   const countLabel =
     totalCount > 0
-      ? `${visibleCount} / ${totalCount} ${pluralizeTransaction(totalCount)}`
-      : "0 transactions";
+      ? t("spending:filters.countLabel", {
+          visible: visibleCount,
+          total: totalCount,
+          count: totalCount,
+        })
+      : t("spending:filters.countZero");
 
   const filterControls = (
     <>
       <FacetedFilter
-        title="Status"
+        title={t("common:status")}
         options={statusOptions}
         selectedValues={new Set(statusFilter === "all" ? [] : [statusFilter])}
         onFilterChange={(v) => {
@@ -134,33 +139,33 @@ export function TransactionsFilterBar({
       />
       <DateRangeFilter value={dateRange} onChange={onDateRangeChange} />
       <FacetedFilter
-        title="Account"
+        title={t("common:account")}
         options={accountOptions}
         selectedValues={selectedAccounts}
         onFilterChange={onAccountsChange}
       />
       <FacetedFilter
-        title="Type"
+        title={t("common:type")}
         options={typeOptions}
         selectedValues={selectedTypes}
         onFilterChange={onTypesChange}
       />
       <AmountRangeFilter value={amountRange} onChange={onAmountRangeChange} />
       <FacetedFilter
-        title="Category"
+        title={t("spending:filters.category")}
         options={categoryOptions}
         selectedValues={selectedCategories}
         onFilterChange={onCategoriesChange}
       />
       <FacetedFilter
-        title="Subcategory"
+        title={t("spending:filters.subcategory")}
         options={subcategoryOptions}
         selectedValues={selectedSubcategories}
         onFilterChange={onSubcategoriesChange}
       />
       {hasEvents && (
         <FacetedFilter
-          title="Event"
+          title={t("spending:filters.event")}
           options={eventOptions}
           selectedValues={selectedEvents}
           onFilterChange={onEventsChange}
@@ -174,7 +179,7 @@ export function TransactionsFilterBar({
       <div className="space-y-2">
         <div className="flex shrink-0 items-center gap-2 pt-2">
           <Input
-            placeholder="Search..."
+            placeholder={t("common:search_placeholder")}
             value={searchInput}
             onChange={(e) => onSearchInputChange(e.target.value)}
             className="bg-secondary/30 h-10 flex-1 rounded-full border-none md:h-12"
@@ -184,8 +189,8 @@ export function TransactionsFilterBar({
             size="icon"
             className="size-9 flex-shrink-0"
             onClick={() => setMobileFiltersOpen(true)}
-            aria-label="Filter transactions"
-            title="Filter transactions"
+            aria-label={t("spending:filters.filterTransactions")}
+            title={t("spending:filters.filterTransactions")}
           >
             <div className="relative">
               <Icons.ListFilter className="h-4 w-4" />
@@ -198,7 +203,7 @@ export function TransactionsFilterBar({
         <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
           <SheetContent side="bottom" className="rounded-t-4xl mx-1 flex h-[80vh] flex-col p-0">
             <SheetHeader className="border-border border-b px-6 py-4 text-left">
-              <SheetTitle>Filter transactions</SheetTitle>
+              <SheetTitle>{t("spending:filters.filterTransactions")}</SheetTitle>
             </SheetHeader>
             <ScrollArea className="flex-1">
               <div className="flex flex-wrap gap-2 px-6 py-4">{filterControls}</div>
@@ -210,10 +215,10 @@ export function TransactionsFilterBar({
                 onClick={onClearAll}
                 disabled={!filtersActive}
               >
-                Clear all
+                {t("spending:filters.clearAll")}
               </Button>
               <Button className="ml-auto" onClick={() => setMobileFiltersOpen(false)}>
-                Done
+                {t("spending:filters.done")}
               </Button>
             </SheetFooter>
           </SheetContent>
@@ -237,12 +242,17 @@ export function TransactionsFilterBar({
           onClick={onClearAll}
           className="text-muted-foreground hover:text-foreground h-8 shrink-0 px-2 text-xs"
         >
-          Clear all
+          {t("spending:filters.clearAll")}
         </Button>
       )}
       <span className="text-muted-foreground ml-auto inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs tabular-nums">
         {countLabel}
-        {isRefreshing && <Icons.Spinner className="h-3 w-3 animate-spin" aria-label="Refreshing" />}
+        {isRefreshing && (
+          <Icons.Spinner
+            className="h-3 w-3 animate-spin"
+            aria-label={t("spending:filters.refreshing")}
+          />
+        )}
       </span>
     </div>
   );

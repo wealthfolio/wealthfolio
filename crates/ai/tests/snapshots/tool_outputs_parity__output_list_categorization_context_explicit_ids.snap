@@ -1,0 +1,44 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "examples": [
+      {
+        "categoryId": "cat-coffee",
+        "categoryPath": "Food / Coffee",
+        "notes": "SQ *COFFEE SHOP OTTAWA"
+      }
+    ],
+    "nextStep": "Call propose_transaction_categories with aiProposals: [] and the same filters to render the review widget. Rule/history matches are draft proposals, not applied categories.",
+    "summary": {
+      "deterministicallyProposed": 1,
+      "needsAiJudgement": 0,
+      "total": 1
+    },
+    "taxonomies": [
+      {
+        "categories": [
+          {
+            "categoryId": "cat-food",
+            "color": "#64748b",
+            "key": "food",
+            "name": "Food",
+            "path": "Food"
+          },
+          {
+            "categoryId": "cat-coffee",
+            "color": "#64748b",
+            "key": "coffee",
+            "name": "Coffee",
+            "path": "Food / Coffee"
+          }
+        ],
+        "taxonomyId": "spending",
+        "taxonomyName": "Spending"
+      }
+    ],
+    "unproposed": []
+  }
+}

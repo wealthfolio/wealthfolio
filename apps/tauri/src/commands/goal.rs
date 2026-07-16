@@ -11,6 +11,8 @@ use wealthfolio_core::planning::{
     compute_save_up_overview, validate_save_up_input, SaveUpInput, SaveUpOverview,
 };
 use wealthfolio_core::portfolio::fire::RetirementOverview;
+use wealthfolio_core::portfolio::valuation::CurrentAccountValuationService;
+use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 #[tauri::command]
 pub async fn get_goals(state: State<'_, Arc<ServiceContext>>) -> Result<Vec<Goal>, String> {
@@ -255,7 +257,7 @@ async fn refresh_summary_internal(
         .map_err(|e| e.to_string())
 }
 
-/// Build account_id → base-currency value map from latest valuations.
+/// Build account_id → base-currency value map from live current valuations.
 async fn build_valuation_map(
     state: &State<'_, Arc<ServiceContext>>,
 ) -> Result<std::collections::HashMap<String, f64>, String> {
@@ -264,13 +266,34 @@ async fn build_valuation_map(
         .get_active_non_archived_accounts()
         .map_err(|e| e.to_string())?;
     let account_ids: Vec<String> = accounts.into_iter().map(|a| a.id).collect();
-    let valuations = state
-        .valuation_service()
-        .get_latest_valuations(&account_ids)
+    let base_currency = state.get_base_currency();
+    let timezone = state.get_timezone();
+    let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
+    let account_service = state.account_service();
+    let snapshot_repository = state.snapshot_repository();
+    let asset_service = state.asset_service();
+    let quote_service = state.quote_service();
+    let fx_service = state.fx_service();
+    let service = CurrentAccountValuationService::new(
+        account_service.as_ref(),
+        snapshot_repository.as_ref(),
+        asset_service.as_ref(),
+        quote_service.as_ref(),
+        fx_service.as_ref(),
+    );
+    let response = service
+        .get_current_valuation_for_scope(
+            "all",
+            &account_ids,
+            &base_currency,
+            latest_snapshot_cutoff,
+            true,
+        )
+        .await
         .map_err(|e| e.to_string())?;
 
     let mut map = std::collections::HashMap::new();
-    for v in &valuations {
+    for v in &response.accounts {
         let value_in_base = v
             .total_value_base
             .to_f64()

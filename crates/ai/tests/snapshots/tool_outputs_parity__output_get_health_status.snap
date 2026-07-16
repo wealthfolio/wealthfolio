@@ -1,0 +1,12 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "isStale": false,
+    "issues": [],
+    "note": "No health check has run yet in this session. Ask the user to open the Health Center to run a check.",
+    "overallSeverity": "NOT_COMPUTED"
+  }
+}

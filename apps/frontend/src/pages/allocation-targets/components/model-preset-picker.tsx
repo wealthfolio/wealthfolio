@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { CategoryAllocation } from "@/lib/types";
 import { allocationTargetColor } from "./allocation-target-colors";
@@ -78,6 +79,7 @@ export function ModelPresetPicker({
   currentCategories,
   compact = false,
 }: ModelPresetPickerProps) {
+  const { t } = useTranslation();
   const categoryNames = Object.fromEntries(
     currentCategories.map((category) => [category.categoryId, category.categoryName]),
   );
@@ -95,8 +97,8 @@ export function ModelPresetPicker({
   const currentPreset: ModelPreset = {
     id: "current",
     taxonomyId,
-    name: "Current allocation",
-    description: "Start from what you hold today",
+    name: t("allocation:presets.currentAllocation"),
+    description: t("allocation:presets.currentAllocationDescription"),
     risk: "From holdings",
     featured: true,
     weights: currentWeights,
@@ -122,7 +124,7 @@ export function ModelPresetPicker({
       .sort(([, a], [, b]) => b - a)
       .slice(0, 3);
 
-    if (nonZero.length === 0) return "No current holdings";
+    if (nonZero.length === 0) return t("allocation:presets.noCurrentHoldings");
 
     return nonZero
       .map(([categoryId, pct]) => `${categoryLabel(categoryId)} ${formattedPct(pct)}`)
@@ -211,7 +213,7 @@ export function ModelPresetPicker({
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {secondaryPresets.length > 0 && (
             <span className="text-muted-foreground mr-1 text-[11px] font-medium uppercase tracking-wider">
-              More templates
+              {t("allocation:presets.moreTemplates")}
             </span>
           )}
           {secondaryPresets.map((preset) => (
@@ -241,7 +243,7 @@ export function ModelPresetPicker({
                 : "bg-card hover:border-muted-foreground/50",
             )}
           >
-            Build from scratch
+            {t("allocation:presets.buildFromScratch")}
             {scratchSelected && <span className="text-[10px]">✓</span>}
           </button>
         </div>

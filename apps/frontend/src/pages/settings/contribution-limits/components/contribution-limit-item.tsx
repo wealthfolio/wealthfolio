@@ -11,6 +11,7 @@ import {
   formatAmount,
 } from "@wealthfolio/ui";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useContributionLimitProgress } from "../use-contribution-limit-mutations";
 import { AccountSelection } from "./account-selection";
 import { ContributionLimitOperations } from "./contribution-limit-operations";
@@ -28,6 +29,7 @@ export function ContributionLimitItem({
   onEdit,
   onDelete,
 }: ContributionLimitItemProps) {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
@@ -96,15 +98,21 @@ export function ContributionLimitItem({
                   / {formatAmount(limit.limitAmount, baseCurrency)}
                 </span>
               </div>
-              {isComplete && <span className="text-success text-xs">✓ Limit reached</span>}
+              {isComplete && (
+                <span className="text-success text-xs">✓ {t("settings:limits_limit_reached")}</span>
+              )}
               {isOverLimit && (
                 <span className="text-destructive text-xs">
-                  +{formatAmount(overLimitAmount, baseCurrency)} over limit
+                  {t("settings:limits_over_limit", {
+                    amount: formatAmount(overLimitAmount, baseCurrency),
+                  })}
                 </span>
               )}
               {!isComplete && !isOverLimit && (
                 <span className="text-muted-foreground text-xs">
-                  {formatAmount(remainingAmount, baseCurrency)} remaining
+                  {t("settings:limits_remaining", {
+                    amount: formatAmount(remainingAmount, baseCurrency),
+                  })}
                 </span>
               )}
             </div>
@@ -132,7 +140,7 @@ export function ContributionLimitItem({
                     daysRemaining <= 30 ? "bg-amber-100 text-amber-800" : "bg-blue-50 text-blue-700"
                   }`}
                 >
-                  {daysRemaining}d left
+                  {t("settings:limits.day_left", { days: daysRemaining })}
                 </span>
               )}
             </div>
@@ -163,7 +171,7 @@ export function ContributionLimitItem({
                         : "bg-blue-50 text-blue-700"
                     }`}
                   >
-                    {daysRemaining} days left
+                    {t("settings:limits_days_left", { days: daysRemaining })}
                   </span>
                 )}
               </div>
@@ -191,9 +199,11 @@ export function ContributionLimitItem({
                 </div>
                 <span className="text-muted-foreground text-right text-xs">
                   {isComplete
-                    ? "completed"
+                    ? t("settings:limits_completed")
                     : isOverLimit
-                      ? `+${formatAmount(overLimitAmount, baseCurrency)} over limit`
+                      ? t("settings:limits_over_limit", {
+                          amount: formatAmount(overLimitAmount, baseCurrency),
+                        })
                       : `${limit.contributionYear}`}
                 </span>
               </div>

@@ -22,6 +22,16 @@ pub fn validate_new_target(input: &NewAllocationTarget) -> CoreResult<()> {
     if input.drift_band_bps < 0 || input.drift_band_bps > 10000 {
         return Err(invalid("drift_band_bps must be between 0 and 10000"));
     }
+    if let Some(factor) = input.relative_factor_bps {
+        if !(0..=10000).contains(&factor) {
+            return Err(invalid("relative_factor_bps must be between 0 and 10000"));
+        }
+    }
+    if let Some(max_turnover_bps) = input.max_turnover_bps {
+        if !(0..=10000).contains(&max_turnover_bps) {
+            return Err(invalid("max_turnover_bps must be between 0 and 10000"));
+        }
+    }
     if let Some(min_trade_amount) = &input.min_trade_amount {
         let amount = min_trade_amount
             .parse::<Decimal>()
@@ -71,10 +81,13 @@ mod tests {
             taxonomy_id: "asset_classes".to_string(),
             trigger_type: TriggerType::Threshold,
             drift_band_bps: 500,
+            band_type: None,
+            relative_factor_bps: None,
             rebalance_goal: None,
             min_trade_amount: None,
             whole_shares_only: None,
             allow_sells: None,
+            max_turnover_bps: None,
         }
     }
 
@@ -171,6 +184,66 @@ mod tests {
     fn weights_negative_bps_rejected() {
         let weights = vec![weight("EQUITY", -100), weight("FIXED_INCOME", 10100)];
         assert!(validate_weights_sum(&weights).is_err());
+    }
+
+    #[test]
+    fn relative_factor_bps_out_of_range_rejected() {
+        let p = NewAllocationTarget {
+            relative_factor_bps: Some(10001),
+            ..base_target("p")
+        };
+        assert!(validate_new_target(&p).is_err());
+    }
+
+    #[test]
+    fn relative_factor_bps_negative_rejected() {
+        let p = NewAllocationTarget {
+            relative_factor_bps: Some(-1),
+            ..base_target("p")
+        };
+        assert!(validate_new_target(&p).is_err());
+    }
+
+    #[test]
+    fn relative_factor_bps_valid_passes() {
+        let p = NewAllocationTarget {
+            relative_factor_bps: Some(2000),
+            ..base_target("p")
+        };
+        assert!(validate_new_target(&p).is_ok());
+    }
+
+    #[test]
+    fn relative_factor_bps_none_passes() {
+        assert!(validate_new_target(&base_target("p")).is_ok());
+    }
+
+    #[test]
+    fn max_turnover_bps_valid_range_passes() {
+        for bps in [0, 1, 10000] {
+            let p = NewAllocationTarget {
+                max_turnover_bps: Some(bps),
+                ..base_target("p")
+            };
+            assert!(
+                validate_new_target(&p).is_ok(),
+                "max_turnover_bps={bps} should be valid"
+            );
+        }
+    }
+
+    #[test]
+    fn max_turnover_bps_out_of_range_rejected() {
+        for bps in [-1, 10001] {
+            let p = NewAllocationTarget {
+                max_turnover_bps: Some(bps),
+                ..base_target("p")
+            };
+            assert!(
+                validate_new_target(&p).is_err(),
+                "max_turnover_bps={bps} should be rejected"
+            );
+        }
     }
 
     #[test]

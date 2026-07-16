@@ -10,9 +10,15 @@ mod tests {
         UpdateAssetProfile,
     };
     use crate::errors::Result;
-    use crate::fx::{ExchangeRate, FxError, FxServiceTrait, NewExchangeRate};
-    use crate::portfolio::snapshot::holdings_calculator::HoldingsCalculator;
-    use crate::portfolio::snapshot::{AccountStateSnapshot, Lot, Position, SnapshotSource};
+    use crate::fx::{
+        denormalization_multiplier, normalize_currency_code, ExchangeRate, FxError, FxServiceTrait,
+        NewExchangeRate,
+    };
+    use crate::lots::{LotClosure, LotDisposal, LotRecord};
+    use crate::portfolio::snapshot::holdings_calculator::{HoldingsCalculator, ProjectionRun};
+    use crate::portfolio::snapshot::{
+        AccountStateSnapshot, HoldingsCalculationResult, Lot, Position, SnapshotSource,
+    };
     use async_trait;
     use chrono::{DateTime, NaiveDate, TimeZone, Utc};
     use rust_decimal::Decimal;
@@ -43,6 +49,13 @@ mod tests {
             mock.add_asset("TSLA", "USD"); // Tesla listed in USD
             mock.add_asset("XYZ", "USD"); // Test stock in USD
             mock.add_asset("ADS.DE", "EUR"); // Adidas listed in EUR
+            mock.add_asset("CTY", "GBp"); // UK investment quoted in pence
+            mock.add_asset("TEST_GBp", "GBp");
+            mock.add_asset("TEST_GBX", "GBX");
+            mock.add_asset("TEST_ZAc", "ZAc");
+            mock.add_asset("TEST_USX", "USX");
+            mock.add_asset("TEST_ILA", "ILA");
+            mock.add_asset("TEST_KWF", "KWF");
 
             mock
         }
@@ -275,8 +288,6 @@ mod tests {
             to_currency: &str,
             date: NaiveDate,
         ) -> Result<Decimal> {
-            let lookup_key = (from_currency.to_string(), to_currency.to_string(), date);
-
             if self.fail_on_purpose {
                 return Err(crate::errors::Error::Fx(FxError::RateNotFound(format!(
                     "Intentional failure for {}->{} on {}",
@@ -287,9 +298,23 @@ mod tests {
                 return Ok(amount);
             }
 
+            let normalized_from = normalize_currency_code(from_currency);
+            let normalized_to = normalize_currency_code(to_currency);
+            let source_multiplier = if normalized_from == from_currency {
+                Decimal::ONE
+            } else {
+                Decimal::ONE / denormalization_multiplier(from_currency)
+            };
+            let target_multiplier = denormalization_multiplier(to_currency);
+
+            if normalized_from == normalized_to {
+                return Ok(amount * source_multiplier * target_multiplier);
+            }
+
+            let lookup_key = (normalized_from.to_string(), normalized_to.to_string(), date);
             match self.conversion_rates.get(&lookup_key) {
                 Some(rate) => {
-                    let result = amount * rate;
+                    let result = amount * source_multiplier * rate * target_multiplier;
                     Ok(result)
                 }
                 None => Err(crate::errors::Error::Fx(FxError::RateNotFound(format!(
@@ -374,6 +399,7 @@ mod tests {
             unit_price: Some(unit_price),
             amount: None,
             fee: Some(fee),
+            tax: None,
             currency: currency.to_string(),
             fx_rate: None,
             notes: None,
@@ -422,6 +448,7 @@ mod tests {
             unit_price: Some(unit_price),
             amount: None,
             fee: Some(fee),
+            tax: None,
             currency: currency.to_string(),
             fx_rate: None,
             notes: None,
@@ -466,6 +493,7 @@ mod tests {
             unit_price: Some(amount),
             amount: Some(amount),
             fee: Some(fee),
+            tax: None,
             currency: currency.to_string(),
             fx_rate: None,
             notes: None,
@@ -521,27 +549,112 @@ mod tests {
         fx_service.add_bidirectional_rate("USD", "CAD", date, rate);
     }
 
+    /// Test harness owning a single [`ProjectionRun`] and forwarding to the
+    /// calculator's run-threaded API. One harness == one recalculation run, so
+    /// the transfer-lot cache and disposals persist across successive
+    /// `calculate_next_holdings` calls (matching the previous shared-cache
+    /// behavior). Methods mirror the calculator's pre-ProjectionRun signatures.
+    struct CalcHarness {
+        calculator: HoldingsCalculator,
+        run: ProjectionRun,
+    }
+
+    impl CalcHarness {
+        fn new(calculator: HoldingsCalculator) -> Self {
+            Self {
+                calculator,
+                run: ProjectionRun::new(),
+            }
+        }
+
+        fn calculate_next_holdings(
+            &mut self,
+            previous_snapshot: &AccountStateSnapshot,
+            activities_today: &[Activity],
+            target_date: NaiveDate,
+        ) -> Result<HoldingsCalculationResult> {
+            self.calculator.calculate_next_holdings(
+                &mut self.run,
+                previous_snapshot,
+                activities_today,
+                target_date,
+            )
+        }
+
+        fn calculate_next_holdings_for_account_type(
+            &mut self,
+            previous_snapshot: &AccountStateSnapshot,
+            activities_today: &[Activity],
+            target_date: NaiveDate,
+            account_type: Option<&str>,
+        ) -> Result<HoldingsCalculationResult> {
+            self.calculator.calculate_next_holdings_for_account_type(
+                &mut self.run,
+                previous_snapshot,
+                activities_today,
+                target_date,
+                account_type,
+            )
+        }
+
+        fn take_lot_disposals(
+            &mut self,
+            account_id: &str,
+            cost_basis_method: &str,
+        ) -> Vec<LotDisposal> {
+            self.run.take_lot_disposals(account_id, cost_basis_method)
+        }
+
+        #[allow(dead_code)]
+        fn take_disposed_lots(
+            &mut self,
+            account_id: &str,
+            cost_basis_method: &str,
+        ) -> Vec<LotClosure> {
+            self.run.take_disposed_lots(account_id, cost_basis_method)
+        }
+
+        fn extract_lot_records_with_base(
+            &self,
+            snapshot: &AccountStateSnapshot,
+            cost_basis_method: &str,
+        ) -> Vec<LotRecord> {
+            self.calculator
+                .extract_lot_records_with_base(snapshot, cost_basis_method)
+        }
+
+        #[allow(dead_code)]
+        fn set_cost_basis_method_for_account(&mut self, account_id: &str, cost_basis_method: &str) {
+            self.run
+                .set_cost_basis_method(account_id, cost_basis_method);
+        }
+    }
+
     // --- Helper to create calculator with mock dependencies ---
     fn create_calculator(
         fx_service: Arc<dyn FxServiceTrait>,
         base_currency: Arc<RwLock<String>>,
-    ) -> HoldingsCalculator {
+    ) -> CalcHarness {
         let asset_repository = Arc::new(MockAssetRepository::new());
-        HoldingsCalculator::new(fx_service, base_currency, asset_repository)
+        CalcHarness::new(HoldingsCalculator::new(
+            fx_service,
+            base_currency,
+            asset_repository,
+        ))
     }
 
     fn create_calculator_with_timezone(
         fx_service: Arc<dyn FxServiceTrait>,
         base_currency: Arc<RwLock<String>>,
         timezone: &str,
-    ) -> HoldingsCalculator {
+    ) -> CalcHarness {
         let asset_repository = Arc::new(MockAssetRepository::new());
-        HoldingsCalculator::new_with_timezone(
+        CalcHarness::new(HoldingsCalculator::new_with_timezone(
             fx_service,
             base_currency,
             Arc::new(RwLock::new(timezone.to_string())),
             asset_repository,
-        )
+        ))
     }
 
     // --- Tests ---
@@ -555,7 +668,7 @@ mod tests {
         let target_date = NaiveDate::from_str("2023-01-01").unwrap();
         mock_fx_service.add_bidirectional_rate("CAD", "USD", target_date, dec!(0.75)); // 1 CAD = 0.75 USD
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let activity_currency = "CAD";
         let target_date_str = "2023-01-01";
@@ -605,11 +718,54 @@ mod tests {
     }
 
     #[test]
+    fn test_buy_activity_tax_updates_cash_basis_and_lot_allocation() {
+        let mut mock_fx_service = MockFxService::new();
+        let account_currency = "CAD";
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+
+        let target_date_str = "2023-01-01";
+        let target_date = NaiveDate::from_str(target_date_str).unwrap();
+        mock_fx_service.add_bidirectional_rate("CAD", "USD", target_date, dec!(0.75));
+
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", account_currency, "2022-12-31");
+
+        let mut buy_activity = create_default_activity(
+            "act_buy_tax_1",
+            ActivityType::Buy,
+            "AAPL",
+            dec!(10),
+            dec!(150),
+            dec!(5),
+            account_currency,
+            target_date_str,
+        );
+        buy_activity.tax = Some(dec!(3));
+
+        let result =
+            calculator.calculate_next_holdings(&previous_snapshot, &[buy_activity], target_date);
+        assert!(result.is_ok(), "Calculation failed: {:?}", result.err());
+        let next_state = result.unwrap().snapshot;
+
+        let position = next_state.positions.get("AAPL").unwrap();
+        assert_eq!(position.quantity, dec!(10));
+        assert_eq!(position.average_cost, dec!(113.10));
+        assert_eq!(position.total_cost_basis, dec!(1131.00));
+        assert_eq!(position.lots[0].acquisition_fees, dec!(3.75));
+        assert_eq!(position.lots[0].acquisition_taxes, dec!(2.25));
+        assert_eq!(
+            next_state.cash_balances.get(account_currency),
+            Some(&dec!(-1508))
+        );
+        assert_eq!(next_state.cost_basis, dec!(1508));
+    }
+
+    #[test]
     fn test_dividend_in_kind_compiles_to_zero_cash_and_no_contribution() {
         let mock_fx_service = MockFxService::new();
         let account_currency = "USD";
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let target_date_str = "2023-01-01";
         let target_date = NaiveDate::from_str(target_date_str).unwrap();
@@ -652,7 +808,7 @@ mod tests {
         let mock_fx_service = MockFxService::new();
         let account_currency = "USD";
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let target_date_str = "2026-05-05";
         let target_date = NaiveDate::from_str(target_date_str).unwrap();
@@ -693,7 +849,7 @@ mod tests {
 
     #[test]
     fn test_activity_buckets_to_user_local_day_boundary() {
-        let calculator = create_calculator_with_timezone(
+        let mut calculator = create_calculator_with_timezone(
             Arc::new(MockFxService::new()),
             Arc::new(RwLock::new("USD".to_string())),
             "America/Los_Angeles",
@@ -729,7 +885,7 @@ mod tests {
 
     #[test]
     fn test_activity_not_processed_when_target_date_is_wrong_for_user_timezone() {
-        let calculator = create_calculator_with_timezone(
+        let mut calculator = create_calculator_with_timezone(
             Arc::new(MockFxService::new()),
             Arc::new(RwLock::new("USD".to_string())),
             "America/Los_Angeles",
@@ -763,7 +919,7 @@ mod tests {
 
     #[test]
     fn test_split_uses_user_local_calendar_date_for_lot_eligibility() {
-        let calculator = create_calculator_with_timezone(
+        let mut calculator = create_calculator_with_timezone(
             Arc::new(MockFxService::new()),
             Arc::new(RwLock::new("USD".to_string())),
             "America/Los_Angeles",
@@ -816,7 +972,7 @@ mod tests {
         let mock_fx_service = Arc::new(MockFxService::new());
         let account_currency = "CAD";
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(mock_fx_service.clone(), base_currency);
+        let mut calculator = create_calculator(mock_fx_service.clone(), base_currency);
 
         let activity_currency = "CAD";
         let target_date_str = "2023-01-02";
@@ -848,13 +1004,20 @@ mod tests {
                         .and_hms_opt(0, 0, 0)
                         .unwrap(),
                 ),
+                acquisition_local_date: None,
                 quantity: dec!(10),
                 original_quantity: dec!(10),
                 cost_basis: dec!(1500),
                 acquisition_price: dec!(150),
                 acquisition_fees: dec!(5),
                 original_acquisition_fees: dec!(5),
+                acquisition_taxes: Decimal::ZERO,
+                original_acquisition_taxes: Decimal::ZERO,
                 fx_rate_to_position: None,
+                fx_rate_to_account: None,
+                account_currency: None,
+                fx_rate_to_base: None,
+                base_currency: None,
                 source_activity_id: None,
                 split_ratio: Decimal::ONE,
             }]),
@@ -917,6 +1080,112 @@ mod tests {
     }
 
     #[test]
+    fn test_sell_activity_tax_updates_cash_proceeds_and_prorates_lot_tax() {
+        let mock_fx_service = Arc::new(MockFxService::new());
+        let account_currency = "CAD";
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let mut calculator = create_calculator(mock_fx_service, base_currency);
+
+        let target_date_str = "2023-01-02";
+        let target_date = NaiveDate::from_str(target_date_str).unwrap();
+
+        let mut previous_snapshot =
+            create_initial_snapshot("acc_1", account_currency, "2023-01-01");
+        previous_snapshot.positions.insert(
+            "AAPL".to_string(),
+            Position {
+                id: "AAPL_acc_1".to_string(),
+                account_id: "acc_1".to_string(),
+                asset_id: "AAPL".to_string(),
+                quantity: dec!(10),
+                average_cost: dec!(150.90),
+                total_cost_basis: dec!(1509),
+                currency: account_currency.to_string(),
+                inception_date: Utc.from_utc_datetime(
+                    &NaiveDate::from_str("2023-01-01")
+                        .unwrap()
+                        .and_hms_opt(0, 0, 0)
+                        .unwrap(),
+                ),
+                lots: VecDeque::from(vec![Lot {
+                    id: "act_buy_tax_source".to_string(),
+                    position_id: "AAPL_acc_1".to_string(),
+                    acquisition_date: Utc.from_utc_datetime(
+                        &NaiveDate::from_str("2023-01-01")
+                            .unwrap()
+                            .and_hms_opt(0, 0, 0)
+                            .unwrap(),
+                    ),
+                    acquisition_local_date: None,
+                    quantity: dec!(10),
+                    original_quantity: dec!(10),
+                    cost_basis: dec!(1509),
+                    acquisition_price: dec!(150),
+                    acquisition_fees: dec!(5),
+                    original_acquisition_fees: dec!(5),
+                    acquisition_taxes: dec!(4),
+                    original_acquisition_taxes: dec!(4),
+                    fx_rate_to_position: None,
+                    fx_rate_to_account: None,
+                    account_currency: None,
+                    fx_rate_to_base: None,
+                    base_currency: None,
+                    source_activity_id: None,
+                    split_ratio: Decimal::ONE,
+                }]),
+                created_at: Utc::now(),
+                last_updated: Utc::now(),
+                is_alternative: false,
+                contract_multiplier: Decimal::ONE,
+            },
+        );
+        previous_snapshot
+            .cash_balances
+            .insert(account_currency.to_string(), dec!(-1509));
+        previous_snapshot.cost_basis = dec!(1509);
+
+        let mut sell_activity = create_default_activity(
+            "act_sell_tax_1",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(5),
+            dec!(160),
+            dec!(2),
+            account_currency,
+            target_date_str,
+        );
+        sell_activity.tax = Some(dec!(3));
+
+        let result =
+            calculator.calculate_next_holdings(&previous_snapshot, &[sell_activity], target_date);
+        assert!(result.is_ok(), "Calculation failed: {:?}", result.err());
+        let next_state = result.unwrap().snapshot;
+
+        let position = next_state.positions.get("AAPL").unwrap();
+        assert_eq!(position.quantity, dec!(5));
+        assert_eq!(position.total_cost_basis, dec!(754.5));
+        assert_eq!(position.lots[0].acquisition_fees, dec!(2.5));
+        assert_eq!(position.lots[0].acquisition_taxes, dec!(2));
+        assert_eq!(
+            next_state.cash_balances.get(account_currency),
+            Some(&dec!(-714))
+        );
+
+        let disposals = calculator.take_lot_disposals("acc_1", "FIFO");
+        assert_eq!(disposals.len(), 1);
+        let disposal = &disposals[0];
+        assert_eq!(Decimal::from_str(&disposal.proceeds).unwrap(), dec!(795));
+        assert_eq!(
+            Decimal::from_str(&disposal.cost_basis).unwrap(),
+            dec!(754.5)
+        );
+        assert_eq!(
+            Decimal::from_str(&disposal.realized_pnl).unwrap(),
+            dec!(40.5)
+        );
+    }
+
+    #[test]
     fn test_buy_activity_with_fx_conversion() {
         let mut mock_fx_service = MockFxService::new();
         let target_date_str = "2023-01-03";
@@ -929,7 +1198,7 @@ mod tests {
         let rate_usd_cad = usd_cad_rate(target_date_str); // 1.25
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let previous_snapshot =
             create_initial_snapshot("acc_fx_buy", account_currency, "2023-01-02");
@@ -987,6 +1256,56 @@ mod tests {
     }
 
     #[test]
+    fn test_cost_basis_keeps_acquisition_fx_after_fx_rate_changes() {
+        let mut mock_fx_service = MockFxService::new();
+        let buy_date_str = "2023-01-03";
+        let later_date_str = "2023-01-06";
+        let buy_date = NaiveDate::from_str(buy_date_str).unwrap();
+        let later_date = NaiveDate::from_str(later_date_str).unwrap();
+        let account_currency = "CAD";
+        let activity_currency = "USD";
+
+        add_usd_cad_rates(&mut mock_fx_service, buy_date_str);
+        add_usd_cad_rates(&mut mock_fx_service, later_date_str);
+
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot =
+            create_initial_snapshot("acc_fx_basis", account_currency, "2023-01-02");
+
+        let buy_activity_usd = create_default_activity(
+            "act_buy_usd_basis",
+            ActivityType::Buy,
+            "MSFT",
+            dec!(10),
+            dec!(100),
+            dec!(10),
+            activity_currency,
+            buy_date_str,
+        );
+
+        let after_buy = calculator
+            .calculate_next_holdings(&previous_snapshot, &[buy_activity_usd], buy_date)
+            .unwrap()
+            .snapshot;
+        let after_fx_move = calculator
+            .calculate_next_holdings(&after_buy, &[], later_date)
+            .unwrap()
+            .snapshot;
+
+        let position = after_fx_move.positions.get("MSFT").unwrap();
+        let historical_cost_basis = position.total_cost_basis * usd_cad_rate(buy_date_str);
+        assert_eq!(after_fx_move.cost_basis, historical_cost_basis);
+
+        let current_fx_cash_total = after_fx_move.cash_balances.get(activity_currency).unwrap()
+            * usd_cad_rate(later_date_str);
+        assert_eq!(
+            after_fx_move.cash_total_account_currency,
+            current_fx_cash_total
+        );
+    }
+
+    #[test]
     fn test_deposit_activity_with_fx_conversion() {
         let mut mock_fx_service = MockFxService::new();
         let target_date_str = "2023-01-04";
@@ -999,7 +1318,7 @@ mod tests {
         let rate_usd_cad = usd_cad_rate(target_date_str); // 1.25
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_deposit_fx", account_currency, "2023-01-03");
@@ -1069,7 +1388,7 @@ mod tests {
         let account_currency = "CNY";
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(mock_fx_service, base_currency);
+        let mut calculator = create_calculator(mock_fx_service, base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_csv_import", account_currency, "2025-03-07");
@@ -1125,7 +1444,7 @@ mod tests {
         let rate_usd_cad = usd_cad_rate(target_date_str); // 1.25
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_withdraw_fx", account_currency, "2023-01-04");
@@ -1195,7 +1514,7 @@ mod tests {
         let account_currency = "CNY";
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(mock_fx_service, base_currency);
+        let mut calculator = create_calculator(mock_fx_service, base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_deposit", account_currency, "2025-02-12");
@@ -1244,7 +1563,7 @@ mod tests {
         let account_currency = "CNY";
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(mock_fx_service, base_currency);
+        let mut calculator = create_calculator(mock_fx_service, base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_fee", account_currency, "2025-03-06");
@@ -1293,7 +1612,7 @@ mod tests {
         let account_currency = "CNY";
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(mock_fx_service, base_currency);
+        let mut calculator = create_calculator(mock_fx_service, base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_transfer_out", account_currency, "2025-03-09");
@@ -1348,7 +1667,7 @@ mod tests {
         let rate_usd_cad = usd_cad_rate(target_date_str); // 1.30
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_income", account_currency, "2023-01-05");
@@ -1358,7 +1677,7 @@ mod tests {
         previous_snapshot.net_contribution = dec!(500);
         previous_snapshot.net_contribution_base = dec!(500);
 
-        let dividend_activity = create_cash_activity(
+        let mut dividend_activity = create_cash_activity(
             "act_div_1",
             ActivityType::Dividend,
             dec!(50),              // 50 CAD dividend
@@ -1366,6 +1685,7 @@ mod tests {
             activity_currency_div, // CAD
             target_date_str,
         );
+        dividend_activity.tax = Some(dec!(5)); // 5 CAD withholding tax
 
         let interest_activity_usd = create_cash_activity(
             "act_int_usd_1",
@@ -1385,9 +1705,10 @@ mod tests {
 
         // Check cash balances (booked in respective ACTIVITY currencies, per design spec)
         // Initial cash: 1000 CAD
-        // Dividend (CAD): +50 CAD -> CAD balance = 1000 + 50 = 1050 CAD
+        // Dividend (CAD): 50 CAD gross - 5 CAD withholding tax -> CAD balance = 1045 CAD
         // Interest (USD): 20 USD gross - 1 USD fee = 19 USD net -> USD balance = 19 USD
-        let net_dividend_cad = dividend_activity.price() - dividend_activity.fee_amt();
+        let net_dividend_cad =
+            dividend_activity.price() - dividend_activity.fee_amt() - dividend_activity.tax_amt();
         let net_interest_usd = interest_activity_usd.price() - interest_activity_usd.fee_amt();
 
         let expected_cash_cad = previous_snapshot
@@ -1421,6 +1742,260 @@ mod tests {
     }
 
     #[test]
+    fn test_credit_activity_with_tax_deducts_cash() {
+        let mock_fx_service = MockFxService::new();
+        let target_date_str = "2023-01-06";
+        let target_date = NaiveDate::from_str(target_date_str).unwrap();
+        let account_currency = "USD";
+
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let mut previous_snapshot =
+            create_initial_snapshot("acc_credit", account_currency, "2023-01-05");
+        previous_snapshot
+            .cash_balances
+            .insert(account_currency.to_string(), dec!(1000));
+        previous_snapshot.net_contribution = dec!(500);
+        previous_snapshot.net_contribution_base = dec!(500);
+
+        let mut credit_activity = create_cash_activity(
+            "act_credit_1",
+            ActivityType::Credit,
+            dec!(100),
+            dec!(2),
+            account_currency,
+            target_date_str,
+        );
+        credit_activity.tax = Some(dec!(10));
+
+        let result =
+            calculator.calculate_next_holdings(&previous_snapshot, &[credit_activity], target_date);
+        assert!(result.is_ok(), "Calculation failed: {:?}", result.err());
+        let next_state = result.unwrap().snapshot;
+
+        // Cash: 1000 + (100 - 2 fee - 10 tax) = 1088
+        assert_eq!(
+            next_state.cash_balances.get(account_currency),
+            Some(&dec!(1088))
+        );
+        // Non-BONUS credit does not affect net_contribution
+        assert_eq!(
+            next_state.net_contribution,
+            previous_snapshot.net_contribution
+        );
+    }
+
+    #[test]
+    fn test_credit_bonus_with_tax_deducts_cash_and_adds_gross_contribution() {
+        use crate::activities::ACTIVITY_SUBTYPE_BONUS;
+
+        let mock_fx_service = MockFxService::new();
+        let target_date_str = "2023-01-06";
+        let target_date = NaiveDate::from_str(target_date_str).unwrap();
+        let account_currency = "USD";
+
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let mut previous_snapshot =
+            create_initial_snapshot("acc_credit_bonus", account_currency, "2023-01-05");
+        previous_snapshot
+            .cash_balances
+            .insert(account_currency.to_string(), dec!(1000));
+        previous_snapshot.net_contribution = dec!(500);
+        previous_snapshot.net_contribution_base = dec!(500);
+
+        let mut bonus_activity = create_cash_activity(
+            "act_credit_bonus_1",
+            ActivityType::Credit,
+            dec!(100),
+            dec!(2),
+            account_currency,
+            target_date_str,
+        );
+        bonus_activity.tax = Some(dec!(10));
+        bonus_activity.subtype = Some(ACTIVITY_SUBTYPE_BONUS.to_string());
+
+        let result =
+            calculator.calculate_next_holdings(&previous_snapshot, &[bonus_activity], target_date);
+        assert!(result.is_ok(), "Calculation failed: {:?}", result.err());
+        let next_state = result.unwrap().snapshot;
+
+        // Cash: 1000 + (100 - 2 fee - 10 tax) = 1088
+        assert_eq!(
+            next_state.cash_balances.get(account_currency),
+            Some(&dec!(1088))
+        );
+        // BONUS credit adds GROSS amount to net_contribution: 500 + 100 = 600
+        assert_eq!(next_state.net_contribution, dec!(600));
+        assert_eq!(next_state.net_contribution_base, dec!(600));
+    }
+
+    #[test]
+    fn test_deposit_activity_with_tax_deducts_cash() {
+        let mock_fx_service = MockFxService::new();
+        let target_date_str = "2023-01-06";
+        let target_date = NaiveDate::from_str(target_date_str).unwrap();
+        let account_currency = "USD";
+
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let mut previous_snapshot =
+            create_initial_snapshot("acc_dep_tax", account_currency, "2023-01-05");
+        previous_snapshot
+            .cash_balances
+            .insert(account_currency.to_string(), dec!(1000));
+        previous_snapshot.net_contribution = dec!(500);
+        previous_snapshot.net_contribution_base = dec!(500);
+
+        let mut deposit_activity = create_cash_activity(
+            "act_dep_tax_1",
+            ActivityType::Deposit,
+            dec!(100),
+            dec!(2),
+            account_currency,
+            target_date_str,
+        );
+        deposit_activity.tax = Some(dec!(10));
+
+        let result = calculator.calculate_next_holdings(
+            &previous_snapshot,
+            &[deposit_activity],
+            target_date,
+        );
+        assert!(result.is_ok(), "Calculation failed: {:?}", result.err());
+        let next_state = result.unwrap().snapshot;
+
+        // Cash: 1000 + (100 - 2 fee - 10 tax) = 1088
+        assert_eq!(
+            next_state.cash_balances.get(account_currency),
+            Some(&dec!(1088))
+        );
+        // net_contribution uses GROSS amount: 500 + 100 = 600
+        assert_eq!(next_state.net_contribution, dec!(600));
+    }
+
+    #[test]
+    fn test_withdrawal_activity_with_tax_deducts_cash() {
+        let mock_fx_service = MockFxService::new();
+        let target_date_str = "2023-01-06";
+        let target_date = NaiveDate::from_str(target_date_str).unwrap();
+        let account_currency = "USD";
+
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let mut previous_snapshot =
+            create_initial_snapshot("acc_wd_tax", account_currency, "2023-01-05");
+        previous_snapshot
+            .cash_balances
+            .insert(account_currency.to_string(), dec!(1000));
+        previous_snapshot.net_contribution = dec!(500);
+        previous_snapshot.net_contribution_base = dec!(500);
+
+        let mut withdrawal_activity = create_cash_activity(
+            "act_wd_tax_1",
+            ActivityType::Withdrawal,
+            dec!(100),
+            dec!(2),
+            account_currency,
+            target_date_str,
+        );
+        withdrawal_activity.tax = Some(dec!(10));
+
+        let result = calculator.calculate_next_holdings(
+            &previous_snapshot,
+            &[withdrawal_activity],
+            target_date,
+        );
+        assert!(result.is_ok(), "Calculation failed: {:?}", result.err());
+        let next_state = result.unwrap().snapshot;
+
+        // Cash: 1000 - (100 + 2 fee + 10 tax) = 888
+        assert_eq!(
+            next_state.cash_balances.get(account_currency),
+            Some(&dec!(888))
+        );
+        // net_contribution uses GROSS amount: 500 - 100 = 400
+        assert_eq!(next_state.net_contribution, dec!(400));
+    }
+
+    #[test]
+    fn test_cash_transfers_with_tax_deduct_cash() {
+        let mock_fx_service = MockFxService::new();
+        let target_date_str = "2023-01-06";
+        let target_date = NaiveDate::from_str(target_date_str).unwrap();
+        let account_currency = "USD";
+
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let mut previous_snapshot =
+            create_initial_snapshot("acc_tx_tax", account_currency, "2023-01-05");
+        previous_snapshot
+            .cash_balances
+            .insert(account_currency.to_string(), dec!(1000));
+        previous_snapshot.net_contribution = dec!(500);
+        previous_snapshot.net_contribution_base = dec!(500);
+
+        // Cash TransferIn with tax (asset_id is None -> cash branch)
+        let mut transfer_in_activity = create_cash_activity(
+            "act_tx_in_tax_1",
+            ActivityType::TransferIn,
+            dec!(100),
+            dec!(2),
+            account_currency,
+            target_date_str,
+        );
+        transfer_in_activity.tax = Some(dec!(10));
+
+        let result = calculator.calculate_next_holdings(
+            &previous_snapshot,
+            &[transfer_in_activity],
+            target_date,
+        );
+        assert!(result.is_ok(), "TransferIn failed: {:?}", result.err());
+        let state_after_in = result.unwrap().snapshot;
+
+        // Cash: 1000 + (100 - 2 fee - 10 tax) = 1088
+        assert_eq!(
+            state_after_in.cash_balances.get(account_currency),
+            Some(&dec!(1088))
+        );
+        // net_contribution uses GROSS amount: 500 + 100 = 600
+        assert_eq!(state_after_in.net_contribution, dec!(600));
+
+        // Cash TransferOut with tax
+        let mut transfer_out_activity = create_cash_activity(
+            "act_tx_out_tax_1",
+            ActivityType::TransferOut,
+            dec!(50),
+            dec!(2),
+            account_currency,
+            "2023-01-07",
+        );
+        transfer_out_activity.tax = Some(dec!(5));
+
+        let result = calculator.calculate_next_holdings(
+            &state_after_in,
+            &[transfer_out_activity],
+            NaiveDate::from_str("2023-01-07").unwrap(),
+        );
+        assert!(result.is_ok(), "TransferOut failed: {:?}", result.err());
+        let state_after_out = result.unwrap().snapshot;
+
+        // Cash: 1088 - (50 + 2 fee + 5 tax) = 1031
+        assert_eq!(
+            state_after_out.cash_balances.get(account_currency),
+            Some(&dec!(1031))
+        );
+        // net_contribution uses GROSS amount: 600 - 50 = 550
+        assert_eq!(state_after_out.net_contribution, dec!(550));
+    }
+
+    #[test]
     fn test_credit_card_interest_books_as_liability_charge() {
         let mock_fx_service = MockFxService::new();
         let target_date_str = "2023-01-06";
@@ -1428,7 +2003,7 @@ mod tests {
         let account_currency = "USD";
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("card_1", account_currency, "2023-01-05");
@@ -1470,7 +2045,7 @@ mod tests {
         let mock_fx_service = Arc::new(MockFxService::new());
         let account_currency = "USD";
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(mock_fx_service, base_currency);
+        let mut calculator = create_calculator(mock_fx_service, base_currency);
 
         let target_date_str = "2023-01-07";
         let target_date = NaiveDate::from_str(target_date_str).unwrap();
@@ -1513,7 +2088,7 @@ mod tests {
         let mock_fx_service = Arc::new(MockFxService::new());
         let account_currency = "USD";
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(mock_fx_service, base_currency);
+        let mut calculator = create_calculator(mock_fx_service, base_currency);
 
         let target_date_str = "2025-03-10";
         let target_date = NaiveDate::from_str(target_date_str).unwrap();
@@ -1552,7 +2127,7 @@ mod tests {
         let mock_fx_service = Arc::new(MockFxService::new());
         let account_currency = "USD";
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(mock_fx_service, base_currency);
+        let mut calculator = create_calculator(mock_fx_service, base_currency);
 
         let previous_snapshot = create_initial_snapshot("acc_1", account_currency, "2025-03-08");
         let buy_date = NaiveDate::from_str("2025-03-09").unwrap();
@@ -1606,8 +2181,11 @@ mod tests {
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
         let mut repo = MockAssetRepository::new();
         repo.add_bond_asset("US912828ZT58", account_currency);
-        let calculator =
-            HoldingsCalculator::new(Arc::new(mock_fx_service), base_currency, Arc::new(repo));
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
 
         let target_date_str = "2025-03-10";
         let target_date = NaiveDate::from_str(target_date_str).unwrap();
@@ -1645,7 +2223,7 @@ mod tests {
         let mock_fx_service = Arc::new(MockFxService::new());
         let account_currency = "USD";
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(mock_fx_service, base_currency);
+        let mut calculator = create_calculator(mock_fx_service, base_currency);
 
         let target_date_str = "2025-03-10";
         let target_date = NaiveDate::from_str(target_date_str).unwrap();
@@ -1680,11 +2258,11 @@ mod tests {
     }
 
     #[test]
-    fn test_trade_amount_policy_transfer_in_keeps_existing_amount_behavior() {
+    fn test_trade_amount_policy_transfer_in_prefers_unit_price_over_legacy_amount() {
         let mock_fx_service = Arc::new(MockFxService::new());
         let account_currency = "USD";
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(mock_fx_service, base_currency);
+        let mut calculator = create_calculator(mock_fx_service, base_currency);
 
         let target_date_str = "2025-03-10";
         let target_date = NaiveDate::from_str(target_date_str).unwrap();
@@ -1696,6 +2274,46 @@ mod tests {
             "AAPL",
             dec!(10),
             dec!(99.76),
+            dec!(4.90),
+            account_currency,
+            target_date_str,
+        );
+        transfer_in.amount = Some(dec!(9976));
+
+        let result =
+            calculator.calculate_next_holdings(&previous_snapshot, &[transfer_in], target_date);
+        assert!(result.is_ok(), "Calculation failed: {:?}", result.err());
+        let next_state = result.unwrap().snapshot;
+
+        let position = next_state.positions.get("AAPL").unwrap();
+        assert_eq!(position.quantity, dec!(10));
+        assert_eq!(position.average_cost, dec!(100.25));
+        assert_eq!(position.total_cost_basis, dec!(1002.50));
+        assert_eq!(position.lots[0].acquisition_price, dec!(99.76));
+        assert_eq!(
+            next_state.cash_balances.get(account_currency),
+            Some(&dec!(-4.90))
+        );
+        assert_eq!(next_state.net_contribution, dec!(1002.50));
+    }
+
+    #[test]
+    fn test_trade_amount_policy_transfer_in_uses_amount_as_last_resort_when_unit_price_missing() {
+        let mock_fx_service = Arc::new(MockFxService::new());
+        let account_currency = "USD";
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let mut calculator = create_calculator(mock_fx_service, base_currency);
+
+        let target_date_str = "2025-03-10";
+        let target_date = NaiveDate::from_str(target_date_str).unwrap();
+        let previous_snapshot = create_initial_snapshot("acc_1", account_currency, "2025-03-09");
+
+        let mut transfer_in = create_default_activity(
+            "act_transfer_in_amount_fallback",
+            ActivityType::TransferIn,
+            "AAPL",
+            dec!(10),
+            Decimal::ZERO,
             dec!(4.90),
             account_currency,
             target_date_str,
@@ -1732,7 +2350,7 @@ mod tests {
         let rate_usd_cad = usd_cad_rate(target_date_str); // 1.30
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_charge", account_currency, "2023-01-06");
@@ -1804,6 +2422,105 @@ mod tests {
     }
 
     #[test]
+    fn test_tax_activity_uses_tax_field_for_charge() {
+        let mock_fx_service = MockFxService::new();
+        let target_date_str = "2023-01-07";
+        let target_date = NaiveDate::from_str(target_date_str).unwrap();
+        let account_currency = "CAD";
+
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let mut previous_snapshot =
+            create_initial_snapshot("acc_tax_field", account_currency, "2023-01-06");
+        previous_snapshot
+            .cash_balances
+            .insert(account_currency.to_string(), dec!(1000));
+        previous_snapshot.net_contribution = dec!(500);
+        previous_snapshot.net_contribution_base = dec!(500);
+
+        let mut tax_activity = create_cash_activity(
+            "act_tax_field_1",
+            ActivityType::Tax,
+            Decimal::ZERO,
+            Decimal::ZERO,
+            account_currency,
+            target_date_str,
+        );
+        tax_activity.amount = None;
+        tax_activity.tax = Some(dec!(42));
+
+        let result = calculator.calculate_next_holdings(
+            &previous_snapshot,
+            std::slice::from_ref(&tax_activity),
+            target_date,
+        );
+        assert!(result.is_ok(), "Calculation failed: {:?}", result.err());
+        let next_state = result.unwrap().snapshot;
+
+        assert_eq!(
+            next_state.cash_balances.get(account_currency),
+            Some(&dec!(958))
+        );
+        assert_eq!(next_state.cash_total_account_currency, dec!(958));
+        assert_eq!(
+            next_state.net_contribution,
+            previous_snapshot.net_contribution
+        );
+        assert!(next_state.positions.is_empty());
+    }
+
+    #[test]
+    fn test_tax_activity_override_uses_effective_type_for_charge() {
+        let mock_fx_service = MockFxService::new();
+        let target_date_str = "2023-01-07";
+        let target_date = NaiveDate::from_str(target_date_str).unwrap();
+        let account_currency = "CAD";
+
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let mut previous_snapshot =
+            create_initial_snapshot("acc_tax_override", account_currency, "2023-01-06");
+        previous_snapshot
+            .cash_balances
+            .insert(account_currency.to_string(), dec!(1000));
+        previous_snapshot.net_contribution = dec!(500);
+        previous_snapshot.net_contribution_base = dec!(500);
+
+        let mut tax_activity = create_cash_activity(
+            "act_tax_override_1",
+            ActivityType::Fee,
+            Decimal::ZERO,
+            Decimal::ZERO,
+            account_currency,
+            target_date_str,
+        );
+        tax_activity.amount = None;
+        tax_activity.tax = Some(dec!(42));
+        tax_activity.activity_type_override = Some(ActivityType::Tax.as_str().to_string());
+
+        let result = calculator.calculate_next_holdings(
+            &previous_snapshot,
+            std::slice::from_ref(&tax_activity),
+            target_date,
+        );
+        assert!(result.is_ok(), "Calculation failed: {:?}", result.err());
+        let next_state = result.unwrap().snapshot;
+
+        assert_eq!(
+            next_state.cash_balances.get(account_currency),
+            Some(&dec!(958))
+        );
+        assert_eq!(next_state.cash_total_account_currency, dec!(958));
+        assert_eq!(
+            next_state.net_contribution,
+            previous_snapshot.net_contribution
+        );
+        assert!(next_state.positions.is_empty());
+    }
+
+    #[test]
     fn test_add_and_remove_holding_activities() {
         let mut mock_fx_service = MockFxService::new();
         let target_date_add_str = "2023-01-08";
@@ -1821,7 +2538,7 @@ mod tests {
         let rate_remove_date = usd_cad_rate(target_date_remove_str); // 1.30
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service.clone()), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service.clone()), base_currency);
 
         // --- Initial State ---
         let mut previous_snapshot_add =
@@ -1996,7 +2713,7 @@ mod tests {
         let rate_cash_date = usd_cad_rate(target_date_cash_transfer_str); // 1.30
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service.clone()), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service.clone()), base_currency);
 
         // --- Initial State ---
         let mut previous_snapshot_asset_tx =
@@ -2280,7 +2997,7 @@ mod tests {
 
         let account_currency = "CAD";
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let previous_snapshot =
             create_initial_snapshot("acc_transfer", account_currency, "2023-01-09");
@@ -2321,7 +3038,7 @@ mod tests {
         let rate_usd_cad = usd_cad_rate(target_date_str); // 1.30
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service.clone()), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service.clone()), base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_multi_act", account_currency, "2023-01-11");
@@ -2425,7 +3142,7 @@ mod tests {
         let activity_currency = "EUR"; // Activity in EUR, account in CAD
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_fx_fail", account_currency, "2023-01-12");
@@ -2490,8 +3207,10 @@ mod tests {
         // This conversion will also fail. Fallback uses 1:1 rate.
         // So, 2015 EUR position cost basis becomes 2015 CAD for the snapshot's cost_basis field.
         let expected_snapshot_cost_basis_cad = position_ads.total_cost_basis; // Fallback: 2015 EUR treated as 2015 CAD
-        assert_eq!(next_state.cost_basis, expected_snapshot_cost_basis_cad,
-            "Snapshot cost_basis mismatch. Expected fallback to use unconverted position currency value if final conversion fails.");
+        assert_eq!(
+            next_state.cost_basis, expected_snapshot_cost_basis_cad,
+            "Snapshot cost_basis mismatch. Expected fallback to use unconverted position currency value if final conversion fails."
+        );
 
         assert_eq!(
             next_state.net_contribution,
@@ -2526,7 +3245,7 @@ mod tests {
         let rate_eur_cad = dec!(1.50);
 
         let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         // Initial Snapshot
         let mut previous_snapshot =
@@ -2698,7 +3417,7 @@ mod tests {
             rate_usd_eur_date2,
         );
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         // Initial state - empty account
         let mut snapshot_after_first =
@@ -2917,7 +3636,7 @@ mod tests {
             rate_usd_eur_date2,
         );
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         // Initial state - empty account
         let mut snapshot_after_first =
@@ -3067,7 +3786,7 @@ mod tests {
             rate_usd_eur,
         );
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         // Initial state
         let mut initial_snapshot = create_initial_snapshot(
@@ -3183,6 +3902,7 @@ mod tests {
             unit_price: Some(unit_price),
             amount: None,
             fee: Some(fee),
+            tax: None,
             currency: currency.to_string(),
             fx_rate,
             notes: None,
@@ -3229,6 +3949,7 @@ mod tests {
             unit_price: Some(amount),
             amount: Some(amount),
             fee: Some(fee),
+            tax: None,
             currency: currency.to_string(),
             fx_rate,
             notes: None,
@@ -3265,7 +3986,7 @@ mod tests {
 
         mock_fx_service.add_bidirectional_rate("USD", "CAD", target_date, service_rate);
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let previous_snapshot =
             create_initial_snapshot("acc_fx_rate_test", account_currency, "2023-01-31");
@@ -3334,7 +4055,7 @@ mod tests {
         let service_rate = dec!(1.30);
         mock_fx_service.add_bidirectional_rate("USD", "CAD", target_date, service_rate);
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let previous_snapshot =
             create_initial_snapshot("acc_fx_rate_none", account_currency, "2023-02-01");
@@ -3392,7 +4113,7 @@ mod tests {
         let service_rate = dec!(1.30);
         mock_fx_service.add_bidirectional_rate("USD", "CAD", target_date, service_rate);
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let previous_snapshot =
             create_initial_snapshot("acc_fx_rate_zero", account_currency, "2023-02-02");
@@ -3451,7 +4172,7 @@ mod tests {
 
         mock_fx_service.add_bidirectional_rate("USD", "CAD", target_date, service_rate);
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_deposit_fx_rate", account_currency, "2023-02-03");
@@ -3528,7 +4249,7 @@ mod tests {
 
         mock_fx_service.add_bidirectional_rate("USD", "CAD", target_date, service_rate);
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         // Setup initial state with existing position
         let mut previous_snapshot =
@@ -3560,13 +4281,20 @@ mod tests {
                         .and_hms_opt(0, 0, 0)
                         .unwrap(),
                 ),
+                acquisition_local_date: None,
                 quantity: dec!(20),
                 original_quantity: dec!(20),
                 cost_basis: dec!(2000),
                 acquisition_price: dec!(100),
                 acquisition_fees: dec!(0),
                 original_acquisition_fees: dec!(0),
+                acquisition_taxes: Decimal::ZERO,
+                original_acquisition_taxes: Decimal::ZERO,
                 fx_rate_to_position: None,
+                fx_rate_to_account: None,
+                account_currency: None,
+                fx_rate_to_base: None,
+                base_currency: None,
                 source_activity_id: None,
                 split_ratio: Decimal::ONE,
             }]),
@@ -3635,7 +4363,7 @@ mod tests {
         let target_date_str = "2023-02-06";
         let target_date = NaiveDate::from_str(target_date_str).unwrap();
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let previous_snapshot =
             create_initial_snapshot("acc_same_ccy", account_currency, "2023-02-05");
@@ -3687,7 +4415,7 @@ mod tests {
 
         mock_fx_service.add_bidirectional_rate("USD", "CAD", target_date, service_rate);
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_withdraw_fx_rate", account_currency, "2023-02-06");
@@ -3756,7 +4484,7 @@ mod tests {
 
         mock_fx_service.add_bidirectional_rate("USD", "CAD", target_date, service_rate);
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_dividend_fx_rate", account_currency, "2023-02-07");
@@ -3824,7 +4552,7 @@ mod tests {
 
         mock_fx_service.add_bidirectional_rate("USD", "CAD", target_date, service_rate);
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let mut previous_snapshot =
             create_initial_snapshot("acc_transfer_fx_rate", account_currency, "2023-02-08");
@@ -3883,6 +4611,10 @@ mod tests {
             next_state.net_contribution, expected_net_contribution,
             "Net contribution should reflect transfer amount"
         );
+        assert_eq!(
+            next_state.net_contribution_base, expected_net_contribution,
+            "Base net contribution should use the activity fx_rate, not the FxService rate"
+        );
     }
 
     // ==================================================================================
@@ -3909,7 +4641,7 @@ mod tests {
         // fx_rate: 1 CAD = 0.75 USD (user provides this)
         let activity_fx_rate = dec!(0.75);
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let previous_snapshot =
             create_initial_snapshot("acc_transfer_in_fx", account_currency, "2023-02-28");
@@ -3973,7 +4705,7 @@ mod tests {
 
         let activity_fx_rate = dec!(0.74); // 1 CAD = 0.74 USD
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let previous_snapshot =
             create_initial_snapshot("acc_buy_cad_usd", account_currency, "2023-03-01");
@@ -4039,7 +4771,7 @@ mod tests {
 
         let activity_fx_rate = dec!(0.73);
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency.clone());
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency.clone());
 
         // Create snapshot with existing AAPL position
         let mut previous_snapshot =
@@ -4058,13 +4790,20 @@ mod tests {
             id: "lot_1".to_string(),
             position_id: "pos_1".to_string(),
             acquisition_date: Utc::now(),
+            acquisition_local_date: None,
             quantity: dec!(10),
             original_quantity: dec!(10),
             cost_basis: dec!(1000),
             acquisition_price: dec!(100),
             acquisition_fees: dec!(0),
             original_acquisition_fees: dec!(0),
+            acquisition_taxes: Decimal::ZERO,
+            original_acquisition_taxes: Decimal::ZERO,
             fx_rate_to_position: None,
+            fx_rate_to_account: None,
+            account_currency: None,
+            fx_rate_to_base: None,
+            base_currency: None,
             source_activity_id: None,
             split_ratio: Decimal::ONE,
         }]);
@@ -4132,7 +4871,7 @@ mod tests {
         let target_date_str = "2023-03-04";
         let target_date = NaiveDate::from_str(target_date_str).unwrap();
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let previous_snapshot =
             create_initial_snapshot("acc_no_fx", account_currency, "2023-03-03");
@@ -4177,7 +4916,7 @@ mod tests {
 
         let activity_fx_rate = dec!(0.72);
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         // Create snapshot with existing AAPL position
         let mut previous_snapshot =
@@ -4195,13 +4934,20 @@ mod tests {
             id: "lot_2".to_string(),
             position_id: "pos_2".to_string(),
             acquisition_date: Utc::now(),
+            acquisition_local_date: None,
             quantity: dec!(20),
             original_quantity: dec!(20),
             cost_basis: dec!(2000),
             acquisition_price: dec!(100),
             acquisition_fees: dec!(0),
             original_acquisition_fees: dec!(0),
+            acquisition_taxes: Decimal::ZERO,
+            original_acquisition_taxes: Decimal::ZERO,
             fx_rate_to_position: None,
+            fx_rate_to_account: None,
+            account_currency: None,
+            fx_rate_to_base: None,
+            base_currency: None,
             source_activity_id: None,
             split_ratio: Decimal::ONE,
         }]);
@@ -4261,7 +5007,7 @@ mod tests {
         // fx_rate: 1 USD = 1.40 CAD
         let activity_fx_rate = dec!(1.40);
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let previous_snapshot = create_initial_snapshot(
             "acc_usd_activity_cad_account",
@@ -4298,6 +5044,7 @@ mod tests {
             unit_price: Some(dec!(100)),
             amount: None,
             fee: Some(dec!(0)),
+            tax: None,
             currency: activity_currency.to_string(),
             fx_rate: Some(activity_fx_rate),
             notes: None,
@@ -4343,6 +5090,323 @@ mod tests {
             next_state.net_contribution, expected_net_contribution,
             "Net contribution should use fx_rate to convert position currency (USD) to account currency (CAD)"
         );
+        assert_eq!(
+            next_state.net_contribution_base, expected_net_contribution,
+            "Base net contribution should preserve the explicit transfer fx_rate even without an FxService rate"
+        );
+        assert_eq!(
+            next_state.cost_basis, expected_net_contribution,
+            "Book cost should preserve the activity fx_rate instead of re-querying historical FX"
+        );
+
+        let lot = position
+            .lots
+            .front()
+            .expect("transfer should create one lot");
+        assert_eq!(lot.fx_rate_to_account, Some(activity_fx_rate));
+        assert_eq!(lot.account_currency.as_deref(), Some(account_currency));
+        assert_eq!(lot.fx_rate_to_base, Some(activity_fx_rate));
+        assert_eq!(lot.base_currency.as_deref(), Some(account_currency));
+
+        let lot_records = calculator.extract_lot_records_with_base(&next_state, "FIFO");
+        assert_eq!(lot_records.len(), 1);
+        assert_eq!(lot_records[0].fx_rate_to_base, activity_fx_rate.to_string());
+        assert_eq!(
+            Decimal::from_str(&lot_records[0].remaining_cost_basis_base).unwrap(),
+            expected_net_contribution
+        );
+    }
+
+    #[test]
+    fn test_buy_minor_unit_lot_stores_base_rate_with_normalization() {
+        let mock_fx_service = MockFxService::new();
+        let account_currency = "GBP";
+        let activity_currency = "GBp";
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let buy_date_str = "2026-03-03";
+        let buy_date = NaiveDate::from_str(buy_date_str).unwrap();
+
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", account_currency, "2026-03-02");
+        let buy_activity = create_default_activity(
+            "act_cty_buy",
+            ActivityType::Buy,
+            "CTY",
+            dec!(51),
+            dec!(556.765),
+            dec!(0),
+            activity_currency,
+            buy_date_str,
+        );
+
+        let next_state = calculator
+            .calculate_next_holdings(&previous_snapshot, &[buy_activity], buy_date)
+            .unwrap()
+            .snapshot;
+        let position = next_state
+            .positions
+            .get("CTY")
+            .expect("CTY position should exist");
+        assert_eq!(position.currency, "GBp");
+
+        let lot = position.lots.front().expect("buy should create one lot");
+        assert_eq!(lot.cost_basis, dec!(28395.015));
+        assert_eq!(lot.fx_rate_to_account, Some(dec!(0.01)));
+        assert_eq!(lot.fx_rate_to_base, Some(dec!(0.01)));
+
+        let lot_records = calculator.extract_lot_records_with_base(&next_state, "FIFO");
+        assert_eq!(lot_records.len(), 1);
+        assert_eq!(lot_records[0].currency, "GBp");
+        assert_eq!(lot_records[0].base_currency, "GBP");
+        assert_eq!(lot_records[0].fx_rate_to_base, dec!(0.01).to_string());
+        assert_eq!(
+            Decimal::from_str(&lot_records[0].remaining_cost_basis_base).unwrap(),
+            dec!(283.95015)
+        );
+    }
+
+    #[test]
+    fn test_buy_major_currency_activity_for_minor_unit_asset_stores_minor_lot_and_normalized_base()
+    {
+        let mock_fx_service = MockFxService::new();
+        let account_currency = "GBP";
+        let activity_currency = "GBP";
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+        let buy_date_str = "2026-03-03";
+        let buy_date = NaiveDate::from_str(buy_date_str).unwrap();
+
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", account_currency, "2026-03-02");
+        let buy_activity = create_default_activity(
+            "act_cty_buy_gbp",
+            ActivityType::Buy,
+            "CTY",
+            dec!(51),
+            dec!(5.56765),
+            dec!(0),
+            activity_currency,
+            buy_date_str,
+        );
+
+        let next_state = calculator
+            .calculate_next_holdings(&previous_snapshot, &[buy_activity], buy_date)
+            .unwrap()
+            .snapshot;
+        let position = next_state
+            .positions
+            .get("CTY")
+            .expect("CTY position should exist");
+        assert_eq!(position.currency, "GBp");
+
+        let lot = position.lots.front().expect("buy should create one lot");
+        assert_eq!(lot.acquisition_price, dec!(556.765));
+        assert_eq!(lot.cost_basis, dec!(28395.015));
+        assert_eq!(lot.fx_rate_to_position, Some(dec!(100)));
+        assert_eq!(lot.fx_rate_to_account, Some(dec!(0.01)));
+        assert_eq!(lot.fx_rate_to_base, Some(dec!(0.01)));
+
+        let lot_records = calculator.extract_lot_records_with_base(&next_state, "FIFO");
+        assert_eq!(lot_records.len(), 1);
+        assert_eq!(lot_records[0].currency, "GBp");
+        assert_eq!(lot_records[0].base_currency, "GBP");
+        assert_eq!(
+            Decimal::from_str(&lot_records[0].cost_per_unit).unwrap(),
+            dec!(556.765)
+        );
+        assert_eq!(lot_records[0].fx_rate_to_base, dec!(0.01).to_string());
+        assert_eq!(
+            Decimal::from_str(&lot_records[0].remaining_cost_basis_base).unwrap(),
+            dec!(283.95015)
+        );
+    }
+
+    #[test]
+    fn test_buy_minor_unit_lot_stores_cross_currency_base_rate_after_normalization() {
+        let mut mock_fx_service = MockFxService::new();
+        let account_currency = "GBP";
+        let activity_currency = "GBp";
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let buy_date_str = "2026-03-03";
+        let buy_date = NaiveDate::from_str(buy_date_str).unwrap();
+        mock_fx_service.add_bidirectional_rate("GBP", "USD", buy_date, dec!(1.25));
+
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", account_currency, "2026-03-02");
+        let buy_activity = create_default_activity(
+            "act_cty_buy_usd_base",
+            ActivityType::Buy,
+            "CTY",
+            dec!(51),
+            dec!(556.765),
+            dec!(0),
+            activity_currency,
+            buy_date_str,
+        );
+
+        let next_state = calculator
+            .calculate_next_holdings(&previous_snapshot, &[buy_activity], buy_date)
+            .unwrap()
+            .snapshot;
+        let position = next_state
+            .positions
+            .get("CTY")
+            .expect("CTY position should exist");
+        let lot = position.lots.front().expect("buy should create one lot");
+
+        assert_eq!(lot.fx_rate_to_account, Some(dec!(0.01)));
+        assert_eq!(lot.fx_rate_to_base, Some(dec!(0.0125)));
+
+        let lot_records = calculator.extract_lot_records_with_base(&next_state, "FIFO");
+        assert_eq!(lot_records[0].currency, "GBp");
+        assert_eq!(lot_records[0].base_currency, "USD");
+        assert_eq!(lot_records[0].fx_rate_to_base, dec!(0.0125).to_string());
+        assert_eq!(
+            Decimal::from_str(&lot_records[0].remaining_cost_basis_base).unwrap(),
+            dec!(354.9376875)
+        );
+    }
+
+    #[test]
+    fn test_buy_minor_unit_lot_stores_base_rate_for_all_quote_unit_currencies() {
+        let cases = [
+            ("GBp", "GBP", dec!(0.01)),
+            ("GBX", "GBP", dec!(0.01)),
+            ("ZAc", "ZAR", dec!(0.01)),
+            ("USX", "USD", dec!(0.01)),
+            ("ILA", "ILS", dec!(0.01)),
+            ("KWF", "KWD", dec!(0.001)),
+        ];
+
+        for (minor_currency, major_currency, expected_rate) in cases {
+            let asset_id = format!("TEST_{minor_currency}");
+            let base_currency = Arc::new(RwLock::new(major_currency.to_string()));
+            let buy_date_str = "2026-03-03";
+            let buy_date = NaiveDate::from_str(buy_date_str).unwrap();
+            let mut calculator = create_calculator(Arc::new(MockFxService::new()), base_currency);
+            let previous_snapshot = create_initial_snapshot("acc_1", major_currency, "2026-03-02");
+            let buy_activity = create_default_activity(
+                &format!("act_{minor_currency}_buy"),
+                ActivityType::Buy,
+                &asset_id,
+                dec!(10),
+                dec!(1000),
+                dec!(0),
+                minor_currency,
+                buy_date_str,
+            );
+
+            let next_state = calculator
+                .calculate_next_holdings(&previous_snapshot, &[buy_activity], buy_date)
+                .unwrap()
+                .snapshot;
+            let position = next_state
+                .positions
+                .get(&asset_id)
+                .expect("minor-unit position should exist");
+            assert_eq!(position.currency, minor_currency);
+
+            let lot = position.lots.front().expect("buy should create one lot");
+            assert_eq!(lot.fx_rate_to_account, Some(expected_rate));
+            assert_eq!(lot.fx_rate_to_base, Some(expected_rate));
+
+            let lot_records = calculator.extract_lot_records_with_base(&next_state, "FIFO");
+            assert_eq!(lot_records.len(), 1);
+            assert_eq!(lot_records[0].currency, minor_currency);
+            assert_eq!(lot_records[0].base_currency, major_currency);
+            assert_eq!(lot_records[0].fx_rate_to_base, expected_rate.to_string());
+            assert_eq!(
+                Decimal::from_str(&lot_records[0].remaining_cost_basis_base).unwrap(),
+                dec!(10000) * expected_rate
+            );
+        }
+    }
+
+    #[test]
+    fn test_asset_transfer_out_uses_stored_lot_fx_for_net_contribution() {
+        let mut mock_fx_service = MockFxService::new();
+        let account_currency = "CAD";
+        let activity_currency = "USD";
+        let base_currency = Arc::new(RwLock::new(account_currency.to_string()));
+
+        let transfer_in_date_str = "2023-03-10";
+        let transfer_out_date_str = "2023-03-12";
+        let transfer_in_date = NaiveDate::from_str(transfer_in_date_str).unwrap();
+        let transfer_out_date = NaiveDate::from_str(transfer_out_date_str).unwrap();
+
+        let original_book_fx_rate = dec!(1.40);
+        let transfer_out_service_rate = dec!(1.20);
+        mock_fx_service.add_bidirectional_rate(
+            activity_currency,
+            account_currency,
+            transfer_in_date,
+            original_book_fx_rate,
+        );
+        mock_fx_service.add_bidirectional_rate(
+            activity_currency,
+            account_currency,
+            transfer_out_date,
+            transfer_out_service_rate,
+        );
+
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot =
+            create_initial_snapshot("acc_transfer_out_book_fx", account_currency, "2023-03-09");
+
+        let transfer_in_activity = create_activity_with_fx_rate(
+            "act_transfer_in_book_fx",
+            ActivityType::TransferIn,
+            "AAPL",
+            dec!(1),
+            dec!(100),
+            dec!(0),
+            activity_currency,
+            transfer_in_date_str,
+            Some(original_book_fx_rate),
+        );
+
+        let after_transfer_in = calculator
+            .calculate_next_holdings(
+                &previous_snapshot,
+                &[transfer_in_activity],
+                transfer_in_date,
+            )
+            .unwrap()
+            .snapshot;
+        let expected_book_cost = dec!(100) * original_book_fx_rate;
+        assert_eq!(after_transfer_in.net_contribution, expected_book_cost);
+        assert_eq!(after_transfer_in.net_contribution_base, expected_book_cost);
+
+        let transfer_out_activity = create_activity_with_fx_rate(
+            "act_transfer_out_book_fx",
+            ActivityType::TransferOut,
+            "AAPL",
+            dec!(1),
+            dec!(0),
+            dec!(0),
+            activity_currency,
+            transfer_out_date_str,
+            None,
+        );
+
+        let after_transfer_out = calculator
+            .calculate_next_holdings(
+                &after_transfer_in,
+                &[transfer_out_activity],
+                transfer_out_date,
+            )
+            .unwrap()
+            .snapshot;
+
+        assert_eq!(
+            after_transfer_out.net_contribution,
+            Decimal::ZERO,
+            "Transfer out should remove the original book contribution, not the transfer-date FX value"
+        );
+        assert_eq!(
+            after_transfer_out.net_contribution_base,
+            Decimal::ZERO,
+            "Base net contribution should remove the stored lot book contribution"
+        );
     }
 
     #[test]
@@ -4363,13 +5427,13 @@ mod tests {
 
         let activity_fx_rate = dec!(1.35); // 1 USD = 1.35 CAD
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let previous_snapshot =
             create_initial_snapshot("acc_buy_usd_cad", account_currency, "2023-03-10");
 
-        // Buy 10 shares @ $150 USD with $5 USD fee
-        let buy_activity = create_activity_with_fx_rate(
+        // Buy 10 shares @ $150 USD with $5 USD fee and $3 USD tax
+        let mut buy_activity = create_activity_with_fx_rate(
             "act_buy_usd_in_cad_account",
             ActivityType::Buy,
             "AAPL",
@@ -4380,6 +5444,7 @@ mod tests {
             target_date_str,
             Some(activity_fx_rate),
         );
+        buy_activity.tax = Some(dec!(3));
 
         let activities = vec![buy_activity];
         let result =
@@ -4400,13 +5465,13 @@ mod tests {
         assert_eq!(position.quantity, dec!(10));
         assert_eq!(position.currency, "USD");
 
-        // Cost basis in position currency (USD): (10 * 150) + 5 = 1505 USD
-        assert_eq!(position.total_cost_basis, dec!(1505));
+        // Cost basis in position currency (USD): (10 * 150) + 5 + 3 = 1508 USD
+        assert_eq!(position.total_cost_basis, dec!(1508));
 
         // With fx_rate provided, cash is booked in ACCOUNT currency (CAD)
-        // Cost in USD: (10 * 150) + 5 = 1505 USD
-        // Cost in CAD: 1505 * 1.35 = 2031.75 CAD
-        let expected_cad_cash = -dec!(1505) * activity_fx_rate;
+        // Cost in USD: (10 * 150) + 5 + 3 = 1508 USD
+        // Cost in CAD: 1508 * 1.35 = 2035.80 CAD
+        let expected_cad_cash = -dec!(1508) * activity_fx_rate;
         assert_eq!(
             next_state.cash_balances.get(activity_currency),
             None,
@@ -4416,6 +5481,26 @@ mod tests {
             next_state.cash_balances.get(account_currency),
             Some(&expected_cad_cash),
             "Cash booked in account currency using activity fx_rate"
+        );
+        assert_eq!(
+            next_state.cost_basis,
+            dec!(1508) * activity_fx_rate,
+            "Book cost should preserve the activity fx_rate for explicit FX trades"
+        );
+
+        let lot = position.lots.front().expect("buy should create one lot");
+        assert_eq!(lot.fx_rate_to_account, Some(activity_fx_rate));
+        assert_eq!(lot.account_currency.as_deref(), Some(account_currency));
+        assert_eq!(lot.acquisition_taxes, dec!(3));
+
+        let lot_records = calculator.extract_lot_records_with_base(&next_state, "FIFO");
+        let lot_record = lot_records
+            .iter()
+            .find(|record| record.asset_id == "AAPL")
+            .expect("buy should persist one lot record");
+        assert_eq!(
+            Decimal::from_str(&lot_record.tax_allocated_base).unwrap(),
+            dec!(4.05)
         );
     }
 
@@ -4441,7 +5526,7 @@ mod tests {
         // FxService market rate differs from activity fx_rate — shouldn't matter
         mock_fx_service.add_bidirectional_rate("USD", "EUR", buy_date, dec!(0.92));
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         // Deposit 10,000 EUR
         let prev = create_initial_snapshot("acc_eur", account_currency, "2024-01-09");
@@ -4515,7 +5600,7 @@ mod tests {
 
         mock_fx_service.add_bidirectional_rate("USD", "EUR", sell_date, dec!(0.92));
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         // Start with existing position and EUR cash
         let mut prev = create_initial_snapshot("acc_eur_sell", account_currency, "2024-02-28");
@@ -4537,13 +5622,20 @@ mod tests {
                     id: "lot_1".to_string(),
                     position_id: "pos_aapl".to_string(),
                     acquisition_date: Utc::now(),
+                    acquisition_local_date: None,
                     quantity: dec!(10),
                     original_quantity: dec!(10),
                     cost_basis: dec!(1500),
                     acquisition_price: dec!(150),
                     acquisition_fees: dec!(0),
                     original_acquisition_fees: dec!(0),
+                    acquisition_taxes: Decimal::ZERO,
+                    original_acquisition_taxes: Decimal::ZERO,
                     fx_rate_to_position: None,
+                    fx_rate_to_account: None,
+                    account_currency: None,
+                    fx_rate_to_base: None,
+                    base_currency: None,
                     source_activity_id: None,
                     split_ratio: Decimal::ONE,
                 }]),
@@ -4612,7 +5704,7 @@ mod tests {
         mock_fx_service.add_bidirectional_rate("USD", "EUR", buy_date, dec!(0.91));
         mock_fx_service.add_bidirectional_rate("USD", "EUR", sell_date, dec!(0.89));
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         // Step 1: Deposit 10,000 EUR
         let prev = create_initial_snapshot("acc_roundtrip", account_currency, "2024-05-31");
@@ -4690,7 +5782,7 @@ mod tests {
         let mut fx_service = MockFxService::new();
         fx_service.add_bidirectional_rate("USD", "CAD", buy_date, dec!(1.30));
         fx_service.add_bidirectional_rate("USD", "CAD", sell_date, dec!(1.40));
-        let calculator = create_calculator(
+        let mut calculator = create_calculator(
             Arc::new(fx_service),
             Arc::new(RwLock::new("CAD".to_string())),
         );
@@ -4771,6 +5863,79 @@ mod tests {
     }
 
     #[test]
+    fn test_sell_minor_unit_lot_disposal_base_fields_are_normalized() {
+        let account_currency = "GBP";
+        let activity_currency = "GBp";
+        let buy_date_str = "2026-03-03";
+        let sell_date_str = "2026-04-03";
+        let buy_date = NaiveDate::from_str(buy_date_str).unwrap();
+        let sell_date = NaiveDate::from_str(sell_date_str).unwrap();
+        let mut calculator = create_calculator(
+            Arc::new(MockFxService::new()),
+            Arc::new(RwLock::new(account_currency.to_string())),
+        );
+
+        let previous_snapshot = create_initial_snapshot("acc_1", account_currency, "2026-03-02");
+        let buy = create_default_activity(
+            "act_cty_buy",
+            ActivityType::Buy,
+            "CTY",
+            dec!(51),
+            dec!(556.765),
+            dec!(0),
+            activity_currency,
+            buy_date_str,
+        );
+        let after_buy = calculator
+            .calculate_next_holdings(&previous_snapshot, &[buy], buy_date)
+            .unwrap()
+            .snapshot;
+
+        let sell = create_default_activity(
+            "act_cty_sell",
+            ActivityType::Sell,
+            "CTY",
+            dec!(51),
+            dec!(565),
+            dec!(0),
+            activity_currency,
+            sell_date_str,
+        );
+        let _after_sell = calculator
+            .calculate_next_holdings(&after_buy, &[sell], sell_date)
+            .unwrap()
+            .snapshot;
+
+        let disposals = calculator.take_lot_disposals("acc_1", "FIFO");
+        assert_eq!(disposals.len(), 1);
+        let disposal = &disposals[0];
+        assert_eq!(disposal.currency, activity_currency);
+        assert_eq!(disposal.base_currency, account_currency);
+        assert_eq!(disposal.fx_rate_to_base, dec!(0.01).to_string());
+        assert_eq!(Decimal::from_str(&disposal.proceeds).unwrap(), dec!(28815));
+        assert_eq!(
+            Decimal::from_str(&disposal.cost_basis).unwrap(),
+            dec!(28395.015)
+        );
+        assert_eq!(
+            Decimal::from_str(&disposal.realized_pnl).unwrap(),
+            dec!(419.985)
+        );
+        assert_eq!(
+            Decimal::from_str(&disposal.proceeds_base).unwrap(),
+            dec!(288.15)
+        );
+        assert_eq!(
+            Decimal::from_str(&disposal.cost_basis_base).unwrap(),
+            dec!(283.95015)
+        );
+        assert_eq!(
+            Decimal::from_str(&disposal.realized_pnl_base).unwrap(),
+            dec!(4.19985)
+        );
+    }
+
+    #[test]
     fn lot_disposal_zeroes_base_fields_when_one_fx_side_is_missing() {
         let buy_date_str = "2024-01-10";
         let sell_date_str = "2024-02-10";
@@ -4779,7 +5944,7 @@ mod tests {
 
         let mut fx_service = MockFxService::new();
         fx_service.add_bidirectional_rate("USD", "CAD", buy_date, dec!(1.30));
-        let calculator = create_calculator(
+        let mut calculator = create_calculator(
             Arc::new(fx_service),
             Arc::new(RwLock::new("CAD".to_string())),
         );
@@ -4850,8 +6015,11 @@ mod tests {
         let base_currency = Arc::new(RwLock::new("USD".to_string()));
         let mut repo = MockAssetRepository::new();
         repo.add_option_asset(option_symbol, "USD");
-        let calculator =
-            HoldingsCalculator::new(Arc::new(mock_fx_service), base_currency, Arc::new(repo));
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
 
         let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2025-01-01");
         let buy = create_default_activity(
@@ -4905,6 +6073,998 @@ mod tests {
     }
 
     #[test]
+    fn option_sell_to_open_creates_signed_short_lot() {
+        let option_symbol = "NFLX260626C00079000";
+        let trade_date_str = "2026-06-26";
+        let trade_date = NaiveDate::from_str(trade_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut repo = MockAssetRepository::new();
+        repo.add_option_asset(option_symbol, "USD");
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
+
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+        let sell_to_open = create_default_activity(
+            "sell_to_open_call",
+            ActivityType::Sell,
+            option_symbol,
+            dec!(2),
+            dec!(1.50),
+            dec!(3),
+            "USD",
+            trade_date_str,
+        );
+
+        let result = calculator
+            .calculate_next_holdings(&previous_snapshot, &[sell_to_open], trade_date)
+            .unwrap();
+
+        let position = result
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("sell-to-open should create an option position");
+
+        assert_eq!(position.quantity, dec!(-2));
+        assert_eq!(position.total_cost_basis, dec!(-297));
+        assert_eq!(position.average_cost, dec!(148.5));
+        assert_eq!(position.lots.len(), 1);
+        assert_eq!(position.lots[0].quantity, dec!(-2));
+        assert_eq!(position.lots[0].cost_basis, dec!(-297));
+        assert_eq!(result.snapshot.cost_basis, dec!(-297));
+        assert_eq!(result.snapshot.cash_balances.get("USD"), Some(&dec!(297)));
+    }
+
+    #[test]
+    fn option_buy_to_close_partially_reduces_short_lot() {
+        let option_symbol = "NFLX260626P00079000";
+        let open_date_str = "2026-06-26";
+        let close_date_str = "2026-06-27";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let close_date = NaiveDate::from_str(close_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut repo = MockAssetRepository::new();
+        repo.add_option_asset(option_symbol, "USD");
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
+
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+        let sell_to_open = create_default_activity(
+            "open_short_put",
+            ActivityType::Sell,
+            option_symbol,
+            dec!(2),
+            dec!(1.50),
+            dec!(3),
+            "USD",
+            open_date_str,
+        );
+        let after_open = calculator
+            .calculate_next_holdings(&previous_snapshot, &[sell_to_open], open_date)
+            .unwrap()
+            .snapshot;
+
+        let buy_to_close = create_default_activity(
+            "close_one_short_put",
+            ActivityType::Buy,
+            option_symbol,
+            dec!(1),
+            dec!(1.00),
+            dec!(1),
+            "USD",
+            close_date_str,
+        );
+        let after_close = calculator
+            .calculate_next_holdings(&after_open, &[buy_to_close], close_date)
+            .unwrap()
+            .snapshot;
+
+        let position = after_close
+            .positions
+            .get(option_symbol)
+            .expect("one short contract should remain open");
+
+        assert_eq!(position.quantity, dec!(-1));
+        assert_eq!(position.total_cost_basis, dec!(-148.5));
+        assert_eq!(position.average_cost, dec!(148.5));
+        assert_eq!(position.lots.len(), 1);
+        assert_eq!(position.lots[0].quantity, dec!(-1));
+        assert_eq!(position.lots[0].cost_basis, dec!(-148.5));
+        assert_eq!(after_close.cash_balances.get("USD"), Some(&dec!(196)));
+        assert_eq!(after_close.cost_basis, dec!(-148.5));
+
+        let disposals = calculator.take_lot_disposals("acc_1", "FIFO");
+        assert_eq!(disposals.len(), 1);
+        let disposal = &disposals[0];
+        assert_eq!(disposal.disposal_activity_id, "close_one_short_put");
+        assert_eq!(Decimal::from_str(&disposal.quantity).unwrap(), dec!(-1));
+        assert_eq!(Decimal::from_str(&disposal.proceeds).unwrap(), dec!(-101));
+        assert_eq!(
+            Decimal::from_str(&disposal.cost_basis).unwrap(),
+            dec!(-148.5)
+        );
+        assert_eq!(
+            Decimal::from_str(&disposal.realized_pnl).unwrap(),
+            dec!(47.5)
+        );
+    }
+
+    #[test]
+    fn option_buy_to_close_excess_rejects_without_cash_only_effect() {
+        let option_symbol = "NFLX260626P00079000";
+        let open_date_str = "2026-06-26";
+        let close_date_str = "2026-06-27";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let close_date = NaiveDate::from_str(close_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut repo = MockAssetRepository::new();
+        repo.add_option_asset(option_symbol, "USD");
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
+
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+        let sell_to_open = create_default_activity(
+            "open_one_short_put",
+            ActivityType::Sell,
+            option_symbol,
+            dec!(1),
+            dec!(1.50),
+            dec!(1),
+            "USD",
+            open_date_str,
+        );
+        let after_open = calculator
+            .calculate_next_holdings(&previous_snapshot, &[sell_to_open], open_date)
+            .unwrap()
+            .snapshot;
+
+        let mut buy_to_close = create_default_activity(
+            "close_too_many_short_puts",
+            ActivityType::Buy,
+            option_symbol,
+            dec!(2),
+            dec!(1.00),
+            Decimal::ZERO,
+            "USD",
+            close_date_str,
+        );
+        buy_to_close.subtype = Some(crate::activities::ACTIVITY_SUBTYPE_POSITION_CLOSE.to_string());
+
+        let result = calculator
+            .calculate_next_holdings(&after_open, &[buy_to_close], close_date)
+            .unwrap();
+        let position = result
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("short option position should remain");
+
+        assert_eq!(position.quantity, dec!(-1));
+        assert_eq!(position.total_cost_basis, dec!(-149));
+        assert_eq!(result.snapshot.cash_balances.get("USD"), Some(&dec!(149)));
+        assert_eq!(result.snapshot.cost_basis, dec!(-149));
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0].message.contains("only 1 are short"));
+    }
+
+    #[test]
+    fn option_sell_to_close_excess_rejects_without_cash_only_effect() {
+        let option_symbol = "NFLX260626C00079000";
+        let open_date_str = "2026-06-26";
+        let close_date_str = "2026-06-27";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let close_date = NaiveDate::from_str(close_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut repo = MockAssetRepository::new();
+        repo.add_option_asset(option_symbol, "USD");
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
+
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+        let buy_to_open = create_default_activity(
+            "open_one_long_call",
+            ActivityType::Buy,
+            option_symbol,
+            dec!(1),
+            dec!(1.50),
+            Decimal::ZERO,
+            "USD",
+            open_date_str,
+        );
+        let after_open = calculator
+            .calculate_next_holdings(&previous_snapshot, &[buy_to_open], open_date)
+            .unwrap()
+            .snapshot;
+
+        let mut sell_to_close = create_default_activity(
+            "close_too_many_long_calls",
+            ActivityType::Sell,
+            option_symbol,
+            dec!(2),
+            dec!(1.00),
+            Decimal::ZERO,
+            "USD",
+            close_date_str,
+        );
+        sell_to_close.subtype =
+            Some(crate::activities::ACTIVITY_SUBTYPE_POSITION_CLOSE.to_string());
+
+        let result = calculator
+            .calculate_next_holdings(&after_open, &[sell_to_close], close_date)
+            .unwrap();
+        let position = result
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("long option position should remain");
+
+        assert_eq!(position.quantity, dec!(1));
+        assert_eq!(position.total_cost_basis, dec!(150));
+        assert_eq!(result.snapshot.cash_balances.get("USD"), Some(&dec!(-150)));
+        assert_eq!(result.snapshot.cost_basis, dec!(150));
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0].message.contains("only 1 are long"));
+    }
+
+    #[test]
+    fn option_short_expiry_closes_signed_lot_with_zero_cash() {
+        let option_symbol = "AAPL260116C00200000";
+        let open_date_str = "2025-12-01";
+        let expiry_date_str = "2026-01-16";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let expiry_date = NaiveDate::from_str(expiry_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut repo = MockAssetRepository::new();
+        repo.add_option_asset(option_symbol, "USD");
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
+
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2025-11-30");
+        let sell_to_open = create_default_activity(
+            "open_expiring_short_call",
+            ActivityType::Sell,
+            option_symbol,
+            dec!(1),
+            dec!(2),
+            dec!(1),
+            "USD",
+            open_date_str,
+        );
+        let after_open = calculator
+            .calculate_next_holdings(&previous_snapshot, &[sell_to_open], open_date)
+            .unwrap()
+            .snapshot;
+
+        let mut expiry = create_default_activity(
+            "expire_short_call",
+            ActivityType::Adjustment,
+            option_symbol,
+            dec!(1),
+            Decimal::ZERO,
+            Decimal::ZERO,
+            "USD",
+            expiry_date_str,
+        );
+        expiry.subtype = Some(crate::activities::ACTIVITY_SUBTYPE_OPTION_EXPIRY.to_string());
+        let after_expiry = calculator
+            .calculate_next_holdings(&after_open, &[expiry], expiry_date)
+            .unwrap()
+            .snapshot;
+
+        let position = after_expiry
+            .positions
+            .get(option_symbol)
+            .expect("closed position shell should remain in the snapshot");
+        assert_eq!(position.quantity, Decimal::ZERO);
+        assert_eq!(position.total_cost_basis, Decimal::ZERO);
+        assert_eq!(after_expiry.cash_balances.get("USD"), Some(&dec!(199)));
+
+        let disposals = calculator.take_lot_disposals("acc_1", "FIFO");
+        assert_eq!(disposals.len(), 1);
+        let disposal = &disposals[0];
+        assert_eq!(disposal.disposal_activity_id, "expire_short_call");
+        assert_eq!(
+            Decimal::from_str(&disposal.proceeds).unwrap(),
+            Decimal::ZERO
+        );
+        assert_eq!(Decimal::from_str(&disposal.cost_basis).unwrap(), dec!(-199));
+        assert_eq!(
+            Decimal::from_str(&disposal.realized_pnl).unwrap(),
+            dec!(199)
+        );
+    }
+
+    #[test]
+    fn option_buy_to_close_without_short_does_not_open_long_lot() {
+        let option_symbol = "NFLX260626C00079000";
+        let trade_date_str = "2026-06-26";
+        let trade_date = NaiveDate::from_str(trade_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut repo = MockAssetRepository::new();
+        repo.add_option_asset(option_symbol, "USD");
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
+
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+        let mut buy_to_close = create_default_activity(
+            "buy_to_close_without_short",
+            ActivityType::Buy,
+            option_symbol,
+            dec!(1),
+            dec!(1),
+            dec!(1),
+            "USD",
+            trade_date_str,
+        );
+        buy_to_close.subtype = Some(crate::activities::ACTIVITY_SUBTYPE_POSITION_CLOSE.to_string());
+
+        let result = calculator
+            .calculate_next_holdings(&previous_snapshot, &[buy_to_close], trade_date)
+            .unwrap();
+
+        let position = result.snapshot.positions.get(option_symbol);
+        assert!(position.is_none_or(|position| {
+            position.quantity == Decimal::ZERO && position.lots.is_empty()
+        }));
+        assert!(!result.snapshot.cash_balances.contains_key("USD"));
+        assert_eq!(result.snapshot.cost_basis, Decimal::ZERO);
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0]
+            .message
+            .contains("no short position exists"));
+    }
+
+    #[test]
+    fn option_sell_to_close_without_long_does_not_open_short_lot() {
+        let option_symbol = "NFLX260626P00079000";
+        let trade_date_str = "2026-06-26";
+        let trade_date = NaiveDate::from_str(trade_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut repo = MockAssetRepository::new();
+        repo.add_option_asset(option_symbol, "USD");
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
+
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+        let mut sell_to_close = create_default_activity(
+            "sell_to_close_without_long",
+            ActivityType::Sell,
+            option_symbol,
+            dec!(1),
+            dec!(1),
+            dec!(1),
+            "USD",
+            trade_date_str,
+        );
+        sell_to_close.subtype =
+            Some(crate::activities::ACTIVITY_SUBTYPE_POSITION_CLOSE.to_string());
+
+        let result = calculator
+            .calculate_next_holdings(&previous_snapshot, &[sell_to_close], trade_date)
+            .unwrap();
+
+        let position = result.snapshot.positions.get(option_symbol);
+        assert!(position.is_none_or(|position| {
+            position.quantity == Decimal::ZERO && position.lots.is_empty()
+        }));
+        assert!(!result.snapshot.cash_balances.contains_key("USD"));
+        assert_eq!(result.snapshot.cost_basis, Decimal::ZERO);
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0]
+            .message
+            .contains("no long position exists"));
+    }
+
+    #[test]
+    fn stock_sell_without_position_does_not_create_signed_short_lot() {
+        let trade_date_str = "2026-06-26";
+        let trade_date = NaiveDate::from_str(trade_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+
+        let sell = create_default_activity(
+            "sell_stock_without_inventory",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(10),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            trade_date_str,
+        );
+
+        let result = calculator
+            .calculate_next_holdings(&previous_snapshot, &[sell], trade_date)
+            .unwrap();
+
+        assert!(!result.snapshot.positions.contains_key("AAPL"));
+        assert_eq!(result.snapshot.cash_balances.get("USD"), Some(&dec!(1000)));
+        assert_eq!(result.snapshot.cost_basis, Decimal::ZERO);
+    }
+
+    #[test]
+    fn stock_sell_short_intent_creates_signed_short_lot() {
+        let trade_date_str = "2026-06-26";
+        let trade_date = NaiveDate::from_str(trade_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+
+        let mut sell_short = create_default_activity(
+            "sell_stock_short",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(10),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            trade_date_str,
+        );
+        sell_short.subtype = Some("SELL_SHORT".to_string());
+
+        let result = calculator
+            .calculate_next_holdings(&previous_snapshot, &[sell_short], trade_date)
+            .unwrap();
+
+        let position = result
+            .snapshot
+            .positions
+            .get("AAPL")
+            .expect("sell short should create a signed stock lot");
+
+        assert_eq!(position.quantity, dec!(-10));
+        assert_eq!(position.total_cost_basis, dec!(-1000));
+        assert_eq!(position.average_cost, dec!(100));
+        assert_eq!(position.lots.len(), 1);
+        assert_eq!(position.lots[0].quantity, dec!(-10));
+        assert_eq!(position.lots[0].cost_basis, dec!(-1000));
+        assert_eq!(result.snapshot.cash_balances.get("USD"), Some(&dec!(1000)));
+        assert_eq!(result.snapshot.cost_basis, dec!(-1000));
+    }
+
+    #[test]
+    fn stock_sell_short_again_increases_negative_position() {
+        let open_date_str = "2026-06-26";
+        let second_open_date_str = "2026-06-27";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let second_open_date = NaiveDate::from_str(second_open_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+
+        let mut first_short = create_default_activity(
+            "sell_stock_short_1",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(10),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            open_date_str,
+        );
+        first_short.subtype = Some("SELL_SHORT".to_string());
+
+        let after_first = calculator
+            .calculate_next_holdings(&previous_snapshot, &[first_short], open_date)
+            .unwrap()
+            .snapshot;
+
+        let mut second_short = create_default_activity(
+            "sell_stock_short_2",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(5),
+            dec!(120),
+            Decimal::ZERO,
+            "USD",
+            second_open_date_str,
+        );
+        second_short.subtype = Some(crate::activities::ACTIVITY_SUBTYPE_POSITION_OPEN.to_string());
+
+        let result = calculator
+            .calculate_next_holdings(&after_first, &[second_short], second_open_date)
+            .unwrap();
+        let position = result
+            .snapshot
+            .positions
+            .get("AAPL")
+            .expect("short position should remain");
+
+        assert_eq!(position.quantity, dec!(-15));
+        assert_eq!(position.total_cost_basis, dec!(-1600));
+        assert_eq!(position.lots.len(), 2);
+        assert_eq!(result.snapshot.cash_balances.get("USD"), Some(&dec!(1600)));
+        assert_eq!(result.snapshot.cost_basis, dec!(-1600));
+    }
+
+    #[test]
+    fn stock_buy_to_cover_partially_reduces_short_lot_fifo() {
+        let open_date_str = "2026-06-26";
+        let close_date_str = "2026-06-27";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let close_date = NaiveDate::from_str(close_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+
+        let mut sell_short = create_default_activity(
+            "open_stock_short",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(10),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            open_date_str,
+        );
+        sell_short.subtype = Some("SELL_SHORT".to_string());
+        let after_open = calculator
+            .calculate_next_holdings(&previous_snapshot, &[sell_short], open_date)
+            .unwrap()
+            .snapshot;
+
+        let mut cover = create_default_activity(
+            "cover_stock_short",
+            ActivityType::Buy,
+            "AAPL",
+            dec!(4),
+            dec!(80),
+            Decimal::ZERO,
+            "USD",
+            close_date_str,
+        );
+        cover.subtype = Some("BUY_TO_COVER".to_string());
+
+        let result = calculator
+            .calculate_next_holdings(&after_open, &[cover], close_date)
+            .unwrap();
+        let position = result
+            .snapshot
+            .positions
+            .get("AAPL")
+            .expect("short position should remain");
+
+        assert_eq!(position.quantity, dec!(-6));
+        assert_eq!(position.total_cost_basis, dec!(-600));
+        assert_eq!(position.average_cost, dec!(100));
+        assert_eq!(position.lots.len(), 1);
+        assert_eq!(result.snapshot.cash_balances.get("USD"), Some(&dec!(680)));
+        assert_eq!(result.snapshot.cost_basis, dec!(-600));
+
+        let disposals = calculator.take_lot_disposals("acc_1", "FIFO");
+        assert_eq!(disposals.len(), 1);
+        let disposal = &disposals[0];
+        assert_eq!(disposal.disposal_activity_id, "cover_stock_short");
+        assert_eq!(Decimal::from_str(&disposal.quantity).unwrap(), dec!(-4));
+        assert_eq!(Decimal::from_str(&disposal.proceeds).unwrap(), dec!(-320));
+        assert_eq!(Decimal::from_str(&disposal.cost_basis).unwrap(), dec!(-400));
+        assert_eq!(Decimal::from_str(&disposal.realized_pnl).unwrap(), dec!(80));
+    }
+
+    #[test]
+    fn stock_buy_to_cover_fully_closes_short_lot() {
+        let open_date_str = "2026-06-26";
+        let close_date_str = "2026-06-27";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let close_date = NaiveDate::from_str(close_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+
+        let mut sell_short = create_default_activity(
+            "open_stock_short_full",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(10),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            open_date_str,
+        );
+        sell_short.subtype = Some("SELL_SHORT".to_string());
+        let after_open = calculator
+            .calculate_next_holdings(&previous_snapshot, &[sell_short], open_date)
+            .unwrap()
+            .snapshot;
+
+        let mut cover = create_default_activity(
+            "cover_stock_short_full",
+            ActivityType::Buy,
+            "AAPL",
+            dec!(10),
+            dec!(110),
+            Decimal::ZERO,
+            "USD",
+            close_date_str,
+        );
+        cover.subtype = Some(crate::activities::ACTIVITY_SUBTYPE_POSITION_CLOSE.to_string());
+
+        let result = calculator
+            .calculate_next_holdings(&after_open, &[cover], close_date)
+            .unwrap();
+        let position = result
+            .snapshot
+            .positions
+            .get("AAPL")
+            .expect("closed position shell should remain");
+
+        assert_eq!(position.quantity, Decimal::ZERO);
+        assert_eq!(position.total_cost_basis, Decimal::ZERO);
+        assert!(position.lots.is_empty());
+        assert_eq!(result.snapshot.cash_balances.get("USD"), Some(&dec!(-100)));
+        assert_eq!(result.snapshot.cost_basis, Decimal::ZERO);
+    }
+
+    #[test]
+    fn stock_buy_to_cover_without_short_does_not_open_long_lot() {
+        let trade_date_str = "2026-06-26";
+        let trade_date = NaiveDate::from_str(trade_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+
+        let mut cover = create_default_activity(
+            "cover_stock_short_without_short",
+            ActivityType::Buy,
+            "AAPL",
+            dec!(5),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            trade_date_str,
+        );
+        cover.subtype = Some("BUY_TO_COVER".to_string());
+
+        let result = calculator
+            .calculate_next_holdings(&previous_snapshot, &[cover], trade_date)
+            .unwrap();
+
+        assert!(!result.snapshot.positions.contains_key("AAPL"));
+        assert!(!result.snapshot.cash_balances.contains_key("USD"));
+        assert_eq!(result.snapshot.cost_basis, Decimal::ZERO);
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0]
+            .message
+            .contains("no short position exists"));
+    }
+
+    #[test]
+    fn stock_buy_while_short_without_cover_does_not_silently_reduce_short() {
+        let open_date_str = "2026-06-26";
+        let buy_date_str = "2026-06-27";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let buy_date = NaiveDate::from_str(buy_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+
+        let mut sell_short = create_default_activity(
+            "open_stock_short_before_plain_buy",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(5),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            open_date_str,
+        );
+        sell_short.subtype = Some("SELL_SHORT".to_string());
+        let after_open = calculator
+            .calculate_next_holdings(&previous_snapshot, &[sell_short], open_date)
+            .unwrap()
+            .snapshot;
+
+        let buy = create_default_activity(
+            "plain_buy_while_short",
+            ActivityType::Buy,
+            "AAPL",
+            dec!(2),
+            dec!(90),
+            Decimal::ZERO,
+            "USD",
+            buy_date_str,
+        );
+
+        let result = calculator
+            .calculate_next_holdings(&after_open, &[buy], buy_date)
+            .unwrap();
+        let position = result
+            .snapshot
+            .positions
+            .get("AAPL")
+            .expect("short position should remain");
+
+        assert_eq!(position.quantity, dec!(-5));
+        assert_eq!(position.total_cost_basis, dec!(-500));
+        assert_eq!(result.snapshot.cash_balances.get("USD"), Some(&dec!(500)));
+        assert_eq!(result.snapshot.cost_basis, dec!(-500));
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0]
+            .message
+            .contains("without Buy to Cover intent"));
+    }
+
+    #[test]
+    fn buy_with_sell_to_close_alias_does_not_cover_short_position() {
+        let open_date_str = "2026-06-26";
+        let buy_date_str = "2026-06-27";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let buy_date = NaiveDate::from_str(buy_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+
+        let mut sell_short = create_default_activity(
+            "open_stock_short_before_stc_buy",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(5),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            open_date_str,
+        );
+        sell_short.subtype = Some("SELL_SHORT".to_string());
+        let after_open = calculator
+            .calculate_next_holdings(&previous_snapshot, &[sell_short], open_date)
+            .unwrap()
+            .snapshot;
+
+        let mut buy = create_default_activity(
+            "buy_with_sell_to_close_alias",
+            ActivityType::Buy,
+            "AAPL",
+            dec!(2),
+            dec!(90),
+            Decimal::ZERO,
+            "USD",
+            buy_date_str,
+        );
+        buy.subtype = Some("STC".to_string());
+
+        let result = calculator
+            .calculate_next_holdings(&after_open, &[buy], buy_date)
+            .unwrap();
+        let position = result
+            .snapshot
+            .positions
+            .get("AAPL")
+            .expect("short position should remain");
+
+        assert_eq!(position.quantity, dec!(-5));
+        assert_eq!(position.total_cost_basis, dec!(-500));
+        assert_eq!(result.snapshot.cash_balances.get("USD"), Some(&dec!(500)));
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0]
+            .message
+            .contains("without Buy to Cover intent"));
+    }
+
+    #[test]
+    fn stock_buy_to_cover_excess_rejects_without_partial_cash_or_lot_effects() {
+        let open_date_str = "2026-06-26";
+        let close_date_str = "2026-06-27";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let close_date = NaiveDate::from_str(close_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+
+        let mut sell_short = create_default_activity(
+            "open_stock_short_excess_cover",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(3),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            open_date_str,
+        );
+        sell_short.subtype = Some("SELL_SHORT".to_string());
+        let after_open = calculator
+            .calculate_next_holdings(&previous_snapshot, &[sell_short], open_date)
+            .unwrap()
+            .snapshot;
+
+        let mut cover = create_default_activity(
+            "cover_stock_short_excess",
+            ActivityType::Buy,
+            "AAPL",
+            dec!(5),
+            dec!(90),
+            Decimal::ZERO,
+            "USD",
+            close_date_str,
+        );
+        cover.subtype = Some("BUY_TO_COVER".to_string());
+
+        let result = calculator
+            .calculate_next_holdings(&after_open, &[cover], close_date)
+            .unwrap();
+        let position = result
+            .snapshot
+            .positions
+            .get("AAPL")
+            .expect("short position should remain");
+
+        assert_eq!(position.quantity, dec!(-3));
+        assert_eq!(position.total_cost_basis, dec!(-300));
+        assert_eq!(result.snapshot.cash_balances.get("USD"), Some(&dec!(300)));
+        assert_eq!(result.snapshot.cost_basis, dec!(-300));
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0].message.contains("only 3 are short"));
+    }
+
+    #[test]
+    fn stock_sell_short_while_long_does_not_silently_net_position() {
+        let buy_date_str = "2026-06-25";
+        let short_date_str = "2026-06-26";
+        let buy_date = NaiveDate::from_str(buy_date_str).unwrap();
+        let short_date = NaiveDate::from_str(short_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-24");
+
+        let buy = create_default_activity(
+            "buy_stock_before_short",
+            ActivityType::Buy,
+            "AAPL",
+            dec!(5),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            buy_date_str,
+        );
+        let after_buy = calculator
+            .calculate_next_holdings(&previous_snapshot, &[buy], buy_date)
+            .unwrap()
+            .snapshot;
+
+        let mut sell_short = create_default_activity(
+            "sell_short_while_long",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(2),
+            dec!(120),
+            Decimal::ZERO,
+            "USD",
+            short_date_str,
+        );
+        sell_short.subtype = Some("SELL_SHORT".to_string());
+
+        let result = calculator
+            .calculate_next_holdings(&after_buy, &[sell_short], short_date)
+            .unwrap();
+        let position = result
+            .snapshot
+            .positions
+            .get("AAPL")
+            .expect("existing long position should remain");
+
+        assert_eq!(position.quantity, dec!(5));
+        assert_eq!(position.total_cost_basis, dec!(500));
+        assert_eq!(result.snapshot.cash_balances.get("USD"), Some(&dec!(-500)));
+        assert_eq!(result.snapshot.cost_basis, dec!(500));
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0]
+            .message
+            .contains("while a long position exists"));
+    }
+
+    #[test]
+    fn stock_split_preserves_signed_short_lot_basis() {
+        let open_date_str = "2026-06-26";
+        let split_date_str = "2026-06-27";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let split_date = NaiveDate::from_str(split_date_str).unwrap();
+
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2026-06-25");
+
+        let mut sell_short = create_default_activity(
+            "open_stock_short_before_split",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(10),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            open_date_str,
+        );
+        sell_short.subtype = Some("SELL_SHORT".to_string());
+        let after_open = calculator
+            .calculate_next_holdings(&previous_snapshot, &[sell_short], open_date)
+            .unwrap()
+            .snapshot;
+
+        let split = create_default_activity(
+            "stock_short_split",
+            ActivityType::Split,
+            "AAPL",
+            dec!(2),
+            Decimal::ZERO,
+            Decimal::ZERO,
+            "USD",
+            split_date_str,
+        );
+
+        let result = calculator
+            .calculate_next_holdings(&after_open, &[split], split_date)
+            .unwrap();
+        let position = result
+            .snapshot
+            .positions
+            .get("AAPL")
+            .expect("short stock position should remain after split");
+
+        assert_eq!(position.quantity, dec!(-20));
+        assert_eq!(position.total_cost_basis, dec!(-1000));
+        assert_eq!(position.average_cost, dec!(50));
+        assert_eq!(position.lots.len(), 1);
+        assert_eq!(position.lots[0].quantity, dec!(-10));
+        assert_eq!(position.lots[0].effective_split_ratio(), dec!(2));
+        assert_eq!(result.snapshot.cash_balances.get("USD"), Some(&dec!(1000)));
+    }
+
+    #[test]
     fn test_buy_without_fx_rate_still_books_in_activity_currency() {
         // When no fx_rate is provided, cash should still be booked in
         // activity currency (multi-currency account behavior is preserved).
@@ -4918,7 +7078,7 @@ mod tests {
 
         mock_fx_service.add_bidirectional_rate("USD", "EUR", buy_date, dec!(0.92));
 
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let mut prev = create_initial_snapshot("acc_no_fx", account_currency, "2024-04-14");
         prev.cash_balances.insert("EUR".to_string(), dec!(10000));
@@ -4995,7 +7155,7 @@ mod tests {
         // The lots in acc_b should have the original acquisition date and price.
         let mock_fx_service = MockFxService::new();
         let base_currency = Arc::new(RwLock::new("USD".to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let buy_date_str = "2023-01-01";
         let transfer_date_str = "2023-06-01";
@@ -5082,6 +7242,24 @@ mod tests {
         assert_eq!(lot.acquisition_date, buy.activity_date);
         assert_eq!(lot.acquisition_price, dec!(100));
         assert_eq!(lot.quantity, dec!(10));
+
+        let disposals = calculator.take_lot_disposals("acc_a", "FIFO");
+        assert_eq!(disposals.len(), 1);
+        let disposal = &disposals[0];
+        assert_eq!(disposal.disposal_activity_id, "xfer_out");
+        assert_eq!(Decimal::from_str(&disposal.cost_basis).unwrap(), dec!(1005));
+        assert_eq!(
+            Decimal::from_str(&disposal.cost_basis_base).unwrap(),
+            dec!(1005)
+        );
+        assert_eq!(
+            Decimal::from_str(&disposal.realized_pnl).unwrap(),
+            Decimal::ZERO
+        );
+        assert_eq!(
+            Decimal::from_str(&disposal.realized_pnl_base).unwrap(),
+            Decimal::ZERO
+        );
     }
 
     #[test]
@@ -5091,7 +7269,7 @@ mod tests {
         // Transfer in should recreate those exact lots.
         let mock_fx_service = MockFxService::new();
         let base_currency = Arc::new(RwLock::new("USD".to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let prev_a = create_initial_snapshot("acc_a", "USD", "2022-12-31");
 
@@ -5222,7 +7400,7 @@ mod tests {
         // Should use the activity's unit_price as acquisition price.
         let mock_fx_service = MockFxService::new();
         let base_currency = Arc::new(RwLock::new("USD".to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let prev = create_initial_snapshot("acc_b", "USD", "2023-05-31");
         let transfer_date = NaiveDate::from_str("2023-06-01").unwrap();
@@ -5258,12 +7436,86 @@ mod tests {
     }
 
     #[test]
+    fn test_external_transfer_in_ignores_legacy_amount_when_unit_price_is_present() {
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let prev = create_initial_snapshot("acc_b", "USD", "2023-05-31");
+        let transfer_date = NaiveDate::from_str("2023-06-01").unwrap();
+        let mut transfer_in = create_transfer_activity(
+            "ext_xfer_in_legacy_amount",
+            ActivityType::TransferIn,
+            "AAPL",
+            dec!(10),
+            dec!(150),
+            dec!(5),
+            "USD",
+            "2023-06-01",
+            "acc_b",
+            None,
+        );
+        transfer_in.amount = Some(dec!(5000));
+
+        let result = calculator
+            .calculate_next_holdings(&prev, &[transfer_in], transfer_date)
+            .unwrap();
+
+        let pos = result
+            .snapshot
+            .positions
+            .get("AAPL")
+            .expect("Should have AAPL");
+        assert_eq!(pos.quantity, dec!(10));
+        assert_eq!(pos.total_cost_basis, dec!(1505));
+        assert_eq!(pos.average_cost, dec!(150.5));
+        assert_eq!(pos.lots[0].acquisition_price, dec!(150));
+    }
+
+    #[test]
+    fn test_external_transfer_in_uses_legacy_amount_as_last_resort_lot_basis_without_unit_price() {
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let prev = create_initial_snapshot("acc_b", "USD", "2023-05-31");
+        let transfer_date = NaiveDate::from_str("2023-06-01").unwrap();
+        let mut transfer_in = create_transfer_activity(
+            "ext_xfer_in_legacy_amount_no_price",
+            ActivityType::TransferIn,
+            "AAPL",
+            dec!(10),
+            dec!(150),
+            Decimal::ZERO,
+            "USD",
+            "2023-06-01",
+            "acc_b",
+            None,
+        );
+        transfer_in.unit_price = None;
+        transfer_in.amount = Some(dec!(5000));
+
+        let result = calculator
+            .calculate_next_holdings(&prev, &[transfer_in], transfer_date)
+            .unwrap();
+
+        let pos = result
+            .snapshot
+            .positions
+            .get("AAPL")
+            .expect("Should have AAPL");
+        assert_eq!(pos.quantity, dec!(10));
+        assert_eq!(pos.total_cost_basis, dec!(5000));
+        assert_eq!(pos.lots[0].acquisition_price, dec!(500));
+    }
+
+    #[test]
     fn test_transfer_out_with_no_existing_position_is_graceful() {
         // Scenario: Transfer out from an account that has no position.
         // Should not panic; fee is still applied.
         let mock_fx_service = MockFxService::new();
         let base_currency = Arc::new(RwLock::new("USD".to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let prev = create_initial_snapshot("acc_a", "USD", "2023-05-31");
         let transfer_date = NaiveDate::from_str("2023-06-01").unwrap();
@@ -5305,7 +7557,7 @@ mod tests {
         mock_fx_service.add_bidirectional_rate("EUR", "USD", transfer_date, dec!(1.10));
 
         let base_currency = Arc::new(RwLock::new("CAD".to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         // Account A (CAD): Buy 10 AAPL @ 100 CAD
         let prev_a = create_initial_snapshot("acc_a", "CAD", "2022-12-31");
@@ -5333,6 +7585,9 @@ mod tests {
         assert_eq!(pos_a.currency, "USD");
         // 100 CAD * 0.75 = 75 USD per share
         assert_eq!(pos_a.average_cost, dec!(75));
+        let source_lot = pos_a.lots[0].clone();
+        assert!(source_lot.fx_rate_to_base.is_some());
+        assert_eq!(source_lot.base_currency.as_deref(), Some("CAD"));
 
         // Transfer out from CAD account
         let transfer_out = create_transfer_activity(
@@ -5381,6 +7636,14 @@ mod tests {
         // Lots should preserve the original USD cost basis: 75 USD per share
         assert_eq!(pos_b.average_cost, dec!(75));
         assert_eq!(pos_b.total_cost_basis, dec!(750));
+        let transferred_lot = &pos_b.lots[0];
+        assert_eq!(transferred_lot.cost_basis, source_lot.cost_basis);
+        assert_eq!(
+            transferred_lot.acquisition_date,
+            source_lot.acquisition_date
+        );
+        assert_eq!(transferred_lot.fx_rate_to_base, source_lot.fx_rate_to_base);
+        assert_eq!(transferred_lot.base_currency, source_lot.base_currency);
     }
 
     #[test]
@@ -5389,7 +7652,7 @@ mod tests {
         // Each TRANSFER_IN should only consume its own cached lots.
         let mock_fx_service = MockFxService::new();
         let base_currency = Arc::new(RwLock::new("USD".to_string()));
-        let calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
 
         let buy_date = NaiveDate::from_str("2023-01-01").unwrap();
         let transfer_date = NaiveDate::from_str("2023-06-01").unwrap();
@@ -5506,8 +7769,11 @@ mod tests {
         let mut repo = MockAssetRepository::new();
         repo.add_option_asset("AAPL240119C00150000", "USD");
 
-        let calculator =
-            HoldingsCalculator::new(Arc::new(mock_fx_service), base_currency, Arc::new(repo));
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
 
         let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2023-12-31");
 
@@ -5553,8 +7819,11 @@ mod tests {
         // Use a bare MockAssetRepository with NO assets
         let repo = MockAssetRepository::new();
 
-        let calculator =
-            HoldingsCalculator::new(Arc::new(mock_fx_service), base_currency, Arc::new(repo));
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
 
         let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2023-12-31");
 
@@ -5602,8 +7871,11 @@ mod tests {
         let mut repo = MockAssetRepository::new();
         repo.add_option_asset("AAPL250321C00150000", "USD");
 
-        let calculator =
-            HoldingsCalculator::new(Arc::new(mock_fx_service), base_currency, Arc::new(repo));
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
 
         let previous_snapshot = create_initial_snapshot("acc_1", "USD", "2024-12-31");
 
@@ -5701,8 +7973,11 @@ mod tests {
         let mut repo = MockAssetRepository::new();
         repo.add_option_asset("AAPL250321C00150000", "USD");
 
-        let calculator =
-            HoldingsCalculator::new(Arc::new(mock_fx_service), base_currency, Arc::new(repo));
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
 
         let buy_date_str = "2025-01-02";
         let transfer_date_str = "2025-06-01";
@@ -5803,5 +8078,933 @@ mod tests {
         assert_eq!(pos_b.average_cost, dec!(200));
         // Multiplier should be 100
         assert_eq!(pos_b.contract_multiplier, dec!(100));
+    }
+
+    #[test]
+    fn test_short_option_transfer_preserves_signed_lot() {
+        let option_symbol = "AAPL250321P00150000";
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+
+        let mut repo = MockAssetRepository::new();
+        repo.add_option_asset(option_symbol, "USD");
+
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
+
+        let open_date_str = "2025-01-02";
+        let transfer_date_str = "2025-06-01";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let transfer_date = NaiveDate::from_str(transfer_date_str).unwrap();
+
+        let prev_a = create_initial_snapshot("acc_a", "USD", "2024-12-31");
+        let open_short = {
+            let mut a = create_default_activity(
+                "sell_to_open_opt",
+                ActivityType::Sell,
+                option_symbol,
+                dec!(2),
+                dec!(2),
+                dec!(0),
+                "USD",
+                open_date_str,
+            );
+            a.account_id = "acc_a".to_string();
+            a
+        };
+
+        let result_a_open = calculator
+            .calculate_next_holdings(&prev_a, std::slice::from_ref(&open_short), open_date)
+            .unwrap();
+
+        let pos_a = result_a_open
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("Account A should have short option position");
+        assert_eq!(pos_a.quantity, dec!(-2));
+        assert_eq!(pos_a.total_cost_basis, dec!(-400));
+
+        let transfer_out = create_transfer_activity(
+            "xfer_out_short_opt",
+            ActivityType::TransferOut,
+            option_symbol,
+            dec!(2),
+            dec!(0),
+            dec!(0),
+            "USD",
+            transfer_date_str,
+            "acc_a",
+            Some("grp_short_opt"),
+        );
+
+        let result_a_xfer = calculator
+            .calculate_next_holdings(&result_a_open.snapshot, &[transfer_out], transfer_date)
+            .unwrap();
+        let pos_a_after = result_a_xfer.snapshot.positions.get(option_symbol);
+        assert!(pos_a_after.is_none_or(|position| position.quantity == Decimal::ZERO));
+
+        let transfer_disposals = calculator.take_lot_disposals("acc_a", "FIFO");
+        assert_eq!(transfer_disposals.len(), 1);
+        let transfer_disposal = &transfer_disposals[0];
+        assert_eq!(transfer_disposal.disposal_activity_id, "xfer_out_short_opt");
+        assert_eq!(
+            Decimal::from_str(&transfer_disposal.quantity).unwrap(),
+            dec!(-2)
+        );
+        assert_eq!(
+            Decimal::from_str(&transfer_disposal.proceeds).unwrap(),
+            dec!(-400)
+        );
+        assert_eq!(
+            Decimal::from_str(&transfer_disposal.cost_basis).unwrap(),
+            dec!(-400)
+        );
+        assert_eq!(
+            Decimal::from_str(&transfer_disposal.realized_pnl).unwrap(),
+            Decimal::ZERO
+        );
+
+        let prev_b = create_initial_snapshot("acc_b", "USD", "2025-05-31");
+        let transfer_in = create_transfer_activity(
+            "xfer_in_short_opt",
+            ActivityType::TransferIn,
+            option_symbol,
+            dec!(2),
+            dec!(0),
+            dec!(0),
+            "USD",
+            transfer_date_str,
+            "acc_b",
+            Some("grp_short_opt"),
+        );
+
+        let result_b = calculator
+            .calculate_next_holdings(&prev_b, &[transfer_in], transfer_date)
+            .unwrap();
+
+        let pos_b = result_b
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("Account B should have transferred short option position");
+
+        assert_eq!(pos_b.quantity, dec!(-2));
+        assert_eq!(pos_b.total_cost_basis, dec!(-400));
+        assert_eq!(pos_b.average_cost, dec!(200));
+        assert_eq!(pos_b.lots.len(), 1);
+        assert_eq!(pos_b.lots[0].quantity, dec!(-2));
+        assert_eq!(pos_b.lots[0].cost_basis, dec!(-400));
+    }
+
+    #[test]
+    fn test_transfer_in_long_covers_resident_short_option_no_mixed_position() {
+        // Account A holds a short option (-2). A TRANSFER_IN brings a long (+1)
+        // of the same option via cached lots. The incoming long must COVER one
+        // contract of the resident short FIFO (realizing P/L) rather than
+        // creating a mixed-sign position. The residual short (-1) must then be
+        // reducible by a later OPTION_EXPIRY.
+        let option_symbol = "AAPL250321P00150000";
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+
+        let mut repo = MockAssetRepository::new();
+        repo.add_option_asset(option_symbol, "USD");
+
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
+
+        let open_date_str = "2025-01-02";
+        let transfer_date_str = "2025-06-01";
+        let expiry_date_str = "2025-06-02";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let transfer_date = NaiveDate::from_str(transfer_date_str).unwrap();
+        let expiry_date = NaiveDate::from_str(expiry_date_str).unwrap();
+
+        // --- Source account: open a long (+1) and transfer it out to seed the
+        // shared transfer-lots cache under group "grp_cover". ---
+        let prev_src = create_initial_snapshot("acc_src", "USD", "2024-12-31");
+        let buy_long = {
+            let mut a = create_default_activity(
+                "buy_to_open_long_opt",
+                ActivityType::Buy,
+                option_symbol,
+                dec!(1),
+                dec!(1), // unit price 1.00 * multiplier 100 = 100 basis
+                dec!(0),
+                "USD",
+                open_date_str,
+            );
+            a.account_id = "acc_src".to_string();
+            a
+        };
+        let result_src_open = calculator
+            .calculate_next_holdings(&prev_src, std::slice::from_ref(&buy_long), open_date)
+            .unwrap();
+        let pos_src = result_src_open
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("source account should hold long option");
+        assert_eq!(pos_src.quantity, dec!(1));
+        assert_eq!(pos_src.total_cost_basis, dec!(100));
+
+        let transfer_out = create_transfer_activity(
+            "xfer_out_long_opt",
+            ActivityType::TransferOut,
+            option_symbol,
+            dec!(1),
+            dec!(0),
+            dec!(0),
+            "USD",
+            transfer_date_str,
+            "acc_src",
+            Some("grp_cover"),
+        );
+        calculator
+            .calculate_next_holdings(&result_src_open.snapshot, &[transfer_out], transfer_date)
+            .unwrap();
+
+        // --- Account A: open a short (-2), then receive the long transfer-in. ---
+        let prev_a = create_initial_snapshot("acc_a", "USD", "2024-12-31");
+        let sell_short = {
+            let mut a = create_default_activity(
+                "sell_to_open_short_opt",
+                ActivityType::Sell,
+                option_symbol,
+                dec!(2),
+                dec!(2.5), // 2.50 * 100 = 250 premium per contract → basis -500
+                dec!(0),
+                "USD",
+                open_date_str,
+            );
+            a.account_id = "acc_a".to_string();
+            a
+        };
+        let result_a_open = calculator
+            .calculate_next_holdings(&prev_a, std::slice::from_ref(&sell_short), open_date)
+            .unwrap();
+        let pos_a = result_a_open
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("account A should hold short option");
+        assert_eq!(pos_a.quantity, dec!(-2));
+        assert_eq!(pos_a.total_cost_basis, dec!(-500));
+
+        let transfer_in = create_transfer_activity(
+            "xfer_in_long_opt",
+            ActivityType::TransferIn,
+            option_symbol,
+            dec!(1),
+            dec!(0),
+            dec!(0),
+            "USD",
+            transfer_date_str,
+            "acc_a",
+            Some("grp_cover"),
+        );
+        let result_a_xfer = calculator
+            .calculate_next_holdings(&result_a_open.snapshot, &[transfer_in], transfer_date)
+            .unwrap();
+
+        let pos_a_after = result_a_xfer
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("account A should still hold the residual short");
+        // Single-signed: the incoming +1 covered one short contract, leaving -1.
+        assert_eq!(pos_a_after.quantity, dec!(-1));
+        assert_eq!(pos_a_after.total_cost_basis, dec!(-250));
+        assert!(
+            pos_a_after
+                .lots
+                .iter()
+                .all(|lot| lot.quantity < Decimal::ZERO),
+            "position must be single-signed (no long lot left)"
+        );
+
+        // The cover realized P/L on one contract: premium received (250) minus
+        // buyback cost (100 carried by the incoming long) = 150.
+        let disposals = calculator.take_lot_disposals("acc_a", "FIFO");
+        assert_eq!(disposals.len(), 1);
+        let disposal = &disposals[0];
+        assert_eq!(disposal.disposal_activity_id, "xfer_in_long_opt");
+        assert_eq!(Decimal::from_str(&disposal.quantity).unwrap(), dec!(-1));
+        assert_eq!(Decimal::from_str(&disposal.proceeds).unwrap(), dec!(-100));
+        assert_eq!(Decimal::from_str(&disposal.cost_basis).unwrap(), dec!(-250));
+        assert_eq!(
+            Decimal::from_str(&disposal.realized_pnl).unwrap(),
+            dec!(150)
+        );
+
+        // --- A later OPTION_EXPIRY reduces the residual short leg to zero. ---
+        let mut expiry = create_default_activity(
+            "expire_residual_short",
+            ActivityType::Adjustment,
+            option_symbol,
+            dec!(1),
+            Decimal::ZERO,
+            Decimal::ZERO,
+            "USD",
+            expiry_date_str,
+        );
+        expiry.subtype = Some(crate::activities::ACTIVITY_SUBTYPE_OPTION_EXPIRY.to_string());
+        let result_a_expiry = calculator
+            .calculate_next_holdings(&result_a_xfer.snapshot, &[expiry], expiry_date)
+            .unwrap();
+        let pos_a_expired = result_a_expiry
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("closed position shell should remain");
+        assert_eq!(pos_a_expired.quantity, Decimal::ZERO);
+        assert_eq!(pos_a_expired.total_cost_basis, Decimal::ZERO);
+
+        let expiry_disposals = calculator.take_lot_disposals("acc_a", "FIFO");
+        assert_eq!(expiry_disposals.len(), 1);
+        let expiry_disposal = &expiry_disposals[0];
+        assert_eq!(
+            expiry_disposal.disposal_activity_id,
+            "expire_residual_short"
+        );
+        assert_eq!(
+            Decimal::from_str(&expiry_disposal.cost_basis).unwrap(),
+            dec!(-250)
+        );
+        assert_eq!(
+            Decimal::from_str(&expiry_disposal.realized_pnl).unwrap(),
+            dec!(250)
+        );
+    }
+
+    #[test]
+    fn test_transfer_in_partial_cover_prorates_residual_lot_taxes() {
+        let option_symbol = "AAPL250321P00150000";
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+
+        let mut repo = MockAssetRepository::new();
+        repo.add_option_asset(option_symbol, "USD");
+
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
+
+        let open_date_str = "2025-01-02";
+        let transfer_date_str = "2025-06-01";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let transfer_date = NaiveDate::from_str(transfer_date_str).unwrap();
+
+        // Source account opens two long option contracts with acquisition charges,
+        // then transfers both out. The target account has one resident short, so
+        // only half of the incoming lot covers; the other half is added as a new lot.
+        let prev_src = create_initial_snapshot("acc_src", "USD", "2024-12-31");
+        let buy_long = {
+            let mut a = create_default_activity(
+                "buy_taxed_long_opt",
+                ActivityType::Buy,
+                option_symbol,
+                dec!(2),
+                dec!(1),
+                dec!(10),
+                "USD",
+                open_date_str,
+            );
+            a.account_id = "acc_src".to_string();
+            a.tax = Some(dec!(4));
+            a
+        };
+        let result_src_open = calculator
+            .calculate_next_holdings(&prev_src, std::slice::from_ref(&buy_long), open_date)
+            .unwrap();
+        let pos_src = result_src_open
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("source account should hold long option");
+        assert_eq!(pos_src.quantity, dec!(2));
+        assert_eq!(pos_src.total_cost_basis, dec!(214));
+
+        let transfer_out = create_transfer_activity(
+            "xfer_out_taxed_long_opt",
+            ActivityType::TransferOut,
+            option_symbol,
+            dec!(2),
+            dec!(0),
+            dec!(0),
+            "USD",
+            transfer_date_str,
+            "acc_src",
+            Some("grp_taxed_cover"),
+        );
+        calculator
+            .calculate_next_holdings(&result_src_open.snapshot, &[transfer_out], transfer_date)
+            .unwrap();
+
+        let prev_a = create_initial_snapshot("acc_a", "USD", "2024-12-31");
+        let sell_short = {
+            let mut a = create_default_activity(
+                "sell_to_open_short_opt",
+                ActivityType::Sell,
+                option_symbol,
+                dec!(1),
+                dec!(2.5),
+                dec!(0),
+                "USD",
+                open_date_str,
+            );
+            a.account_id = "acc_a".to_string();
+            a
+        };
+        let result_a_open = calculator
+            .calculate_next_holdings(&prev_a, std::slice::from_ref(&sell_short), open_date)
+            .unwrap();
+
+        let transfer_in = create_transfer_activity(
+            "xfer_in_taxed_long_opt",
+            ActivityType::TransferIn,
+            option_symbol,
+            dec!(2),
+            dec!(0),
+            dec!(0),
+            "USD",
+            transfer_date_str,
+            "acc_a",
+            Some("grp_taxed_cover"),
+        );
+        let result_a_xfer = calculator
+            .calculate_next_holdings(&result_a_open.snapshot, &[transfer_in], transfer_date)
+            .unwrap();
+
+        let pos_a_after = result_a_xfer
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("account A should hold the residual long");
+        assert_eq!(pos_a_after.quantity, dec!(1));
+        assert_eq!(pos_a_after.total_cost_basis, dec!(107));
+        assert_eq!(pos_a_after.lots.len(), 1);
+
+        let residual_lot = &pos_a_after.lots[0];
+        assert_eq!(residual_lot.quantity, dec!(1));
+        assert_eq!(residual_lot.original_quantity, dec!(1));
+        assert_eq!(residual_lot.cost_basis, dec!(107));
+        assert_eq!(residual_lot.acquisition_fees, dec!(5));
+        assert_eq!(residual_lot.original_acquisition_fees, dec!(5));
+        assert_eq!(residual_lot.acquisition_taxes, dec!(2));
+        assert_eq!(residual_lot.original_acquisition_taxes, dec!(2));
+    }
+
+    #[test]
+    fn test_transfer_in_short_covers_resident_long_option_no_mixed_position() {
+        // Mirror of the long-covers-short case: Account A holds a LONG option
+        // (+2). A TRANSFER_IN brings a SHORT (-1) of the same option via cached
+        // lots. The incoming short must COVER one contract of the resident long
+        // FIFO (realizing P/L) rather than creating a mixed-sign position. This
+        // direction exercises the `cover_proceeds.abs()` sign handling: the
+        // covering lots are short (negative cost basis), and the removed resident
+        // lot's effective quantity is positive.
+        let option_symbol = "AAPL250321C00150000";
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+
+        let mut repo = MockAssetRepository::new();
+        repo.add_option_asset(option_symbol, "USD");
+
+        let mut calculator = CalcHarness::new(HoldingsCalculator::new(
+            Arc::new(mock_fx_service),
+            base_currency,
+            Arc::new(repo),
+        ));
+
+        let open_date_str = "2025-01-02";
+        let transfer_date_str = "2025-06-01";
+        let expiry_date_str = "2025-06-02";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let transfer_date = NaiveDate::from_str(transfer_date_str).unwrap();
+        let expiry_date = NaiveDate::from_str(expiry_date_str).unwrap();
+
+        // --- Source account: open a short (-1) and transfer it out to seed the
+        // shared transfer-lots cache under group "grp_cover_long". ---
+        let prev_src = create_initial_snapshot("acc_src", "USD", "2024-12-31");
+        let sell_short_src = {
+            let mut a = create_default_activity(
+                "sell_to_open_short_opt_src",
+                ActivityType::Sell,
+                option_symbol,
+                dec!(1),
+                dec!(1), // 1.00 * 100 = 100 premium → basis -100
+                dec!(0),
+                "USD",
+                open_date_str,
+            );
+            a.account_id = "acc_src".to_string();
+            a
+        };
+        let result_src_open = calculator
+            .calculate_next_holdings(&prev_src, std::slice::from_ref(&sell_short_src), open_date)
+            .unwrap();
+        let pos_src = result_src_open
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("source account should hold short option");
+        assert_eq!(pos_src.quantity, dec!(-1));
+        assert_eq!(pos_src.total_cost_basis, dec!(-100));
+
+        let transfer_out = create_transfer_activity(
+            "xfer_out_short_opt",
+            ActivityType::TransferOut,
+            option_symbol,
+            dec!(1),
+            dec!(0),
+            dec!(0),
+            "USD",
+            transfer_date_str,
+            "acc_src",
+            Some("grp_cover_long"),
+        );
+        calculator
+            .calculate_next_holdings(&result_src_open.snapshot, &[transfer_out], transfer_date)
+            .unwrap();
+
+        // --- Account A: open a long (+2), then receive the short transfer-in. ---
+        let prev_a = create_initial_snapshot("acc_a", "USD", "2024-12-31");
+        let buy_long = {
+            let mut a = create_default_activity(
+                "buy_to_open_long_opt",
+                ActivityType::Buy,
+                option_symbol,
+                dec!(2),
+                dec!(2.5), // 2.50 * 100 = 250 per contract → basis +500
+                dec!(0),
+                "USD",
+                open_date_str,
+            );
+            a.account_id = "acc_a".to_string();
+            a
+        };
+        let result_a_open = calculator
+            .calculate_next_holdings(&prev_a, std::slice::from_ref(&buy_long), open_date)
+            .unwrap();
+        let pos_a = result_a_open
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("account A should hold long option");
+        assert_eq!(pos_a.quantity, dec!(2));
+        assert_eq!(pos_a.total_cost_basis, dec!(500));
+
+        let transfer_in = create_transfer_activity(
+            "xfer_in_short_opt",
+            ActivityType::TransferIn,
+            option_symbol,
+            dec!(1),
+            dec!(0),
+            dec!(0),
+            "USD",
+            transfer_date_str,
+            "acc_a",
+            Some("grp_cover_long"),
+        );
+        let result_a_xfer = calculator
+            .calculate_next_holdings(&result_a_open.snapshot, &[transfer_in], transfer_date)
+            .unwrap();
+
+        let pos_a_after = result_a_xfer
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("account A should still hold the residual long");
+        // Single-signed: the incoming -1 covered one long contract, leaving +1.
+        assert_eq!(pos_a_after.quantity, dec!(1));
+        assert_eq!(pos_a_after.total_cost_basis, dec!(250));
+        assert!(
+            pos_a_after
+                .lots
+                .iter()
+                .all(|lot| lot.quantity > Decimal::ZERO),
+            "position must be single-signed (no short lot left)"
+        );
+
+        // The cover realized P/L on one contract: the long cost 250, "sold" via
+        // the incoming short's 100 basis → realized loss -150. This is the case
+        // the pre-fix `cover_proceeds` got wrong (it produced -350).
+        let disposals = calculator.take_lot_disposals("acc_a", "FIFO");
+        assert_eq!(disposals.len(), 1);
+        let disposal = &disposals[0];
+        assert_eq!(disposal.disposal_activity_id, "xfer_in_short_opt");
+        assert_eq!(Decimal::from_str(&disposal.quantity).unwrap(), dec!(1));
+        assert_eq!(Decimal::from_str(&disposal.proceeds).unwrap(), dec!(100));
+        assert_eq!(Decimal::from_str(&disposal.cost_basis).unwrap(), dec!(250));
+        assert_eq!(
+            Decimal::from_str(&disposal.realized_pnl).unwrap(),
+            dec!(-150)
+        );
+
+        // --- A later OPTION_EXPIRY reduces the residual long leg to zero. ---
+        let mut expiry = create_default_activity(
+            "expire_residual_long",
+            ActivityType::Adjustment,
+            option_symbol,
+            dec!(1),
+            Decimal::ZERO,
+            Decimal::ZERO,
+            "USD",
+            expiry_date_str,
+        );
+        expiry.subtype = Some(crate::activities::ACTIVITY_SUBTYPE_OPTION_EXPIRY.to_string());
+        let result_a_expiry = calculator
+            .calculate_next_holdings(&result_a_xfer.snapshot, &[expiry], expiry_date)
+            .unwrap();
+        let pos_a_expired = result_a_expiry
+            .snapshot
+            .positions
+            .get(option_symbol)
+            .expect("closed position shell should remain");
+        assert_eq!(pos_a_expired.quantity, Decimal::ZERO);
+        assert_eq!(pos_a_expired.total_cost_basis, Decimal::ZERO);
+
+        let expiry_disposals = calculator.take_lot_disposals("acc_a", "FIFO");
+        assert_eq!(expiry_disposals.len(), 1);
+        let expiry_disposal = &expiry_disposals[0];
+        assert_eq!(expiry_disposal.disposal_activity_id, "expire_residual_long");
+        assert_eq!(
+            Decimal::from_str(&expiry_disposal.cost_basis).unwrap(),
+            dec!(250)
+        );
+        // Long option expires worthless: lose the full +250 cost basis.
+        assert_eq!(
+            Decimal::from_str(&expiry_disposal.realized_pnl).unwrap(),
+            dec!(-250)
+        );
+    }
+
+    #[test]
+    fn test_short_stock_transfer_preserves_signed_lot() {
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let open_date_str = "2026-06-26";
+        let transfer_date_str = "2026-06-27";
+        let open_date = NaiveDate::from_str(open_date_str).unwrap();
+        let transfer_date = NaiveDate::from_str(transfer_date_str).unwrap();
+
+        let prev_a = create_initial_snapshot("acc_a", "USD", "2026-06-25");
+        let mut open_short = create_default_activity(
+            "sell_short_stock_before_transfer",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(4),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            open_date_str,
+        );
+        open_short.account_id = "acc_a".to_string();
+        open_short.subtype = Some("SELL_SHORT".to_string());
+
+        let result_a_open = calculator
+            .calculate_next_holdings(&prev_a, &[open_short], open_date)
+            .unwrap();
+        let pos_a = result_a_open
+            .snapshot
+            .positions
+            .get("AAPL")
+            .expect("Account A should have short stock position");
+        assert_eq!(pos_a.quantity, dec!(-4));
+        assert_eq!(pos_a.total_cost_basis, dec!(-400));
+
+        let transfer_out = create_transfer_activity(
+            "xfer_out_short_stock",
+            ActivityType::TransferOut,
+            "AAPL",
+            dec!(4),
+            Decimal::ZERO,
+            Decimal::ZERO,
+            "USD",
+            transfer_date_str,
+            "acc_a",
+            Some("grp_short_stock"),
+        );
+        let result_a_xfer = calculator
+            .calculate_next_holdings(&result_a_open.snapshot, &[transfer_out], transfer_date)
+            .unwrap();
+        let pos_a_after = result_a_xfer.snapshot.positions.get("AAPL");
+        assert!(pos_a_after.is_none_or(|position| position.quantity == Decimal::ZERO));
+
+        let transfer_disposals = calculator.take_lot_disposals("acc_a", "FIFO");
+        assert_eq!(transfer_disposals.len(), 1);
+        let transfer_disposal = &transfer_disposals[0];
+        assert_eq!(
+            transfer_disposal.disposal_activity_id,
+            "xfer_out_short_stock"
+        );
+        assert_eq!(
+            Decimal::from_str(&transfer_disposal.quantity).unwrap(),
+            dec!(-4)
+        );
+        assert_eq!(
+            Decimal::from_str(&transfer_disposal.proceeds).unwrap(),
+            dec!(-400)
+        );
+        assert_eq!(
+            Decimal::from_str(&transfer_disposal.cost_basis).unwrap(),
+            dec!(-400)
+        );
+        assert_eq!(
+            Decimal::from_str(&transfer_disposal.realized_pnl).unwrap(),
+            Decimal::ZERO
+        );
+
+        let prev_b = create_initial_snapshot("acc_b", "USD", "2026-06-26");
+        let transfer_in = create_transfer_activity(
+            "xfer_in_short_stock",
+            ActivityType::TransferIn,
+            "AAPL",
+            dec!(4),
+            Decimal::ZERO,
+            Decimal::ZERO,
+            "USD",
+            transfer_date_str,
+            "acc_b",
+            Some("grp_short_stock"),
+        );
+        let result_b = calculator
+            .calculate_next_holdings(&prev_b, &[transfer_in], transfer_date)
+            .unwrap();
+
+        let pos_b = result_b
+            .snapshot
+            .positions
+            .get("AAPL")
+            .expect("Account B should have transferred short stock position");
+
+        assert_eq!(pos_b.quantity, dec!(-4));
+        assert_eq!(pos_b.total_cost_basis, dec!(-400));
+        assert_eq!(pos_b.average_cost, dec!(100));
+        assert_eq!(pos_b.lots.len(), 1);
+        assert_eq!(pos_b.lots[0].quantity, dec!(-4));
+        assert_eq!(pos_b.lots[0].cost_basis, dec!(-400));
+    }
+
+    // =====================================================================
+    // Atomicity contract (Phase 1 of the holdings-calculator refactor).
+    //
+    // These pin the all-or-nothing rule: a handler that returns Err must
+    // leave NO partial mutation behind — cash, lots, and disposals included.
+    // The only side effect of a failed activity is a warning in the result.
+    //
+    // The deterministically reachable bug today is in `handle_sell`, which
+    // books cash via `add_cash` BEFORE the fallible FX conversion of the
+    // proceeds into the position currency. With the position quoted in a
+    // different currency than the SELL and no FX rate available, the
+    // conversion errors *after* cash is already booked.
+    //
+    // `*_books_no_spurious_cash` / `*_isolated_from_later_activity` are
+    // RED today (they assert the post-fix behavior) and go green in Phase 2.
+    // `cash_only_sell_*` is GREEN today and guards Phase 2 against
+    // over-rollback of intentional cash-only `Ok` paths.
+    // =====================================================================
+
+    /// Builds an EUR account holding 10 EUR-listed shares (ADS.DE), with an
+    /// FX service that has no USD<->EUR rate. A later SELL priced in USD will
+    /// book USD cash and then fail converting the proceeds into EUR.
+    fn eur_account_with_long_position_and_no_usd_rate() -> (CalcHarness, AccountStateSnapshot) {
+        let mut calculator = create_calculator(
+            Arc::new(MockFxService::new()),
+            Arc::new(RwLock::new("EUR".to_string())),
+        );
+
+        let mut prev = create_initial_snapshot("acc_1", "EUR", "2024-01-09");
+        prev.cash_balances.insert("EUR".to_string(), dec!(5000));
+        prev.cash_total_account_currency = dec!(5000);
+        prev.cash_total_base_currency = dec!(5000);
+
+        let buy = create_default_activity(
+            "buy_ads",
+            ActivityType::Buy,
+            "ADS.DE",
+            dec!(10),
+            dec!(100),
+            Decimal::ZERO,
+            "EUR",
+            "2024-01-10",
+        );
+        let after_buy = calculator
+            .calculate_next_holdings(&prev, &[buy], NaiveDate::from_str("2024-01-10").unwrap())
+            .expect("EUR buy should succeed")
+            .snapshot;
+
+        (calculator, after_buy)
+    }
+
+    /// A SELL that errors after booking cash must not leave the booked cash,
+    /// must not reduce lots, and must not record a disposal. RED until Phase 2.
+    #[test]
+    fn atomicity_failed_sell_books_no_spurious_cash() {
+        let (mut calculator, after_buy) = eur_account_with_long_position_and_no_usd_rate();
+
+        // SELL priced in USD with no fx_rate; USD->EUR conversion has no rate.
+        let bad_sell = create_default_activity(
+            "sell_usd_no_rate",
+            ActivityType::Sell,
+            "ADS.DE",
+            dec!(5),
+            dec!(120),
+            Decimal::ZERO,
+            "USD",
+            "2024-02-10",
+        );
+        let result = calculator
+            .calculate_next_holdings(
+                &after_buy,
+                &[bad_sell],
+                NaiveDate::from_str("2024-02-10").unwrap(),
+            )
+            .expect("run loop swallows the activity error into a warning");
+
+        // The failure surfaces only as a warning.
+        assert_eq!(result.warnings.len(), 1, "expected exactly one warning");
+
+        // No spurious USD cash booked from the failed SELL.
+        let usd_cash = result
+            .snapshot
+            .cash_balances
+            .get("USD")
+            .copied()
+            .unwrap_or(Decimal::ZERO);
+        assert_eq!(
+            usd_cash,
+            Decimal::ZERO,
+            "failed SELL must not leave booked USD cash (partial mutation)"
+        );
+
+        // Position is untouched: still 10 long shares.
+        let pos = result
+            .snapshot
+            .positions
+            .get("ADS.DE")
+            .expect("position should still exist");
+        assert_eq!(pos.quantity, dec!(10), "lots must not be reduced");
+
+        // No disposal recorded for the failed activity.
+        let disposals = calculator.take_lot_disposals("acc_1", "FIFO");
+        assert!(
+            disposals.is_empty(),
+            "failed SELL must not record a disposal"
+        );
+    }
+
+    /// A failed activity must not corrupt other activities processed the same
+    /// day; only its own effects are dropped. RED until Phase 2.
+    #[test]
+    fn atomicity_failed_sell_isolated_from_later_activity() {
+        let (mut calculator, after_buy) = eur_account_with_long_position_and_no_usd_rate();
+
+        let bad_sell = create_default_activity(
+            "sell_usd_no_rate",
+            ActivityType::Sell,
+            "ADS.DE",
+            dec!(5),
+            dec!(120),
+            Decimal::ZERO,
+            "USD",
+            "2024-02-10",
+        );
+        // A good EUR deposit on the same day must land fully.
+        let good_deposit = create_cash_activity(
+            "deposit_eur",
+            ActivityType::Deposit,
+            dec!(200),
+            Decimal::ZERO,
+            "EUR",
+            "2024-02-10",
+        );
+
+        let result = calculator
+            .calculate_next_holdings(
+                &after_buy,
+                &[bad_sell, good_deposit],
+                NaiveDate::from_str("2024-02-10").unwrap(),
+            )
+            .expect("run loop continues past the failed activity");
+
+        assert_eq!(result.warnings.len(), 1, "only the SELL should warn");
+
+        // The good deposit applied: 4000 (5000 seed minus the 1000 buy) + 200.
+        assert_eq!(
+            result.snapshot.cash_balances.get("EUR").copied(),
+            Some(dec!(4200)),
+            "later deposit must apply fully"
+        );
+
+        // The failed SELL left no USD residue.
+        let usd_cash = result
+            .snapshot
+            .cash_balances
+            .get("USD")
+            .copied()
+            .unwrap_or(Decimal::ZERO);
+        assert_eq!(
+            usd_cash,
+            Decimal::ZERO,
+            "failed SELL must not leak USD cash into the day's result"
+        );
+    }
+
+    /// Selling a position that does not exist is an INTENTIONAL cash-only
+    /// `Ok` path (not a failure). Phase 2 must keep applying the cash effect
+    /// and must not roll it back. GREEN today — a guard against over-rollback.
+    #[test]
+    fn atomicity_cash_only_sell_of_unknown_position_stays_ok() {
+        let mut calculator = create_calculator(
+            Arc::new(MockFxService::new()),
+            Arc::new(RwLock::new("USD".to_string())),
+        );
+
+        let mut prev = create_initial_snapshot("acc_1", "USD", "2024-01-09");
+        prev.cash_balances.insert("USD".to_string(), dec!(1000));
+        prev.cash_total_account_currency = dec!(1000);
+        prev.cash_total_base_currency = dec!(1000);
+
+        // No AAPL position exists; SELL applies cash-only and returns Ok.
+        let sell = create_default_activity(
+            "sell_no_position",
+            ActivityType::Sell,
+            "AAPL",
+            dec!(5),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            "2024-02-10",
+        );
+        let result = calculator
+            .calculate_next_holdings(&prev, &[sell], NaiveDate::from_str("2024-02-10").unwrap())
+            .expect("cash-only sell returns Ok");
+
+        assert!(
+            result.warnings.is_empty(),
+            "intentional cash-only sell is not a failure"
+        );
+        assert_eq!(
+            result.snapshot.cash_balances.get("USD").copied(),
+            Some(dec!(1500)),
+            "cash-only sell must still apply proceeds (1000 + 500)"
+        );
+        assert!(
+            !result.snapshot.positions.contains_key("AAPL"),
+            "no position should be created"
+        );
     }
 }

@@ -46,14 +46,16 @@ impl std::fmt::Display for CookieSecurePolicy {
 
 #[derive(Clone)]
 pub struct AuthConfig {
-    pub password_hash: String,
+    /// `None` when only OIDC is configured: the manager still signs sessions
+    /// but password login is disabled.
+    pub password_hash: Option<String>,
     pub jwt_secret: Vec<u8>,
     pub access_token_ttl: Duration,
     pub cookie_secure: CookieSecurePolicy,
 }
 
 pub struct AuthManager {
-    password_hash: String,
+    password_hash: Option<String>,
     encoding_key: EncodingKey,
     decoding_key: DecodingKey,
     validation: Validation,
@@ -98,18 +100,21 @@ pub struct LoginResponse {
 #[serde(rename_all = "camelCase")]
 pub struct AuthStatusResponse {
     pub requires_password: bool,
+    pub oidc_enabled: bool,
 }
 
 impl AuthManager {
     pub fn new(config: &AuthConfig) -> anyhow::Result<Self> {
-        PasswordHash::new(&config.password_hash).map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to parse WF_AUTH_PASSWORD_HASH: {e}. \
-                 The hash must be a valid Argon2id PHC string starting with '$argon2id$'. \
-                 If using Docker Compose .env/--env-file, single-quote it or double every '$'. \
-                 If using Docker Compose YAML, double every '$' (e.g. '$$argon2id$$v=19$$...')."
-            )
-        })?;
+        if let Some(password_hash) = &config.password_hash {
+            PasswordHash::new(password_hash).map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to parse WF_AUTH_PASSWORD_HASH: {e}. \
+                     The hash must be a valid Argon2id PHC string starting with '$argon2id$'. \
+                     If using Docker Compose .env/--env-file, single-quote it or double every '$'. \
+                     If using Docker Compose YAML, double every '$' (e.g. '$$argon2id$$v=19$$...')."
+                )
+            })?;
+        }
         let encoding_key = EncodingKey::from_secret(&config.jwt_secret);
         let decoding_key = DecodingKey::from_secret(&config.jwt_secret);
         let mut validation = Validation::new(Algorithm::HS256);
@@ -124,8 +129,17 @@ impl AuthManager {
         })
     }
 
+    /// Whether password login is enabled (a hash is configured).
+    pub fn has_password(&self) -> bool {
+        self.password_hash.is_some()
+    }
+
     pub fn verify_password(&self, candidate: &str) -> Result<(), AuthError> {
-        let parsed = PasswordHash::new(&self.password_hash).map_err(|e| {
+        let password_hash = self
+            .password_hash
+            .as_ref()
+            .ok_or(AuthError::NotConfigured)?;
+        let parsed = PasswordHash::new(password_hash).map_err(|e| {
             AuthError::Internal(format!("Invalid password hash configuration: {e}"))
         })?;
         Argon2::default()
@@ -175,6 +189,16 @@ impl AuthManager {
 
     pub fn expires_in(&self) -> Duration {
         self.token_ttl
+    }
+
+    /// Mints a fresh session JWT and builds the `Set-Cookie` value for it.
+    /// Shared by password login and OIDC callback so both yield the same session.
+    /// Returns `(set_cookie_value, ttl_secs)`.
+    pub fn issue_session_cookie(&self, headers: &HeaderMap) -> Result<(String, u64), AuthError> {
+        let token = self.issue_token()?;
+        let ttl_secs = self.expires_in().as_secs();
+        let cookie = build_session_cookie(&token, ttl_secs, self.should_secure_cookie(headers));
+        Ok((cookie, ttl_secs))
     }
 
     /// Resolve whether the `Secure` cookie attribute should be set for this request.
@@ -259,6 +283,12 @@ fn build_session_cookie(token: &str, max_age_secs: u64, secure: bool) -> String 
     )
 }
 
+/// Builds a `Set-Cookie` value that immediately clears the session cookie.
+/// Shared by password logout and OIDC logout so both expire the same cookie.
+pub fn clear_session_cookie(secure: bool) -> String {
+    build_session_cookie("", 0, secure)
+}
+
 pub async fn login(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     headers: HeaderMap,
@@ -266,9 +296,7 @@ pub async fn login(
 ) -> Result<Response, AuthError> {
     let auth = state.auth.as_ref().ok_or(AuthError::NotConfigured)?.clone();
     auth.verify_password(&payload.password)?;
-    let token = auth.issue_token()?;
-    let ttl_secs = auth.expires_in().as_secs();
-    let cookie_value = build_session_cookie(&token, ttl_secs, auth.should_secure_cookie(&headers));
+    let (cookie_value, ttl_secs) = auth.issue_session_cookie(&headers)?;
 
     let body = LoginResponse {
         authenticated: true,
@@ -289,7 +317,7 @@ pub async fn logout(State(state): State<Arc<AppState>>, headers: HeaderMap) -> R
         .auth
         .as_ref()
         .is_some_and(|a| a.should_secure_cookie(&headers));
-    let cookie_value = build_session_cookie("", 0, secure);
+    let cookie_value = clear_session_cookie(secure);
     let mut response = StatusCode::NO_CONTENT.into_response();
     if let Ok(val) = HeaderValue::from_str(&cookie_value) {
         response.headers_mut().insert(SET_COOKIE, val);
@@ -313,7 +341,8 @@ pub async fn auth_status(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> Json<AuthStatusResponse> {
     Json(AuthStatusResponse {
-        requires_password: state.auth.is_some(),
+        requires_password: state.auth.as_ref().is_some_and(|auth| auth.has_password()),
+        oidc_enabled: state.oidc.is_some(),
     })
 }
 
@@ -397,7 +426,9 @@ mod tests {
 
     fn make_manager(policy: CookieSecurePolicy) -> AuthManager {
         let config = AuthConfig {
-            password_hash: "$argon2i$v=19$m=16,t=2,p=1$MTIzMjMyMzIz$/5nvsvwbwLNOxDtDae5XMQ".into(),
+            password_hash: Some(
+                "$argon2i$v=19$m=16,t=2,p=1$MTIzMjMyMzIz$/5nvsvwbwLNOxDtDae5XMQ".into(),
+            ),
             jwt_secret: vec![0u8; 32],
             access_token_ttl: Duration::from_secs(3600),
             cookie_secure: policy,

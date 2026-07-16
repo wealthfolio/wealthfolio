@@ -86,7 +86,9 @@ impl AccountRepositoryTrait for AccountRepository {
                 account_db.platform_id = existing.platform_id;
                 account_db.provider = existing.provider;
                 account_db.account_number = existing.account_number;
-                account_db.meta = existing.meta;
+                if account_db.meta.is_none() {
+                    account_db.meta = existing.meta;
+                }
 
                 // Preserve is_archived and tracking_mode if not explicitly provided
                 if !is_archived_provided {
@@ -192,7 +194,7 @@ impl AccountRepositoryTrait for AccountRepository {
     /// Deletes an account by its ID and returns the number of deleted records
     async fn delete(&self, account_id_param: &str) -> Result<usize> {
         let id_to_delete_owned = account_id_param.to_string();
-        let event_entity_id = id_to_delete_owned.clone();
+        let event_subject_id = id_to_delete_owned.clone();
         self.writer
             .exec_tx(move |tx| {
                 let affected_rows = diesel::delete(accounts.find(id_to_delete_owned))
@@ -200,7 +202,7 @@ impl AccountRepositoryTrait for AccountRepository {
                     .map_err(StorageError::from)?;
 
                 if affected_rows > 0 {
-                    tx.delete::<AccountDB>(event_entity_id.clone());
+                    tx.delete::<AccountDB>(event_subject_id.clone());
                 }
                 Ok(affected_rows)
             })

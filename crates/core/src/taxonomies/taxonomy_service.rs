@@ -5,6 +5,7 @@ use std::{collections::HashSet, sync::Arc};
 use uuid::Uuid;
 
 use crate::errors::{DatabaseError, ValidationError};
+use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::Result;
 
 use super::{
@@ -15,11 +16,32 @@ use super::{
 
 pub struct TaxonomyService {
     repository: Arc<dyn TaxonomyRepositoryTrait>,
+    event_sink: Arc<dyn DomainEventSink>,
 }
 
 impl TaxonomyService {
     pub fn new(repository: Arc<dyn TaxonomyRepositoryTrait>) -> Self {
-        Self { repository }
+        Self {
+            repository,
+            event_sink: Arc::new(NoOpDomainEventSink),
+        }
+    }
+
+    pub fn with_event_sink(mut self, event_sink: Arc<dyn DomainEventSink>) -> Self {
+        self.event_sink = event_sink;
+        self
+    }
+
+    fn emit_asset_classifications_changed(
+        &self,
+        asset_ids: Vec<String>,
+        taxonomy_ids: Vec<String>,
+    ) {
+        self.event_sink
+            .emit(DomainEvent::asset_classifications_changed(
+                asset_ids,
+                taxonomy_ids,
+            ));
     }
 
     /// Recursively flatten category JSON into NewCategory records
@@ -377,6 +399,9 @@ impl TaxonomyServiceTrait for TaxonomyService {
         &self,
         assignment: NewAssetTaxonomyAssignment,
     ) -> Result<AssetTaxonomyAssignment> {
+        let asset_id = assignment.asset_id.clone();
+        let taxonomy_id = assignment.taxonomy_id.clone();
+
         // Check if taxonomy is single-select
         if let Some(taxonomy) = self.repository.get_taxonomy(&assignment.taxonomy_id)? {
             if taxonomy.is_single_select {
@@ -387,7 +412,9 @@ impl TaxonomyServiceTrait for TaxonomyService {
             }
         }
 
-        self.repository.upsert_assignment(assignment).await
+        let created = self.repository.upsert_assignment(assignment).await?;
+        self.emit_asset_classifications_changed(vec![asset_id], vec![taxonomy_id]);
+        Ok(created)
     }
 
     async fn replace_asset_taxonomy_assignments(
@@ -397,12 +424,22 @@ impl TaxonomyServiceTrait for TaxonomyService {
         assignments: Vec<NewAssetTaxonomyAssignment>,
     ) -> Result<Vec<AssetTaxonomyAssignment>> {
         self.validate_asset_assignment_replacement(asset_id, taxonomy_id, &assignments)?;
-        self.repository
+        let replaced = self
+            .repository
             .replace_asset_assignments(asset_id, taxonomy_id, assignments)
-            .await
+            .await?;
+        self.emit_asset_classifications_changed(
+            vec![asset_id.to_string()],
+            vec![taxonomy_id.to_string()],
+        );
+        Ok(replaced)
     }
 
     async fn remove_asset_assignment(&self, id: &str) -> Result<usize> {
-        self.repository.delete_assignment(id).await
+        let deleted = self.repository.delete_assignment(id).await?;
+        if deleted > 0 {
+            self.emit_asset_classifications_changed(Vec::new(), Vec::new());
+        }
+        Ok(deleted)
     }
 }

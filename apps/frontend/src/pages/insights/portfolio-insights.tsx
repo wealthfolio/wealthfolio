@@ -8,33 +8,40 @@ import { Icons } from "@wealthfolio/ui";
 import { Card, CardContent, CardHeader } from "@wealthfolio/ui/components/ui/card";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Suspense, useMemo, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { OverviewPage } from "./overview/overview-page";
 
 // Loading skeleton to show while the dashboard is loading
-const DashboardLoader = () => (
-  <div className="flex h-full w-full flex-col space-y-4 p-4">
-    <Card>
-      <CardHeader className="space-y-2">
-        <Skeleton className="h-8 w-3/4" />
-        <Skeleton className="h-4 w-1/2" />
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-3">
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
-        </div>
-        <Skeleton className="h-64 w-full" />
-      </CardContent>
-    </Card>
-    <div className="flex items-center justify-center py-8">
-      <span className="text-muted-foreground text-sm">Loading dashboard...</span>
+const DashboardLoader = () => {
+  const { t } = useTranslation();
+  return (
+    <div className="flex h-full w-full flex-col space-y-4 p-4">
+      <Card>
+        <CardHeader className="space-y-2">
+          <Skeleton className="h-8 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+          <Skeleton className="h-64 w-full" />
+        </CardContent>
+      </Card>
+      <div className="flex items-center justify-center py-8">
+        <span className="text-muted-foreground text-sm">
+          {t("insights:insights.loading_dashboard")}
+        </span>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default function PortfolioInsightsPage() {
+  const { t } = useTranslation();
   const [accountFilter, setAccountScope] = usePersistentState<AccountScope>('insights:account-scope', { type: "all" });
   const [overviewToolbarActions, setOverviewToolbarActions] = useState<ReactNode | null>(null);
 
@@ -51,7 +58,7 @@ export default function PortfolioInsightsPage() {
     () => [
       {
         value: "overview",
-        label: "Overview",
+        label: t("insights:insights.tab_overview"),
         icon: Icons.PieChart,
         content: (
           <Suspense fallback={<DashboardLoader />}>
@@ -66,7 +73,7 @@ export default function PortfolioInsightsPage() {
       },
       {
         value: "performance",
-        label: "Performance",
+        label: t("insights:insights.tab_performance"),
         icon: Icons.TrendingUp,
         content: (
           <Suspense fallback={<DashboardLoader />}>
@@ -76,7 +83,7 @@ export default function PortfolioInsightsPage() {
       },
       {
         value: "income",
-        label: "Income",
+        label: t("insights:insights.tab_income"),
         icon: Icons.HandCoins,
         content: (
           <Suspense fallback={<DashboardLoader />}>
@@ -85,7 +92,7 @@ export default function PortfolioInsightsPage() {
         ),
       },
     ],
-    [accountFilter, holdingsActions],
+    [accountFilter, holdingsActions, t],
   );
 
   return <SwipablePage views={views} defaultView="overview" withPadding={true} />;

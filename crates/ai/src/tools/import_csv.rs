@@ -66,7 +66,7 @@ use wealthfolio_core::activities::{
     import_type, into_field_mapping_values, FieldMappingValue, ImportMappingData, ParseConfig,
 };
 
-use super::record_activity::AccountOption;
+use super::AccountOption;
 use crate::env::AiEnvironment;
 use crate::error::AiError;
 

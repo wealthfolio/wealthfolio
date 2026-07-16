@@ -1,6 +1,7 @@
 use std::{net::SocketAddr, time::Duration};
 
 use crate::auth::{decode_secret_key, derive_keys, AuthConfig, CookieSecurePolicy};
+use crate::oidc::OidcConfig;
 
 pub struct Config {
     pub listen_addr: SocketAddr,
@@ -13,7 +14,23 @@ pub struct Config {
     pub raw_secret_key: Vec<u8>,
     /// HKDF-derived key for secrets encryption
     pub secrets_encryption_key: [u8; 32],
+    /// Session-signing config. Present when password login OR OIDC is configured.
     pub auth: Option<AuthConfig>,
+    /// OIDC SSO config. Present when `WF_OIDC_ISSUER_URL` + `WF_OIDC_CLIENT_ID` are set.
+    pub oidc: Option<OidcConfig>,
+    /// Expose the `/mcp` endpoint (WF_MCP_ENABLED, default false).
+    pub mcp_enabled: bool,
+    /// Write agent tool calls to the audit log (WF_MCP_AUDIT_ENABLED,
+    /// default true).
+    pub mcp_audit_enabled: bool,
+    /// Allowed `Host` header values for `/mcp` (WF_MCP_ALLOWED_HOSTS,
+    /// comma-separated). `None` disables Host validation: rmcp's default
+    /// allowlist is loopback-only and would break any deployment behind a
+    /// reverse proxy / domain. Disabling is safe here because `/mcp` is
+    /// guarded by PAT bearer auth (browsers cannot attach Authorization
+    /// headers cross-site, so DNS rebinding gains nothing). Deployments
+    /// that want strict Host pinning set WF_MCP_ALLOWED_HOSTS explicitly.
+    pub mcp_allowed_hosts: Option<Vec<String>>,
 }
 
 impl Config {
@@ -54,34 +71,56 @@ impl Config {
                 .to_string_lossy()
                 .into_owned()
         });
-        let auth = std::env::var("WF_AUTH_PASSWORD_HASH")
+        let password_hash = std::env::var("WF_AUTH_PASSWORD_HASH")
             .ok()
             .map(|hash| hash.trim().to_string())
-            .filter(|hash| !hash.is_empty())
-            .map(|password_hash| {
-                let ttl_minutes = std::env::var("WF_AUTH_TOKEN_TTL_MINUTES")
-                    .ok()
-                    .and_then(|value| value.parse::<u64>().ok())
-                    .filter(|value| *value > 0)
-                    .unwrap_or(60);
-                let cookie_secure_raw =
-                    std::env::var("WF_COOKIE_SECURE").unwrap_or_else(|_| "auto".into());
-                let cookie_secure = match cookie_secure_raw.trim().to_ascii_lowercase().as_str() {
-                    "auto" => CookieSecurePolicy::Auto,
-                    "true" | "1" | "yes" => CookieSecurePolicy::Always,
-                    "false" | "0" | "no" => CookieSecurePolicy::Never,
-                    other => panic!(
-                        "Invalid WF_COOKIE_SECURE value: \"{other}\". \
-                         Expected one of: auto, true, false"
-                    ),
-                };
-                AuthConfig {
-                    password_hash,
-                    jwt_secret: jwt_key.to_vec(),
-                    access_token_ttl: Duration::from_secs(ttl_minutes.saturating_mul(60)),
-                    cookie_secure,
-                }
-            });
+            .filter(|hash| !hash.is_empty());
+
+        let oidc = OidcConfig::from_env();
+
+        // The session signer is needed whenever ANY auth method is enabled.
+        let auth = if password_hash.is_some() || oidc.is_some() {
+            let ttl_minutes = std::env::var("WF_AUTH_TOKEN_TTL_MINUTES")
+                .ok()
+                .and_then(|value| value.parse::<u64>().ok())
+                .filter(|value| *value > 0)
+                .unwrap_or(60);
+            let cookie_secure_raw =
+                std::env::var("WF_COOKIE_SECURE").unwrap_or_else(|_| "auto".into());
+            let cookie_secure = match cookie_secure_raw.trim().to_ascii_lowercase().as_str() {
+                "auto" => CookieSecurePolicy::Auto,
+                "true" | "1" | "yes" => CookieSecurePolicy::Always,
+                "false" | "0" | "no" => CookieSecurePolicy::Never,
+                other => panic!(
+                    "Invalid WF_COOKIE_SECURE value: \"{other}\". \
+                     Expected one of: auto, true, false"
+                ),
+            };
+            Some(AuthConfig {
+                password_hash,
+                jwt_secret: jwt_key.to_vec(),
+                access_token_ttl: Duration::from_secs(ttl_minutes.saturating_mul(60)),
+                cookie_secure,
+            })
+        } else {
+            None
+        };
+        let mcp_enabled = std::env::var("WF_MCP_ENABLED")
+            .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "true" | "1" | "yes"))
+            .unwrap_or(false);
+        let mcp_audit_enabled = std::env::var("WF_MCP_AUDIT_ENABLED")
+            .map(|v| !matches!(v.trim().to_ascii_lowercase().as_str(), "false" | "0" | "no"))
+            .unwrap_or(true);
+        let mcp_allowed_hosts: Option<Vec<String>> = std::env::var("WF_MCP_ALLOWED_HOSTS")
+            .ok()
+            .map(|s| {
+                s.split(',')
+                    .map(|h| h.trim().to_string())
+                    .filter(|h| !h.is_empty())
+                    .collect::<Vec<_>>()
+            })
+            .filter(|hosts| !hosts.is_empty());
+
         // When auth is enabled, wildcard CORS is incompatible with credentials
         if auth.is_some() && cors_allow.iter().any(|o| o == "*") {
             panic!(
@@ -114,6 +153,22 @@ impl Config {
             }
         }
 
+        // Fail-closed for MCP: the agent-access API that mints Personal
+        // Access Tokens must never be reachable unauthenticated off-host.
+        // There is no WF_AUTH_REQUIRED escape hatch here — server MCP has
+        // no trusted reverse proxy bypass.
+        if mcp_enabled && auth.is_none() && !listen_addr.ip().is_loopback() {
+            panic!(
+                "Refusing to start: WF_MCP_ENABLED=true while listening on non-loopback \
+                 address {listen_addr} without authentication.\n\
+                 \n\
+                 Personal Access Tokens are created through the JWT-protected agent-access \
+                 API; without authentication anyone reaching this server could mint one.\n\
+                 Set WF_AUTH_PASSWORD_HASH, bind a loopback address, or set \
+                 WF_MCP_ENABLED=false."
+            );
+        }
+
         Self {
             listen_addr,
             db_path,
@@ -124,6 +179,10 @@ impl Config {
             raw_secret_key,
             secrets_encryption_key,
             auth,
+            oidc,
+            mcp_enabled,
+            mcp_audit_enabled,
+            mcp_allowed_hosts,
         }
     }
 }

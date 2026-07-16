@@ -1,0 +1,209 @@
+{
+  "section": {
+    "deviceSync": "Gerätesynchronisierung",
+    "connectedDevices": "Verbundene Geräte",
+    "otherConnectedDevices": "Andere verbundene Geräte",
+    "manageDevices": "Geräte verwalten",
+    "options": "Optionen",
+    "deviceActions": "Geräteaktionen"
+  },
+  "setup": {
+    "cardDescription": "Synchronisieren Sie Ihre Daten sicher über alle Ihre Geräte.",
+    "connectToSync": "Dieses Gerät zum Synchronisieren verbinden",
+    "keepInSync": "Halten Sie Ihre Geräte synchron",
+    "foundOtherDevices": "Andere verbundene Geräte wurden in Ihrem Konto gefunden. Fahren Sie fort, um dieses Gerät zu verbinden.",
+    "encryptedInfo": "Ihre Daten sind Ende-zu-Ende-verschlüsselt. Nur Ihre Geräte können sie lesen.",
+    "morePreview": "+{{count}} weitere",
+    "settingUp": "Wird eingerichtet...",
+    "connectThisDevice": "Dieses Gerät verbinden",
+    "enableDeviceSync": "Gerätesynchronisierung aktivieren"
+  },
+  "status": {
+    "syncError": "Synchronisierungsfehler",
+    "syncPaused": "Synchronisierung pausiert",
+    "synced": "Synchronisiert",
+    "syncing": "Synchronisierung läuft",
+    "connected": "Verbunden",
+    "needsSetup": "Einrichtung erforderlich",
+    "revoked": "Widerrufen",
+    "notConnected": "Nicht verbunden",
+    "online": "Online",
+    "never": "Nie",
+    "minutesAgo": "vor {{count}} Min.",
+    "hoursAgo": "vor {{count}} Std.",
+    "daysAgo": "vor {{count}} T.",
+    "thisDevice": "Dieses Gerät",
+    "thisDeviceSuffix": "· Dieses Gerät"
+  },
+  "engine": {
+    "pauseSync": "Synchronisierung pausieren",
+    "resumeSync": "Synchronisierung fortsetzen",
+    "updating": "Wird aktualisiert...",
+    "backgroundPaused": "Hintergrundsynchronisierung pausiert",
+    "backgroundResumed": "Hintergrundsynchronisierung fortgesetzt",
+    "updateFailed": "Aktualisierung der Hintergrundsynchronisierung fehlgeschlagen"
+  },
+  "errorState": {
+    "failedToInitialize": "Initialisierung der Gerätesynchronisierung fehlgeschlagen.",
+    "initializationFailed": "Initialisierung fehlgeschlagen",
+    "failedToLoadDevices": "Geräte konnten nicht geladen werden",
+    "tryRefreshing": "Bitte aktualisieren Sie."
+  },
+  "stale": {
+    "keysNeedUpdating": "Schlüssel müssen aktualisiert werden",
+    "keysNeedUpdatingDescription": "Die Sicherheitseinstellungen wurden auf einem anderen Gerät geändert. Verbinden Sie dieses Gerät erneut, um die Synchronisierung fortzusetzen.",
+    "updateThisDevice": "Dieses Gerät aktualisieren"
+  },
+  "orphaned": {
+    "restoreTitle": "Dieses Gerät zur Wiederherstellung der Synchronisierung verwenden",
+    "restoreDescription": "Kein anderes verbundenes Gerät ist verfügbar. Wir starten die Synchronisierung mit den bereits auf diesem Gerät vorhandenen Daten neu.",
+    "confirmDescription": "Wir starten die Synchronisierung mit den bereits auf diesem Gerät vorhandenen Daten neu.",
+    "restarting": "Wird neu gestartet..."
+  },
+  "untrusted": {
+    "notConnectedYet": "Dieses Gerät ist noch nicht verbunden",
+    "enterCodeFromDevices_one": "Geben Sie den Code Ihres {{count}} anderen verbundenen Geräts ein.",
+    "enterCodeFromDevices_other": "Geben Sie den Code eines Ihrer {{count}} anderen verbundenen Geräte ein.",
+    "enterCodeGeneric": "Geben Sie den Code Ihres anderen verbundenen Geräts ein, um Ihre Daten zu synchronisieren.",
+    "connectThisDevice": "Dieses Gerät verbinden",
+    "connectToStartSyncing": "Verbinden Sie dieses Gerät, um mit der Synchronisierung zu beginnen."
+  },
+  "connect": {
+    "connectAnotherDevice": "Weiteres Gerät verbinden",
+    "connectThisDevice": "Dieses Gerät verbinden",
+    "pair": "Koppeln",
+    "unpair": "Entkoppeln",
+    "revoke": "Widerrufen",
+    "rename": "Umbenennen",
+    "disconnect": "Trennen"
+  },
+  "waitingSnapshot": {
+    "otherDeviceFinishing": "Ihr anderes Gerät schließt die Einrichtung noch ab.",
+    "setupAlmostDone": "Ihre Einrichtung ist fast abgeschlossen.",
+    "trustedHint": "Sie können den Vorgang jetzt beschleunigen oder warten, und wir setzen ihn automatisch im Hintergrund fort.",
+    "untrustedHint": "Bitte schließen Sie zuerst die Einrichtung auf Ihrem anderen verbundenen Gerät ab. Diese Seite wird automatisch aktualisiert.",
+    "checking": "Wird geprüft...",
+    "checkAgain": "Erneut prüfen",
+    "preparing": "Wird vorbereitet...",
+    "speedUpSetup": "Einrichtung beschleunigen"
+  },
+  "bootstrap": {
+    "inProgress": "Synchronisierungsinitialisierung läuft...",
+    "hasDataTitle": "Dieses Gerät enthält bereits Daten",
+    "hasDataDescription": "Um die Synchronisierung abzuschließen, werden die Daten auf diesem Gerät durch die Daten Ihres anderen Geräts ersetzt.",
+    "continue": "Fortfahren",
+    "waitingOtherDeviceTitle": "Warten auf Ihr anderes Gerät",
+    "waitingOtherDeviceDescription": "Wir schließen die Synchronisierung ab, sobald eine neue Momentaufnahme verfügbar ist.",
+    "retryStartedTitle": "Synchronisierungswiederholung gestartet",
+    "retryStartedDescription": "Es wird nach einer aktualisierten Momentaufnahme gesucht und ausstehende Synchronisierungsänderungen werden angewendet.",
+    "couldNotRetryTitle": "Synchronisierung konnte nicht wiederholt werden",
+    "unableToContinueTitle": "Synchronisierung kann nicht fortgesetzt werden"
+  },
+  "snapshot": {
+    "uploadedTitle": "Momentaufnahme hochgeladen",
+    "uploadedDescription": "Neu verbundene Geräte können die Synchronisierung nun anhand dieser Momentaufnahme abschließen.",
+    "skippedTitle": "Hochladen der Momentaufnahme übersprungen",
+    "cancelledTitle": "Hochladen der Momentaufnahme abgebrochen",
+    "resultTitle": "Ergebnis des Hochladens der Momentaufnahme",
+    "failedTitle": "Hochladen der Momentaufnahme fehlgeschlagen"
+  },
+  "backup": {
+    "savedTitle": "Sicherung gespeichert",
+    "savedDescription": "Eine Sicherung wurde als {{location}} gespeichert.",
+    "failedTitle": "Sicherung fehlgeschlagen",
+    "backingUp": "Wird gesichert...",
+    "backUpFirst": "Zuerst sichern"
+  },
+  "overwrite": {
+    "replaceDataTitle": "Daten auf diesem Gerät ersetzen?",
+    "replaceDataDescription": "Ihre lokalen Daten werden durch die Daten Ihres anderen verbundenen Geräts ersetzt.",
+    "localRowsReplaced_one": "{{count}} lokale Zeile wird ersetzt.",
+    "localRowsReplaced_other": "{{count}} lokale Zeilen werden ersetzt.",
+    "notNow": "Nicht jetzt",
+    "syncing": "Synchronisierung läuft...",
+    "replaceAndSync": "Ersetzen und synchronisieren"
+  },
+  "reinit": {
+    "title": "Synchronisierung von diesem Gerät aus neu einrichten?",
+    "description": "Wir behalten die Daten auf diesem Gerät und verwenden sie, um die Synchronisierung neu zu starten. Andere verbundene Geräte müssen möglicherweise erneut verbunden werden.",
+    "notNow": "Nicht jetzt",
+    "continue": "Fortfahren"
+  },
+  "recovery": {
+    "title": "Dieses Gerät erneut einrichten",
+    "description": "Die Synchronisierung wurde für dieses Gerät deaktiviert. Richten Sie sie erneut ein, um Ihre Daten auf allen Geräten aktuell zu halten.",
+    "notNow": "Nicht jetzt",
+    "settingUp": "Wird eingerichtet...",
+    "setUpAgain": "Dieses Gerät erneut einrichten"
+  },
+  "disconnectDialog": {
+    "title": "Dieses Gerät trennen?",
+    "description": "Dadurch wird die Synchronisierung von diesem Gerät entfernt. Sie können sie später erneut einrichten.",
+    "disconnecting": "Wird getrennt...",
+    "disconnect": "Trennen"
+  },
+  "unpairDialog": {
+    "titleLast": "Ihr letztes Gerät entkoppeln?",
+    "title": "Gerät entkoppeln?",
+    "descriptionLast": "Dies ist Ihr einziges verbundenes Gerät. Sie müssen ein Gerät erneut verbinden, um Ihre Daten weiterhin zu synchronisieren.",
+    "description": "Dadurch wird „{{name}}“ aus Ihrem Konto entfernt. Das Gerät muss erneut verbunden werden, um Daten zu synchronisieren.",
+    "unpairing": "Wird entkoppelt...",
+    "unpair": "Entkoppeln"
+  },
+  "toasts": {
+    "reinitFailed": "Synchronisierung konnte nicht neu initialisiert werden",
+    "disconnectFailed": "Trennen fehlgeschlagen",
+    "unpairFailed": "Gerät konnte nicht entkoppelt werden"
+  },
+  "pairing": {
+    "connectThisDeviceTitle": "Dieses Gerät verbinden",
+    "enterCodeDescription": "Geben Sie den Code Ihres anderen verbundenen Geräts ein",
+    "connectAnotherTitle": "Weiteres Gerät verbinden",
+    "scanOrEnterDescription": "Scannen oder geben Sie diesen Code auf Ihrem anderen Gerät ein",
+    "gettingReadyTitle": "Dieses Gerät wird vorbereitet...",
+    "gettingReadyDescription": "Dies dauert nur einen Moment.",
+    "prepareFailed": "Die Vorbereitung dieses Geräts konnte nicht abgeschlossen werden.",
+    "tryAgain": "Erneut versuchen",
+    "starting": "Wird gestartet...",
+    "generatingCode": "Code wird generiert...",
+    "computingSecurityCode": "Sicherheitscode wird berechnet...",
+    "finishingSetup": "Einrichtung wird abgeschlossen...",
+    "finishingSetupDescription": "Ihre Daten werden für das neue Gerät vorbereitet",
+    "sessionExpired": "Sitzung abgelaufen",
+    "connecting": "Verbindung wird hergestellt...",
+    "verifySecurityCode": "Sicherheitscode überprüfen",
+    "syncingData": "Ihre Daten werden synchronisiert...",
+    "syncingDataDescription": "Dies kann einige Sekunden dauern"
+  },
+  "displayCode": {
+    "expired": "Abgelaufen"
+  },
+  "enterCode": {
+    "openingCamera": "Kamera wird geöffnet...",
+    "scanQrCode": "QR-Code scannen",
+    "quickAndEasy": "Schnell und einfach",
+    "or": "Oder",
+    "codePlaceholder": "ABC 123",
+    "paste": "Einfügen",
+    "connecting": "Verbindung wird hergestellt...",
+    "connect": "Verbinden"
+  },
+  "sas": {
+    "sameCodeQuestion": "Derselbe Code auf beiden Geräten?"
+  },
+  "waiting": {
+    "waitingForConfirmation": "Warten auf Bestätigung...",
+    "confirmCodeMatches": "Bestätigen Sie, dass dieser Code mit dem auf Ihrem anderen Gerät übereinstimmt",
+    "securelyConnecting": "Bitte warten Sie, während wir Ihr Gerät sicher verbinden"
+  },
+  "result": {
+    "allSet": "Alles bereit!",
+    "connectedSuccessfully": "Gerät erfolgreich verbunden",
+    "done": "Fertig",
+    "connectionFailed": "Verbindung fehlgeschlagen",
+    "tryAgain": "Erneut versuchen"
+  },
+  "errors": {
+    "backupPlatformUnsupported": "Die Sicherung vor der Gerätesynchronisierung wird derzeit nur auf Desktop, Web und iOS unterstützt"
+  }
+}

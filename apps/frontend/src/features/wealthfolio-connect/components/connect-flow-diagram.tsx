@@ -1,6 +1,8 @@
 import appLogo from "@/assets/logo-rounded.png";
+import { useTranslation } from "react-i18next";
 
 export function ConnectFlowDiagram() {
+  const { t } = useTranslation();
   return (
     <div className="bg-card border-border rounded-2xl border border-dashed p-4 sm:p-5">
       <svg viewBox="0 -8 730 175" className="h-auto w-full" xmlns="http://www.w3.org/2000/svg">
@@ -33,10 +35,10 @@ export function ConnectFlowDiagram() {
             fontSize="14"
             fontWeight="500"
           >
-            Your Device
+            {t("connect:flow.yourDevice")}
           </text>
           <text x="68" y="50" className="fill-[#9a9a9a] dark:fill-white/50" fontSize="12">
-            Local database
+            {t("connect:flow.localDatabase")}
           </text>
 
           {/* Labels below */}
@@ -56,7 +58,7 @@ export function ConnectFlowDiagram() {
             className="fill-[#b5b0a6] dark:fill-white/30"
             fontSize="10"
           >
-            Data stays here
+            {t("connect:flow.dataStaysHere")}
           </text>
         </g>
 
@@ -160,7 +162,7 @@ export function ConnectFlowDiagram() {
             className="fill-[#504f4f] dark:fill-white/50"
             fontSize="12"
           >
-            Aggregators
+            {t("connect:flow.aggregators")}
           </text>
           <text
             x="28"
@@ -264,7 +266,7 @@ export function ConnectFlowDiagram() {
             fontSize="13"
             fontWeight="500"
           >
-            Brokerages
+            {t("connect:flow.brokerages")}
           </text>
         </g>
 
@@ -307,7 +309,7 @@ export function ConnectFlowDiagram() {
             fontSize="13"
             fontWeight="500"
           >
-            Banks
+            {t("connect:flow.banks")}
           </text>
         </g>
 
@@ -350,7 +352,7 @@ export function ConnectFlowDiagram() {
             fontSize="13"
             fontWeight="500"
           >
-            Crypto
+            {t("connect:flow.crypto")}
           </text>
         </g>
 

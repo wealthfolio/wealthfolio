@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 pub struct Settings {
     pub theme: String,
     pub font: String,
+    pub language: String,
     pub base_currency: String,
     pub timezone: String,
-    pub instance_id: String,
     pub onboarding_completed: bool,
     pub auto_update_check_enabled: bool,
     pub menu_bar_visible: bool,
@@ -22,9 +22,9 @@ impl Default for Settings {
         Self {
             theme: "light".to_string(),
             font: "font-mono".to_string(),
+            language: "en".to_string(),
             base_currency: "".to_string(),
             timezone: "".to_string(),
-            instance_id: "".to_string(),
             onboarding_completed: false,
             auto_update_check_enabled: true,
             menu_bar_visible: true,
@@ -39,6 +39,7 @@ impl Default for Settings {
 pub struct SettingsUpdate {
     pub theme: Option<String>,
     pub font: Option<String>,
+    pub language: Option<String>,
     pub base_currency: Option<String>,
     pub timezone: Option<String>,
     pub onboarding_completed: Option<bool>,

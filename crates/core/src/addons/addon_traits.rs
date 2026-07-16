@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 
+use super::network::{AddonNetworkRequest, AddonNetworkResponse};
 use super::{AddonManifest, AddonUpdateCheckResult, ExtractedAddon, InstalledAddon};
 
 /// Service trait for addon business logic operations.
@@ -12,12 +13,14 @@ pub trait AddonServiceTrait: Send + Sync {
         &self,
         zip_data: Vec<u8>,
         enable_after_install: bool,
+        approved_network_hosts: Vec<String>,
     ) -> Result<AddonManifest, String>;
 
     async fn install_addon_from_staging(
         &self,
         addon_id: &str,
         enable_after_install: bool,
+        approved_network_hosts: Vec<String>,
     ) -> Result<AddonManifest, String>;
 
     async fn uninstall_addon(&self, addon_id: &str) -> Result<(), String>;
@@ -36,8 +39,40 @@ pub trait AddonServiceTrait: Send + Sync {
 
     async fn update_addon_from_store(&self, addon_id: &str) -> Result<AddonManifest, String>;
 
+    // Brokered network operations
+    async fn addon_network_request(
+        &self,
+        addon_id: &str,
+        request: AddonNetworkRequest,
+    ) -> Result<AddonNetworkResponse, String>;
+
+    fn update_addon_network_approvals(
+        &self,
+        addon_id: &str,
+        approved_network_hosts: Vec<String>,
+    ) -> Result<AddonManifest, String>;
+
     // Toggle operation
     fn toggle_addon(&self, addon_id: &str, enabled: bool) -> Result<(), String>;
+
+    // Persistent per-addon key-value storage (survives addon updates,
+    // removed on uninstall). Values are opaque strings owned by the addon.
+    async fn get_addon_storage_item(
+        &self,
+        addon_id: &str,
+        key: &str,
+    ) -> Result<Option<String>, String>;
+
+    async fn set_addon_storage_item(
+        &self,
+        addon_id: &str,
+        key: &str,
+        value: &str,
+    ) -> Result<(), String>;
+
+    async fn delete_addon_storage_item(&self, addon_id: &str, key: &str) -> Result<(), String>;
+
+    async fn clear_addon_storage(&self, addon_id: &str) -> Result<(), String>;
 
     // Staging operations
     async fn download_addon_to_staging(&self, addon_id: &str) -> Result<ExtractedAddon, String>;

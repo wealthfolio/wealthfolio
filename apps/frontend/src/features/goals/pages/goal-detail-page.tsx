@@ -19,6 +19,7 @@ import {
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { useState, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 import {
@@ -42,16 +43,17 @@ import RiskLabPage from "@/features/goals/retirement-planner/pages/risk-lab-page
 import SaveUpDetailPage from "../save-up/components/save-up-detail";
 import { GoalEditDialog } from "../components/goal-edit-dialog";
 
-const GOAL_TYPE_LABELS: Record<string, string> = {
-  retirement: "Retirement",
-  education: "Education",
-  home: "Home Purchase",
-  car: "Car Purchase",
-  wedding: "Wedding",
-  custom_save_up: "Savings Goal",
+const GOAL_TYPE_KEYS: Record<string, string> = {
+  retirement: "type.retirement",
+  education: "type.education",
+  home: "type.home",
+  car: "type.car",
+  wedding: "type.wedding",
+  custom_save_up: "type.custom_save_up",
 };
 
 export default function GoalDetailPage() {
+  const { t } = useTranslation();
   const { goalId } = useParams<{ goalId: string }>();
   const navigate = useNavigate();
 
@@ -131,7 +133,7 @@ export default function GoalDetailPage() {
   if (isLoading) {
     return (
       <Page>
-        <PageHeader heading="Loading..." />
+        <PageHeader heading={t("common:loading")} />
         <PageContent>
           <Skeleton className="h-64 w-full" />
         </PageContent>
@@ -142,29 +144,30 @@ export default function GoalDetailPage() {
   if (error || !goal) {
     return (
       <Page>
-        <PageHeader heading="Goal not found" />
+        <PageHeader heading={t("goals:detail.not_found_title")} />
         <PageContent>
           <div className="flex flex-col items-center gap-4 py-24">
-            <p className="text-muted-foreground">This goal could not be found.</p>
-            <Button onClick={() => navigate("/goals")}>Back to Goals</Button>
+            <p className="text-muted-foreground">{t("goals:detail.not_found_body")}</p>
+            <Button onClick={() => navigate("/goals")}>{t("goals:detail.back_to_goals")}</Button>
           </div>
         </PageContent>
       </Page>
     );
   }
 
-  const typeLabel = GOAL_TYPE_LABELS[goal.goalType] ?? "Goal";
+  const typeKey = GOAL_TYPE_KEYS[goal.goalType];
+  const typeLabel = typeKey ? t(`goals:${typeKey}`) : t("goals:detail.goal_fallback");
   const actionGroups = [
     {
       items: [
         {
           icon: Icons.Settings2,
-          label: "Edit goal",
+          label: t("goals:detail.edit_goal"),
           onClick: () => setEditOpen(true),
         },
         {
           icon: Icons.Trash,
-          label: "Delete goal",
+          label: t("goals:detail.delete_goal"),
           onClick: () => setDeleteOpen(true),
           variant: "destructive",
         },
@@ -178,7 +181,7 @@ export default function GoalDetailPage() {
       label: (
         <span className="flex items-center gap-2">
           <Icons.CircleGauge className="size-3.5" />
-          Overview
+          {t("goals:detail.tab_overview")}
         </span>
       ),
     },
@@ -187,7 +190,7 @@ export default function GoalDetailPage() {
       label: (
         <span className="flex items-center gap-2">
           <Icons.ShieldAlert className="size-3.5" />
-          What If
+          {t("goals:detail.tab_what_if")}
         </span>
       ),
     },
@@ -212,7 +215,7 @@ export default function GoalDetailPage() {
         variant="ghost"
         size="icon"
         className="h-9 w-9 rounded-full"
-        aria-label="Open retirement guide"
+        aria-label={t("goals:detail.open_retirement_guide")}
         onClick={() => navigate(`/goals/${goalId}/guide`)}
       >
         <Icons.HelpCircle className="size-4" />
@@ -235,7 +238,9 @@ export default function GoalDetailPage() {
     <div className="flex items-center gap-2">
       {retirementGuideAction}
       {retirementTabs}
-      {goal.statusLifecycle === "achieved" && <Badge variant="default">Achieved</Badge>}
+      {goal.statusLifecycle === "achieved" && (
+        <Badge variant="default">{t("goals:detail.achieved")}</Badge>
+      )}
       <ActionPalette
         open={actionPaletteOpen}
         onOpenChange={setActionPaletteOpen}
@@ -248,7 +253,14 @@ export default function GoalDetailPage() {
     <>
       <PageHeader
         heading={goal.title}
-        text={goal.description ? `${typeLabel} goal · ${goal.description}` : `${typeLabel} goal`}
+        text={
+          goal.description
+            ? t("goals:detail.header_with_description", {
+                type: typeLabel,
+                description: goal.description,
+              })
+            : t("goals:detail.header", { type: typeLabel })
+        }
         onBack={() => navigate("/goals")}
         actions={headerActions}
       />
@@ -256,14 +268,15 @@ export default function GoalDetailPage() {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete goal</AlertDialogTitle>
+            <AlertDialogTitle>{t("goals:detail.delete_goal")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{goal.title}&quot;? This action cannot be
-              undone.
+              {t("goals:detail.delete_confirm", { title: goal.title })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              {t("common:cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deleteMutation.isPending}
@@ -272,10 +285,10 @@ export default function GoalDetailPage() {
               {deleteMutation.isPending ? (
                 <>
                   <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
+                  {t("goals:detail.deleting")}
                 </>
               ) : (
-                "Delete"
+                t("common:delete")
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -309,9 +322,7 @@ export default function GoalDetailPage() {
           <SaveUpDetailPage goal={goal} plan={plan} overview={saveUpOverview} />
         ) : (
           <div className="flex flex-col items-center gap-4 py-12">
-            <p className="text-muted-foreground text-sm">
-              This goal doesn&apos;t have a detailed plan yet.
-            </p>
+            <p className="text-muted-foreground text-sm">{t("goals:detail.no_plan_yet")}</p>
           </div>
         )}
       </PageContent>

@@ -93,7 +93,7 @@ describe("ActivityMobileFilterSheet", () => {
   it("preserves portfolio scope when applying without changing account selection", async () => {
     const user = userEvent.setup();
     const accountScope: AccountScope = { type: "portfolio", portfolioId: "pf_1" };
-    const setAccountScope = vi.fn();
+    const setFilters = vi.fn();
 
     render(
       <ActivityMobileFilterSheet
@@ -102,16 +102,14 @@ describe("ActivityMobileFilterSheet", () => {
         accountScope={accountScope}
         accounts={accounts}
         portfolios={portfolios}
-        setAccountScope={setAccountScope}
         selectedActivityTypes={[]}
-        setSelectedActivityTypes={vi.fn()}
         dateRange={undefined}
-        setDateRange={vi.fn()}
+        setFilters={setFilters}
       />,
     );
 
     await user.click(screen.getByRole("button", { name: "Done" }));
 
-    expect(setAccountScope).toHaveBeenCalledWith(accountScope);
+    expect(setFilters).toHaveBeenCalledWith([], undefined, accountScope);
   });
 });

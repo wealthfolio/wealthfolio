@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Button,
   Command,
@@ -62,10 +63,12 @@ export function TaxonomyPicker({
   taxonomyId,
   value,
   onChange,
-  placeholder = "Select category...",
+  placeholder,
   disabled = false,
 }: TaxonomyPickerProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const resolvedPlaceholder = placeholder ?? t("settings:tax_select_category_placeholder");
   const { data: taxonomyData, isLoading, isError } = useTaxonomy(taxonomyId);
 
   // Build the category tree from flat categories
@@ -120,7 +123,7 @@ export function TaxonomyPicker({
   if (isError) {
     return (
       <Button variant="outline" className="text-destructive w-full justify-between" disabled>
-        <span>Error loading taxonomy</span>
+        <span>{t("settings:tax_error_loading")}</span>
         <Icons.AlertCircle className="ml-2 h-4 w-4 shrink-0" />
       </Button>
     );
@@ -130,7 +133,7 @@ export function TaxonomyPicker({
   if (!taxonomyData?.categories || taxonomyData.categories.length === 0) {
     return (
       <Button variant="outline" className="w-full justify-between" disabled>
-        <span className="text-muted-foreground">No categories available</span>
+        <span className="text-muted-foreground">{t("settings:tax_no_categories_available")}</span>
         <Icons.ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </Button>
     );
@@ -143,7 +146,7 @@ export function TaxonomyPicker({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          aria-label="Select a category"
+          aria-label={t("settings:tax_select_category_aria")}
           className={cn("w-full justify-between", !selectedCategory && "text-muted-foreground")}
           disabled={disabled}
         >
@@ -157,7 +160,7 @@ export function TaxonomyPicker({
                 <span className="truncate">{selectedCategory.name}</span>
               </>
             ) : (
-              <span>{placeholder}</span>
+              <span>{resolvedPlaceholder}</span>
             )}
           </div>
           <div className="flex items-center gap-1">
@@ -186,9 +189,9 @@ export function TaxonomyPicker({
         style={{ minWidth: "var(--radix-popover-trigger-width)" }}
       >
         <Command>
-          <CommandInput placeholder="Search categories..." />
+          <CommandInput placeholder={t("settings:tax_search_categories")} />
           <CommandList>
-            <CommandEmpty>No categories found.</CommandEmpty>
+            <CommandEmpty>{t("settings:tax_no_categories_found")}</CommandEmpty>
             <CommandGroup>
               {flattenedCategories.map((category) => (
                 <CommandItem

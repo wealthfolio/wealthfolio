@@ -7,9 +7,10 @@ use std::sync::Arc;
 
 use crate::errors::Result as CoreResult;
 use crate::portfolio::allocation::{AllocationServiceTrait, TaxonomyHoldingContributions};
-use crate::portfolio::holdings::HoldingType;
+use crate::portfolio::holdings::{HoldingType, HoldingsServiceTrait};
 use crate::taxonomies::TaxonomyServiceTrait;
 
+use super::cash::{deployable_cash_from_contributions, is_deployable_cash_category, tracked_cash};
 use super::model::{
     AllocationTarget, AllocationTargetWeight, DriftHoldingRow, DriftHoldingsReport, DriftReport,
     DriftRow, DriftStatus, ScopeType,
@@ -21,15 +22,6 @@ struct CategoryCurrent {
     value: Decimal,
     name: String,
     color: String,
-    has_cash: bool,
-    has_non_cash: bool,
-}
-
-impl CategoryCurrent {
-    /// A category that holds cash and nothing else is the cash sleeve.
-    fn is_cash(&self) -> bool {
-        self.has_cash && !self.has_non_cash
-    }
 }
 
 #[async_trait]
@@ -56,6 +48,7 @@ pub trait DriftServiceTrait: Send + Sync {
 pub struct DriftService {
     target_service: Arc<dyn AllocationTargetServiceTrait>,
     allocation_service: Arc<dyn AllocationServiceTrait>,
+    holdings_service: Option<Arc<dyn HoldingsServiceTrait>>,
     taxonomy_service: Option<Arc<dyn TaxonomyServiceTrait>>,
 }
 
@@ -67,8 +60,17 @@ impl DriftService {
         Self {
             target_service,
             allocation_service,
+            holdings_service: None,
             taxonomy_service: None,
         }
+    }
+
+    pub fn with_holdings_service(
+        mut self,
+        holdings_service: Arc<dyn HoldingsServiceTrait>,
+    ) -> Self {
+        self.holdings_service = Some(holdings_service);
+        self
     }
 
     /// Provide the taxonomy service so category display names/colors can be
@@ -143,15 +145,8 @@ impl DriftService {
                     value: Decimal::ZERO,
                     name: contribution.category_name.clone(),
                     color: contribution.category_color.clone(),
-                    has_cash: false,
-                    has_non_cash: false,
                 });
             entry.value += contribution.value;
-            if contribution.holding_type == HoldingType::Cash {
-                entry.has_cash = true;
-            } else {
-                entry.has_non_cash = true;
-            }
         }
 
         current_by_category
@@ -183,7 +178,12 @@ impl DriftService {
                 };
                 let value_delta = current_value - target_value;
 
-                let status = if drift_bps.abs() <= target.drift_band_bps {
+                let effective_band = target.band_type.effective_band_bps(
+                    target_bps,
+                    target.drift_band_bps,
+                    target.relative_factor_bps,
+                );
+                let status = if drift_bps.abs() <= effective_band {
                     DriftStatus::InBand
                 } else if drift_bps < 0 {
                     DriftStatus::Underweight
@@ -215,10 +215,11 @@ impl DriftService {
                     current_value,
                     target_value,
                     value_delta,
+                    effective_band_bps: effective_band,
                     status,
                     is_required: weight.is_required,
                     is_zero_current: current_value == Decimal::ZERO,
-                    is_cash: current.map(|current| current.is_cash()).unwrap_or(false),
+                    is_cash: is_deployable_cash_category(&target.taxonomy_id, &weight.category_id),
                 }
             })
             .filter(|row| row.is_required || row.current_value > Decimal::ZERO)
@@ -235,7 +236,7 @@ impl DriftService {
             }
 
             let current_bps = Self::current_bps(current.value, total_value);
-            let is_cash = current.is_cash();
+            let is_cash = is_deployable_cash_category(&target.taxonomy_id, &category_id);
             rows.push(DriftRow {
                 category_id,
                 category_name: current.name,
@@ -246,6 +247,7 @@ impl DriftService {
                 current_value: current.value,
                 target_value: Decimal::ZERO,
                 value_delta: current.value,
+                effective_band_bps: 0,
                 status: DriftStatus::NotTargeted,
                 is_required: false,
                 is_zero_current: current.value == Decimal::ZERO,
@@ -385,6 +387,19 @@ impl DriftService {
             Self::build_drift_holdings_report(target_id, base_currency, &weights, &contributions)
         });
 
+        let deployable_cash = if let Some(cash) =
+            deployable_cash_from_contributions(&target.taxonomy_id, &contributions)
+        {
+            cash
+        } else if let Some(holdings_service) = self.holdings_service.as_ref() {
+            let holdings = holdings_service
+                .get_holdings_for_accounts(account_ids, base_currency, aggregated_account_id)
+                .await?;
+            tracked_cash(&holdings)
+        } else {
+            Decimal::ZERO
+        };
+
         Ok(DriftReport {
             target_id: target_id.to_string(),
             scope_type,
@@ -395,6 +410,7 @@ impl DriftService {
             out_of_band_count,
             rows,
             holdings,
+            deployable_cash,
         })
     }
 }
@@ -445,10 +461,11 @@ mod tests {
         PortfolioAllocations, TaxonomyAllocation, TaxonomyHoldingContributions,
     };
     use crate::portfolio::allocation_targets::model::{
-        AllocationTarget, AllocationTargetWeight, NewAllocationTarget, NewAllocationTargetWeight,
-        RebalanceGoal, SaveAllocationTargetResult, ScopeType, TriggerType,
+        AllocationTarget, AllocationTargetWeight, BandType, NewAllocationTarget,
+        NewAllocationTargetWeight, RebalanceGoal, SaveAllocationTargetResult, ScopeType,
+        TriggerType,
     };
-    use crate::portfolio::holdings::HoldingType;
+    use crate::portfolio::holdings::{Holding, HoldingType, MonetaryValue};
     use async_trait::async_trait;
     use rust_decimal_macros::dec;
 
@@ -463,10 +480,13 @@ mod tests {
             taxonomy_id: "asset_classes".to_string(),
             trigger_type: TriggerType::Threshold,
             drift_band_bps,
+            band_type: BandType::Absolute,
+            relative_factor_bps: 2000,
             rebalance_goal: RebalanceGoal::NearestBand,
             min_trade_amount: "0".to_string(),
             whole_shares_only: false,
             allow_sells: false,
+            max_turnover_bps: None,
             created_at: "2026-01-01".to_string(),
             updated_at: "2026-01-01".to_string(),
             archived_at: None,
@@ -512,6 +532,47 @@ mod tests {
         }
     }
 
+    fn make_cash_holding(amount: Decimal, currency: &str) -> Holding {
+        Holding {
+            id: "cash".to_string(),
+            account_id: "acc".to_string(),
+            holding_type: HoldingType::Cash,
+            instrument: None,
+            asset_kind: None,
+            quantity: amount,
+            open_date: None,
+            lots: None,
+            contract_multiplier: Decimal::ONE,
+            local_currency: currency.to_string(),
+            base_currency: currency.to_string(),
+            fx_rate: None,
+            market_value: MonetaryValue {
+                local: amount,
+                base: amount,
+            },
+            cost_basis: None,
+            price: None,
+            purchase_price: None,
+            unrealized_gain: None,
+            unrealized_gain_pct: None,
+            realized_gain: None,
+            realized_gain_pct: None,
+            total_gain: None,
+            total_gain_pct: None,
+            income: None,
+            total_return: None,
+            total_return_pct: None,
+            return_basis: None,
+            day_change: None,
+            day_change_pct: None,
+            prev_close_value: None,
+            weight: Decimal::ZERO,
+            as_of_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            metadata: None,
+            source_account_ids: vec![],
+        }
+    }
+
     fn holding_contribution(category_id: &str, value: Decimal) -> HoldingAllocationContribution {
         HoldingAllocationContribution {
             id: format!("asset:{category_id}:0"),
@@ -527,6 +588,19 @@ mod tests {
             category_name: category_id.to_string(),
             category_color: "#111111".to_string(),
             value,
+        }
+    }
+
+    fn cash_contribution(category_id: &str, value: Decimal) -> HoldingAllocationContribution {
+        HoldingAllocationContribution {
+            id: format!("cash:{category_id}:0"),
+            holding_id: "cash".to_string(),
+            asset_id: "cash".to_string(),
+            symbol: "USD".to_string(),
+            name: "Cash (USD)".to_string(),
+            holding_type: HoldingType::Cash,
+            quantity: value,
+            ..holding_contribution(category_id, value)
         }
     }
 
@@ -677,6 +751,21 @@ mod tests {
         ) -> CoreResult<SaveAllocationTargetResult> {
             unimplemented!()
         }
+        fn list_target_constraints(
+            &self,
+            _: &str,
+        ) -> CoreResult<Vec<crate::portfolio::allocation_targets::AllocationTargetConstraint>>
+        {
+            Ok(vec![])
+        }
+        async fn save_target_constraints(
+            &self,
+            _: &str,
+            _: Vec<crate::portfolio::allocation_targets::AllocationTargetConstraint>,
+        ) -> CoreResult<Vec<crate::portfolio::allocation_targets::AllocationTargetConstraint>>
+        {
+            unimplemented!()
+        }
     }
 
     struct MockAllocationService {
@@ -731,6 +820,44 @@ mod tests {
         }
     }
 
+    struct MockHoldingsService {
+        holdings: Vec<Holding>,
+    }
+
+    #[async_trait]
+    impl crate::portfolio::holdings::HoldingsServiceTrait for MockHoldingsService {
+        async fn get_holdings(
+            &self,
+            _account_id: &str,
+            _base_currency: &str,
+        ) -> CoreResult<Vec<Holding>> {
+            Ok(self.holdings.clone())
+        }
+        async fn get_holdings_for_accounts(
+            &self,
+            _account_ids: &[String],
+            _base_currency: &str,
+            _aggregated_account_id: &str,
+        ) -> CoreResult<Vec<Holding>> {
+            Ok(self.holdings.clone())
+        }
+        async fn get_holding(
+            &self,
+            _holding_id: &str,
+            _account_id: &str,
+            _base_currency: &str,
+        ) -> CoreResult<Option<Holding>> {
+            Ok(self.holdings.first().cloned())
+        }
+        async fn holdings_from_snapshot(
+            &self,
+            _snapshot: &crate::portfolio::snapshot::AccountStateSnapshot,
+            _base_currency: &str,
+        ) -> CoreResult<Vec<Holding>> {
+            Ok(self.holdings.clone())
+        }
+    }
+
     fn make_service(
         target: AllocationTarget,
         weights: Vec<AllocationTargetWeight>,
@@ -759,6 +886,23 @@ mod tests {
                 contributions,
             }),
         )
+    }
+
+    fn make_service_with_holdings(
+        target: AllocationTarget,
+        weights: Vec<AllocationTargetWeight>,
+        allocations: PortfolioAllocations,
+        holdings: Vec<Holding>,
+    ) -> DriftService {
+        let contributions = contributions_from_allocations(&target.taxonomy_id, &allocations);
+        DriftService::new(
+            Arc::new(MockTargetService { target, weights }),
+            Arc::new(MockAllocationService {
+                allocations,
+                contributions,
+            }),
+        )
+        .with_holdings_service(Arc::new(MockHoldingsService { holdings }))
     }
 
     // ── Tests ────────────────────────────────────────────────────────────────
@@ -1192,6 +1336,66 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn non_asset_taxonomy_deployable_cash_uses_tracked_cash() {
+        let svc = make_service_with_holdings(
+            target_with_taxonomy("industries_gics", 500),
+            vec![weight("45", 7000), weight("40", 3000)],
+            PortfolioAllocations {
+                sectors: taxonomy_alloc(
+                    "industries_gics",
+                    vec![cat("45", dec!(7000)), cat("40", dec!(3000))],
+                ),
+                total_value: dec!(12000),
+                ..Default::default()
+            },
+            vec![make_cash_holding(dec!(2000), "USD")],
+        );
+
+        let report = svc
+            .get_drift_report_for_target("p1", &[], "USD", "agg")
+            .await
+            .unwrap();
+
+        assert_eq!(report.deployable_cash, dec!(2000));
+    }
+
+    #[tokio::test]
+    async fn tagged_cash_in_non_cash_category_is_not_cash_sleeve() {
+        let svc = make_service_with_contributions(
+            base_target(500),
+            vec![weight("FIXED_INCOME", 10000), weight("CASH", 0)],
+            alloc_with(vec![], dec!(1000)),
+            TaxonomyHoldingContributions {
+                taxonomy_id: "asset_classes".to_string(),
+                taxonomy_name: "Asset Classes".to_string(),
+                total_value: dec!(1000),
+                currency: "USD".to_string(),
+                contributions: vec![cash_contribution("FIXED_INCOME", dec!(1000))],
+            },
+        );
+
+        let report = svc
+            .get_drift_report_for_target("p1", &[], "USD", "agg")
+            .await
+            .unwrap();
+
+        let fixed_income = report
+            .rows
+            .iter()
+            .find(|row| row.category_id == "FIXED_INCOME")
+            .unwrap();
+        assert!(!fixed_income.is_cash);
+
+        let cash = report
+            .rows
+            .iter()
+            .find(|row| row.category_id == "CASH")
+            .unwrap();
+        assert!(cash.is_cash);
+        assert_eq!(cash.current_value, Decimal::ZERO);
+    }
+
+    #[tokio::test]
     async fn missing_custom_taxonomy_does_not_fallback_to_asset_classes() {
         let svc = make_service(
             target_with_taxonomy("my_custom_taxonomy", 500),
@@ -1257,5 +1461,99 @@ mod tests {
         assert_eq!(unknown.current_bps, 10000);
         assert_eq!(target.status, DriftStatus::Underweight);
         assert_eq!(target.current_bps, 0);
+    }
+
+    // ── Hybrid band tests ──────────────────────────────────────────────────
+
+    fn hybrid_target(drift_band_bps: i32, relative_factor_bps: i32) -> AllocationTarget {
+        AllocationTarget {
+            band_type: BandType::Hybrid,
+            relative_factor_bps,
+            ..base_target(drift_band_bps)
+        }
+    }
+
+    #[tokio::test]
+    async fn hybrid_band_large_sleeve_in_band_where_absolute_would_flag() {
+        // EQUITY: target=50% (5000 bps), current=56% (5600 bps), drift=+600.
+        // Absolute band 500 → 600 > 500 → Overweight.
+        // Hybrid 20%: effective = max(5000*2000/10000, 500) = max(1000, 500) = 1000 → 600 ≤ 1000 → InBand.
+        let svc = make_service(
+            hybrid_target(500, 2000),
+            vec![weight("EQUITY", 5000), weight("BONDS", 5000)],
+            alloc_with(
+                vec![cat("EQUITY", dec!(5600)), cat("BONDS", dec!(4400))],
+                dec!(10000),
+            ),
+        );
+        let report = svc
+            .get_drift_report_for_target("p1", &[], "USD", "agg")
+            .await
+            .unwrap();
+
+        let equity = report
+            .rows
+            .iter()
+            .find(|r| r.category_id == "EQUITY")
+            .unwrap();
+        assert_eq!(equity.drift_bps, 600);
+        assert_eq!(equity.status, DriftStatus::InBand);
+        assert_eq!(equity.effective_band_bps, 1000);
+    }
+
+    #[tokio::test]
+    async fn hybrid_band_small_sleeve_uses_floor() {
+        // SMALL: target=5% (500 bps), current=8% (800 bps), drift=+300.
+        // Hybrid 20%: effective = max(500*2000/10000, 100) = max(100, 100) = 100 → 300 > 100 → Overweight.
+        // With absolute 500: 300 ≤ 500 → InBand.
+        let svc = make_service(
+            hybrid_target(100, 2000),
+            vec![weight("SMALL", 500), weight("OTHER", 9500)],
+            alloc_with(
+                vec![cat("SMALL", dec!(800)), cat("OTHER", dec!(9200))],
+                dec!(10000),
+            ),
+        );
+        let report = svc
+            .get_drift_report_for_target("p1", &[], "USD", "agg")
+            .await
+            .unwrap();
+
+        let small = report
+            .rows
+            .iter()
+            .find(|r| r.category_id == "SMALL")
+            .unwrap();
+        assert_eq!(small.drift_bps, 300);
+        assert_eq!(small.status, DriftStatus::Overweight);
+        assert_eq!(small.effective_band_bps, 100);
+    }
+
+    #[tokio::test]
+    async fn hybrid_effective_band_bps_varies_per_sleeve() {
+        // Two sleeves with different targets should get different effective bands.
+        let svc = make_service(
+            hybrid_target(100, 2000),
+            vec![weight("BIG", 6000), weight("SMALL", 4000)],
+            alloc_with(
+                vec![cat("BIG", dec!(6000)), cat("SMALL", dec!(4000))],
+                dec!(10000),
+            ),
+        );
+        let report = svc
+            .get_drift_report_for_target("p1", &[], "USD", "agg")
+            .await
+            .unwrap();
+
+        let big = report.rows.iter().find(|r| r.category_id == "BIG").unwrap();
+        let small = report
+            .rows
+            .iter()
+            .find(|r| r.category_id == "SMALL")
+            .unwrap();
+        // BIG: 6000 * 2000 / 10000 = 1200; max(1200, 100) = 1200
+        assert_eq!(big.effective_band_bps, 1200);
+        // SMALL: 4000 * 2000 / 10000 = 800; max(800, 100) = 800
+        assert_eq!(small.effective_band_bps, 800);
     }
 }

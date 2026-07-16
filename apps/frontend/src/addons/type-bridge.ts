@@ -44,7 +44,11 @@ import type {
   Goal as SDKGoal,
   GoalAllocation as SDKGoalAllocation,
   HostAPI as SDKHostAPI,
+  NetworkRequest as SDKNetworkRequest,
+  NetworkResponse as SDKNetworkResponse,
+  Permission,
 } from "@wealthfolio/addon-sdk";
+import { isBaselineCategory } from "@wealthfolio/addon-sdk";
 
 /**
  * Internal HostAPI interface that matches the actual command function signatures
@@ -205,11 +209,96 @@ export interface InternalHostAPI {
   invalidateQueries(queryKey: string | string[]): void;
   refetchQueries(queryKey: string | string[]): void;
 
+  // Network functions
+  addonNetworkRequest(request: SDKNetworkRequest): Promise<SDKNetworkResponse>;
+
   // Toast functions
   toastSuccess(message: string): void;
   toastError(message: string): void;
   toastWarning(message: string): void;
   toastInfo(message: string): void;
+}
+
+// `secrets` and `storage` are attached separately in createAddonHostAPI (both
+// are addon-scoped and wired directly to adapters, not through this bridge).
+type SDKApiWithoutSecrets = Omit<SDKHostAPI, "secrets" | "storage">;
+type PermissionFunctionInput = Permission["functions"][number] | string;
+
+export interface PermissionGuard {
+  canUse(category: string, functionName: string): boolean;
+  assertCanUse(category: string, functionName: string): void;
+}
+
+export function createPermissionGuard(
+  addonId: string,
+  permissions: Permission[] | undefined,
+): PermissionGuard {
+  const allowed = new Set<string>();
+
+  for (const permission of permissions ?? []) {
+    for (const fn of (permission.functions ?? []) as PermissionFunctionInput[]) {
+      if (typeof fn === "string") {
+        allowed.add(`${permission.category}:${fn}`);
+      } else if (typeof fn.name === "string" && fn.isDeclared !== false) {
+        allowed.add(`${permission.category}:${fn.name}`);
+      }
+    }
+  }
+
+  const isAllowed = (category: string, functionName: string) =>
+    isBaselineCategory(category) || allowed.has(`${category}:${functionName}`);
+
+  return {
+    canUse: isAllowed,
+    assertCanUse: (category: string, functionName: string) => {
+      if (!isAllowed(category, functionName)) {
+        const error = new Error(
+          `Addon '${addonId}' is not allowed to call ${category}.${functionName}`,
+        );
+        // Lets callers surface permission denials distinctly from other errors.
+        error.name = "AddonPermissionDenied";
+        throw error;
+      }
+    },
+  };
+}
+
+function guardNamespace<T extends Record<string, unknown>>(
+  namespace: T,
+  category: string,
+  guard?: PermissionGuard,
+): T {
+  if (!guard) {
+    return namespace;
+  }
+
+  return Object.fromEntries(
+    Object.entries(namespace).map(([functionName, value]) => [
+      functionName,
+      typeof value === "function"
+        ? (...args: unknown[]) => {
+            guard.assertCanUse(category, functionName);
+            return (value as (...innerArgs: unknown[]) => unknown)(...args);
+          }
+        : value,
+    ]),
+  ) as T;
+}
+
+function guardEventsNamespace<T extends SDKApiWithoutSecrets["events"]>(
+  namespace: T,
+  guard?: PermissionGuard,
+): T {
+  if (!guard) {
+    return namespace;
+  }
+
+  return Object.fromEntries(
+    Object.entries(namespace).map(([eventGroup, handlers]) => [
+      eventGroup,
+      guardNamespace(handlers as Record<string, unknown>, "events", guard),
+    ]),
+  ) as unknown as T;
 }
 
 /**
@@ -219,7 +308,8 @@ export interface InternalHostAPI {
 export function createSDKHostAPIBridge(
   internalAPI: InternalHostAPI,
   addonId?: string,
-): Omit<SDKHostAPI, "secrets"> {
+  guard?: PermissionGuard,
+): SDKApiWithoutSecrets {
   // Create logger with addon prefix
   const createAddonLogger = (prefix: string) => ({
     error: (message: string) => internalAPI.logError(`[${prefix}] ${message}`),
@@ -309,12 +399,16 @@ export function createSDKHostAPIBridge(
     );
   };
 
-  return {
-    accounts: {
+  const accounts = guardNamespace(
+    {
       getAll: internalAPI.getAccounts,
       create: internalAPI.createAccount,
     },
-    portfolio: {
+    "accounts",
+    guard,
+  );
+  const portfolio = guardNamespace(
+    {
       getHoldings: internalAPI.getHoldings,
       getHolding: internalAPI.getHolding,
       update: internalAPI.updatePortfolio,
@@ -323,7 +417,11 @@ export function createSDKHostAPIBridge(
       getHistoricalValuations: internalAPI.getHistoricalValuations,
       getLatestValuations: internalAPI.getLatestValuations,
     },
-    activities: {
+    "portfolio",
+    guard,
+  );
+  const activities = guardNamespace(
+    {
       getAll: internalAPI.getActivities,
       search: internalAPI.searchActivities,
       create: internalAPI.createActivity,
@@ -338,57 +436,97 @@ export function createSDKHostAPIBridge(
       getImportMapping: internalAPI.getAccountImportMapping,
       saveImportMapping: internalAPI.saveAccountImportMapping,
     },
-    market: {
+    "activities",
+    guard,
+  );
+  const market = guardNamespace(
+    {
       searchTicker: internalAPI.searchTicker,
       syncHistory: internalAPI.syncHistoryQuotes,
       sync: internalAPI.syncMarketData,
       getProviders: internalAPI.getMarketDataProviders,
       fetchDividends: internalAPI.fetchDividends,
     },
-    assets: {
+    "market-data",
+    guard,
+  );
+  const assets = guardNamespace(
+    {
       getProfile: internalAPI.getAssetProfile,
       updateProfile: internalAPI.updateAssetProfile,
       updateQuoteMode: internalAPI.updateQuoteMode,
     },
-    quotes: {
+    "assets",
+    guard,
+  );
+  const quotes = guardNamespace(
+    {
       update: internalAPI.updateQuote,
       getHistory: internalAPI.getQuoteHistory,
     },
-    performance: {
+    "quotes",
+    guard,
+  );
+  const performance = guardNamespace(
+    {
       calculateHistory: internalAPI.calculatePerformanceHistory,
       calculateSummary: internalAPI.calculatePerformanceSummary,
       calculateAccountsSimple: internalAPI.calculateAccountsSimplePerformance,
     },
-    exchangeRates: {
+    "performance",
+    guard,
+  );
+  const exchangeRates = guardNamespace(
+    {
       getAll: internalAPI.getExchangeRates,
       update: internalAPI.updateExchangeRate,
       add: internalAPI.addExchangeRate,
     },
-    contributionLimits: {
+    "currency",
+    guard,
+  );
+  const contributionLimits = guardNamespace(
+    {
       getAll: internalAPI.getContributionLimit,
       create: internalAPI.createContributionLimit,
       update: internalAPI.updateContributionLimit,
       calculateDeposits: internalAPI.calculateDepositsForLimit,
     },
-    goals: {
+    "contribution-limits",
+    guard,
+  );
+  const goals = guardNamespace(
+    {
       getAll: async () => (await internalAPI.getGoals()).map(toSDKGoal),
-      create: async (goal) => toSDKGoal(await internalAPI.createGoal(goal)),
-      update: async (goal) => toSDKGoal(await internalAPI.updateGoal(goal)),
+      create: async (goal: unknown) => toSDKGoal(await internalAPI.createGoal(goal)),
+      update: async (goal: SDKGoal) => toSDKGoal(await internalAPI.updateGoal(goal)),
       getFunding: getGoalFunding,
       saveFunding: saveGoalFunding,
       getAllocations: getGoalAllocations,
       updateAllocations: updateGoalAllocations,
     },
-    settings: {
+    "financial-planning",
+    guard,
+  );
+  const settings = guardNamespace(
+    {
       get: internalAPI.getSettings,
       update: internalAPI.updateSettings,
       backupDatabase: internalAPI.backupDatabase,
     },
-    files: {
+    "settings",
+    guard,
+  );
+  const files = guardNamespace(
+    {
       openCsvDialog: internalAPI.openCsvFileDialog,
       openSaveDialog: internalAPI.openFileSaveDialog,
     },
-    snapshots: {
+    "files",
+    guard,
+  );
+  const snapshots = guardNamespace(
+    {
       getAll: internalAPI.getSnapshots,
       getByDate: internalAPI.getSnapshotByDate,
       save: internalAPI.saveManualHoldings,
@@ -396,10 +534,12 @@ export function createSDKHostAPIBridge(
       importSnapshots: internalAPI.importHoldingsCsv,
       delete: internalAPI.deleteSnapshot,
     },
+    "snapshots",
+    guard,
+  );
 
-    logger: createAddonLogger(addonId || "unknown-addon"),
-
-    events: {
+  const events = guardEventsNamespace(
+    {
       import: {
         onDropHover: internalAPI.listenImportFileDropHover,
         onDrop: internalAPI.listenImportFileDrop,
@@ -415,16 +555,56 @@ export function createSDKHostAPIBridge(
         onSyncComplete: internalAPI.listenMarketSyncComplete,
       },
     },
+    guard,
+  );
+  const requestNetwork = (request: SDKNetworkRequest) => {
+    guard?.assertCanUse("network", "request");
+    if (request.auth) {
+      guard?.assertCanUse("secrets", "use");
+    }
+    return internalAPI.addonNetworkRequest(request);
+  };
+
+  return {
+    accounts: accounts as unknown as SDKApiWithoutSecrets["accounts"],
+    portfolio: portfolio as unknown as SDKApiWithoutSecrets["portfolio"],
+    activities: activities as unknown as SDKApiWithoutSecrets["activities"],
+    market: market as unknown as SDKApiWithoutSecrets["market"],
+    assets: assets as unknown as SDKApiWithoutSecrets["assets"],
+    quotes: quotes as unknown as SDKApiWithoutSecrets["quotes"],
+    performance: performance as unknown as SDKApiWithoutSecrets["performance"],
+    exchangeRates: exchangeRates as unknown as SDKApiWithoutSecrets["exchangeRates"],
+    contributionLimits: contributionLimits as unknown as SDKApiWithoutSecrets["contributionLimits"],
+    goals: goals as unknown as SDKApiWithoutSecrets["goals"],
+    settings: settings as unknown as SDKApiWithoutSecrets["settings"],
+    files: files as unknown as SDKApiWithoutSecrets["files"],
+    snapshots: snapshots as unknown as SDKApiWithoutSecrets["snapshots"],
+
+    logger: createAddonLogger(addonId || "unknown-addon"),
+
+    events: events as unknown as SDKApiWithoutSecrets["events"],
 
     navigation: {
-      navigate: internalAPI.navigateToRoute,
+      navigate: async (route: string) => {
+        return internalAPI.navigateToRoute(route);
+      },
     },
 
     query: {
-      getClient: internalAPI.getQueryClient,
-      invalidateQueries: internalAPI.invalidateQueries,
-      refetchQueries: internalAPI.refetchQueries,
+      getClient: () => {
+        throw new Error("Direct QueryClient access is not available to addons");
+      },
+      invalidateQueries: (queryKey: string | string[]) => {
+        return internalAPI.invalidateQueries(queryKey);
+      },
+      refetchQueries: (queryKey: string | string[]) => {
+        return internalAPI.refetchQueries(queryKey);
+      },
     },
+
+    network: {
+      request: requestNetwork,
+    } as unknown as SDKApiWithoutSecrets["network"],
 
     toast: {
       success: internalAPI.toastSuccess,

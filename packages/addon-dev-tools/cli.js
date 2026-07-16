@@ -271,7 +271,7 @@ async function installAddon(zipPath) {
 }
 
 // CLI Setup
-program.name("wealthfolio").description("Wealthfolio Addon Development CLI").version("1.0.0");
+program.name("wealthfolio-addon").description("Wealthfolio Addon Development CLI").version("1.0.0");
 
 program
   .command("create <name>")

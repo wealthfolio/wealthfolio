@@ -20,7 +20,8 @@ import {
 } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useCreateGoalFlow } from "../hooks/use-create-goal-flow";
 import { useGoals } from "../hooks/use-goals";
@@ -44,64 +45,21 @@ function coverImageSrc(goalType: string): string {
   return `/goals/${goalType}.png`;
 }
 
-const GOAL_TEMPLATES: {
+interface GoalTemplate {
   type: GoalType;
   title: string;
   description: string;
   icon: React.ReactNode;
   defaultTarget: number;
   requiresPlannerMode?: boolean;
-}[] = [
-  {
-    type: "retirement",
-    title: "Retirement",
-    description: "My life after work — and making it last",
-    icon: <Icons.Target className="h-6 w-6" />,
-    defaultTarget: 0,
-    requiresPlannerMode: true,
-  },
-  {
-    type: "education",
-    title: "Education",
-    description: "A fund for tuition, books, and courses",
-    icon: <Icons.Briefcase className="h-6 w-6" />,
-    defaultTarget: 50000,
-  },
-  {
-    type: "home",
-    title: "Home Purchase",
-    description: "A down payment on a place of my own",
-    icon: <Icons.Home className="h-6 w-6" />,
-    defaultTarget: 100000,
-  },
-  {
-    type: "car",
-    title: "Car Purchase",
-    description: "Money for my next car",
-    icon: <Icons.Car className="h-6 w-6" />,
-    defaultTarget: 40000,
-  },
-  {
-    type: "wedding",
-    title: "Wedding",
-    description: "Our wedding day",
-    icon: <Icons.Star className="h-6 w-6" />,
-    defaultTarget: 30000,
-  },
-  {
-    type: "custom_save_up",
-    title: "Savings Goal",
-    description: "Something I'm saving for",
-    icon: <Icons.Wallet className="h-6 w-6" />,
-    defaultTarget: 10000,
-  },
-];
+}
 
 function hasRetirementGoal(goals: Goal[]): boolean {
   return goals.some((g) => g.goalType === "retirement" && g.statusLifecycle !== "archived");
 }
 
 export default function GoalNewPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const createGoalFlow = useCreateGoalFlow();
   const { goals } = useGoals();
@@ -119,8 +77,57 @@ export default function GoalNewPage() {
     DEFAULT_TRADITIONAL_RETIREMENT_AGE,
   );
 
+  const goalTemplates = useMemo<GoalTemplate[]>(
+    () => [
+      {
+        type: "retirement",
+        title: t("goals:new.template_retirement_title"),
+        description: t("goals:new.template_retirement_description"),
+        icon: <Icons.Target className="h-6 w-6" />,
+        defaultTarget: 0,
+        requiresPlannerMode: true,
+      },
+      {
+        type: "education",
+        title: t("goals:new.template_education_title"),
+        description: t("goals:new.template_education_description"),
+        icon: <Icons.Briefcase className="h-6 w-6" />,
+        defaultTarget: 50000,
+      },
+      {
+        type: "home",
+        title: t("goals:new.template_home_title"),
+        description: t("goals:new.template_home_description"),
+        icon: <Icons.Home className="h-6 w-6" />,
+        defaultTarget: 100000,
+      },
+      {
+        type: "car",
+        title: t("goals:new.template_car_title"),
+        description: t("goals:new.template_car_description"),
+        icon: <Icons.Car className="h-6 w-6" />,
+        defaultTarget: 40000,
+      },
+      {
+        type: "wedding",
+        title: t("goals:new.template_wedding_title"),
+        description: t("goals:new.template_wedding_description"),
+        icon: <Icons.Star className="h-6 w-6" />,
+        defaultTarget: 30000,
+      },
+      {
+        type: "custom_save_up",
+        title: t("goals:new.template_custom_save_up_title"),
+        description: t("goals:new.template_custom_save_up_description"),
+        icon: <Icons.Wallet className="h-6 w-6" />,
+        defaultTarget: 10000,
+      },
+    ],
+    [t],
+  );
+
   const retirementExists = hasRetirementGoal(goals);
-  const template = GOAL_TEMPLATES.find((t) => t.type === selectedType);
+  const template = goalTemplates.find((tmpl) => tmpl.type === selectedType);
   const isRetirement = selectedType === "retirement";
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const trimmedTitle = title.trim();
@@ -130,11 +137,13 @@ export default function GoalNewPage() {
   const retirementBirthYearMonthForCreate =
     retirementBirthAge == null ? DEFAULT_RETIREMENT_BIRTH_YEAR_MONTH : retirementBirthYearMonth;
   const retirementTargetAgeLabel =
-    plannerMode === "fire" ? "Desired independence age" : "Planned retirement age";
+    plannerMode === "fire"
+      ? t("goals:new.independence_age_label")
+      : t("goals:new.retirement_age_label");
   const retirementTargetAgeDescription =
     plannerMode === "fire"
-      ? "The age you would like work to become optional"
-      : "The age you expect to stop working";
+      ? t("goals:new.independence_age_description")
+      : t("goals:new.retirement_age_description");
 
   const setPlannerModeWithDefaultAge = (mode: PlannerMode) => {
     const defaultAge =
@@ -145,12 +154,10 @@ export default function GoalNewPage() {
 
   const handleSelectType = (type: GoalType) => {
     if (type === "retirement" && retirementExists) {
-      toast.error(
-        "You already have an active retirement goal. Only one retirement goal is allowed.",
-      );
+      toast.error(t("goals:new.retirement_exists_error"));
       return;
     }
-    const nextTemplate = GOAL_TEMPLATES.find((t) => t.type === type);
+    const nextTemplate = goalTemplates.find((tmpl) => tmpl.type === type);
     if (!nextTemplate) return;
     setSelectedType(type);
     setPlannerMode("traditional");
@@ -214,14 +221,14 @@ export default function GoalNewPage() {
   return (
     <Page>
       <PageHeader
-        heading="Create Goal"
-        text="Choose what you want to plan for"
+        heading={t("goals:new.create_goal")}
+        text={t("goals:new.subtitle")}
         onBack={() => navigate("/goals")}
       />
       <PageContent>
         {!selectedType ? (
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {GOAL_TEMPLATES.map((tmpl) => {
+            {goalTemplates.map((tmpl) => {
               const disabled = tmpl.type === "retirement" && retirementExists;
               return (
                 <div
@@ -258,7 +265,7 @@ export default function GoalNewPage() {
                       {tmpl.description}
                       {disabled && (
                         <span className="text-muted-foreground mt-1 block text-[11px]">
-                          You already have a retirement goal.
+                          {t("goals:new.retirement_exists_hint")}
                         </span>
                       )}
                     </CardDescription>
@@ -284,26 +291,26 @@ export default function GoalNewPage() {
               <CardContent className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="goal-title">Title</Label>
+                    <Label htmlFor="goal-title">{t("goals:new.title_label")}</Label>
                     <Input
                       id="goal-title"
                       value={title}
                       onChange={(event) => setTitle(event.target.value)}
-                      placeholder="Goal name"
+                      placeholder={t("goals:new.title_placeholder")}
                       autoFocus
                     />
                     {!trimmedTitle && (
-                      <p className="text-destructive text-xs">Title is required.</p>
+                      <p className="text-destructive text-xs">{t("goals:new.title_required")}</p>
                     )}
                   </div>
 
                   <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="goal-description">Description</Label>
+                    <Label htmlFor="goal-description">{t("goals:new.description_label")}</Label>
                     <Textarea
                       id="goal-description"
                       value={description}
                       onChange={(event) => setDescription(event.target.value)}
-                      placeholder="Add a short note about this goal"
+                      placeholder={t("goals:new.description_placeholder")}
                       rows={3}
                     />
                   </div>
@@ -311,10 +318,9 @@ export default function GoalNewPage() {
                   {template?.requiresPlannerMode && (
                     <div className="border-border/60 space-y-3 border-t pt-4 sm:col-span-2">
                       <div>
-                        <p className="text-sm font-medium">Planning style</p>
+                        <p className="text-sm font-medium">{t("goals:new.planning_style")}</p>
                         <p className="text-muted-foreground mt-1 text-xs">
-                          Choose how you want to measure retirement readiness. You can change this
-                          later.
+                          {t("goals:new.planning_style_hint")}
                         </p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -327,9 +333,11 @@ export default function GoalNewPage() {
                           }`}
                           onClick={() => setPlannerModeWithDefaultAge("traditional")}
                         >
-                          <p className="text-sm font-medium">Traditional</p>
+                          <p className="text-sm font-medium">
+                            {t("goals:new.planner_traditional")}
+                          </p>
                           <p className="text-muted-foreground text-xs">
-                            Plan around a specific retirement age
+                            {t("goals:new.planner_traditional_hint")}
                           </p>
                         </button>
                         <button
@@ -341,9 +349,9 @@ export default function GoalNewPage() {
                           }`}
                           onClick={() => setPlannerModeWithDefaultAge("fire")}
                         >
-                          <p className="text-sm font-medium">FIRE</p>
+                          <p className="text-sm font-medium">{t("goals:new.planner_fire")}</p>
                           <p className="text-muted-foreground text-xs">
-                            Find when financial independence becomes possible
+                            {t("goals:new.planner_fire_hint")}
                           </p>
                         </button>
                       </div>
@@ -353,14 +361,16 @@ export default function GoalNewPage() {
                   {isRetirement && (
                     <div className="border-border/60 space-y-4 border-t pt-4 sm:col-span-2">
                       <div>
-                        <p className="text-sm font-medium">Retirement timeline</p>
+                        <p className="text-sm font-medium">{t("goals:new.retirement_timeline")}</p>
                         <p className="text-muted-foreground mt-1 text-xs">
-                          Your birth month keeps your current age accurate over time.
+                          {t("goals:new.retirement_timeline_hint")}
                         </p>
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor="retirement-birth-month">Birth month</Label>
+                          <Label htmlFor="retirement-birth-month">
+                            {t("goals:new.birth_month")}
+                          </Label>
                           <Input
                             id="retirement-birth-month"
                             type="month"
@@ -376,7 +386,7 @@ export default function GoalNewPage() {
                             className="w-full"
                           />
                           <p className="text-muted-foreground mt-1 text-xs">
-                            Current age is {retirementCurrentAge}.
+                            {t("goals:new.current_age", { age: retirementCurrentAge })}
                           </p>
                         </div>
                         <AgeNumberField
@@ -396,7 +406,7 @@ export default function GoalNewPage() {
                   {!isRetirement && (
                     <>
                       <div className="space-y-2">
-                        <Label htmlFor="goal-target-amount">Target amount</Label>
+                        <Label htmlFor="goal-target-amount">{t("goals:new.target_amount")}</Label>
                         <MoneyInput
                           name="goal-target-amount"
                           value={targetAmount}
@@ -408,7 +418,7 @@ export default function GoalNewPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="goal-target-date">Target date</Label>
+                        <Label htmlFor="goal-target-date">{t("goals:new.target_date")}</Label>
                         <DatePickerInput
                           id="goal-target-date"
                           value={targetDate}
@@ -417,7 +427,7 @@ export default function GoalNewPage() {
                       </div>
 
                       <div className="text-muted-foreground flex items-end text-xs leading-relaxed">
-                        You can choose funding accounts and monthly contributions after creation.
+                        {t("goals:new.funding_hint")}
                       </div>
                     </>
                   )}
@@ -439,14 +449,14 @@ export default function GoalNewPage() {
                   setRetirementTargetAge(DEFAULT_TRADITIONAL_RETIREMENT_AGE);
                 }}
               >
-                Back
+                {t("common:back")}
               </Button>
               <Button
                 className="flex-1"
                 onClick={handleCreate}
                 disabled={createGoalFlow.isPending || !trimmedTitle}
               >
-                {createGoalFlow.isPending ? "Creating..." : "Create Goal"}
+                {createGoalFlow.isPending ? t("goals:new.creating") : t("goals:new.create_goal")}
               </Button>
             </div>
           </div>

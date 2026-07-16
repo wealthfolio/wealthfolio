@@ -1,0 +1,247 @@
+{
+  "issues": {
+    "price_manual_valuation_missing": {
+      "title_one": "{{symbol}} 缺少手动估值",
+      "title_other": "{{count}} 项持仓缺少手动估值",
+      "message": "手动/自定义持仓需要先提供手动估值，才能作为已估值的业绩持仓纳入统计。"
+    },
+    "price_no_market_data": {
+      "title_one": "{{symbol}} 没有市场数据",
+      "title_other": "{{count}} 项持仓没有市场数据",
+      "message": "无法获取某些持仓的市场数据。这可能是由于代码无效或数据提供商问题所致。您的投资组合价值可能不准确。"
+    },
+    "price_stale_outdated": {
+      "title_one": "{{count}} 项持仓的价格已过期",
+      "title_other": "{{count}} 项持仓的价格已过期",
+      "message": "部分持仓的价格已超过 3 天未更新。您的投资组合价值可能不准确。"
+    },
+    "price_update_needed": {
+      "title_one": "{{count}} 项持仓需要更新价格",
+      "title_other": "{{count}} 项持仓需要更新价格",
+      "message": "部分持仓的价格近期未更新。建议同步价格。"
+    },
+    "fx_missing": {
+      "title_one": "缺少 {{currency}} 的汇率",
+      "title_other": "{{count}} 种货币缺少汇率",
+      "message": "我们无法将某些持仓换算为您的基础货币。这会影响您的投资组合总价值。"
+    },
+    "fx_stale_error": {
+      "title_one": "汇率已过期",
+      "title_other": "{{count}} 种货币的汇率已过期",
+      "message": "部分汇率已超过 3 天未更新。货币换算可能不准确。"
+    },
+    "fx_stale_warning": {
+      "title_one": "需要更新汇率",
+      "title_other": "{{count}} 种货币的汇率需要更新",
+      "message": "部分汇率近期未更新。建议刷新汇率。"
+    },
+    "classification_missing_category": {
+      "title_one": "{{count}} 项持仓需要类别",
+      "title_other": "{{count}} 项持仓需要类别",
+      "message": "部分持仓尚未分配 {{taxonomy}}。这会影响您的配置图表和分析。"
+    },
+    "classification_legacy_migration": {
+      "title_one": "{{count}} 项资产存在旧版分类数据",
+      "title_other": "{{count}} 项资产存在旧版分类数据",
+      "message": "部分资产的行业/国家数据来自旧格式。请迁移到新的分类系统，以更好地追踪资产配置。"
+    },
+    "data_orphan_activity_account": {
+      "title_one": "交易引用了缺失的账户",
+      "title_other": "{{count}} 笔交易引用了缺失的账户",
+      "message": "部分交易指向已不存在的账户。这可能导致计算错误。"
+    },
+    "data_orphan_activity_asset": {
+      "title_one": "交易引用了缺失的资产",
+      "title_other": "{{count}} 笔交易引用了缺失的资产",
+      "message": "部分交易指向已不存在的资产。这可能导致计算错误。"
+    },
+    "data_negative_position": {
+      "title_one": "持仓数量为负",
+      "title_other": "{{count}} 项持仓数量为负",
+      "message": "部分持仓显示数量为负，这通常表示存在缺失或错误的交易。"
+    },
+    "data_legacy_classification": {
+      "title_one": "{{count}} 项资产存在旧的分类数据",
+      "title_other": "{{count}} 项资产存在旧的分类数据",
+      "message": "部分资产存在可迁移到新分类系统的旧版行业/国家数据。"
+    },
+    "data_negative_account_balance": {
+      "title_one": "账户的投资组合余额为负",
+      "title_other": "{{count}} 个账户的投资组合余额为负",
+      "message": "一个或多个账户在其历史记录中显示总价值为负。这通常是由于缺少买入交易所致。请检查您的活动记录以修复此问题。"
+    },
+    "data_negative_cash_balance": {
+      "title_one": "现金账户曾出现负余额",
+      "title_other": "{{count}} 个现金账户曾出现负余额",
+      "message": "一个或多个现金账户在其历史记录中显示负余额。这可能是正常的银行透支，也可能是缺少一笔存款记录。"
+    },
+    "data_missing_lot_disposal_for_sell": {
+      "title_one": "卖出交易缺少成本基础匹配",
+      "title_other": "{{count}} 笔卖出交易缺少成本基础匹配",
+      "message": "某笔卖出交易无法匹配到对应的批次，因此已实现盈亏和业绩归因可能不完整。"
+    },
+    "data_missing_generated_valuation": {
+      "title_one": "生成的估值历史记录不完整",
+      "title_other": "{{count}} 行生成的估值记录缺失",
+      "message": "部分持仓快照日期没有生成的估值记录。请在修复缺失的价格、手动估值或汇率后重建账户历史记录。"
+    },
+    "data_incomplete_valuation_value": {
+      "title_one": "估值覆盖不完整",
+      "title_other": "{{count}} 行估值记录的市场价值不完整",
+      "message": "部分生成的估值记录的市场价值覆盖不完整。为保证正确性，业绩会将受影响的收益标记为不可用或已降级；请检查缺失的价格或手动估值。"
+    },
+    "data_incomplete_valuation_basis": {
+      "title_one": "成本基础覆盖不完整",
+      "title_other": "{{count}} 项持仓的成本基础不完整",
+      "message": "部分持仓缺少或仅有部分购入成本基础。仍可显示市场价值，但在修复相关活动之前，盈亏和成本基础收益可能不可用。"
+    },
+    "data_unknown_performance_flow_source": {
+      "title_one": "业绩资金流边界未知",
+      "title_other": "{{count}} 行估值记录的转账分类未知",
+      "message": "部分生成的估值记录包含投资组合边界未知的转账或资金流。请检查受影响日期的转账活动，并将每笔转账标记为外部转账或将其关联到对应的账户。"
+    },
+    "account_unconfigured": {
+      "title_one": "{{count}} 个账户需要设置",
+      "title_other": "{{count}} 个账户需要设置",
+      "message_one": "选择一种追踪模式以开始同步数据。",
+      "message_other": "选择追踪模式以开始同步数据。"
+    },
+    "account_timezone_missing": {
+      "title": "未配置时区",
+      "message": "请在“常规”设置中设置您的时区，以确保日期与您所在的地区匹配。"
+    },
+    "account_timezone_invalid": {
+      "title": "所配置的时区无效",
+      "message": "所配置的时区“{{timezone}}”无效。请在“常规”设置中更新它。"
+    },
+    "account_timezone_mismatch": {
+      "title": "浏览器时区与应用时区不一致",
+      "message": "所配置的时区为“{{configured}}”，但浏览器时区为“{{browser}}”。日期以所配置的时区为准。"
+    },
+    "quote_sync_error": {
+      "title_one": "{{symbol}} 的报价同步失败",
+      "title_other": "{{count}} 项资产的报价同步失败",
+      "message": "这些资产的价格已多次同步失败。请检查代码或数据提供商设置。"
+    },
+    "quote_sync_warning": {
+      "title_one": "{{symbol}} 存在同步问题",
+      "title_other": "{{count}} 项资产存在同步问题",
+      "message": "部分资产在同步价格时遇到问题。这可能会自动解决。"
+    },
+    "transfer_incomplete": {
+      "title_one": "检测到不完整的转账",
+      "title_other": "检测到 {{count}} 笔不完整的转账",
+      "message": "某笔转账未配对或缺少对应的另一端，因此其资金流被视为外部资金流，可能会扭曲收益。请将其与对应的转账配对，如属预期则将其标记为外部转账。"
+    }
+  },
+  "page": {
+    "heading": "数据健康",
+    "text": "识别并解决数据质量问题"
+  },
+  "severity": {
+    "info": "信息",
+    "warning": "警告",
+    "error": "错误",
+    "critical": "严重"
+  },
+  "category": {
+    "prices": "价格",
+    "fxRates": "汇率",
+    "categories": "类别",
+    "data": "数据",
+    "accounts": "账户",
+    "settings": "设置"
+  },
+  "actions": {
+    "fix": "修复",
+    "clear": "清除",
+    "sync_prices": "同步价格",
+    "fetch_fx": "获取汇率",
+    "migrate_classifications": "迁移分类",
+    "migrate_legacy_classifications": "开始迁移",
+    "retry_sync": "重试同步",
+    "to_holdings": "查看持仓",
+    "to_activities": "查看活动",
+    "to_accounts": "查看账户",
+    "to_taxonomies": "查看分类",
+    "to_market_data": "查看市场数据",
+    "to_general_settings": "打开常规设置",
+    "to_connect": "配置账户",
+    "review_transfers": "检查转账"
+  },
+  "updatedAt": "更新于 {{time}}",
+  "healthy": {
+    "title": "您的数据状况良好",
+    "description": "未发现问题。您的投资组合数据一致且是最新的。"
+  },
+  "loadError": {
+    "title": "加载健康状态失败",
+    "retry": "重试"
+  },
+  "sheet": {
+    "groupedPriceMessage": "Wealthfolio 对这些日期使用了顺延价格。请为真实交易日重新获取或添加价格；如果这些日期是节假日或非交易日，请忽略此问题。",
+    "pricesByInvestment": "按投资项目分类的价格",
+    "pricesByInvestmentHint": "打开某项投资以重新获取或添加价格。如果这些日期是节假日或非交易日，请忽略此问题。",
+    "priceHistoryNeedsReview": "价格历史需要检查",
+    "missingTradingDay_one": "缺失 {{count}} 个交易日：{{dates}}",
+    "missingTradingDay_other": "缺失 {{count}} 个交易日：{{dates}}",
+    "dateRange": "{{from}} 至 {{to}}",
+    "priceIssueSummary": "{{assetCount}} 项{{assetWord}}的 {{diagnosticCount}} 个价格{{dateWord}}",
+    "priceDate_one": "日期",
+    "priceDate_other": "日期",
+    "investment_one": "投资",
+    "investment_other": "投资"
+  },
+  "detail": {
+    "categories": {
+      "priceStaleness": {
+        "label": "价格过期",
+        "description": "市场价格已过期，需要刷新。这可能会影响您投资组合估值的准确性。"
+      },
+      "fxIntegrity": {
+        "label": "汇率",
+        "description": "缺少或过期的货币换算汇率。这可能会影响多币种投资组合的计算。"
+      },
+      "classification": {
+        "label": "分类",
+        "description": "资产缺少类别或分类。这会影响投资组合的构成分解和配置分析。"
+      },
+      "dataConsistency": {
+        "label": "数据一致性",
+        "description": "在投资组合数据中检测到不一致。这可能导致报表或计算不准确。"
+      },
+      "accountConfiguration": {
+        "label": "账户设置",
+        "description": "部分账户需要先完成配置才能同步数据。请设置追踪模式以开始导入数据。"
+      },
+      "settingsConfiguration": {
+        "label": "设置",
+        "description": "部分应用设置需要处理，以确保数据被正确解读。"
+      },
+      "timezoneMissing": {
+        "label": "时区设置",
+        "description": "您的应用时区尚未配置。在您设置之前，面向用户的日期可能与您所在的地区不匹配。"
+      },
+      "timezoneInvalid": {
+        "label": "时区设置",
+        "description": "您所配置的时区无效。请在“常规”设置中更新它，以恢复一致的日期处理。"
+      },
+      "timezoneMismatch": {
+        "label": "时区设置",
+        "description": "您的浏览器时区与所配置的应用时区不同。投资组合日期以所配置的时区为准。"
+      }
+    },
+    "affectedItems": "受影响的项目（{{count}}）",
+    "impact": "影响",
+    "affectedItemsCount": "受影响的项目",
+    "portfolioImpact": "对投资组合的影响",
+    "details": "详情",
+    "aboutThisIssue": "关于此问题",
+    "dismiss": "忽略",
+    "dismissConfirm": {
+      "title": "忽略此问题？",
+      "message": "这将在您的健康中心隐藏该问题。如果底层数据发生变化，它将重新出现。",
+      "pendingText": "正在忽略……"
+    }
+  }
+}

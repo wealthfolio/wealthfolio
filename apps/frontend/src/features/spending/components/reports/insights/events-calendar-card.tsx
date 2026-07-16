@@ -1,4 +1,5 @@
 import { useMemo, useState, type FC } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button, Icons } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -12,7 +13,15 @@ import { getEventColors } from "./event-colors";
 const CARD_CLASS = "border-border/60 bg-card/40 rounded-2xl border p-4 backdrop-blur-xl";
 const LABEL_CLASS = "text-muted-foreground/70 text-[10px] font-normal uppercase tracking-[0.12em]";
 
-const DAY_NAMES = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const DAY_NAME_KEYS = [
+  "spending:calendar.dayMon",
+  "spending:calendar.dayTue",
+  "spending:calendar.dayWed",
+  "spending:calendar.dayThu",
+  "spending:calendar.dayFri",
+  "spending:calendar.daySat",
+  "spending:calendar.daySun",
+];
 
 interface Props {
   events: EventSpendingSummary[];
@@ -22,6 +31,7 @@ interface Props {
 }
 
 export const EventsCalendarCard: FC<Props> = ({ events, currency, selectedId, onSelect }) => {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const { openEventDialog } = useEventDialog();
   const today = useMemo(() => stripTime(new Date()), []);
@@ -34,12 +44,14 @@ export const EventsCalendarCard: FC<Props> = ({ events, currency, selectedId, on
       {/* Header */}
       <div className="mb-3">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-foreground text-base font-semibold tracking-tight">Events</div>
+          <div className="text-foreground text-base font-semibold tracking-tight">
+            {t("spending:eventsCard.title")}
+          </div>
           <div className="flex shrink-0 items-center gap-1">
             <Button
               variant="outline"
               size="icon"
-              aria-label="Previous month"
+              aria-label={t("spending:calendar.previousMonth")}
               className="h-7 w-7"
               onClick={() => setCursor(addMonths(cursor, -1))}
             >
@@ -48,7 +60,7 @@ export const EventsCalendarCard: FC<Props> = ({ events, currency, selectedId, on
             <Button
               variant="outline"
               size="icon"
-              aria-label="Next month"
+              aria-label={t("spending:calendar.nextMonth")}
               className="h-7 w-7"
               onClick={() => setCursor(addMonths(cursor, 1))}
             >
@@ -57,7 +69,7 @@ export const EventsCalendarCard: FC<Props> = ({ events, currency, selectedId, on
             <Button
               variant="outline"
               size="icon"
-              aria-label="Create event"
+              aria-label={t("spending:events.createEvent")}
               className="ml-1 h-7 w-7 rounded-full"
               onClick={() =>
                 openEventDialog({
@@ -71,15 +83,18 @@ export const EventsCalendarCard: FC<Props> = ({ events, currency, selectedId, on
           </div>
         </div>
         <div className="text-muted-foreground/80 mt-1 text-[11px]">
-          {monthEvents.length} in {monthLabel} · tap a bar to inspect
+          {t("spending:calendar.monthSummary", {
+            count: monthEvents.length,
+            month: monthLabel,
+          })}
         </div>
       </div>
 
       {/* Day-of-week header */}
       <div className={cn("grid grid-cols-7 text-center", LABEL_CLASS)}>
-        {DAY_NAMES.map((d) => (
-          <div key={d} className="pb-1">
-            {d}
+        {DAY_NAME_KEYS.map((key) => (
+          <div key={key} className="pb-1">
+            {t(key)}
           </div>
         ))}
       </div>

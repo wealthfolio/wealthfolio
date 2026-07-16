@@ -1,25 +1,31 @@
-import { useEffect, useMemo } from "react";
-import { normalizeCurrency } from "@/lib/utils";
-import { useForm, FormProvider, type Resolver } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { ActivityType, QuoteMode } from "@/lib/constants";
-import { buildOccSymbol } from "@/lib/occ-symbol";
+import { useEffect, useMemo, useRef } from "react";
+import { useHoldings } from "@/hooks/use-holdings";
 import { useSettings } from "@/hooks/use-settings";
+import { ACTIVITY_SUBTYPES, ActivityType, QuoteMode } from "@/lib/constants";
+import { buildOccSymbol } from "@/lib/occ-symbol";
+import { normalizeCurrency } from "@/lib/utils";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
+import { Button } from "@wealthfolio/ui/components/ui/button";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { useTranslation } from "react-i18next";
+import { FormProvider, useForm, type Resolver } from "react-hook-form";
+import { z } from "zod";
+import type { TFunction } from "i18next";
 import {
   AccountSelect,
-  SymbolSearch,
-  DatePicker,
-  AmountInput,
-  QuantityInput,
-  NotesInput,
   AdvancedOptionsSection,
+  AmountInput,
   AssetTypeSelector,
-  OptionContractFields,
   createValidatedSubmit,
+  DatePicker,
+  FormSection,
+  NotesInput,
+  OptionContractFields,
+  PositionIntentSelector,
+  QuantityInput,
+  StockTradeIntentSelector,
+  SymbolSearch,
   type AssetType,
   type AccountSelectOption,
 } from "./fields";
@@ -35,97 +41,161 @@ const assetMetadataSchema = z
   })
   .optional();
 
-// Zod schema for BuyForm validation
-export const buyFormSchema = z
-  .object({
-    assetType: z.enum(["stock", "option", "bond"]).default("stock"),
-    assetKind: z.string().optional(),
-    accountId: z.string().min(1, { message: "Please select an account." }),
-    assetId: z.string().default(""),
-    existingAssetId: z.string().nullable().optional(),
-    activityDate: z.date({ required_error: "Please select a date." }),
-    quantity: z.coerce
-      .number({
-        required_error: "Please enter a quantity.",
-        invalid_type_error: "Quantity must be a number.",
-      })
-      .positive({ message: "Quantity must be greater than 0." }),
-    unitPrice: z.coerce
-      .number({
-        required_error: "Please enter a price.",
-        invalid_type_error: "Price must be a number.",
-      })
-      .positive({ message: "Price must be greater than 0." }),
-    fee: z.coerce
-      .number({
-        invalid_type_error: "Fee must be a number.",
-      })
-      .min(0, { message: "Fee must be non-negative." })
-      .default(0),
-    comment: z.string().optional().nullable(),
-    // Advanced options
-    currency: z.string().min(1, { message: "Currency is required." }),
-    fxRate: z.coerce
-      .number({
-        invalid_type_error: "FX Rate must be a number.",
-      })
-      .positive({ message: "FX Rate must be positive." })
-      .optional(),
-    // Internal fields
-    quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MARKET),
-    exchangeMic: z.string().nullable().optional(),
-    symbolQuoteCcy: z.string().nullable().optional(),
-    symbolInstrumentType: z.string().nullable().optional(),
-    // Asset metadata for custom assets (name, etc.)
-    assetMetadata: assetMetadataSchema,
-    // Option-specific fields
-    underlyingSymbol: z.string().optional(),
-    strikePrice: z.coerce.number().positive().optional(),
-    expirationDate: z.string().optional(),
-    optionType: z.enum(["CALL", "PUT"]).optional(),
-    contractMultiplier: z.coerce.number().positive().default(100).optional(),
-  })
-  .superRefine((data, ctx) => {
-    // Options build their symbol at submit time; stocks/bonds require it upfront
-    if (data.assetType !== "option" && (!data.assetId || data.assetId.trim() === "")) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Please enter a symbol.",
-        path: ["assetId"],
-      });
-    }
-    // Option contracts require all 4 structured fields
-    if (data.assetType === "option") {
-      if (!data.underlyingSymbol?.trim()) {
+// Translated message helper: uses `t` when provided (runtime UI),
+// otherwise falls back to the English source string (static export / tests).
+type MsgFn = TFunction | undefined;
+const msg = (t: MsgFn, key: string, en: string) => (t ? t(key) : en);
+
+// Zod schema factory for BuyForm validation. `t` is optional so the exported
+// static schema keeps English messages (used by tests and type inference).
+export const createBuyFormSchema = (t?: TFunction) =>
+  z
+    .object({
+      assetType: z.enum(["stock", "option", "bond"]).default("stock"),
+      assetKind: z.string().optional(),
+      accountId: z.string().min(1, {
+        message: msg(t, "activity:form.err_select_account", "Please select an account."),
+      }),
+      assetId: z.string().default(""),
+      existingAssetId: z.string().nullable().optional(),
+      activityDate: z.date({
+        required_error: msg(t, "activity:form.err_select_date", "Please select a date."),
+      }),
+      quantity: z.coerce
+        .number({
+          required_error: msg(t, "activity:form.err_enter_quantity", "Please enter a quantity."),
+          invalid_type_error: msg(
+            t,
+            "activity:form.err_quantity_number",
+            "Quantity must be a number.",
+          ),
+        })
+        .positive({
+          message: msg(t, "activity:form.err_quantity_gt_zero", "Quantity must be greater than 0."),
+        }),
+      unitPrice: z.coerce
+        .number({
+          required_error: msg(t, "activity:form.err_enter_price", "Please enter a price."),
+          invalid_type_error: msg(t, "activity:form.err_price_number", "Price must be a number."),
+        })
+        .positive({
+          message: msg(t, "activity:form.err_price_gt_zero", "Price must be greater than 0."),
+        }),
+      fee: z.coerce
+        .number({
+          invalid_type_error: msg(t, "activity:form.err_fee_number", "Fee must be a number."),
+        })
+        .min(0, {
+          message: msg(t, "activity:form.err_fee_non_negative", "Fee must be non-negative."),
+        })
+        .default(0),
+      tax: z.coerce
+        .number({
+          invalid_type_error: msg(t, "activity:form.err_tax_number", "Tax must be a number."),
+        })
+        .min(0, {
+          message: msg(t, "activity:form.err_tax_non_negative", "Tax must be non-negative."),
+        })
+        .default(0),
+      comment: z.string().optional().nullable(),
+      subtype: z.string().optional().nullable(),
+      // Advanced options
+      currency: z.string().min(1, {
+        message: msg(t, "activity:form.err_currency_required", "Currency is required."),
+      }),
+      fxRate: z.coerce
+        .number({
+          invalid_type_error: msg(
+            t,
+            "activity:form.err_fxrate_number",
+            "FX Rate must be a number.",
+          ),
+        })
+        .positive({
+          message: msg(t, "activity:form.err_fxrate_positive", "FX Rate must be positive."),
+        })
+        .optional(),
+      // Internal fields
+      quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MARKET),
+      exchangeMic: z.string().nullable().optional(),
+      symbolQuoteCcy: z.string().nullable().optional(),
+      symbolInstrumentType: z.string().nullable().optional(),
+      // Asset metadata for custom assets (name, etc.)
+      assetMetadata: assetMetadataSchema,
+      // Option-specific fields
+      underlyingSymbol: z.string().optional(),
+      strikePrice: z.coerce.number().positive().optional(),
+      expirationDate: z.string().optional(),
+      optionType: z.enum(["CALL", "PUT"]).optional(),
+      contractMultiplier: z.coerce.number().positive().default(100).optional(),
+    })
+    .superRefine((data, ctx) => {
+      // Options build their symbol at submit time; stocks/bonds require it upfront
+      if (data.assetType !== "option" && (!data.assetId || data.assetId.trim() === "")) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Underlying symbol is required.",
-          path: ["underlyingSymbol"],
+          message: msg(t, "activity:form.err_enter_symbol", "Please enter a symbol."),
+          path: ["assetId"],
         });
       }
-      if (!data.strikePrice || data.strikePrice <= 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Strike price is required.",
-          path: ["strikePrice"],
-        });
+      // Option contracts require all 4 structured fields
+      if (data.assetType === "option") {
+        // Require an explicit Open/Close choice — never silently default the intent.
+        if (
+          data.subtype !== ACTIVITY_SUBTYPES.POSITION_OPEN &&
+          data.subtype !== ACTIVITY_SUBTYPES.POSITION_CLOSE
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: msg(
+              t,
+              "activity:form.err_open_or_close",
+              "Select whether this opens or closes a position.",
+            ),
+            path: ["subtype"],
+          });
+        }
+        if (!data.underlyingSymbol?.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: msg(
+              t,
+              "activity:form.err_underlying_required",
+              "Underlying symbol is required.",
+            ),
+            path: ["underlyingSymbol"],
+          });
+        }
+        if (!data.strikePrice || data.strikePrice <= 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: msg(t, "activity:form.err_strike_required", "Strike price is required."),
+            path: ["strikePrice"],
+          });
+        }
+        if (!data.expirationDate?.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: msg(
+              t,
+              "activity:form.err_expiration_required",
+              "Expiration date is required.",
+            ),
+            path: ["expirationDate"],
+          });
+        }
+        if (!data.optionType) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: msg(t, "activity:form.err_option_type_required", "Option type is required."),
+            path: ["optionType"],
+          });
+        }
       }
-      if (!data.expirationDate?.trim()) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Expiration date is required.",
-          path: ["expirationDate"],
-        });
-      }
-      if (!data.optionType) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Option type is required.",
-          path: ["optionType"],
-        });
-      }
-    }
-  });
+    });
+
+// Zod schema for BuyForm validation (English messages; used by tests).
+export const buyFormSchema = createBuyFormSchema();
 
 export type BuyFormValues = z.infer<typeof buyFormSchema>;
 
@@ -149,8 +219,11 @@ export function BuyForm({
   isEditing = false,
   assetCurrency,
 }: BuyFormProps) {
+  const { t } = useTranslation(["activity"]);
   const { data: settings } = useSettings();
   const baseCurrency = settings?.baseCurrency;
+
+  const schema = useMemo(() => createBuyFormSchema(t), [t]);
 
   // Compute initial account and currency for defaultValues
   const initialAccountId =
@@ -161,7 +234,7 @@ export function BuyForm({
     defaultValues?.currency?.trim() || assetCurrency?.trim() || initialAccount?.currency;
 
   const form = useForm<BuyFormValues>({
-    resolver: zodResolver(buyFormSchema) as Resolver<BuyFormValues>,
+    resolver: zodResolver(schema) as Resolver<BuyFormValues>,
     mode: "onSubmit",
     defaultValues: {
       assetType: "stock",
@@ -176,7 +249,9 @@ export function BuyForm({
       quantity: undefined,
       unitPrice: undefined,
       fee: 0,
+      tax: 0,
       comment: null,
+      subtype: null,
       fxRate: undefined,
       quoteMode: QuoteMode.MARKET,
       exchangeMic: undefined,
@@ -193,6 +268,7 @@ export function BuyForm({
 
   const { watch, setValue } = form;
   const accountId = watch("accountId");
+  const assetId = watch("assetId");
   const currency = watch("currency");
   const quoteMode = watch("quoteMode");
   const symbolQuoteCcy = watch("symbolQuoteCcy");
@@ -207,11 +283,38 @@ export function BuyForm({
   const assetType = watch("assetType") ?? "stock";
   const isManualAsset = quoteMode === QuoteMode.MANUAL;
   const isOption = assetType === "option";
+  const isStock = assetType === "stock";
+  const subtype = watch("subtype");
+
+  // Reset the stock "Buy to Cover" intent when the selected symbol changes — a
+  // cover intent for one symbol must not silently carry over to another.
+  // SymbolSearch owns the assetId field and exposes no onChange, so we track the
+  // previous value to fire only on an actual symbol switch (not on mount/edit).
+  const prevAssetIdRef = useRef(assetId);
+  useEffect(() => {
+    if (prevAssetIdRef.current !== assetId) {
+      if (isStock && subtype === ACTIVITY_SUBTYPES.POSITION_CLOSE) {
+        setValue("subtype", null);
+      }
+      prevAssetIdRef.current = assetId;
+    }
+  }, [assetId, isStock, subtype, setValue]);
+  const optionSubmitLabel =
+    subtype === ACTIVITY_SUBTYPES.POSITION_CLOSE
+      ? t("activity:form.button_buy_to_close")
+      : subtype === ACTIVITY_SUBTYPES.POSITION_OPEN
+        ? t("activity:form.button_buy_to_open")
+        : t("activity:form.button_add_buy");
+  const isStockCover = isStock && subtype === ACTIVITY_SUBTYPES.POSITION_CLOSE;
+  const buySubmitLabel = isStockCover
+    ? t("activity:form.button_buy_to_cover")
+    : t("activity:form.button_add_buy");
 
   // Option total premium calculation
   const optQuantity = watch("quantity");
   const optUnitPrice = watch("unitPrice");
   const optFee = watch("fee");
+  const optTax = watch("tax");
   const optMultiplier = watch("contractMultiplier");
 
   const optionTotal = useMemo(() => {
@@ -219,20 +322,25 @@ export function BuyForm({
     const q = Number(optQuantity) || 0;
     const p = Number(optUnitPrice) || 0;
     const f = Number(optFee) || 0;
+    const tx = Number(optTax) || 0;
     const m = Number(optMultiplier) || 100;
-    return q * p * m + f;
-  }, [isOption, optQuantity, optUnitPrice, optFee, optMultiplier]);
+    return q * p * m + f + tx;
+  }, [isOption, optQuantity, optUnitPrice, optFee, optTax, optMultiplier]);
 
   const handleAssetTypeChange = (value: AssetType) => {
     if (value === "option") {
       setValue("quoteMode", QuoteMode.MARKET);
       setValue("assetKind", "OPTION");
+      // No default position intent — the user must explicitly pick Open or Close.
+      setValue("subtype", null);
     } else if (value === "bond") {
       setValue("quoteMode", QuoteMode.MARKET);
       setValue("assetKind", "BOND");
+      setValue("subtype", null);
     } else {
       setValue("quoteMode", QuoteMode.MARKET);
       setValue("assetKind", undefined);
+      setValue("subtype", null);
     }
     setValue("assetId", "");
     setValue("existingAssetId", undefined);
@@ -242,8 +350,14 @@ export function BuyForm({
     setValue("assetMetadata", undefined);
   };
 
-  const quantityLabel = isOption ? "Contracts" : assetType === "bond" ? "Bonds" : "Quantity";
-  const priceLabel = isOption ? "Premium/Share" : "Price";
+  const quantityLabel = isOption
+    ? t("activity:form.label_contracts")
+    : assetType === "bond"
+      ? t("activity:form.label_bonds")
+      : t("activity:form.label_quantity");
+  const priceLabel = isOption
+    ? t("activity:form.label_premium_share")
+    : t("activity:form.label_price");
   // Get account currency from selected account
   const selectedAccount = useMemo(
     () => accounts.find((a) => a.value === accountId),
@@ -251,6 +365,31 @@ export function BuyForm({
   );
   const accountCurrency = selectedAccount?.currency;
   const assetCurrencyFromSymbol = normalizeCurrency(symbolQuoteCcy ?? undefined)?.toUpperCase();
+
+  const { holdings } = useHoldings({ type: "account", accountId });
+  const currentHoldingQuantity = useMemo(() => {
+    if (!assetId || !holdings) return 0;
+    const holding = holdings.find(
+      (h) => h.instrument?.symbol === assetId || h.instrument?.id === assetId || h.id === assetId,
+    );
+    return holding?.quantity ?? 0;
+  }, [assetId, holdings]);
+  const currentShortQuantity = currentHoldingQuantity < 0 ? Math.abs(currentHoldingQuantity) : 0;
+  const isEditingCoverActivity =
+    isEditing &&
+    (defaultValues?.assetType ?? "stock") === "stock" &&
+    defaultValues?.subtype === ACTIVITY_SUBTYPES.POSITION_CLOSE;
+  const showBuyToCover =
+    isStock && (currentShortQuantity > 0 || isStockCover || isEditingCoverActivity);
+  const isCoverWithoutShort = !isEditing && isStockCover && !!assetId && currentShortQuantity === 0;
+  const isBuyWhileShortWithoutCover =
+    !isEditing && isStock && !!assetId && currentShortQuantity > 0 && !isStockCover;
+  const isCoverQuantityExcess =
+    !isEditing &&
+    isStockCover &&
+    !!assetId &&
+    currentShortQuantity > 0 &&
+    Number(optQuantity) > currentShortQuantity;
 
   const handleSubmit = createValidatedSubmit(form, async (data) => {
     // Ensure currency is set (required by backend) — fall back to account currency
@@ -260,6 +399,10 @@ export function BuyForm({
     // Ensure symbolQuoteCcy is set — manual/custom symbols leave it undefined
     if (!data.symbolQuoteCcy && data.currency) {
       data.symbolQuoteCcy = data.currency;
+    }
+    // Stocks only use subtype for explicit Buy to Cover.
+    if (data.assetType === "stock" && data.subtype !== ACTIVITY_SUBTYPES.POSITION_CLOSE) {
+      data.subtype = null;
     }
     // For options: build OCC symbol from structured fields
     if (
@@ -278,6 +421,7 @@ export function BuyForm({
       data.assetId = occSymbol;
       data.existingAssetId = undefined;
       data.symbolInstrumentType = "OPTION";
+      // subtype is required for options by the schema — no silent default here.
       data.assetMetadata = {
         ...data.assetMetadata,
         name: `${data.underlyingSymbol.toUpperCase()} ${data.expirationDate} ${data.optionType} ${data.strikePrice}`,
@@ -294,151 +438,218 @@ export function BuyForm({
   return (
     <FormProvider {...form}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Card>
-          <CardContent className="space-y-6 pt-4">
-            {/* Asset Type Selector */}
-            {!isEditing && (
+        <FormSection
+          title={t("activity:form.section_asset_account")}
+          action={
+            !isEditing && (
               <AssetTypeSelector
                 control={form.control}
                 name="assetType"
                 onValueChange={handleAssetTypeChange}
               />
-            )}
-
-            {/* Account Selection */}
-            <AccountSelect name="accountId" accounts={accounts} currencyName="currency" />
-
-            {/* Date Picker */}
-            <DatePicker name="activityDate" label="Date" enableTime={true} />
-
-            {/* Symbol / Option Contract Fields */}
-            {isOption ? (
-              <OptionContractFields
-                underlyingName="underlyingSymbol"
-                strikePriceName="strikePrice"
-                expirationDateName="expirationDate"
-                optionTypeName="optionType"
-                currencyName="currency"
-                exchangeMicName="exchangeMic"
-                quoteCcyName="symbolQuoteCcy"
-                unitPriceName="unitPrice"
-              />
-            ) : (
-              <>
-                <SymbolSearch
-                  name="assetId"
-                  isManualAsset={isManualAsset}
-                  exchangeMicName="exchangeMic"
-                  quoteModeName="quoteMode"
-                  currencyName="currency"
-                  quoteCcyName="symbolQuoteCcy"
-                  instrumentTypeName="symbolInstrumentType"
-                  existingAssetIdName="existingAssetId"
-                  assetMetadataName="assetMetadata"
-                />
-                {/* Hidden fields to register assetMetadata for react-hook-form */}
-                <input type="hidden" {...form.register("assetMetadata.name")} />
-                <input type="hidden" {...form.register("assetMetadata.kind")} />
-                <input type="hidden" {...form.register("symbolQuoteCcy")} />
-                <input type="hidden" {...form.register("symbolInstrumentType")} />
-                <input type="hidden" {...form.register("existingAssetId")} />
-              </>
-            )}
-
-            {/* Quantity, Price, Fee Row */}
-            {isOption && (
-              <h4 className="text-muted-foreground text-sm font-medium">Trade Details</h4>
-            )}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div>
-                <QuantityInput name="quantity" label={quantityLabel} />
-                {/* Shares breakdown with click-to-edit multiplier */}
-                {isOption && optQuantity && (
-                  <div className="text-muted-foreground mt-1.5 flex items-center gap-1 text-xs">
-                    <span>{Number(optQuantity) * (Number(optMultiplier) || 100)} shares</span>
-                    <span>·</span>
-                    <input
-                      type="number"
-                      {...form.register("contractMultiplier", { valueAsNumber: true })}
-                      className="hover:border-input focus:border-input focus:bg-background focus:ring-ring h-5 w-14 rounded border border-transparent bg-transparent px-1 text-center text-xs tabular-nums focus:outline-none focus:ring-1"
-                      aria-label="Contract Multiplier"
-                    />
-                    <span>x</span>
-                  </div>
-                )}
-              </div>
-              <AmountInput
-                name="unitPrice"
-                label={priceLabel}
-                maxDecimalPlaces={4}
-                currency={currency}
-              />
-              <AmountInput name="fee" label="Fee" currency={currency} />
-            </div>
-
-            {/* Option Total Premium with formula breakdown */}
-            {isOption && optQuantity && optUnitPrice && (
-              <div className="bg-muted/50 border-border rounded-md border p-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-muted-foreground text-xs font-medium uppercase">
-                      Total Debit
-                    </span>
-                    <p className="text-muted-foreground mt-0.5 text-xs tabular-nums">
-                      {Number(optQuantity)} ×{" "}
-                      {currency
-                        ? new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
-                            Number(optUnitPrice),
-                          )
-                        : Number(optUnitPrice)}{" "}
-                      × {Number(optMultiplier) || 100}
-                      {Number(optFee) > 0 && (
-                        <>
-                          {" "}
-                          +{" "}
-                          {currency
-                            ? new Intl.NumberFormat("en-US", {
-                                style: "currency",
-                                currency,
-                              }).format(Number(optFee))
-                            : Number(optFee)}
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  <span className="text-lg font-semibold tabular-nums">
-                    {new Intl.NumberFormat("en-US", {
-                      style: currency ? "currency" : "decimal",
-                      currency: currency || undefined,
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }).format(optionTotal)}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Advanced Options */}
-            <AdvancedOptionsSection
+            )
+          }
+        >
+          {/* Symbol / Option Contract Fields */}
+          {isOption ? (
+            <OptionContractFields
+              underlyingName="underlyingSymbol"
+              strikePriceName="strikePrice"
+              expirationDateName="expirationDate"
+              optionTypeName="optionType"
               currencyName="currency"
-              fxRateName="fxRate"
-              activityType={ActivityType.BUY}
-              assetCurrency={assetCurrencyFromSymbol ?? normalizeCurrency(assetCurrency)}
-              accountCurrency={accountCurrency}
-              baseCurrency={baseCurrency}
-              showSubtype={false}
+              exchangeMicName="exchangeMic"
+              quoteCcyName="symbolQuoteCcy"
+              unitPriceName="unitPrice"
             />
+          ) : (
+            <>
+              <SymbolSearch
+                name="assetId"
+                isManualAsset={isManualAsset}
+                exchangeMicName="exchangeMic"
+                quoteModeName="quoteMode"
+                currencyName="currency"
+                quoteCcyName="symbolQuoteCcy"
+                instrumentTypeName="symbolInstrumentType"
+                existingAssetIdName="existingAssetId"
+                assetMetadataName="assetMetadata"
+              />
+              {/* Hidden fields to register assetMetadata for react-hook-form */}
+              <input type="hidden" {...form.register("assetMetadata.name")} />
+              <input type="hidden" {...form.register("assetMetadata.kind")} />
+              <input type="hidden" {...form.register("symbolQuoteCcy")} />
+              <input type="hidden" {...form.register("symbolInstrumentType")} />
+              <input type="hidden" {...form.register("existingAssetId")} />
+            </>
+          )}
 
-            {/* Notes */}
-            <NotesInput name="comment" label="Notes" placeholder="Add an optional note..." />
-          </CardContent>
-        </Card>
+          <AccountSelect name="accountId" accounts={accounts} currencyName="currency" />
+          <DatePicker name="activityDate" label={t("activity:field_date")} enableTime={true} />
+        </FormSection>
+
+        <FormSection
+          title={t("activity:form.section_trade")}
+          action={
+            isOption ? (
+              <PositionIntentSelector control={form.control} name="subtype" hideLabel />
+            ) : showBuyToCover ? (
+              <StockTradeIntentSelector
+                control={form.control}
+                name="subtype"
+                side="buy"
+                hideLabel
+              />
+            ) : null
+          }
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <QuantityInput name="quantity" label={quantityLabel} />
+              {/* Shares breakdown with click-to-edit multiplier */}
+              {isOption && optQuantity && (
+                <div className="text-muted-foreground mt-1.5 flex items-center gap-1 text-xs">
+                  <span>
+                    {t("activity:form.shares_count", {
+                      count: Number(optQuantity) * (Number(optMultiplier) || 100),
+                    })}
+                  </span>
+                  <span>·</span>
+                  <input
+                    type="number"
+                    {...form.register("contractMultiplier", { valueAsNumber: true })}
+                    className="hover:border-input focus:border-input focus:bg-background focus:ring-ring h-5 w-14 rounded border border-transparent bg-transparent px-1 text-center text-xs tabular-nums focus:outline-none focus:ring-1"
+                    aria-label={t("activity:form.contract_multiplier")}
+                  />
+                  <span>x</span>
+                </div>
+              )}
+              {isStock && currentShortQuantity > 0 && (
+                <p className="text-muted-foreground mt-1.5 text-xs">
+                  {t("activity:form.short_shares", { count: currentShortQuantity })}
+                </p>
+              )}
+            </div>
+            <AmountInput
+              name="unitPrice"
+              label={priceLabel}
+              data-testid="price-input"
+              maxDecimalPlaces={4}
+              currency={currency}
+            />
+            <AmountInput name="fee" label={t("activity:form.label_fee")} currency={currency} />
+            <AmountInput name="tax" label={t("activity:form.label_tax")} currency={currency} />
+          </div>
+
+          {/* Option Total Premium with formula breakdown */}
+          {isOption && optQuantity && optUnitPrice && (
+            <div className="bg-muted/50 border-border rounded-md border p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-muted-foreground text-xs font-medium uppercase">
+                    {t("activity:form.total_debit")}
+                  </span>
+                  <p className="text-muted-foreground mt-0.5 text-xs tabular-nums">
+                    {Number(optQuantity)} ×{" "}
+                    {currency
+                      ? new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
+                          Number(optUnitPrice),
+                        )
+                      : Number(optUnitPrice)}{" "}
+                    × {Number(optMultiplier) || 100}
+                    {Number(optFee) > 0 && (
+                      <>
+                        {" "}
+                        +{" "}
+                        {currency
+                          ? new Intl.NumberFormat("en-US", {
+                              style: "currency",
+                              currency,
+                            }).format(Number(optFee))
+                          : Number(optFee)}
+                      </>
+                    )}
+                    {Number(optTax) > 0 && (
+                      <>
+                        {" "}
+                        +{" "}
+                        {currency
+                          ? new Intl.NumberFormat("en-US", {
+                              style: "currency",
+                              currency,
+                            }).format(Number(optTax))
+                          : Number(optTax)}
+                      </>
+                    )}
+                  </p>
+                </div>
+                <span className="text-lg font-semibold tabular-nums">
+                  {new Intl.NumberFormat("en-US", {
+                    style: currency ? "currency" : "decimal",
+                    currency: currency || undefined,
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  }).format(optionTotal)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {isBuyWhileShortWithoutCover && (
+            <Alert variant="default" className="border-warning bg-warning/10">
+              <Icons.AlertTriangle className="text-warning h-4 w-4" />
+              <AlertDescription className="text-warning text-sm">
+                {t("activity:form.warn_buy_while_short")}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {isCoverWithoutShort && (
+            <Alert variant="default" className="border-warning bg-warning/10">
+              <Icons.AlertTriangle className="text-warning h-4 w-4" />
+              <AlertDescription className="text-warning text-sm">
+                {t("activity:form.warn_cover_without_short")}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {isCoverQuantityExcess && (
+            <Alert variant="default" className="border-warning bg-warning/10">
+              <Icons.AlertTriangle className="text-warning h-4 w-4" />
+              <AlertDescription className="text-warning text-sm">
+                {t("activity:form.warn_cover_quantity_excess", {
+                  covering: Number(optQuantity).toLocaleString(),
+                  short: currentShortQuantity.toLocaleString(),
+                })}
+              </AlertDescription>
+            </Alert>
+          )}
+        </FormSection>
+
+        {/* Advanced options (currency, FX rate) and notes, collapsed by default */}
+        <AdvancedOptionsSection
+          title={t("activity:form.section_advanced_notes")}
+          dashed
+          currencyName="currency"
+          fxRateName="fxRate"
+          activityType={ActivityType.BUY}
+          assetCurrency={assetCurrencyFromSymbol ?? normalizeCurrency(assetCurrency)}
+          accountCurrency={accountCurrency}
+          baseCurrency={baseCurrency}
+          showSubtype={false}
+        >
+          <NotesInput
+            name="comment"
+            label={t("activity:form.label_notes")}
+            placeholder={t("activity:form.placeholder_note")}
+          />
+        </AdvancedOptionsSection>
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-2">
           {onCancel && (
             <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
-              Cancel
+              {t("activity:cancel")}
             </Button>
           )}
           <Button type="submit" disabled={isLoading}>
@@ -448,7 +659,11 @@ export function BuyForm({
             ) : (
               <Icons.Plus className="mr-2 h-4 w-4" />
             )}
-            {isEditing ? "Update" : isOption ? "Buy to Open" : "Add Buy"}
+            {isEditing
+              ? t("activity:form.button_update")
+              : isOption
+                ? optionSubmitLabel
+                : buySubmitLabel}
           </Button>
         </div>
       </form>

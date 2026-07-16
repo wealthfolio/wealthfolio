@@ -287,7 +287,8 @@ impl ValuationRepositoryTrait for ValuationRepository {
                     total_value, cost_basis, net_contribution, cash_balance_base, \
                     investment_market_value_base, total_value_base, cost_basis_base, \
                     net_contribution_base, external_inflow_base, external_outflow_base, \
-                    external_flow_source, performance_eligible_value_base, calculated_at, \
+                    external_flow_source, performance_eligible_value_base, value_status, \
+                    basis_status, calculated_at, \
                     ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY valuation_date DESC) as rn \
                 FROM {} \
                 WHERE account_id IN ({}) \
@@ -298,7 +299,8 @@ impl ValuationRepositoryTrait for ValuationRepository {
                 total_value, cost_basis, net_contribution, cash_balance_base, \
                 investment_market_value_base, total_value_base, cost_basis_base, \
                 net_contribution_base, external_inflow_base, external_outflow_base, \
-                external_flow_source, performance_eligible_value_base, calculated_at \
+                external_flow_source, performance_eligible_value_base, value_status, \
+                basis_status, calculated_at \
             FROM RankedValuations \
             WHERE rn = 1",
             "daily_account_valuation", // Use direct table name string

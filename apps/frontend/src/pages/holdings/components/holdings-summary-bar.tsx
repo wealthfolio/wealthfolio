@@ -1,4 +1,5 @@
 import { AmountDisplay } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ export function HoldingsSummaryBar({
   currency,
   className,
 }: HoldingsSummaryBarProps) {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const netWorth = totalAssets - totalLiabilities;
 
@@ -32,14 +34,14 @@ export function HoldingsSummaryBar({
       )}
     >
       <SummaryItem
-        label="Assets"
+        label={t("holdings:summary_assets")}
         value={totalAssets}
         currency={currency}
         isHidden={isBalanceHidden}
       />
       <div className="bg-border hidden h-8 w-px sm:block" />
       <SummaryItem
-        label="Debts"
+        label={t("holdings:summary_debts")}
         value={totalLiabilities}
         currency={currency}
         isHidden={isBalanceHidden}
@@ -47,7 +49,7 @@ export function HoldingsSummaryBar({
       />
       <div className="bg-border hidden h-8 w-px sm:block" />
       <SummaryItem
-        label="Net Worth"
+        label={t("holdings:summary_net_worth")}
         value={netWorth}
         currency={currency}
         isHidden={isBalanceHidden}

@@ -3,6 +3,14 @@
 This guide covers all changes needed to migrate your Wealthfolio addon from v2
 to v3.
 
+> **Targeting Wealthfolio 3.6 or later?** The addon runtime moved to an isolated
+> sandbox iframe in 3.6, which changed route registration (`component` →
+> `render`), React access, and bundling. After finishing this v2 → v3 migration,
+> follow the
+> [v3.5 → v3.6 migration guide](./addon-migration-guide-v3.5-to-v3.6.md). The
+> `component: React.lazy(...)` examples below are the pre-3.6 form and no longer
+> work on 3.6+.
+
 ## Overview
 
 | Aspect        | v2        | v3         |
@@ -453,6 +461,10 @@ ctx.router.add({
 });
 ```
 
+> **3.6+:** `component` was replaced by a `render` callback that mounts into a
+> sandbox-provided DOM node. See
+> [Route registration](./addon-migration-guide-v3.5-to-v3.6.md#1-route-registration-component--render).
+
 ---
 
 ## 7. Permission Changes
@@ -548,6 +560,11 @@ export default function enable(ctx: AddonContext) {
   });
 }
 ```
+
+> **3.6+:** the `component: React.lazy(...)` route above must become a `render`
+> callback, and `React`/`ReactDOM` are no longer SDK exports. See the
+> [v3.5 → v3.6 guide](./addon-migration-guide-v3.5-to-v3.6.md) for the updated
+> `enable()` shape.
 
 ---
 

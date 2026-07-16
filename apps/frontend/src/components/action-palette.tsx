@@ -4,11 +4,13 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
 import { cn } from "@wealthfolio/ui/lib/utils";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 
 export interface ActionPaletteItem {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   onClick: () => void;
+  testId?: string;
   variant?: "default" | "destructive";
 }
 
@@ -36,6 +38,7 @@ export function ActionPalette({
   align = "end",
   side = "bottom",
 }: ActionPaletteProps) {
+  const { t } = useTranslation();
   const { triggerHaptic } = useHapticFeedback();
 
   const handleItemClick = React.useCallback(
@@ -85,7 +88,7 @@ export function ActionPalette({
                 "transition-colors duration-150",
                 "focus-visible:ring-ring focus:outline-none focus-visible:ring-2",
               )}
-              aria-label="Close"
+              aria-label={t("common:close")}
             >
               <Icons.X className="h-4 w-4" />
             </button>
@@ -109,6 +112,7 @@ export function ActionPalette({
                     <React.Fragment key={itemIndex}>
                       {itemIndex > 0 && <div className="bg-border/70 mx-3 h-px" />}
                       <button
+                        data-testid={item.testId}
                         onClick={() => handleItemClick(item)}
                         className={cn(
                           "flex w-full items-center gap-4 rounded-xl px-3 py-3",

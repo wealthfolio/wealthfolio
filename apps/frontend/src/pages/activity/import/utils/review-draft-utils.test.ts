@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseNumericValue,
+  parseSignedNumericValue,
   toNumber,
   hasPositiveValue,
   hasNonZeroValue,
@@ -11,6 +12,15 @@ import { ACTIVITY_SUBTYPES, ActivityType } from "@/lib/constants";
 describe("parseNumericValue", () => {
   const auto = "auto";
   const none = "none";
+
+  describe("signed value handling", () => {
+    it("should preserve signs when requested", () => {
+      expect(parseSignedNumericValue("-58.22", auto, none)).toBe("-58.22");
+      expect(parseSignedNumericValue("-$1,234.56", auto, none)).toBe("-1234.56");
+      expect(parseSignedNumericValue("(100.50)", auto, none)).toBe("-100.50");
+      expect(parseSignedNumericValue("58.22", auto, none)).toBe("58.22");
+    });
+  });
 
   describe("absolute value handling", () => {
     it("should return absolute value for negative numbers", () => {

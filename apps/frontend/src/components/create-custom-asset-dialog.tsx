@@ -29,29 +29,36 @@ import {
 } from "@wealthfolio/ui/components/ui/select";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { z } from "zod";
 
-const ASSET_TYPE_OPTIONS = [
-  { value: "EQUITY", label: "Equity (Stock, ETF, Fund)" },
-  { value: "CRYPTO", label: "Cryptocurrency" },
-  { value: "BOND", label: "Bond" },
-  { value: "OPTION", label: "Option" },
-  { value: "METAL", label: "Metal (Commodity)" },
-  { value: "OTHER", label: "Other" },
-] as const;
+const getAssetTypeOptions = (t: TFunction) =>
+  [
+    { value: "EQUITY", label: t("common:component.asset_type_equity") },
+    { value: "CRYPTO", label: t("common:component.asset_type_crypto") },
+    { value: "BOND", label: t("common:component.asset_type_bond") },
+    { value: "OPTION", label: t("common:component.asset_type_option") },
+    { value: "METAL", label: t("common:component.asset_type_metal") },
+    { value: "OTHER", label: t("common:component.asset_type_other") },
+  ] as const;
 
-const customAssetSchema = z.object({
-  symbol: z
-    .string()
-    .min(1, "Symbol is required")
-    .max(20, "Symbol must be 20 characters or less")
-    .transform((val) => val.toUpperCase().trim()),
-  name: z.string().min(1, "Name is required").max(100, "Name must be 100 characters or less"),
-  assetType: z.enum(["EQUITY", "CRYPTO", "BOND", "OPTION", "METAL", "OTHER"]),
-  currency: z.string().min(1, "Currency is required"),
-});
+const createCustomAssetSchema = (t: TFunction) =>
+  z.object({
+    symbol: z
+      .string()
+      .min(1, t("common:component.symbol_required"))
+      .max(100, t("common:component.symbol_max_length"))
+      .transform((val) => val.toUpperCase().trim()),
+    name: z
+      .string()
+      .min(1, t("common:component.name_required"))
+      .max(100, t("common:component.name_max_length")),
+    assetType: z.enum(["EQUITY", "CRYPTO", "BOND", "OPTION", "METAL", "OTHER"]),
+    currency: z.string().min(1, t("common:component.currency_required")),
+  });
 
-type CustomAssetFormValues = z.infer<typeof customAssetSchema>;
+type CustomAssetFormValues = z.infer<ReturnType<typeof createCustomAssetSchema>>;
 
 interface CreateCustomAssetDialogProps {
   open: boolean;
@@ -68,10 +75,14 @@ export function CreateCustomAssetDialog({
   defaultSymbol = "",
   defaultCurrency,
 }: CreateCustomAssetDialogProps) {
+  const { t } = useTranslation();
   const { settings } = useSettingsContext();
 
   // Use provided defaultCurrency, or fall back to settings base currency
   const currency = defaultCurrency || settings?.baseCurrency || "USD";
+
+  const customAssetSchema = createCustomAssetSchema(t);
+  const assetTypeOptions = getAssetTypeOptions(t);
 
   const form = useForm<CustomAssetFormValues>({
     resolver: zodResolver(customAssetSchema),
@@ -146,10 +157,9 @@ export function CreateCustomAssetDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create Custom Asset</DialogTitle>
+          <DialogTitle>{t("common:component.create_custom_asset")}</DialogTitle>
           <DialogDescription>
-            You&apos;ll maintain prices manually, or map to a market ticker later for automatic
-            updates.
+            {t("common:component.create_custom_asset_description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -160,10 +170,10 @@ export function CreateCustomAssetDialog({
               name="symbol"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Symbol / Ticker</FormLabel>
+                  <FormLabel>{t("common:component.symbol_ticker")}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="e.g., MYCOIN"
+                      placeholder={t("common:component.symbol_placeholder")}
                       {...field}
                       onChange={(e) => field.onChange(e.target.value.toUpperCase())}
                       className="uppercase"
@@ -179,9 +189,9 @@ export function CreateCustomAssetDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{t("common:component.name")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., My Custom Coin" {...field} />
+                    <Input placeholder={t("common:component.custom_coin_placeholder")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -194,15 +204,15 @@ export function CreateCustomAssetDialog({
                 name="assetType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Asset Type</FormLabel>
+                    <FormLabel>{t("common:component.asset_type")}</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
+                          <SelectValue placeholder={t("common:component.select_type")} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {ASSET_TYPE_OPTIONS.map((option) => (
+                        {assetTypeOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
@@ -219,7 +229,7 @@ export function CreateCustomAssetDialog({
                 name="currency"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Currency</FormLabel>
+                    <FormLabel>{t("common:component.currency")}</FormLabel>
                     <FormControl>
                       <CurrencyInput {...field} />
                     </FormControl>
@@ -231,10 +241,10 @@ export function CreateCustomAssetDialog({
 
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={handleCancel}>
-                Cancel
+                {t("common:cancel")}
               </Button>
               <Button type="button" onClick={handleCreateClick}>
-                Create Asset
+                {t("common:component.create_asset")}
               </Button>
             </DialogFooter>
           </div>

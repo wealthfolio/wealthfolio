@@ -3,6 +3,7 @@
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "../../lib/utils";
 import { Icons } from "./icons";
@@ -56,6 +57,7 @@ interface SheetContentProps
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
   ({ side = "right", className, children, showCloseButton = true, style, ...props }, ref) => {
+    const { t } = useTranslation();
     const needsSafeAreaTop = side !== "bottom";
     return (
       <SheetPortal>
@@ -76,7 +78,7 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
               style={{ top: needsSafeAreaTop ? "calc(env(safe-area-inset-top, 0px) + 1rem)" : "1rem" }}
             >
               <Icons.X className="h-5 w-5 sm:h-4 sm:w-4" />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">{t("ui:sheet.close", "Close")}</span>
             </SheetPrimitive.Close>
           )}
         </SheetPrimitive.Content>

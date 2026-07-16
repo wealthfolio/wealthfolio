@@ -24,6 +24,13 @@ pub enum DomainEvent {
         earliest_activity_at_utc: Option<DateTime<Utc>>,
     },
 
+    /// Account-level split activities changed. Since split price adjustments are shared by
+    /// asset, every account valuation may need to be rebuilt.
+    AssetSplitActivitiesChanged {
+        asset_ids: Vec<String>,
+        earliest_activity_at_utc: Option<DateTime<Utc>>,
+    },
+
     /// Holdings snapshots were created or updated.
     HoldingsChanged {
         account_ids: Vec<String>,
@@ -42,6 +49,12 @@ pub enum DomainEvent {
 
     /// Existing assets were updated and require quote sync/recalculation.
     AssetsUpdated { asset_ids: Vec<String> },
+
+    /// Asset taxonomy assignments changed.
+    AssetClassificationsChanged {
+        asset_ids: Vec<String>,
+        taxonomy_ids: Vec<String>,
+    },
 
     /// UNKNOWN asset was merged into a resolved asset.
     AssetsMerged {
@@ -95,6 +108,16 @@ impl DomainEvent {
         }
     }
 
+    pub fn asset_split_activities_changed(
+        asset_ids: Vec<String>,
+        earliest_activity_at_utc: Option<DateTime<Utc>>,
+    ) -> Self {
+        Self::AssetSplitActivitiesChanged {
+            asset_ids,
+            earliest_activity_at_utc,
+        }
+    }
+
     /// Creates a HoldingsChanged event.
     pub fn holdings_changed(account_ids: Vec<String>, asset_ids: Vec<String>) -> Self {
         Self::HoldingsChanged {
@@ -122,6 +145,17 @@ impl DomainEvent {
     /// Creates an AssetsUpdated event.
     pub fn assets_updated(asset_ids: Vec<String>) -> Self {
         Self::AssetsUpdated { asset_ids }
+    }
+
+    /// Creates an AssetClassificationsChanged event.
+    pub fn asset_classifications_changed(
+        asset_ids: Vec<String>,
+        taxonomy_ids: Vec<String>,
+    ) -> Self {
+        Self::AssetClassificationsChanged {
+            asset_ids,
+            taxonomy_ids,
+        }
     }
 
     /// Creates an AssetsMerged event.
@@ -235,6 +269,28 @@ mod tests {
                 assert_eq!(asset_ids, vec!["asset-1".to_string()]);
             }
             _ => panic!("Expected AssetsUpdated"),
+        }
+    }
+
+    #[test]
+    fn test_asset_classifications_changed_serialization() {
+        let event = DomainEvent::asset_classifications_changed(
+            vec!["asset-1".to_string()],
+            vec!["asset_classes".to_string()],
+        );
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("asset_classifications_changed"));
+
+        let deserialized: DomainEvent = serde_json::from_str(&json).unwrap();
+        match deserialized {
+            DomainEvent::AssetClassificationsChanged {
+                asset_ids,
+                taxonomy_ids,
+            } => {
+                assert_eq!(asset_ids, vec!["asset-1".to_string()]);
+                assert_eq!(taxonomy_ids, vec!["asset_classes".to_string()]);
+            }
+            _ => panic!("Expected AssetClassificationsChanged"),
         }
     }
 

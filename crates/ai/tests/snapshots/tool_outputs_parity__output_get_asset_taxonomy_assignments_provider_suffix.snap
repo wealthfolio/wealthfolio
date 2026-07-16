@@ -1,0 +1,20 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "assetQuery": "SHOP.TO",
+    "assignments": [],
+    "resolvedAsset": {
+      "assetId": "asset-shop",
+      "currency": "USD",
+      "displayCode": "SHOP",
+      "exchangeMic": "XTSE",
+      "label": "SHOP - Shopify Inc.",
+      "matchedBy": "provider_suffix",
+      "name": "Shopify Inc.",
+      "symbol": "SHOP"
+    }
+  }
+}

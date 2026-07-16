@@ -1,5 +1,6 @@
-import React from 'react';
+import type { ComponentType } from 'react';
 import type { HostAPI } from './host-api';
+import type { AddonIconName } from './icons';
 
 /**
  * Core types for addon development
@@ -21,24 +22,79 @@ export interface SidebarItemConfig {
   id: string;
   /** Display text for the sidebar item */
   label: string;
-  /** Optional icon name or React component */
-  icon?: string | React.ReactNode;
+  /** Optional host-supported icon name (see {@link AddonIconName}) */
+  icon?: AddonIconName;
   /** Optional route to navigate to when clicked */
   route?: string;
   /** Optional ordering priority (lower numbers appear first) */
   order?: number;
-  /** Optional click handler (if no route provided) */
-  onClick?: () => void;
 }
 
 /**
- * Configuration for adding a route
+ * Route location supplied by the host when an addon route is rendered.
+ */
+export interface AddonRouteLocation {
+  pathname: string;
+  search: string;
+  hash: string;
+  params: Record<string, string | undefined>;
+}
+
+/**
+ * Context supplied to addon route render functions.
+ */
+export interface AddonRouteRenderContext {
+  root: HTMLElement;
+  location: AddonRouteLocation;
+}
+
+/**
+ * Render callback for iframe-hosted addon routes.
+ */
+export type AddonRouteRenderer = (
+  context: AddonRouteRenderContext,
+) => void | Promise<void>;
+
+/** Props the host passes to a route `component`. */
+export interface AddonRouteComponentProps {
+  location: AddonRouteLocation;
+}
+
+/**
+ * A React component the host mounts for a route. The host owns a single React
+ * root per addon and swaps the mounted component on navigation, so addons must
+ * NOT call `createRoot` themselves — doing so leaves orphaned trees whose
+ * re-renders never reach the DOM (the 3.6 "buttons do nothing" bug). The sandbox
+ * has no react-router provider, so the component receives the current
+ * `location` as a prop (re-passed on each navigation) — do not call
+ * `useLocation()`/`useParams()`.
+ */
+export type AddonRouteComponent = ComponentType<AddonRouteComponentProps>;
+
+/**
+ * Configuration for adding a route.
+ *
+ * Provide exactly one of `component` (recommended — the host manages the React
+ * root) or `render` (an imperative callback given the container element). If
+ * both are provided, `component` wins; if neither, the host rejects the route.
  */
 export interface RouteConfig {
+  /** Optional stable route identifier */
+  id?: string;
   /** Route path pattern */
   path: string;
-  /** Lazy-loaded React component */
-  component: React.LazyExoticComponent<React.ComponentType<unknown>>;
+  /** Optional label for diagnostics */
+  title?: string;
+  /**
+   * React component rendered by the host into its managed single root.
+   * Preferred over `render`.
+   */
+  component?: AddonRouteComponent;
+  /**
+   * Imperative render callback into the addon's sandboxed iframe container.
+   * Legacy/escape hatch — prefer `component`. Optional when `component` is set.
+   */
+  render?: AddonRouteRenderer;
 }
 
 /**
@@ -78,6 +134,11 @@ export type UnlistenFn = () => void;
  * Main addon context interface providing access to Wealthfolio APIs
  */
 export interface AddonContext {
+  /** UI primitives owned by the addon's sandboxed iframe */
+  ui: {
+    /** Root element for addon-rendered content */
+    root: HTMLElement;
+  };
   /** Sidebar management */
   sidebar: SidebarManager;
   /** Router management */

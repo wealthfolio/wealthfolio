@@ -16,10 +16,10 @@ use crate::broker_ingest::{
     ImportRunRepositoryTrait, ImportRunStatus, ImportRunSummary, ImportRunType, ReviewMode,
 };
 use crate::platform::Platform;
-use chrono::{DateTime, Months, NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::Entry, HashMap, HashSet};
 use wealthfolio_core::accounts::{
     account_types, Account, AccountServiceTrait, NewAccount, TrackingMode,
 };
@@ -431,6 +431,7 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
                 act.quantity,
                 act.unit_price,
                 act.amount,
+                act.fee,
                 &act.currency,
                 act.source_record_id.as_deref(),
                 act.notes.as_deref(),
@@ -447,6 +448,7 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
                 unit_price: act.unit_price,
                 currency: act.currency,
                 fee: act.fee,
+                tax: act.tax,
                 amount: act.amount,
                 status: act.status,
                 notes: act.notes,
@@ -978,7 +980,14 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
             .snapshot_repository
             .get_latest_snapshot_before_date(&account_id, tomorrow)?;
 
-        // 4. Build positions_map using resolved asset IDs
+        // 4. Build positions_map using resolved asset IDs.
+        // Pre-sum quantities per asset so the cost-basis fallback below compares the latest
+        // snapshot against the COMBINED position rather than an individual split row. A broker
+        // that splits one holding across rows (margin/cash) and omits average_purchase_price
+        // would otherwise never match the prior quantity, skip the "quantity unchanged -> reuse
+        // prior cost" fallback, and overwrite a previously known basis with zero.
+        let combined_quantities =
+            Self::combined_quantities_by_asset(&position_data, &spec_key_to_asset_id);
         let mut positions_map: HashMap<String, Position> = HashMap::new();
         let mut total_cost_basis = Decimal::ZERO;
 
@@ -1001,19 +1010,25 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
                 .and_then(|spec| spec.option_multiplier())
                 .unwrap_or(Decimal::ONE);
 
+            // Resolve cost against the combined quantity (all split rows for this asset) so the
+            // prior-cost fallback works even when the broker splits the holding into rows.
+            let combined_quantity = combined_quantities
+                .get(&asset_id)
+                .copied()
+                .unwrap_or(position.quantity);
             let avg_cost = Self::resolve_position_average_cost(
                 position.average_cost,
                 latest
                     .as_ref()
                     .and_then(|snapshot| snapshot.positions.get(&asset_id)),
-                position.quantity,
+                combined_quantity,
                 &position.position_currency,
             );
             let position_cost_basis =
                 (position.quantity * avg_cost).round_dp(HOLDINGS_DECIMAL_PRECISION);
             total_cost_basis += position_cost_basis;
 
-            let position = Position {
+            let new_position = Position {
                 id: format!("{}_{}", account_id, asset_id),
                 account_id: account_id.clone(),
                 asset_id: asset_id.clone(),
@@ -1028,7 +1043,21 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
                 is_alternative: false,
                 contract_multiplier,
             };
-            positions_map.insert(asset_id, position);
+
+            // Brokers (e.g. Fidelity via SnapTrade) can report multiple position rows for the
+            // same instrument — one per lot type (margin vs. cash sub-account) or per tax lot.
+            // They all resolve to the same asset_id, so merge them into a single holding by
+            // summing quantities and cost basis and recomputing the weighted-average cost.
+            // Without this, each later row would overwrite the previous one, undercounting the
+            // position (e.g. a margin + non-margin VTI lot would show only half the shares).
+            match positions_map.entry(asset_id) {
+                Entry::Occupied(mut existing) => {
+                    Self::merge_broker_position(existing.get_mut(), new_position);
+                }
+                Entry::Vacant(slot) => {
+                    slot.insert(new_position);
+                }
+            }
         }
 
         // Calculate cash totals
@@ -1092,8 +1121,6 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
                 account_ids: vec![account_id.clone()],
                 asset_ids: new_asset_ids.clone(),
             });
-
-            self.ensure_holdings_history(&account_id).await?;
         }
 
         info!(
@@ -1127,6 +1154,22 @@ impl BrokerSyncService {
         )
     }
 
+    /// Sum position quantities per resolved asset. Used so the cost-basis fallback can compare
+    /// the latest snapshot against the combined position rather than an individual split row
+    /// (brokers may report one holding as several rows — e.g. margin vs. cash sub-account).
+    fn combined_quantities_by_asset(
+        position_data: &[HoldingsPositionData],
+        spec_key_to_asset_id: &HashMap<String, String>,
+    ) -> HashMap<String, Decimal> {
+        let mut totals: HashMap<String, Decimal> = HashMap::new();
+        for position in position_data {
+            if let Some(asset_id) = spec_key_to_asset_id.get(&position.spec_key) {
+                *totals.entry(asset_id.clone()).or_insert(Decimal::ZERO) += position.quantity;
+            }
+        }
+        totals
+    }
+
     fn resolve_position_average_cost(
         broker_average_cost: Option<Decimal>,
         latest_position: Option<&Position>,
@@ -1146,6 +1189,28 @@ impl BrokerSyncService {
         }
 
         Decimal::ZERO
+    }
+
+    /// Merge an additional broker-reported lot into an existing position for the same asset.
+    ///
+    /// Some brokers (notably Fidelity via SnapTrade) return one position row per lot type
+    /// (margin vs. cash sub-account) or per tax lot, all for the same instrument. Quantities and
+    /// cost basis are summed and the average cost is recomputed as a quantity-weighted average so
+    /// the merged holding reflects the full position rather than a single lot.
+    fn merge_broker_position(existing: &mut Position, incoming: Position) {
+        let combined_quantity =
+            (existing.quantity + incoming.quantity).round_dp(HOLDINGS_DECIMAL_PRECISION);
+        let combined_cost_basis = (existing.total_cost_basis + incoming.total_cost_basis)
+            .round_dp(HOLDINGS_DECIMAL_PRECISION);
+
+        existing.average_cost = if combined_quantity == Decimal::ZERO {
+            Decimal::ZERO
+        } else {
+            (combined_cost_basis / combined_quantity).round_dp(HOLDINGS_DECIMAL_PRECISION)
+        };
+        existing.quantity = combined_quantity;
+        existing.total_cost_basis = combined_cost_basis;
+        existing.last_updated = incoming.last_updated;
     }
 
     fn compute_holdings_diff(
@@ -1234,88 +1299,6 @@ impl BrokerSyncService {
             .or_else(|| api_parsed.as_ref().and_then(|(_, mic)| mic.clone()));
 
         Some((symbol, exchange_mic))
-    }
-
-    /// Ensures HOLDINGS mode accounts have at least 2 snapshots for proper history.
-    /// If only 1 non-calculated snapshot exists, creates a synthetic snapshot 3 months prior.
-    async fn ensure_holdings_history(&self, account_id: &str) -> Result<()> {
-        // Get count of non-calculated snapshots
-        let count = self
-            .snapshot_repository
-            .get_non_calculated_snapshot_count(account_id)?;
-
-        if count >= 2 {
-            debug!(
-                "Account {} already has {} non-calculated snapshots, no synthetic needed",
-                account_id, count
-            );
-            return Ok(());
-        }
-
-        if count == 0 {
-            debug!(
-                "Account {} has no non-calculated snapshots, nothing to backfill from",
-                account_id
-            );
-            return Ok(());
-        }
-
-        // count == 1: Create synthetic snapshot 3 months before the earliest
-        let earliest = self
-            .snapshot_repository
-            .get_earliest_non_calculated_snapshot(account_id)?;
-
-        let earliest = match earliest {
-            Some(s) => s,
-            None => {
-                debug!("No earliest snapshot found for account {}", account_id);
-                return Ok(());
-            }
-        };
-
-        // Calculate synthetic date: 3 months before earliest
-        let synthetic_date = earliest
-            .snapshot_date
-            .checked_sub_months(Months::new(3))
-            .unwrap_or(earliest.snapshot_date);
-
-        // Don't create if synthetic date equals earliest (edge case)
-        if synthetic_date == earliest.snapshot_date {
-            debug!(
-                "Synthetic date equals earliest date for account {}, skipping",
-                account_id
-            );
-            return Ok(());
-        }
-
-        // Clone the earliest snapshot with new date and source
-        let synthetic = AccountStateSnapshot {
-            id: AccountStateSnapshot::stable_id(account_id, synthetic_date),
-            account_id: account_id.to_string(),
-            snapshot_date: synthetic_date,
-            source: SnapshotSource::Synthetic,
-            calculated_at: chrono::Utc::now().naive_utc(),
-            // Clone all holdings data from earliest
-            currency: earliest.currency,
-            positions: earliest.positions,
-            cash_balances: earliest.cash_balances,
-            cost_basis: earliest.cost_basis,
-            net_contribution: earliest.net_contribution,
-            net_contribution_base: earliest.net_contribution_base,
-            cash_total_account_currency: earliest.cash_total_account_currency,
-            cash_total_base_currency: earliest.cash_total_base_currency,
-        };
-
-        self.snapshot_repository
-            .save_or_update_snapshot(&synthetic)
-            .await?;
-
-        info!(
-            "Created synthetic snapshot for account {} at {} (3 months before {})",
-            account_id, synthetic_date, earliest.snapshot_date
-        );
-
-        Ok(())
     }
 
     /// Find the platform ID for a broker account using institution/broker metadata.
@@ -1806,5 +1789,140 @@ mod tests {
         assert_eq!(quantity_changed, Decimal::ZERO);
         assert_eq!(currency_changed, Decimal::ZERO);
         assert_eq!(missing, Decimal::ZERO);
+    }
+
+    #[test]
+    fn merge_broker_position_sums_quantities_and_weights_average_cost() {
+        // Two lots of the same instrument: 30 @ 100 and 10 @ 200.
+        let mut existing = position("acc-1", "vti", "30", "100", "3000", "USD");
+        let incoming = position("acc-1", "vti", "10", "200", "2000", "USD");
+
+        BrokerSyncService::merge_broker_position(&mut existing, incoming);
+
+        assert_eq!(existing.quantity, decimal("40"));
+        assert_eq!(existing.total_cost_basis, decimal("5000"));
+        // Quantity-weighted average: 5000 / 40 = 125.
+        assert_eq!(existing.average_cost, decimal("125"));
+    }
+
+    #[test]
+    fn merge_broker_position_matches_fidelity_combined_share_count() {
+        // Reproduces the reported Fidelity-via-SnapTrade bug: VTI is returned as two lots
+        // (a margin lot and a non-margin lot) that both resolve to the same asset_id.
+        // Before the fix the second lot overwrote the first, halving the share count.
+        let margin_basis = (decimal("32.005") * decimal("324.2431")).round_dp(12);
+        let non_margin_basis = (decimal("18.423") * decimal("362.4893")).round_dp(12);
+
+        let mut margin_lot = position(
+            "acc-1",
+            "vti",
+            "32.005",
+            "324.2431",
+            &margin_basis.to_string(),
+            "USD",
+        );
+        let non_margin_lot = position(
+            "acc-1",
+            "vti",
+            "18.423",
+            "362.4893",
+            &non_margin_basis.to_string(),
+            "USD",
+        );
+
+        BrokerSyncService::merge_broker_position(&mut margin_lot, non_margin_lot);
+
+        // Fidelity's combined total for VTI is 50.428 shares.
+        assert_eq!(margin_lot.quantity, decimal("50.428"));
+
+        let combined_basis = (margin_basis + non_margin_basis).round_dp(12);
+        assert_eq!(margin_lot.total_cost_basis, combined_basis);
+        assert_eq!(
+            margin_lot.average_cost,
+            (combined_basis / decimal("50.428")).round_dp(12)
+        );
+    }
+
+    #[test]
+    fn merge_broker_position_handles_offsetting_quantities_without_dividing_by_zero() {
+        // A net-flat instrument (e.g. a long lot fully offset by a short lot) must not panic.
+        let mut existing = position("acc-1", "vti", "10", "100", "1000", "USD");
+        let incoming = position("acc-1", "vti", "-10", "100", "-1000", "USD");
+
+        BrokerSyncService::merge_broker_position(&mut existing, incoming);
+
+        assert_eq!(existing.quantity, Decimal::ZERO);
+        assert_eq!(existing.total_cost_basis, Decimal::ZERO);
+        assert_eq!(existing.average_cost, Decimal::ZERO);
+    }
+
+    #[test]
+    fn merge_broker_position_is_order_independent() {
+        let mut a_then_b = position("acc-1", "vti", "30", "100", "3000", "USD");
+        BrokerSyncService::merge_broker_position(
+            &mut a_then_b,
+            position("acc-1", "vti", "10", "200", "2000", "USD"),
+        );
+
+        let mut b_then_a = position("acc-1", "vti", "10", "200", "2000", "USD");
+        BrokerSyncService::merge_broker_position(
+            &mut b_then_a,
+            position("acc-1", "vti", "30", "100", "3000", "USD"),
+        );
+
+        assert_eq!(a_then_b.quantity, b_then_a.quantity);
+        assert_eq!(a_then_b.total_cost_basis, b_then_a.total_cost_basis);
+        assert_eq!(a_then_b.average_cost, b_then_a.average_cost);
+    }
+
+    #[test]
+    fn combined_quantities_by_asset_sums_split_rows() {
+        let row = |spec_key: &str, quantity: &str| super::HoldingsPositionData {
+            spec_key: spec_key.to_string(),
+            quantity: decimal(quantity),
+            quote_price: decimal("100"),
+            quote_currency: "USD".to_string(),
+            average_cost: None,
+            position_currency: "USD".to_string(),
+        };
+        let position_data = vec![
+            row("EQUITY:VTI", "32.005"),
+            row("EQUITY:VTI", "18.423"),
+            row("EQUITY:VXUS", "10"),
+        ];
+        let mut spec_key_to_asset_id = HashMap::new();
+        spec_key_to_asset_id.insert("EQUITY:VTI".to_string(), "asset-vti".to_string());
+        spec_key_to_asset_id.insert("EQUITY:VXUS".to_string(), "asset-vxus".to_string());
+
+        let totals =
+            BrokerSyncService::combined_quantities_by_asset(&position_data, &spec_key_to_asset_id);
+
+        assert_eq!(totals.get("asset-vti").copied(), Some(decimal("50.428")));
+        assert_eq!(totals.get("asset-vxus").copied(), Some(decimal("10")));
+    }
+
+    #[test]
+    fn resolve_position_average_cost_reuses_prior_cost_for_combined_split_quantity() {
+        // Broker omits cost and splits the holding into two rows. Resolving against the COMBINED
+        // quantity (50.428) — not a single 32.005 row — matches the prior snapshot and preserves
+        // its average cost instead of zeroing it (the regression Codex flagged).
+        let latest = position("acc-1", "vti", "50.428", "300", "15128.4", "USD");
+
+        let combined = BrokerSyncService::resolve_position_average_cost(
+            None,
+            Some(&latest),
+            decimal("50.428"),
+            "USD",
+        );
+        let single_row = BrokerSyncService::resolve_position_average_cost(
+            None,
+            Some(&latest),
+            decimal("32.005"),
+            "USD",
+        );
+
+        assert_eq!(combined, decimal("300"));
+        // The pre-fix per-row path compared 32.005 against 50.428 and lost the known basis.
+        assert_eq!(single_row, Decimal::ZERO);
     }
 }

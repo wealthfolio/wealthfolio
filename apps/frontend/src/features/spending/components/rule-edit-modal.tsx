@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import {
   Dialog,
   DialogContent,
@@ -26,14 +28,15 @@ export function RuleEditModal({
   onSave,
   isLoading,
 }: RuleEditModalProps) {
+  const { t } = useTranslation();
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-[640px]">
         <DialogHeader>
-          <DialogTitle>{rule ? "Edit Rule" : "Add Rule"}</DialogTitle>
-          <DialogDescription>
-            Auto-tag activities by name pattern. Higher priority rules win when multiple match.
-          </DialogDescription>
+          <DialogTitle>
+            {rule ? t("spending:rules.editTitle") : t("spending:rules.addTitle")}
+          </DialogTitle>
+          <DialogDescription>{t("spending:rules.editDescription")}</DialogDescription>
         </DialogHeader>
         <RuleForm
           rule={rule}

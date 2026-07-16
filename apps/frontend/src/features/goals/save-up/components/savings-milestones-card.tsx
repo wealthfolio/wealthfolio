@@ -2,6 +2,9 @@ import type { SaveUpProjectionPointDTO } from "@/lib/types";
 import { AmountDisplay } from "@wealthfolio/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { useTranslation } from "react-i18next";
+
+type TFn = ReturnType<typeof useTranslation>["t"];
 
 type ProjectionPoint = SaveUpProjectionPointDTO;
 
@@ -29,6 +32,7 @@ export function buildSavingsMilestones(
   data: ProjectionPoint[],
   targetAmount: number,
   currentValue: number,
+  t: TFn,
 ): SavingsMilestone[] {
   if (targetAmount <= 0 || data.length === 0) return [];
   return MILESTONE_RATIOS.map((ratio) => {
@@ -40,10 +44,10 @@ export function buildSavingsMilestones(
       label: `${Math.round(ratio * 100)}%`,
       amount,
       dateLabel: reached
-        ? "Reached"
+        ? t("goals:milestones.reached")
         : projected
           ? formatMilestoneDate(projected.date)
-          : "Not reached",
+          : t("goals:milestones.not_reached"),
       reached,
       isFinal: ratio === 1,
     };
@@ -61,6 +65,7 @@ export function SavingsMilestonesCard({
   currency: string;
   isHidden: boolean;
 }) {
+  const { t } = useTranslation();
   const railPositions = milestones.map((_, i) => (i / (milestones.length - 1)) * 100);
   const railFillPct = computeRailFillPct(milestones, currentValue, railPositions);
 
@@ -68,9 +73,11 @@ export function SavingsMilestonesCard({
     <Card>
       <CardHeader>
         <div className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-[0.15em]">
-          Checkpoints
+          {t("goals:milestones.kicker")}
         </div>
-        <CardTitle className="text-md leading-none tracking-tight">Milestones</CardTitle>
+        <CardTitle className="text-md leading-none tracking-tight">
+          {t("goals:milestones.title")}
+        </CardTitle>
       </CardHeader>
       <CardContent className="pb-7">
         {/* ── Desktop: horizontal timeline ── */}

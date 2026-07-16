@@ -44,4 +44,6 @@ pub use import_run_model::{
     ImportRun, ImportRunMode, ImportRunRepositoryTrait, ImportRunStatus, ImportRunSummary,
     ImportRunType, ReviewMode,
 };
-pub use transfer_pairs::{InvalidTransferGroup, TransferPair, TransferPairResolution};
+pub use transfer_pairs::{
+    is_same_account_cash_fx_conversion, InvalidTransferGroup, TransferPair, TransferPairResolution,
+};

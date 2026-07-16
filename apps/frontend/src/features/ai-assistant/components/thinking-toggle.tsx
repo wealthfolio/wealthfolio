@@ -1,4 +1,5 @@
 import type { FC } from "react";
+import { useTranslation } from "react-i18next";
 import { Badge, Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { cn } from "@/lib/utils";
@@ -9,6 +10,7 @@ import { useChatModelContext } from "../hooks/use-chat-model-context";
  * Only visible when the current model supports thinking.
  */
 export const ThinkingToggle: FC = () => {
+  const { t } = useTranslation();
   const { supportsThinking, thinkingEnabled, toggleThinking } = useChatModelContext();
 
   // Don't render if model doesn't support thinking
@@ -30,14 +32,14 @@ export const ThinkingToggle: FC = () => {
           onClick={toggleThinking}
           role="switch"
           aria-checked={thinkingEnabled}
-          aria-label={thinkingEnabled ? "Disable thinking" : "Enable thinking"}
+          aria-label={thinkingEnabled ? t("ai:thinking.disable") : t("ai:thinking.enable")}
         >
           <Icons.Brain className="size-3" />
-          <span>Think</span>
+          <span>{t("ai:thinking.label")}</span>
         </Badge>
       </TooltipTrigger>
       <TooltipContent side="top" className="text-xs">
-        {thinkingEnabled ? "Click to disable thinking" : "Click to enable thinking"}
+        {thinkingEnabled ? t("ai:thinking.clickToDisable") : t("ai:thinking.clickToEnable")}
       </TooltipContent>
     </Tooltip>
   );

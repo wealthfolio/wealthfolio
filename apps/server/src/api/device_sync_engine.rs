@@ -181,7 +181,7 @@ fn create_client() -> DeviceSyncClient {
     DeviceSyncClient::new(&cloud_api_base_url())
 }
 
-fn get_sync_identity_from_store(state: &AppState) -> Option<SyncIdentity> {
+pub(crate) fn get_sync_identity_from_store(state: &AppState) -> Option<SyncIdentity> {
     let raw = state
         .secret_store
         .get_secret(SYNC_IDENTITY_KEY)
@@ -195,7 +195,7 @@ fn get_sync_identity_from_store(state: &AppState) -> Option<SyncIdentity> {
     })
 }
 
-fn sync_identity_can_run_background(identity: &SyncIdentity) -> bool {
+pub(crate) fn sync_identity_can_run_background(identity: &SyncIdentity) -> bool {
     identity.device_id.is_some() && identity.root_key.is_some()
 }
 

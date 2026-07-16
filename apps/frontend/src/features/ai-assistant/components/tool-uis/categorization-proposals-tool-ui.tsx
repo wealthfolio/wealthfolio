@@ -20,6 +20,7 @@ import {
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { memo, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useRuntimeContext } from "../../hooks/use-runtime-context";
 import type {
   ProposeCategoriesArgs,
@@ -61,6 +62,7 @@ function confidenceLabel(confidence: number): string {
 }
 
 function ProposalsLoadingState() {
+  const { t } = useTranslation();
   return (
     <Card className="bg-muted/40 border-primary/10 w-full overflow-hidden">
       <CardContent className="flex items-center gap-3 py-5">
@@ -68,9 +70,9 @@ function ProposalsLoadingState() {
           <Icons.Sparkles className="text-primary h-4 w-4 animate-pulse" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">Categorizing your transactions…</p>
+          <p className="text-sm font-medium">{t("ai:categorization.categorizing")}</p>
           <p className="text-muted-foreground mt-0.5 text-xs">
-            Matching against rules and recent history, then asking AI for the rest. Up to ~90s.
+            {t("ai:categorization.categorizingHint")}
           </p>
         </div>
         <Icons.Spinner className="text-muted-foreground h-4 w-4 shrink-0 animate-spin" />
@@ -84,6 +86,7 @@ function CategorizationProposalsContentImpl({
   status,
   toolCallId,
 }: CategorizationProposalsToolUIContentProps) {
+  const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const { isBalanceHidden } = useBalancePrivacy();
@@ -162,7 +165,9 @@ function CategorizationProposalsContentImpl({
     return (
       <Card className="border-destructive/30 bg-destructive/5">
         <CardContent className="py-4">
-          <p className="text-destructive text-sm font-medium">Failed to load category proposals.</p>
+          <p className="text-destructive text-sm font-medium">
+            {t("ai:categorization.failedLoad")}
+          </p>
         </CardContent>
       </Card>
     );
@@ -172,7 +177,9 @@ function CategorizationProposalsContentImpl({
     return (
       <Card className="border-destructive/30 bg-destructive/5">
         <CardContent className="py-4">
-          <p className="text-destructive text-sm font-medium">No proposals available.</p>
+          <p className="text-destructive text-sm font-medium">
+            {t("ai:categorization.noProposals")}
+          </p>
         </CardContent>
       </Card>
     );
@@ -184,8 +191,8 @@ function CategorizationProposalsContentImpl({
     unproposed: result.unproposed?.length ?? 0,
     avgConfidence:
       (result.proposals?.length ?? 0) > 0
-        ? result.proposals!.reduce((acc, p) => acc + (p.confidence ?? 0), 0) /
-          result.proposals!.length
+        ? result.proposals.reduce((acc, p) => acc + (p.confidence ?? 0), 0) /
+          result.proposals.length
         : 0,
   };
 
@@ -207,7 +214,7 @@ function CategorizationProposalsContentImpl({
               categoryPath: cat?.path ?? r.categoryPath,
               categoryColor: cat?.color ?? r.categoryColor,
               source: "manual",
-              explanation: "Edited by user.",
+              explanation: t("ai:categorization.editedByUser"),
               confidence: 1,
               selected: true,
             }
@@ -255,7 +262,7 @@ function CategorizationProposalsContentImpl({
         }
       }
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Failed to apply categories.");
+      setSubmitError(error instanceof Error ? error.message : t("ai:categorization.failedApply"));
     }
   };
 
@@ -264,14 +271,17 @@ function CategorizationProposalsContentImpl({
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <CardTitle className="text-sm font-medium">Category Proposals</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("ai:categorization.title")}</CardTitle>
             <p className="text-muted-foreground mt-1 text-xs">
-              {summary.proposed} proposed · {summary.unproposed} need a manual choice ·{" "}
-              {Math.round((summary.avgConfidence ?? 0) * 100)}% avg confidence
+              {t("ai:categorization.summary", {
+                proposed: summary.proposed,
+                unproposed: summary.unproposed,
+                confidence: Math.round((summary.avgConfidence ?? 0) * 100),
+              })}
             </p>
           </div>
           <Badge variant="outline" className="text-xs">
-            {selectedCount} selected
+            {t("ai:categorization.selected", { count: selectedCount })}
           </Badge>
         </div>
       </CardHeader>
@@ -290,10 +300,13 @@ function CategorizationProposalsContentImpl({
                 onCheckedChange={(checked) =>
                   checked === true ? handleAcceptAll() : handleRejectAll()
                 }
-                aria-label="Select all rows"
+                aria-label={t("ai:categorization.selectAllRows")}
               />
               <span className="text-muted-foreground">
-                Select all ({selectedCount}/{rows.length})
+                {t("ai:categorization.selectAll", {
+                  selected: selectedCount,
+                  total: rows.length,
+                })}
               </span>
             </label>
             <Button
@@ -302,7 +315,7 @@ function CategorizationProposalsContentImpl({
               onClick={handleAcceptHighConfidence}
               disabled={isSubmitting}
             >
-              Select ≥ 85%
+              {t("ai:categorization.selectHighConfidence")}
             </Button>
           </div>
         )}
@@ -311,8 +324,8 @@ function CategorizationProposalsContentImpl({
           {rows.length === 0 && visibleUnproposed.length === 0 && (
             <p className="text-muted-foreground px-4 py-6 text-center text-xs">
               {(result.taxonomies?.length ?? 0) === 0
-                ? "No spending taxonomies are configured."
-                : "No transactions matched the request."}
+                ? t("ai:categorization.noTaxonomies")
+                : t("ai:categorization.noTransactions")}
             </p>
           )}
 
@@ -328,7 +341,7 @@ function CategorizationProposalsContentImpl({
                 checked={row.selected}
                 onCheckedChange={() => toggleRow(row.activityId)}
                 disabled={isSubmitted}
-                aria-label="Select row"
+                aria-label={t("ai:categorization.selectRow")}
               />
               <span className="text-muted-foreground w-24 whitespace-nowrap tabular-nums">
                 {formatActivityDate(row.activityDate)}
@@ -342,7 +355,11 @@ function CategorizationProposalsContentImpl({
                 )}
               </span>
               <span className="flex-1 truncate" title={row.notes ?? ""}>
-                {row.notes ?? <span className="text-muted-foreground italic">No notes</span>}
+                {row.notes ?? (
+                  <span className="text-muted-foreground italic">
+                    {t("ai:categorization.noNotes")}
+                  </span>
+                )}
               </span>
               <QuickCategorizePopover
                 trigger={
@@ -377,7 +394,7 @@ function CategorizationProposalsContentImpl({
           {visibleUnproposed.length > 0 && (
             <div className="mt-3 border-t pt-2">
               <p className="text-muted-foreground px-4 pb-1 text-[11px] uppercase tracking-wide">
-                Needs manual choice ({visibleUnproposed.length})
+                {t("ai:categorization.needsManualChoice", { count: visibleUnproposed.length })}
               </p>
               {visibleUnproposed.map((row) => (
                 <div
@@ -397,7 +414,11 @@ function CategorizationProposalsContentImpl({
                     )}
                   </span>
                   <span className="flex-1 truncate" title={row.notes ?? ""}>
-                    {row.notes ?? <span className="text-muted-foreground italic">No notes</span>}
+                    {row.notes ?? (
+                      <span className="text-muted-foreground italic">
+                        {t("ai:categorization.noNotes")}
+                      </span>
+                    )}
                   </span>
                   <QuickCategorizePopover
                     trigger={
@@ -406,7 +427,7 @@ function CategorizationProposalsContentImpl({
                         className="text-muted-foreground hover:bg-muted/70 inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-[11px]"
                       >
                         <Icons.Plus className="h-3 w-3" />
-                        Pick category
+                        {t("ai:categorization.pickCategory")}
                       </button>
                     }
                     scope="both"
@@ -431,7 +452,7 @@ function CategorizationProposalsContentImpl({
                           categoryColor: cat?.color ?? "#94a3b8",
                           confidence: 1,
                           source: "manual",
-                          explanation: "Picked manually.",
+                          explanation: t("ai:categorization.pickedManually"),
                           selected: true,
                         },
                       ]);
@@ -447,7 +468,7 @@ function CategorizationProposalsContentImpl({
           <div className="mx-6">
             <Alert variant="error">
               <Icons.AlertCircle className="h-4 w-4" />
-              <AlertTitle>Failed to apply categories</AlertTitle>
+              <AlertTitle>{t("ai:categorization.failedApplyTitle")}</AlertTitle>
               <AlertDescription className="break-words text-xs">{submitError}</AlertDescription>
             </Alert>
           </div>
@@ -461,10 +482,10 @@ function CategorizationProposalsContentImpl({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-success text-sm font-medium">
-                  {appliedCount} {appliedCount === 1 ? "transaction" : "transactions"} categorized
+                  {t("ai:categorization.transactionsCategorized", { count: appliedCount })}
                 </p>
                 <p className="text-muted-foreground text-xs">
-                  Categories saved to your transactions.
+                  {t("ai:categorization.categoriesSaved")}
                 </p>
               </div>
             </div>
@@ -479,7 +500,9 @@ function CategorizationProposalsContentImpl({
               ) : (
                 <Icons.Check className="mr-2 h-4 w-4" />
               )}
-              Apply {selectedCount > 0 ? `${selectedCount} selected` : ""}
+              {selectedCount > 0
+                ? t("ai:categorization.applySelected", { count: selectedCount })
+                : t("ai:categorization.apply")}
             </Button>
           </div>
         )}

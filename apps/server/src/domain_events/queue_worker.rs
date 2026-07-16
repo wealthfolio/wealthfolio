@@ -10,14 +10,21 @@ use std::time::Duration;
 
 use tokio::sync::mpsc;
 use wealthfolio_connect::{
-    ensure_valid_access_token, BrokerSyncServiceTrait, TokenLifecycleConfig, TokenLifecycleState,
+    acquire_broker_sync_guard, ensure_valid_access_token, BrokerSyncServiceTrait,
+    TokenLifecycleConfig, TokenLifecycleState,
 };
 use wealthfolio_core::{
-    assets::AssetServiceTrait, events::DomainEvent, goals::GoalServiceTrait, secrets::SecretStore,
+    assets::AssetServiceTrait,
+    events::DomainEvent,
+    goals::GoalServiceTrait,
+    portfolio::valuation::CurrentAccountValuationService,
+    secrets::SecretStore,
+    utils::time_utils::{parse_user_timezone_or_default, user_today},
 };
 
 use super::planner::{
-    plan_asset_enrichment, plan_broker_sync, plan_categorization_job, plan_portfolio_job,
+    plan_asset_classification_change, plan_asset_enrichment, plan_broker_sync,
+    plan_categorization_job, plan_portfolio_job,
 };
 use crate::events::EventBus;
 
@@ -29,6 +36,7 @@ pub struct QueueWorkerDeps {
     pub asset_service: Arc<dyn AssetServiceTrait + Send + Sync>,
     pub connect_sync_service: Arc<dyn BrokerSyncServiceTrait + Send + Sync>,
     pub event_bus: EventBus,
+    pub broker_sync_running: Arc<AtomicBool>,
     pub health_service: Arc<dyn wealthfolio_core::health::HealthServiceTrait + Send + Sync>,
     // We need a way to enqueue portfolio jobs. Since AppState is not easily cloneable,
     // we pass what we need for enqueue_portfolio_job (which spawns its own async task).
@@ -36,12 +44,15 @@ pub struct QueueWorkerDeps {
     // a callback or restructure slightly. For now, we'll store what we need.
     pub snapshot_service:
         Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait + Send + Sync>,
+    pub snapshot_repository:
+        Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotRepositoryTrait + Send + Sync>,
     pub quote_service: Arc<dyn wealthfolio_core::quotes::QuoteServiceTrait + Send + Sync>,
     pub valuation_service:
         Arc<dyn wealthfolio_core::portfolio::valuation::ValuationServiceTrait + Send + Sync>,
     pub account_service: Arc<wealthfolio_core::accounts::AccountService>,
     pub goal_service: Arc<dyn GoalServiceTrait + Send + Sync>,
     pub fx_service: Arc<dyn wealthfolio_core::fx::FxServiceTrait + Send + Sync>,
+    pub base_currency: Arc<RwLock<String>>,
     pub timezone: Arc<RwLock<String>>,
     /// Secret store for accessing credentials (e.g., refresh tokens for broker sync)
     pub secret_store: Arc<dyn SecretStore>,
@@ -133,6 +144,17 @@ pub async fn event_queue_worker(
 /// Processes a batch of domain events.
 async fn process_event_batch(events: &[DomainEvent], deps: Arc<QueueWorkerDeps>) {
     tracing::info!("Processing batch of {} domain event(s)", events.len());
+
+    if let Some(plan) = plan_asset_classification_change(events) {
+        deps.event_bus
+            .publish(crate::events::ServerEvent::with_payload(
+                crate::events::ASSET_CLASSIFICATIONS_CHANGED,
+                serde_json::json!({
+                    "assetIds": plan.asset_ids,
+                    "taxonomyIds": plan.taxonomy_ids,
+                }),
+            ));
+    }
 
     // 1. Plan and run asset enrichment FIRST so that bond metadata (coupon rate,
     //    maturity date, etc.) is available before the portfolio job tries to
@@ -238,8 +260,16 @@ async fn process_event_batch(events: &[DomainEvent], deps: Arc<QueueWorkerDeps>)
         let event_bus = deps.event_bus.clone();
         let secret_store = deps.secret_store.clone();
         let token_lifecycle = deps.token_lifecycle.clone();
+        let broker_sync_running = deps.broker_sync_running.clone();
 
         tokio::spawn(async move {
+            let Some(_guard) = acquire_broker_sync_guard(&broker_sync_running) else {
+                tracing::info!(
+                    "Broker sync skipped after tracking mode change: sync already running"
+                );
+                return;
+            };
+
             match perform_broker_sync(
                 connect_sync_service,
                 event_bus,
@@ -276,7 +306,7 @@ async fn run_portfolio_job(
     config: crate::api::shared::PortfolioJobConfig,
 ) {
     use crate::events::{
-        ServerEvent, MARKET_SYNC_COMPLETE, MARKET_SYNC_ERROR, MARKET_SYNC_START,
+        MarketSyncResult, ServerEvent, MARKET_SYNC_COMPLETE, MARKET_SYNC_ERROR, MARKET_SYNC_START,
         PORTFOLIO_UPDATE_COMPLETE, PORTFOLIO_UPDATE_ERROR, PORTFOLIO_UPDATE_START,
     };
     use serde_json::json;
@@ -356,9 +386,10 @@ async fn run_portfolio_job(
                     .collect();
                 event_bus.publish(ServerEvent::with_payload(
                     MARKET_SYNC_COMPLETE,
-                    json!({
-                        "failed_syncs": result.failures,
-                        "skipped_reasons": skipped_reasons,
+                    json!(MarketSyncResult {
+                        failed_syncs: result.failures,
+                        skipped_reasons,
+                        show_skipped_reasons: false,
                     }),
                 ));
                 tracing::info!("Market data sync completed in {:?}", sync_start.elapsed());
@@ -512,11 +543,30 @@ async fn refresh_all_goal_summaries(deps: Arc<QueueWorkerDeps>) {
         }
     };
     let account_ids: Vec<String> = accounts.into_iter().map(|account| account.id).collect();
-    let valuations = match deps.valuation_service.get_latest_valuations(&account_ids) {
-        Ok(valuations) => valuations,
+    let base_currency = deps.base_currency.read().unwrap().clone();
+    let timezone = deps.timezone.read().unwrap().clone();
+    let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
+    let service = CurrentAccountValuationService::new(
+        deps.account_service.as_ref(),
+        deps.snapshot_repository.as_ref(),
+        deps.asset_service.as_ref(),
+        deps.quote_service.as_ref(),
+        deps.fx_service.as_ref(),
+    );
+    let response = match service
+        .get_current_valuation_for_scope(
+            "all",
+            &account_ids,
+            &base_currency,
+            latest_snapshot_cutoff,
+            true,
+        )
+        .await
+    {
+        Ok(response) => response,
         Err(err) => {
             tracing::warn!(
-                "Failed to load valuations for goal summary refresh: {}",
+                "Failed to load current valuations for goal summary refresh: {}",
                 err
             );
             return;
@@ -524,7 +574,7 @@ async fn refresh_all_goal_summaries(deps: Arc<QueueWorkerDeps>) {
     };
 
     let mut valuation_map = std::collections::HashMap::new();
-    for valuation in &valuations {
+    for valuation in &response.accounts {
         let Some(value_in_base) = valuation.total_value_base.to_f64() else {
             tracing::warn!(
                 "Skipping goal summary refresh: invalid base valuation total for account {}",

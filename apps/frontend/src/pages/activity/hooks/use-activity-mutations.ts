@@ -157,6 +157,7 @@ export function useActivityMutations(
       const unitPrice = "unitPrice" in rest ? rest.unitPrice : undefined;
       const amount = "amount" in rest ? rest.amount : undefined;
       const fee = "fee" in rest ? rest.fee : undefined;
+      const tax = "tax" in rest ? rest.tax : undefined;
       const fxRate = "fxRate" in rest ? rest.fxRate : undefined;
 
       // Build nested asset object
@@ -166,6 +167,7 @@ export function useActivityMutations(
         unitPrice: toDecimalPayload(unitPrice),
         amount: toDecimalPayload(amount),
         fee: toDecimalPayload(fee),
+        tax: toDecimalPayload(tax),
         fxRate: toDecimalPayload(fxRate),
         asset: buildActivityAssetInput({
           assetId,
@@ -241,6 +243,7 @@ export function useActivityMutations(
       const unitPrice = "unitPrice" in rest ? rest.unitPrice : undefined;
       const amount = "amount" in rest ? rest.amount : undefined;
       const fee = "fee" in rest ? rest.fee : undefined;
+      const tax = "tax" in rest ? rest.tax : undefined;
       const fxRate = "fxRate" in rest ? rest.fxRate : undefined;
 
       // Build nested asset object
@@ -251,6 +254,7 @@ export function useActivityMutations(
         unitPrice: toDecimalPayload(unitPrice),
         amount: toDecimalPayload(amount),
         fee: toDecimalPayload(fee),
+        tax: toDecimalPayload(tax),
         fxRate: toDecimalPayload(fxRate),
         asset: buildActivityAssetInput({
           assetId,
@@ -357,6 +361,7 @@ export function useActivityMutations(
       unitPrice: restOfActivityData.unitPrice,
       amount: shouldCopyAmount ? restOfActivityData.amount : undefined,
       fee: restOfActivityData.fee,
+      tax: restOfActivityData.tax,
       fxRate: restOfActivityData.fxRate ?? undefined,
       activityDate: date,
       comment: "Duplicated",

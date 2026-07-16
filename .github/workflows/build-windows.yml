@@ -1,0 +1,77 @@
+name: Build Windows Installer
+
+# On-demand Windows build for testing branches. Produces the NSIS installer
+# as a workflow artifact — no tag, no GitHub release.
+#
+# Manual only: run it from Actions → "Build Windows Installer" → "Run workflow"
+# and pick the branch to build from the ref dropdown. This requires the file to
+# be present on the default branch (workflow_dispatch is only exposed once it
+# lands on main).
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Windows target"
+        type: choice
+        default: aarch64-pc-windows-msvc
+        options:
+          - aarch64-pc-windows-msvc
+          - x86_64-pc-windows-msvc
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      TARGET: ${{ inputs.target || 'aarch64-pc-windows-msvc' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust target
+        run: rustup target add ${{ env.TARGET }}
+
+      - name: pnpm Setup
+        uses: pnpm/action-setup@v4
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          # Reuse the caches warmed on main by cache-warm.yml.
+          shared-key:
+            release-${{ env.TARGET == 'aarch64-pc-windows-msvc' && 'windows-aarch64' ||
+            'windows-x86_64' }}
+          save-if: false
+
+      - name: Sync node version and setup cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+          cache: "pnpm"
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Build the app (no release)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          CONNECT_AUTH_URL: ${{ vars.CONNECT_AUTH_URL }}
+          CONNECT_AUTH_PUBLISHABLE_KEY: ${{ vars.CONNECT_AUTH_PUBLISHABLE_KEY }}
+          CONNECT_API_URL: ${{ vars.CONNECT_API_URL }}
+          CONNECT_OAUTH_CALLBACK_URL: ${{ vars.CONNECT_OAUTH_CALLBACK_URL }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        with:
+          args: --target ${{ env.TARGET }} --bundles nsis
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wealthfolio-${{ env.TARGET }}-nsis
+          path: target/${{ env.TARGET }}/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 7

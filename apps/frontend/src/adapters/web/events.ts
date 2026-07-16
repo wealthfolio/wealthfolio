@@ -144,6 +144,12 @@ export const listenMarketSyncError = <T>(handler: EventCallback<T>): Promise<Unl
   return portfolioEventBridge.listen("market:sync-error", handler);
 };
 
+export const listenAssetClassificationsChanged = <T>(
+  handler: EventCallback<T>,
+): Promise<UnlistenFn> => {
+  return portfolioEventBridge.listen("asset:classifications-changed", handler);
+};
+
 // Desktop-only features - no-op in web
 const noopUnlisten: UnlistenFn = () => Promise.resolve();
 
@@ -165,6 +171,10 @@ export const listenDatabaseRestored = <T>(_handler: EventCallback<T>): Promise<U
 
 export const listenNavigateToRoute = <T>(_handler: EventCallback<T>): Promise<UnlistenFn> => {
   return Promise.resolve(noopUnlisten);
+};
+
+export const getCurrentDeepLinks = (): Promise<string[]> => {
+  return Promise.resolve([]);
 };
 
 export const listenDeepLink = <T>(_handler: EventCallback<T>): Promise<UnlistenFn> => {

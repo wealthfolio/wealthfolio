@@ -184,6 +184,16 @@ mod tests {
         )
     }
 
+    fn make_service_with_accounts(
+        repo: MockPortfolioRepo,
+        accounts: Vec<Account>,
+    ) -> PortfolioService {
+        PortfolioService::new(
+            Arc::new(repo),
+            Arc::new(MockAccountRepo::with_accounts(accounts)),
+        )
+    }
+
     fn valid_new(name: &str, account_ids: Vec<String>) -> NewPortfolio {
         NewPortfolio {
             name: name.to_string(),
@@ -321,6 +331,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn resolve_account_scope_keeps_hidden_and_excludes_archived_accounts() {
+        let mut hidden = mock_account(
+            "hidden",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        );
+        hidden.is_active = false;
+        let mut archived = mock_account(
+            "archived",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        );
+        archived.is_archived = true;
+        let svc = make_service_with_accounts(
+            MockPortfolioRepo::default(),
+            vec![
+                mock_account(
+                    "active",
+                    account_types::SECURITIES,
+                    TrackingMode::Transactions,
+                ),
+                hidden,
+                archived,
+            ],
+        );
+
+        let scope = svc
+            .resolve_account_scope(
+                &AccountScope::Accounts {
+                    account_ids: vec![
+                        "active".to_string(),
+                        "hidden".to_string(),
+                        "archived".to_string(),
+                    ],
+                },
+                "USD",
+            )
+            .unwrap();
+
+        assert_eq!(scope.account_ids, vec!["active", "hidden"]);
+    }
+
+    #[tokio::test]
     async fn resolve_account_scope_rejects_fake_account_id() {
         let svc = make_service_with(MockPortfolioRepo::default(), &["a1"]);
         let err = svc
@@ -352,6 +405,18 @@ mod tests {
 
     #[tokio::test]
     async fn resolve_account_scope_for_purpose_filters_by_account_capability() {
+        let mut hidden = mock_account(
+            "hidden",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        );
+        hidden.is_active = false;
+        let mut archived = mock_account(
+            "archived",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        );
+        archived.is_archived = true;
         let svc = PortfolioService::new(
             Arc::new(MockPortfolioRepo::default()),
             Arc::new(MockAccountRepo::with_accounts(vec![
@@ -376,6 +441,8 @@ mod tests {
                     account_types::CREDIT_CARD,
                     TrackingMode::Transactions,
                 ),
+                hidden,
+                archived,
             ])),
         );
         let filter = AccountScope::Accounts {
@@ -386,6 +453,8 @@ mod tests {
                 "security-holdings".to_string(),
                 "cash".to_string(),
                 "security-transactions".to_string(),
+                "hidden".to_string(),
+                "archived".to_string(),
             ],
         };
 
@@ -401,6 +470,7 @@ mod tests {
             vec![
                 "cash".to_string(),
                 "crypto".to_string(),
+                "hidden".to_string(),
                 "security-holdings".to_string(),
                 "security-transactions".to_string(),
             ]

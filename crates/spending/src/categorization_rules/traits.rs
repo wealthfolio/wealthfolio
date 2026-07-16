@@ -2,6 +2,22 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use super::model::{CategorizationRule, NewCategorizationRule, UpdateCategorizationRule};
+use super::service::CategorizationRulesService;
+
+/// Read-only surface of `CategorizationRulesService` consumed by agent tools.
+/// Mirrors the inherent method signatures exactly; extend (don't change)
+/// when write tools need more of the service.
+#[async_trait]
+pub trait CategorizationRulesServiceTrait: Send + Sync {
+    async fn list(&self) -> Result<Vec<CategorizationRule>>;
+}
+
+#[async_trait]
+impl CategorizationRulesServiceTrait for CategorizationRulesService {
+    async fn list(&self) -> Result<Vec<CategorizationRule>> {
+        CategorizationRulesService::list(self).await
+    }
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PresetImportCounts {

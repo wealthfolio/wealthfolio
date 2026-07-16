@@ -96,6 +96,7 @@ export const QueryKeys = {
 
   transactions: "transactions",
   latestValuations: "latest-valuations",
+  CURRENT_VALUATION: "current-valuation",
 
   // Market Data
   symbolSearch: "symbol-search",
@@ -151,6 +152,19 @@ export const QueryKeys = {
     targetId,
     scope,
     includeHoldings,
+  ],
+
+  // Agent Access (MCP server + personal access tokens)
+  AGENT_MCP_STATUS: "agentMcpStatus",
+  AGENT_MCP_CONFIG: "agentMcpConfig",
+  AGENT_ACCESS_STATUS: "agentAccessStatus",
+  AGENT_ACCESS_TOKENS: "agentAccessTokens",
+  AGENT_AUDIT_LOG: "agentAuditLog",
+  agentAuditLog: (page: number, pageSize: number, tool?: string) => [
+    QueryKeys.AGENT_AUDIT_LOG,
+    page,
+    pageSize,
+    tool ?? "all",
   ],
 
   // Health Center

@@ -1,4 +1,4 @@
-import { getHoldings, getSnapshots, searchActivities } from "@/adapters";
+import { getContributionLimit, getSnapshots, searchActivities } from "@/adapters";
 import { HistoryChart } from "@/components/history-chart";
 import type { ActivityDetails } from "@/lib/types";
 import {
@@ -14,46 +14,65 @@ import {
   PageContent,
   PageHeader,
   PrivacyAmount,
+  Skeleton,
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@wealthfolio/ui";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 import { PrivacyToggle } from "@/components/privacy-toggle";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useRecalculatePortfolioMutation } from "@/hooks/use-calculate-portfolio";
+import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
+import { useHoldings } from "@/hooks/use-holdings";
+import { useIsMobileViewport } from "@/hooks/use-platform";
 import { useValuationHistory } from "@/hooks/use-valuation-history";
-import { canAddHoldings } from "@/lib/activity-restrictions";
+import { canAddHoldings, getActivityRestrictionLevel } from "@/lib/activity-restrictions";
 import {
   AccountPurpose,
   AccountType,
+  type ActivityType,
   accountSupportsPurpose,
   HoldingType,
   isLiabilityAccountType,
 } from "@/lib/constants";
-import { performanceHeadlineReturn, performancePeriodPnl } from "@/lib/performance";
+import {
+  performanceSummaryReturn,
+  performancePeriodPnl,
+  simpleReturnFromNetContribution,
+} from "@/lib/performance";
 import { getPerformanceDateRangeForRequest } from "@/lib/performance-date-range";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import {
   Account,
   AccountValuation,
+  ContributionLimit,
   DateRange,
-  Holding,
   SnapshotInfo,
   TimePeriod,
   TrackedItem,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ActivityDateSheet } from "@/pages/activity/components/activity-date-sheet";
+import { ActivityDeleteModal } from "@/pages/activity/components/activity-delete-modal";
+import { ActivityForm, type AccountSelectOption } from "@/pages/activity/components/activity-form";
+import { ActivityPagination } from "@/pages/activity/components/activity-pagination";
+import ActivityTable from "@/pages/activity/components/activity-table/activity-table";
+import ActivityTableMobile from "@/pages/activity/components/activity-table/activity-table-mobile";
 import { BulkHoldingsModal } from "@/pages/activity/components/forms/bulk-holdings-modal";
+import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
+import { useActivityActionDialogs } from "@/pages/activity/hooks/use-activity-action-dialogs";
+import { useActivitySearch } from "@/pages/activity/hooks/use-activity-search";
 import { PortfolioUpdateTrigger } from "@/pages/dashboard/portfolio-update-trigger";
 import { HoldingsEditMode } from "@/pages/holdings/components/holdings-edit-mode";
 import { useCalculatePerformanceHistory } from "@/pages/performance/hooks/use-performance-data";
 import { useQuery } from "@tanstack/react-query";
+import type { SortingState } from "@tanstack/react-table";
 import { Icons, type Icon } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
@@ -75,7 +94,7 @@ import {
   SheetTrigger,
 } from "@wealthfolio/ui/components/ui/sheet";
 import { format, subMonths } from "date-fns";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { AccountContributionLimit } from "./account-contribution-limit";
 import AccountHoldings from "./account-holdings";
 import AccountMetrics from "./account-metrics";
@@ -94,7 +113,7 @@ interface HistoryChartData {
   currency: string;
 }
 
-type AccountDetailTab = "holdings" | "snapshots";
+type AccountDetailTab = "holdings" | "activities" | "snapshots";
 
 // Map account types to icons for visual distinction
 const accountTypeIcons: Record<AccountType, Icon> = {
@@ -113,6 +132,8 @@ const getInitialDateRange = (): DateRange => ({
 // Define the initial interval code (consistent with other pages)
 const INITIAL_INTERVAL_CODE: TimePeriod = "3M";
 const CASH_AUDIT_ACTIVITY_PAGE_SIZE = 500;
+const EMPTY_ACCOUNT_IDS: string[] = [];
+const EMPTY_ACTIVITY_TYPES: ActivityType[] = [];
 
 async function getCashAuditActivities(
   accountId: string,
@@ -143,11 +164,13 @@ async function getCashAuditActivities(
 }
 
 const AccountPage = () => {
+  const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const appTimezone = settings?.timezone?.trim() || undefined;
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const isMobile = useIsMobileViewport();
   const [dateRange, setDateRange] = useState<DateRange | undefined>(getInitialDateRange());
   const [selectedIntervalCode, setSelectedIntervalCode] =
     useState<TimePeriod>(INITIAL_INTERVAL_CODE);
@@ -161,16 +184,48 @@ const AccountPage = () => {
   const [isActivitySheetOpen, setIsActivitySheetOpen] = useState(false);
   const [showBulkHoldingsForm, setShowBulkHoldingsForm] = useState(false);
   const [accountDetailTab, setAccountDetailTab] = useState<AccountDetailTab>("holdings");
+  const [accountActivitiesSorting, setAccountActivitiesSorting] = useState<SortingState>([
+    { id: "date", desc: true },
+  ]);
+  const {
+    selectedActivity,
+    formOpen: activityFormOpen,
+    deleteDialogOpen: showActivityDeleteAlert,
+    isDeleting: isActivityDeleting,
+    openForm: handleActivityEdit,
+    closeForm: handleActivityFormClose,
+    requestDelete: handleActivityDelete,
+    cancelDelete: handleActivityDeleteCancel,
+    confirmDelete: handleActivityDeleteConfirm,
+    duplicateActivity: handleActivityDuplicate,
+  } = useActivityActionDialogs();
 
   const recalculatePortfolioMutation = useRecalculatePortfolioMutation();
   const { accounts, isLoading: isAccountsLoading } = useAccounts();
   const account = useMemo(() => accounts?.find((acc) => acc.id === id), [accounts, id]);
   const isLiabilityAccount = isLiabilityAccountType(account?.accountType);
+  const isCashOnlyAccount = account?.accountType === AccountType.CASH || isLiabilityAccount;
   const supportsPerformance = accountSupportsPurpose(account, AccountPurpose.PERFORMANCE);
   const supportsContributionLimits = accountSupportsPurpose(
     account,
     AccountPurpose.CONTRIBUTION_LIMITS,
   );
+  const currentContributionYear = new Date().getFullYear();
+
+  const { data: contributionLimits, isLoading: isContributionLimitsLoading } = useQuery<
+    ContributionLimit[],
+    Error
+  >({
+    queryKey: [QueryKeys.CONTRIBUTION_LIMITS],
+    queryFn: getContributionLimit,
+    enabled: supportsContributionLimits,
+  });
+
+  const currentContributionLimit = contributionLimits?.find(
+    (limit) => limit.accountIds?.includes(id) && limit.contributionYear === currentContributionYear,
+  );
+  const showContributionLimitCard =
+    supportsContributionLimits && (isContributionLimitsLoading || !!currentContributionLimit);
 
   // Check if this account is in HOLDINGS tracking mode
   const isHoldingsMode = useMemo(() => {
@@ -183,10 +238,9 @@ const AccountPage = () => {
     return canAddHoldings(account);
   }, [account]);
 
-  // Query holdings to check if account has any assets
-  const { data: holdings, isLoading: isHoldingsLoading } = useQuery<Holding[], Error>({
-    queryKey: [QueryKeys.HOLDINGS, id],
-    queryFn: () => getHoldings({ type: "account", accountId: id }),
+  const { holdings, isLoading: isHoldingsLoading } = useHoldings({
+    type: "account",
+    accountId: id,
   });
 
   // Check if account has any holdings (including cash)
@@ -203,19 +257,54 @@ const AccountPage = () => {
   const shouldShowSnapshotHistory = isHoldingsMode && hasHoldings && !isHoldingsLoading;
 
   const accountDetailTabs = useMemo(() => {
-    if (!shouldShowSnapshotHistory) return [];
-
+    if (!account) return [];
     const tabs: { value: AccountDetailTab; label: string }[] = [];
-    if (hasNonCashHoldings) {
-      tabs.push({ value: "holdings", label: "Holdings" });
+
+    if (!isCashOnlyAccount && (!shouldShowSnapshotHistory || hasNonCashHoldings)) {
+      tabs.push({ value: "holdings", label: t("account:holdings") });
     }
-    tabs.push({ value: "snapshots", label: "Snapshots" });
+
+    tabs.push({ value: "activities", label: t("common:activities") });
+
+    if (shouldShowSnapshotHistory) {
+      tabs.push({ value: "snapshots", label: t("account:snapshot.tab") });
+    }
+
     return tabs;
-  }, [shouldShowSnapshotHistory, hasNonCashHoldings]);
+  }, [account, hasNonCashHoldings, isCashOnlyAccount, shouldShowSnapshotHistory, t]);
 
   const activeAccountDetailTab = accountDetailTabs.some((tab) => tab.value === accountDetailTab)
     ? accountDetailTab
-    : (accountDetailTabs[0]?.value ?? "holdings");
+    : (accountDetailTabs[0]?.value ?? "activities");
+
+  const isAccountActivitiesTabActive = activeAccountDetailTab === "activities";
+  const accountActivityAccountIds = useMemo(
+    () => (isAccountActivitiesTabActive && account ? [id] : EMPTY_ACCOUNT_IDS),
+    [account, id, isAccountActivitiesTabActive],
+  );
+  const accountActivitiesSearch = useActivitySearch({
+    mode: "infinite",
+    filters: {
+      accountIds: accountActivityAccountIds,
+      activityTypes: EMPTY_ACTIVITY_TYPES,
+    },
+    searchQuery: "",
+    sorting: accountActivitiesSorting,
+  });
+
+  const activityFormAccounts = useMemo<AccountSelectOption[]>(
+    () =>
+      accounts
+        .filter((acc) => !acc.isArchived)
+        .map((acc) => ({
+          value: acc.id,
+          label: acc.name,
+          currency: acc.currency,
+          accountType: acc.accountType,
+          restrictionLevel: getActivityRestrictionLevel(acc),
+        })),
+    [accounts],
+  );
 
   // Format date range for snapshot query
   const snapshotDateFrom = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined;
@@ -319,8 +408,33 @@ const AccountPage = () => {
     dateRange,
     { type: "account", accountId: id },
   );
+  const {
+    currentValuation: liveCurrentValuation,
+    isLoading: isCurrentValuationLoading,
+    error: currentValuationError,
+  } = useCurrentValuation(
+    { type: "account", accountId: id },
+    { includeAccounts: true, enabled: Boolean(id) },
+  );
 
   const currentValuation = valuationHistory?.[valuationHistory.length - 1];
+  const currentAccountValuation = liveCurrentValuation?.accounts[0];
+  const metricsValuation = useMemo(() => {
+    if (!currentValuation || !currentAccountValuation) return currentValuation;
+
+    return {
+      ...currentValuation,
+      accountCurrency: currentAccountValuation.accountCurrency,
+      baseCurrency: currentAccountValuation.baseCurrency,
+      cashBalance: currentAccountValuation.cashBalance,
+      investmentMarketValue: currentAccountValuation.investmentMarketValue,
+      totalValue: currentAccountValuation.totalValue,
+      cashBalanceBase: currentAccountValuation.cashBalanceBase,
+      investmentMarketValueBase: currentAccountValuation.investmentMarketValueBase,
+      totalValueBase: currentAccountValuation.totalValueBase,
+      calculatedAt: currentAccountValuation.calculatedAt,
+    };
+  }, [currentAccountValuation, currentValuation]);
   const currentCashBalanceIsNegative = (currentValuation?.cashBalance ?? 0) < 0;
   const shouldLoadCashAuditValuationHistory =
     currentCashBalanceIsNegative && !isHoldingsMode && !isLiabilityAccount;
@@ -393,8 +507,7 @@ const AccountPage = () => {
   );
 
   const selectedCashAuditTarget =
-    negativeCashAuditTarget &&
-    toDateKey(selectedActivityDate, appTimezone) === negativeCashAuditTarget.activityDate
+    toDateKey(selectedActivityDate, appTimezone) === negativeCashAuditTarget?.activityDate
       ? negativeCashAuditTarget
       : null;
   const selectedCashAuditActivities = useMemo(() => {
@@ -405,12 +518,43 @@ const AccountPage = () => {
   }, [appTimezone, cashAuditActivities, selectedCashAuditTarget]);
 
   const frontendGainLossAmount = performancePeriodPnl(accountPerformance);
-  const frontendSimpleReturn = performanceHeadlineReturn(accountPerformance);
+  const frontendSummaryReturn = performanceSummaryReturn(accountPerformance);
+  const allTimeReturnAmount = metricsValuation
+    ? metricsValuation.totalValue - metricsValuation.netContribution
+    : null;
+  const allTimeSimpleReturn = simpleReturnFromNetContribution(
+    allTimeReturnAmount,
+    metricsValuation?.netContribution,
+  );
+  const gainLossAmountToDisplay =
+    selectedIntervalCode === "ALL" && !isHoldingsMode
+      ? allTimeReturnAmount
+      : frontendGainLossAmount;
   const displayedValueCurrency =
-    account?.currency ?? currentValuation?.accountCurrency ?? baseCurrency;
+    account?.currency ??
+    currentAccountValuation?.accountCurrency ??
+    currentValuation?.accountCurrency ??
+    baseCurrency;
+  const displayedTotalValue =
+    currentAccountValuation?.totalValue ??
+    (!isCurrentValuationLoading && !currentValuationError ? currentValuation?.totalValue : 0) ??
+    0;
+  const displayedSourceDataAsOf =
+    currentAccountValuation?.sourceDataAsOf ??
+    (!currentAccountValuation && !isCurrentValuationLoading && !currentValuationError
+      ? currentValuation?.calculatedAt
+      : undefined);
+  const displayedValuationNotices =
+    currentAccountValuation?.warnings ?? liveCurrentValuation?.summary.warnings;
+  const isCurrentValuationUnavailable =
+    !isCurrentValuationLoading && !currentAccountValuation && Boolean(currentValuationError);
   const performanceCurrency = accountPerformance?.scope.currency ?? baseCurrency;
-  const showPerformanceCurrency =
-    performanceCurrency.toUpperCase() !== displayedValueCurrency.toUpperCase();
+  const gainLossCurrencyToDisplay =
+    selectedIntervalCode === "ALL" && !isHoldingsMode
+      ? displayedValueCurrency
+      : performanceCurrency;
+  const showGainLossCurrency =
+    gainLossCurrencyToDisplay.toUpperCase() !== displayedValueCurrency.toUpperCase();
 
   const chartData: HistoryChartData[] = useMemo(() => {
     if (!valuationHistory) return [];
@@ -437,22 +581,117 @@ const AccountPage = () => {
   const percentageToDisplay = useMemo(() => {
     // Holdings mode has no transaction cash-flow history, so show value return.
     if (isHoldingsMode) {
-      return frontendSimpleReturn;
+      return frontendSummaryReturn;
     }
     if (selectedIntervalCode === "ALL") {
-      return frontendSimpleReturn;
+      return allTimeSimpleReturn;
     }
     if (accountPerformance) {
-      return performanceHeadlineReturn(accountPerformance);
+      return performanceSummaryReturn(accountPerformance);
     }
     return null;
-  }, [accountPerformance, selectedIntervalCode, frontendSimpleReturn, isHoldingsMode]);
+  }, [
+    accountPerformance,
+    selectedIntervalCode,
+    frontendSummaryReturn,
+    allTimeSimpleReturn,
+    isHoldingsMode,
+  ]);
 
   const handleAccountSwitch = (selectedAccount: Account) => {
     navigate(`/accounts/${selectedAccount.id}`);
     setDesktopSelectorOpen(false);
     setMobileSelectorOpen(false);
   };
+
+  const accountActivitiesContent = isMobile ? (
+    <>
+      <ActivityTableMobile
+        activities={accountActivitiesSearch.data}
+        isLoading={accountActivitiesSearch.isLoading}
+        isCompactView={true}
+        handleEdit={handleActivityEdit}
+        handleDelete={handleActivityDelete}
+        onDuplicate={handleActivityDuplicate}
+        onAdd={() => navigate(`/activities/manage?account=${id}`)}
+      />
+      <ActivityPagination
+        hasMore={accountActivitiesSearch.hasNextPage ?? false}
+        onLoadMore={accountActivitiesSearch.fetchNextPage}
+        isFetching={accountActivitiesSearch.isFetchingNextPage}
+        totalFetched={accountActivitiesSearch.data.length}
+        totalCount={accountActivitiesSearch.totalRowCount}
+      />
+    </>
+  ) : (
+    <>
+      <ActivityTable
+        activities={accountActivitiesSearch.data}
+        isLoading={accountActivitiesSearch.isLoading}
+        sorting={accountActivitiesSorting}
+        onSortingChange={setAccountActivitiesSorting}
+        handleEdit={handleActivityEdit}
+        handleDelete={handleActivityDelete}
+        onAdd={() => navigate(`/activities/manage?account=${id}`)}
+      />
+      <ActivityPagination
+        hasMore={accountActivitiesSearch.hasNextPage ?? false}
+        onLoadMore={accountActivitiesSearch.fetchNextPage}
+        isFetching={accountActivitiesSearch.isFetchingNextPage}
+        totalFetched={accountActivitiesSearch.data.length}
+        totalCount={accountActivitiesSearch.totalRowCount}
+      />
+    </>
+  );
+
+  const accountDetailsContent = (
+    <div className="space-y-4">
+      {(accountDetailTabs.length > 1 || activeAccountDetailTab === "activities") && (
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
+          {accountDetailTabs.length > 1 ? (
+            <AnimatedToggleGroup<AccountDetailTab>
+              items={accountDetailTabs}
+              value={activeAccountDetailTab}
+              onValueChange={setAccountDetailTab}
+              size={isMobile ? "compact" : "default"}
+              className="min-w-0"
+            />
+          ) : (
+            <div />
+          )}
+
+          {activeAccountDetailTab === "activities" && (
+            <Button variant="ghost" size="sm" className="shrink-0" asChild>
+              <Link to={`/activities?account=${id}`} className="inline-flex items-center gap-1.5">
+                {t("account:explore")}
+                <Icons.ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          )}
+        </div>
+      )}
+
+      {activeAccountDetailTab === "holdings" ? (
+        <AccountHoldings
+          accountId={id}
+          showEmptyState={true}
+          showTitle={false}
+          onAddHoldings={() => setIsEditingHoldings(true)}
+        />
+      ) : activeAccountDetailTab === "activities" ? (
+        accountActivitiesContent
+      ) : account ? (
+        <AccountSnapshotHistory
+          account={account}
+          canEditSnapshots={canEditHoldingsDirectly}
+          onAddSnapshot={() => {
+            setEditingSnapshotDate(null);
+            setIsEditingHoldings(true);
+          }}
+        />
+      ) : null}
+    </div>
+  );
 
   return (
     <Page>
@@ -466,11 +705,11 @@ const AccountPage = () => {
               canEditHoldingsDirectly
                 ? ([
                     {
-                      title: "Holdings",
+                      title: t("account:action_group_holdings"),
                       items: [
                         {
                           icon: Icons.Pencil,
-                          label: "Update Holdings",
+                          label: t("account:update_holdings_title"),
                           onClick: () => {
                             setEditingSnapshotDate(null);
                             setIsEditingHoldings(true);
@@ -478,17 +717,17 @@ const AccountPage = () => {
                         },
                         {
                           icon: Icons.Import,
-                          label: "Import CSV",
+                          label: t("account:action_import_csv"),
                           onClick: () => navigate(`/import?account=${id}`),
                         },
                       ],
                     },
                     {
-                      title: "Manage",
+                      title: t("account:action_group_manage"),
                       items: [
                         {
                           icon: Icons.Clock,
-                          label: "Recalculate History",
+                          label: t("account:action_recalculate_history"),
                           onClick: () => recalculatePortfolioMutation.mutate(),
                         },
                       ],
@@ -496,13 +735,15 @@ const AccountPage = () => {
                   ] satisfies ActionPaletteGroup[])
                 : ([
                     {
-                      title: isLiabilityAccount ? "Activity" : "Transactions",
+                      title: isLiabilityAccount
+                        ? t("account:action_group_activity")
+                        : t("account:action_group_transactions"),
                       items: [
                         ...(!isLiabilityAccount
                           ? [
                               {
                                 icon: Icons.Plus,
-                                label: "Record Transaction",
+                                label: t("account:action_record_transaction"),
                                 onClick: () => navigate(`/activities/manage?account=${id}`),
                               },
                             ]
@@ -512,23 +753,23 @@ const AccountPage = () => {
                           : [
                               {
                                 icon: Icons.Holdings,
-                                label: "Transfer Holdings",
+                                label: t("account:action_transfer_holdings"),
                                 onClick: () => setShowBulkHoldingsForm(true),
                               },
                             ]),
                         {
                           icon: Icons.Import,
-                          label: "Import CSV",
+                          label: t("account:action_import_csv"),
                           onClick: () => navigate(`/import?account=${id}`),
                         },
                       ],
                     },
                     {
-                      title: "Manage",
+                      title: t("account:action_group_manage"),
                       items: [
                         {
                           icon: Icons.Clock,
-                          label: "Recalculate History",
+                          label: t("account:action_recalculate_history"),
                           onClick: () => recalculatePortfolioMutation.mutate(),
                         },
                       ],
@@ -550,28 +791,39 @@ const AccountPage = () => {
             </div>
           )}
           <div className="flex min-w-0 flex-col justify-center">
-            <div className="flex items-center gap-1">
-              <h1 className="truncate text-base font-semibold leading-tight md:text-lg">
-                {account?.name ?? "Account"}
-              </h1>
+            <div className="flex min-w-0 items-center">
               {/* Desktop account selector */}
-              <div className="hidden sm:block">
+              <div className="hidden min-w-0 sm:block">
                 <Popover open={desktopSelectorOpen} onOpenChange={setDesktopSelectorOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 rounded-full"
-                      aria-label="Switch account"
+                      className="-ml-2 h-auto min-w-0 justify-start rounded-md px-2 py-1 text-left"
+                      aria-label={t("account:switch_account")}
                     >
-                      <Icons.ChevronDown className="text-muted-foreground size-5" />
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        {account?.group ? (
+                          <>
+                            <span className="text-muted-foreground truncate text-base font-semibold leading-tight md:text-lg">
+                              {account.group}
+                            </span>
+                            <span className="text-muted-foreground text-sm" aria-hidden="true">
+                              &gt;
+                            </span>
+                          </>
+                        ) : null}
+                        <span className="truncate text-base font-semibold leading-tight md:text-lg">
+                          {account?.name ?? t("account:account")}
+                        </span>
+                        <Icons.ChevronDown className="text-muted-foreground size-5 shrink-0" />
+                      </span>
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-60 p-0" align="start">
                     <Command>
-                      <CommandInput placeholder="Search accounts..." />
+                      <CommandInput placeholder={t("account:search_accounts")} />
                       <CommandList>
-                        <CommandEmpty>No accounts found.</CommandEmpty>
+                        <CommandEmpty>{t("account:no_accounts_found")}</CommandEmpty>
                         {accountsByType.map(([type, typeAccounts]) => (
                           <CommandGroup key={type} heading={type}>
                             {typeAccounts.map((acc) => {
@@ -606,22 +858,26 @@ const AccountPage = () => {
               </div>
 
               {/* Mobile account selector */}
-              <div className="block sm:hidden">
+              <div className="block min-w-0 sm:hidden">
                 <Sheet open={mobileSelectorOpen} onOpenChange={setMobileSelectorOpen}>
                   <SheetTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 rounded-full"
-                      aria-label="Switch account"
+                      className="-ml-2 h-auto min-w-0 justify-start rounded-md px-2 py-1 text-left"
+                      aria-label={t("account:switch_account")}
                     >
-                      <Icons.ChevronDown className="text-muted-foreground h-5 w-5" />
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-base font-semibold leading-tight">
+                          {account?.name ?? t("account:account")}
+                        </span>
+                        <Icons.ChevronDown className="text-muted-foreground h-5 w-5 shrink-0" />
+                      </span>
                     </Button>
                   </SheetTrigger>
                   <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[80vh] p-0">
                     <SheetHeader className="border-border border-b px-6 py-4">
-                      <SheetTitle>Switch Account</SheetTitle>
-                      <SheetDescription>Choose an account to view</SheetDescription>
+                      <SheetTitle>{t("account:switch_account_title")}</SheetTitle>
+                      <SheetDescription>{t("account:choose_account_to_view")}</SheetDescription>
                     </SheetHeader>
                     <ScrollArea className="h-[calc(80vh-5rem)] px-6 py-4">
                       <div className="space-y-6">
@@ -671,9 +927,11 @@ const AccountPage = () => {
                 </Sheet>
               </div>
             </div>
-            <p className="text-muted-foreground text-xs leading-tight md:text-sm">
-              {account?.group ?? account?.currency}
-            </p>
+            {!account?.group && account?.currency && (
+              <p className="text-muted-foreground text-xs leading-tight md:text-sm">
+                {account?.currency}
+              </p>
+            )}
           </div>
         </div>
       </PageHeader>
@@ -684,32 +942,43 @@ const AccountPage = () => {
               <Card className="col-span-1 md:col-span-2">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0">
                   <CardTitle className="text-md">
-                    <PortfolioUpdateTrigger lastCalculatedAt={currentValuation?.calculatedAt}>
+                    <PortfolioUpdateTrigger
+                      lastCalculatedAt={displayedSourceDataAsOf}
+                      notices={displayedValuationNotices}
+                    >
                       <div className="flex items-start gap-2">
                         <div>
                           <p className="pt-3 text-xl font-bold">
-                            <PrivacyAmount
-                              value={currentValuation?.totalValue ?? 0}
-                              currency={displayedValueCurrency}
-                            />
+                            {isCurrentValuationLoading ? (
+                              <Skeleton className="h-8 w-36" />
+                            ) : isCurrentValuationUnavailable ? (
+                              <span className="text-muted-foreground">
+                                {t("account:not_available")}
+                              </span>
+                            ) : (
+                              <PrivacyAmount
+                                value={displayedTotalValue}
+                                currency={displayedValueCurrency}
+                              />
+                            )}
                           </p>
                           {!hasPerformanceError && (
                             <div className="flex items-center gap-2 text-sm">
-                              {frontendGainLossAmount == null ? (
+                              {gainLossAmountToDisplay == null ? (
                                 <span className="text-muted-foreground text-sm font-light">
-                                  N/A
+                                  {t("account:not_available")}
                                 </span>
                               ) : (
                                 <GainAmount
                                   className="text-sm font-light"
-                                  value={frontendGainLossAmount}
-                                  currency={performanceCurrency}
-                                  displayCurrency={showPerformanceCurrency}
+                                  value={gainLossAmountToDisplay}
+                                  currency={gainLossCurrencyToDisplay}
+                                  displayCurrency={showGainLossCurrency}
                                 />
                               )}
                               {percentageToDisplay == null ? (
                                 <span className="text-muted-foreground bg-foreground/10 rounded-md px-2 py-px text-xs font-light">
-                                  N/A
+                                  {t("account:not_available")}
                                 </span>
                               ) : (
                                 <GainPercent
@@ -742,7 +1011,11 @@ const AccountPage = () => {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>{showSnapshotMarkers ? "Hide" : "Show"} snapshot markers</p>
+                          <p>
+                            {showSnapshotMarkers
+                              ? t("account:hide_snapshot_markers")
+                              : t("account:show_snapshot_markers")}
+                          </p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -781,21 +1054,25 @@ const AccountPage = () => {
                 </CardContent>
               </Card>
 
-              <div className="flex flex-col space-y-4">
+              <div className="flex min-h-0 flex-col gap-4">
                 <AccountMetrics
-                  valuation={currentValuation}
+                  valuation={metricsValuation}
                   performance={accountPerformance}
-                  className="grow"
+                  cashCurrencySplit={liveCurrentValuation?.summary.cashCurrencySplit}
+                  className="min-h-0 grow"
+                  compact={showContributionLimitCard}
                   isLoading={isLoading}
                   isPerformanceLoading={isPerformanceHistoryLoading}
                   performanceError={hasPerformanceError ? performanceErrorMessages[0] : undefined}
                   hideBalanceEdit={isHoldingsMode || isLiabilityAccount}
                   isHoldingsMode={isHoldingsMode}
-                  balanceLabel={isLiabilityAccount ? "Balance" : "Cash Balance"}
+                  balanceLabel={
+                    isLiabilityAccount ? t("account:balance_label") : t("account:cash_balance")
+                  }
                   balanceWarning={
                     firstVisibleNegativeCashValuation && currentCashBalanceIsNegative
                       ? {
-                          label: "Review cash impact",
+                          label: t("account:review_cash_impact"),
                           disabled: !negativeCashAuditTarget,
                           isLoading:
                             isCashAuditValuationHistoryLoading || isCashAuditActivitiesLoading,
@@ -808,40 +1085,18 @@ const AccountPage = () => {
                       : undefined
                   }
                 />
-                {supportsContributionLimits && <AccountContributionLimit accountId={id} />}
+                {showContributionLimitCard && <AccountContributionLimit accountId={id} />}
               </div>
             </div>
 
-            {shouldShowSnapshotHistory && account ? (
-              <div className="space-y-4">
-                <AnimatedToggleGroup<AccountDetailTab>
-                  items={accountDetailTabs}
-                  value={activeAccountDetailTab}
-                  onValueChange={setAccountDetailTab}
-                  className="text-sm"
-                />
-
-                {activeAccountDetailTab === "holdings" ? (
-                  <AccountHoldings
-                    accountId={id}
-                    showEmptyState={false}
-                    onAddHoldings={() => setIsEditingHoldings(true)}
-                  />
-                ) : (
-                  <AccountSnapshotHistory
-                    account={account}
-                    canEditSnapshots={canEditHoldingsDirectly}
-                    onAddSnapshot={() => {
-                      setEditingSnapshotDate(null);
-                      setIsEditingHoldings(true);
-                    }}
-                  />
-                )}
-              </div>
+            {accountDetailTabs.length > 0 ? (
+              accountDetailsContent
             ) : (
               <AccountHoldings accountId={id} onAddHoldings={() => setIsEditingHoldings(true)} />
             )}
           </>
+        ) : accountDetailTabs.length > 0 ? (
+          accountDetailsContent
         ) : (
           <AccountHoldings
             accountId={id}
@@ -856,9 +1111,9 @@ const AccountPage = () => {
         <Sheet open={isEditingHoldings} onOpenChange={setIsEditingHoldings}>
           <SheetContent side="right" className="flex h-full w-full flex-col p-0 sm:max-w-2xl">
             <SheetHeader className="border-b px-6 py-4">
-              <SheetTitle>Update Holdings</SheetTitle>
+              <SheetTitle>{t("account:update_holdings_title")}</SheetTitle>
               <SheetDescription>
-                Edit positions and cash balances for {account.name}
+                {t("account:update_holdings_desc", { name: account.name })}
               </SheetDescription>
             </SheetHeader>
             <div className="flex-1 overflow-hidden px-6">
@@ -876,6 +1131,32 @@ const AccountPage = () => {
           </SheetContent>
         </Sheet>
       )}
+
+      {isMobile ? (
+        <MobileActivityForm
+          key={selectedActivity?.id ?? "new"}
+          accounts={activityFormAccounts}
+          transferAccounts={activityFormAccounts}
+          activity={selectedActivity}
+          open={activityFormOpen}
+          onClose={handleActivityFormClose}
+        />
+      ) : (
+        <ActivityForm
+          accounts={activityFormAccounts}
+          transferAccounts={activityFormAccounts}
+          activity={selectedActivity}
+          open={activityFormOpen}
+          onClose={handleActivityFormClose}
+        />
+      )}
+      <ActivityDeleteModal
+        isOpen={showActivityDeleteAlert}
+        isDeleting={isActivityDeleting}
+        linkedTransfer={!!selectedActivity?.sourceGroupId}
+        onConfirm={handleActivityDeleteConfirm}
+        onCancel={handleActivityDeleteCancel}
+      />
 
       <ActivityDateSheet
         open={isActivitySheetOpen}

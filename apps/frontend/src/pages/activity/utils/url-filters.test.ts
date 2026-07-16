@@ -41,6 +41,15 @@ describe("resolveActivityUrlFilters", () => {
     });
   });
 
+  it("maps health activity deep links to exact activity and context filters", () => {
+    expect(
+      resolveActivityUrlFilters(new URLSearchParams("activity=act-1&healthContext=activity")),
+    ).toEqual({
+      activityId: "act-1",
+      healthContext: "activity",
+    });
+  });
+
   it("ignores an empty types param", () => {
     expect(resolveActivityUrlFilters(new URLSearchParams("types="))).toEqual({});
   });
@@ -73,7 +82,9 @@ describe("resolveActivityUrlFilters", () => {
 
   it("clears transfer-integrity deeplink params", () => {
     const cleared = clearActivityUrlFilters(
-      new URLSearchParams("tab=investments&types=TRANSFER_IN&from=2026-06-01&to=2026-06-04&q=AAPL"),
+      new URLSearchParams(
+        "tab=investments&types=TRANSFER_IN&from=2026-06-01&to=2026-06-04&q=AAPL&healthContext=activity",
+      ),
     );
 
     expect(cleared.toString()).toBe("tab=investments");

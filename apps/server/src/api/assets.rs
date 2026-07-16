@@ -7,7 +7,7 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
-use wealthfolio_core::assets::{Asset as CoreAsset, NewAsset, UpdateAssetProfile};
+use wealthfolio_core::assets::{Asset as CoreAsset, AssetProfile, NewAsset, UpdateAssetProfile};
 
 #[derive(serde::Deserialize)]
 struct AssetQuery {
@@ -18,9 +18,8 @@ struct AssetQuery {
 async fn get_asset_profile(
     State(state): State<Arc<AppState>>,
     Query(q): Query<AssetQuery>,
-) -> ApiResult<Json<CoreAsset>> {
-    let asset = state.asset_service.get_asset_by_id(&q.asset_id)?;
-    Ok(Json(asset))
+) -> ApiResult<Json<AssetProfile>> {
+    Ok(Json(state.asset_service.get_asset_profile(&q.asset_id)?))
 }
 
 async fn list_assets(State(state): State<Arc<AppState>>) -> ApiResult<Json<Vec<CoreAsset>>> {

@@ -24,9 +24,11 @@
 //! - `analytics` — aggregations for the Spending overview / reports pages.
 //! - `insight` — reconciled period payload powering the Spending Insight dashboard.
 
+mod activity_allocations;
 pub mod activity_assignments;
 mod activity_classification;
 pub mod activity_events;
+pub mod activity_splits;
 pub mod analytics;
 pub mod budget;
 pub mod cash_activities;

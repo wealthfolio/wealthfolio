@@ -17,6 +17,8 @@ use wealthfolio_core::portfolio::fire::{
     DecisionSensitivityMap, DecisionSensitivityMatrix, FireProjection, MonteCarloResult,
     ScenarioResult, SorrScenario, StressTestResult,
 };
+use wealthfolio_core::portfolio::valuation::CurrentAccountValuationService;
+use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 const MAX_SIMS: u32 = 500_000;
 const DEFAULT_SIMS: u32 = 10_000;
@@ -52,22 +54,38 @@ async fn build_valuation_map(
         .get_active_non_archived_accounts()
         .map_err(|e| e.to_string())?;
     let account_ids: Vec<String> = accounts.into_iter().map(|a| a.id).collect();
-    let valuations = state
-        .valuation_service()
-        .get_latest_valuations(&account_ids)
+    let base_currency = state.get_base_currency();
+    let timezone = state.get_timezone();
+    let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
+    let account_service = state.account_service();
+    let snapshot_repository = state.snapshot_repository();
+    let asset_service = state.asset_service();
+    let quote_service = state.quote_service();
+    let fx_service = state.fx_service();
+    let service = CurrentAccountValuationService::new(
+        account_service.as_ref(),
+        snapshot_repository.as_ref(),
+        asset_service.as_ref(),
+        quote_service.as_ref(),
+        fx_service.as_ref(),
+    );
+    let response = service
+        .get_current_valuation_for_scope(
+            "all",
+            &account_ids,
+            &base_currency,
+            latest_snapshot_cutoff,
+            true,
+        )
+        .await
         .map_err(|e| e.to_string())?;
 
     let mut map = std::collections::HashMap::new();
-    for v in &valuations {
-        let total = v
-            .total_value
+    for v in &response.accounts {
+        let value_in_base = v
+            .total_value_base
             .to_f64()
-            .ok_or_else(|| format!("Invalid valuation total for account {}", v.account_id))?;
-        let fx = v
-            .fx_rate_to_base
-            .to_f64()
-            .ok_or_else(|| format!("Invalid FX rate for account {}", v.account_id))?;
-        let value_in_base = total * fx;
+            .ok_or_else(|| format!("Invalid base valuation total for account {}", v.account_id))?;
         map.insert(v.account_id.clone(), value_in_base);
     }
     Ok(map)

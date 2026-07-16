@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Command,
@@ -103,6 +104,7 @@ export function MultiSelectTaxonomy({
   label,
   disabled = false,
 }: MultiSelectTaxonomyProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [pendingCategory, setPendingCategory] = useState<PendingCategory | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -210,10 +212,18 @@ export function MultiSelectTaxonomy({
         const category = categoryMap.get(assignment.categoryId);
         return category ? { assignment, category } : null;
       })
-      .filter(Boolean) as {
-      assignment: AssetTaxonomyAssignment;
-      category: TaxonomyCategory;
-    }[];
+      .filter((item): item is { assignment: AssetTaxonomyAssignment; category: TaxonomyCategory } =>
+        Boolean(item),
+      )
+      .sort((a, b) => {
+        const weightComparison = b.assignment.weight - a.assignment.weight;
+        if (weightComparison !== 0) return weightComparison;
+
+        const sortOrderComparison = a.category.sortOrder - b.category.sortOrder;
+        if (sortOrderComparison !== 0) return sortOrderComparison;
+
+        return a.category.name.localeCompare(b.category.name);
+      });
   }, [assignments, categoryMap]);
 
   if (isLoading) {
@@ -250,7 +260,7 @@ export function MultiSelectTaxonomy({
                 disabled={isPending}
               >
                 <Icons.Plus className="h-3.5 w-3.5" />
-                Add
+                {t("asset:classification.add")}
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-[450px] p-0" align="end" sideOffset={4}>
@@ -267,7 +277,9 @@ export function MultiSelectTaxonomy({
                     </span>
                   </div>
                   <div className="mt-3 flex items-center gap-2">
-                    <label className="text-muted-foreground text-xs">Weight:</label>
+                    <label className="text-muted-foreground text-xs">
+                      {t("asset:classification.weight")}
+                    </label>
                     <div className="relative flex-1">
                       <Input
                         type="text"
@@ -314,9 +326,12 @@ export function MultiSelectTaxonomy({
 
               {/* Category tree */}
               <Command>
-                <CommandInput placeholder="Search categories..." className="h-9" />
+                <CommandInput
+                  placeholder={t("asset:classification.searchCategories")}
+                  className="h-9"
+                />
                 <CommandList className="max-h-72 overflow-y-auto">
-                  <CommandEmpty>No categories found.</CommandEmpty>
+                  <CommandEmpty>{t("asset:classification.noCategoriesFound")}</CommandEmpty>
                   <CommandGroup className="[&_[cmdk-group-items]]:!overflow-visible">
                     {flatCategories.map((category, index) => {
                       const isAssigned = assignedCategoryIds.has(category.id);
@@ -432,7 +447,7 @@ export function MultiSelectTaxonomy({
           {assignedCategories.length > 1 && (
             <div className="bg-muted/50 flex items-center gap-2 px-3 py-2">
               <span className="text-muted-foreground flex-1 text-right text-xs font-medium">
-                Total
+                {t("asset:classification.total")}
               </span>
               <div
                 className={cn(

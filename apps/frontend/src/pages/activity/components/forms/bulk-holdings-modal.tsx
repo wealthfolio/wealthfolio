@@ -15,6 +15,7 @@ import {
 } from "@wealthfolio/ui";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { FormProvider, useForm, type Resolver, type SubmitHandler } from "react-hook-form";
 import { z } from "zod";
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
@@ -36,6 +37,7 @@ export const BulkHoldingsModal = ({
   onSuccess,
   defaultAccount,
 }: BulkHoldingsModalProps) => {
+  const { t } = useTranslation(["activity"]);
   const { saveActivitiesMutation } = useActivityMutations();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -119,9 +121,8 @@ export const BulkHoldingsModal = ({
 
       if (!validHoldings.length) {
         toast({
-          title: "No valid holdings",
-          description:
-            "Please add at least one valid holding with ticker, shares, and average cost.",
+          title: t("activity:form.toast_no_valid_holdings"),
+          description: t("activity:form.toast_no_valid_holdings_desc"),
           variant: "destructive",
         });
         return;
@@ -147,10 +148,9 @@ export const BulkHoldingsModal = ({
         }),
         quantity: Number(holding.sharesOwned),
         unitPrice: Number(holding.averageCost),
-        // Securities transfers derive value from qty × unitPrice at display time.
-        // Sending a precomputed amount here is redundant and has produced corrupted
-        // rows in the wild (e.g. amount = qty² × unitPrice); leave it null so the
-        // backend stores NULL and readers fall back to qty × unitPrice.
+        // Unit price is book cost basis. Transfer-date market value is derived
+        // from quotes by the valuation resolver; do not persist a synthetic
+        // amount here.
         amount: null,
         currency,
         fee: 0,
@@ -174,7 +174,9 @@ export const BulkHoldingsModal = ({
             .join("\n");
 
           toast({
-            title: hasSuccesses ? "Some holdings failed to save" : "Failed to save holdings",
+            title: hasSuccesses
+              ? t("activity:form.toast_some_holdings_failed")
+              : t("activity:form.toast_failed_to_save_holdings"),
             description,
             variant: "destructive",
           });
@@ -185,8 +187,8 @@ export const BulkHoldingsModal = ({
         }
 
         toast({
-          title: "Holdings saved",
-          description: "Your holdings have been added to this account.",
+          title: t("activity:form.toast_holdings_saved"),
+          description: t("activity:form.toast_holdings_saved_desc"),
           variant: "success",
         });
         form.reset();
@@ -196,42 +198,45 @@ export const BulkHoldingsModal = ({
         // Error handling is managed by the mutation hook toast.
       }
     },
-    [baseCurrency, form, onClose, onSuccess, saveActivitiesMutation],
+    [baseCurrency, form, onClose, onSuccess, saveActivitiesMutation, t],
   );
 
-  const handleFormError = useCallback((errors: Record<string, any>) => {
-    const findFirstMessage = (value: unknown): string | null => {
-      if (!value || typeof value !== "object") return null;
+  const handleFormError = useCallback(
+    (errors: Record<string, any>) => {
+      const findFirstMessage = (value: unknown): string | null => {
+        if (!value || typeof value !== "object") return null;
 
-      if (Array.isArray(value)) {
-        for (const item of value) {
-          const msg = findFirstMessage(item);
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            const msg = findFirstMessage(item);
+            if (msg) return msg;
+          }
+          return null;
+        }
+
+        const record = value as Record<string, unknown>;
+        if (typeof record.message === "string" && record.message.trim()) {
+          return record.message;
+        }
+
+        for (const nested of Object.values(record)) {
+          const msg = findFirstMessage(nested);
           if (msg) return msg;
         }
+
         return null;
-      }
+      };
 
-      const record = value as Record<string, unknown>;
-      if (typeof record.message === "string" && record.message.trim()) {
-        return record.message;
-      }
+      const errorMessage = findFirstMessage(errors) || t("activity:form.toast_check_form_errors");
 
-      for (const nested of Object.values(record)) {
-        const msg = findFirstMessage(nested);
-        if (msg) return msg;
-      }
-
-      return null;
-    };
-
-    const errorMessage = findFirstMessage(errors) || "Please check the form for errors.";
-
-    toast({
-      title: "Form validation failed",
-      description: errorMessage,
-      variant: "destructive",
-    });
-  }, []);
+      toast({
+        title: t("activity:form.toast_form_validation_failed"),
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+    [t],
+  );
 
   const isSubmitDisabled =
     saveActivitiesMutation.isPending || !hasValidHoldings || !form.watch("accountId");
@@ -240,11 +245,8 @@ export const BulkHoldingsModal = ({
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent className="max-h-[90vh] w-full overflow-y-auto sm:max-w-6xl">
         <DialogHeader>
-          <DialogTitle>Add Existing Holdings</DialogTitle>
-          <DialogDescription>
-            Quickly add multiple holdings to your portfolio. Enter your current positions with
-            ticker symbols, quantities, and average costs. This will not affect your cash balance.
-          </DialogDescription>
+          <DialogTitle>{t("activity:form.bulk_add_existing_title")}</DialogTitle>
+          <DialogDescription>{t("activity:form.bulk_add_existing_desc")}</DialogDescription>
         </DialogHeader>
 
         <FormProvider {...form}>
@@ -261,7 +263,7 @@ export const BulkHoldingsModal = ({
               {Object.keys(form.formState.errors).length > 0 && (
                 <div className="border-destructive/50 bg-destructive/10 rounded-lg border p-4">
                   <h4 className="text-destructive mb-2 text-sm font-medium">
-                    Please fix the following errors:
+                    {t("activity:form.bulk_fix_errors")}
                   </h4>
                   <ul className="text-destructive/80 space-y-1 text-sm">
                     {form.formState.errors.accountId && (
@@ -279,14 +281,16 @@ export const BulkHoldingsModal = ({
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={onClose}>
-                  Cancel
+                  {t("activity:cancel")}
                 </Button>
                 <Button
                   type="submit"
                   disabled={isSubmitDisabled}
                   data-testid="bulk-holdings-confirm"
                 >
-                  {saveActivitiesMutation.isPending ? "Saving..." : "Confirm"}
+                  {saveActivitiesMutation.isPending
+                    ? t("activity:form.button_saving")
+                    : t("activity:confirm")}
                 </Button>
               </DialogFooter>
             </form>

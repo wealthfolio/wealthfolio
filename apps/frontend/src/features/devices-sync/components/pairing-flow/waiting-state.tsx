@@ -4,6 +4,7 @@
 
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons, Skeleton } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
 
 interface WaitingStateProps {
   title: string;
@@ -25,6 +26,7 @@ export function WaitingState({
   securityCode,
   action,
 }: WaitingStateProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center px-4 py-6 text-center">
       {showQRSkeleton ? (
@@ -48,7 +50,7 @@ export function WaitingState({
           {action ?? (
             <div className="text-muted-foreground flex items-center gap-2 text-sm">
               <Icons.Spinner className="h-4 w-4 animate-spin" />
-              <span>Waiting for confirmation...</span>
+              <span>{t("sync:waiting.waitingForConfirmation")}</span>
             </div>
           )}
         </div>
@@ -71,11 +73,11 @@ export function WaitingState({
           </p>
         ) : securityCode ? (
           <p className="text-muted-foreground mx-auto max-w-[260px] text-sm leading-6">
-            Confirm this code matches on your other device
+            {t("sync:waiting.confirmCodeMatches")}
           </p>
         ) : (
           <p className="text-muted-foreground mx-auto max-w-[260px] text-sm leading-6">
-            Please wait while we securely connect your device
+            {t("sync:waiting.securelyConnecting")}
           </p>
         )}
       </div>
@@ -87,7 +89,7 @@ export function WaitingState({
           className="text-muted-foreground hover:text-foreground"
           onClick={onCancel}
         >
-          Cancel
+          {t("common:cancel")}
         </Button>
       )}
     </div>

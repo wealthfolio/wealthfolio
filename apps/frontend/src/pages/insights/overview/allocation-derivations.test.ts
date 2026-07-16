@@ -1,6 +1,10 @@
 import type { Account, Holding } from "@/lib/types";
 import { describe, expect, it } from "vitest";
-import { computeValueStrip } from "./allocation-derivations";
+import {
+  accountTreeWeights,
+  computeValueStrip,
+  valueStripFromCurrentSummary,
+} from "./allocation-derivations";
 
 function holding({
   id,
@@ -117,5 +121,44 @@ describe("allocation dashboard derivations", () => {
     expect(usdCash?.percentage).toBeCloseTo(66.67, 2);
     expect(cadCash?.value).toBe(70);
     expect(cadCash?.percentage).toBeCloseTo(33.33, 2);
+  });
+
+  it("maps scoped current valuation summary into value-strip data", () => {
+    const data = valueStripFromCurrentSummary({
+      scopeId: "portfolio:p1",
+      baseCurrency: "USD",
+      cashBalanceBase: 25,
+      investmentMarketValueBase: 100,
+      totalValueBase: 125,
+      holdingsCount: 2,
+      accountCount: 1,
+      currencySplit: [{ currency: "USD", valueBase: 125, valueLocal: null, percentage: 100 }],
+      cashCurrencySplit: [{ currency: "USD", valueBase: 25, valueLocal: 25, percentage: 100 }],
+      sourceDataAsOf: "2026-06-01T12:30:00Z",
+      calculatedAt: "2026-06-01T13:00:00Z",
+      warnings: [],
+    });
+
+    expect(data.total).toBe(125);
+    expect(data.cash).toBe(25);
+    expect(data.invested).toBe(100);
+    expect(data.investedPercent).toBe(80);
+    expect(data.holdingsCount).toBe(2);
+    expect(data.accountsCount).toBe(1);
+  });
+
+  it("uses current account valuation base totals for account weights", () => {
+    const nodes = accountTreeWeights(
+      [
+        { accountId: "taxable", totalValue: 100, totalValueBase: 125, fxRateToBase: 1 },
+        { accountId: "rrsp", totalValue: 500, totalValueBase: 75, fxRateToBase: 1 },
+      ],
+      [account("taxable", "Taxable", "Investing"), account("rrsp", "RRSP", "Investing")],
+    );
+
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].value).toBe(200);
+    expect(nodes[0].children?.[0].name).toBe("Taxable");
+    expect(nodes[0].children?.[0].value).toBe(125);
   });
 });

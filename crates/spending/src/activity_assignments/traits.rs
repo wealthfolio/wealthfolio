@@ -33,6 +33,14 @@ pub trait ActivityTaxonomyAssignmentRepositoryTrait: Send + Sync {
         items: Vec<NewActivityTaxonomyAssignment>,
     ) -> Result<Vec<ActivityTaxonomyAssignment>>;
 
+    /// Same single-select assignment semantics as `assign_many_single_select`,
+    /// but also clears split lines for the affected activities in the same
+    /// repository transaction.
+    async fn assign_many_single_select_clearing_splits(
+        &self,
+        items: Vec<NewActivityTaxonomyAssignment>,
+    ) -> Result<Vec<ActivityTaxonomyAssignment>>;
+
     /// Rule-rerun variant of `assign_many_single_select`.
     /// Re-checks current rows inside the write transaction so manual assignments
     /// are never overwritten by a stale precomputed rerun batch.

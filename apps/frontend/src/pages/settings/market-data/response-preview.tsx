@@ -1,6 +1,7 @@
 import { Fragment, useMemo } from "react";
 
 import { cn } from "@/lib/utils";
+import { appendJsonPathKey } from "./json-path-suggestions";
 
 interface RawResponseViewerProps {
   rawResponse: string;
@@ -158,7 +159,7 @@ function ObjectBlock({
       {"{"}
       {"\n"}
       {entries.map(([key, val], i) => {
-        const childPath = `${path}.${key}`;
+        const childPath = appendJsonPathKey(path, key);
         const last = i === entries.length - 1;
         return (
           <Fragment key={key}>

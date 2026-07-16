@@ -390,6 +390,7 @@ mod tests {
             unit_price: None,
             amount: None,
             fee: None,
+            tax: None,
             currency: "USD".to_string(),
             fx_rate: None,
             notes: None,
@@ -529,6 +530,7 @@ mod tests {
             _: Option<bool>,
             _: Option<chrono::NaiveDate>,
             _: Option<chrono::NaiveDate>,
+            _: Option<Vec<String>>,
             _: Option<Vec<String>>,
         ) -> wealthfolio_core::Result<ActivitySearchResponse> {
             unimplemented!()

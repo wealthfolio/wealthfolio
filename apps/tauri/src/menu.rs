@@ -50,7 +50,7 @@ pub fn create_menu<R: Runtime>(app: &AppHandle<R>) -> Result<Menu<R>, tauri::Err
     Ok(menu)
 }
 
-pub fn handle_menu_event(app: &AppHandle, instance_id: &str, event_id: &str) {
+pub fn handle_menu_event(app: &AppHandle, event_id: &str) {
     match event_id {
         "open_settings" => {
             if let Some(window) = app.get_webview_window("main") {
@@ -76,9 +76,8 @@ pub fn handle_menu_event(app: &AppHandle, instance_id: &str, event_id: &str) {
         }
         "check_for_update" => {
             let app_handle = app.clone();
-            let instance_id = instance_id.to_string();
             tauri::async_runtime::spawn(async move {
-                match crate::updater::check_for_update(app_handle.clone(), &instance_id).await {
+                match crate::updater::check_for_update(app_handle.clone()).await {
                     Ok(Some(update_info)) => {
                         // Update available - emit event for frontend to show dialog
                         let _ = app_handle.emit("app:update-available", &update_info);

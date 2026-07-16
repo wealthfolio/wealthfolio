@@ -8,7 +8,10 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 use wealthfolio_core::constants::DECIMAL_PRECISION;
-use wealthfolio_core::portfolio::valuation::{DailyAccountValuation, ExternalFlowSource};
+use wealthfolio_core::portfolio::economic_events::BasisStatus;
+use wealthfolio_core::portfolio::valuation::{
+    DailyAccountValuation, ExternalFlowSource, ValuationStatus,
+};
 
 /// Database model for daily account valuations
 #[derive(
@@ -37,6 +40,8 @@ pub struct DailyAccountValuationDB {
     pub external_outflow_base: String,
     pub external_flow_source: String,
     pub performance_eligible_value_base: String,
+    pub value_status: String,
+    pub basis_status: String,
     pub calculated_at: String,
 }
 
@@ -93,6 +98,8 @@ impl From<DailyAccountValuation> for DailyAccountValuationDB {
                 .performance_eligible_value_base
                 .round_dp(DECIMAL_PRECISION)
                 .to_string(),
+            value_status: value.value_status.as_str().to_string(),
+            basis_status: value.basis_status.as_str().to_string(),
             calculated_at: value.calculated_at.to_rfc3339(),
         }
     }
@@ -114,12 +121,16 @@ impl From<DailyAccountValuationDB> for DailyAccountValuation {
                 .unwrap_or_default(),
             total_value: Decimal::from_str(&value.total_value).unwrap_or_default(),
             cost_basis: Decimal::from_str(&value.cost_basis).unwrap_or_default(),
+            book_basis: Decimal::from_str(&value.cost_basis).unwrap_or_default()
+                + Decimal::from_str(&value.cash_balance).unwrap_or_default(),
             net_contribution: Decimal::from_str(&value.net_contribution).unwrap_or_default(),
             cash_balance_base: Decimal::from_str(&value.cash_balance_base).unwrap_or_default(),
             investment_market_value_base: Decimal::from_str(&value.investment_market_value_base)
                 .unwrap_or_default(),
             total_value_base: Decimal::from_str(&value.total_value_base).unwrap_or_default(),
             cost_basis_base: Decimal::from_str(&value.cost_basis_base).unwrap_or_default(),
+            book_basis_base: Decimal::from_str(&value.cost_basis_base).unwrap_or_default()
+                + Decimal::from_str(&value.cash_balance_base).unwrap_or_default(),
             net_contribution_base: Decimal::from_str(&value.net_contribution_base)
                 .unwrap_or_default(),
             external_inflow_base: Decimal::from_str(&value.external_inflow_base)
@@ -131,6 +142,8 @@ impl From<DailyAccountValuationDB> for DailyAccountValuation {
                 &value.performance_eligible_value_base,
             )
             .unwrap_or_default(),
+            value_status: ValuationStatus::from_code(&value.value_status),
+            basis_status: BasisStatus::from_code(&value.basis_status),
             calculated_at: DateTime::parse_from_rfc3339(&value.calculated_at)
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now()),
@@ -175,6 +188,8 @@ mod tests {
             external_outflow_base: "0".to_string(),
             external_flow_source: "NET_CONTRIBUTION_FALLBACK".to_string(),
             performance_eligible_value_base: "30".to_string(),
+            value_status: "PARTIAL_UNPRICED".to_string(),
+            basis_status: "PARTIAL_UNKNOWN".to_string(),
             calculated_at: "2026-04-22T00:00:00Z".to_string(),
         };
 
@@ -185,5 +200,10 @@ mod tests {
             valuation.external_flow_source,
             wealthfolio_core::portfolio::valuation::ExternalFlowSource::NetContributionFallback
         );
+        assert_eq!(
+            valuation.value_status,
+            wealthfolio_core::portfolio::valuation::ValuationStatus::PartialUnpriced
+        );
+        assert_eq!(valuation.basis_status, BasisStatus::PartialUnknown);
     }
 }

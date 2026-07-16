@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import type { Activity } from "@/lib/types";
 import { cn, formatDateISO } from "@/lib/utils";
@@ -30,6 +31,7 @@ export function EventsCard({
   periodStartDate: string;
   theme: Palette;
 }) {
+  const { t } = useTranslation();
   const eventSummaryRequest = useMemo(
     () => ({ startDate: eventSummaryStartDate, endDate: eventSummaryEndDate }),
     [eventSummaryEndDate, eventSummaryStartDate],
@@ -91,7 +93,7 @@ export function EventsCard({
       const meta = category.categoryId ? categoriesMeta.get(category.categoryId) : undefined;
       const topId = meta?.parentId ?? category.categoryId ?? "__unc__";
       const top = categoriesMeta.get(topId) ?? meta;
-      const name = top?.name ?? category.categoryName ?? "Uncategorized";
+      const name = top?.name ?? category.categoryName ?? t("spending:eventsCard.uncategorized");
       const color = top?.color ?? category.color ?? null;
       const icon = meta?.icon ?? top?.icon ?? null;
       const e = totals.get(topId) ?? { name, color, icon, amount: 0 };
@@ -102,7 +104,7 @@ export function EventsCard({
       .filter((row) => row.amount > 0)
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 2);
-  }, [categoriesMeta, ev]);
+  }, [categoriesMeta, ev, t]);
 
   const baselineDailyAvg = useMemo(() => {
     if (!ev) return 0;
@@ -131,13 +133,13 @@ export function EventsCard({
   if (eventSummariesErrored) {
     return (
       <div className="border-border/40 bg-card/70 rounded-xl border p-4 text-center text-xs backdrop-blur-xl md:p-5">
-        <div className="text-muted-foreground">Couldn't load events.</div>
+        <div className="text-muted-foreground">{t("spending:events.loadError")}</div>
         <button
           type="button"
           onClick={() => void refetchEventSummaries()}
           className="text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
         >
-          Retry
+          {t("common:retry")}
         </button>
       </div>
     );
@@ -167,13 +169,17 @@ export function EventsCard({
         <div className="flex items-center gap-2">
           <Icons.Calendar className="h-4 w-4 shrink-0" style={{ color: theme.deep }} />
           <div className="min-w-0 flex-1">
-            <div className="text-foreground text-sm font-semibold">Events</div>
-            <div className="text-muted-foreground/70 text-[11px]">No events in this period</div>
+            <div className="text-foreground text-sm font-semibold">
+              {t("spending:eventsCard.title")}
+            </div>
+            <div className="text-muted-foreground/70 text-[11px]">
+              {t("spending:eventsCard.noEventsInPeriod")}
+            </div>
           </div>
         </div>
 
         <div className="text-muted-foreground/80 mt-3 text-xs leading-snug">
-          Create an event to track spending around trips, moves, or one-off periods.
+          {t("spending:eventsCard.createPrompt")}
         </div>
 
         <button
@@ -181,7 +187,7 @@ export function EventsCard({
           onClick={() => openEventDialog()}
           className="text-muted-foreground hover:text-foreground mt-3 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
         >
-          Create event
+          {t("spending:events.createEvent")}
           <Icons.ChevronRight className="h-3 w-3" />
         </button>
       </div>
@@ -201,12 +207,12 @@ export function EventsCard({
         : Icons.Calendar;
   const tag =
     pick.mode === "active"
-      ? "ACTIVE"
+      ? t("spending:eventsCard.tagActive")
       : pick.mode === "upcoming"
-        ? "SOON"
+        ? t("spending:eventsCard.tagSoon")
         : pick.mode === "recent"
-          ? "RECENT"
-          : "PERIOD";
+          ? t("spending:eventsCard.tagRecent")
+          : t("spending:eventsCard.tagPeriod");
 
   const dateRangeLabel = (() => {
     const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
@@ -225,13 +231,17 @@ export function EventsCard({
     const today = new Date(todayKey + "T00:00:00");
     const dayInto = Math.floor((today.getTime() - start.getTime()) / (24 * 3600 * 1000)) + 1;
     const daysLeft = Math.max(0, totalDays - dayInto);
-    subLine = `Day ${dayInto} of ${totalDays} · ${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`;
+    subLine = t("spending:eventsCard.dayProgress", {
+      dayInto,
+      totalDays,
+      daysLeft: t("spending:eventsCard.daysLeft", { count: daysLeft }),
+    });
   } else if (pick.mode === "recent") {
-    subLine = `Wrapped ${pick.days} ${pick.days === 1 ? "day" : "days"} ago`;
+    subLine = t("spending:eventsCard.wrappedAgo", { count: pick.days });
   } else if (pick.mode === "upcoming") {
-    subLine = `${pick.days} ${pick.days === 1 ? "day" : "days"} until start`;
+    subLine = t("spending:eventsCard.untilStart", { count: pick.days });
   } else if (pick.mode === "period") {
-    subLine = `${totalDays} ${totalDays === 1 ? "day" : "days"} in selected period`;
+    subLine = t("spending:eventsCard.inSelectedPeriod", { count: totalDays });
   }
 
   return (
@@ -253,10 +263,13 @@ export function EventsCard({
       {pick.mode === "upcoming" && eventSpent <= 0 ? (
         <div className="mt-3">
           <div className="text-foreground text-2xl font-bold tabular-nums tracking-tight">
-            {pick.days} {pick.days === 1 ? "day" : "days"}
+            {t("spending:eventsCard.daysValue", { count: pick.days })}
           </div>
           <div className="text-muted-foreground/80 text-xs">
-            until {ev!.eventName} · {totalDays} {totalDays === 1 ? "day" : "days"} planned
+            {t("spending:eventsCard.untilPlanned", {
+              name: ev!.eventName,
+              planned: t("spending:eventsCard.daysPlanned", { count: totalDays }),
+            })}
           </div>
         </div>
       ) : eventSpent > 0 ? (
@@ -266,8 +279,10 @@ export function EventsCard({
               <PrivacyAmount value={eventSpent} currency={currency} />
             </div>
             <div className="text-muted-foreground/80 text-xs">
-              {pick.mode === "recent" ? "total" : "spent so far"} · {ev!.transactionCount}{" "}
-              {ev!.transactionCount === 1 ? "transaction" : "transactions"}
+              {pick.mode === "recent"
+                ? t("spending:eventsCard.total")
+                : t("spending:eventsCard.spentSoFar")}{" "}
+              · {t("spending:eventsCard.transactionCount", { count: ev!.transactionCount })}
               {subLine && (
                 <>
                   {" · "}
@@ -282,7 +297,7 @@ export function EventsCard({
               <span className="text-foreground/90 font-semibold">
                 <PrivacyAmount value={dailyAvg} currency={currency} />
               </span>{" "}
-              / day
+              {t("spending:eventsCard.perDay")}
             </span>
             {compareMultiple > 0 && (
               <>
@@ -297,8 +312,11 @@ export function EventsCard({
                         : "text-success",
                   )}
                 >
-                  {compareMultiple >= 1 ? "↑" : "↓"} {compareMultiple.toFixed(1)}× vs typical{" "}
-                  {totalDays}-day spend
+                  {compareMultiple >= 1 ? "↑" : "↓"}{" "}
+                  {t("spending:eventsCard.vsTypical", {
+                    multiple: compareMultiple.toFixed(1),
+                    days: totalDays,
+                  })}
                 </span>
               </>
             )}
@@ -306,14 +324,14 @@ export function EventsCard({
         </>
       ) : (
         <div className="text-muted-foreground/80 mt-3 text-xs">
-          {subLine || "No tagged transactions yet"}
+          {subLine || t("spending:eventsCard.noTaggedYet")}
         </div>
       )}
 
       {eventSpent > 0 && topCategories.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-muted-foreground/60 text-[10px] font-semibold uppercase tracking-wide">
-            Top
+            {t("spending:eventsCard.top")}
           </span>
           {topCategories.map((c) => {
             const accent = c.color ?? theme.deep;
@@ -347,7 +365,7 @@ export function EventsCard({
           }}
           className="text-muted-foreground hover:text-foreground mt-3 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
         >
-          Plan event
+          {t("spending:eventsCard.planEvent")}
           <Icons.ChevronRight className="h-3 w-3" />
         </button>
       ) : (
@@ -355,7 +373,9 @@ export function EventsCard({
           to="/spending/insights?stage=when"
           className="text-muted-foreground hover:text-foreground mt-3 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
         >
-          {pick.mode === "recent" ? "See breakdown" : "Open event"}
+          {pick.mode === "recent"
+            ? t("spending:eventsCard.seeBreakdown")
+            : t("spending:eventsCard.openEvent")}
           <Icons.ChevronRight className="h-3 w-3" />
         </Link>
       )}

@@ -436,6 +436,42 @@
       "country": "United States"
     },
     {
+      "symbol": "BALTEST",
+      "name": "Balanced Allocation Test ETF",
+      "provider": "YAHOO",
+      "assetType": "ETF",
+      "currency": "USD",
+      "exchange": "PCX",
+      "exchangeMic": "ARCX",
+      "exchangeName": "NYSE Arca",
+      "basePrice": 100,
+      "baseVolume": 100000,
+      "seed": 134,
+      "sector": "Global",
+      "industry": "Exchange Traded Fund",
+      "country": "United States",
+      "assetAllocation": [
+        { "name": "stock", "weight": 0.6 },
+        { "name": "bond", "weight": 0.4 }
+      ]
+    },
+    {
+      "symbol": "KWEB",
+      "name": "KraneShares CSI China Internet ETF",
+      "provider": "YAHOO",
+      "assetType": "ETF",
+      "currency": "USD",
+      "exchange": "PCX",
+      "exchangeMic": "ARCX",
+      "exchangeName": "NYSE Arca",
+      "basePrice": 28.5,
+      "baseVolume": 3500000,
+      "seed": 133,
+      "sector": "Global",
+      "industry": "Exchange Traded Fund",
+      "country": "United States"
+    },
+    {
       "symbol": "4GLD.DE",
       "aliases": ["4GLD"],
       "name": "Xetra-Gold",

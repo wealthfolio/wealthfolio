@@ -1,0 +1,7 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "err": "Asset 'MSFT' was not found among active assets"
+}

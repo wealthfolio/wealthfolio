@@ -456,7 +456,9 @@
 
   --mobile-nav-ui-height: 64px; /* nav bar height */
   --mobile-nav-gap: 12px; /* space between nav and bottom */
-  --mobile-nav-bottom-offset: max(var(--mobile-nav-gap), env(safe-area-inset-bottom));
+  /* iOS WKWebView can report an oversized bottom inset after relaunch. */
+  --mobile-safe-area-bottom: min(env(safe-area-inset-bottom, 0px), 44px);
+  --mobile-nav-bottom-offset: max(var(--mobile-nav-gap), var(--mobile-safe-area-bottom));
   --mobile-nav-total-offset: calc(var(--mobile-nav-ui-height) + var(--mobile-nav-bottom-offset));
 
   /* Sonner toast overrides - solid backgrounds for better readability */

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Sheet,
@@ -114,6 +116,7 @@ export function AssetDetailsSheet({
   onUnlinkMortgage,
   isSaving = false,
 }: AssetDetailsSheetProps) {
+  const { t } = useTranslation();
   // Use a fallback kind for the form when asset is null (form state won't be used anyway)
   const assetKind = asset?.kind ?? AlternativeAssetKind.OTHER;
   const assetName = asset?.name ?? "";
@@ -136,13 +139,13 @@ export function AssetDetailsSheet({
   // NOTE: This must be called before any early returns to maintain hook order
   const linkableAssetOptions: ResponsiveSelectOption[] = useMemo(() => {
     return [
-      { value: "__none__", label: "None (standalone liability)" },
+      { value: "__none__", label: t("asset:detailsSheet.none_standalone") },
       ...linkableAssets.map((asset) => ({
         value: asset.id,
         label: asset.name,
       })),
     ];
-  }, [linkableAssets]);
+  }, [linkableAssets, t]);
 
   // Early return if no asset (after all hooks are called)
   if (!asset) {
@@ -157,14 +160,14 @@ export function AssetDetailsSheet({
       // Pass notes separately (it goes to asset.notes, not metadata)
       await onSave(asset.id, metadata, nameChanged, values.notes);
       toast({
-        title: "Details saved successfully",
+        title: t("asset:detailsSheet.details_saved"),
         variant: "success",
       });
       onOpenChange(false);
     } catch (_error) {
       toast({
-        title: "Failed to save details",
-        description: "Please try again or report an issue if the problem persists.",
+        title: t("asset:detailsSheet.save_failed"),
+        description: t("asset:detailsSheet.save_failed_description"),
         variant: "destructive",
       });
     }
@@ -182,15 +185,15 @@ export function AssetDetailsSheet({
             </div>
             <div className="flex flex-col items-start">
               <SheetTitle className="flex items-center gap-2">
-                Edit {kindDisplayName}
+                {t("asset:detailsSheet.edit", { kind: kindDisplayName })}
                 <Badge variant="secondary" className="text-xs font-normal">
                   {kindDisplayName}
                 </Badge>
               </SheetTitle>
               <SheetDescription className="text-left">
                 {asset.kind === AlternativeAssetKind.LIABILITY
-                  ? "Edit liability details and linking"
-                  : "Edit name, purchase information, and other details"}
+                  ? t("asset:detailsSheet.liability_description")
+                  : t("asset:detailsSheet.asset_description")}
               </SheetDescription>
             </div>
           </div>
@@ -204,10 +207,10 @@ export function AssetDetailsSheet({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{t("asset:detailsSheet.name")}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Enter asset name..."
+                      placeholder={t("asset:detailsSheet.name_placeholder")}
                       value={field.value}
                       onChange={field.onChange}
                     />
@@ -224,8 +227,8 @@ export function AssetDetailsSheet({
               <>
                 <div className="space-y-4">
                   <SectionHeader
-                    title="Purchase Information"
-                    description="Optional purchase details for gain/loss tracking"
+                    title={t("asset:detailsSheet.purchase_information")}
+                    description={t("asset:detailsSheet.purchase_information_description")}
                   />
 
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -236,8 +239,8 @@ export function AssetDetailsSheet({
                         <FormItem>
                           <FormLabel>
                             {asset.kind === AlternativeAssetKind.PRECIOUS_METAL
-                              ? "Purchase Price (per unit)"
-                              : "Purchase Price"}
+                              ? t("asset:detailsSheet.purchase_price_per_unit")
+                              : t("asset:detailsSheet.purchase_price")}
                           </FormLabel>
                           <FormControl>
                             <MoneyInput
@@ -258,7 +261,7 @@ export function AssetDetailsSheet({
                       name="purchaseDate"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Purchase Date</FormLabel>
+                          <FormLabel>{t("asset:detailsSheet.purchase_date")}</FormLabel>
                           <FormControl>
                             <DatePickerInput
                               value={field.value ?? undefined}
@@ -279,8 +282,8 @@ export function AssetDetailsSheet({
             {/* Type-specific Fields */}
             <div className="space-y-4">
               <SectionHeader
-                title={`${kindDisplayName} Details`}
-                description={getTypeSpecificDescription(asset.kind)}
+                title={t("asset:detailsSheet.kind_details", { kind: kindDisplayName })}
+                description={getTypeSpecificDescription(asset.kind, t)}
               />
 
               {/* Property-specific fields */}
@@ -324,7 +327,10 @@ export function AssetDetailsSheet({
 
             {/* Notes Section */}
             <div className="space-y-4">
-              <SectionHeader title="Notes" description="Additional information about this asset" />
+              <SectionHeader
+                title={t("asset:detailsSheet.notes")}
+                description={t("asset:detailsSheet.notes_description")}
+              />
 
               <FormField
                 control={form.control}
@@ -333,7 +339,7 @@ export function AssetDetailsSheet({
                   <FormItem>
                     <FormControl>
                       <Textarea
-                        placeholder="Add any notes about this asset..."
+                        placeholder={t("asset:detailsSheet.notes_placeholder")}
                         className="min-h-[100px] resize-none"
                         value={field.value ?? ""}
                         onChange={(e) => field.onChange(e.target.value || null)}
@@ -352,7 +358,7 @@ export function AssetDetailsSheet({
                 onClick={() => onOpenChange(false)}
                 disabled={isSaving}
               >
-                Cancel
+                {t("common:cancel")}
               </Button>
               <Button type="submit" disabled={isSaving}>
                 {isSaving ? (
@@ -360,7 +366,7 @@ export function AssetDetailsSheet({
                 ) : (
                   <Icons.Check className="mr-2 h-4 w-4" />
                 )}
-                Save Details
+                {t("asset:detailsSheet.save_details")}
               </Button>
             </SheetFooter>
           </form>
@@ -408,20 +414,20 @@ function AssetKindIcon({
   }
 }
 
-function getTypeSpecificDescription(kind: AlternativeAssetKind): string {
+function getTypeSpecificDescription(kind: AlternativeAssetKind, t: TFunction): string {
   switch (kind) {
     case AlternativeAssetKind.PROPERTY:
-      return "Property address and type information";
+      return t("asset:detailsSheet.description.property");
     case AlternativeAssetKind.VEHICLE:
-      return "Vehicle make, model, or description";
+      return t("asset:detailsSheet.description.vehicle");
     case AlternativeAssetKind.COLLECTIBLE:
-      return "Collectible type and description";
+      return t("asset:detailsSheet.description.collectible");
     case AlternativeAssetKind.PRECIOUS_METAL:
-      return "Metal type and unit information";
+      return t("asset:detailsSheet.description.precious_metal");
     case AlternativeAssetKind.LIABILITY:
-      return "Loan terms and linked asset information";
+      return t("asset:detailsSheet.description.liability");
     default:
-      return "Additional details for this asset";
+      return t("asset:detailsSheet.description.other");
   }
 }
 
@@ -430,6 +436,7 @@ function getTypeSpecificDescription(kind: AlternativeAssetKind): string {
 // ============================================================================
 
 function PropertyFields({ form }: { form: ReturnType<typeof useForm<AssetDetailsFormValues>> }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4">
       <FormField
@@ -437,10 +444,10 @@ function PropertyFields({ form }: { form: ReturnType<typeof useForm<AssetDetails
         name="address"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Address</FormLabel>
+            <FormLabel>{t("asset:detailsSheet.address")}</FormLabel>
             <FormControl>
               <Input
-                placeholder="123 Main Street, City, State ZIP"
+                placeholder={t("asset:detailsSheet.address_placeholder")}
                 value={field.value ?? ""}
                 onChange={(e) => field.onChange(e.target.value || null)}
               />
@@ -455,14 +462,14 @@ function PropertyFields({ form }: { form: ReturnType<typeof useForm<AssetDetails
         name="propertyType"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Property Type</FormLabel>
+            <FormLabel>{t("asset:detailsSheet.property_type")}</FormLabel>
             <FormControl>
               <ResponsiveSelect
                 value={field.value ?? ""}
                 onValueChange={(val) => field.onChange(val || null)}
-                options={PROPERTY_TYPES.map((t) => ({ value: t.value, label: t.label }))}
-                placeholder="Select property type"
-                sheetTitle="Property Type"
+                options={PROPERTY_TYPES.map((opt) => ({ value: opt.value, label: opt.label }))}
+                placeholder={t("asset:detailsSheet.select_property_type")}
+                sheetTitle={t("asset:detailsSheet.property_type")}
               />
             </FormControl>
             <FormMessage />
@@ -474,6 +481,7 @@ function PropertyFields({ form }: { form: ReturnType<typeof useForm<AssetDetails
 }
 
 function VehicleFields({ form }: { form: ReturnType<typeof useForm<AssetDetailsFormValues>> }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4">
       <FormField
@@ -481,14 +489,14 @@ function VehicleFields({ form }: { form: ReturnType<typeof useForm<AssetDetailsF
         name="vehicleType"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Vehicle Type</FormLabel>
+            <FormLabel>{t("asset:detailsSheet.vehicle_type")}</FormLabel>
             <FormControl>
               <ResponsiveSelect
                 value={field.value ?? ""}
                 onValueChange={(val) => field.onChange(val || null)}
-                options={VEHICLE_TYPES.map((t) => ({ value: t.value, label: t.label }))}
-                placeholder="Select vehicle type"
-                sheetTitle="Vehicle Type"
+                options={VEHICLE_TYPES.map((opt) => ({ value: opt.value, label: opt.label }))}
+                placeholder={t("asset:detailsSheet.select_vehicle_type")}
+                sheetTitle={t("asset:detailsSheet.vehicle_type")}
               />
             </FormControl>
             <FormMessage />
@@ -501,10 +509,10 @@ function VehicleFields({ form }: { form: ReturnType<typeof useForm<AssetDetailsF
         name="description"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Make/Model/Year</FormLabel>
+            <FormLabel>{t("asset:detailsSheet.make_model_year")}</FormLabel>
             <FormControl>
               <Input
-                placeholder="e.g., 2023 Tesla Model 3"
+                placeholder={t("asset:detailsSheet.make_model_year_placeholder")}
                 value={field.value ?? ""}
                 onChange={(e) => field.onChange(e.target.value || null)}
               />
@@ -518,6 +526,7 @@ function VehicleFields({ form }: { form: ReturnType<typeof useForm<AssetDetailsF
 }
 
 function CollectibleFields({ form }: { form: ReturnType<typeof useForm<AssetDetailsFormValues>> }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4">
       <FormField
@@ -525,14 +534,14 @@ function CollectibleFields({ form }: { form: ReturnType<typeof useForm<AssetDeta
         name="collectibleType"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Collectible Type</FormLabel>
+            <FormLabel>{t("asset:detailsSheet.collectible_type")}</FormLabel>
             <FormControl>
               <ResponsiveSelect
                 value={field.value ?? ""}
                 onValueChange={(val) => field.onChange(val || null)}
-                options={COLLECTIBLE_TYPES.map((t) => ({ value: t.value, label: t.label }))}
-                placeholder="Select collectible type"
-                sheetTitle="Collectible Type"
+                options={COLLECTIBLE_TYPES.map((opt) => ({ value: opt.value, label: opt.label }))}
+                placeholder={t("asset:detailsSheet.select_collectible_type")}
+                sheetTitle={t("asset:detailsSheet.collectible_type")}
               />
             </FormControl>
             <FormMessage />
@@ -545,10 +554,10 @@ function CollectibleFields({ form }: { form: ReturnType<typeof useForm<AssetDeta
         name="description"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Description</FormLabel>
+            <FormLabel>{t("asset:detailsSheet.description_label")}</FormLabel>
             <FormControl>
               <Input
-                placeholder="e.g., Rolex Submariner, 2020 vintage"
+                placeholder={t("asset:detailsSheet.collectible_description_placeholder")}
                 value={field.value ?? ""}
                 onChange={(e) => field.onChange(e.target.value || null)}
               />
@@ -566,6 +575,7 @@ function PreciousMetalFields({
 }: {
   form: ReturnType<typeof useForm<AssetDetailsFormValues>>;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4">
       <FormField
@@ -573,14 +583,14 @@ function PreciousMetalFields({
         name="metalType"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Metal Type</FormLabel>
+            <FormLabel>{t("asset:detailsSheet.metal_type")}</FormLabel>
             <FormControl>
               <ResponsiveSelect
                 value={field.value ?? ""}
                 onValueChange={(val) => field.onChange(val || null)}
-                options={METAL_TYPES.map((t) => ({ value: t.value, label: t.label }))}
-                placeholder="Select metal"
-                sheetTitle="Metal Type"
+                options={METAL_TYPES.map((opt) => ({ value: opt.value, label: opt.label }))}
+                placeholder={t("asset:detailsSheet.select_metal")}
+                sheetTitle={t("asset:detailsSheet.metal_type")}
               />
             </FormControl>
             <FormMessage />
@@ -594,7 +604,7 @@ function PreciousMetalFields({
           name="quantity"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Quantity</FormLabel>
+              <FormLabel>{t("asset:detailsSheet.quantity")}</FormLabel>
               <FormControl>
                 <QuantityInput
                   ref={field.ref}
@@ -614,14 +624,14 @@ function PreciousMetalFields({
           name="unit"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Unit</FormLabel>
+              <FormLabel>{t("asset:detailsSheet.unit")}</FormLabel>
               <FormControl>
                 <ResponsiveSelect
                   value={field.value ?? ""}
                   onValueChange={(val) => field.onChange(val || null)}
-                  options={WEIGHT_UNITS.map((t) => ({ value: t.value, label: t.label }))}
-                  placeholder="Select unit"
-                  sheetTitle="Weight Unit"
+                  options={WEIGHT_UNITS.map((opt) => ({ value: opt.value, label: opt.label }))}
+                  placeholder={t("asset:detailsSheet.select_unit")}
+                  sheetTitle={t("asset:detailsSheet.weight_unit")}
                 />
               </FormControl>
               <FormMessage />
@@ -635,10 +645,10 @@ function PreciousMetalFields({
         name="description"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Description</FormLabel>
+            <FormLabel>{t("asset:detailsSheet.description_label")}</FormLabel>
             <FormControl>
               <Input
-                placeholder="e.g., American Gold Eagles, 1oz coins"
+                placeholder={t("asset:detailsSheet.metal_description_placeholder")}
                 value={field.value ?? ""}
                 onChange={(e) => field.onChange(e.target.value || null)}
               />
@@ -660,6 +670,7 @@ function LiabilityFields({
   linkableAssetOptions: ResponsiveSelectOption[];
   linkedAssetName?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4">
       <FormField
@@ -667,14 +678,14 @@ function LiabilityFields({
         name="liabilityType"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Liability Type</FormLabel>
+            <FormLabel>{t("asset:detailsSheet.liability_type")}</FormLabel>
             <FormControl>
               <ResponsiveSelect
                 value={field.value ?? ""}
                 onValueChange={(val) => field.onChange(val || null)}
-                options={LIABILITY_TYPES.map((t) => ({ value: t.value, label: t.label }))}
-                placeholder="Select liability type"
-                sheetTitle="Liability Type"
+                options={LIABILITY_TYPES.map((opt) => ({ value: opt.value, label: opt.label }))}
+                placeholder={t("asset:detailsSheet.select_liability_type")}
+                sheetTitle={t("asset:detailsSheet.liability_type")}
               />
             </FormControl>
             <FormMessage />
@@ -688,7 +699,7 @@ function LiabilityFields({
           name="originalAmount"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Original Amount</FormLabel>
+              <FormLabel>{t("asset:detailsSheet.original_amount")}</FormLabel>
               <FormControl>
                 <MoneyInput
                   ref={field.ref}
@@ -708,7 +719,7 @@ function LiabilityFields({
           name="interestRate"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Interest Rate (%)</FormLabel>
+              <FormLabel>{t("asset:detailsSheet.interest_rate")}</FormLabel>
               <FormControl>
                 <QuantityInput
                   ref={field.ref}
@@ -730,7 +741,7 @@ function LiabilityFields({
         name="originationDate"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Origination Date</FormLabel>
+            <FormLabel>{t("asset:detailsSheet.origination_date")}</FormLabel>
             <FormControl>
               <DatePickerInput
                 value={field.value ?? undefined}
@@ -748,16 +759,16 @@ function LiabilityFields({
         name="linkedAssetId"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Linked Asset</FormLabel>
+            <FormLabel>{t("asset:detailsSheet.linked_asset")}</FormLabel>
             {linkableAssetOptions.length > 1 ? (
               <FormControl>
                 <ResponsiveSelect
                   value={field.value ?? "__none__"}
                   onValueChange={(val) => field.onChange(val === "__none__" ? null : val)}
                   options={linkableAssetOptions}
-                  placeholder="Select asset to link (optional)"
-                  sheetTitle="Link to Asset"
-                  sheetDescription="Link this liability to a property or vehicle for grouped display"
+                  placeholder={t("asset:detailsSheet.select_asset_to_link")}
+                  sheetTitle={t("asset:detailsSheet.link_to_asset")}
+                  sheetDescription={t("asset:detailsSheet.link_to_asset_description")}
                 />
               </FormControl>
             ) : linkedAssetName ? (
@@ -767,7 +778,7 @@ function LiabilityFields({
               </div>
             ) : (
               <p className="text-muted-foreground text-sm">
-                No assets available to link. Create a property or vehicle first.
+                {t("asset:detailsSheet.no_assets_to_link")}
               </p>
             )}
             <FormMessage />
@@ -779,16 +790,17 @@ function LiabilityFields({
 }
 
 function OtherFields({ form }: { form: ReturnType<typeof useForm<AssetDetailsFormValues>> }) {
+  const { t } = useTranslation();
   return (
     <FormField
       control={form.control}
       name="description"
       render={({ field }) => (
         <FormItem>
-          <FormLabel>Description</FormLabel>
+          <FormLabel>{t("asset:detailsSheet.description_label")}</FormLabel>
           <FormControl>
             <Input
-              placeholder="Describe this asset..."
+              placeholder={t("asset:detailsSheet.other_description_placeholder")}
               value={field.value ?? ""}
               onChange={(e) => field.onChange(e.target.value || null)}
             />
@@ -815,6 +827,7 @@ function PropertyMortgageSection({
   onLinkMortgage?: (mortgageId: string) => Promise<void>;
   onUnlinkMortgage?: (mortgageId: string) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [isLinking, setIsLinking] = useState(false);
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
   const [showLinkSelect, setShowLinkSelect] = useState(false);
@@ -852,8 +865,8 @@ function PropertyMortgageSection({
       <Separator />
       <div className="space-y-4">
         <SectionHeader
-          title="Linked Mortgage"
-          description="Mortgage or loan associated with this property"
+          title={t("asset:detailsSheet.linked_mortgage")}
+          description={t("asset:detailsSheet.linked_mortgage_description")}
         />
 
         {/* Display linked liabilities with unlink option */}
@@ -903,7 +916,7 @@ function PropertyMortgageSection({
                 className="w-full"
               >
                 <Icons.Link className="mr-2 h-4 w-4" />
-                Link existing mortgage
+                {t("asset:detailsSheet.link_existing_mortgage")}
               </Button>
             ) : (
               <div className="space-y-2">
@@ -914,9 +927,9 @@ function PropertyMortgageSection({
                     value: m.id,
                     label: m.name + (m.balance ? ` (${m.balance})` : ""),
                   }))}
-                  placeholder="Select a mortgage to link"
-                  sheetTitle="Link Mortgage"
-                  sheetDescription="Select a mortgage to link to this property"
+                  placeholder={t("asset:detailsSheet.select_mortgage_to_link")}
+                  sheetTitle={t("asset:detailsSheet.link_mortgage")}
+                  sheetDescription={t("asset:detailsSheet.link_mortgage_description")}
                 />
                 <div className="flex gap-2">
                   <Button
@@ -929,7 +942,7 @@ function PropertyMortgageSection({
                     }}
                     className="flex-1"
                   >
-                    Cancel
+                    {t("common:cancel")}
                   </Button>
                   <Button
                     type="button"
@@ -943,7 +956,7 @@ function PropertyMortgageSection({
                     ) : (
                       <Icons.Check className="mr-2 h-4 w-4" />
                     )}
-                    Link
+                    {t("asset:detailsSheet.link")}
                   </Button>
                 </div>
               </div>

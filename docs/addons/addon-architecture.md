@@ -65,6 +65,15 @@ The system has two main parts:
 5. **Enable**: Call addon's enable function
 6. **Running**: Addon functionality is active
 
+### Lazy Activation
+
+Addons that declare `contributes.routes` do **not** run at startup. The host
+reads their manifests into a **ContributionRegistry** and renders their sidebar
+entries and routes without executing any addon code. Step 5 (**Enable**) is
+deferred until the user first navigates to one of the addon's routes. Addons
+**without** `contributes` remain eager and run at load time. This keeps startup
+fast and lets the host draw navigation for addons that have never been opened.
+
 ## Addon Context
 
 Each addon receives an isolated context:
@@ -140,8 +149,13 @@ Based on the actual code, these are the permission categories:
 | `settings`            | get, update, backupDatabase                 | Medium     |
 | `files`               | openCsvDialog, openSaveDialog               | Medium     |
 | `events`              | onDrop, onUpdateComplete, onSyncStart       | Low        |
-| `ui`                  | sidebar.addItem, router.add                 | Low        |
+| `network`             | request (brokered fetch to declared hosts)  | High       |
 | `secrets`             | set, get, delete                            | High       |
+
+> **Baseline capabilities are not permissions.** `ui`, `query`, `toast`,
+> `logger`, and `storage` are granted to every addon and are **not** declared in
+> `manifest.json`. Only data categories plus `files`, `network`, `secrets`,
+> `events`, `snapshots`, and `settings` require declaration and consent.
 
 ### Permission Enforcement
 
@@ -220,6 +234,12 @@ The API is organized by financial domain:
 
 ```typescript
 interface HostAPI {
+  // Baseline capabilities — available without a permission declaration
+  query: QueryAPI;
+  storage: StorageAPI;
+  toast: ToastAPI;
+  logger: LoggerAPI;
+  // Domain data APIs — gated by manifest permissions
   accounts: AccountsAPI;
   portfolio: PortfolioAPI;
   activities: ActivitiesAPI;
@@ -456,35 +476,57 @@ Permissions are categorized by risk:
 
 ### Addon Enable Function
 
-Every addon exports an enable function:
+Every addon exports an enable function. Navigation is declared in the manifest
+(`contributes.routes` + `contributes.links`), and the host owns the React root —
+so `enable` only registers the route's component:
 
 ```typescript
-export default function enable(ctx: AddonContext) {
-  // Register UI elements
-  const sidebar = ctx.sidebar.addItem({
-    id: "my-feature",
-    label: "My Feature",
-    route: "/my-feature",
-  });
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { AddonContext, AddonEnableFunction } from "@wealthfolio/addon-sdk";
+import { MyComponent } from "./MyComponent";
 
-  // Register route
+// The host mounts the route component itself with no ctx, so capture it here.
+let addonCtx: AddonContext | undefined;
+
+const MyRoute = () => (
+  <QueryClientProvider client={addonCtx!.api.query.getClient() as QueryClient}>
+    <MyComponent ctx={addonCtx!} />
+  </QueryClientProvider>
+);
+
+const enable: AddonEnableFunction = (ctx) => {
+  addonCtx = ctx;
+
+  // `id` MUST match the declared `contributes.routes[].id`.
   ctx.router.add({
-    path: "/my-feature",
-    component: React.lazy(() => import("./MyComponent")),
+    id: "my-feature",
+    path: "/addons/my-feature",
+    component: MyRoute,
   });
 
-  // Return cleanup function
-  return {
-    disable() {
-      sidebar.remove();
-    },
-  };
-}
+  // The host owns the React root, so there is nothing to unmount.
+  ctx.onDisable(() => {
+    addonCtx = undefined;
+  });
+};
+
+export default enable;
 ```
+
+> Do **not** call `createRoot` yourself — the host mounts your `component` into
+> its managed root. A per-route `createRoot` orphans the React tree and its
+> re-renders never reach the DOM (the "buttons do nothing" bug). `render`
+> remains a legacy imperative escape hatch, but `component` is preferred.
 
 ### Dynamic Loading
 
-Addons are loaded dynamically using JavaScript's import() function:
+As of 3.6, each addon module is loaded and executed inside an **isolated sandbox
+iframe** (`sandbox="allow-scripts"`, opaque origin) rather than in the host's
+main runtime — the host shares React and the QueryClient with the sandbox at
+runtime. See the
+[v3.5 → v3.6 migration guide](./addon-migration-guide-v3.5-to-v3.6.md) for the
+sandbox model. Within the sandbox the loader still resolves the module via a
+dynamic `import()`:
 
 ```typescript
 // Create blob URL from addon code
@@ -518,12 +560,35 @@ Each addon includes a manifest.json file:
   "name": "My Addon",
   "version": "1.0.0",
   "description": "Does something useful",
-  "main": "addon.js",
-  "sdkVersion": "1.0.0",
-  "permissions": {
-    "portfolio": ["read"],
-    "market": ["read"]
-  }
+  "main": "dist/addon.js",
+  "sdkVersion": "3.6.1",
+  "minWealthfolioVersion": "3.6.1",
+  "contributes": {
+    "routes": [{ "id": "my-addon" }],
+    "links": {
+      "sidebar": [
+        {
+          "id": "my-addon",
+          "route": "my-addon",
+          "label": "My Addon",
+          "icon": "chart-line",
+          "order": 100
+        }
+      ]
+    }
+  },
+  "permissions": [
+    {
+      "category": "portfolio",
+      "functions": ["getHoldings"],
+      "purpose": "Read holdings"
+    },
+    {
+      "category": "market-data",
+      "functions": ["sync"],
+      "purpose": "Refresh quotes"
+    }
+  ]
 }
 ```
 
@@ -538,8 +603,16 @@ Optional fields:
 
 - `description`: What the addon does
 - `author`: Creator information
-- `permissions`: Required API access
-- `sdkVersion`: Compatible SDK version
+- `contributes`: Declared `routes` and `links` (sidebar navigation) the host can
+  render before booting the addon
+- `permissions`: Declared data access (array of
+  `{ category, functions, purpose }`)
+- `sdkVersion`: SDK version the addon targets (`"3.6.1"`)
+- `minWealthfolioVersion`: Minimum host version required to load the addon
+
+The host mounts every contributed route below `/addons/<manifest.id>`. Omit
+`path` for that root page, or set a relative suffix such as `reports/:year` for
+a nested page; manifests cannot choose an absolute route namespace.
 
 ## File Structure
 

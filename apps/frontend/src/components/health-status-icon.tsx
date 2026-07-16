@@ -4,6 +4,7 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@wealthfolio/ui";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import type { HealthSeverity } from "@/lib/types";
 
 const SEVERITY_COLORS: Record<HealthSeverity, string> = {
@@ -18,6 +19,7 @@ const SEVERITY_COLORS: Record<HealthSeverity, string> = {
  * Shows a warning icon when there are health issues, hidden when healthy.
  */
 export function HealthStatusIndicator() {
+  const { t } = useTranslation();
   const { data: status, isLoading } = useHealthStatus();
 
   // Don't render if loading or no issues
@@ -50,10 +52,13 @@ export function HealthStatusIndicator() {
 
   // Build summary text
   const summaryParts: string[] = [];
-  if (counts.critical > 0) summaryParts.push(`${counts.critical} critical`);
-  if (counts.error > 0) summaryParts.push(`${counts.error} error`);
-  if (counts.warning > 0) summaryParts.push(`${counts.warning} warning`);
-  if (counts.info > 0) summaryParts.push(`${counts.info} info`);
+  if (counts.critical > 0)
+    summaryParts.push(t("common:component.issue_critical", { count: counts.critical }));
+  if (counts.error > 0)
+    summaryParts.push(t("common:component.issue_error", { count: counts.error }));
+  if (counts.warning > 0)
+    summaryParts.push(t("common:component.issue_warning", { count: counts.warning }));
+  if (counts.info > 0) summaryParts.push(t("common:component.issue_info", { count: counts.info }));
   const summaryText = summaryParts.join(", ");
 
   return (
@@ -66,14 +71,14 @@ export function HealthStatusIndicator() {
             className="bg-secondary/50 rounded-full"
             asChild
           >
-            <Link to="/health" title="Data Status">
+            <Link to="/health" title={t("common:component.data_status")}>
               <Icons.AlertTriangle className={cn("size-5", severityColor)} />
             </Link>
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom">
           <div className="space-y-1">
-            <p className="font-medium">Health Issues</p>
+            <p className="font-medium">{t("common:component.health_issues")}</p>
             <p className="text-muted-foreground text-xs">{summaryText}</p>
           </div>
         </TooltipContent>

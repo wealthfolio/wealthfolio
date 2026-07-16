@@ -1,0 +1,7 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "err": "Asset query is ambiguous. Candidates: AAPL - Apple Inc. (mic: XNAS, currency: USD, id: asset-aapl), APLE - Apple Hospitality REIT (mic: XNYS, currency: USD, id: asset-aple)"
+}

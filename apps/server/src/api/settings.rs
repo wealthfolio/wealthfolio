@@ -188,7 +188,6 @@ struct CheckUpdateQuery {
 }
 
 async fn check_update(
-    State(state): State<Arc<AppState>>,
     axum::extract::Query(query): axum::extract::Query<CheckUpdateQuery>,
 ) -> ApiResult<Json<UpdateCheckResponse>> {
     // Return cached response if still fresh (unless force refresh requested)
@@ -212,7 +211,6 @@ async fn check_update(
     let client = reqwest::Client::new();
     let response = client
         .get(&request_url)
-        .header("X-Instance-Id", state.instance_id.clone())
         .header("X-Client-Runtime", WEB_RUNTIME_TARGET)
         .send()
         .await

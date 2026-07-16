@@ -8,8 +8,9 @@ use crate::errors::{Error as CoreError, Result as CoreResult, ValidationError};
 use crate::taxonomies::{Category, TaxonomyServiceTrait};
 
 use super::model::{
-    AllocationTarget, AllocationTargetWeight, NewAllocationTarget, NewAllocationTargetWeight,
-    RebalanceGoal, SaveAllocationTargetResult,
+    AllocationTarget, AllocationTargetConstraint, AllocationTargetWeight, BandType,
+    ConstraintAction, ConstraintEffect, ConstraintSubjectType, NewAllocationTarget,
+    NewAllocationTargetWeight, RebalanceGoal, SaveAllocationTargetResult,
 };
 use super::validation::{validate_new_target, validate_weights_sum};
 
@@ -34,6 +35,16 @@ pub trait AllocationTargetRepositoryTrait: Send + Sync {
         target: AllocationTarget,
         weights: Vec<AllocationTargetWeight>,
     ) -> CoreResult<SaveAllocationTargetResult>;
+
+    fn list_target_constraints(
+        &self,
+        target_id: &str,
+    ) -> CoreResult<Vec<AllocationTargetConstraint>>;
+    async fn save_target_constraints(
+        &self,
+        target_id: &str,
+        constraints: Vec<AllocationTargetConstraint>,
+    ) -> CoreResult<Vec<AllocationTargetConstraint>>;
 }
 
 // ── Service trait ─────────────────────────────────────────────────────────────
@@ -63,6 +74,16 @@ pub trait AllocationTargetServiceTrait: Send + Sync {
         input: NewAllocationTarget,
         weights: Vec<NewAllocationTargetWeight>,
     ) -> CoreResult<SaveAllocationTargetResult>;
+
+    fn list_target_constraints(
+        &self,
+        target_id: &str,
+    ) -> CoreResult<Vec<AllocationTargetConstraint>>;
+    async fn save_target_constraints(
+        &self,
+        target_id: &str,
+        constraints: Vec<AllocationTargetConstraint>,
+    ) -> CoreResult<Vec<AllocationTargetConstraint>>;
 }
 
 // ── Implementation ────────────────────────────────────────────────────────────
@@ -99,6 +120,35 @@ impl AllocationTargetService {
             "AllocationTarget {} not found",
             id
         )))
+    }
+
+    fn validate_v1_sell_protection_constraint(
+        constraint: &AllocationTargetConstraint,
+    ) -> CoreResult<()> {
+        if constraint.subject_id.trim().is_empty() {
+            return Err(CoreError::Validation(ValidationError::InvalidInput(
+                "sell protection subject_id is required".to_string(),
+            )));
+        }
+        if !matches!(
+            constraint.subject_type,
+            ConstraintSubjectType::Asset | ConstraintSubjectType::Account
+        ) {
+            return Err(CoreError::Validation(ValidationError::InvalidInput(
+                "sell protection supports asset and account subjects only".to_string(),
+            )));
+        }
+        if !matches!(constraint.action, ConstraintAction::Sell) {
+            return Err(CoreError::Validation(ValidationError::InvalidInput(
+                "sell protection supports sell action only".to_string(),
+            )));
+        }
+        if !matches!(constraint.effect, ConstraintEffect::Block) {
+            return Err(CoreError::Validation(ValidationError::InvalidInput(
+                "sell protection supports block effect only".to_string(),
+            )));
+        }
+        Ok(())
     }
 
     fn validate_target_taxonomy(&self, taxonomy_id: &str) -> CoreResult<()> {
@@ -188,6 +238,14 @@ impl AllocationTargetService {
             taxonomy_id: input.taxonomy_id,
             trigger_type: input.trigger_type,
             drift_band_bps: input.drift_band_bps,
+            band_type: input
+                .band_type
+                .or_else(|| existing.as_ref().map(|target| target.band_type.clone()))
+                .unwrap_or(BandType::Hybrid),
+            relative_factor_bps: input
+                .relative_factor_bps
+                .or_else(|| existing.as_ref().map(|target| target.relative_factor_bps))
+                .unwrap_or(2000),
             rebalance_goal: input
                 .rebalance_goal
                 .or_else(|| {
@@ -212,6 +270,7 @@ impl AllocationTargetService {
                 .allow_sells
                 .or_else(|| existing.as_ref().map(|target| target.allow_sells))
                 .unwrap_or(false),
+            max_turnover_bps: input.max_turnover_bps,
             created_at: existing
                 .as_ref()
                 .map(|target| target.created_at.clone())
@@ -271,10 +330,15 @@ impl AllocationTargetServiceTrait for AllocationTargetService {
             taxonomy_id: input.taxonomy_id,
             trigger_type: input.trigger_type,
             drift_band_bps: input.drift_band_bps,
+            // New targets default to Hybrid (#1070). Existing DB rows
+            // keep Absolute via migration; updates preserve the saved value.
+            band_type: input.band_type.unwrap_or(BandType::Hybrid),
+            relative_factor_bps: input.relative_factor_bps.unwrap_or(2000),
             rebalance_goal: input.rebalance_goal.unwrap_or(RebalanceGoal::NearestBand),
             min_trade_amount: input.min_trade_amount.unwrap_or_else(|| "0".to_string()),
             whole_shares_only: input.whole_shares_only.unwrap_or(false),
             allow_sells: input.allow_sells.unwrap_or(false),
+            max_turnover_bps: input.max_turnover_bps,
             created_at: now.clone(),
             updated_at: now,
             archived_at: None,
@@ -311,12 +375,17 @@ impl AllocationTargetServiceTrait for AllocationTargetService {
             taxonomy_id: input.taxonomy_id,
             trigger_type: input.trigger_type,
             drift_band_bps: input.drift_band_bps,
+            band_type: input.band_type.unwrap_or(existing.band_type),
+            relative_factor_bps: input
+                .relative_factor_bps
+                .unwrap_or(existing.relative_factor_bps),
             rebalance_goal: input.rebalance_goal.unwrap_or(existing.rebalance_goal),
             min_trade_amount: input.min_trade_amount.unwrap_or(existing.min_trade_amount),
             whole_shares_only: input
                 .whole_shares_only
                 .unwrap_or(existing.whole_shares_only),
             allow_sells: input.allow_sells.unwrap_or(existing.allow_sells),
+            max_turnover_bps: input.max_turnover_bps,
             created_at: existing.created_at,
             updated_at: Self::now(),
             archived_at: existing.archived_at,
@@ -406,12 +475,44 @@ impl AllocationTargetServiceTrait for AllocationTargetService {
             .save_target_with_weights(target, domain_weights)
             .await
     }
+
+    fn list_target_constraints(
+        &self,
+        target_id: &str,
+    ) -> CoreResult<Vec<AllocationTargetConstraint>> {
+        self.repository.list_target_constraints(target_id)
+    }
+
+    async fn save_target_constraints(
+        &self,
+        target_id: &str,
+        constraints: Vec<AllocationTargetConstraint>,
+    ) -> CoreResult<Vec<AllocationTargetConstraint>> {
+        self.repository
+            .get_target(target_id)?
+            .ok_or_else(|| Self::target_not_found(target_id))?;
+
+        let constraints = constraints
+            .into_iter()
+            .map(|mut constraint| {
+                Self::validate_v1_sell_protection_constraint(&constraint)?;
+                constraint.target_id = target_id.to_string();
+                Ok(constraint)
+            })
+            .collect::<CoreResult<Vec<_>>>()?;
+
+        self.repository
+            .save_target_constraints(target_id, constraints)
+            .await
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::portfolio::allocation_targets::{ScopeType, TriggerType};
+    use crate::portfolio::allocation_targets::{
+        ConstraintAction, ConstraintEffect, ConstraintSubjectType, ScopeType, TriggerType,
+    };
     use crate::taxonomies::{
         AssetTaxonomyAssignment, NewAssetTaxonomyAssignment, NewCategory, NewTaxonomy, Taxonomy,
         TaxonomyWithCategories,
@@ -460,10 +561,13 @@ mod tests {
             taxonomy_id: taxonomy_id.to_string(),
             trigger_type: TriggerType::Threshold,
             drift_band_bps: 500,
+            band_type: BandType::Absolute,
+            relative_factor_bps: 2000,
             rebalance_goal: RebalanceGoal::NearestBand,
             min_trade_amount: "0".to_string(),
             whole_shares_only: false,
             allow_sells: false,
+            max_turnover_bps: None,
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
             archived_at: None,
@@ -478,10 +582,13 @@ mod tests {
             taxonomy_id: taxonomy_id.to_string(),
             trigger_type: TriggerType::Threshold,
             drift_band_bps: 500,
+            band_type: None,
+            relative_factor_bps: None,
             rebalance_goal: Some(RebalanceGoal::NearestBand),
             min_trade_amount: Some("0".to_string()),
             whole_shares_only: Some(false),
             allow_sells: None,
+            max_turnover_bps: None,
         }
     }
 
@@ -494,6 +601,25 @@ mod tests {
             target_bps: 10000,
             is_locked: false,
             is_required: true,
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            updated_at: "2026-01-01T00:00:00Z".to_string(),
+        }
+    }
+
+    fn constraint(
+        subject_type: ConstraintSubjectType,
+        action: ConstraintAction,
+        effect: ConstraintEffect,
+    ) -> AllocationTargetConstraint {
+        AllocationTargetConstraint {
+            id: "constraint-1".to_string(),
+            target_id: "client-target-id".to_string(),
+            subject_type,
+            subject_id: "subject-1".to_string(),
+            action,
+            effect,
+            reason: None,
+            metadata_json: None,
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
         }
@@ -547,6 +673,21 @@ mod tests {
             weights: Vec<AllocationTargetWeight>,
         ) -> CoreResult<SaveAllocationTargetResult> {
             Ok(SaveAllocationTargetResult { target, weights })
+        }
+
+        fn list_target_constraints(
+            &self,
+            _target_id: &str,
+        ) -> CoreResult<Vec<AllocationTargetConstraint>> {
+            Ok(vec![])
+        }
+
+        async fn save_target_constraints(
+            &self,
+            _target_id: &str,
+            constraints: Vec<AllocationTargetConstraint>,
+        ) -> CoreResult<Vec<AllocationTargetConstraint>> {
+            Ok(constraints)
         }
     }
 
@@ -784,5 +925,113 @@ mod tests {
 
         assert_eq!(updated.taxonomy_id, "asset_classes");
         assert_eq!(updated.name, "Updated target");
+    }
+
+    #[tokio::test]
+    async fn create_target_defaults_band_type_to_hybrid_when_omitted() {
+        let service = AllocationTargetService::new(
+            Arc::new(MockAllocationTargetRepository {
+                target: target("asset_classes"),
+                weights: vec![saved_weight("asset_classes")],
+            }),
+            Arc::new(MockTaxonomyService),
+        );
+
+        let mut input = target_input("asset_classes");
+        input.band_type = None;
+
+        let created = service.create_target(input).await.unwrap();
+        assert_eq!(created.band_type, BandType::Hybrid);
+    }
+
+    #[tokio::test]
+    async fn save_target_constraints_rewrites_client_target_id() {
+        let service = AllocationTargetService::new(
+            Arc::new(MockAllocationTargetRepository {
+                target: target("asset_classes"),
+                weights: vec![],
+            }),
+            Arc::new(MockTaxonomyService),
+        );
+
+        let saved = service
+            .save_target_constraints(
+                "target-1",
+                vec![constraint(
+                    ConstraintSubjectType::Asset,
+                    ConstraintAction::Sell,
+                    ConstraintEffect::Block,
+                )],
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].target_id, "target-1");
+    }
+
+    #[tokio::test]
+    async fn save_target_constraints_rejects_non_v1_constraint_shape() {
+        let service = AllocationTargetService::new(
+            Arc::new(MockAllocationTargetRepository {
+                target: target("asset_classes"),
+                weights: vec![],
+            }),
+            Arc::new(MockTaxonomyService),
+        );
+
+        let cases = vec![
+            constraint(
+                ConstraintSubjectType::Category,
+                ConstraintAction::Sell,
+                ConstraintEffect::Block,
+            ),
+            constraint(
+                ConstraintSubjectType::Asset,
+                ConstraintAction::Buy,
+                ConstraintEffect::Block,
+            ),
+            constraint(
+                ConstraintSubjectType::Asset,
+                ConstraintAction::Trade,
+                ConstraintEffect::Block,
+            ),
+            constraint(
+                ConstraintSubjectType::Asset,
+                ConstraintAction::Sell,
+                ConstraintEffect::Avoid,
+            ),
+        ];
+
+        for invalid in cases {
+            let err = service
+                .save_target_constraints("target-1", vec![invalid])
+                .await
+                .unwrap_err();
+            assert!(
+                err.to_string().contains("sell protection"),
+                "unexpected error: {err}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn update_target_preserves_existing_band_type_when_omitted() {
+        let mut existing = target("asset_classes");
+        existing.band_type = BandType::Hybrid;
+
+        let service = AllocationTargetService::new(
+            Arc::new(MockAllocationTargetRepository {
+                target: existing,
+                weights: vec![saved_weight("asset_classes")],
+            }),
+            Arc::new(MockTaxonomyService),
+        );
+
+        let mut input = target_input("asset_classes");
+        input.band_type = None;
+
+        let updated = service.update_target("target-1", input).await.unwrap();
+        assert_eq!(updated.band_type, BandType::Hybrid);
     }
 }

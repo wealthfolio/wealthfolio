@@ -2,6 +2,7 @@
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "../../lib/utils";
 import { Icons } from "./icons";
@@ -131,6 +132,7 @@ const DialogContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.C
     },
     ref,
   ) => {
+    const { t } = useTranslation();
     const { isMobile } = React.useContext(DialogContext);
 
     if (isMobile) {
@@ -164,7 +166,7 @@ const DialogContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.C
               className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground rounded-xs focus:outline-hidden absolute right-4 top-4 opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 disabled:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
             >
               <Icons.X />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">{t("ui:dialog.close", "Close")}</span>
             </DialogPrimitive.Close>
           )}
         </DialogPrimitive.Content>

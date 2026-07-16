@@ -5,9 +5,20 @@ use crate::{
     config::Config,
     main_lib::AppState,
     models::{Account, AccountUpdate, NewAccount},
+    oidc,
 };
 use axum::middleware;
-use axum::{routing::get, Json, Router};
+use axum::{
+    body::Body,
+    http::{
+        header::{HeaderName, HeaderValue},
+        Request,
+    },
+    middleware::Next,
+    response::Response,
+    routing::get,
+    Json, Router,
+};
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -20,7 +31,9 @@ use utoipa::OpenApi;
 
 mod accounts;
 mod activities;
+mod addon_network;
 mod addons;
+mod agent_access;
 mod ai_chat;
 mod ai_providers;
 mod allocation_targets;
@@ -71,6 +84,39 @@ pub async fn readyz() -> &'static str {
 )]
 pub struct ApiDoc;
 
+const SERVER_CSP: &str = "default-src 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://wealthfolio.app https://auth.wealthfolio.app https://connect.wealthfolio.app https://connect-staging.wealthfolio.app; frame-src 'self' blob: about:; child-src 'self' blob: about:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; worker-src 'self' blob:";
+const ADDON_SANDBOX_CSP: &str = "default-src 'none'; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src data: blob:; font-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
+
+pub async fn security_headers(request: Request<Body>, next: Next) -> Response {
+    let path = request.uri().path().to_string();
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+    let csp = if path.ends_with("/addon-sandbox.html") {
+        ADDON_SANDBOX_CSP
+    } else {
+        SERVER_CSP
+    };
+    headers.insert(
+        HeaderName::from_static("content-security-policy"),
+        HeaderValue::from_static(csp),
+    );
+    if !path.starts_with("/api/") && !path.starts_with("/mcp") {
+        headers.insert(
+            HeaderName::from_static("access-control-allow-origin"),
+            HeaderValue::from_static("*"),
+        );
+    }
+    headers.insert(
+        HeaderName::from_static("x-content-type-options"),
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        HeaderName::from_static("referrer-policy"),
+        HeaderValue::from_static("no-referrer"),
+    );
+    response
+}
+
 #[allow(deprecated)]
 pub fn app_router(state: Arc<AppState>, config: &Config) -> Router {
     let cors = if config.cors_allow.iter().any(|o| o == "*") {
@@ -106,6 +152,7 @@ pub fn app_router(state: Arc<AppState>, config: &Config) -> Router {
         .merge(market_data::router())
         .merge(assets::router())
         .merge(secrets::router())
+        .merge(addon_network::router())
         .merge(limits::router())
         .merge(addons::router())
         .merge(taxonomies::router())
@@ -116,7 +163,8 @@ pub fn app_router(state: Arc<AppState>, config: &Config) -> Router {
         .merge(health::router())
         .merge(custom_providers::router())
         .merge(spending::router())
-        .merge(allocation_targets::router());
+        .merge(allocation_targets::router())
+        .merge(agent_access::router());
 
     #[cfg(feature = "device-sync")]
     {
@@ -154,6 +202,18 @@ pub fn app_router(state: Arc<AppState>, config: &Config) -> Router {
         .finish()
         .expect("valid governor config");
 
+    // Rate limit the OIDC start + callback the same way (per peer IP).
+    let oidc_login_governor = GovernorConfigBuilder::default()
+        .per_second(12)
+        .burst_size(5)
+        .finish()
+        .expect("valid governor config");
+    let oidc_governor = GovernorConfigBuilder::default()
+        .per_second(12)
+        .burst_size(5)
+        .finish()
+        .expect("valid governor config");
+
     let api = Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
@@ -164,16 +224,33 @@ pub fn app_router(state: Arc<AppState>, config: &Config) -> Router {
         )
         .route("/auth/logout", axum::routing::post(auth::logout))
         .route("/auth/me", get(auth::auth_me))
+        .route(
+            "/auth/oidc/login",
+            get(oidc::oidc_login).layer(GovernorLayer::new(oidc_login_governor)),
+        )
+        .route("/auth/oidc/logout", get(oidc::oidc_logout))
+        .route(
+            "/auth/oidc/callback",
+            get(oidc::oidc_callback).layer(GovernorLayer::new(oidc_governor)),
+        )
         .merge(protected_api)
         .with_state(state.clone());
 
-    Router::new()
+    // Timeout wraps only the /api/v1 subtree: /mcp serves long-lived SSE
+    // streams that a request timeout would sever.
+    let mut router = Router::new()
         .nest("/api/v1", api)
-        .with_state(state)
+        .with_state(state.clone())
+        .layer(TimeoutLayer::new(config.request_timeout));
+
+    if config.mcp_enabled {
+        router = router.merge(crate::mcp::router(state, config));
+    }
+
+    router
         .layer(cors)
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .layer(PropagateRequestIdLayer::x_request_id())
-        .layer(TimeoutLayer::new(config.request_timeout))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|request: &axum::http::Request<_>| {

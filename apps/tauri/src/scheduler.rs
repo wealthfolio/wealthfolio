@@ -94,8 +94,11 @@ pub async fn run_startup_sync(handle: &AppHandle, context: &Arc<ServiceContext>)
         }
         Err(e) => {
             // Check if this is an auth error (user not logged in)
-            if e.contains("No access token") || e.contains("not authenticated") {
-                debug!("Startup sync skipped: user not authenticated");
+            if e.contains("No access token")
+                || e.contains("not authenticated")
+                || e.contains("Broker sync already running")
+            {
+                debug!("Startup sync skipped: {}", e);
             } else {
                 warn!("Startup sync failed: {}", e);
                 // Note: broker:sync-error event is emitted by the orchestrator via TauriProgressReporter

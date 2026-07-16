@@ -3,10 +3,12 @@ import type { Activity } from "@/lib/types";
 
 import type {
   ActivityTaxonomyAssignment,
+  ActivitySplit,
   CashActivityFilter,
   CashActivitySearchRequest,
   CashActivitySearchResponse,
   CashActivity,
+  NewActivitySplit,
 } from "../types/cash-activity";
 
 export const listCashActivities = async (filter?: CashActivityFilter): Promise<CashActivity[]> => {
@@ -67,6 +69,36 @@ export const unassignActivityCategory = async (
     await invoke<void>("unassign_activity_category", { activityId, taxonomyId });
   } catch (error) {
     logger.error("Error clearing activity category.");
+    throw error;
+  }
+};
+
+export const getActivitySplits = async (activityId: string): Promise<ActivitySplit[]> => {
+  try {
+    return await invoke<ActivitySplit[]>("get_activity_splits", { activityId });
+  } catch (error) {
+    logger.error("Error fetching activity splits.");
+    throw error;
+  }
+};
+
+export const replaceActivitySplits = async (
+  activityId: string,
+  splits: NewActivitySplit[],
+): Promise<ActivitySplit[]> => {
+  try {
+    return await invoke<ActivitySplit[]>("replace_activity_splits", { activityId, splits });
+  } catch (error) {
+    logger.error("Error replacing activity splits.");
+    throw error;
+  }
+};
+
+export const clearActivitySplits = async (activityId: string): Promise<void> => {
+  try {
+    await invoke<void>("clear_activity_splits", { activityId });
+  } catch (error) {
+    logger.error("Error clearing activity splits.");
     throw error;
   }
 };

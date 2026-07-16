@@ -1,5 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
 import {
@@ -17,13 +19,11 @@ import type { CategoryNode } from "./category-item";
 import { ColorPicker } from "./color-picker";
 import { IconPicker } from "./icon-picker";
 
-const categorySchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  color: z.string().optional(),
-  icon: z.string().nullable().optional(),
-});
-
-export type CategoryFormValues = z.infer<typeof categorySchema>;
+export interface CategoryFormValues {
+  name: string;
+  color?: string;
+  icon?: string | null;
+}
 
 const PRESET_COLORS = [
   "#ef4444",
@@ -52,7 +52,18 @@ export function CategoryForm({
   onCancel,
   isLoading,
 }: CategoryFormProps) {
+  const { t } = useTranslation();
   const isEditing = !!category;
+
+  const categorySchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, t("spending:category.nameRequired")),
+        color: z.string().optional(),
+        icon: z.string().nullable().optional(),
+      }),
+    [t],
+  );
 
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categorySchema),
@@ -73,9 +84,9 @@ export function CategoryForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel>{t("common:name")}</FormLabel>
               <FormControl>
-                <Input placeholder="Category name" {...field} />
+                <Input placeholder={t("spending:category.namePlaceholder")} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -86,7 +97,7 @@ export function CategoryForm({
           name="icon"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Icon</FormLabel>
+              <FormLabel>{t("spending:category.icon")}</FormLabel>
               <FormControl>
                 <IconPicker
                   value={field.value ?? null}
@@ -103,7 +114,7 @@ export function CategoryForm({
           name="color"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Color</FormLabel>
+              <FormLabel>{t("spending:category.color")}</FormLabel>
               <FormControl>
                 <div className="flex flex-wrap items-center gap-2">
                   {PRESET_COLORS.map((color) => (
@@ -117,7 +128,7 @@ export function CategoryForm({
                       }`}
                       style={{ backgroundColor: color }}
                       onClick={() => field.onChange(color)}
-                      aria-label={`Use color ${color}`}
+                      aria-label={t("spending:category.useColor", { color })}
                     />
                   ))}
                   <ColorPicker
@@ -133,10 +144,14 @@ export function CategoryForm({
         />
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
+            {t("common:cancel")}
           </Button>
           <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Saving..." : isEditing ? "Save Changes" : "Create Category"}
+            {isLoading
+              ? t("spending:common.saving")
+              : isEditing
+                ? t("spending:common.saveChanges")
+                : t("spending:category.create")}
           </Button>
         </div>
       </form>

@@ -1,0 +1,20 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "assetQuery": "Hospitality",
+    "assignments": [],
+    "resolvedAsset": {
+      "assetId": "asset-aple",
+      "currency": "USD",
+      "displayCode": "APLE",
+      "exchangeMic": "XNYS",
+      "label": "APLE - Apple Hospitality REIT",
+      "matchedBy": "name_fuzzy",
+      "name": "Apple Hospitality REIT",
+      "symbol": "APLE"
+    }
+  }
+}

@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { cn, formatAmount } from "@/lib/utils";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -70,11 +72,15 @@ function formatUpdatedAt(date: Date): string {
     .replace(/\bE[DS]T\b/, "ET");
 }
 
-function accountLabelForRow(row: DriftHoldingRow, accountMap: Map<string, string>): string {
+function accountLabelForRow(
+  row: DriftHoldingRow,
+  accountMap: Map<string, string>,
+  t: TFunction,
+): string {
   if (row.sourceAccountIds && row.sourceAccountIds.length > 0) {
     const names = row.sourceAccountIds.map((id) => accountMap.get(id) ?? id).filter(Boolean);
     if (names.length === 1) return names[0];
-    if (names.length > 1) return `${names.length} accounts`;
+    if (names.length > 1) return t("allocation:holdings.accountCount", { count: names.length });
   }
   return accountMap.get(row.accountId) ?? row.accountId;
 }
@@ -84,6 +90,7 @@ function canNavigateToHolding(row: DriftHoldingRow): boolean {
 }
 
 export function HoldingsTable({ report }: HoldingsTableProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { accounts } = useAccounts();
 
@@ -105,17 +112,21 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
   return (
     <Card>
       <CardHeader className="px-4 pb-2 pt-4 md:px-6 md:pb-3 md:pt-6">
-        <CardTitle className="text-base">Holdings</CardTitle>
+        <CardTitle className="text-base">{t("allocation:holdings.title")}</CardTitle>
         <CardDescription>
           {isLoading ? (
-            "Loading…"
+            t("allocation:holdings.loading")
           ) : (
             <>
               <span className="md:hidden">
-                {holdingCount} holdings · {baseCurrency}
+                {t("allocation:holdings.summary", { count: holdingCount, currency: baseCurrency })}
               </span>
               <span className="hidden md:inline">
-                {holdingCount} holdings · {baseCurrency} · Updated {updatedAt}
+                {t("allocation:holdings.summaryUpdated", {
+                  count: holdingCount,
+                  currency: baseCurrency,
+                  updatedAt,
+                })}
               </span>
             </>
           )}
@@ -178,14 +189,28 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
           <table className="w-full text-[13px]">
             <thead>
               <tr className="text-muted-foreground border-b text-[10px] uppercase tracking-wider">
-                <th className="py-2.5 pl-6 pr-3 text-left font-medium">Holding</th>
-                <th className="py-2.5 pr-3 text-left font-medium">Category</th>
-                <th className="py-2.5 pr-3 text-right font-medium">Value</th>
-                <th className="py-2.5 pr-3 text-right font-medium">Current</th>
-                <th className="py-2.5 pr-3 text-right font-medium">Target</th>
-                <th className="py-2.5 pr-3 text-right font-medium">Drift</th>
+                <th className="py-2.5 pl-6 pr-3 text-left font-medium">
+                  {t("allocation:holdings.colHolding")}
+                </th>
+                <th className="py-2.5 pr-3 text-left font-medium">
+                  {t("allocation:holdings.colCategory")}
+                </th>
+                <th className="py-2.5 pr-3 text-right font-medium">
+                  {t("allocation:holdings.colValue")}
+                </th>
+                <th className="py-2.5 pr-3 text-right font-medium">
+                  {t("allocation:holdings.colCurrent")}
+                </th>
+                <th className="py-2.5 pr-3 text-right font-medium">
+                  {t("allocation:holdings.colTarget")}
+                </th>
+                <th className="py-2.5 pr-3 text-right font-medium">
+                  {t("allocation:holdings.colDrift")}
+                </th>
                 {showAccountCol && (
-                  <th className="py-2.5 pl-2 pr-6 text-right font-medium">Account</th>
+                  <th className="py-2.5 pl-2 pr-6 text-right font-medium">
+                    {t("allocation:holdings.colAccount")}
+                  </th>
                 )}
               </tr>
             </thead>
@@ -238,7 +263,7 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                           </span>
                           {row.isUnknownCategory && (
                             <span className="text-muted-foreground/80 block max-w-[220px] truncate text-[10.5px]">
-                              This holding is not mapped to the selected taxonomy.
+                              {t("allocation:holdings.notMapped")}
                             </span>
                           )}
                         </span>
@@ -263,7 +288,7 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                     </td>
                     {showAccountCol && (
                       <td className="text-muted-foreground pl-2 pr-6 text-right">
-                        {accountLabelForRow(row, accountMap)}
+                        {accountLabelForRow(row, accountMap, t)}
                       </td>
                     )}
                   </tr>

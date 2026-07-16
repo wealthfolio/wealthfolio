@@ -13,9 +13,16 @@ export type {
   AddonFile,
   AddonInstallResult,
   AddonManifest,
+  AddonNetworkRequest,
+  AddonNetworkResponse,
   AddonUpdateCheckResult,
   AddonUpdateInfo,
   AddonValidationResult,
+  AgentAccessStatus,
+  AgentAccessToken,
+  AgentAuditEntry,
+  AgentAuditPage,
+  AgentAuditQuery,
   AppInfo,
   BackendEnableSyncResult,
   BackendSyncBackgroundEngineResult,
@@ -26,6 +33,8 @@ export type {
   BackendSyncReconcileReadyResult,
   BackendSyncSnapshotUploadResult,
   BackendSyncStateResult,
+  CreateAgentAccessTokenInput,
+  CreatedAgentAccessToken,
   DataExportResult,
   EphemeralKeyPair,
   EventCallback,
@@ -35,6 +44,7 @@ export type {
   InstalledAddon,
   Logger,
   MarketDataProviderSetting,
+  McpServerStatus,
   Permission,
   PlatformCapabilities,
   PlatformInfo,
@@ -130,7 +140,17 @@ export {
 } from "../shared/goals";
 
 // Secrets Commands
-export { deleteSecret, getSecret, setSecret } from "../shared/secrets";
+export {
+  deleteAddonSecret,
+  deleteSecret,
+  getAddonSecret,
+  getSecret,
+  setAddonSecret,
+  setSecret,
+} from "../shared/secrets";
+
+// Addon Network Commands
+export { addonNetworkRequest } from "../shared/addon-network";
 
 // Taxonomy Commands
 export {
@@ -166,8 +186,10 @@ export {
   getHistoricalValuations,
   getHolding,
   getHoldings,
+  getHoldingsList,
   getHoldingsByAllocation,
   getIncomeSummary,
+  getCurrentValuation,
   getLatestValuations,
   getPortfolioAllocations,
   getSnapshotByDate,
@@ -282,6 +304,7 @@ export {
   getUserInfo,
   listBrokerAccounts,
   listBrokerConnections,
+  postLoginBootstrap,
   listDevices,
   reinitializeDeviceSync,
   resetTeamSync,
@@ -337,8 +360,10 @@ export {
   getAllocationTarget,
   listAllocationTargetWeights,
   listAllocationTargets,
+  listTargetConstraints,
   saveAllocationTargetWeights,
   saveAllocationTargetWithWeights,
+  saveTargetConstraints,
   updateAllocationTarget,
 } from "../shared/allocation-targets";
 
@@ -349,16 +374,34 @@ export { exportDataFile } from "./exports";
 // Platform-specific modules (different implementations for web vs desktop)
 // ============================================================================
 
+// Agent Access Commands (PATs + audit log; MCP server controls are desktop-only stubs)
+export {
+  createAgentAccessToken,
+  getAgentAccessStatus,
+  getMcpStatus,
+  listAgentAccessTokens,
+  listAgentAuditLog,
+  purgeAgentAuditLog,
+  deleteAgentAccessToken,
+  setMcpAuditEnabled,
+  setMcpEnabled,
+  setMcpAutoStart,
+  startMcp,
+  stopMcp,
+} from "./agent-access";
+
 // AI Streaming (web-specific HTTP fetch implementation)
 export { streamAiChat } from "./ai-streaming";
 
 // Event Listeners (web-specific SSE implementation)
 export {
+  listenAssetClassificationsChanged,
   listenBrokerSyncComplete,
   listenBrokerSyncError,
   listenBrokerSyncStart,
   listenDatabaseRestored,
   listenDeepLink,
+  getCurrentDeepLinks,
   listenFileDrop,
   listenFileDropCancelled,
   listenFileDropHover,
@@ -405,11 +448,13 @@ export {
   checkAddonUpdate,
   checkAllAddonUpdates,
   clearAddonStaging,
+  deleteAddonStorageItem,
   downloadAddonForReview,
   extractAddon,
   extractAddonZip,
   fetchAddonStoreListings,
   getAddonRatings,
+  getAddonStorageItem,
   getEnabledAddons,
   getEnabledAddonsOnStartup,
   getInstalledAddons,
@@ -420,10 +465,12 @@ export {
   listInstalledAddons,
   loadAddon,
   loadAddonForRuntime,
+  setAddonStorageItem,
   submitAddonRating,
   toggleAddon,
   uninstallAddon,
   updateAddon,
+  updateAddonNetworkApprovals,
 } from "./addons";
 
 // FIRE Planner (desktop-only — stubs throw at runtime)

@@ -1,0 +1,282 @@
+{
+  "page": {
+    "title": "Sincronización y conexiones",
+    "subtitle": "Tus dispositivos, todos en un solo lugar.",
+    "subtitleWithBrokers": "Tus corredores y dispositivos, todos en un solo lugar.",
+    "brokerages": "Corredores",
+    "devices": "Dispositivos",
+    "recentActivity": "Actividad reciente",
+    "manage": "Gestionar",
+    "timeAgo": "hace {{time}}",
+    "noBrokeragesConnected": "No hay corredores conectados",
+    "noBrokeragesDescription": "Vincula un corredor para empezar a sincronizar tus cuentas.",
+    "noDevicesSyncing": "Aún no hay dispositivos sincronizándose",
+    "noDevicesDescription": "Configura la sincronización de dispositivos en los ajustes para mantener tus datos sincronizados entre dispositivos.",
+    "noActivity": "Aún no hay actividad",
+    "noActivityDescription": "Las actualizaciones aparecerán aquí cuando tus datos empiecen a sincronizarse."
+  },
+  "emptyState": {
+    "optional": "Opcional",
+    "subtitle": "Sincroniza automáticamente tus corredores manteniendo tus datos privados.",
+    "getStarted": "Empezar con Connect",
+    "loginToAccount": "Inicia sesión en tu cuenta",
+    "learnMore": "Más información sobre Connect",
+    "features": {
+      "brokerageSync": {
+        "title": "Sincronización de corredores",
+        "description": "Sincroniza cuentas y transacciones automáticamente a diario."
+      },
+      "deviceSync": {
+        "title": "Sincronización de dispositivos",
+        "description": "Sincroniza entre dispositivos con cifrado de extremo a extremo."
+      },
+      "householdView": {
+        "title": "Vista familiar",
+        "description": "Comparte cuentas con miembros de la familia."
+      }
+    }
+  },
+  "flow": {
+    "yourDevice": "Tu dispositivo",
+    "localDatabase": "Base de datos local",
+    "dataStaysHere": "Los datos permanecen aquí",
+    "aggregators": "Agregadores",
+    "brokerages": "Corredores",
+    "banks": "Bancos",
+    "crypto": "Cripto"
+  },
+  "account": {
+    "userAvatar": "Avatar de usuario",
+    "userFallback": "Usuario",
+    "active": "Activo",
+    "signOut": "Cerrar sesión",
+    "signOutTitle": "¿Cerrar sesión en Wealthfolio Connect?",
+    "signOutMessage": "Deberás iniciar sesión de nuevo para acceder a tus cuentas de corredores sincronizadas. Tus datos locales no se verán afectados.",
+    "signOutConfirm": "Cerrar sesión",
+    "signingOut": "Cerrando sesión..."
+  },
+  "accounts": {
+    "title": "Cuentas",
+    "manage": "Gestionar cuentas",
+    "accountFallback": "Cuenta",
+    "platformFallback": "Plataforma",
+    "brokerFallback": "Corredor",
+    "paper": "Simulada",
+    "shared": "Compartida",
+    "sharedBy": "Compartida por {{name}}",
+    "syncEnabled": "Sincronización activada",
+    "excludedFromSync": "Excluida de la sincronización",
+    "noDataYet": "Aún no hay datos",
+    "dataAsOf": "Datos a fecha de {{date}}",
+    "emptyTitle": "Aún no hay cuentas sincronizadas",
+    "emptyDescription": "Conecta un corredor para empezar a sincronizar tus cuentas."
+  },
+  "connections": {
+    "title": "Conexiones de corredores",
+    "manage": "Gestionar conexiones",
+    "empty": "Aún no hay conexiones de corredores",
+    "connectBroker": "Conectar corredor",
+    "unknownBroker": "Corredor desconocido",
+    "unknown": "Desconocido",
+    "connected": "Conectado",
+    "disconnected": "Desconectado",
+    "reconnect": "Reconectar",
+    "noAccountsFound": "No se encontraron cuentas",
+    "allAccountsExcluded": "Todas las cuentas excluidas",
+    "accountsSyncing_one": "{{count}} cuenta sincronizándose",
+    "accountsSyncing_other": "{{count}} cuentas sincronizándose",
+    "partialSyncing_one": "{{syncing}} de {{total}} cuentas sincronizándose · {{excluded}} cuenta excluida",
+    "partialSyncing_other": "{{syncing}} de {{total}} cuentas sincronizándose · {{excluded}} cuentas excluidas"
+  },
+  "sync": {
+    "syncNow": "Sincronizar ahora",
+    "sync": "Sincronizar",
+    "syncAll": "Sincronizar todo",
+    "syncingShort": "Sincronizando...",
+    "statusTitle": "Estado de sincronización",
+    "syncingBrokerData": "Sincronizando datos del corredor...",
+    "startFailed": "Error al iniciar la sincronización: {{error}}",
+    "needAttention_one": "{{count}} cuenta requiere atención",
+    "needAttention_other": "{{count}} cuentas requieren atención"
+  },
+  "status": {
+    "upToDate": "Actualizado",
+    "syncing": "Sincronizando",
+    "syncingEllipsis": "Sincronizando...",
+    "needsReview": "Requiere revisión",
+    "failed": "Fallido",
+    "notConnected": "No conectado",
+    "lastSynced": "Última sincronización {{time}}",
+    "neverSynced": "Nunca sincronizado"
+  },
+  "runStatus": {
+    "running": "En ejecución",
+    "applied": "Aplicado",
+    "needsReview": "Requiere revisión",
+    "failed": "Fallido",
+    "cancelled": "Cancelado"
+  },
+  "syncRuns": {
+    "title": "Ejecuciones de sincronización recientes",
+    "empty": "Aún no hay ejecuciones de sincronización.",
+    "warningsCount_one": "{{count}} advertencia",
+    "warningsCount_other": "{{count}} advertencias",
+    "fetched": "Obtenidos",
+    "inserted": "Insertados",
+    "updated": "Actualizados",
+    "skipped": "Omitidos",
+    "warningsLabel": "Advertencias:",
+    "andMore": "... y {{count}} más",
+    "reviewActivities": "Revisar actividades",
+    "duration": "Duración:",
+    "inProgress": "En curso..."
+  },
+  "syncHistory": {
+    "title": "Historial de sincronización",
+    "success": "Éxito",
+    "review": "Revisar",
+    "emptyTitle": "Aún no hay ejecuciones de sincronización",
+    "emptyDescription": "Tu historial de sincronización aparecerá aquí tras tu primera sincronización",
+    "runCount_one": "{{count}} ejecución",
+    "runCount_other": "{{count}} ejecuciones",
+    "loadMore": "Cargar más",
+    "lessThanOneSecond": "<1s",
+    "new": "nuevos",
+    "updated": "actualizados",
+    "skipped": "omitidos",
+    "warningsCount_one": "{{count}} advertencia",
+    "warningsCount_other": "{{count}} advertencias",
+    "andMore": "+{{count}} más"
+  },
+  "activity": {
+    "syncingData": "Sincronizando tus datos...",
+    "somethingWentWrong": "Algo salió mal",
+    "upToDate": "Todo está actualizado",
+    "itemsNeedReview_one": "{{count}} elemento requiere tu revisión",
+    "itemsNeedReview_other": "{{count}} elementos requieren tu revisión",
+    "newItems": {
+      "transaction_one": "{{count}} transacción nueva",
+      "transaction_other": "{{count}} transacciones nuevas",
+      "position_one": "{{count}} posición nueva",
+      "position_other": "{{count}} posiciones nuevas"
+    },
+    "updatedItems": {
+      "transaction_one": "{{count}} transacción actualizada",
+      "transaction_other": "{{count}} transacciones actualizadas",
+      "position_one": "{{count}} posición actualizada",
+      "position_other": "{{count}} posiciones actualizadas"
+    },
+    "removedItems": {
+      "transaction_one": "{{count}} transacción eliminada",
+      "transaction_other": "{{count}} transacciones eliminadas",
+      "position_one": "{{count}} posición eliminada",
+      "position_other": "{{count}} posiciones eliminadas"
+    }
+  },
+  "attention": {
+    "title": "La sincronización del corredor requiere atención",
+    "description_one": "{{count}} cuenta necesita un reintento o revisión del corredor.",
+    "description_other": "{{count}} cuentas necesitan un reintento o revisión del corredor."
+  },
+  "setup": {
+    "newAccountsTitle": "Las nuevas cuentas requieren configuración",
+    "newAccountsDescription_one": "{{count}} cuenta necesita una configuración rápida antes de que podamos empezar a sincronizar.",
+    "newAccountsDescription_other": "{{count}} cuentas necesitan una configuración rápida antes de que podamos empezar a sincronizar.",
+    "reviewAccounts": "Revisar cuentas"
+  },
+  "devices": {
+    "thisDevice": "Este dispositivo",
+    "activeNow": "Activo ahora",
+    "lastSeen": "Visto por última vez {{time}}",
+    "online": "En línea",
+    "never": "Nunca"
+  },
+  "deviceStatus": {
+    "syncError": "Error de sincronización",
+    "syncPaused": "Sincronización en pausa",
+    "upToDate": "Actualizado",
+    "syncing": "Sincronizando"
+  },
+  "serviceUnavailable": {
+    "title": "Servicio temporalmente no disponible",
+    "description": "Tenemos problemas para conectarnos a Wealthfolio Connect. Esto suele ser temporal y debería resolverse en breve.",
+    "retrying": "Reintentando...",
+    "tryAgain": "Intentar de nuevo"
+  },
+  "upgrade": {
+    "title": "Mejora para sincronizar cuentas de corredores",
+    "description": "Conecta tus cuentas de corredores para sincronizar tu cartera automáticamente.",
+    "button": "Mejorar"
+  },
+  "privacy": {
+    "footnote": "Wealthfolio Connect no almacena las credenciales de tu corredor ni tus datos financieros. Todo se sincroniza de forma segura a través de un agregador hacia tu base de datos local. La sincronización de dispositivos utiliza cifrado de extremo a extremo. <privacyLink>Más información</privacyLink>"
+  },
+  "providers": {
+    "continueWithGoogle": "Continuar con Google",
+    "continueWithApple": "Continuar con Apple",
+    "continueWithEmail": "Continuar con correo electrónico",
+    "lastUsed": "Usado por última vez"
+  },
+  "subscription": {
+    "comingSoon": "Próximamente",
+    "getStarted": "Empezar",
+    "perMonthShort": "mes",
+    "perYearShort": "año",
+    "savings": "Ahorra un {{percent}}% frente al plan mensual",
+    "choosePlan": "Elige tu plan",
+    "choosePlanDescription": "Suscríbete para desbloquear la sincronización de corredores y las funciones en la nube.",
+    "monthly": "Mensual",
+    "yearly": "Anual",
+    "monthlyBilling": "Facturación mensual",
+    "yearlyBilling": "Facturación anual",
+    "alreadySubscribed": "¿Ya estás suscrito?",
+    "connectionIssueTitle": "Problema de conexión",
+    "connectionIssueDescription": "Tenemos problemas para conectarnos a tu cuenta. Esto puede ocurrir si tu sesión ha caducado.",
+    "unableToLoadTitle": "No se pudieron cargar los planes",
+    "unableToLoadDescription": "No pudimos recuperar los planes de suscripción en este momento. Suele ser un problema temporal.",
+    "contactSupport": "Contactar con soporte",
+    "emailCopied": "Correo electrónico copiado al portapapeles",
+    "reconnecting": "Reconectando...",
+    "reconnect": "Reconectar",
+    "refreshPage": "Actualizar página"
+  },
+  "authCallback": {
+    "processing": "Procesando autenticación...",
+    "completing": "Completando el inicio de sesión..."
+  },
+  "authErrors": {
+    "noSessionReturned": "No se devolvió ninguna sesión tras completar el inicio de sesión.",
+    "completeSignInFailed": "Error al completar el inicio de sesión",
+    "signInFailed": "Error al iniciar sesión",
+    "signUpFailed": "Error al registrarse",
+    "confirmEmail": "Revisa tu correo electrónico para confirmar tu cuenta.",
+    "oauthFailed": "Error al iniciar sesión con OAuth",
+    "magicLinkFailed": "Error al enviar el enlace mágico",
+    "invalidVerificationCode": "Código de verificación no válido",
+    "signOutFailed": "Error al cerrar sesión",
+    "fetchUserInfoFailed": "Error al obtener la información del usuario"
+  },
+  "newAccounts": {
+    "title": "Se encontraron nuevas cuentas",
+    "description": "Elige cómo seguir cada cuenta. Puedes cambiarlo más adelante.",
+    "trackingInfo": "El modo <strong>Transacciones</strong> registra cada operación para obtener análisis de rendimiento completos. El modo <strong>Posiciones</strong> solo importa instantáneas con métricas limitadas. <docsLink>Más información</docsLink>",
+    "accountName": "Nombre de la cuenta",
+    "group": "Grupo (opcional)",
+    "groupPlaceholder": "p. ej., Jubilación",
+    "trackingMode": "Modo de seguimiento",
+    "transactions": "Transacciones",
+    "transactionsDescription": "Análisis de rendimiento completo",
+    "holdings": "Posiciones",
+    "holdingsDescription": "Solo instantáneas",
+    "holdingsWarning": "Las métricas de rendimiento serán limitadas sin el historial de transacciones.",
+    "notNow": "Ahora no",
+    "saving": "Guardando...",
+    "saveAndSync": "Guardar y sincronizar",
+    "configured": "Cuentas configuradas",
+    "configuredDescription": "Iniciando la sincronización con los ajustes seleccionados...",
+    "saveFailed": "Error al guardar las cuentas"
+  },
+  "errors": {
+    "unknown": "Error desconocido"
+  }
+}

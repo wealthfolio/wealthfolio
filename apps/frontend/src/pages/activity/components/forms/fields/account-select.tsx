@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@wealthfolio/ui";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useFormContext, type FieldPath, type FieldValues, type PathValue } from "react-hook-form";
 
 export interface AccountSelectOption {
@@ -34,10 +35,13 @@ interface AccountSelectProps<TFieldValues extends FieldValues = FieldValues> {
 export function AccountSelect<TFieldValues extends FieldValues = FieldValues>({
   name,
   accounts,
-  label = "Account",
-  placeholder = "Select an account",
+  label,
+  placeholder,
   currencyName,
 }: AccountSelectProps<TFieldValues>) {
+  const { t } = useTranslation(["activity"]);
+  const resolvedLabel = label ?? t("activity:field_account");
+  const resolvedPlaceholder = placeholder ?? t("activity:select_account_placeholder");
   const { control, getFieldState, getValues, setValue, watch } = useFormContext<TFieldValues>();
   const selectedAccountId = watch(name) as string | undefined;
   const watchedCurrency = watch((currencyName ?? name) as FieldPath<TFieldValues>) as
@@ -68,7 +72,7 @@ export function AccountSelect<TFieldValues extends FieldValues = FieldValues>({
       name={name}
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{label}</FormLabel>
+          <FormLabel>{resolvedLabel}</FormLabel>
           <FormControl>
             <Select
               onValueChange={(value) => {
@@ -92,12 +96,18 @@ export function AccountSelect<TFieldValues extends FieldValues = FieldValues>({
               }}
               defaultValue={field.value}
             >
-              <SelectTrigger aria-label={label} data-testid="account-select">
-                <SelectValue placeholder={placeholder} />
+              <SelectTrigger aria-label={resolvedLabel} data-testid="account-select">
+                <SelectValue placeholder={resolvedPlaceholder} />
               </SelectTrigger>
               <SelectContent className="max-h-[500px] overflow-y-auto">
                 {accounts.map((account) => (
-                  <SelectItem value={account.value} key={account.value}>
+                  <SelectItem
+                    value={account.value}
+                    key={account.value}
+                    data-testid="account-option"
+                    data-account-name={account.label}
+                    data-account-currency={account.currency}
+                  >
                     {account.label}
                     <span className="text-muted-foreground font-light">({account.currency})</span>
                   </SelectItem>

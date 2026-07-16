@@ -7,8 +7,10 @@ import {
   CollapsibleTrigger,
 } from "@wealthfolio/ui/components/ui/collapsible";
 import { format } from "date-fns";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import type { ImportRun, ImportRunStatus } from "../types";
 import { BROKER_SYNC_RUN_FAILED_MESSAGE } from "../lib/broker-sync-messages";
 
@@ -17,23 +19,28 @@ interface ImportRunsListProps {
   isLoading?: boolean;
 }
 
-const statusConfig: Record<
+function buildStatusConfig(
+  t: TFunction,
+): Record<
   ImportRunStatus,
   { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
-> = {
-  RUNNING: { label: "Running", variant: "outline" },
-  APPLIED: { label: "Applied", variant: "default" },
-  NEEDS_REVIEW: { label: "Needs Review", variant: "destructive" },
-  FAILED: { label: "Failed", variant: "destructive" },
-  CANCELLED: { label: "Cancelled", variant: "secondary" },
-};
+> {
+  return {
+    RUNNING: { label: t("connect:runStatus.running"), variant: "outline" },
+    APPLIED: { label: t("connect:runStatus.applied"), variant: "default" },
+    NEEDS_REVIEW: { label: t("connect:runStatus.needsReview"), variant: "destructive" },
+    FAILED: { label: t("connect:runStatus.failed"), variant: "destructive" },
+    CANCELLED: { label: t("connect:runStatus.cancelled"), variant: "secondary" },
+  };
+}
 
 export function ImportRunsList({ runs, isLoading }: ImportRunsListProps) {
+  const { t } = useTranslation();
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-medium">Recent Sync Runs</CardTitle>
+          <CardTitle className="text-base font-medium">{t("connect:syncRuns.title")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-8">
@@ -48,10 +55,10 @@ export function ImportRunsList({ runs, isLoading }: ImportRunsListProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-medium">Recent Sync Runs</CardTitle>
+          <CardTitle className="text-base font-medium">{t("connect:syncRuns.title")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground text-sm">No sync runs yet.</p>
+          <p className="text-muted-foreground text-sm">{t("connect:syncRuns.empty")}</p>
         </CardContent>
       </Card>
     );
@@ -60,7 +67,7 @@ export function ImportRunsList({ runs, isLoading }: ImportRunsListProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-medium">Recent Sync Runs</CardTitle>
+        <CardTitle className="text-base font-medium">{t("connect:syncRuns.title")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
         {runs.map((run) => (
@@ -72,7 +79,9 @@ export function ImportRunsList({ runs, isLoading }: ImportRunsListProps) {
 }
 
 function ImportRunItem({ run }: { run: ImportRun }) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+  const statusConfig = useMemo(() => buildStatusConfig(t), [t]);
   const config = statusConfig[run.status];
   const hasWarnings = run.warnings && run.warnings.length > 0;
 
@@ -95,7 +104,7 @@ function ImportRunItem({ run }: { run: ImportRun }) {
             <div className="flex items-center gap-2">
               {hasWarnings && (
                 <span className="text-xs text-yellow-600 dark:text-yellow-400">
-                  {run.warnings?.length} warnings
+                  {t("connect:syncRuns.warningsCount", { count: run.warnings?.length ?? 0 })}
                 </span>
               )}
               <Badge variant={config.variant}>{config.label}</Badge>
@@ -113,19 +122,19 @@ function ImportRunItem({ run }: { run: ImportRun }) {
               <div className="mb-3 grid grid-cols-4 gap-2 text-center">
                 <div>
                   <p className="text-lg font-semibold">{run.summary.fetched}</p>
-                  <p className="text-muted-foreground text-xs">Fetched</p>
+                  <p className="text-muted-foreground text-xs">{t("connect:syncRuns.fetched")}</p>
                 </div>
                 <div>
                   <p className="text-lg font-semibold text-green-600">{run.summary.inserted}</p>
-                  <p className="text-muted-foreground text-xs">Inserted</p>
+                  <p className="text-muted-foreground text-xs">{t("connect:syncRuns.inserted")}</p>
                 </div>
                 <div>
                   <p className="text-lg font-semibold text-blue-600">{run.summary.updated}</p>
-                  <p className="text-muted-foreground text-xs">Updated</p>
+                  <p className="text-muted-foreground text-xs">{t("connect:syncRuns.updated")}</p>
                 </div>
                 <div>
                   <p className="text-lg font-semibold text-gray-500">{run.summary.skipped}</p>
-                  <p className="text-muted-foreground text-xs">Skipped</p>
+                  <p className="text-muted-foreground text-xs">{t("connect:syncRuns.skipped")}</p>
                 </div>
               </div>
             )}
@@ -134,7 +143,7 @@ function ImportRunItem({ run }: { run: ImportRun }) {
             {hasWarnings && (
               <div className="space-y-2">
                 <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
-                  Warnings:
+                  {t("connect:syncRuns.warningsLabel")}
                 </p>
                 <ul className="space-y-1">
                   {run.warnings?.slice(0, 5).map((warning, idx) => (
@@ -144,7 +153,7 @@ function ImportRunItem({ run }: { run: ImportRun }) {
                   ))}
                   {(run.warnings?.length ?? 0) > 5 && (
                     <li className="text-muted-foreground text-sm">
-                      • ... and {(run.warnings?.length ?? 0) - 5} more
+                      • {t("connect:syncRuns.andMore", { count: (run.warnings?.length ?? 0) - 5 })}
                     </li>
                   )}
                 </ul>
@@ -152,7 +161,7 @@ function ImportRunItem({ run }: { run: ImportRun }) {
                   to={`/activities?account=${run.accountId}`}
                   className="text-primary mt-2 inline-flex items-center gap-1 text-sm hover:underline"
                 >
-                  Review activities
+                  {t("connect:syncRuns.reviewActivities")}
                   <Icons.ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
@@ -169,10 +178,10 @@ function ImportRunItem({ run }: { run: ImportRun }) {
 
             {/* Timing info */}
             <p className="text-muted-foreground mt-2 text-xs">
-              Duration:{" "}
+              {t("connect:syncRuns.duration")}{" "}
               {run.finishedAt
                 ? `${Math.round((new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime()) / 1000)}s`
-                : "In progress..."}
+                : t("connect:syncRuns.inProgress")}
             </p>
           </div>
         </CollapsibleContent>

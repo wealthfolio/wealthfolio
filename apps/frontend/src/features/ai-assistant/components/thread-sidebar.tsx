@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -59,6 +60,7 @@ export function ThreadSidebar({
   onRemoveTag,
   className,
 }: ThreadSidebarProps) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -88,12 +90,12 @@ export function ThreadSidebar({
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter((thread) =>
-        (thread.title || "New conversation").toLowerCase().includes(query),
+        (thread.title || t("ai:threadSidebar.newConversation")).toLowerCase().includes(query),
       );
     }
 
     return result;
-  }, [threads, searchQuery, filterTag]);
+  }, [threads, searchQuery, filterTag, t]);
 
   // Separate pinned and unpinned threads
   const { pinnedThreads, unpinnedThreads } = useMemo(() => {
@@ -182,7 +184,9 @@ export function ThreadSidebar({
       >
         <div className="flex items-center gap-1.5">
           {thread.isPinned && <Icons.Pin className="text-muted-foreground h-3 w-3 shrink-0" />}
-          <span className="truncate font-medium">{thread.title || "New conversation"}</span>
+          <span className="truncate font-medium">
+            {thread.title || t("ai:threadSidebar.newConversation")}
+          </span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground text-xs">
@@ -215,28 +219,28 @@ export function ThreadSidebar({
             className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
           >
             <Icons.MoreVertical className="h-4 w-4" />
-            <span className="sr-only">Thread options</span>
+            <span className="sr-only">{t("ai:threadSidebar.threadOptions")}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => handleOpenRenameDialog(thread)}>
             <Icons.Pencil className="mr-2 h-4 w-4" />
-            Rename
+            {t("ai:threadSidebar.rename")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => handleOpenTagsDialog(thread)}>
             <Icons.Tag className="mr-2 h-4 w-4" />
-            Edit tags
+            {t("ai:threadSidebar.editTags")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onTogglePin(thread.id, !thread.isPinned)}>
             {thread.isPinned ? (
               <>
                 <Icons.PinOff className="mr-2 h-4 w-4" />
-                Unpin
+                {t("ai:threadSidebar.unpin")}
               </>
             ) : (
               <>
                 <Icons.Pin className="mr-2 h-4 w-4" />
-                Pin
+                {t("ai:threadSidebar.pin")}
               </>
             )}
           </DropdownMenuItem>
@@ -246,7 +250,7 @@ export function ThreadSidebar({
             onClick={() => handleOpenDeleteDialog(thread)}
           >
             <Icons.Trash className="mr-2 h-4 w-4" />
-            Delete
+            {t("ai:threadSidebar.delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -257,10 +261,10 @@ export function ThreadSidebar({
     <div className={cn("flex h-full flex-col border-r", className)}>
       {/* Header */}
       <div className="flex items-center justify-between border-b p-3">
-        <h2 className="text-sm font-semibold">Conversations</h2>
+        <h2 className="text-sm font-semibold">{t("ai:threadSidebar.conversations")}</h2>
         <Button variant="ghost" size="icon" onClick={onNewThread} className="h-8 w-8">
           <Icons.Plus className="h-4 w-4" />
-          <span className="sr-only">New conversation</span>
+          <span className="sr-only">{t("ai:threadSidebar.newConversationButton")}</span>
         </Button>
       </div>
 
@@ -270,7 +274,7 @@ export function ThreadSidebar({
           <Icons.Search className="text-muted-foreground absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2" />
           <Input
             type="search"
-            placeholder="Search conversations..."
+            placeholder={t("ai:threadSidebar.searchConversations")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-8 pl-8 text-sm"
@@ -304,17 +308,19 @@ export function ThreadSidebar({
         ) : threads.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Icons.Sparkles className="text-muted-foreground mb-2 h-8 w-8" />
-            <p className="text-muted-foreground text-sm">No conversations yet</p>
+            <p className="text-muted-foreground text-sm">{t("ai:threadSidebar.noConversations")}</p>
             <p className="text-muted-foreground mt-1 text-xs">
-              Start a new chat to ask questions about your portfolio
+              {t("ai:threadSidebar.startChatHint")}
             </p>
           </div>
         ) : filteredThreads.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Icons.Search className="text-muted-foreground mb-2 h-6 w-6" />
-            <p className="text-muted-foreground text-sm">No matches found</p>
+            <p className="text-muted-foreground text-sm">{t("ai:threadSidebar.noMatches")}</p>
             <p className="text-muted-foreground mt-1 text-xs">
-              {filterTag ? "Try clearing the tag filter" : "Try a different search term"}
+              {filterTag
+                ? t("ai:threadSidebar.clearTagFilter")
+                : t("ai:threadSidebar.differentSearch")}
             </p>
           </div>
         ) : (
@@ -324,7 +330,7 @@ export function ThreadSidebar({
               <div>
                 <div className="text-muted-foreground mb-1 flex items-center gap-1 px-2 text-xs font-medium">
                   <Icons.Pin className="h-3 w-3" />
-                  Pinned
+                  {t("ai:threadList.pinned")}
                 </div>
                 <div className="space-y-0.5">{pinnedThreads.map(renderThread)}</div>
               </div>
@@ -334,7 +340,9 @@ export function ThreadSidebar({
             {unpinnedThreads.length > 0 && (
               <div>
                 {pinnedThreads.length > 0 && (
-                  <div className="text-muted-foreground mb-1 px-2 text-xs font-medium">Recent</div>
+                  <div className="text-muted-foreground mb-1 px-2 text-xs font-medium">
+                    {t("ai:threadList.recent")}
+                  </div>
                 )}
                 <div className="space-y-0.5">{unpinnedThreads.map(renderThread)}</div>
               </div>
@@ -347,12 +355,12 @@ export function ThreadSidebar({
       <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename conversation</DialogTitle>
+            <DialogTitle>{t("ai:threadSidebar.renameTitle")}</DialogTitle>
           </DialogHeader>
           <Input
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="Enter a new title..."
+            placeholder={t("ai:threadSidebar.renamePlaceholder")}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 handleConfirmRename();
@@ -361,10 +369,10 @@ export function ThreadSidebar({
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>
-              Cancel
+              {t("ai:threadSidebar.cancel")}
             </Button>
             <Button onClick={handleConfirmRename} disabled={!newTitle.trim()}>
-              Save
+              {t("ai:threadSidebar.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -374,23 +382,21 @@ export function ThreadSidebar({
       <Dialog open={tagsDialogOpen} onOpenChange={(open) => !open && handleCloseTagsDialog()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit tags</DialogTitle>
-            <DialogDescription>Add or remove tags to organize this conversation.</DialogDescription>
+            <DialogTitle>{t("ai:threadSidebar.editTagsTitle")}</DialogTitle>
+            <DialogDescription>{t("ai:threadSidebar.editTagsDescription")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="tags">Tags</Label>
+            <Label htmlFor="tags">{t("ai:threadSidebar.tags")}</Label>
             <InputTags
               id="tags"
               value={editingTags}
               onChange={handleTagsChange}
-              placeholder="Type a tag and press Enter..."
+              placeholder={t("ai:threadSidebar.tagsPlaceholder")}
             />
-            <p className="text-muted-foreground text-xs">
-              Press Enter or comma to add a tag. Backspace to remove the last tag.
-            </p>
+            <p className="text-muted-foreground text-xs">{t("ai:threadSidebar.tagsHint")}</p>
           </div>
           <DialogFooter>
-            <Button onClick={handleCloseTagsDialog}>Done</Button>
+            <Button onClick={handleCloseTagsDialog}>{t("ai:threadSidebar.done")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -399,17 +405,18 @@ export function ThreadSidebar({
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete conversation?</AlertDialogTitle>
+            <AlertDialogTitle>{t("ai:threadSidebar.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete &ldquo;{selectedThread?.title ?? "this conversation"}
-              &rdquo; and all its messages. This action cannot be undone.
+              {t("ai:threadSidebar.deleteDescription", {
+                title: selectedThread?.title ?? t("ai:threadList.thisConversation"),
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("ai:threadSidebar.cancel")}</AlertDialogCancel>
             <Button variant="destructive" onClick={handleConfirmDelete}>
               <Icons.Trash className="mr-2 h-4 w-4" />
-              Delete
+              {t("ai:threadSidebar.deleteConfirm")}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

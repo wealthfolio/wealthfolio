@@ -1,20 +1,16 @@
 import { DashboardCard } from "@/components/dashboard-card";
+import { HoldingPerformancePercent } from "@/components/holding-performance-percent";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import { HoldingType, isAlternativeAssetKind, type AssetKind } from "@/lib/constants";
+import { HoldingType, isAlternativeAssetKind } from "@/lib/constants";
+import { getBaseHoldingPerformancePercentForMode } from "@/lib/holding-performance";
 import { parseOccSymbol } from "@/lib/occ-symbol";
 import { Holding } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import {
-  AmountDisplay,
-  Button,
-  GainAmount,
-  GainPercent,
-  Icons,
-  usePersistentState,
-} from "@wealthfolio/ui";
+import { AmountDisplay, Button, GainAmount, Icons, usePersistentState } from "@wealthfolio/ui";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 
@@ -46,6 +42,7 @@ function HoldingRow({
   showName,
   onClick,
 }: HoldingRowProps) {
+  const { t } = useTranslation();
   const symbol = holding.instrument?.symbol ?? holding.id;
   const parsedOption = parseOccSymbol(symbol);
   const symbolLabel = parsedOption ? parsedOption.underlying : symbol.split(".")[0];
@@ -53,7 +50,10 @@ function HoldingRow({
   const title = showName ? nameLabel : symbolLabel;
   const subtitle = parsedOption
     ? `${new Date(parsedOption.expiration + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} $${parsedOption.strikePrice} ${parsedOption.optionType}`
-    : `${(holding.quantity ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} shares`;
+    : t("dashboard:holdings.shares", {
+        count: holding.quantity ?? 0,
+        formatted: (holding.quantity ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 }),
+      });
   const avatarSymbol = parsedOption ? parsedOption.underlying : symbol;
   const marketValue = holding.marketValue?.base ?? 0;
   const gainAmount =
@@ -62,12 +62,7 @@ function HoldingRow({
       : performanceMode === "pnl"
         ? (holding.totalGain?.base ?? holding.unrealizedGain?.base ?? 0)
         : (holding.dayChange?.base ?? 0);
-  const gainPercent =
-    performanceMode === "return"
-      ? (holding.totalReturnPct ?? holding.totalGainPct ?? 0)
-      : performanceMode === "pnl"
-        ? (holding.totalGainPct ?? holding.unrealizedGainPct ?? 0)
-        : (holding.dayChangePct ?? 0);
+  const gainPercent = getBaseHoldingPerformancePercentForMode(holding, performanceMode);
 
   return (
     <div
@@ -98,10 +93,10 @@ function HoldingRow({
             displayCurrency={false}
             className="text-xs"
           />
-          <GainPercent
+          <HoldingPerformancePercent
             value={gainPercent}
             variant="badge"
-            className="min-w-[60px] justify-center text-xs"
+            className="min-w-[60px] justify-center text-center text-xs"
           />
         </div>
       </div>
@@ -116,6 +111,7 @@ interface StackedAvatarsProps {
 }
 
 function StackedAvatars({ holdings, totalRemaining, onClick }: StackedAvatarsProps) {
+  const { t } = useTranslation();
   const displayedHoldings = holdings.slice(0, MAX_STACKED_AVATARS);
   const extraCount = totalRemaining - displayedHoldings.length;
 
@@ -144,7 +140,9 @@ function StackedAvatars({ holdings, totalRemaining, onClick }: StackedAvatarsPro
         })}
       </div>
       <span className="text-muted-foreground text-xs">
-        {extraCount > 0 ? `+${totalRemaining} more holdings` : `+${totalRemaining} more`}
+        {extraCount > 0
+          ? t("dashboard:holdings.more_holdings", { count: totalRemaining })
+          : t("dashboard:holdings.more", { count: totalRemaining })}
       </span>
       <Icons.ChevronRight className="text-muted-foreground ml-auto h-3 w-3" />
     </div>
@@ -152,8 +150,9 @@ function StackedAvatars({ holdings, totalRemaining, onClick }: StackedAvatarsPro
 }
 
 function TopHoldingsSkeleton() {
+  const { t } = useTranslation();
   return (
-    <DashboardCard title="Holdings" elevated>
+    <DashboardCard title={t("dashboard:holdings.title")} elevated>
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="border-border border-b py-3 last:border-0">
           <div className="flex items-center justify-between">
@@ -179,15 +178,16 @@ function TopHoldingsSkeleton() {
 }
 
 function TopHoldingsEmptyState() {
+  const { t } = useTranslation();
   return (
-    <DashboardCard title="Holdings" elevated>
+    <DashboardCard title={t("dashboard:holdings.title")} elevated>
       <div className="py-2 text-center">
-        <p className="text-sm">No holdings yet.</p>
+        <p className="text-sm">{t("dashboard:holdings.no_holdings")}</p>
         <Link
           to="/activities/manage"
           className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
         >
-          Add your first transaction
+          {t("dashboard:holdings.add_first_transaction")}
           <Icons.ChevronRight className="h-3 w-3" />
         </Link>
       </div>
@@ -196,6 +196,7 @@ function TopHoldingsEmptyState() {
 }
 
 export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { isBalanceHidden } = useBalancePrivacy();
   const [performanceMode, setPerformanceMode] = usePersistentState<PerformanceMode>(
@@ -219,7 +220,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
         // Exclude cash holdings
         if (h.holdingType === HoldingType.CASH) return false;
         // Exclude alternative assets (properties, vehicles, liabilities, etc.)
-        if (h.assetKind && isAlternativeAssetKind(h.assetKind as AssetKind)) return false;
+        if (h.assetKind && isAlternativeAssetKind(h.assetKind)) return false;
         return true;
       })
       .sort((a, b) => {
@@ -261,7 +262,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
 
   return (
     <DashboardCard
-      title="Holdings"
+      title={t("dashboard:holdings.title")}
       elevated
       action={
         <div className="flex items-center gap-1">
@@ -280,7 +281,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
               className="border-border/50 bg-card min-w-[200px] rounded-2xl border p-2 shadow-lg backdrop-blur-xl"
             >
               <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium uppercase tracking-wider">
-                Show
+                {t("dashboard:holdings.filter_show")}
               </p>
               {(["daily", "pnl", "return"] as const).map((v) => (
                 <button
@@ -288,7 +289,11 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
                   className="hover:bg-accent flex w-full items-center justify-between rounded-xl px-3 py-3 text-sm font-medium transition-colors"
                   onClick={() => setPerformanceMode(v)}
                 >
-                  {v === "daily" ? "Daily Change" : v === "pnl" ? "Total P&L" : "Total Return"}
+                  {v === "daily"
+                    ? t("dashboard:holdings.perf_daily_change")
+                    : v === "pnl"
+                      ? t("dashboard:holdings.perf_total_pnl")
+                      : t("dashboard:holdings.perf_total_return")}
                   <span
                     className={cn(
                       "flex h-4 w-4 items-center justify-center rounded-full border-2",
@@ -305,7 +310,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
               ))}
               <div className="bg-border/70 mx-2 my-1.5 h-px" />
               <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium uppercase tracking-wider">
-                Sort by
+                {t("dashboard:holdings.filter_sort_by")}
               </p>
               {(["value", "gain"] as const).map((v) => (
                 <button
@@ -313,7 +318,9 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
                   className="hover:bg-accent flex w-full items-center justify-between rounded-xl px-3 py-3 text-sm font-medium transition-colors"
                   onClick={() => setSortBy(v)}
                 >
-                  {v === "value" ? "Total Value" : "Gain"}
+                  {v === "value"
+                    ? t("dashboard:holdings.sort_total_value")
+                    : t("dashboard:holdings.sort_gain")}
                   <span
                     className={cn(
                       "flex h-4 w-4 items-center justify-center rounded-full border-2",
@@ -328,7 +335,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
               ))}
               <div className="bg-border/70 mx-2 my-1.5 h-px" />
               <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium uppercase tracking-wider">
-                Display
+                {t("dashboard:holdings.filter_display")}
               </p>
               {(["symbol", "name"] as const).map((v) => (
                 <button
@@ -336,7 +343,9 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
                   className="hover:bg-accent flex w-full items-center justify-between rounded-xl px-3 py-3 text-sm font-medium transition-colors"
                   onClick={() => setDisplayMode(v)}
                 >
-                  {v === "symbol" ? "Symbol" : "Name"}
+                  {v === "symbol"
+                    ? t("dashboard:holdings.display_symbol")
+                    : t("dashboard:holdings.display_name")}
                   <span
                     className={cn(
                       "flex h-4 w-4 items-center justify-center rounded-full border-2",
@@ -357,7 +366,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
             className="text-muted-foreground hover:bg-success/10 text-xs"
             onClick={() => navigate("/holdings")}
           >
-            View All
+            {t("dashboard:view_all")}
             <Icons.ChevronRight className="ml-1 h-3 w-3" />
           </Button>
         </div>

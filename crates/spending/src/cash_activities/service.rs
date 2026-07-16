@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::{prelude::ToPrimitive, Decimal};
 use wealthfolio_core::accounts::{
     account_supports_purpose, account_types, AccountPurpose, AccountRepositoryTrait,
 };
@@ -20,13 +20,17 @@ use super::{
     },
     CASH_ACTIVITY_TYPES,
 };
+use crate::activity_allocations::{
+    group_assignments as group_assignments_owned, group_splits as group_splits_owned,
+};
 use crate::activity_assignments::{
     ActivityTaxonomyAssignment, ActivityTaxonomyAssignmentService, BulkCategoryAssignment,
 };
 use crate::activity_classification::{
-    classify_activity, classify_activity_for_aggregation, within_spending_transfer_groups,
-    SpendingClassification,
+    activity_abs_amount, classify_activity, classify_activity_for_aggregation,
+    within_spending_transfer_groups, SpendingClassification,
 };
+use crate::activity_splits::{ActivitySplit, ActivitySplitRepositoryTrait, NewActivitySplit};
 use crate::error::SpendingError;
 use crate::events::EventsService;
 use crate::settings::SpendingSettingsService;
@@ -44,6 +48,7 @@ pub struct CashActivityService {
     account_repo: Arc<dyn AccountRepositoryTrait>,
     settings: Arc<SpendingSettingsService>,
     assignments: Arc<ActivityTaxonomyAssignmentService>,
+    splits: Arc<dyn ActivitySplitRepositoryTrait>,
     activity_events: Arc<dyn crate::activity_events::ActivityEventsRepositoryTrait>,
     events: Arc<EventsService>,
 }
@@ -54,6 +59,7 @@ impl CashActivityService {
         account_repo: Arc<dyn AccountRepositoryTrait>,
         settings: Arc<SpendingSettingsService>,
         assignments: Arc<ActivityTaxonomyAssignmentService>,
+        splits: Arc<dyn ActivitySplitRepositoryTrait>,
         activity_events: Arc<dyn crate::activity_events::ActivityEventsRepositoryTrait>,
         events: Arc<EventsService>,
     ) -> Self {
@@ -62,6 +68,7 @@ impl CashActivityService {
             account_repo,
             settings,
             assignments,
+            splits,
             activity_events,
             events,
         }
@@ -131,11 +138,14 @@ impl CashActivityService {
         let ids: Vec<String> = activities.iter().map(|a| a.id.clone()).collect();
         let asgs = self.assignments.list_for_activities(&ids).await?;
         let mut by_activity = group_assignments_owned(asgs);
+        let splits = self.splits.list_for_activities(&ids).await?;
+        let mut splits_by_activity = group_splits_owned(splits);
         let mut tag_map = self.activity_events.list_for_activities(&ids).await?;
         let items: Vec<CashActivity> = activities
             .into_iter()
             .map(|a| {
                 let assignments = by_activity.remove(&a.id).unwrap_or_default();
+                let splits = splits_by_activity.remove(&a.id).unwrap_or_default();
                 let event_id = tag_map.remove(&a.id);
                 let cash_flow_bucket = cash_flow_bucket_for(&a, &account_types, &transfer_groups);
                 let transfer_link_status = transfer_link_status_for(&a, &transfer_link_resolution);
@@ -143,6 +153,7 @@ impl CashActivityService {
                     activity: a,
                     cash_flow_bucket,
                     assignments,
+                    splits,
                     event_id,
                     transfer_link_status,
                 }
@@ -270,16 +281,22 @@ impl CashActivityService {
             let ids: Vec<String> = activities.iter().map(|a| a.id.clone()).collect();
             let assignments = self.assignments.list_for_activities(&ids).await?;
             let by_activity = group_assignments(&assignments);
+            let splits = self.splits.list_for_activities(&ids).await?;
+            let splits_by_activity = group_splits(&splits);
 
             activities.retain(|a| {
                 let asgs = by_activity.get(a.id.as_str());
+                let activity_splits = splits_by_activity.get(a.id.as_str());
                 let bucket = cash_flow_bucket_for(a, &account_types, &transfer_groups);
                 let expected_taxonomy = taxonomy_for_bucket(bucket);
-                let has_category = expected_taxonomy
-                    .and_then(|taxonomy_id| {
+                let has_category =
+                    expected_taxonomy.map_or(bucket == CashFlowBucket::Neutral, |taxonomy_id| {
                         asgs.map(|v| v.iter().any(|asg| asg.taxonomy_id == taxonomy_id))
-                    })
-                    .unwrap_or(bucket == CashFlowBucket::Neutral);
+                            .unwrap_or(false)
+                            || activity_splits
+                                .map(|v| v.iter().any(|split| split.taxonomy_id == taxonomy_id))
+                                .unwrap_or(false)
+                    });
 
                 match req.status {
                     CashActivityStatusFilter::All => {}
@@ -309,7 +326,15 @@ impl CashActivityService {
                                         && cats.iter().any(|c| c == &asg.category_id)
                                 })
                             })
-                            .unwrap_or(false);
+                            .unwrap_or(false)
+                            || activity_splits
+                                .map(|v| {
+                                    v.iter().any(|split| {
+                                        expected_taxonomy == Some(split.taxonomy_id.as_str())
+                                            && cats.iter().any(|c| c == &split.category_id)
+                                    })
+                                })
+                                .unwrap_or(false);
                         if !any {
                             return false;
                         }
@@ -324,7 +349,15 @@ impl CashActivityService {
                                         && subs.iter().any(|c| c == &asg.category_id)
                                 })
                             })
-                            .unwrap_or(false);
+                            .unwrap_or(false)
+                            || activity_splits
+                                .map(|v| {
+                                    v.iter().any(|split| {
+                                        expected_taxonomy == Some(split.taxonomy_id.as_str())
+                                            && subs.iter().any(|c| c == &split.category_id)
+                                    })
+                                })
+                                .unwrap_or(false);
                         if !any {
                             return false;
                         }
@@ -370,12 +403,15 @@ impl CashActivityService {
         let page_ids: Vec<String> = page.iter().map(|a| a.id.clone()).collect();
         let asgs = self.assignments.list_for_activities(&page_ids).await?;
         let mut by_activity = group_assignments_owned(asgs);
+        let splits = self.splits.list_for_activities(&page_ids).await?;
+        let mut splits_by_activity = group_splits_owned(splits);
         let mut tag_map = self.activity_events.list_for_activities(&page_ids).await?;
 
         let items: Vec<CashActivity> = page
             .into_iter()
             .map(|a| {
                 let assignments = by_activity.remove(&a.id).unwrap_or_default();
+                let splits = splits_by_activity.remove(&a.id).unwrap_or_default();
                 let event_id = tag_map.remove(&a.id);
                 let cash_flow_bucket = cash_flow_bucket_for(&a, &account_types, &transfer_groups);
                 let transfer_link_status = transfer_link_status_for(&a, &transfer_link_resolution);
@@ -383,6 +419,7 @@ impl CashActivityService {
                     activity: a,
                     cash_flow_bucket,
                     assignments,
+                    splits,
                     event_id,
                     transfer_link_status,
                 }
@@ -428,11 +465,14 @@ impl CashActivityService {
         let ids: Vec<String> = activities.iter().map(|a| a.id.clone()).collect();
         let asgs = self.assignments.list_for_activities(&ids).await?;
         let mut by_activity = group_assignments_owned(asgs);
+        let splits = self.splits.list_for_activities(&ids).await?;
+        let mut splits_by_activity = group_splits_owned(splits);
         let mut tag_map = self.activity_events.list_for_activities(&ids).await?;
         Ok(activities
             .into_iter()
             .map(|activity| {
                 let assignments = by_activity.remove(&activity.id).unwrap_or_default();
+                let splits = splits_by_activity.remove(&activity.id).unwrap_or_default();
                 let event_id = tag_map.remove(&activity.id);
                 let cash_flow_bucket =
                     cash_flow_bucket_for(&activity, &account_types, &transfer_groups);
@@ -442,6 +482,7 @@ impl CashActivityService {
                     activity,
                     cash_flow_bucket,
                     assignments,
+                    splits,
                     event_id,
                     transfer_link_status,
                 }
@@ -466,7 +507,7 @@ impl CashActivityService {
         self.ensure_activity_assignment_allowed(activity_id, taxonomy_id, true)
             .await?;
         self.assignments
-            .assign_single(activity_id, taxonomy_id, category_id)
+            .assign_single_clearing_splits(activity_id, taxonomy_id, category_id)
             .await
     }
 
@@ -484,7 +525,80 @@ impl CashActivityService {
             self.ensure_activity_assignment_allowed(&item.activity_id, &item.taxonomy_id, true)
                 .await?;
         }
-        self.assignments.assign_many_single_select(items).await
+        self.assignments
+            .assign_many_single_select_clearing_splits(items)
+            .await
+    }
+
+    pub async fn list_splits(&self, activity_id: &str) -> Result<Vec<ActivitySplit>> {
+        self.ensure_activity_in_spending_scope(activity_id).await?;
+        self.splits.list_for_activity(activity_id).await
+    }
+
+    pub async fn replace_splits(
+        &self,
+        activity_id: &str,
+        splits: Vec<NewActivitySplit>,
+    ) -> Result<Vec<ActivitySplit>> {
+        let (activity, expected_taxonomy) = self.ensure_activity_split_allowed(activity_id).await?;
+        if splits.is_empty() {
+            return Err(SpendingError::InvalidInput {
+                message: "Split transactions require at least one line".to_string(),
+            }
+            .into());
+        }
+
+        let mut sum = Decimal::ZERO;
+        let mut category_ids = Vec::with_capacity(splits.len());
+        for split in &splits {
+            if split.taxonomy_id != expected_taxonomy {
+                return Err(SpendingError::InvalidInput {
+                    message: "Split line taxonomy must match the activity cash-flow bucket"
+                        .to_string(),
+                }
+                .into());
+            }
+            if split.amount <= Decimal::ZERO {
+                return Err(SpendingError::InvalidInput {
+                    message: "Split line amounts must be positive".to_string(),
+                }
+                .into());
+            }
+            category_ids.push(split.category_id.clone());
+            sum += split.amount;
+        }
+
+        if !self
+            .splits
+            .categories_belong_to_taxonomy(expected_taxonomy, &category_ids)
+            .await?
+        {
+            return Err(SpendingError::InvalidInput {
+                message: "Split line categories must belong to the activity cash-flow taxonomy"
+                    .to_string(),
+            }
+            .into());
+        }
+
+        let expected_total = activity_abs_amount(&activity);
+        if sum != expected_total {
+            return Err(SpendingError::InvalidInput {
+                message: format!(
+                    "Split line total must equal the transaction amount ({})",
+                    expected_total
+                ),
+            }
+            .into());
+        }
+
+        self.splits
+            .replace_for_activity_clearing_assignment(activity_id, expected_taxonomy, splits)
+            .await
+    }
+
+    pub async fn clear_splits(&self, activity_id: &str) -> Result<()> {
+        self.ensure_activity_in_spending_scope(activity_id).await?;
+        self.splits.clear_for_activity(activity_id).await
     }
 
     /// Set or clear the spending-event tag on an activity. Pass `None` to clear.
@@ -615,6 +729,46 @@ impl CashActivityService {
         }
 
         Ok(activity)
+    }
+
+    async fn ensure_activity_split_allowed(
+        &self,
+        activity_id: &str,
+    ) -> Result<(Activity, &'static str)> {
+        let activity = self.ensure_activity_in_spending_scope(activity_id).await?;
+        let s = self.settings.get().await?;
+        let (target_accounts, account_types) =
+            self.resolve_target_accounts(None, &s.account_ids)?;
+        let Some(account_type) = account_types.get(&activity.account_id) else {
+            return Err(SpendingError::InvalidInput {
+                message: "Activity account does not support spending tracking".to_string(),
+            }
+            .into());
+        };
+        let context_activities = self
+            .activity_repo
+            .get_activities_by_account_ids(&target_accounts)
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        let transfer_context_acts: Vec<&Activity> = context_activities.iter().collect();
+        let transfer_groups = within_spending_transfer_groups(&transfer_context_acts);
+        let bucket = cash_flow_bucket_from_classification(classify_activity_for_aggregation(
+            &activity,
+            account_type,
+            &transfer_groups,
+        ));
+        let Some(expected_taxonomy) = taxonomy_for_bucket(bucket) else {
+            return Err(SpendingError::InvalidInput {
+                message: "Neutral transfers cannot be split. Change or unlink the transfer if it should count as spending.".to_string(),
+            }
+            .into());
+        };
+        if activity_abs_amount(&activity) <= Decimal::ZERO {
+            return Err(SpendingError::InvalidInput {
+                message: "Split transactions require a non-zero activity amount".to_string(),
+            }
+            .into());
+        }
+        Ok((activity, expected_taxonomy))
     }
 
     async fn ensure_activity_in_spending_scope(&self, activity_id: &str) -> Result<Activity> {
@@ -782,12 +936,12 @@ fn group_assignments(
     map
 }
 
-fn group_assignments_owned(
-    assignments: Vec<ActivityTaxonomyAssignment>,
-) -> HashMap<String, Vec<ActivityTaxonomyAssignment>> {
-    let mut map: HashMap<String, Vec<ActivityTaxonomyAssignment>> = HashMap::new();
-    for a in assignments {
-        map.entry(a.activity_id.clone()).or_default().push(a);
+fn group_splits(splits: &[ActivitySplit]) -> HashMap<&str, Vec<&ActivitySplit>> {
+    let mut map: HashMap<&str, Vec<&ActivitySplit>> = HashMap::new();
+    for split in splits {
+        map.entry(split.activity_id.as_str())
+            .or_default()
+            .push(split);
     }
     map
 }
@@ -825,10 +979,31 @@ fn activity_date_in_range(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
+    use async_trait::async_trait;
+    use chrono::NaiveDateTime;
     use rust_decimal::Decimal;
-    use wealthfolio_core::activities::ActivityStatus;
+    use wealthfolio_core::accounts::{
+        Account, AccountRepositoryTrait, AccountUpdate, NewAccount, TrackingMode,
+    };
+    use wealthfolio_core::activities::{
+        ActivityBulkMutationResult, ActivitySearchResponse, ActivityStatus, ActivityUpdate,
+        ActivityUpsert, BulkUpsertResult, ImportMapping, ImportTemplate, IncomeData, NewActivity,
+        Sort,
+    };
+    use wealthfolio_core::limits::ContributionActivity;
 
     use super::*;
+    use crate::activity_assignments::NewActivityTaxonomyAssignment;
+    use crate::events::{Event, EventType, NewEvent, NewEventType, UpdateEvent};
+    use crate::settings::{
+        SpendingSettingsRepositoryTrait, SETTING_KEY_ACCOUNT_IDS, SETTING_KEY_ENABLED,
+    };
+
+    fn now_naive() -> NaiveDateTime {
+        Utc::now().naive_utc()
+    }
 
     fn activity(activity_type: &str) -> Activity {
         Activity {
@@ -846,6 +1021,7 @@ mod tests {
             unit_price: None,
             amount: Some(Decimal::new(100, 0)),
             fee: None,
+            tax: None,
             currency: "USD".to_string(),
             fx_rate: None,
             notes: None,
@@ -860,6 +1036,627 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
+    }
+
+    #[derive(Default)]
+    struct MockSettingsRepo;
+
+    #[async_trait]
+    impl SpendingSettingsRepositoryTrait for MockSettingsRepo {
+        async fn get_setting(&self, key: &str) -> Result<Option<String>> {
+            match key {
+                SETTING_KEY_ENABLED => Ok(Some("true".to_string())),
+                SETTING_KEY_ACCOUNT_IDS => Ok(Some(r#"["account-1"]"#.to_string())),
+                _ => Ok(None),
+            }
+        }
+
+        async fn set_setting(&self, _: &str, _: &str) -> Result<()> {
+            unimplemented!()
+        }
+
+        async fn set_settings(&self, _: Vec<(String, String)>) -> Result<()> {
+            unimplemented!()
+        }
+    }
+
+    struct MockAccountRepo {
+        account: Account,
+    }
+
+    #[async_trait]
+    impl AccountRepositoryTrait for MockAccountRepo {
+        async fn create(&self, _: NewAccount) -> wealthfolio_core::Result<Account> {
+            unimplemented!()
+        }
+
+        async fn update(&self, _: AccountUpdate) -> wealthfolio_core::Result<Account> {
+            unimplemented!()
+        }
+
+        async fn delete(&self, _: &str) -> wealthfolio_core::Result<usize> {
+            unimplemented!()
+        }
+
+        fn get_by_id(&self, account_id: &str) -> wealthfolio_core::Result<Account> {
+            if self.account.id == account_id {
+                Ok(self.account.clone())
+            } else {
+                Err(wealthfolio_core::errors::Error::Validation(
+                    wealthfolio_core::errors::ValidationError::InvalidInput("not found".into()),
+                ))
+            }
+        }
+
+        fn list(
+            &self,
+            is_active_filter: Option<bool>,
+            is_archived_filter: Option<bool>,
+            account_ids: Option<&[String]>,
+        ) -> wealthfolio_core::Result<Vec<Account>> {
+            let include = account_ids
+                .map(|ids| ids.iter().any(|id| id == &self.account.id))
+                .unwrap_or(true)
+                && is_active_filter
+                    .map(|active| active == self.account.is_active)
+                    .unwrap_or(true)
+                && is_archived_filter
+                    .map(|archived| archived == self.account.is_archived)
+                    .unwrap_or(true);
+            Ok(if include {
+                vec![self.account.clone()]
+            } else {
+                Vec::new()
+            })
+        }
+    }
+
+    struct MockActivityRepo {
+        activities: Vec<Activity>,
+    }
+
+    #[async_trait]
+    impl ActivityRepositoryTrait for MockActivityRepo {
+        fn get_activity(&self, activity_id: &str) -> wealthfolio_core::Result<Activity> {
+            self.activities
+                .iter()
+                .find(|activity| activity.id == activity_id)
+                .cloned()
+                .ok_or_else(|| {
+                    wealthfolio_core::errors::Error::Validation(
+                        wealthfolio_core::errors::ValidationError::InvalidInput(
+                            "not found".to_string(),
+                        ),
+                    )
+                })
+        }
+
+        fn find_transfer_counterpart(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> wealthfolio_core::Result<Option<Activity>> {
+            Ok(None)
+        }
+
+        fn get_activities(&self) -> wealthfolio_core::Result<Vec<Activity>> {
+            Ok(self.activities.clone())
+        }
+
+        fn get_activities_by_account_id(
+            &self,
+            account_id: &str,
+        ) -> wealthfolio_core::Result<Vec<Activity>> {
+            Ok(self
+                .activities
+                .iter()
+                .filter(|activity| activity.account_id == account_id)
+                .cloned()
+                .collect())
+        }
+
+        fn get_activities_by_account_ids(
+            &self,
+            account_ids: &[String],
+        ) -> wealthfolio_core::Result<Vec<Activity>> {
+            Ok(self
+                .activities
+                .iter()
+                .filter(|activity| account_ids.iter().any(|id| id == &activity.account_id))
+                .cloned()
+                .collect())
+        }
+
+        fn get_trading_activities(&self) -> wealthfolio_core::Result<Vec<Activity>> {
+            unimplemented!()
+        }
+
+        fn get_income_activities(&self) -> wealthfolio_core::Result<Vec<Activity>> {
+            unimplemented!()
+        }
+
+        fn get_contribution_activities(
+            &self,
+            _: &[String],
+            _: DateTime<Utc>,
+            _: DateTime<Utc>,
+        ) -> wealthfolio_core::Result<Vec<ContributionActivity>> {
+            unimplemented!()
+        }
+
+        fn search_activities(
+            &self,
+            _: i64,
+            _: i64,
+            _: Option<Vec<String>>,
+            _: Option<Vec<String>>,
+            _: Option<String>,
+            _: Option<Sort>,
+            _: Option<bool>,
+            _: Option<chrono::NaiveDate>,
+            _: Option<chrono::NaiveDate>,
+            _: Option<Vec<String>>,
+            _: Option<Vec<String>>,
+        ) -> wealthfolio_core::Result<ActivitySearchResponse> {
+            unimplemented!()
+        }
+
+        async fn create_activity(&self, _: NewActivity) -> wealthfolio_core::Result<Activity> {
+            unimplemented!()
+        }
+
+        async fn update_activity(&self, _: ActivityUpdate) -> wealthfolio_core::Result<Activity> {
+            unimplemented!()
+        }
+
+        async fn delete_activity(&self, _: String) -> wealthfolio_core::Result<Activity> {
+            unimplemented!()
+        }
+
+        async fn link_transfer_activities(
+            &self,
+            _: String,
+            _: String,
+        ) -> wealthfolio_core::Result<(Activity, Activity)> {
+            unimplemented!()
+        }
+
+        async fn unlink_transfer_activities(
+            &self,
+            _: String,
+            _: String,
+        ) -> wealthfolio_core::Result<(Activity, Activity)> {
+            unimplemented!()
+        }
+
+        async fn bulk_mutate_activities(
+            &self,
+            _: Vec<NewActivity>,
+            _: Vec<ActivityUpdate>,
+            _: Vec<String>,
+        ) -> wealthfolio_core::Result<ActivityBulkMutationResult> {
+            unimplemented!()
+        }
+
+        async fn create_activities(&self, _: Vec<NewActivity>) -> wealthfolio_core::Result<usize> {
+            unimplemented!()
+        }
+
+        fn get_first_activity_date(
+            &self,
+            _: Option<&[String]>,
+        ) -> wealthfolio_core::Result<Option<DateTime<Utc>>> {
+            unimplemented!()
+        }
+
+        fn get_import_mapping(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> wealthfolio_core::Result<Option<ImportMapping>> {
+            unimplemented!()
+        }
+
+        async fn save_import_mapping(&self, _: &ImportMapping) -> wealthfolio_core::Result<()> {
+            unimplemented!()
+        }
+
+        async fn link_account_template(
+            &self,
+            _: &str,
+            _: &str,
+            _: &str,
+        ) -> wealthfolio_core::Result<()> {
+            unimplemented!()
+        }
+
+        fn list_import_templates(&self) -> wealthfolio_core::Result<Vec<ImportTemplate>> {
+            unimplemented!()
+        }
+
+        fn get_import_template(&self, _: &str) -> wealthfolio_core::Result<Option<ImportTemplate>> {
+            unimplemented!()
+        }
+
+        async fn save_import_template(&self, _: &ImportTemplate) -> wealthfolio_core::Result<()> {
+            unimplemented!()
+        }
+
+        async fn delete_import_template(&self, _: &str) -> wealthfolio_core::Result<()> {
+            unimplemented!()
+        }
+
+        fn get_broker_sync_profile(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> wealthfolio_core::Result<Option<ImportTemplate>> {
+            unimplemented!()
+        }
+
+        async fn save_broker_sync_profile(
+            &self,
+            _: &ImportTemplate,
+        ) -> wealthfolio_core::Result<()> {
+            unimplemented!()
+        }
+
+        async fn link_broker_sync_profile(
+            &self,
+            _: &str,
+            _: &str,
+            _: &str,
+        ) -> wealthfolio_core::Result<()> {
+            unimplemented!()
+        }
+
+        fn calculate_average_cost(&self, _: &str, _: &str) -> wealthfolio_core::Result<Decimal> {
+            unimplemented!()
+        }
+
+        fn get_income_activities_data(
+            &self,
+            _: Option<&[String]>,
+        ) -> wealthfolio_core::Result<Vec<IncomeData>> {
+            unimplemented!()
+        }
+
+        fn get_first_activity_date_overall(&self) -> wealthfolio_core::Result<DateTime<Utc>> {
+            unimplemented!()
+        }
+
+        fn get_activity_bounds_for_assets(
+            &self,
+            _: &[String],
+        ) -> wealthfolio_core::Result<
+            std::collections::HashMap<
+                String,
+                (Option<chrono::NaiveDate>, Option<chrono::NaiveDate>),
+            >,
+        > {
+            unimplemented!()
+        }
+
+        fn get_holdings_snapshot_bounds_for_assets(
+            &self,
+            _: &[String],
+        ) -> wealthfolio_core::Result<
+            std::collections::HashMap<
+                String,
+                (Option<chrono::NaiveDate>, Option<chrono::NaiveDate>),
+            >,
+        > {
+            unimplemented!()
+        }
+
+        fn check_existing_duplicates(
+            &self,
+            _: &[String],
+        ) -> wealthfolio_core::Result<std::collections::HashMap<String, String>> {
+            unimplemented!()
+        }
+
+        async fn bulk_upsert(
+            &self,
+            _: Vec<ActivityUpsert>,
+        ) -> wealthfolio_core::Result<BulkUpsertResult> {
+            unimplemented!()
+        }
+
+        async fn reassign_asset(&self, _: &str, _: &str) -> wealthfolio_core::Result<u32> {
+            unimplemented!()
+        }
+
+        async fn get_activity_accounts_and_currencies_by_asset_id(
+            &self,
+            _: &str,
+        ) -> wealthfolio_core::Result<(Vec<String>, Vec<String>)> {
+            unimplemented!()
+        }
+    }
+
+    #[derive(Default)]
+    struct MockAssignmentRepo {
+        cleared: Mutex<Vec<(String, String)>>,
+    }
+
+    #[async_trait]
+    impl crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait for MockAssignmentRepo {
+        async fn list_for_activity(&self, _: &str) -> Result<Vec<ActivityTaxonomyAssignment>> {
+            Ok(Vec::new())
+        }
+
+        async fn list_for_activities(
+            &self,
+            _: &[String],
+        ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+            Ok(Vec::new())
+        }
+
+        async fn upsert(
+            &self,
+            _: NewActivityTaxonomyAssignment,
+        ) -> Result<ActivityTaxonomyAssignment> {
+            unimplemented!()
+        }
+
+        async fn assign_many_single_select(
+            &self,
+            _: Vec<NewActivityTaxonomyAssignment>,
+        ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+            unimplemented!()
+        }
+
+        async fn assign_many_single_select_clearing_splits(
+            &self,
+            _: Vec<NewActivityTaxonomyAssignment>,
+        ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+            unimplemented!()
+        }
+
+        async fn assign_rule_many_single_select(
+            &self,
+            _: Vec<NewActivityTaxonomyAssignment>,
+            _: bool,
+        ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+            unimplemented!()
+        }
+
+        async fn delete(&self, _: &str) -> Result<()> {
+            unimplemented!()
+        }
+
+        async fn clear_for_taxonomy(&self, activity_id: &str, taxonomy_id: &str) -> Result<()> {
+            self.cleared
+                .lock()
+                .unwrap()
+                .push((activity_id.to_string(), taxonomy_id.to_string()));
+            Ok(())
+        }
+    }
+
+    #[derive(Default)]
+    struct MockSplitRepo {
+        replaced: Mutex<Vec<(String, Vec<NewActivitySplit>)>>,
+        assignment_clears: Mutex<Vec<(String, String)>>,
+        cleared: Mutex<Vec<String>>,
+        categories_valid: Mutex<bool>,
+    }
+
+    #[async_trait]
+    impl ActivitySplitRepositoryTrait for MockSplitRepo {
+        async fn list_for_activity(&self, _: &str) -> Result<Vec<ActivitySplit>> {
+            Ok(Vec::new())
+        }
+
+        async fn list_for_activities(&self, _: &[String]) -> Result<Vec<ActivitySplit>> {
+            Ok(Vec::new())
+        }
+
+        async fn categories_belong_to_taxonomy(&self, _: &str, _: &[String]) -> Result<bool> {
+            Ok(*self.categories_valid.lock().unwrap())
+        }
+
+        async fn replace_for_activity(
+            &self,
+            activity_id: &str,
+            splits: Vec<NewActivitySplit>,
+        ) -> Result<Vec<ActivitySplit>> {
+            self.replaced
+                .lock()
+                .unwrap()
+                .push((activity_id.to_string(), splits.clone()));
+            Ok(splits
+                .into_iter()
+                .enumerate()
+                .map(|(index, split)| ActivitySplit {
+                    id: format!("split-{index}"),
+                    activity_id: activity_id.to_string(),
+                    taxonomy_id: split.taxonomy_id,
+                    category_id: split.category_id,
+                    amount: split.amount,
+                    note: split.note,
+                    sort_order: split.sort_order.unwrap_or(index as i32),
+                    created_at: now_naive(),
+                    updated_at: now_naive(),
+                })
+                .collect())
+        }
+
+        async fn replace_for_activity_clearing_assignment(
+            &self,
+            activity_id: &str,
+            taxonomy_id: &str,
+            splits: Vec<NewActivitySplit>,
+        ) -> Result<Vec<ActivitySplit>> {
+            self.assignment_clears
+                .lock()
+                .unwrap()
+                .push((activity_id.to_string(), taxonomy_id.to_string()));
+            self.replace_for_activity(activity_id, splits).await
+        }
+
+        async fn clear_for_activity(&self, activity_id: &str) -> Result<()> {
+            self.cleared.lock().unwrap().push(activity_id.to_string());
+            Ok(())
+        }
+    }
+
+    #[derive(Default)]
+    struct MockActivityEventsRepo;
+
+    #[async_trait]
+    impl crate::activity_events::ActivityEventsRepositoryTrait for MockActivityEventsRepo {
+        async fn list_for_activities(
+            &self,
+            _: &[String],
+        ) -> Result<std::collections::HashMap<String, String>> {
+            Ok(std::collections::HashMap::new())
+        }
+
+        async fn list_for_event(&self, _: &str) -> Result<Vec<String>> {
+            Ok(Vec::new())
+        }
+
+        async fn set_activity_event_tag(&self, _: &str, _: Option<String>) -> Result<()> {
+            Ok(())
+        }
+
+        async fn delete_by_event(&self, _: &str) -> Result<usize> {
+            Ok(0)
+        }
+
+        async fn list_all(&self) -> Result<Vec<crate::activity_events::ActivityEvent>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[derive(Default)]
+    struct MockEventTypesRepo;
+
+    #[async_trait]
+    impl crate::events::EventTypesRepositoryTrait for MockEventTypesRepo {
+        async fn list(&self) -> Result<Vec<EventType>> {
+            Ok(Vec::new())
+        }
+
+        async fn create(&self, _: NewEventType) -> Result<EventType> {
+            unimplemented!()
+        }
+
+        async fn update(
+            &self,
+            _: &str,
+            _: Option<String>,
+            _: Option<Option<String>>,
+        ) -> Result<EventType> {
+            unimplemented!()
+        }
+
+        async fn delete(&self, _: &str) -> Result<()> {
+            unimplemented!()
+        }
+    }
+
+    #[derive(Default)]
+    struct MockEventsRepo;
+
+    #[async_trait]
+    impl crate::events::EventsRepositoryTrait for MockEventsRepo {
+        async fn list(&self) -> Result<Vec<Event>> {
+            Ok(Vec::new())
+        }
+
+        async fn get(&self, _: &str) -> Result<Option<Event>> {
+            Ok(None)
+        }
+
+        async fn create(&self, _: NewEvent) -> Result<Event> {
+            unimplemented!()
+        }
+
+        async fn update(&self, _: &str, _: UpdateEvent) -> Result<Event> {
+            unimplemented!()
+        }
+
+        async fn delete(&self, _: &str) -> Result<()> {
+            unimplemented!()
+        }
+
+        async fn count_by_type(&self, _: &str) -> Result<usize> {
+            Ok(0)
+        }
+    }
+
+    fn account(account_type: &str) -> Account {
+        Account {
+            id: "account-1".to_string(),
+            name: "Checking".to_string(),
+            account_type: account_type.to_string(),
+            group: None,
+            currency: "USD".to_string(),
+            is_default: false,
+            is_active: true,
+            created_at: now_naive(),
+            updated_at: now_naive(),
+            platform_id: None,
+            account_number: None,
+            meta: None,
+            provider: None,
+            provider_account_id: None,
+            is_archived: false,
+            tracking_mode: TrackingMode::Transactions,
+        }
+    }
+
+    fn split(category_id: &str, amount: i64, taxonomy_id: &str) -> NewActivitySplit {
+        NewActivitySplit {
+            taxonomy_id: taxonomy_id.to_string(),
+            category_id: category_id.to_string(),
+            amount: Decimal::new(amount, 0),
+            note: None,
+            sort_order: None,
+        }
+    }
+
+    fn make_service(
+        activity: Activity,
+    ) -> (
+        CashActivityService,
+        Arc<MockAssignmentRepo>,
+        Arc<MockSplitRepo>,
+    ) {
+        let activity_repo = Arc::new(MockActivityRepo {
+            activities: vec![activity],
+        });
+        let account_repo = Arc::new(MockAccountRepo {
+            account: account(account_types::CASH),
+        });
+        let settings = Arc::new(SpendingSettingsService::new(Arc::new(MockSettingsRepo)));
+        let assignment_repo = Arc::new(MockAssignmentRepo::default());
+        let assignment_service = Arc::new(ActivityTaxonomyAssignmentService::new(
+            assignment_repo.clone()
+                as Arc<dyn crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait>,
+        ));
+        let split_repo = Arc::new(MockSplitRepo::default());
+        *split_repo.categories_valid.lock().unwrap() = true;
+        let activity_events = Arc::new(MockActivityEventsRepo);
+        let events = Arc::new(EventsService::new(
+            Arc::new(MockEventTypesRepo),
+            Arc::new(MockEventsRepo),
+            activity_repo.clone() as Arc<dyn ActivityRepositoryTrait>,
+            activity_events.clone(),
+        ));
+        let service = CashActivityService::new(
+            activity_repo as Arc<dyn ActivityRepositoryTrait>,
+            account_repo,
+            settings,
+            assignment_service,
+            split_repo.clone(),
+            activity_events,
+            events,
+        );
+        (service, assignment_repo, split_repo)
     }
 
     #[test]
@@ -902,5 +1699,99 @@ mod tests {
             &activity("DEPOSIT"),
             account_types::CREDIT_CARD
         ));
+    }
+
+    #[tokio::test]
+    async fn replace_splits_accepts_exact_total_and_clears_single_assignment() {
+        let (service, assignment_repo, split_repo) = make_service(activity("WITHDRAWAL"));
+
+        let splits = service
+            .replace_splits(
+                "activity-1",
+                vec![
+                    split("groceries", 80, SPENDING_TAXONOMY),
+                    split("household", 20, SPENDING_TAXONOMY),
+                ],
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(splits.len(), 2);
+        assert!(assignment_repo.cleared.lock().unwrap().is_empty());
+        assert_eq!(
+            split_repo.assignment_clears.lock().unwrap().as_slice(),
+            &[("activity-1".to_string(), SPENDING_TAXONOMY.to_string())]
+        );
+        assert_eq!(split_repo.replaced.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn replace_splits_rejects_over_total_without_writing() {
+        let (service, assignment_repo, split_repo) = make_service(activity("WITHDRAWAL"));
+
+        let err = service
+            .replace_splits(
+                "activity-1",
+                vec![
+                    split("groceries", 80, SPENDING_TAXONOMY),
+                    split("household", 25, SPENDING_TAXONOMY),
+                ],
+            )
+            .await
+            .unwrap_err();
+
+        assert!(err.to_string().contains("must equal"));
+        assert!(assignment_repo.cleared.lock().unwrap().is_empty());
+        assert!(split_repo.replaced.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn replace_splits_rejects_wrong_taxonomy_without_writing() {
+        let (service, assignment_repo, split_repo) = make_service(activity("WITHDRAWAL"));
+
+        let err = service
+            .replace_splits("activity-1", vec![split("salary", 100, INCOME_TAXONOMY)])
+            .await
+            .unwrap_err();
+
+        assert!(err.to_string().contains("taxonomy must match"));
+        assert!(assignment_repo.cleared.lock().unwrap().is_empty());
+        assert!(split_repo.replaced.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn replace_splits_rejects_wrong_category_taxonomy_without_writing() {
+        let (service, assignment_repo, split_repo) = make_service(activity("WITHDRAWAL"));
+        *split_repo.categories_valid.lock().unwrap() = false;
+
+        let err = service
+            .replace_splits("activity-1", vec![split("salary", 100, SPENDING_TAXONOMY)])
+            .await
+            .unwrap_err();
+
+        assert!(err.to_string().contains("categories must belong"));
+        assert!(assignment_repo.cleared.lock().unwrap().is_empty());
+        assert!(split_repo.replaced.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn replace_splits_rejects_neutral_transfer_without_writing() {
+        let mut transfer = activity("TRANSFER_IN");
+        transfer.source_group_id = Some("group-1".to_string());
+        let (service, assignment_repo, split_repo) = make_service(transfer);
+
+        let err = service
+            .replace_splits(
+                "activity-1",
+                vec![split("groceries", 100, SPENDING_TAXONOMY)],
+            )
+            .await
+            .unwrap_err();
+
+        assert!(err
+            .to_string()
+            .contains("Neutral transfers cannot be split"));
+        assert!(assignment_repo.cleared.lock().unwrap().is_empty());
+        assert!(split_repo.replaced.lock().unwrap().is_empty());
     }
 }

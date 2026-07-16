@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { Separator } from "./separator";
 import { Icons } from "./icons";
 import { cn } from "../../lib/utils";
+import { useTranslation } from "react-i18next";
 
 export interface FacetedFilterProps {
   title?: string;
@@ -35,6 +36,7 @@ export function FacetedFilter({
   selectedValues,
   onFilterChange,
 }: FacetedFilterProps) {
+  const { t } = useTranslation();
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -57,7 +59,7 @@ export function FacetedFilter({
               <div className="hidden space-x-1 lg:flex">
                 {selectedValues.size > 2 ? (
                   <Badge variant="secondary" className="text-foreground rounded-sm px-1 font-normal">
-                    {selectedValues.size} selected
+                    {t("ui:faceted.selected", "{{count}} selected", { count: selectedValues.size })}
                   </Badge>
                 ) : (
                   options
@@ -81,7 +83,7 @@ export function FacetedFilter({
         <Command>
           <CommandInput placeholder={title} />
           <CommandList>
-            <CommandEmpty>No results found.</CommandEmpty>
+            <CommandEmpty>{t("ui:faceted.noResults", "No results found.")}</CommandEmpty>
             <CommandGroup>
               {options.map((option) => {
                 const isSelected = selectedValues.has(option.value);
@@ -123,7 +125,7 @@ export function FacetedFilter({
                     onSelect={() => onFilterChange(new Set())}
                     className="text-destructive hover:bg-destructive/10 justify-center text-center text-sm"
                   >
-                    Clear filters
+                    {t("ui:faceted.clearFilters", "Clear filters")}
                   </CommandItem>
                 </CommandGroup>
               </>

@@ -30,6 +30,8 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { listBrokerConnections } from "../services/broker-service";
 import type { BrokerConnection, BrokerSyncState, ImportRun } from "../types";
 
@@ -44,6 +46,7 @@ import {
 import { NewAccountsFoundModal } from "../components/new-accounts-found-modal";
 
 export default function ConnectPage() {
+  const { t } = useTranslation();
   const { isEnabled, isConnected, isInitializing, userInfo } = useWealthfolioConnect();
   const { status, lastSyncTime, syncStates } = useAggregatedSyncStatus();
   const showBrokerSync = hasBrokerSync(userInfo);
@@ -152,7 +155,7 @@ export default function ConnectPage() {
   if (isInitializing) {
     return (
       <Page>
-        <PageHeader heading="Sync & Connections" />
+        <PageHeader heading={t("connect:page.title")} />
         <PageContent>
           <div className="mx-auto max-w-5xl space-y-6">
             <Card>
@@ -214,7 +217,7 @@ export default function ConnectPage() {
   if (!isEnabled || !isConnected || !hasSubscription) {
     return (
       <Page>
-        <PageHeader heading="Sync & Connections" />
+        <PageHeader heading={t("connect:page.title")} />
         <PageContent>
           <ConnectEmptyState />
         </PageContent>
@@ -225,24 +228,20 @@ export default function ConnectPage() {
   return (
     <Page>
       <PageHeader
-        heading="Sync & Connections"
-        text={
-          showBrokerSync
-            ? "Your brokerages and devices, all in one place."
-            : "Your devices, all in one place."
-        }
+        heading={t("connect:page.title")}
+        text={showBrokerSync ? t("connect:page.subtitleWithBrokers") : t("connect:page.subtitle")}
         actions={
           <div className="flex items-center gap-2 sm:gap-3">
             <Button onClick={handleSyncAll} disabled={isSyncRunning} size="sm">
               {isSyncRunning ? (
                 <>
                   <Icons.Spinner className="h-4 w-4 animate-spin sm:mr-2" />
-                  <span className="hidden sm:inline">Syncing...</span>
+                  <span className="hidden sm:inline">{t("connect:sync.syncingShort")}</span>
                 </>
               ) : (
                 <>
                   <Icons.RefreshCw className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Sync Now</span>
+                  <span className="hidden sm:inline">{t("connect:sync.syncNow")}</span>
                 </>
               )}
             </Button>
@@ -256,12 +255,11 @@ export default function ConnectPage() {
               <Icons.AlertTriangle className="h-4 w-4" />
               <div className="flex flex-1 items-center justify-between">
                 <div>
-                  <p className="font-medium">New accounts need setup</p>
+                  <p className="font-medium">{t("connect:setup.newAccountsTitle")}</p>
                   <p className="text-muted-foreground text-sm">
-                    {accountsNeedingSetup.length} account
-                    {accountsNeedingSetup.length > 1 ? "s" : ""} need
-                    {accountsNeedingSetup.length === 1 ? "s" : ""} a quick setup before we can start
-                    syncing.
+                    {t("connect:setup.newAccountsDescription", {
+                      count: accountsNeedingSetup.length,
+                    })}
                   </p>
                 </div>
                 <Button
@@ -272,7 +270,7 @@ export default function ConnectPage() {
                     setShowNewAccountsModal(true);
                   }}
                 >
-                  Review accounts
+                  {t("connect:setup.reviewAccounts")}
                 </Button>
               </div>
             </Alert>
@@ -297,10 +295,13 @@ export default function ConnectPage() {
                       <div className="bg-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
                         <Icons.Link className="text-muted-foreground h-3.5 w-3.5" />
                       </div>
-                      Brokerages
+                      {t("connect:page.brokerages")}
                       {lastSyncTime && (
                         <span className="text-muted-foreground text-xs font-normal">
-                          · {formatDistanceToNow(new Date(lastSyncTime))} ago
+                          ·{" "}
+                          {t("connect:page.timeAgo", {
+                            time: formatDistanceToNow(new Date(lastSyncTime)),
+                          })}
                         </span>
                       )}
                     </div>
@@ -323,7 +324,7 @@ export default function ConnectPage() {
                           openUrlInBrowser(`${WEALTHFOLIO_CONNECT_PORTAL_URL}/connections`)
                         }
                       >
-                        Manage
+                        {t("connect:page.manage")}
                         <Icons.ArrowRight className="ml-1 h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -335,9 +336,11 @@ export default function ConnectPage() {
                       <div className="bg-muted/50 mb-3 rounded-full p-3">
                         <Icons.Link className="text-muted-foreground h-6 w-6" />
                       </div>
-                      <p className="text-muted-foreground text-sm">No brokerages connected</p>
+                      <p className="text-muted-foreground text-sm">
+                        {t("connect:page.noBrokeragesConnected")}
+                      </p>
                       <p className="text-muted-foreground mt-1 text-xs">
-                        Link a brokerage to start syncing your accounts.
+                        {t("connect:page.noBrokeragesDescription")}
                       </p>
                     </div>
                   ) : (
@@ -371,7 +374,7 @@ export default function ConnectPage() {
                     <div className="bg-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
                       <Icons.Smartphone className="text-muted-foreground h-3.5 w-3.5" />
                     </div>
-                    Devices
+                    {t("connect:page.devices")}
                     <DeviceSyncStatusBadge engineStatus={deviceSyncEngineStatus} />
                   </div>
                   <div className="flex items-center gap-1">
@@ -390,7 +393,7 @@ export default function ConnectPage() {
                         size="sm"
                         className="text-muted-foreground hover:text-foreground hidden sm:inline-flex"
                       >
-                        Manage
+                        {t("connect:page.manage")}
                         <Icons.ArrowRight className="ml-1 h-3.5 w-3.5" />
                       </Button>
                     </Link>
@@ -403,9 +406,11 @@ export default function ConnectPage() {
                     <div className="bg-muted/50 mb-3 rounded-full p-3">
                       <Icons.Smartphone className="text-muted-foreground h-6 w-6" />
                     </div>
-                    <p className="text-muted-foreground text-sm">No devices syncing yet</p>
+                    <p className="text-muted-foreground text-sm">
+                      {t("connect:page.noDevicesSyncing")}
+                    </p>
                     <p className="text-muted-foreground mt-1 text-xs">
-                      Set up device sync in settings to keep your data in sync across devices.
+                      {t("connect:page.noDevicesDescription")}
                     </p>
                   </div>
                 ) : (
@@ -426,7 +431,7 @@ export default function ConnectPage() {
                   <div className="bg-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
                     <Icons.History className="text-muted-foreground h-3.5 w-3.5" />
                   </div>
-                  Recent Activity
+                  {t("connect:page.recentActivity")}
                   {recentActivityIssueCount > 0 && (
                     <Badge variant="default" className="ml-1 h-5 min-w-5 px-1.5 text-xs">
                       {recentActivityIssueCount}
@@ -440,9 +445,9 @@ export default function ConnectPage() {
                     <div className="bg-muted/50 mb-3 rounded-full p-3">
                       <Icons.History className="text-muted-foreground h-6 w-6" />
                     </div>
-                    <p className="text-muted-foreground text-sm">No activity yet</p>
+                    <p className="text-muted-foreground text-sm">{t("connect:page.noActivity")}</p>
                     <p className="text-muted-foreground mt-1 text-xs">
-                      Updates will appear here once your data starts syncing.
+                      {t("connect:page.noActivityDescription")}
                     </p>
                   </div>
                 ) : (
@@ -466,9 +471,9 @@ export default function ConnectPage() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-medium">Upgrade to sync broker accounts</h3>
+                    <h3 className="text-sm font-medium">{t("connect:upgrade.title")}</h3>
                     <p className="text-muted-foreground mt-0.5 text-xs">
-                      Connect your brokerage accounts for automatic portfolio syncing.
+                      {t("connect:upgrade.description")}
                     </p>
                   </div>
                   <Button
@@ -477,7 +482,7 @@ export default function ConnectPage() {
                       openUrlInBrowser(`${WEALTHFOLIO_CONNECT_PORTAL_URL}/settings/billing`)
                     }
                   >
-                    Upgrade
+                    {t("connect:upgrade.button")}
                     <Icons.ArrowRight className="ml-1 h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -518,15 +523,16 @@ function ConnectionItem({
   syncEnabledCount: number;
   totalAccountCount: number;
 }) {
+  const { t } = useTranslation();
   const name =
     connection.brokerage?.display_name ||
     connection.brokerage?.name ||
     connection.name ||
-    "Unknown";
+    t("connect:connections.unknown");
   const logoUrl =
     connection.brokerage?.aws_s3_square_logo_url ?? connection.brokerage?.aws_s3_logo_url;
   const isConnected = connection.status === "connected" && !connection.disabled;
-  const syncSummary = getConnectionSyncSummary(syncEnabledCount, totalAccountCount);
+  const syncSummary = getConnectionSyncSummary(syncEnabledCount, totalAccountCount, t);
 
   return (
     <div className="bg-muted/30 flex items-center gap-3 rounded-lg border p-3">
@@ -548,7 +554,7 @@ function ConnectionItem({
               : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
           }`}
         >
-          {isConnected ? "Connected" : "Disconnected"}
+          {isConnected ? t("connect:connections.connected") : t("connect:connections.disconnected")}
         </Badge>
         {!isConnected && (
           <Button
@@ -557,7 +563,7 @@ function ConnectionItem({
             className="h-7 text-xs"
             onClick={() => openUrlInBrowser(`${WEALTHFOLIO_CONNECT_PORTAL_URL}/connections`)}
           >
-            Reconnect
+            {t("connect:connections.reconnect")}
           </Button>
         )}
       </div>
@@ -565,23 +571,30 @@ function ConnectionItem({
   );
 }
 
-function getConnectionSyncSummary(syncEnabledCount: number, totalAccountCount: number): string {
+function getConnectionSyncSummary(
+  syncEnabledCount: number,
+  totalAccountCount: number,
+  t: TFunction,
+): string {
   if (totalAccountCount === 0) {
-    return "No accounts found";
+    return t("connect:connections.noAccountsFound");
   }
 
   if (syncEnabledCount === 0) {
-    return "All accounts excluded";
+    return t("connect:connections.allAccountsExcluded");
   }
 
-  const accountLabel = totalAccountCount === 1 ? "account" : "accounts";
   if (syncEnabledCount === totalAccountCount) {
-    return `${totalAccountCount} ${accountLabel} syncing`;
+    return t("connect:connections.accountsSyncing", { count: totalAccountCount });
   }
 
   const excludedCount = totalAccountCount - syncEnabledCount;
-  const excludedLabel = excludedCount === 1 ? "account excluded" : "accounts excluded";
-  return `${syncEnabledCount} of ${totalAccountCount} ${accountLabel} syncing · ${excludedCount} ${excludedLabel}`;
+  return t("connect:connections.partialSyncing", {
+    syncing: syncEnabledCount,
+    total: totalAccountCount,
+    excluded: excludedCount,
+    count: excludedCount,
+  });
 }
 
 function DeviceSyncStatusBadge({
@@ -594,6 +607,7 @@ function DeviceSyncStatusBadge({
     consecutiveFailures: number;
   } | null;
 }) {
+  const { t } = useTranslation();
   if (!engineStatus) return null;
 
   const { backgroundRunning, lastCycleStatus, lastError, consecutiveFailures } = engineStatus;
@@ -603,16 +617,16 @@ function DeviceSyncStatusBadge({
 
   if (lastError || consecutiveFailures > 2) {
     color = "bg-red-500";
-    label = "Sync error";
+    label = t("connect:deviceStatus.syncError");
   } else if (!backgroundRunning) {
     color = "bg-gray-400";
-    label = "Sync paused";
+    label = t("connect:deviceStatus.syncPaused");
   } else if (lastCycleStatus === "ok") {
     color = "bg-green-500";
-    label = "Up to date";
+    label = t("connect:deviceStatus.upToDate");
   } else {
     color = "bg-yellow-500";
-    label = "Syncing";
+    label = t("connect:deviceStatus.syncing");
   }
 
   return (
@@ -644,10 +658,11 @@ const platformIcons: Record<string, typeof Icons.Monitor> = {
 };
 
 function DeviceItem({ device }: { device: Device }) {
+  const { t } = useTranslation();
   const platform = device.platform?.toLowerCase() || "unknown";
   const Icon = platformIcons[platform] || Icons.Monitor;
-  const lastSeenText = formatDeviceLastSeen(device);
-  const isOnline = lastSeenText === "Online";
+  const isOnline = isDeviceOnline(device);
+  const lastSeenText = formatDeviceLastSeen(device, t);
 
   return (
     <div className="bg-muted/30 flex items-center gap-3 rounded-lg border p-3">
@@ -661,17 +676,19 @@ function DeviceItem({ device }: { device: Device }) {
           <span className="truncate text-sm font-medium">{device.displayName}</span>
           {device.isCurrent && (
             <Badge variant="outline" className="h-5 shrink-0 text-[10px]">
-              This device
+              {t("connect:devices.thisDevice")}
             </Badge>
           )}
         </div>
         <p className="text-muted-foreground text-xs">
-          {isOnline ? "Active now" : `Last seen ${lastSeenText}`}
+          {isOnline
+            ? t("connect:devices.activeNow")
+            : t("connect:devices.lastSeen", { time: lastSeenText })}
         </p>
       </div>
       {isOnline ? (
         <Badge className="shrink-0 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-          Online
+          {t("connect:devices.online")}
         </Badge>
       ) : (
         <span className="text-muted-foreground shrink-0 text-xs">{lastSeenText}</span>
@@ -680,11 +697,18 @@ function DeviceItem({ device }: { device: Device }) {
   );
 }
 
-function formatDeviceLastSeen(device: Device): string {
-  if (device.isCurrent) return "Online";
-  if (!device.lastSeenAt) return "Never";
+function isDeviceOnline(device: Device): boolean {
+  if (device.isCurrent) return true;
+  if (!device.lastSeenAt) return false;
   const diffMins = Math.floor((Date.now() - new Date(device.lastSeenAt).getTime()) / 60000);
-  if (diffMins < 5) return "Online";
+  return diffMins < 5;
+}
+
+function formatDeviceLastSeen(device: Device, t: TFunction): string {
+  if (device.isCurrent) return t("connect:devices.online");
+  if (!device.lastSeenAt) return t("connect:devices.never");
+  const diffMins = Math.floor((Date.now() - new Date(device.lastSeenAt).getTime()) / 60000);
+  if (diffMins < 5) return t("connect:devices.online");
   if (diffMins < 60) return `${diffMins}m ago`;
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return `${diffHours}h ago`;
@@ -705,6 +729,7 @@ function BrokerSyncAttentionSection({
   onManage: () => void;
   isSyncing: boolean;
 }) {
+  const { t } = useTranslation();
   const accountById = useMemo(
     () => new Map(accounts.map((account) => [account.id, account])),
     [accounts],
@@ -716,9 +741,9 @@ function BrokerSyncAttentionSection({
       <div className="flex flex-1 flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="font-medium">Broker sync needs attention</p>
+            <p className="font-medium">{t("connect:attention.title")}</p>
             <p className="text-muted-foreground text-sm">
-              {issues.length} account{issues.length === 1 ? "" : "s"} need a retry or broker review.
+              {t("connect:attention.description", { count: issues.length })}
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
@@ -728,11 +753,11 @@ function BrokerSyncAttentionSection({
               ) : (
                 <Icons.RefreshCw className="mr-2 h-4 w-4" />
               )}
-              Retry
+              {t("common:retry")}
             </Button>
             <Button size="sm" variant="ghost" onClick={onManage}>
               <Icons.ExternalLink className="mr-2 h-4 w-4" />
-              Manage
+              {t("connect:page.manage")}
             </Button>
           </div>
         </div>
@@ -748,7 +773,9 @@ function BrokerSyncAttentionSection({
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="font-medium">{accountName}</span>
                   <Badge variant={issue.syncStatus === "FAILED" ? "destructive" : "outline"}>
-                    {issue.syncStatus === "FAILED" ? "Failed" : "Needs Review"}
+                    {issue.syncStatus === "FAILED"
+                      ? t("connect:status.failed")
+                      : t("connect:status.needsReview")}
                   </Badge>
                   <span className="text-muted-foreground text-xs">{broker}</span>
                 </div>
@@ -771,12 +798,12 @@ function SyncHistoryItem({
   accountName?: string;
   trackingMode?: Account["trackingMode"];
 }) {
+  const { t } = useTranslation();
   const timeAgo = formatDistanceToNow(new Date(run.startedAt), { addSuffix: false });
   const isNeedsReview = run.status === "NEEDS_REVIEW";
   const isFailed = run.status === "FAILED";
   const isRunning = run.status === "RUNNING";
-  const itemLabel = trackingMode === "HOLDINGS" ? "position" : "transaction";
-  const itemLabelPlural = `${itemLabel}s`;
+  const itemType = trackingMode === "HOLDINGS" ? "position" : "transaction";
 
   const summary = run.summary;
   const inserted = summary?.inserted ?? 0;
@@ -791,29 +818,29 @@ function SyncHistoryItem({
 
   let description = "";
   if (isRunning) {
-    description = "Syncing your data...";
+    description = t("connect:activity.syncingData");
   } else if (isFailed) {
-    description = "Something went wrong";
+    description = t("connect:activity.somethingWentWrong");
   } else if (needsAttention) {
     const issueCount = warnings + errors;
     description =
       issueCount > 0
-        ? `${issueCount} ${issueCount === 1 ? "item needs" : "items need"} your review`
+        ? t("connect:activity.itemsNeedReview", { count: issueCount })
         : BROKER_SYNC_RUN_NEEDS_REVIEW_MESSAGE;
   } else if (inserted > 0 || updated > 0 || removed > 0) {
     const parts: string[] = [];
     if (inserted > 0) {
-      parts.push(`${inserted} new ${inserted === 1 ? itemLabel : itemLabelPlural}`);
+      parts.push(t(`connect:activity.newItems.${itemType}`, { count: inserted }));
     }
     if (updated > 0) {
-      parts.push(`${updated} ${updated === 1 ? itemLabel : itemLabelPlural} updated`);
+      parts.push(t(`connect:activity.updatedItems.${itemType}`, { count: updated }));
     }
     if (removed > 0) {
-      parts.push(`${removed} ${removed === 1 ? itemLabel : itemLabelPlural} removed`);
+      parts.push(t(`connect:activity.removedItems.${itemType}`, { count: removed }));
     }
     description = parts.join(", ");
   } else {
-    description = "Everything is up to date";
+    description = t("connect:activity.upToDate");
   }
 
   return (
@@ -828,7 +855,7 @@ function SyncHistoryItem({
         }`}
       />
       <span className="text-muted-foreground shrink-0 whitespace-nowrap text-xs sm:min-w-[80px] sm:text-sm">
-        {timeAgo} ago
+        {t("connect:page.timeAgo", { time: timeAgo })}
       </span>
       {accountName && (
         <span className="hidden shrink-0 truncate text-sm font-medium sm:inline sm:min-w-[100px]">
@@ -847,7 +874,7 @@ function SyncHistoryItem({
           to={`/activities?account=${run.accountId}&needsReview=true`}
           className="text-primary shrink-0 text-sm font-medium hover:underline"
         >
-          Review
+          {t("connect:syncHistory.review")}
         </Link>
       )}
     </div>

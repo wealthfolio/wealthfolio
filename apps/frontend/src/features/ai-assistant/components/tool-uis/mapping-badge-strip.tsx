@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Badge, Button } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -17,15 +18,15 @@ const CONFIDENCE_STYLES: Record<MappingConfidence, string> = {
   LOW: "bg-destructive/10 text-destructive border-destructive/30",
 };
 
-const CONFIDENCE_LABELS: Record<MappingConfidence, string> = {
-  HIGH: "High",
-  MEDIUM: "Medium",
-  LOW: "Low",
+const CONFIDENCE_LABEL_KEYS: Record<MappingConfidence, string> = {
+  HIGH: "ai:mapping.confidenceHigh",
+  MEDIUM: "ai:mapping.confidenceMedium",
+  LOW: "ai:mapping.confidenceLow",
 };
 
-function formatDelimiter(delimiter?: string): string | null {
+function formatDelimiter(delimiter: string | undefined, tabLabel: string): string | null {
   if (!delimiter || delimiter === "auto" || delimiter === ",") return null;
-  if (delimiter === "\t") return "tab";
+  if (delimiter === "\t") return tabLabel;
   return delimiter;
 }
 
@@ -33,13 +34,14 @@ export const MappingBadgeStrip = memo(function MappingBadgeStrip({
   mapping,
   baseCurrency,
 }: MappingBadgeStripProps) {
+  const { t } = useTranslation();
   const { parseConfig, mappingConfidence, usedSavedProfile, appliedMapping } = mapping;
 
   const skipTop = parseConfig.skipTopRows ?? 0;
   const skipBottom = parseConfig.skipBottomRows ?? 0;
   const dateFormat = parseConfig.dateFormat;
   const defaultCurrency = parseConfig.defaultCurrency;
-  const delimiter = formatDelimiter(parseConfig.delimiter);
+  const delimiter = formatDelimiter(parseConfig.delimiter, t("ai:mapping.tab"));
   const decimalSeparator = parseConfig.decimalSeparator;
 
   const showDateBadge = dateFormat && dateFormat !== "auto" && dateFormat !== "%Y-%m-%d";
@@ -53,28 +55,28 @@ export const MappingBadgeStrip = memo(function MappingBadgeStrip({
       {usedSavedProfile ? (
         <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 gap-1">
           <Icons.Pin className="h-3 w-3" />
-          Using saved template
+          {t("ai:mapping.usingSavedTemplate")}
         </Badge>
       ) : (
         <Badge variant="outline" className={`${CONFIDENCE_STYLES[mappingConfidence]} gap-1`}>
           <Icons.Sparkles className="h-3 w-3" />
-          AI mapping · {CONFIDENCE_LABELS[mappingConfidence]}
+          {t("ai:mapping.aiMapping", { confidence: t(CONFIDENCE_LABEL_KEYS[mappingConfidence]) })}
         </Badge>
       )}
 
       {skipTop > 0 && (
         <Badge variant="outline" className="text-muted-foreground">
-          Skipped {skipTop} preamble row{skipTop > 1 ? "s" : ""}
+          {t("ai:mapping.skippedPreamble", { count: skipTop })}
         </Badge>
       )}
       {skipBottom > 0 && (
         <Badge variant="outline" className="text-muted-foreground">
-          Skipped {skipBottom} footer row{skipBottom > 1 ? "s" : ""}
+          {t("ai:mapping.skippedFooter", { count: skipBottom })}
         </Badge>
       )}
       {showDateBadge && (
         <Badge variant="outline" className="text-muted-foreground">
-          Date {dateFormat}
+          {t("ai:mapping.date", { format: dateFormat })}
         </Badge>
       )}
       {showCurrencyBadge && (
@@ -84,12 +86,12 @@ export const MappingBadgeStrip = memo(function MappingBadgeStrip({
       )}
       {delimiter && (
         <Badge variant="outline" className="text-muted-foreground">
-          Delimiter {delimiter}
+          {t("ai:mapping.delimiter", { delimiter })}
         </Badge>
       )}
       {showDecimalBadge && (
         <Badge variant="outline" className="text-muted-foreground">
-          Decimal {decimalSeparator}
+          {t("ai:mapping.decimal", { separator: decimalSeparator })}
         </Badge>
       )}
       <Popover>
@@ -99,15 +101,15 @@ export const MappingBadgeStrip = memo(function MappingBadgeStrip({
             size="sm"
             className="text-muted-foreground hover:text-foreground h-6 px-2 text-xs"
           >
-            View mapping
+            {t("ai:mapping.viewMapping")}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-80" align="end">
           <div className="space-y-2">
-            <div className="text-sm font-medium">Column mappings</div>
+            <div className="text-sm font-medium">{t("ai:mapping.columnMappings")}</div>
             <div className="text-muted-foreground text-xs">
               {Object.entries(appliedMapping.fieldMappings ?? {}).length === 0 ? (
-                <div className="italic">No field mappings detected.</div>
+                <div className="italic">{t("ai:mapping.noFieldMappings")}</div>
               ) : (
                 <dl className="space-y-1">
                   {Object.entries(appliedMapping.fieldMappings ?? {}).map(([field, header]) => (
@@ -123,7 +125,9 @@ export const MappingBadgeStrip = memo(function MappingBadgeStrip({
             </div>
             {Object.keys(appliedMapping.symbolMappings ?? {}).length > 0 && (
               <>
-                <div className="border-t pt-2 text-sm font-medium">Symbol translations</div>
+                <div className="border-t pt-2 text-sm font-medium">
+                  {t("ai:mapping.symbolTranslations")}
+                </div>
                 <div className="text-muted-foreground text-xs">
                   <dl className="space-y-1">
                     {Object.entries(appliedMapping.symbolMappings ?? {})

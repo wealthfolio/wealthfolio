@@ -8,7 +8,8 @@ use async_trait::async_trait;
 use crate::assets::AssetServiceTrait;
 use crate::errors::Result;
 use crate::health::model::{
-    AffectedItem, FixAction, HealthCategory, HealthIssue, NavigateAction, Severity,
+    AffectedItem, DiagnosticDomain, Evidence, FixAction, HealthCategory, HealthDiagnostic,
+    HealthEntityRef, HealthIssue, NavigateAction, Severity,
 };
 use crate::health::traits::{HealthCheck, HealthContext};
 use crate::taxonomies::TaxonomyServiceTrait;
@@ -153,6 +154,74 @@ pub fn gather_legacy_migration_status(
     })
 }
 
+/// Gathers held assets that are missing an **asset class** taxonomy assignment.
+///
+/// Asset class is the core "category" surfaced by the Classification check and is
+/// normally auto-assigned from an instrument's type, so a missing assignment is a
+/// genuine gap rather than routine noise. Only currently-held assets (present in
+/// `holding_mv_map`) are considered, and market value drives the finding severity.
+///
+/// GICS sector / region are intentionally not flagged here to avoid overwhelming
+/// users who have not opted into those taxonomies.
+pub fn gather_unclassified_assets(
+    asset_service: &dyn AssetServiceTrait,
+    taxonomy_service: &dyn TaxonomyServiceTrait,
+    holding_mv_map: &std::collections::HashMap<String, f64>,
+) -> Vec<UnclassifiedAssetInfo> {
+    use log::warn;
+
+    if holding_mv_map.is_empty() {
+        return Vec::new();
+    }
+
+    let asset_classes = match taxonomy_service.get_taxonomy("asset_classes") {
+        Ok(Some(taxonomy)) => taxonomy,
+        Ok(None) => return Vec::new(),
+        Err(error) => {
+            warn!("gather_unclassified_assets: failed to load asset_classes taxonomy: {error}");
+            return Vec::new();
+        }
+    };
+
+    let assets = match asset_service.get_assets() {
+        Ok(assets) => assets,
+        Err(error) => {
+            warn!("gather_unclassified_assets: failed to load assets: {error}");
+            return Vec::new();
+        }
+    };
+
+    let mut unclassified = Vec::new();
+    for asset in &assets {
+        let Some(&market_value) = holding_mv_map.get(&asset.id) else {
+            continue;
+        };
+
+        let assignments = taxonomy_service
+            .get_asset_assignments(&asset.id)
+            .unwrap_or_default();
+        let has_asset_class = assignments
+            .iter()
+            .any(|assignment| assignment.taxonomy_id == asset_classes.taxonomy.id);
+
+        if !has_asset_class {
+            unclassified.push(UnclassifiedAssetInfo {
+                asset_id: asset.id.clone(),
+                symbol: asset.display_code.clone().unwrap_or_default(),
+                name: asset.name.clone(),
+                market_value,
+                missing_taxonomy: "asset_class".to_string(),
+            });
+        }
+    }
+
+    debug!(
+        "gather_unclassified_assets: {} held assets missing an asset class",
+        unclassified.len()
+    );
+    unclassified
+}
+
 /// Health check that detects missing asset classifications.
 pub struct ClassificationCheck;
 
@@ -237,12 +306,20 @@ impl ClassificationCheck {
                     .id(format!("classification:{}:{}", taxonomy, data_hash))
                     .severity(severity)
                     .category(HealthCategory::Classification)
+                    .code("classification_missing_category")
+                    .param("count", count as u32)
+                    .param("taxonomy", taxonomy_label)
                     .title(title)
                     .message(message)
                     .affected_count(count as u32)
                     .affected_mv_pct(mv_pct)
                     .affected_items(affected_items)
                     .navigate_action(NavigateAction::to_holdings(Some("unclassified")))
+                    .diagnostics(vec![classification_diagnostic(
+                        &taxonomy,
+                        taxonomy_label,
+                        &assets,
+                    )])
                     .data_hash(data_hash)
                     .build(),
             );
@@ -289,18 +366,84 @@ impl ClassificationCheck {
                 .id(format!("classification:legacy_migration:{}", data_hash))
                 .severity(Severity::Warning)
                 .category(HealthCategory::Classification)
+                .code("classification_legacy_migration")
+                .param("count", count)
                 .title(title)
                 .message(message)
                 .affected_count(count)
                 .affected_items(affected_items)
                 .fix_action(FixAction::migrate_legacy_classifications())
                 .navigate_action(NavigateAction::to_taxonomies())
+                .diagnostics(vec![legacy_classification_diagnostic(info)])
                 .data_hash(data_hash)
                 .build(),
         );
 
         issues
     }
+}
+
+fn classification_diagnostic(
+    taxonomy: &str,
+    taxonomy_label: &str,
+    assets: &[&UnclassifiedAssetInfo],
+) -> HealthDiagnostic {
+    let mut diagnostic = HealthDiagnostic::new(
+        format!("MISSING_{}", taxonomy.to_ascii_uppercase()),
+        format!("Missing {taxonomy_label}"),
+        format!(
+            "These holdings do not have an {taxonomy_label} assigned, so allocation charts and analytics are incomplete."
+        ),
+    )
+    .domain(DiagnosticDomain::Classification)
+    .navigate(true, NavigateAction::to_holdings(Some("unclassified")));
+
+    for asset in assets {
+        let route = format!("/holdings/{}", urlencoding::encode(&asset.asset_id));
+        let label = asset
+            .name
+            .as_ref()
+            .map(|name| format!("{} — {name}", asset.symbol))
+            .unwrap_or_else(|| asset.symbol.clone());
+        diagnostic = diagnostic
+            .entity(
+                HealthEntityRef::new("asset", asset.asset_id.clone())
+                    .label(label.clone())
+                    .route(route.clone()),
+            )
+            .evidence(Evidence::new("Holding", label).with_route(route));
+    }
+
+    diagnostic
+}
+
+fn legacy_classification_diagnostic(info: &LegacyMigrationInfo) -> HealthDiagnostic {
+    let mut diagnostic = HealthDiagnostic::new(
+        "LEGACY_CLASSIFICATION_MIGRATION",
+        "Legacy classification data",
+        "These assets still use the previous sector/country fields. Migrate them to the taxonomy system to keep allocation reporting consistent.",
+    )
+    .domain(DiagnosticDomain::Classification)
+    .fix(true, FixAction::migrate_legacy_classifications())
+    .navigate(false, NavigateAction::to_taxonomies());
+
+    for asset in &info.assets_needing_migration {
+        let route = format!("/holdings/{}", urlencoding::encode(&asset.asset_id));
+        let label = asset
+            .name
+            .as_ref()
+            .map(|name| format!("{} — {name}", asset.symbol))
+            .unwrap_or_else(|| asset.symbol.clone());
+        diagnostic = diagnostic
+            .entity(
+                HealthEntityRef::new("asset", asset.asset_id.clone())
+                    .label(label.clone())
+                    .route(route.clone()),
+            )
+            .evidence(Evidence::new("Asset", label).with_route(route));
+    }
+
+    diagnostic
 }
 
 impl Default for ClassificationCheck {

@@ -4,12 +4,14 @@
 
 pub mod model;
 pub mod service;
+pub mod traits;
 
 pub use model::{
     CashActivity, CashActivityFilter, CashActivitySearchRequest, CashActivitySearchResponse,
     CashActivitySortField, CashActivityStatusFilter, SortDirection,
 };
 pub use service::CashActivityService;
+pub use traits::CashActivityServiceTrait;
 
 /// The activity_type values considered spending activities by the spending module.
 pub const CASH_ACTIVITY_TYPES: &[&str] = &[

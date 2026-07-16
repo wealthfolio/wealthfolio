@@ -371,6 +371,12 @@ impl NetWorthServiceTrait for NetWorthService {
         // Get all assets for lookup
         let all_assets = self.asset_repository.list()?;
         let asset_map: HashMap<String, _> = all_assets.iter().map(|a| (a.id.clone(), a)).collect();
+        let stored_valuations_by_account: HashMap<String, DailyAccountValuation> = self
+            .valuation_repository
+            .get_valuations_on_date(&account_ids, date)?
+            .into_iter()
+            .map(|valuation| (valuation.account_id.clone(), valuation))
+            .collect();
 
         let mut valuations: Vec<ValuationInfo> = Vec::new();
 
@@ -386,6 +392,39 @@ impl NetWorthServiceTrait for NetWorthService {
 
             let account_category = Self::categorize_by_account_type(&account.account_type);
             let is_liability_account = is_liability_account_type(&account.account_type);
+            let stored_account_valuation = if is_liability_account {
+                None
+            } else {
+                stored_valuations_by_account.get(account_id)
+            };
+
+            if let Some(account_valuation) = stored_account_valuation {
+                if !account_valuation.investment_market_value_base.is_zero() {
+                    valuations.push(ValuationInfo {
+                        asset_id: format!("INVESTMENTS:{}", account.id),
+                        name: Some(account.name.clone()),
+                        market_value_base: account_valuation
+                            .investment_market_value_base
+                            .round_dp(DECIMAL_PRECISION),
+                        valuation_date: account_valuation.valuation_date,
+                        category: AssetCategory::Investment,
+                        is_cash_like: false,
+                    });
+                }
+
+                if !account_valuation.cash_balance_base.is_zero() {
+                    valuations.push(ValuationInfo {
+                        asset_id: format!("CASH:{}", account.id),
+                        name: Some(account.name.clone()),
+                        market_value_base: account_valuation
+                            .cash_balance_base
+                            .round_dp(DECIMAL_PRECISION),
+                        valuation_date: account_valuation.valuation_date,
+                        category: AssetCategory::Cash,
+                        is_cash_like: true,
+                    });
+                }
+            }
 
             // Process positions (securities, alternative assets)
             if is_liability_account {
@@ -396,7 +435,7 @@ impl NetWorthServiceTrait for NetWorthService {
                         account.id
                     );
                 }
-            } else {
+            } else if stored_account_valuation.is_none() {
                 for (asset_id, position) in &snapshot.positions {
                     if position.quantity.is_zero() {
                         continue;
@@ -527,6 +566,9 @@ impl NetWorthServiceTrait for NetWorthService {
             }
 
             // Process cash balances
+            if stored_account_valuation.is_some() {
+                continue;
+            }
             for (currency, &amount) in &snapshot.cash_balances {
                 if amount.is_zero() {
                     continue;

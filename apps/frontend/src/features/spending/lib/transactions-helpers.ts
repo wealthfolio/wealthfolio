@@ -6,6 +6,7 @@ import {
   isCashActivityIncome,
 } from "./constants";
 import type {
+  ActivitySplit,
   ActivityTaxonomyAssignment,
   CashActivity,
   TransferLinkStatus,
@@ -44,6 +45,7 @@ export interface TransactionRowVM {
     color: string | null;
     parentName: string | null;
   } | null;
+  splitCount: number;
   needsReview: boolean;
 }
 
@@ -124,13 +126,16 @@ export function toRowVM(
         (x: ActivityTaxonomyAssignment) => x.taxonomyId === expectedTaxonomy,
       )
     : undefined;
+  const splits = expectedTaxonomy
+    ? (item.splits ?? []).filter((x: ActivitySplit) => x.taxonomyId === expectedTaxonomy)
+    : [];
   const cat = asg ? allCategories.get(asg.categoryId) : undefined;
   const parent = cat?.parentId ? allCategories.get(cat.parentId) : undefined;
 
   return {
     activity: item,
     category:
-      asg && cat
+      splits.length === 0 && asg && cat
         ? {
             assignmentId: asg.id,
             taxonomyId: asg.taxonomyId,
@@ -140,6 +145,7 @@ export function toRowVM(
             parentName: parent?.name ?? null,
           }
         : null,
+    splitCount: splits.length,
     needsReview: item.needsReview,
   };
 }

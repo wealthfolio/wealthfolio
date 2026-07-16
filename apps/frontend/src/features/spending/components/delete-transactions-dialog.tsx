@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,8 +12,6 @@ import {
 } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { formatAmount } from "@/lib/utils";
-
-import { pluralizeTransaction } from "../lib/transactions-helpers";
 
 export interface DeletePreview {
   activityType: string;
@@ -36,30 +36,36 @@ export function DeleteTransactionsDialog({
   onCancel,
   isPending,
 }: DeleteTransactionsDialogProps) {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const previewAmount = isBalanceHidden
     ? "••••"
     : formatAmount(parseFloat(preview?.amount ?? "0") || 0, preview?.currency ?? "USD");
   const message =
     count === 1 && preview
-      ? `Are you sure you want to delete this ${preview.activityType.toLowerCase()} of ${previewAmount}?`
-      : `Are you sure you want to delete ${count} transactions?`;
+      ? t("spending:transactions.deleteConfirmSingle", {
+          type: preview.activityType.toLowerCase(),
+          amount: previewAmount,
+        })
+      : t("spending:transactions.deleteConfirmMany", { count });
 
   return (
     <AlertDialog open={open} onOpenChange={(o) => !o && onCancel()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete {pluralizeTransaction(count)}</AlertDialogTitle>
-          <AlertDialogDescription>{message} This action cannot be undone.</AlertDialogDescription>
+          <AlertDialogTitle>{t("spending:transactions.deleteTitle", { count })}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("spending:transactions.deleteMessageWithUndo", { message })}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isPending}>{t("common:cancel")}</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
             disabled={isPending}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            Delete
+            {t("common:delete")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

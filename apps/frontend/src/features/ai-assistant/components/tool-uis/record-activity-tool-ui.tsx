@@ -1,13 +1,25 @@
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Skeleton } from "@wealthfolio/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  formatPrice,
+  Skeleton,
+} from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { memo, useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Link } from "react-router-dom";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { updateToolResult } from "@/adapters";
-import { ActivityType, ACTIVITY_TYPE_DISPLAY_NAMES, QuoteMode } from "@/lib/constants";
+import { localizeActivitySubtypeName, localizeActivityTypeName } from "@/lib/activity-utils";
+import { ActivityType, QuoteMode } from "@/lib/constants";
 import type { ActivityDetails } from "@/lib/types";
 import { parse as dateFnsParse } from "date-fns";
 import {
@@ -135,8 +147,10 @@ function finiteNumberValue(value: unknown): number | undefined {
   return Number.isFinite(numberValue) ? numberValue : undefined;
 }
 
-function formatActivityDate(dateString: string): string {
-  return parseActivityDateToLocal(dateString)?.toLocaleDateString() ?? "Invalid date";
+function formatActivityDate(dateString: string, t: TFunction): string {
+  return (
+    parseActivityDateToLocal(dateString)?.toLocaleDateString() ?? t("ai:recordActivity.invalidDate")
+  );
 }
 
 function displayPart(value: string | undefined): string | undefined {
@@ -174,6 +188,7 @@ interface AssetSummary {
 function getAssetSummary(
   draft: ActivityDraft,
   resolvedAsset: ResolvedAsset | undefined,
+  t: TFunction,
 ): AssetSummary | undefined {
   const symbol = displayPart(resolvedAsset?.symbol) ?? displayPart(draft.symbol);
   const name = displayPart(resolvedAsset?.name) ?? displayPart(draft.assetName);
@@ -185,7 +200,7 @@ function getAssetSummary(
       draft.activityType === ActivityType.DEPOSIT ||
       draft.activityType === ActivityType.WITHDRAWAL
     ) {
-      return { primary: "Cash", secondary: currency };
+      return { primary: t("ai:recordActivity.cash"), secondary: currency };
     }
     return undefined;
   }
@@ -372,6 +387,7 @@ interface SuccessStateProps {
 }
 
 function SuccessState({ draft, createdActivityId, currency }: SuccessStateProps) {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
 
   const formatAmount = useCallback(
@@ -386,49 +402,47 @@ function SuccessState({ draft, createdActivityId, currency }: SuccessStateProps)
     [currency, isBalanceHidden],
   );
 
-  const activityTypeDisplay =
-    (ACTIVITY_TYPE_DISPLAY_NAMES as Record<string, string>)[draft.activityType] ??
-    draft.activityType;
+  const activityTypeDisplay = localizeActivityTypeName(t, draft.activityType);
 
   return (
     <Card className="bg-muted/40 border-success/30">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <Icons.CheckCircle className="text-success h-5 w-5" />
-          <CardTitle className="text-base">Activity Recorded</CardTitle>
+          <CardTitle className="text-base">{t("ai:recordActivity.activityRecorded")}</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
           <div>
-            <span className="text-muted-foreground">Type:</span>{" "}
+            <span className="text-muted-foreground">{t("ai:recordActivity.typeLabel")}</span>{" "}
             <span className="font-medium">{activityTypeDisplay}</span>
           </div>
           <div>
-            <span className="text-muted-foreground">Date:</span>{" "}
-            <span className="font-medium">{formatActivityDate(draft.activityDate)}</span>
+            <span className="text-muted-foreground">{t("ai:recordActivity.dateLabel")}</span>{" "}
+            <span className="font-medium">{formatActivityDate(draft.activityDate, t)}</span>
           </div>
           {draft.symbol && (
             <div>
-              <span className="text-muted-foreground">Asset:</span>{" "}
+              <span className="text-muted-foreground">{t("ai:recordActivity.assetLabel")}</span>{" "}
               <span className="font-medium">{draft.symbol}</span>
             </div>
           )}
           {draft.quantity !== undefined && (
             <div>
-              <span className="text-muted-foreground">Quantity:</span>{" "}
+              <span className="text-muted-foreground">{t("ai:recordActivity.quantityLabel")}</span>{" "}
               <span className="font-medium">{draft.quantity}</span>
             </div>
           )}
           {draft.amount !== undefined && (
             <div>
-              <span className="text-muted-foreground">Amount:</span>{" "}
+              <span className="text-muted-foreground">{t("ai:recordActivity.amountLabel")}</span>{" "}
               <span className="font-medium">{formatAmount(draft.amount)}</span>
             </div>
           )}
           {draft.accountName && (
             <div>
-              <span className="text-muted-foreground">Account:</span>{" "}
+              <span className="text-muted-foreground">{t("ai:recordActivity.accountLabel")}</span>{" "}
               <span className="font-medium">{draft.accountName}</span>
             </div>
           )}
@@ -437,7 +451,7 @@ function SuccessState({ draft, createdActivityId, currency }: SuccessStateProps)
           <Button variant="outline" size="sm" asChild>
             <Link to={createdActivityId ? `/activities?id=${createdActivityId}` : "/activities"}>
               <Icons.ArrowRight className="mr-2 h-4 w-4" />
-              View in Activities
+              {t("ai:recordActivity.viewInActivities")}
             </Link>
           </Button>
         </div>
@@ -557,13 +571,14 @@ interface ValidationHintsProps {
 }
 
 function ValidationHints({ validation }: ValidationHintsProps) {
+  const { t } = useTranslation();
   if (validation.errors.length === 0 && validation.missingFields.length === 0) {
     return null;
   }
 
   return (
     <div className="bg-warning/10 border-warning/30 rounded-md border p-2 text-xs">
-      <p className="font-medium">The AI flagged some issues — please review:</p>
+      <p className="font-medium">{t("ai:recordActivity.flaggedIssues")}</p>
       <ul className="mt-1 list-disc pl-4">
         {validation.errors.map((e, i) => (
           <li key={`err-${i}`}>
@@ -571,7 +586,7 @@ function ValidationHints({ validation }: ValidationHintsProps) {
           </li>
         ))}
         {validation.missingFields.map((f) => (
-          <li key={`missing-${f}`}>Missing: {f}</li>
+          <li key={`missing-${f}`}>{t("ai:recordActivity.missing", { field: f })}</li>
         ))}
       </ul>
     </div>
@@ -614,6 +629,7 @@ function DraftReview({
   onConfirm,
   onEdit,
 }: DraftReviewProps) {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const formatAmount = useCallback(
     (value: number | undefined) => {
@@ -627,7 +643,7 @@ function DraftReview({
     [draft.currency, isBalanceHidden],
   );
 
-  const assetSummary = getAssetSummary(draft, resolvedAsset);
+  const assetSummary = getAssetSummary(draft, resolvedAsset, t);
 
   return (
     <CardContent className="space-y-5">
@@ -648,25 +664,47 @@ function DraftReview({
       )}
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-        <ReviewField label="Type" value={activityTypeDisplay} />
-        <ReviewField label="Date" value={formatActivityDate(draft.activityDate)} />
-        <ReviewField label="Account" value={draft.accountName ?? draft.accountId ?? "-"} />
+        <ReviewField label={t("ai:recordActivity.type")} value={activityTypeDisplay} />
+        <ReviewField
+          label={t("ai:recordActivity.date")}
+          value={formatActivityDate(draft.activityDate, t)}
+        />
+        <ReviewField
+          label={t("ai:recordActivity.account")}
+          value={draft.accountName ?? draft.accountId ?? "-"}
+        />
         {draft.quantity !== undefined && (
-          <ReviewField label="Quantity" value={String(draft.quantity)} />
+          <ReviewField label={t("ai:recordActivity.quantity")} value={String(draft.quantity)} />
         )}
         {draft.unitPrice !== undefined && (
-          <ReviewField label="Unit price" value={formatAmount(draft.unitPrice)} />
+          <ReviewField
+            label={t("ai:recordActivity.unitPrice")}
+            value={
+              isBalanceHidden
+                ? "\u2022\u2022\u2022\u2022\u2022"
+                : formatPrice(draft.unitPrice, draft.currency)
+            }
+          />
         )}
         {draft.amount !== undefined && (
-          <ReviewField label="Amount" value={formatAmount(draft.amount)} />
+          <ReviewField label={t("ai:recordActivity.amount")} value={formatAmount(draft.amount)} />
         )}
-        {draft.fee !== undefined && <ReviewField label="Fee" value={formatAmount(draft.fee)} />}
-        {draft.subtype && <ReviewField label="Subtype" value={draft.subtype} />}
+        {draft.fee !== undefined && (
+          <ReviewField label={t("ai:recordActivity.fee")} value={formatAmount(draft.fee)} />
+        )}
+        {draft.subtype && (
+          <ReviewField
+            label={t("ai:recordActivity.subtype")}
+            value={localizeActivitySubtypeName(t, draft.subtype)}
+          />
+        )}
       </div>
 
       {draft.notes && (
         <div className="border-border/70 rounded-lg border px-3 py-2.5 text-sm">
-          <div className="text-muted-foreground text-xs font-medium">Notes</div>
+          <div className="text-muted-foreground text-xs font-medium">
+            {t("ai:recordActivity.notes")}
+          </div>
           <div className="mt-1 font-medium">{draft.notes}</div>
         </div>
       )}
@@ -675,11 +713,11 @@ function DraftReview({
 
       <div className="border-border/60 flex justify-end gap-2 border-t pt-4">
         <Button type="button" variant="ghost" size="sm" onClick={onEdit} disabled={isLoading}>
-          Edit
+          {t("ai:recordActivity.edit")}
         </Button>
         <Button type="button" size="sm" onClick={onConfirm} disabled={isLoading || !canConfirm}>
           {isLoading && <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />}
-          Confirm
+          {t("ai:recordActivity.confirm")}
         </Button>
       </div>
     </CardContent>
@@ -707,6 +745,7 @@ function DraftForm({
   toolCallId,
   onSuccess,
 }: DraftFormProps) {
+  const { t } = useTranslation();
   const runtime = useRuntimeContext();
   const threadId = runtime.currentThreadId;
   const { isBalanceHidden } = useBalancePrivacy();
@@ -805,7 +844,7 @@ function DraftForm({
       <Card className="border-destructive/30 bg-destructive/5">
         <CardContent className="py-4">
           <p className="text-destructive text-sm font-medium">
-            Unsupported activity type: {draft.activityType}
+            {t("ai:recordActivity.unsupportedType", { type: draft.activityType })}
           </p>
         </CardContent>
       </Card>
@@ -813,10 +852,10 @@ function DraftForm({
   }
 
   const FormComponent = config.component;
-  const activityTypeDisplay =
-    (ACTIVITY_TYPE_DISPLAY_NAMES as Record<string, string>)[draft.activityType] ??
-    draft.activityType;
-  const cardTitle = `${isEditing ? "Edit" : "Review"} ${activityTypeDisplay.toLowerCase()} activity`;
+  const activityTypeDisplay = localizeActivityTypeName(t, draft.activityType);
+  const cardTitle = isEditing
+    ? t("ai:recordActivity.editActivity", { type: activityTypeDisplay })
+    : t("ai:recordActivity.reviewActivity", { type: activityTypeDisplay });
   const headerAmount =
     draft.amount ??
     (draft.quantity != null && draft.unitPrice != null
@@ -841,19 +880,21 @@ function DraftForm({
               <CardTitle className="text-base">{cardTitle}</CardTitle>
               {draft.isCustomAsset && (
                 <Badge variant="warning" className="text-xs">
-                  Custom Asset
+                  {t("ai:recordActivity.customAsset")}
                 </Badge>
               )}
             </div>
             {draft.isCustomAsset && draft.symbol && (
               <p className="text-warning mt-1 text-xs">
-                "{draft.symbol}" wasn't found. It will be created as a custom asset on save.
+                {t("ai:recordActivity.customAssetHint", { symbol: draft.symbol })}
               </p>
             )}
           </div>
           {headerAmountLabel && (
             <div className="text-right">
-              <div className="text-muted-foreground text-xs font-medium">Estimated total</div>
+              <div className="text-muted-foreground text-xs font-medium">
+                {t("ai:recordActivity.estimatedTotal")}
+              </div>
               <div className="text-lg font-semibold tabular-nums">{headerAmountLabel}</div>
             </div>
           )}
@@ -901,6 +942,7 @@ function RecordActivityToolUIContentImpl({
   status,
   toolCallId,
 }: RecordActivityToolUIContentProps) {
+  const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const parsed = useMemo(() => normalizeResult(result, baseCurrency), [baseCurrency, result]);
@@ -922,10 +964,10 @@ function RecordActivityToolUIContentImpl({
     return (
       <Card className="border-destructive/30 bg-destructive/5">
         <CardContent className="py-4">
-          <p className="text-destructive text-sm font-medium">Failed to prepare activity</p>
-          <p className="text-muted-foreground mt-1 text-xs">
-            The request was interrupted or failed.
+          <p className="text-destructive text-sm font-medium">
+            {t("ai:recordActivity.failedPrepare")}
           </p>
+          <p className="text-muted-foreground mt-1 text-xs">{t("ai:recordActivity.interrupted")}</p>
         </CardContent>
       </Card>
     );
@@ -935,7 +977,7 @@ function RecordActivityToolUIContentImpl({
     return (
       <Card className="border-destructive/30 bg-destructive/5">
         <CardContent className="py-4">
-          <p className="text-destructive text-sm font-medium">No activity data available</p>
+          <p className="text-destructive text-sm font-medium">{t("ai:recordActivity.noData")}</p>
         </CardContent>
       </Card>
     );

@@ -1,0 +1,13 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "accountScope": "all",
+    "currency": "USD",
+    "endDate": "2024-03-01",
+    "startDate": "2024-01-01",
+    "valuations": []
+  }
+}

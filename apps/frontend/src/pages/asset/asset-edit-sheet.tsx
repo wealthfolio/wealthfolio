@@ -6,7 +6,7 @@ import { useCustomProviders } from "@/hooks/use-custom-providers";
 import { useMarketDataProviders } from "@/hooks/use-market-data-providers";
 import { useTaxonomies } from "@/hooks/use-taxonomies";
 import type { Asset, Quote } from "@/lib/types";
-import { formatAmount } from "@/lib/utils";
+import { formatPrice } from "@wealthfolio/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -53,6 +53,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wealthfolio/ui/compon
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Path, useFieldArray, useForm, useWatch } from "react-hook-form";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import * as z from "zod";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { serializeProviderConfig } from "./asset-provider-config";
@@ -72,19 +74,20 @@ const QuoteMode = {
 
 type QuoteMode = (typeof QuoteMode)[keyof typeof QuoteMode];
 
-const assetFormSchema = z.object({
-  name: z.string().optional(),
-  notes: z.string().optional(),
-  isin: z.string().optional(),
-  instrumentType: z.string().optional(),
-  quoteCcy: z.string().min(1, "Currency is required"),
-  instrumentExchangeMic: z.string().optional(),
-  quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]),
-  preferredProvider: z.string().optional(),
-  providerConfig: z.array(providerOverrideSchema).optional(),
-});
+const assetFormSchema = (t: TFunction) =>
+  z.object({
+    name: z.string().optional(),
+    notes: z.string().optional(),
+    isin: z.string().optional(),
+    instrumentType: z.string().optional(),
+    quoteCcy: z.string().min(1, t("asset:editSheet.currency_required")),
+    instrumentExchangeMic: z.string().optional(),
+    quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]),
+    preferredProvider: z.string().optional(),
+    providerConfig: z.array(providerOverrideSchema).optional(),
+  });
 
-type AssetFormValues = z.infer<typeof assetFormSchema>;
+type AssetFormValues = z.infer<ReturnType<typeof assetFormSchema>>;
 type ProviderOverride = z.infer<typeof providerOverrideSchema>;
 
 const normalizeMic = (mic?: string | null): string => mic?.trim().toUpperCase() ?? "";
@@ -115,14 +118,6 @@ function isResolvedByRequestedProvider(
   return resolvedProviderId === requested;
 }
 
-const EDIT_INSTRUMENT_TYPE_OPTIONS = [
-  { value: "EQUITY", label: "Equity (Stock, ETF, Fund)" },
-  { value: "CRYPTO", label: "Cryptocurrency" },
-  { value: "BOND", label: "Bond" },
-  { value: "OPTION", label: "Option" },
-  { value: "METAL", label: "Metal (Commodity)" },
-] as const;
-
 function extractIsin(metadata: unknown): string {
   if (!metadata || typeof metadata !== "object") return "";
   const identifiers = (metadata as Record<string, unknown>).identifiers;
@@ -142,7 +137,7 @@ function parseProviderOverrides(
   for (const [provider, value] of Object.entries(source)) {
     if (typeof value === "object" && value !== null) {
       const obj = value as Record<string, unknown>;
-      const symbol = obj.symbol as string;
+      const symbol = (obj.symbol ?? obj.isin) as string;
       if (symbol) {
         result.push({ provider, symbol });
       }
@@ -177,6 +172,7 @@ function PricingModeToggle({
   isManualMode: boolean;
   onConfirm: () => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const isAutomatic = !isManualMode;
 
@@ -184,11 +180,11 @@ function PricingModeToggle({
     <div className="rounded-lg border p-4">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-1">
-          <Label className="text-sm font-medium">Automatic Updates</Label>
+          <Label className="text-sm font-medium">{t("asset:editSheet.automatic_updates")}</Label>
           <p className="text-muted-foreground text-xs">
             {isAutomatic
-              ? "Prices sync automatically from market data providers."
-              : "Automatic syncing is off. You manage prices manually."}
+              ? t("asset:editSheet.automatic_on_description")
+              : t("asset:editSheet.automatic_off_description")}
           </p>
         </div>
         <Popover open={open} onOpenChange={setOpen}>
@@ -200,32 +196,32 @@ function PricingModeToggle({
           <PopoverContent className="w-[360px] p-4" align="end">
             <div className="space-y-4">
               <h4 className="font-medium">
-                {isAutomatic ? "Disable Automatic Updates?" : "Enable Automatic Updates?"}
+                {isAutomatic
+                  ? t("asset:editSheet.disable_automatic_title")
+                  : t("asset:editSheet.enable_automatic_title")}
               </h4>
               {isAutomatic ? (
                 <>
                   <p className="text-muted-foreground text-sm">
-                    Turning this off will stop automatic price updates. You&apos;ll need to enter
-                    and maintain price data yourself.
+                    {t("asset:editSheet.disable_automatic_description")}
                   </p>
                   <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
-                    Automatic price updates will be disabled.
+                    {t("asset:editSheet.disable_automatic_warning")}
                   </p>
                 </>
               ) : (
                 <>
                   <p className="text-muted-foreground text-sm">
-                    Turning this on will enable price fetching from market data providers. Your
-                    manually entered quotes will be preserved but may be overwritten on sync.
+                    {t("asset:editSheet.enable_automatic_description")}
                   </p>
                   <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
-                    Manual quotes may be replaced by provider data.
+                    {t("asset:editSheet.enable_automatic_warning")}
                   </p>
                 </>
               )}
               <div className="flex justify-end space-x-2">
                 <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
-                  Cancel
+                  {t("common:cancel")}
                 </Button>
                 <Button
                   variant="default"
@@ -235,7 +231,7 @@ function PricingModeToggle({
                     setOpen(false);
                   }}
                 >
-                  Confirm
+                  {t("asset:editSheet.confirm")}
                 </Button>
               </div>
             </div>
@@ -275,6 +271,7 @@ function SymbolMappingRow({
   onRemove,
   onValidationChange,
 }: SymbolMappingRowProps) {
+  const { t } = useTranslation();
   const [validationStatus, setValidationStatus] = useState<SymbolValidationStatus>(
     initialSymbol?.trim() ? "valid" : "idle",
   );
@@ -373,9 +370,9 @@ function SymbolMappingRow({
                   value={providerField.value as string | undefined}
                   onValueChange={providerField.onChange}
                   options={mappingProviderOptions}
-                  placeholder="Select provider"
-                  sheetTitle="Data Provider"
-                  sheetDescription="Select the data provider for this symbol mapping"
+                  placeholder={t("asset:editSheet.select_provider")}
+                  sheetTitle={t("asset:editSheet.data_provider")}
+                  sheetDescription={t("asset:editSheet.data_provider_sheet_description")}
                 />
               </FormControl>
             </FormItem>
@@ -437,6 +434,18 @@ export function AssetEditSheet({
   onOpenChange,
   defaultTab = "general",
 }: AssetEditSheetProps) {
+  const { t } = useTranslation();
+  const EDIT_INSTRUMENT_TYPE_OPTIONS = useMemo(
+    () =>
+      [
+        { value: "EQUITY", label: t("asset:editSheet.instrumentType.equity") },
+        { value: "CRYPTO", label: t("asset:editSheet.instrumentType.crypto") },
+        { value: "BOND", label: t("asset:editSheet.instrumentType.bond") },
+        { value: "OPTION", label: t("asset:editSheet.instrumentType.option") },
+        { value: "METAL", label: t("asset:editSheet.instrumentType.metal") },
+      ] as const,
+    [t],
+  );
   const [activeTab, setActiveTab] = useState<EditTab>(defaultTab);
   const [symbolValidations, setSymbolValidations] = useState<
     Record<string, SymbolValidationStatus>
@@ -464,14 +473,14 @@ export function AssetEditSheet({
 
   const providerOptions: ResponsiveSelectOption[] = useMemo(() => {
     const options: ResponsiveSelectOption[] = [
-      { value: "__auto__", label: "Auto (default)" },
+      { value: "__auto__", label: t("asset:editSheet.auto_default") },
       ...builtinProviders.map((p) => ({ value: p.id, label: p.name })),
     ];
     for (const cp of customProviders) {
       options.push({ value: `CUSTOM:${cp.id}`, label: cp.name });
     }
     return options;
-  }, [builtinProviders, customProviders]);
+  }, [builtinProviders, customProviders, t]);
 
   // Provider options for symbol mapping (without Auto, includes custom providers)
   const mappingProviderOptions: ResponsiveSelectOption[] = useMemo(() => {
@@ -519,7 +528,7 @@ export function AssetEditSheet({
   }, [taxonomies]);
 
   const form = useForm<AssetFormValues>({
-    resolver: zodResolver(assetFormSchema),
+    resolver: zodResolver(assetFormSchema(t)),
     defaultValues: {
       name: asset?.name ?? "",
       notes: asset?.notes ?? "",
@@ -581,9 +590,7 @@ export function AssetEditSheet({
 
       const hasInvalidMappings = Object.values(symbolValidations).some((s) => s === "invalid");
       if (hasInvalidMappings) {
-        toast.warning(
-          "Some symbol mappings could not be validated. Prices may not update for those entries.",
-        );
+        toast.warning(t("asset:editSheet.invalid_mappings_warning"));
       }
 
       // Serialize provider config to nested JSON format
@@ -632,7 +639,7 @@ export function AssetEditSheet({
         // Keep sheet open so user can retry
       }
     },
-    [asset, updateAssetProfileMutation, onOpenChange, symbolValidations],
+    [asset, updateAssetProfileMutation, onOpenChange, symbolValidations, t],
   );
 
   const isManualMode = form.watch("quoteMode") === QuoteMode.MANUAL;
@@ -651,10 +658,10 @@ export function AssetEditSheet({
             <TickerAvatar symbol={asset.displayCode ?? ""} className="size-10" />
             <div className="min-w-0 flex-1">
               <SheetTitle className="truncate text-lg">
-                {asset.displayCode ?? asset.name ?? "Unknown"}
+                {asset.displayCode ?? asset.name ?? t("asset:editSheet.unknown")}
               </SheetTitle>
               <SheetDescription className="truncate text-sm">
-                {asset.name || "Edit asset"}
+                {asset.name || t("asset:editSheet.edit_asset")}
               </SheetDescription>
             </div>
           </div>
@@ -667,19 +674,19 @@ export function AssetEditSheet({
         >
           {asset.kind === "FX" ? (
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="general">General</TabsTrigger>
-              <TabsTrigger value="market-data">Market Data</TabsTrigger>
+              <TabsTrigger value="general">{t("asset:editSheet.general")}</TabsTrigger>
+              <TabsTrigger value="market-data">{t("asset:editSheet.market_data")}</TabsTrigger>
             </TabsList>
           ) : (
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="general" className="px-1.5 text-xs sm:px-3 sm:text-sm">
-                General
+                {t("asset:editSheet.general")}
               </TabsTrigger>
               <TabsTrigger value="classification" className="px-1.5 text-xs sm:px-3 sm:text-sm">
-                Classification
+                {t("asset:editSheet.classification")}
               </TabsTrigger>
               <TabsTrigger value="market-data" className="px-1.5 text-xs sm:px-3 sm:text-sm">
-                Market Data
+                {t("asset:editSheet.market_data")}
               </TabsTrigger>
             </TabsList>
           )}
@@ -694,7 +701,9 @@ export function AssetEditSheet({
                     <div className="space-y-6">
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">Base Currency</label>
+                          <label className="text-sm font-medium">
+                            {t("asset:editSheet.base_currency")}
+                          </label>
                           <Input
                             value={asset.instrumentSymbol ?? ""}
                             disabled
@@ -702,7 +711,9 @@ export function AssetEditSheet({
                           />
                         </div>
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">Quote Currency</label>
+                          <label className="text-sm font-medium">
+                            {t("asset:editSheet.quote_currency")}
+                          </label>
                           <Input value={asset.quoteCcy ?? ""} disabled className="bg-muted/50" />
                         </div>
                       </div>
@@ -712,9 +723,12 @@ export function AssetEditSheet({
                         name="name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Name</FormLabel>
+                            <FormLabel>{t("asset:editSheet.name")}</FormLabel>
                             <FormControl>
-                              <Input placeholder="Asset display name" {...field} />
+                              <Input
+                                placeholder={t("asset:editSheet.name_placeholder")}
+                                {...field}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -726,10 +740,10 @@ export function AssetEditSheet({
                         name="isin"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>ISIN</FormLabel>
+                            <FormLabel>{t("asset:editSheet.isin")}</FormLabel>
                             <FormControl>
                               <Input
-                                placeholder="e.g. FR0010959676"
+                                placeholder={t("asset:editSheet.isin_placeholder")}
                                 className="font-mono uppercase"
                                 {...field}
                                 onChange={(e) => field.onChange(e.target.value.toUpperCase())}
@@ -745,11 +759,11 @@ export function AssetEditSheet({
                         name="notes"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Notes</FormLabel>
+                            <FormLabel>{t("asset:editSheet.notes")}</FormLabel>
                             <FormControl>
                               <Textarea
                                 rows={6}
-                                placeholder="Add any context or links"
+                                placeholder={t("asset:editSheet.notes_placeholder")}
                                 {...field}
                               />
                             </FormControl>
@@ -760,10 +774,12 @@ export function AssetEditSheet({
 
                       <div className="flex justify-end gap-3 pt-4">
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                          Cancel
+                          {t("common:cancel")}
                         </Button>
                         <Button type="submit" disabled={isSaving}>
-                          {isSaving ? "Saving..." : "Save Changes"}
+                          {isSaving
+                            ? t("asset:editSheet.saving")
+                            : t("asset:editSheet.save_changes")}
                         </Button>
                       </div>
                     </div>
@@ -772,7 +788,9 @@ export function AssetEditSheet({
                     <div className="space-y-6">
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">Symbol</label>
+                          <label className="text-sm font-medium">
+                            {t("asset:editSheet.symbol")}
+                          </label>
                           <Input value={asset.displayCode ?? ""} disabled className="bg-muted/50" />
                         </div>
                         <FormField
@@ -780,12 +798,12 @@ export function AssetEditSheet({
                           name="quoteCcy"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Currency</FormLabel>
+                              <FormLabel>{t("asset:editSheet.currency")}</FormLabel>
                               <FormControl>
                                 <CurrencyInput
                                   value={field.value}
                                   onChange={field.onChange}
-                                  placeholder="Select currency"
+                                  placeholder={t("asset:editSheet.select_currency")}
                                   valueDisplay="code"
                                   allowCustom
                                 />
@@ -802,9 +820,12 @@ export function AssetEditSheet({
                         name="name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Name</FormLabel>
+                            <FormLabel>{t("asset:editSheet.name")}</FormLabel>
                             <FormControl>
-                              <Input placeholder="Asset display name" {...field} />
+                              <Input
+                                placeholder={t("asset:editSheet.name_placeholder")}
+                                {...field}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -816,10 +837,10 @@ export function AssetEditSheet({
                         name="isin"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>ISIN</FormLabel>
+                            <FormLabel>{t("asset:editSheet.isin")}</FormLabel>
                             <FormControl>
                               <Input
-                                placeholder="e.g. FR0010959676"
+                                placeholder={t("asset:editSheet.isin_placeholder")}
                                 className="font-mono uppercase"
                                 {...field}
                                 onChange={(e) => field.onChange(e.target.value.toUpperCase())}
@@ -835,11 +856,11 @@ export function AssetEditSheet({
                         name="notes"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Notes</FormLabel>
+                            <FormLabel>{t("asset:editSheet.notes")}</FormLabel>
                             <FormControl>
                               <Textarea
                                 rows={10}
-                                placeholder="Add any context or links"
+                                placeholder={t("asset:editSheet.notes_placeholder")}
                                 {...field}
                               />
                             </FormControl>
@@ -855,7 +876,7 @@ export function AssetEditSheet({
                           name="instrumentType"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Instrument Type</FormLabel>
+                              <FormLabel>{t("asset:editSheet.instrument_type")}</FormLabel>
                               <Select
                                 onValueChange={field.onChange}
                                 value={field.value ?? ""}
@@ -863,7 +884,7 @@ export function AssetEditSheet({
                               >
                                 <FormControl>
                                   <SelectTrigger className="h-11">
-                                    <SelectValue placeholder="Select type" />
+                                    <SelectValue placeholder={t("asset:editSheet.select_type")} />
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
@@ -884,14 +905,14 @@ export function AssetEditSheet({
                           name="instrumentExchangeMic"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Exchange</FormLabel>
+                              <FormLabel>{t("asset:editSheet.exchange")}</FormLabel>
                               <FormControl>
                                 <SearchableSelect
                                   options={exchangeOptions}
                                   value={field.value ?? ""}
                                   onValueChange={field.onChange}
-                                  placeholder="Select exchange"
-                                  searchPlaceholder="Search exchanges..."
+                                  placeholder={t("asset:editSheet.select_exchange")}
+                                  searchPlaceholder={t("asset:editSheet.search_exchanges")}
                                   className="h-11"
                                 />
                               </FormControl>
@@ -908,15 +929,16 @@ export function AssetEditSheet({
                           onClick={() => onOpenChange(false)}
                           disabled={isSaving}
                         >
-                          Cancel
+                          {t("common:cancel")}
                         </Button>
                         <Button type="submit" disabled={isSaving}>
                           {isSaving ? (
                             <span className="flex items-center gap-2">
-                              <Icons.Spinner className="h-4 w-4 animate-spin" /> Saving
+                              <Icons.Spinner className="h-4 w-4 animate-spin" />{" "}
+                              {t("asset:editSheet.saving_short")}
                             </span>
                           ) : (
-                            "Save changes"
+                            t("asset:editSheet.save_changes_lower")
                           )}
                         </Button>
                       </div>
@@ -936,7 +958,7 @@ export function AssetEditSheet({
                   multiSelectTaxonomies.length === 0 && (
                     <div className="py-8 text-center">
                       <p className="text-muted-foreground text-sm">
-                        No taxonomies configured. Create taxonomies in Settings to classify assets.
+                        {t("asset:editSheet.no_taxonomies")}
                       </p>
                     </div>
                   )}
@@ -974,9 +996,11 @@ export function AssetEditSheet({
                         <div className="grid grid-cols-3 gap-4 text-center">
                           <div>
                             <p className="text-xl font-semibold">
-                              {formatAmount(latestQuote.close, latestQuote.currency)}
+                              {formatPrice(latestQuote.close, latestQuote.currency)}
                             </p>
-                            <p className="text-muted-foreground text-xs">Latest price</p>
+                            <p className="text-muted-foreground text-xs">
+                              {t("asset:editSheet.latest_price")}
+                            </p>
                           </div>
                           <div>
                             <p className="text-sm font-medium">
@@ -993,15 +1017,16 @@ export function AssetEditSheet({
                             <Badge variant="secondary" className="text-xs">
                               {latestQuote.dataSource}
                             </Badge>
-                            <p className="text-muted-foreground mt-1 text-xs">Source</p>
+                            <p className="text-muted-foreground mt-1 text-xs">
+                              {t("asset:editSheet.source")}
+                            </p>
                           </div>
                         </div>
                       ) : (
                         <Alert variant="destructive" className="border-0 bg-transparent p-0">
                           <Icons.AlertCircle className="h-4 w-4" />
                           <AlertDescription>
-                            Unable to fetch price data for this asset. Check if the symbol is
-                            correct or try adding a symbol mapping below.
+                            {t("asset:editSheet.price_fetch_error")}
                           </AlertDescription>
                         </Alert>
                       )}
@@ -1025,7 +1050,7 @@ export function AssetEditSheet({
                         name="preferredProvider"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Preferred Provider</FormLabel>
+                            <FormLabel>{t("asset:editSheet.preferred_provider")}</FormLabel>
                             {customProviders.length > 0 ? (
                               <Select
                                 value={field.value ?? "__auto__"}
@@ -1035,13 +1060,15 @@ export function AssetEditSheet({
                               >
                                 <FormControl>
                                   <SelectTrigger className="h-11">
-                                    <SelectValue placeholder="Auto (default)" />
+                                    <SelectValue placeholder={t("asset:editSheet.auto_default")} />
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  <SelectItem value="__auto__">Auto (default)</SelectItem>
+                                  <SelectItem value="__auto__">
+                                    {t("asset:editSheet.auto_default")}
+                                  </SelectItem>
                                   <SelectGroup>
-                                    <SelectLabel>Built-in</SelectLabel>
+                                    <SelectLabel>{t("asset:editSheet.builtin")}</SelectLabel>
                                     {builtinProviders.map((p) => (
                                       <SelectItem key={p.id} value={p.id}>
                                         {p.name}
@@ -1049,7 +1076,7 @@ export function AssetEditSheet({
                                     ))}
                                   </SelectGroup>
                                   <SelectGroup>
-                                    <SelectLabel>Custom</SelectLabel>
+                                    <SelectLabel>{t("asset:editSheet.custom")}</SelectLabel>
                                     {customProviders.map((cp) => (
                                       <SelectItem key={cp.id} value={`CUSTOM:${cp.id}`}>
                                         {cp.name}
@@ -1066,15 +1093,17 @@ export function AssetEditSheet({
                                     field.onChange(v === "__auto__" ? undefined : v)
                                   }
                                   options={providerOptions}
-                                  placeholder="Auto (default)"
-                                  sheetTitle="Preferred Provider"
-                                  sheetDescription="Select which provider to use first for this asset"
+                                  placeholder={t("asset:editSheet.auto_default")}
+                                  sheetTitle={t("asset:editSheet.preferred_provider")}
+                                  sheetDescription={t(
+                                    "asset:editSheet.preferred_provider_sheet_description",
+                                  )}
                                   triggerClassName="h-11"
                                 />
                               </FormControl>
                             )}
                             <p className="text-muted-foreground text-xs">
-                              Choose which provider to try first when fetching prices.
+                              {t("asset:editSheet.preferred_provider_hint")}
                             </p>
                           </FormItem>
                         )}
@@ -1086,10 +1115,11 @@ export function AssetEditSheet({
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <div>
-                            <label className="text-sm font-medium">Symbol Mapping</label>
+                            <label className="text-sm font-medium">
+                              {t("asset:editSheet.symbol_mapping")}
+                            </label>
                             <p className="text-muted-foreground text-xs">
-                              Use a different ticker for specific providers if the default
-                              doesn&apos;t work.
+                              {t("asset:editSheet.symbol_mapping_hint")}
                             </p>
                           </div>
                           <Button
@@ -1099,7 +1129,7 @@ export function AssetEditSheet({
                             onClick={() => appendOverride({ provider: "YAHOO", symbol: "" })}
                           >
                             <Icons.Plus className="mr-1 h-3 w-3" />
-                            Add
+                            {t("asset:editSheet.add")}
                           </Button>
                         </div>
 
@@ -1107,10 +1137,12 @@ export function AssetEditSheet({
                           <div className="rounded-lg border border-dashed p-6 text-center">
                             <Icons.Link className="text-muted-foreground/50 mx-auto h-8 w-8" />
                             <p className="text-muted-foreground mt-2 text-sm">
-                              No symbol mappings configured
+                              {t("asset:editSheet.no_mappings")}
                             </p>
                             <p className="text-muted-foreground text-xs">
-                              Using &quot;{asset.displayCode ?? ""}&quot; for all providers.
+                              {t("asset:editSheet.using_symbol_for_all", {
+                                symbol: asset.displayCode ?? "",
+                              })}
                             </p>
                           </div>
                         ) : (
@@ -1119,10 +1151,10 @@ export function AssetEditSheet({
                               <thead>
                                 <tr className="bg-muted/50 border-b">
                                   <th className="text-muted-foreground px-4 py-2 text-left text-xs font-medium">
-                                    Provider
+                                    {t("asset:editSheet.provider")}
                                   </th>
                                   <th className="text-muted-foreground px-4 py-2 text-left text-xs font-medium">
-                                    Symbol
+                                    {t("asset:editSheet.symbol")}
                                   </th>
                                   <th className="w-10"></th>
                                 </tr>
@@ -1162,7 +1194,7 @@ export function AssetEditSheet({
                         onClick={() => onOpenChange(false)}
                         disabled={isSaving}
                       >
-                        Cancel
+                        {t("common:cancel")}
                       </Button>
                       <Button
                         type="button"
@@ -1171,10 +1203,11 @@ export function AssetEditSheet({
                       >
                         {isSaving ? (
                           <span className="flex items-center gap-2">
-                            <Icons.Spinner className="h-4 w-4 animate-spin" /> Saving
+                            <Icons.Spinner className="h-4 w-4 animate-spin" />{" "}
+                            {t("asset:editSheet.saving_short")}
                           </span>
                         ) : (
-                          "Save changes"
+                          t("asset:editSheet.save_changes_lower")
                         )}
                       </Button>
                     </div>
@@ -1192,7 +1225,7 @@ export function AssetEditSheet({
             className="w-full"
             onClick={() => onOpenChange(false)}
           >
-            Close
+            {t("asset:editSheet.close")}
           </Button>
         </div>
       </SheetContent>

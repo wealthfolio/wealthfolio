@@ -46,6 +46,7 @@ tokio-stream = "0.1"
 rust_decimal = { workspace = true }
 
 # Sibling crates
+wealthfolio-agent-tools = { path = "../agent-tools" }
 wealthfolio-core = { path = "../core" }
 wealthfolio-spending = { path = "../spending" }
 

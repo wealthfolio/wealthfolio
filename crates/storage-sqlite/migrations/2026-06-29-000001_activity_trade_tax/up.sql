@@ -1,0 +1,4 @@
+ALTER TABLE activities ADD COLUMN tax TEXT;
+
+ALTER TABLE lots ADD COLUMN tax_allocated TEXT NOT NULL DEFAULT '0';
+ALTER TABLE lots ADD COLUMN tax_allocated_base TEXT NOT NULL DEFAULT '0';

@@ -55,6 +55,8 @@ struct ActivitySearchBody {
     date_to: Option<String>, // YYYY-MM-DD format
     #[serde(rename = "instrumentTypeFilter")]
     instrument_type_filter: Option<StringOrVec>,
+    #[serde(rename = "activityIdFilter")]
+    activity_id_filter: Option<StringOrVec>,
 }
 
 async fn search_activities(
@@ -82,6 +84,11 @@ async fn search_activities(
         Some(StringOrVec::Many(v)) => Some(v),
         None => None,
     };
+    let activity_ids: Option<Vec<String>> = match body.activity_id_filter {
+        Some(StringOrVec::One(s)) => Some(vec![s]),
+        Some(StringOrVec::Many(v)) => Some(v),
+        None => None,
+    };
     // Parse date filters
     let date_from_parsed = parse_date_optional(body.date_from, "dateFrom")?;
     let date_to_parsed = parse_date_optional(body.date_to, "dateTo")?;
@@ -101,6 +108,7 @@ async fn search_activities(
         date_from_utc,
         date_to_utc_exclusive,
         instrument_types,
+        activity_ids,
     )?;
     Ok(Json(resp))
 }

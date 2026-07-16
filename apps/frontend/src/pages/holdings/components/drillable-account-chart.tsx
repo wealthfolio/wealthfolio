@@ -4,7 +4,7 @@ import { useAccountsSimplePerformance } from "@/hooks/use-accounts-simple-perfor
 import { useDrillDownState } from "@/hooks/use-drill-down-state";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
-import type { Account } from "@/lib/types";
+import type { Account, AccountValueSource } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import {
   Card,
@@ -16,10 +16,12 @@ import {
   Skeleton,
 } from "@wealthfolio/ui";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface DrillableAccountChartProps {
   isLoading?: boolean;
   accountIds?: string[];
+  accountValuations?: AccountValueSource[];
   onAccountClick?: (accountId: string, accountName: string) => void;
 }
 
@@ -31,8 +33,10 @@ interface DrillableAccountChartProps {
 export function DrillableAccountChart({
   isLoading: isLoadingProp,
   accountIds,
+  accountValuations,
   onAccountClick,
 }: DrillableAccountChartProps) {
+  const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const [activeIndex, setActiveIndex] = useState(0);
@@ -45,37 +49,40 @@ export function DrillableAccountChart({
 
   const accounts = accountIds ? allAccounts.filter((a) => accountIds.includes(a.id)) : allAccounts;
 
-  const { data: performanceData, isLoading: isLoadingPerformance } =
-    useAccountsSimplePerformance(accounts);
+  const { data: performanceData, isLoading: isLoadingPerformance } = useAccountsSimplePerformance(
+    accounts,
+    { enabled: accountValuations === undefined },
+  );
 
-  const isLoading = isLoadingProp || isLoadingAccounts || isLoadingPerformance;
+  const isLoading =
+    isLoadingProp || isLoadingAccounts || (accountValuations === undefined && isLoadingPerformance);
 
   // Build account data with group info
   const accountsWithValues = useMemo(() => {
-    if (!accounts?.length || !performanceData) return [];
+    const valuationData: AccountValueSource[] | undefined = accountValuations ?? performanceData;
+    if (!accounts?.length || !valuationData) return [];
 
     return accounts
       .map((account) => {
-        const perf = performanceData.find((p) => p.accountId === account.id);
-        if (!perf) return null;
+        const valuation = valuationData.find((p) => p.accountId === account.id);
+        if (!valuation) return null;
 
-        const valueAcct = Number(perf.totalValue) || 0;
-        if (valueAcct <= 0) return null;
-
-        const fxRate = Number(perf.fxRateToBase) || 1;
-        const valueBase = valueAcct * fxRate;
-        const currency = perf.baseCurrency || account.currency || baseCurrency;
+        const valueBase =
+          valuation.totalValueBase != null
+            ? Number(valuation.totalValueBase) || 0
+            : (Number(valuation.totalValue) || 0) * (Number(valuation.fxRateToBase) || 1);
+        if (valueBase <= 0) return null;
 
         return {
           id: account.id,
           name: account.name,
           group: account.group || account.name, // Use name as group if no group
           value: valueBase,
-          currency,
+          currency: baseCurrency,
         };
       })
       .filter((a): a is NonNullable<typeof a> => a !== null);
-  }, [accounts, performanceData, baseCurrency]);
+  }, [accounts, accountValuations, performanceData, baseCurrency]);
 
   // Root level: grouped by account group
   const groupedData = useMemo(() => {
@@ -176,12 +183,12 @@ export function DrillableAccountChart({
       <CardHeader className="px-5 pb-1 pt-5">
         {isAtRoot ? (
           <CardTitle className="text-muted-foreground text-[12px] font-semibold uppercase tracking-[0.18em]">
-            Accounts
+            {t("holdings:accounts")}
           </CardTitle>
         ) : (
           <AllocationBreadcrumb
             path={path}
-            rootLabel="Accounts"
+            rootLabel={t("holdings:accounts")}
             onNavigate={handleBreadcrumbNavigate}
           />
         )}
@@ -196,7 +203,7 @@ export function DrillableAccountChart({
             endAngle={0}
           />
         ) : (
-          <EmptyPlaceholder description="No account data available." />
+          <EmptyPlaceholder description={t("holdings:no_account_data")} />
         )}
       </CardContent>
     </Card>

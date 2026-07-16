@@ -3,6 +3,7 @@
 // ==========================================
 
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui";
 import { logSyncError, userFacingSyncErrorMessage } from "../../utils/error-messages";
@@ -28,6 +29,7 @@ export function PairingResult({
   retryLabel,
   doneLabel,
 }: PairingResultProps) {
+  const { t } = useTranslation();
   const hasCalledDone = useRef(false);
 
   useEffect(() => {
@@ -52,11 +54,13 @@ export function PairingResult({
           <Icons.CheckCircle className="h-10 w-10 text-green-600 dark:text-green-500" />
         </div>
         <div className="mb-6 text-center">
-          <p className="text-foreground text-lg font-semibold">You&apos;re all set!</p>
-          <p className="text-muted-foreground mt-2 text-sm">Device connected successfully</p>
+          <p className="text-foreground text-lg font-semibold">{t("sync:result.allSet")}</p>
+          <p className="text-muted-foreground mt-2 text-sm">
+            {t("sync:result.connectedSuccessfully")}
+          </p>
         </div>
         <Button className="w-full max-w-[200px]" onClick={onDone}>
-          Done
+          {t("sync:result.done")}
         </Button>
       </div>
     );
@@ -68,7 +72,9 @@ export function PairingResult({
         <Icons.XCircle className="h-10 w-10 text-red-600 dark:text-red-500" />
       </div>
       <div className="mb-6 text-center">
-        <p className="text-foreground text-base font-semibold">Connection failed</p>
+        <p className="text-foreground text-base font-semibold">
+          {t("sync:result.connectionFailed")}
+        </p>
         <p className="text-muted-foreground mt-2 max-h-40 max-w-[320px] overflow-y-auto whitespace-pre-wrap break-words text-sm">
           {formatError(error)}
         </p>
@@ -76,11 +82,11 @@ export function PairingResult({
       <div className="flex gap-3">
         {onRetry && (
           <Button variant="outline" onClick={onRetry}>
-            {retryLabel ?? "Try Again"}
+            {retryLabel ?? t("sync:result.tryAgain")}
           </Button>
         )}
         <Button variant={onRetry ? "ghost" : "default"} onClick={onDone}>
-          {doneLabel ?? (onRetry ? "Cancel" : "Close")}
+          {doneLabel ?? (onRetry ? t("common:cancel") : t("common:close"))}
         </Button>
       </div>
     </div>

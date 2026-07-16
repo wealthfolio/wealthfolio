@@ -2,7 +2,10 @@ use std::collections::{HashMap, HashSet};
 
 use rust_decimal::Decimal;
 
-use super::{Activity, ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT};
+use super::{
+    activities_constants::is_cash_symbol, Activity, ACTIVITY_TYPE_TRANSFER_IN,
+    ACTIVITY_TYPE_TRANSFER_OUT,
+};
 
 fn transfer_pair_tolerance() -> Decimal {
     Decimal::new(1, 6)
@@ -142,6 +145,37 @@ fn is_transfer(activity: &Activity) -> bool {
     )
 }
 
+fn non_cash_transfer_asset_key(activity: &Activity) -> Option<String> {
+    activity
+        .asset_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|asset_id| !asset_id.is_empty() && !is_cash_symbol(asset_id))
+        .map(str::to_uppercase)
+}
+
+fn is_cash_transfer(activity: &Activity) -> bool {
+    non_cash_transfer_asset_key(activity).is_none()
+}
+
+fn has_positive_cash_amount(activity: &Activity) -> bool {
+    activity.amount.is_some_and(|amount| !amount.is_zero())
+}
+
+pub fn is_same_account_cash_fx_conversion(transfer_in: &Activity, transfer_out: &Activity) -> bool {
+    transfer_in.effective_type() == ACTIVITY_TYPE_TRANSFER_IN
+        && transfer_out.effective_type() == ACTIVITY_TYPE_TRANSFER_OUT
+        && transfer_in.account_id == transfer_out.account_id
+        && is_cash_transfer(transfer_in)
+        && is_cash_transfer(transfer_out)
+        && has_positive_cash_amount(transfer_in)
+        && has_positive_cash_amount(transfer_out)
+        && !transfer_in
+            .currency
+            .trim()
+            .eq_ignore_ascii_case(transfer_out.currency.trim())
+}
+
 fn build_transfer_pair(group_id: &str, activities: &[Activity]) -> Result<TransferPair, String> {
     if activities.len() != 2 {
         return Err(format!(
@@ -170,8 +204,13 @@ fn build_transfer_pair(group_id: &str, activities: &[Activity]) -> Result<Transf
     let transfer_in = transfer_in[0];
     let transfer_out = transfer_out[0];
 
-    if transfer_in.account_id == transfer_out.account_id {
-        return Err("transfer legs use the same account".to_string());
+    if transfer_in.account_id == transfer_out.account_id
+        && !is_same_account_cash_fx_conversion(transfer_in, transfer_out)
+    {
+        return Err(
+            "same-account transfer legs must be cash FX conversions with different currencies"
+                .to_string(),
+        );
     }
 
     validate_asset_shape(transfer_in, transfer_out)?;
@@ -184,9 +223,9 @@ fn build_transfer_pair(group_id: &str, activities: &[Activity]) -> Result<Transf
 }
 
 fn validate_asset_shape(transfer_in: &Activity, transfer_out: &Activity) -> Result<(), String> {
-    let in_asset = transfer_in.asset_id.as_deref().unwrap_or("").trim();
-    let out_asset = transfer_out.asset_id.as_deref().unwrap_or("").trim();
-    if in_asset.is_empty() && out_asset.is_empty() {
+    let in_asset = non_cash_transfer_asset_key(transfer_in);
+    let out_asset = non_cash_transfer_asset_key(transfer_out);
+    if in_asset.is_none() && out_asset.is_none() {
         return Ok(());
     }
 
@@ -215,6 +254,7 @@ mod tests {
         activity_type: &str,
         account_id: &str,
         group_id: Option<&str>,
+        currency: &str,
     ) -> Activity {
         Activity {
             id: id.to_string(),
@@ -231,7 +271,8 @@ mod tests {
             unit_price: None,
             amount: Some(Decimal::ONE),
             fee: None,
-            currency: "USD".to_string(),
+            tax: None,
+            currency: currency.to_string(),
             fx_rate: None,
             notes: None,
             metadata: None,
@@ -250,8 +291,8 @@ mod tests {
     #[test]
     fn same_group_opposite_transfers_in_different_accounts_is_valid_pair() {
         let resolution = TransferPairResolution::from_activities(&[
-            activity("out", ACTIVITY_TYPE_TRANSFER_OUT, "a1", Some("g1")),
-            activity("in", ACTIVITY_TYPE_TRANSFER_IN, "a2", Some("g1")),
+            activity("out", ACTIVITY_TYPE_TRANSFER_OUT, "a1", Some("g1"), "USD"),
+            activity("in", ACTIVITY_TYPE_TRANSFER_IN, "a2", Some("g1"), "USD"),
         ]);
 
         assert_eq!(resolution.pairs().len(), 1);
@@ -264,11 +305,56 @@ mod tests {
     }
 
     #[test]
-    fn same_account_group_is_invalid_not_pair() {
+    fn same_account_cash_fx_group_is_valid_pair() {
         let resolution = TransferPairResolution::from_activities(&[
-            activity("out", ACTIVITY_TYPE_TRANSFER_OUT, "a1", Some("g1")),
-            activity("in", ACTIVITY_TYPE_TRANSFER_IN, "a1", Some("g1")),
+            activity("out", ACTIVITY_TYPE_TRANSFER_OUT, "a1", Some("g1"), "USD"),
+            activity("in", ACTIVITY_TYPE_TRANSFER_IN, "a1", Some("g1"), "CAD"),
         ]);
+
+        assert_eq!(resolution.pairs().len(), 1);
+        assert!(resolution.invalid_group_for_activity("out").is_none());
+        assert_eq!(
+            resolution
+                .pair_for_activity("out")
+                .and_then(|pair| pair.counterparty_account_id("out")),
+            Some("a1")
+        );
+    }
+
+    #[test]
+    fn same_account_cash_fx_group_with_cash_placeholder_assets_is_valid_pair() {
+        let mut transfer_out = activity("out", ACTIVITY_TYPE_TRANSFER_OUT, "a1", Some("g1"), "USD");
+        transfer_out.asset_id = Some("$CASH-USD".to_string());
+        let mut transfer_in = activity("in", ACTIVITY_TYPE_TRANSFER_IN, "a1", Some("g1"), "CAD");
+        transfer_in.asset_id = Some("CASH:CAD".to_string());
+
+        let resolution = TransferPairResolution::from_activities(&[transfer_out, transfer_in]);
+
+        assert_eq!(resolution.pairs().len(), 1);
+        assert!(resolution.invalid_group_for_activity("out").is_none());
+    }
+
+    #[test]
+    fn same_account_same_currency_cash_group_is_invalid_not_pair() {
+        let resolution = TransferPairResolution::from_activities(&[
+            activity("out", ACTIVITY_TYPE_TRANSFER_OUT, "a1", Some("g1"), "USD"),
+            activity("in", ACTIVITY_TYPE_TRANSFER_IN, "a1", Some("g1"), "USD"),
+        ]);
+
+        assert!(resolution.pair_for_activity("out").is_none());
+        assert!(resolution.invalid_group_for_activity("out").is_some());
+    }
+
+    #[test]
+    fn same_account_security_group_is_invalid_not_pair() {
+        let mut transfer_out = activity("out", ACTIVITY_TYPE_TRANSFER_OUT, "a1", Some("g1"), "USD");
+        transfer_out.asset_id = Some("AAPL".to_string());
+        transfer_out.quantity = Some(Decimal::ONE);
+        let mut transfer_in = activity("in", ACTIVITY_TYPE_TRANSFER_IN, "a1", Some("g1"), "CAD");
+        transfer_in.asset_id = Some("AAPL".to_string());
+        transfer_in.quantity = Some(Decimal::ONE);
+
+        let resolution = TransferPairResolution::from_activities(&[transfer_out, transfer_in]);
 
         assert!(resolution.pair_for_activity("out").is_none());
         assert!(resolution.invalid_group_for_activity("out").is_some());
@@ -281,6 +367,7 @@ mod tests {
             ACTIVITY_TYPE_TRANSFER_OUT,
             "a1",
             Some("g1"),
+            "USD",
         )]);
 
         assert!(resolution.pair_for_activity("out").is_none());

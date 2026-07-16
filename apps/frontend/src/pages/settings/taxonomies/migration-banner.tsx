@@ -1,8 +1,10 @@
 import { Alert, AlertDescription, AlertTitle, Button, Icons } from "@wealthfolio/ui";
 import { useMigrationStatus, useMigrateLegacyClassifications } from "@/hooks/use-taxonomies";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 export function MigrationBanner() {
+  const { t } = useTranslation();
   const { data: status, isLoading } = useMigrationStatus();
   const migrateMutation = useMigrateLegacyClassifications();
 
@@ -15,33 +17,35 @@ export function MigrationBanner() {
     try {
       const result = await migrateMutation.mutateAsync();
       toast.success(
-        `Migration complete! ${result.sectorsMigrated} sectors and ${result.countriesMigrated} countries migrated.`,
+        t("settings:tax_migration_success", {
+          sectors: result.sectorsMigrated,
+          countries: result.countriesMigrated,
+        }),
       );
       if (result.errors.length > 0) {
-        toast.warning(`${result.errors.length} items could not be matched and were skipped.`);
+        toast.warning(t("settings:tax_migration_skipped", { count: result.errors.length }));
       }
     } catch (_error) {
-      toast.error("Migration failed. Please try again.");
+      toast.error(t("settings:tax_migration_failed"));
     }
   };
 
   return (
     <Alert className="mb-6">
       <Icons.Info className="h-4 w-4" />
-      <AlertTitle>Migrate Legacy Classifications</AlertTitle>
+      <AlertTitle>{t("settings:tax_migration_title")}</AlertTitle>
       <AlertDescription className="mt-2">
         <p className="mb-3">
-          {status.assetsWithLegacyData} assets have legacy sector/country data that can be migrated
-          to the new taxonomy system for better organization and analytics.
+          {t("settings:tax_migration_body", { count: status.assetsWithLegacyData })}
         </p>
         <Button onClick={handleMigrate} disabled={migrateMutation.isPending} size="sm">
           {migrateMutation.isPending ? (
             <>
               <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-              Migrating...
+              {t("settings:tax_migrating")}
             </>
           ) : (
-            "Start Migration"
+            t("settings:tax_start_migration")
           )}
         </Button>
       </AlertDescription>

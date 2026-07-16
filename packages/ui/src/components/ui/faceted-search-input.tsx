@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
 import { Icons } from "./icons";
 
@@ -16,6 +17,7 @@ export function FacetedSearchInput({
   className,
   ...props
 }: FacetedSearchInputProps) {
+  const { t } = useTranslation();
   const handleClear = () => {
     onChange("");
     onClear?.();
@@ -43,7 +45,7 @@ export function FacetedSearchInput({
           className="text-muted-foreground hover:text-foreground absolute right-2 top-1/2 -translate-y-1/2"
         >
           <Icons.Close className="h-4 w-4" />
-          <span className="sr-only">Clear search</span>
+          <span className="sr-only">{t("ui:search.clear", "Clear search")}</span>
         </button>
       )}
     </div>

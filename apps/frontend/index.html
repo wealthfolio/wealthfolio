@@ -13,31 +13,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Wealthfolio</title>
-    <style>
-      /* Prevent mobile viewport bouncing */
-      html,
-      body {
-        touch-action: pan-x pan-y;
-        overscroll-behavior: none;
-      }
-
-      /* Simulate a Splash screen before react app mount */
-      body {
-        background-color: #09090b;
-        background-image: url("/logo-gold.png");
-        background-repeat: no-repeat;
-        background-position: center center;
-        background-size: 100px auto;
-        background-attachment: fixed;
-      }
-
-      /* Ensure root content sits above the background */
-      #root {
-        position: relative;
-        z-index: 1;
-        background-color: transparent;
-      }
-    </style>
+    <!-- Splash styles live in an external file on purpose: an inline <style>
+         here makes Tauri nonce the CSP style-src at runtime, which disables
+         'unsafe-inline' and breaks runtime-injected styles (NumberFlow, sonner,
+         addon CSS) in packaged builds. See public/splash.css. -->
+    <link rel="stylesheet" href="/splash.css" />
   </head>
 
   <body class="overflow-x-hidden font-mono">

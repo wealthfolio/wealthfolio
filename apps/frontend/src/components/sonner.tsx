@@ -4,6 +4,12 @@ import { Icons } from "@wealthfolio/ui";
 import { createPortal } from "react-dom";
 
 import { Toaster as Sonner, type ToasterProps } from "sonner";
+// Bundle Sonner's stylesheet from 'self' rather than depending on its runtime
+// <style> injection. Per the CSP spec, a single hash or nonce in style-src
+// disables 'unsafe-inline' for the whole document, silently blocking runtime
+// style injection in packaged builds (see the comments in index.html and
+// public/splash.css) — the bundled stylesheet keeps toasts styled either way.
+import "sonner/dist/styles.css";
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { settings } = useSettingsContext();

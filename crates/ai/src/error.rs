@@ -47,6 +47,23 @@ pub enum AiError {
     Internal(String),
 }
 
+/// Map shared agent-tool errors back to the assistant's error type,
+/// preserving the user/model-visible display string exactly:
+/// `ExecutionFailed` and `ToolExecutionFailed` both display as
+/// "Tool execution failed: {msg}", `InvalidInput` displays as the bare
+/// message on both sides.
+impl From<wealthfolio_agent_tools::AgentToolError> for AiError {
+    fn from(err: wealthfolio_agent_tools::AgentToolError) -> Self {
+        use wealthfolio_agent_tools::AgentToolError as ToolError;
+        match err {
+            ToolError::InvalidInput(msg) => AiError::InvalidInput(msg),
+            ToolError::InvalidArgs(e) => AiError::InvalidInput(e.to_string()),
+            ToolError::ExecutionFailed(msg) => AiError::ToolExecutionFailed(msg),
+            other => AiError::ToolExecutionFailed(other.to_string()),
+        }
+    }
+}
+
 impl AiError {
     /// Create a new invalid input error.
     pub fn invalid_input(msg: impl Into<String>) -> Self {

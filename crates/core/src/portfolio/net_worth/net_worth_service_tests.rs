@@ -8,11 +8,13 @@ use crate::assets::{
 };
 use crate::errors::Result;
 use crate::fx::{ExchangeRate, FxServiceTrait, NewExchangeRate};
+use crate::portfolio::economic_events::BasisStatus;
 use crate::portfolio::snapshot::{
     AccountStateSnapshot, Position, SnapshotRepositoryTrait, SnapshotSource,
 };
 use crate::portfolio::valuation::{
     DailyAccountValuation, ExternalFlowSource, NegativeBalanceInfo, ValuationRepositoryTrait,
+    ValuationStatus,
 };
 use crate::quotes::{
     LatestQuotePair, LatestQuoteSnapshot, ProviderInfo, Quote, QuoteImport, QuoteServiceTrait,
@@ -1029,16 +1031,24 @@ fn create_total_valuation(
         investment_market_value: total_value,
         total_value,
         cost_basis: net_contribution,
+        book_basis: net_contribution,
         net_contribution,
         cash_balance_base: Decimal::ZERO,
         investment_market_value_base: total_value,
         total_value_base: total_value,
         cost_basis_base: net_contribution,
+        book_basis_base: net_contribution,
         net_contribution_base: net_contribution,
         external_inflow_base: Decimal::ZERO,
         external_outflow_base: Decimal::ZERO,
         external_flow_source: ExternalFlowSource::Unknown,
         performance_eligible_value_base: total_value,
+        value_status: ValuationStatus::Complete,
+        basis_status: if total_value.is_zero() {
+            BasisStatus::NotApplicable
+        } else {
+            BasisStatus::Complete
+        },
         calculated_at: Utc::now(),
     }
 }
@@ -1059,16 +1069,20 @@ fn create_account_valuation(
         investment_market_value: Decimal::ZERO,
         total_value,
         cost_basis: Decimal::ZERO,
+        book_basis: total_value,
         net_contribution: Decimal::ZERO,
         cash_balance_base: total_value,
         investment_market_value_base: Decimal::ZERO,
         total_value_base: total_value,
         cost_basis_base: Decimal::ZERO,
+        book_basis_base: total_value,
         net_contribution_base: Decimal::ZERO,
         external_inflow_base: Decimal::ZERO,
         external_outflow_base: Decimal::ZERO,
         external_flow_source: ExternalFlowSource::Unknown,
         performance_eligible_value_base: total_value,
+        value_status: ValuationStatus::Complete,
+        basis_status: BasisStatus::NotApplicable,
         calculated_at: Utc::now(),
     }
 }
@@ -1124,6 +1138,38 @@ async fn test_single_investment_account() {
     assert_eq!(result.assets.total, dec!(18500));
     assert_eq!(result.liabilities.total, Decimal::ZERO);
     assert_eq!(get_category_value(&result, "investments"), dec!(18500));
+}
+
+#[tokio::test]
+async fn test_net_worth_uses_stored_investment_valuation_and_keeps_alternatives() {
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let account = create_test_account("account-1", "SECURITIES", "USD");
+    let asset = create_test_asset("NFLX", AssetKind::Investment, "USD");
+    let property_asset = create_test_asset("PROP-1", AssetKind::Property, "USD");
+    let position = create_test_position("account-1", "NFLX", dec!(20), dec!(200), "USD");
+    let property_position = create_test_position("account-1", "PROP-1", dec!(1), dec!(5000), "USD");
+    let snapshot = create_test_snapshot(
+        "account-1",
+        vec![position, property_position],
+        HashMap::new(),
+    );
+    let quote = create_test_quote("NFLX", dec!(100), date, "USD");
+    let property_quote = create_test_quote("PROP-1", dec!(5000), date, "USD");
+
+    let service = create_net_worth_service_with_valuations(
+        vec![account],
+        vec![asset, property_asset],
+        vec![snapshot],
+        vec![quote, property_quote],
+        vec![create_total_valuation(date, dec!(20000), Decimal::ZERO)],
+    );
+
+    let result = service.get_net_worth(date).await.unwrap();
+
+    assert_eq!(result.net_worth, dec!(25000));
+    assert_eq!(result.assets.total, dec!(25000));
+    assert_eq!(get_category_value(&result, "investments"), dec!(20000));
+    assert_eq!(get_category_value(&result, "properties"), dec!(5000));
 }
 
 #[tokio::test]

@@ -2,14 +2,18 @@
 //!
 //! Maps Yahoo/provider data to taxonomy categories:
 //! - quote_type (EQUITY, ETF, MUTUALFUND) → instrument_type taxonomy
-//! - quote_type → asset_classes taxonomy (EQUITY, DEBT, CASH, etc.)
+//! - provider composition or quote_type fallback → asset_classes taxonomy
 //! - sector (Technology, Healthcare) → industries_gics taxonomy
 //! - country (United States, Canada) → regions taxonomy
 
 use crate::assets::assets_model::{AssetKind, InstrumentType};
 use crate::taxonomies::{NewAssetTaxonomyAssignment, TaxonomyServiceTrait};
 use log::{debug, warn};
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
+
+const AUTO_SOURCE: &str = "AUTO";
+const ASSET_CLASSES_TAXONOMY: &str = "asset_classes";
+const INSTRUMENT_TYPE_TAXONOMY: &str = "instrument_type";
 
 /// Maps Yahoo quote_type to instrument_type taxonomy category ID
 /// Yahoo quoteType values: EQUITY, ETF, MUTUALFUND, INDEX, CRYPTOCURRENCY, OPTION, BOND, FUTURES, CURRENCY
@@ -72,12 +76,65 @@ fn is_government_bond(name: &str) -> bool {
     || n.contains("SOVEREIGN")
 }
 
+fn is_fund_quote_type(quote_type: &str) -> bool {
+    matches!(
+        quote_type.to_uppercase().as_str(),
+        "ETF" | "ETN" | "ETC" | "MUTUALFUND" | "MUTUAL FUND" | "INDEX"
+    )
+}
+
+fn contains_any(value: &str, keywords: &[&str]) -> bool {
+    keywords.iter().any(|keyword| value.contains(keyword))
+}
+
+fn is_bond_fund_name(name: &str) -> bool {
+    let n = name.to_uppercase();
+    contains_any(
+        &n,
+        &[
+            " BOND",
+            "BOND ",
+            "BONDS",
+            "FIXED INCOME",
+            "TREASURY",
+            "T-BILL",
+            "T-NOTE",
+            "T-BOND",
+            " GILT",
+            "GILTS",
+            "GOVERNMENT BOND",
+            "GOVT BOND",
+            "SOVEREIGN",
+            "BUNDESREPUBLIK",
+            "BUNDESOBLIGATION",
+        ],
+    )
+}
+
+fn is_physical_precious_metal_name(name: &str) -> bool {
+    let n = name.to_uppercase();
+    let has_metal = contains_any(&n, &["GOLD", "SILVER", "PLATINUM", "PALLADIUM"]);
+    let has_physical_wrapper = contains_any(&n, &["PHYSICAL", "BULLION", " ETC", " ETC/", " ETP"]);
+    has_metal && has_physical_wrapper
+}
+
+fn map_fund_name_to_asset_class(name: Option<&str>) -> Option<&'static str> {
+    let name = name?;
+    if is_bond_fund_name(name) {
+        return Some("FIXED_INCOME");
+    }
+    if is_physical_precious_metal_name(name) {
+        return Some("COMMODITIES");
+    }
+    None
+}
+
 /// Maps Yahoo quote_type to asset_classes taxonomy category ID
 /// Asset classes: CASH, EQUITY, FIXED_INCOME, REAL_ESTATE, COMMODITIES, ALTERNATIVES, DIGITAL_ASSETS
 /// Note: Cash is assigned to CASH_BANK_DEPOSITS (child of CASH) for drill-down support
 fn map_quote_type_to_asset_class(quote_type: &str) -> Option<&'static str> {
     match quote_type.to_uppercase().as_str() {
-        // Equity class: stocks, ETFs, mutual funds, options
+        // Equity fallback: stocks, funds without composition data, options
         "EQUITY" | "ETF" | "MUTUALFUND" | "MUTUAL FUND" | "INDEX" | "OPTION" => Some("EQUITY"),
         // Fixed Income class: bonds, money market
         "BOND" | "MONEYMARKET" => Some("FIXED_INCOME"),
@@ -92,6 +149,113 @@ fn map_quote_type_to_asset_class(quote_type: &str) -> Option<&'static str> {
         "ECNQUOTE" | "NONE" => None,
         _ => None,
     }
+}
+
+fn map_provider_asset_class_to_taxonomy(name: &str) -> Option<&'static str> {
+    let normalized = name.trim().replace(['_', '-'], " ").to_uppercase();
+
+    match normalized.as_str() {
+        "STOCK" | "STOCKS" | "EQUITY" | "EQUITIES" => Some("EQUITY"),
+        "BOND"
+        | "BONDS"
+        | "FIXED INCOME"
+        | "FIXEDINCOME"
+        | "DEBT"
+        | "PREFERRED"
+        | "PREFERRED STOCK"
+        | "PREFERRED SECURITIES"
+        | "CONVERTIBLE"
+        | "CONVERTIBLES"
+        | "CONVERTIBLE BOND"
+        | "CONVERTIBLE BONDS" => Some("FIXED_INCOME"),
+        "CASH" | "MONEY MARKET" | "MONEYMARKET" => Some("CASH_BANK_DEPOSITS"),
+        "COMMODITY" | "COMMODITIES" => Some("COMMODITIES"),
+        "OTHER" => None,
+        _ => None,
+    }
+}
+
+fn parse_provider_weight(weight: f64) -> Option<f64> {
+    if !weight.is_finite() || weight <= 0.0 {
+        return None;
+    }
+    if weight <= 1.0 {
+        Some(weight)
+    } else if weight <= 100.0 {
+        Some(weight / 100.0)
+    } else {
+        None
+    }
+}
+
+fn weights_to_basis_points(weights: BTreeMap<&'static str, f64>) -> Vec<(String, i32)> {
+    let total_weight: f64 = weights.values().sum();
+    if total_weight <= 0.0 {
+        return Vec::new();
+    }
+
+    let target_basis_points = if total_weight <= 1.0 {
+        (total_weight * 10000.0).round() as i32
+    } else {
+        10000
+    };
+
+    let mut scaled: Vec<(&'static str, i32, f64)> = weights
+        .into_iter()
+        .map(|(category_id, weight)| {
+            let exact = weight / total_weight * f64::from(target_basis_points);
+            let floor = exact.floor() as i32;
+            (category_id, floor, exact - f64::from(floor))
+        })
+        .collect();
+
+    let assigned: i32 = scaled
+        .iter()
+        .map(|(_, basis_points, _)| *basis_points)
+        .sum();
+    scaled.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+
+    let remainder = target_basis_points.saturating_sub(assigned) as usize;
+    for (_, basis_points, _) in scaled.iter_mut().take(remainder) {
+        *basis_points += 1;
+    }
+
+    scaled
+        .into_iter()
+        .filter(|(_, basis_points, _)| *basis_points > 0)
+        .map(|(category_id, basis_points, _)| (category_id.to_string(), basis_points.min(10000)))
+        .collect()
+}
+
+fn asset_class_assignments_from_provider(classes: &[ClassWeight]) -> Vec<(String, i32)> {
+    let mut mapped = BTreeMap::new();
+    for class in classes {
+        if let Some(category_id) = map_provider_asset_class_to_taxonomy(&class.name) {
+            *mapped.entry(category_id).or_insert(0.0) += class.weight;
+        }
+    }
+    weights_to_basis_points(mapped)
+}
+
+fn asset_class_assignments_from_input(input: &ClassificationInput) -> Vec<(String, i32)> {
+    if !input.asset_classes.is_empty() {
+        return asset_class_assignments_from_provider(&input.asset_classes);
+    }
+
+    let Some(quote_type) = input.quote_type.as_deref() else {
+        return Vec::new();
+    };
+
+    let category_id = if is_fund_quote_type(quote_type) {
+        map_fund_name_to_asset_class(input.name.as_deref())
+            .or_else(|| map_quote_type_to_asset_class(quote_type))
+    } else {
+        map_quote_type_to_asset_class(quote_type)
+    };
+
+    category_id
+        .map(|category_id| vec![(category_id.to_string(), 10000)])
+        .unwrap_or_default()
 }
 
 /// Maps InstrumentType enum to instrument_type taxonomy category ID.
@@ -212,11 +376,29 @@ fn map_country_to_region(country: &str) -> Option<&'static str> {
     }
 }
 
-/// Sector weight data from provider profile
+/// Weight data from provider profile JSON.
 #[derive(Debug, Clone)]
-pub struct SectorWeight {
+pub struct ProviderWeight {
     pub name: String,
     pub weight: f64,
+}
+
+pub type SectorWeight = ProviderWeight;
+pub type ClassWeight = ProviderWeight;
+
+fn parse_weighted_json(json: &str) -> Vec<ProviderWeight> {
+    serde_json::from_str::<Vec<serde_json::Value>>(json)
+        .map(|weights| {
+            weights
+                .iter()
+                .filter_map(|v| {
+                    let name = v.get("name")?.as_str()?.to_string();
+                    let weight = parse_provider_weight(v.get("weight")?.as_f64()?)?;
+                    Some(ProviderWeight { name, weight })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Parsed provider profile for auto-classification
@@ -224,8 +406,22 @@ pub struct SectorWeight {
 pub struct ClassificationInput {
     pub quote_type: Option<String>,
     pub name: Option<String>,
+    pub asset_classes: Vec<ClassWeight>,
     pub sectors: Vec<SectorWeight>,
     pub country: Option<String>,
+}
+
+/// Raw provider profile fields used for taxonomy classification.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ProviderProfileClassification<'a> {
+    pub quote_type: Option<&'a str>,
+    pub name: Option<&'a str>,
+    pub sector: Option<&'a str>,
+    pub sectors_json: Option<&'a str>,
+    pub classes_json: Option<&'a str>,
+    pub country: Option<&'a str>,
+    pub countries_json: Option<&'a str>,
+    pub exchange_mic: Option<&'a str>,
 }
 
 impl ClassificationInput {
@@ -234,6 +430,7 @@ impl ClassificationInput {
     /// Handles both:
     /// - Single sector (for stocks): `sector` = "Technology" with 100% weight
     /// - Multiple sectors (for ETFs): `sectors_json` = `[{"name": "Technology", "weight": 0.30}, ...]`
+    /// - Asset-class breakdowns: `classes_json` = `[{"name": "bond", "weight": 0.70}, ...]`
     ///
     /// For country, handles both:
     /// - Single country (for stocks): `country` = "United States"
@@ -241,38 +438,26 @@ impl ClassificationInput {
     ///
     /// Exchange MIC is intentionally not used as a region fallback: trading venue
     /// is not issuer domicile or portfolio exposure.
-    pub fn from_provider_profile(
-        quote_type: Option<&str>,
-        name: Option<&str>,
-        sector: Option<&str>,
-        sectors_json: Option<&str>,
-        country: Option<&str>,
-        countries_json: Option<&str>,
-        _exchange_mic: Option<&str>,
-    ) -> Self {
+    pub fn from_provider_profile(profile: ProviderProfileClassification<'_>) -> Self {
+        let _exchange_mic = profile.exchange_mic;
         let mut input = ClassificationInput {
-            quote_type: quote_type.map(String::from),
-            name: name.map(String::from),
+            quote_type: profile.quote_type.map(String::from),
+            name: profile.name.map(String::from),
             ..Default::default()
         };
 
+        if let Some(json) = profile.classes_json {
+            input.asset_classes = parse_weighted_json(json);
+        }
+
         // Parse sectors: prefer JSON array (ETFs), fall back to single sector (stocks)
-        if let Some(json) = sectors_json {
-            if let Ok(sectors) = serde_json::from_str::<Vec<serde_json::Value>>(json) {
-                input.sectors = sectors
-                    .iter()
-                    .filter_map(|v| {
-                        let name = v.get("name")?.as_str()?.to_string();
-                        let weight = v.get("weight")?.as_f64()?;
-                        Some(SectorWeight { name, weight })
-                    })
-                    .collect();
-            }
+        if let Some(json) = profile.sectors_json {
+            input.sectors = parse_weighted_json(json);
         }
 
         // If no sectors from JSON, use single sector with 100% weight
         if input.sectors.is_empty() {
-            if let Some(sector_name) = sector {
+            if let Some(sector_name) = profile.sector {
                 if !sector_name.is_empty() {
                     input.sectors.push(SectorWeight {
                         name: sector_name.to_string(),
@@ -283,7 +468,7 @@ impl ClassificationInput {
         }
 
         // Parse country: prefer JSON array (ETFs), fall back to single country (stocks)
-        if let Some(json) = countries_json {
+        if let Some(json) = profile.countries_json {
             if let Ok(countries) = serde_json::from_str::<Vec<serde_json::Value>>(json) {
                 input.country = countries
                     .first()
@@ -295,7 +480,7 @@ impl ClassificationInput {
 
         // If no country from JSON, use single country field
         if input.country.is_none() {
-            if let Some(country_name) = country {
+            if let Some(country_name) = profile.country {
                 if !country_name.is_empty() {
                     input.country = Some(country_name.to_string());
                 }
@@ -327,93 +512,128 @@ impl AutoClassificationService {
 
         // 1. Classify instrument type
         if let Some(quote_type) = &input.quote_type {
-            if let Some(category_id) =
+            let instrument_type_assignments =
                 map_quote_type_to_instrument_type(quote_type, input.name.as_deref())
+                    .map(|category_id| vec![(category_id.to_string(), 10000)])
+                    .unwrap_or_default();
+            let first_instrument_type = instrument_type_assignments
+                .first()
+                .map(|(category_id, _)| category_id.clone());
+
+            match self
+                .replace_auto_taxonomy_assignments(
+                    asset_id,
+                    INSTRUMENT_TYPE_TAXONOMY,
+                    instrument_type_assignments,
+                )
+                .await
             {
-                match self
-                    .assign_to_taxonomy(asset_id, "instrument_type", category_id, 10000)
-                    .await
-                {
-                    Ok(_) => {
+                Ok(assigned_count) if assigned_count > 0 => {
+                    if let Some(category_id) = first_instrument_type {
                         debug!(
                             "Auto-classified {} as {} in instrument_type",
                             asset_id, category_id
                         );
-                        result.security_type = Some(category_id.to_string());
-                    }
-                    Err(e) => {
-                        warn!(
-                            "Failed to auto-classify {} instrument_type: {}",
-                            asset_id, e
-                        );
+                        result.security_type = Some(category_id);
                     }
                 }
+                Ok(_) => {}
+                Err(e) => {
+                    warn!(
+                        "Failed to auto-classify {} instrument_type: {}",
+                        asset_id, e
+                    );
+                }
             }
+        }
 
-            // 2. Classify asset class (EQUITY, DEBT, CASH, COMMODITY, REAL_ESTATE)
-            if let Some(category_id) = map_quote_type_to_asset_class(quote_type) {
-                match self
-                    .assign_to_taxonomy(asset_id, "asset_classes", category_id, 10000)
-                    .await
-                {
-                    Ok(_) => {
-                        debug!(
-                            "Auto-classified {} as {} in asset_classes",
-                            asset_id, category_id
-                        );
-                        result.asset_class = Some(category_id.to_string());
-                    }
-                    Err(e) => {
-                        warn!("Failed to auto-classify {} asset_classes: {}", asset_id, e);
-                    }
+        // 2. Classify asset class. Prefer provider fund composition when available.
+        let asset_class_assignments = asset_class_assignments_from_input(input);
+        if !asset_class_assignments.is_empty()
+            || !input.asset_classes.is_empty()
+            || input.quote_type.is_some()
+        {
+            let first_asset_class = asset_class_assignments
+                .first()
+                .map(|(category_id, _)| category_id.clone());
+            match self
+                .replace_auto_taxonomy_assignments(
+                    asset_id,
+                    ASSET_CLASSES_TAXONOMY,
+                    asset_class_assignments,
+                )
+                .await
+            {
+                Ok(assigned_count) if assigned_count > 0 => {
+                    result.asset_class = first_asset_class;
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    warn!("Failed to auto-classify {} asset_classes: {}", asset_id, e);
                 }
             }
         }
 
         // 3. Classify sectors (industries_gics)
-        for sector in &input.sectors {
-            if let Some(category_id) = map_sector_to_gics(&sector.name) {
-                // Convert weight from 0-1 to basis points (0-10000)
+        let sector_assignments: Vec<(String, i32)> = input
+            .sectors
+            .iter()
+            .filter_map(|sector| {
+                let category_id = map_sector_to_gics(&sector.name)?;
                 let weight_bp = (sector.weight * 10000.0).round() as i32;
-                match self
-                    .assign_to_taxonomy(asset_id, "industries_gics", category_id, weight_bp)
-                    .await
-                {
-                    Ok(_) => {
-                        debug!(
-                            "Auto-classified {} as {} ({}%) in industries_gics",
-                            asset_id,
-                            category_id,
-                            sector.weight * 100.0
-                        );
-                        result
-                            .sectors
-                            .push((category_id.to_string(), sector.weight));
-                    }
-                    Err(e) => {
-                        warn!(
-                            "Failed to auto-classify {} industries_gics: {}",
-                            asset_id, e
-                        );
-                    }
+                if weight_bp > 0 {
+                    Some((category_id.to_string(), weight_bp.min(10000)))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        if !sector_assignments.is_empty() || !input.sectors.is_empty() {
+            let result_sectors: Vec<(String, f64)> = sector_assignments
+                .iter()
+                .map(|(category_id, weight_bp)| {
+                    (category_id.clone(), f64::from(*weight_bp) / 10000.0)
+                })
+                .collect();
+            match self
+                .replace_auto_taxonomy_assignments(asset_id, "industries_gics", sector_assignments)
+                .await
+            {
+                Ok(assigned_count) if assigned_count > 0 => {
+                    result.sectors.extend(result_sectors);
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    warn!(
+                        "Failed to auto-classify {} industries_gics: {}",
+                        asset_id, e
+                    );
                 }
             }
         }
 
         // 4. Classify region
         if let Some(country) = &input.country {
-            if let Some(category_id) = map_country_to_region(country) {
-                match self
-                    .assign_to_taxonomy(asset_id, "regions", category_id, 10000)
-                    .await
-                {
-                    Ok(_) => {
+            let region_assignments = map_country_to_region(country)
+                .map(|category_id| vec![(category_id.to_string(), 10000)])
+                .unwrap_or_default();
+            let first_region = region_assignments
+                .first()
+                .map(|(category_id, _)| category_id.clone());
+
+            match self
+                .replace_auto_taxonomy_assignments(asset_id, "regions", region_assignments)
+                .await
+            {
+                Ok(assigned_count) if assigned_count > 0 => {
+                    if let Some(category_id) = first_region {
                         debug!("Auto-classified {} as {} in regions", asset_id, category_id);
-                        result.region = Some(category_id.to_string());
+                        result.region = Some(category_id);
                     }
-                    Err(e) => {
-                        warn!("Failed to auto-classify {} regions: {}", asset_id, e);
-                    }
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    warn!("Failed to auto-classify {} regions: {}", asset_id, e);
                 }
             }
         }
@@ -434,7 +654,11 @@ impl AutoClassificationService {
         if let Some(it) = instrument_type {
             if let Some(category_id) = map_instrument_type_to_taxonomy_category(it) {
                 if let Err(e) = self
-                    .assign_to_taxonomy(asset_id, "instrument_type", category_id, 10000)
+                    .replace_auto_taxonomy_assignments(
+                        asset_id,
+                        INSTRUMENT_TYPE_TAXONOMY,
+                        vec![(category_id.to_string(), 10000)],
+                    )
                     .await
                 {
                     debug!(
@@ -452,7 +676,11 @@ impl AutoClassificationService {
 
         if let Some(category_id) = asset_class {
             if let Err(e) = self
-                .assign_to_taxonomy(asset_id, "asset_classes", category_id, 10000)
+                .replace_auto_taxonomy_assignments(
+                    asset_id,
+                    ASSET_CLASSES_TAXONOMY,
+                    vec![(category_id.to_string(), 10000)],
+                )
                 .await
             {
                 debug!(
@@ -461,6 +689,52 @@ impl AutoClassificationService {
                 );
             }
         }
+    }
+
+    async fn replace_auto_taxonomy_assignments(
+        &self,
+        asset_id: &str,
+        taxonomy_id: &str,
+        assignments: Vec<(String, i32)>,
+    ) -> Result<usize, String> {
+        let existing_assignments = self
+            .taxonomy_service
+            .get_asset_assignments(asset_id)
+            .map_err(|e| e.to_string())?;
+        let taxonomy_assignments: Vec<_> = existing_assignments
+            .into_iter()
+            .filter(|assignment| assignment.taxonomy_id == taxonomy_id)
+            .collect();
+
+        let has_non_auto_assignment = taxonomy_assignments
+            .iter()
+            .any(|assignment| !assignment.source.eq_ignore_ascii_case(AUTO_SOURCE));
+
+        for assignment in taxonomy_assignments
+            .iter()
+            .filter(|assignment| assignment.source.eq_ignore_ascii_case(AUTO_SOURCE))
+        {
+            self.taxonomy_service
+                .remove_asset_assignment(&assignment.id)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+
+        if has_non_auto_assignment {
+            debug!(
+                "Skipping AUTO classification for {} {} because non-AUTO assignments exist",
+                asset_id, taxonomy_id
+            );
+            return Ok(0);
+        }
+
+        let assignment_count = assignments.len();
+        for (category_id, weight) in assignments {
+            self.assign_to_taxonomy(asset_id, taxonomy_id, &category_id, weight)
+                .await?;
+        }
+
+        Ok(assignment_count)
     }
 
     /// Helper to assign an asset to a taxonomy category
@@ -477,7 +751,7 @@ impl AutoClassificationService {
             taxonomy_id: taxonomy_id.to_string(),
             category_id: category_id.to_string(),
             weight,
-            source: "AUTO".to_string(),
+            source: AUTO_SOURCE.to_string(),
         };
 
         self.taxonomy_service
@@ -501,6 +775,14 @@ pub struct ClassificationResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::taxonomies::{
+        AssetTaxonomyAssignment, Category, NewAssetTaxonomyAssignment, NewCategory, NewTaxonomy,
+        Taxonomy, TaxonomyWithCategories,
+    };
+    use crate::Result;
+    use chrono::Utc;
+    use std::collections::BTreeMap;
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn test_map_quote_type_to_instrument_type() {
@@ -604,6 +886,140 @@ mod tests {
     }
 
     #[test]
+    fn test_asset_class_assignments_from_provider_weights() {
+        let classes = vec![
+            ClassWeight {
+                name: "stock".to_string(),
+                weight: 0.60,
+            },
+            ClassWeight {
+                name: "bond".to_string(),
+                weight: 0.30,
+            },
+            ClassWeight {
+                name: "other".to_string(),
+                weight: 0.10,
+            },
+        ];
+
+        let assignments = asset_class_assignments_from_provider(&classes);
+        let assignment_map: BTreeMap<_, _> = assignments.into_iter().collect();
+
+        assert_eq!(assignment_map.get("EQUITY"), Some(&6000));
+        assert_eq!(assignment_map.get("FIXED_INCOME"), Some(&3000));
+        assert_eq!(assignment_map.values().sum::<i32>(), 9000);
+    }
+
+    #[test]
+    fn test_asset_class_assignments_normalize_above_100_percent() {
+        let classes = vec![
+            ClassWeight {
+                name: "stock".to_string(),
+                weight: 0.80,
+            },
+            ClassWeight {
+                name: "bond".to_string(),
+                weight: 0.40,
+            },
+        ];
+
+        let assignments = asset_class_assignments_from_provider(&classes);
+
+        assert_eq!(
+            assignments.iter().map(|(_, weight)| weight).sum::<i32>(),
+            10000
+        );
+    }
+
+    #[test]
+    fn test_asset_class_assignments_aggregate_fixed_income_components() {
+        let classes = vec![
+            ClassWeight {
+                name: "stock".to_string(),
+                weight: 0.50,
+            },
+            ClassWeight {
+                name: "bond".to_string(),
+                weight: 0.30,
+            },
+            ClassWeight {
+                name: "preferred".to_string(),
+                weight: 0.10,
+            },
+            ClassWeight {
+                name: "convertible".to_string(),
+                weight: 0.10,
+            },
+        ];
+
+        let assignments = asset_class_assignments_from_provider(&classes);
+        let assignment_map: BTreeMap<_, _> = assignments.into_iter().collect();
+
+        assert_eq!(assignment_map.get("EQUITY"), Some(&5000));
+        assert_eq!(assignment_map.get("FIXED_INCOME"), Some(&5000));
+        assert!(!assignment_map.contains_key("FI_PREFERRED"));
+        assert!(!assignment_map.contains_key("FI_CONVERTIBLE"));
+    }
+
+    #[test]
+    fn test_asset_class_assignments_do_not_exceed_100_percent_after_rounding() {
+        let classes = vec![
+            ClassWeight {
+                name: "stock".to_string(),
+                weight: 0.33335,
+            },
+            ClassWeight {
+                name: "bond".to_string(),
+                weight: 0.33335,
+            },
+            ClassWeight {
+                name: "cash".to_string(),
+                weight: 0.33330,
+            },
+        ];
+
+        let assignments = asset_class_assignments_from_provider(&classes);
+
+        assert_eq!(
+            assignments.iter().map(|(_, weight)| weight).sum::<i32>(),
+            10000
+        );
+    }
+
+    #[test]
+    fn test_fund_name_fallbacks_for_bond_and_physical_metal_etps() {
+        let bond_input = ClassificationInput {
+            quote_type: Some("ETF".to_string()),
+            name: Some("Amundi Euro Government Bond 3-5Y UCITS ETF".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            asset_class_assignments_from_input(&bond_input),
+            vec![("FIXED_INCOME".to_string(), 10000)]
+        );
+
+        let gold_input = ClassificationInput {
+            quote_type: Some("ETF".to_string()),
+            name: Some("iShares Physical Gold ETC".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            asset_class_assignments_from_input(&gold_input),
+            vec![("COMMODITIES".to_string(), 10000)]
+        );
+
+        let miners_input = ClassificationInput {
+            quote_type: Some("ETF".to_string()),
+            name: Some("Gold Miners ETF".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            asset_class_assignments_from_input(&miners_input),
+            vec![("EQUITY".to_string(), 10000)]
+        );
+    }
+
+    #[test]
     fn test_map_sector() {
         assert_eq!(map_sector_to_gics("Technology"), Some("45"));
         assert_eq!(map_sector_to_gics("Information Technology"), Some("45"));
@@ -645,32 +1061,40 @@ mod tests {
     #[test]
     fn test_parse_sectors_json() {
         let json = r#"[{"name":"Technology","weight":0.30},{"name":"Healthcare","weight":0.15}]"#;
-        let input = ClassificationInput::from_provider_profile(
-            None,
-            None,
-            None,
-            Some(json),
-            None,
-            None,
-            None,
-        );
+        let input = ClassificationInput::from_provider_profile(ProviderProfileClassification {
+            sectors_json: Some(json),
+            ..Default::default()
+        });
         assert_eq!(input.sectors.len(), 2);
         assert_eq!(input.sectors[0].name, "Technology");
         assert_eq!(input.sectors[0].weight, 0.30);
     }
 
     #[test]
+    fn test_parse_classes_json() {
+        let json = r#"[{"name":"stock","weight":60},{"name":"bond","weight":40}]"#;
+        let input = ClassificationInput::from_provider_profile(ProviderProfileClassification {
+            quote_type: Some("ETF"),
+            classes_json: Some(json),
+            ..Default::default()
+        });
+
+        assert_eq!(input.asset_classes.len(), 2);
+        assert_eq!(input.asset_classes[0].name, "stock");
+        assert_eq!(input.asset_classes[0].weight, 0.60);
+        assert_eq!(input.asset_classes[1].name, "bond");
+        assert_eq!(input.asset_classes[1].weight, 0.40);
+    }
+
+    #[test]
     fn test_parse_single_sector() {
         // For stocks: single sector with 100% weight
-        let input = ClassificationInput::from_provider_profile(
-            Some("EQUITY"),
-            None, // no name
-            Some("Technology"),
-            None, // no sectors JSON
-            Some("United States"),
-            None, // no countries JSON
-            None, // no exchange_mic
-        );
+        let input = ClassificationInput::from_provider_profile(ProviderProfileClassification {
+            quote_type: Some("EQUITY"),
+            sector: Some("Technology"),
+            country: Some("United States"),
+            ..Default::default()
+        });
         assert_eq!(input.sectors.len(), 1);
         assert_eq!(input.sectors[0].name, "Technology");
         assert_eq!(input.sectors[0].weight, 1.0);
@@ -679,15 +1103,314 @@ mod tests {
 
     #[test]
     fn test_exchange_mic_does_not_fallback_to_country() {
-        let input = ClassificationInput::from_provider_profile(
-            Some("ETF"),
-            None,
-            None,
-            None,
-            None,         // no country from provider
-            None,         // no countries JSON
-            Some("XETR"), // German trading venue
-        );
+        let input = ClassificationInput::from_provider_profile(ProviderProfileClassification {
+            quote_type: Some("ETF"),
+            exchange_mic: Some("XETR"),
+            ..Default::default()
+        });
         assert_eq!(input.country, None);
+    }
+
+    #[tokio::test]
+    async fn test_auto_classification_removes_stale_auto_but_preserves_manual_assignment() {
+        let service = Arc::new(MockTaxonomyService::with_assignments(vec![
+            assignment(
+                "auto-equity",
+                "asset-1",
+                ASSET_CLASSES_TAXONOMY,
+                "EQUITY",
+                10000,
+                AUTO_SOURCE,
+            ),
+            assignment(
+                "manual-commodities",
+                "asset-1",
+                ASSET_CLASSES_TAXONOMY,
+                "COMMODITIES",
+                10000,
+                "manual",
+            ),
+        ]));
+        let classifier = AutoClassificationService::new(service.clone());
+        let input = ClassificationInput {
+            quote_type: Some("ETF".to_string()),
+            name: Some("Amundi Euro Government Bond 3-5Y UCITS ETF".to_string()),
+            ..Default::default()
+        };
+
+        classifier.classify_asset("asset-1", &input).await.unwrap();
+
+        let assignments = service.assignments_for("asset-1", ASSET_CLASSES_TAXONOMY);
+        assert_eq!(assignments.len(), 1);
+        assert_eq!(assignments[0].category_id, "COMMODITIES");
+        assert_eq!(assignments[0].source, "manual");
+    }
+
+    #[tokio::test]
+    async fn test_auto_classification_replaces_auto_asset_class_weights() {
+        let service = Arc::new(MockTaxonomyService::with_assignments(vec![assignment(
+            "auto-equity",
+            "asset-1",
+            ASSET_CLASSES_TAXONOMY,
+            "EQUITY",
+            10000,
+            AUTO_SOURCE,
+        )]));
+        let classifier = AutoClassificationService::new(service.clone());
+        let input = ClassificationInput::from_provider_profile(ProviderProfileClassification {
+            quote_type: Some("ETF"),
+            name: Some("Balanced ETF"),
+            classes_json: Some(r#"[{"name":"stock","weight":0.60},{"name":"bond","weight":0.40}]"#),
+            ..Default::default()
+        });
+
+        classifier.classify_asset("asset-1", &input).await.unwrap();
+
+        let assignments = service.assignments_for("asset-1", ASSET_CLASSES_TAXONOMY);
+        let assignment_map: BTreeMap<_, _> = assignments
+            .iter()
+            .map(|assignment| (assignment.category_id.as_str(), assignment.weight))
+            .collect();
+
+        assert_eq!(assignments.len(), 2);
+        assert_eq!(assignment_map.get("EQUITY"), Some(&6000));
+        assert_eq!(assignment_map.get("FIXED_INCOME"), Some(&4000));
+        assert!(assignments
+            .iter()
+            .all(|assignment| assignment.source == AUTO_SOURCE));
+    }
+
+    #[tokio::test]
+    async fn test_auto_classification_clears_stale_auto_when_provider_data_is_unmapped() {
+        let service = Arc::new(MockTaxonomyService::with_assignments(vec![
+            assignment(
+                "auto-instrument",
+                "asset-1",
+                INSTRUMENT_TYPE_TAXONOMY,
+                "ETF",
+                10000,
+                AUTO_SOURCE,
+            ),
+            assignment(
+                "auto-equity",
+                "asset-1",
+                ASSET_CLASSES_TAXONOMY,
+                "EQUITY",
+                10000,
+                AUTO_SOURCE,
+            ),
+            assignment(
+                "auto-sector",
+                "asset-1",
+                "industries_gics",
+                "45",
+                10000,
+                AUTO_SOURCE,
+            ),
+            assignment(
+                "auto-region",
+                "asset-1",
+                "regions",
+                "country_US",
+                10000,
+                AUTO_SOURCE,
+            ),
+        ]));
+        let classifier = AutoClassificationService::new(service.clone());
+        let input = ClassificationInput {
+            quote_type: Some("ECNQUOTE".to_string()),
+            sectors: vec![SectorWeight {
+                name: "Unknown Sector".to_string(),
+                weight: 1.0,
+            }],
+            country: Some("Unknown Country".to_string()),
+            ..Default::default()
+        };
+
+        classifier.classify_asset("asset-1", &input).await.unwrap();
+
+        assert!(service
+            .assignments_for("asset-1", INSTRUMENT_TYPE_TAXONOMY)
+            .is_empty());
+        assert!(service
+            .assignments_for("asset-1", ASSET_CLASSES_TAXONOMY)
+            .is_empty());
+        assert!(service
+            .assignments_for("asset-1", "industries_gics")
+            .is_empty());
+        assert!(service.assignments_for("asset-1", "regions").is_empty());
+    }
+
+    fn assignment(
+        id: &str,
+        asset_id: &str,
+        taxonomy_id: &str,
+        category_id: &str,
+        weight: i32,
+        source: &str,
+    ) -> AssetTaxonomyAssignment {
+        let now = Utc::now().naive_utc();
+        AssetTaxonomyAssignment {
+            id: id.to_string(),
+            asset_id: asset_id.to_string(),
+            taxonomy_id: taxonomy_id.to_string(),
+            category_id: category_id.to_string(),
+            weight,
+            source: source.to_string(),
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    #[derive(Default)]
+    struct MockTaxonomyService {
+        assignments: Mutex<Vec<AssetTaxonomyAssignment>>,
+    }
+
+    impl MockTaxonomyService {
+        fn with_assignments(assignments: Vec<AssetTaxonomyAssignment>) -> Self {
+            Self {
+                assignments: Mutex::new(assignments),
+            }
+        }
+
+        fn assignments_for(
+            &self,
+            asset_id: &str,
+            taxonomy_id: &str,
+        ) -> Vec<AssetTaxonomyAssignment> {
+            self.assignments
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|assignment| {
+                    assignment.asset_id == asset_id && assignment.taxonomy_id == taxonomy_id
+                })
+                .cloned()
+                .collect()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl TaxonomyServiceTrait for MockTaxonomyService {
+        fn get_taxonomies(&self) -> Result<Vec<Taxonomy>> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        fn get_taxonomy(&self, _id: &str) -> Result<Option<TaxonomyWithCategories>> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        fn get_taxonomies_with_categories(&self) -> Result<Vec<TaxonomyWithCategories>> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        async fn create_taxonomy(&self, _taxonomy: NewTaxonomy) -> Result<Taxonomy> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        async fn update_taxonomy(&self, _taxonomy: Taxonomy) -> Result<Taxonomy> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        async fn delete_taxonomy(&self, _id: &str) -> Result<usize> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        async fn create_category(&self, _category: NewCategory) -> Result<Category> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        async fn update_category(&self, _category: Category) -> Result<Category> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        async fn delete_category(&self, _taxonomy_id: &str, _category_id: &str) -> Result<usize> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        async fn move_category(
+            &self,
+            _taxonomy_id: &str,
+            _category_id: &str,
+            _new_parent_id: Option<String>,
+            _position: i32,
+        ) -> Result<Category> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        async fn import_taxonomy_json(&self, _json_str: &str) -> Result<Taxonomy> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        fn export_taxonomy_json(&self, _id: &str) -> Result<String> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        fn get_asset_assignments(&self, asset_id: &str) -> Result<Vec<AssetTaxonomyAssignment>> {
+            Ok(self
+                .assignments
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|assignment| assignment.asset_id == asset_id)
+                .cloned()
+                .collect())
+        }
+
+        fn get_category_assignments(
+            &self,
+            _taxonomy_id: &str,
+            _category_id: &str,
+        ) -> Result<Vec<AssetTaxonomyAssignment>> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        async fn assign_asset_to_category(
+            &self,
+            assignment: NewAssetTaxonomyAssignment,
+        ) -> Result<AssetTaxonomyAssignment> {
+            let mut assignments = self.assignments.lock().unwrap();
+            if let Some(existing) = assignments.iter_mut().find(|existing| {
+                existing.asset_id == assignment.asset_id
+                    && existing.taxonomy_id == assignment.taxonomy_id
+                    && existing.category_id == assignment.category_id
+            }) {
+                existing.weight = assignment.weight;
+                existing.source = assignment.source;
+                existing.updated_at = Utc::now().naive_utc();
+                return Ok(existing.clone());
+            }
+
+            let id = assignment
+                .id
+                .unwrap_or_else(|| format!("assignment-{}", assignments.len() + 1));
+            let created = self::assignment(
+                &id,
+                &assignment.asset_id,
+                &assignment.taxonomy_id,
+                &assignment.category_id,
+                assignment.weight,
+                &assignment.source,
+            );
+            assignments.push(created.clone());
+            Ok(created)
+        }
+
+        async fn replace_asset_taxonomy_assignments(
+            &self,
+            _asset_id: &str,
+            _taxonomy_id: &str,
+            _assignments: Vec<NewAssetTaxonomyAssignment>,
+        ) -> Result<Vec<AssetTaxonomyAssignment>> {
+            unimplemented!("unused in auto-classification tests")
+        }
+
+        async fn remove_asset_assignment(&self, id: &str) -> Result<usize> {
+            let mut assignments = self.assignments.lock().unwrap();
+            let before = assignments.len();
+            assignments.retain(|assignment| assignment.id != id);
+            Ok(before - assignments.len())
+        }
     }
 }

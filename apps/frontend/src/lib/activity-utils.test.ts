@@ -14,6 +14,7 @@ import {
   needsImportAssetResolution,
   calculateActivityValue,
   calculateActivityCashImpact,
+  canonicalizeActivitySubtype,
   formatSplitRatio,
 } from "./activity-utils";
 import { ActivityDetails } from "./types";
@@ -115,6 +116,38 @@ describe("Activity Utilities", () => {
     });
   });
 
+  describe("canonicalizeActivitySubtype", () => {
+    it("canonicalizes option position intent aliases by activity side", () => {
+      expect(canonicalizeActivitySubtype(ActivityType.BUY, "BUY_TO_OPEN")).toBe(
+        ACTIVITY_SUBTYPES.POSITION_OPEN,
+      );
+      expect(canonicalizeActivitySubtype(ActivityType.BUY, "BTC")).toBe(
+        ACTIVITY_SUBTYPES.POSITION_CLOSE,
+      );
+      expect(canonicalizeActivitySubtype(ActivityType.SELL, "STO")).toBe(
+        ACTIVITY_SUBTYPES.POSITION_OPEN,
+      );
+      expect(canonicalizeActivitySubtype(ActivityType.SELL, "SELL_TO_CLOSE")).toBe(
+        ACTIVITY_SUBTYPES.POSITION_CLOSE,
+      );
+    });
+
+    it("canonicalizes stock short aliases by activity side", () => {
+      expect(canonicalizeActivitySubtype(ActivityType.SELL, "SELL_SHORT")).toBe(
+        ACTIVITY_SUBTYPES.POSITION_OPEN,
+      );
+      expect(canonicalizeActivitySubtype(ActivityType.SELL, "SHORT_SELL")).toBe(
+        ACTIVITY_SUBTYPES.POSITION_OPEN,
+      );
+      expect(canonicalizeActivitySubtype(ActivityType.BUY, "BUY_TO_COVER")).toBe(
+        ACTIVITY_SUBTYPES.POSITION_CLOSE,
+      );
+      expect(canonicalizeActivitySubtype(ActivityType.BUY, "COVER_SHORT")).toBe(
+        ACTIVITY_SUBTYPES.POSITION_CLOSE,
+      );
+    });
+  });
+
   describe("calculateActivityValue", () => {
     const createActivity = (overrides: Partial<ActivityDetails> = {}): ActivityDetails => ({
       id: "1",
@@ -142,10 +175,11 @@ describe("Activity Utilities", () => {
         quantity: "10",
         unitPrice: "100",
         fee: "10",
+        tax: "2",
       });
 
-      // (10 * 100) + 10 = 1010
-      expect(calculateActivityValue(activity)).toBe(1010);
+      // (10 * 100) + 10 + 2 = 1012
+      expect(calculateActivityValue(activity)).toBe(1012);
     });
 
     it("should calculate SELL activity value correctly", () => {
@@ -154,10 +188,11 @@ describe("Activity Utilities", () => {
         quantity: "10",
         unitPrice: "100",
         fee: "10",
+        tax: "2",
       });
 
-      // (10 * 100) - 10 = 990
-      expect(calculateActivityValue(activity)).toBe(990);
+      // (10 * 100) - 10 - 2 = 988
+      expect(calculateActivityValue(activity)).toBe(988);
     });
 
     it("should apply the contract multiplier for option BUY activities", () => {
@@ -261,6 +296,30 @@ describe("Activity Utilities", () => {
       expect(calculateActivityValue(activity)).toBe(1010);
     });
 
+    it("should include tax in WITHDRAWAL activity value", () => {
+      const activity = createActivity({
+        activityType: ActivityType.WITHDRAWAL,
+        amount: "1000",
+        fee: "10",
+        tax: "5",
+      });
+
+      // 1000 + 10 + 5 = 1015
+      expect(calculateActivityValue(activity)).toBe(1015);
+    });
+
+    it("should deduct tax from CREDIT activity value", () => {
+      const activity = createActivity({
+        activityType: ActivityType.CREDIT,
+        amount: "100",
+        fee: "2",
+        tax: "10",
+      });
+
+      // 100 - 2 - 10 = 88
+      expect(calculateActivityValue(activity)).toBe(88);
+    });
+
     it("should calculate FEE activity value correctly", () => {
       const activity = createActivity({
         activityType: ActivityType.FEE,
@@ -268,6 +327,69 @@ describe("Activity Utilities", () => {
       });
 
       expect(calculateActivityValue(activity)).toBe(10);
+    });
+
+    it("should prefer fee over amount for FEE activities", () => {
+      const activity = createActivity({
+        activityType: ActivityType.FEE,
+        fee: "10",
+        amount: "25",
+      });
+
+      expect(calculateActivityValue(activity)).toBe(10);
+    });
+
+    it("should fall back to amount for FEE activities when fee is zero", () => {
+      const activity = createActivity({
+        activityType: ActivityType.FEE,
+        fee: "0",
+        amount: "25",
+      });
+
+      expect(calculateActivityValue(activity)).toBe(25);
+    });
+
+    it("should use tax for TAX activities when only tax is set", () => {
+      const activity = createActivity({
+        activityType: ActivityType.TAX,
+        tax: "15",
+        fee: "0",
+        amount: "0",
+      });
+
+      expect(calculateActivityValue(activity)).toBe(15);
+      expect(calculateActivityCashImpact(activity)).toBe(-15);
+    });
+
+    it("should prefer tax over fee and amount for TAX activities", () => {
+      const activity = createActivity({
+        activityType: ActivityType.TAX,
+        tax: "15",
+        fee: "10",
+        amount: "25",
+      });
+
+      expect(calculateActivityValue(activity)).toBe(15);
+    });
+
+    it("should fall back to fee, then amount for TAX activities", () => {
+      const withFee = createActivity({
+        activityType: ActivityType.TAX,
+        tax: "0",
+        fee: "10",
+        amount: "25",
+      });
+
+      expect(calculateActivityValue(withFee)).toBe(10);
+
+      const withAmount = createActivity({
+        activityType: ActivityType.TAX,
+        tax: "0",
+        fee: "0",
+        amount: "25",
+      });
+
+      expect(calculateActivityValue(withAmount)).toBe(25);
     });
 
     it("should calculate SPLIT activity value correctly", () => {
@@ -297,6 +419,30 @@ describe("Activity Utilities", () => {
       });
 
       expect(calculateActivityValue(transferOut)).toBe(1010);
+    });
+
+    it("should include tax in cash transfer activity values", () => {
+      const transferIn = createActivity({
+        activityType: ActivityType.TRANSFER_IN,
+        assetSymbol: "CASH:USD",
+        amount: "1000",
+        fee: "10",
+        tax: "5",
+      });
+
+      // 1000 - 10 - 5 = 985
+      expect(calculateActivityValue(transferIn)).toBe(985);
+
+      const transferOut = createActivity({
+        activityType: ActivityType.TRANSFER_OUT,
+        assetSymbol: "CASH:USD",
+        amount: "1000",
+        fee: "10",
+        tax: "5",
+      });
+
+      // 1000 + 10 + 5 = 1015
+      expect(calculateActivityValue(transferOut)).toBe(1015);
     });
 
     it("treats blank-asset transfers as cash and uses amount", () => {
@@ -379,9 +525,10 @@ describe("Activity Utilities", () => {
             quantity: "10",
             unitPrice: "100",
             fee: "10",
+            tax: "2",
           }),
         ),
-      ).toBe(-1010);
+      ).toBe(-1012);
 
       expect(
         calculateActivityCashImpact(
@@ -390,9 +537,10 @@ describe("Activity Utilities", () => {
             quantity: "10",
             unitPrice: "100",
             fee: "10",
+            tax: "2",
           }),
         ),
-      ).toBe(990);
+      ).toBe(988);
 
       expect(
         calculateActivityCashImpact(
@@ -410,9 +558,32 @@ describe("Activity Utilities", () => {
             activityType: ActivityType.WITHDRAWAL,
             amount: "100",
             fee: "5",
+            tax: "3",
           }),
         ),
-      ).toBe(-105);
+      ).toBe(-108);
+
+      expect(
+        calculateActivityCashImpact(
+          createActivity({
+            activityType: ActivityType.CREDIT,
+            amount: "100",
+            fee: "2",
+            tax: "10",
+          }),
+        ),
+      ).toBe(88);
+
+      expect(
+        calculateActivityCashImpact(
+          createActivity({
+            activityType: ActivityType.DIVIDEND,
+            amount: "100",
+            fee: "1",
+            tax: "15",
+          }),
+        ),
+      ).toBe(84);
     });
 
     it("does not treat securities transfers or asset-backed income as cash impact", () => {

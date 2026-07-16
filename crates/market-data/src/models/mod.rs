@@ -24,7 +24,7 @@ pub use dividend::DividendEvent;
 pub use instrument::{AssetKind, InstrumentId, InstrumentKind};
 pub use profile::AssetProfile;
 pub use provider_params::{ProviderInstrument, ProviderOverrides};
-pub use quote::{BondQuoteMetadata, Quote, QuoteContext};
+pub use quote::{BondQuoteMetadata, Quote, QuoteContext, QuoteIdentifiers};
 pub use search::SearchResult;
 pub use types::{Currency, Mic, ProviderId, ProviderSymbol};
 

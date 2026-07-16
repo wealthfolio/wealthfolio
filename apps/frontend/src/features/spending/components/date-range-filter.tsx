@@ -1,5 +1,7 @@
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 import {
   Badge,
@@ -19,7 +21,7 @@ interface DateRangeFilterProps {
   title?: string;
 }
 
-function summarize(range: DateRange | undefined): string | null {
+function summarize(range: DateRange | undefined, t: TFunction): string | null {
   if (!range?.from && !range?.to) return null;
   if (range.from && range.to) {
     return `${format(range.from, "MMM d")} – ${format(range.to, "MMM d")}`;
@@ -27,12 +29,14 @@ function summarize(range: DateRange | undefined): string | null {
   if (range.from) {
     return format(range.from, "MMM d, y");
   }
-  return range.to ? `Until ${format(range.to, "MMM d, y")}` : null;
+  return range.to ? t("spending:common.until", { date: format(range.to, "MMM d, y") }) : null;
 }
 
-export function DateRangeFilter({ value, onChange, title = "Date" }: DateRangeFilterProps) {
+export function DateRangeFilter({ value, onChange, title }: DateRangeFilterProps) {
+  const { t } = useTranslation();
   const isActive = !!value?.from || !!value?.to;
-  const summary = summarize(value);
+  const summary = summarize(value, t);
+  const label = title ?? t("common:date");
 
   return (
     <Popover>
@@ -46,7 +50,7 @@ export function DateRangeFilter({ value, onChange, title = "Date" }: DateRangeFi
           )}
         >
           <Icons.PlusCircle className="mr-2 h-4 w-4" />
-          {title}
+          {label}
           {isActive && summary && (
             <>
               <Separator orientation="vertical" className="mx-2 h-4" />
@@ -73,7 +77,7 @@ export function DateRangeFilter({ value, onChange, title = "Date" }: DateRangeFi
               onClick={() => onChange(undefined)}
               className="text-destructive hover:bg-destructive/10 w-full"
             >
-              Clear
+              {t("common:clear")}
             </Button>
           </div>
         )}

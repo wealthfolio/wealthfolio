@@ -1,11 +1,16 @@
-import { isSameDay, startOfYear, subDays, subMonths, subYears } from "date-fns";
+import * as React from "react";
+import { useTranslation } from "react-i18next";
+import { format, isSameDay, startOfYear, subDays, subMonths, subYears } from "date-fns";
 import { DateRange as DayPickerDateRange } from "react-day-picker";
+import { useDateFnsLocale } from "../../hooks/use-date-fns-locale";
+import { useIsMobile } from "../../hooks/use-mobile";
 import { cn } from "../../lib/utils";
 import { AnimatedToggleGroup } from "../ui/animated-toggle-group";
 import { Button } from "../ui/button";
 import { Calendar } from "../ui/calendar";
 import { Icons } from "../ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "../ui/sheet";
 
 // Define a generic DateRange type for this component
 export interface DateRange {
@@ -75,6 +80,11 @@ interface DateRangeSelectorProps {
 }
 
 export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRangeSelectorProps) {
+  const { t } = useTranslation();
+  const locale = useDateFnsLocale();
+  const isMobile = useIsMobile();
+  const [isCustomPickerOpen, setIsCustomPickerOpen] = React.useState(false);
+  const [draftRange, setDraftRange] = React.useState<DateRange | undefined>(value);
   const visibleRanges = ranges.filter((range) => !hiddenRanges.includes(range.label));
 
   // Helper function to compare dates ignoring time
@@ -85,6 +95,10 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
 
   // Check if current range matches any predefined range and get the selected label
   const getSelectedRange = () => {
+    if (!value && visibleRanges.some((range) => range.label === "ALL")) {
+      return "ALL";
+    }
+
     const selected = visibleRanges.find((range) => {
       const predefinedRange = range.getValue();
       return compareDates(value?.from, predefinedRange.from) && compareDates(value?.to, predefinedRange.to);
@@ -94,6 +108,40 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
 
   const selectedLabel = getSelectedRange();
   const isCustomRange = !selectedLabel;
+  const isDraftRangeComplete = !draftRange || (!!draftRange.from && !!draftRange.to);
+  const allTimeRange = visibleRanges.find((range) => range.label === "ALL")?.getValue();
+  const appliedDraftRange = draftRange ?? allTimeRange;
+
+  const handleCustomPickerOpenChange = (open: boolean) => {
+    if (open) {
+      setDraftRange(value ?? allTimeRange);
+    }
+    setIsCustomPickerOpen(open);
+  };
+
+  const handleApplyDraftRange = () => {
+    if (!isDraftRangeComplete) return;
+    onChange(appliedDraftRange);
+    setIsCustomPickerOpen(false);
+  };
+
+  const formatRangeDate = (date: Date | undefined) =>
+    date ? format(date, "MMM d, yyyy", { locale }) : t("ui:dateRange.notSet", "Not set");
+
+  const triggerButton = (
+    <Button
+      type="button"
+      variant={isCustomRange ? "default" : "ghost"}
+      size="sm"
+      className={cn(
+        "h-8 w-9 rounded-full p-0",
+        isCustomRange && "bg-primary text-primary-foreground hover:bg-primary/90",
+      )}
+      aria-label={t("ui:dateRange.chooseCustom", "Choose custom date range")}
+    >
+      <Icons.Calendar className="h-4 w-4" />
+    </Button>
+  );
 
   return (
     <div className="flex items-center space-x-1">
@@ -101,7 +149,7 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
         items={visibleRanges.map((range) => ({
           value: range.label,
           label: range.label,
-          title: range.name,
+          title: t("ui:dateRange.presets." + range.label, range.name),
         }))}
         value={selectedLabel}
         onValueChange={(newValue) => {
@@ -117,31 +165,84 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
         variant="secondary"
       />
 
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant={isCustomRange ? "default" : "ghost"}
-            size="sm"
-            className={cn(
-              "h-8 w-9 rounded-full p-0",
-              isCustomRange && "bg-primary text-primary-foreground hover:bg-primary/90",
-            )}
+      {isMobile ? (
+        <Sheet open={isCustomPickerOpen} onOpenChange={handleCustomPickerOpenChange}>
+          <SheetTrigger asChild>{triggerButton}</SheetTrigger>
+          <SheetContent side="bottom" className="rounded-t-4xl mx-1 flex max-h-[85vh] flex-col p-0">
+            <SheetHeader className="border-border border-b px-6 py-4">
+              <SheetTitle>{t("ui:dateRange.customRange", "Custom range")}</SheetTitle>
+            </SheetHeader>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="border-border/70 bg-muted/30 rounded-lg border px-3 py-2">
+                  <div className="text-muted-foreground text-xs font-medium">{t("ui:dateRange.start", "Start")}</div>
+                  <div className="text-foreground mt-1 truncate text-sm font-medium">
+                    {formatRangeDate(draftRange?.from)}
+                  </div>
+                </div>
+                <div className="border-border/70 bg-muted/30 rounded-lg border px-3 py-2">
+                  <div className="text-muted-foreground text-xs font-medium">{t("ui:dateRange.end", "End")}</div>
+                  <div className="text-foreground mt-1 truncate text-sm font-medium">
+                    {formatRangeDate(draftRange?.to)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 flex justify-center">
+                <Calendar
+                  mode="range"
+                  defaultMonth={draftRange?.from}
+                  selected={draftRange as DayPickerDateRange | undefined}
+                  onSelect={(selectedRange: DayPickerDateRange | undefined) => {
+                    setDraftRange(selectedRange as DateRange | undefined);
+                  }}
+                  numberOfMonths={1}
+                  className="p-0 [--cell-size:2.5rem]"
+                />
+              </div>
+            </div>
+
+            <SheetFooter className="border-border flex-row gap-2 border-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => setDraftRange(allTimeRange)}
+                disabled={!draftRange && !allTimeRange}
+              >
+                {t("ui:dateRange.clear", "Clear")}
+              </Button>
+              <Button
+                type="button"
+                className="ml-auto"
+                onClick={handleApplyDraftRange}
+                disabled={!isDraftRangeComplete}
+              >
+                {t("ui:dateRange.done", "Done")}
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Popover>
+          <PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+          <PopoverContent
+            className="max-h-[min(var(--radix-popover-content-available-height,80vh),80vh)] w-auto overflow-y-auto overscroll-contain p-0 [-webkit-overflow-scrolling:touch]"
+            align="end"
           >
-            <Icons.Calendar className="h-4 w-4" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="end">
-          <Calendar
-            mode="range"
-            defaultMonth={value?.from}
-            selected={value as DayPickerDateRange | undefined}
-            onSelect={(selectedRange: DayPickerDateRange | undefined) => {
-              onChange(selectedRange as DateRange | undefined);
-            }}
-            numberOfMonths={3}
-          />
-        </PopoverContent>
-      </Popover>
+            <Calendar
+              mode="range"
+              defaultMonth={value?.from}
+              selected={value as DayPickerDateRange | undefined}
+              onSelect={(selectedRange: DayPickerDateRange | undefined) => {
+                onChange(selectedRange as DateRange | undefined);
+              }}
+              numberOfMonths={3}
+            />
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   );
 }

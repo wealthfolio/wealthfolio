@@ -2,9 +2,11 @@ import { ConnectedView, LoginForm, useWealthfolioConnect } from "@/features/weal
 import { Card, CardDescription, CardHeader, CardTitle } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
+import { useTranslation } from "react-i18next";
 import { SettingsHeader } from "../settings-header";
 
 export default function ConnectSettingsPage() {
+  const { t } = useTranslation();
   const { isEnabled, isConnected, isInitializing } = useWealthfolioConnect();
 
   // Show "not configured" state when Connect feature is disabled
@@ -12,8 +14,8 @@ export default function ConnectSettingsPage() {
     return (
       <div className="space-y-6">
         <SettingsHeader
-          heading="Wealthfolio Connect"
-          text="Connect your broker accounts through our cloud service."
+          heading={t("settings:nav.items.connect")}
+          text={t("settings:connect_description")}
         />
         <Separator />
         <Card>
@@ -21,8 +23,8 @@ export default function ConnectSettingsPage() {
             <div className="bg-muted mb-2 flex h-12 w-12 items-center justify-center rounded-full">
               <Icons.CloudOff className="text-muted-foreground h-6 w-6" />
             </div>
-            <CardTitle>Not Configured</CardTitle>
-            <CardDescription>Wealthfolio Connect is not configured for this build.</CardDescription>
+            <CardTitle>{t("settings:connect_not_configured_title")}</CardTitle>
+            <CardDescription>{t("settings:connect_not_configured_desc")}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -33,8 +35,8 @@ export default function ConnectSettingsPage() {
     return (
       <div className="space-y-6">
         <SettingsHeader
-          heading="Wealthfolio Connect"
-          text="Connect your broker accounts through our cloud service."
+          heading={t("settings:nav.items.connect")}
+          text={t("settings:connect_description")}
         />
         <Separator />
         <div className="flex items-center justify-center py-12">
@@ -47,8 +49,8 @@ export default function ConnectSettingsPage() {
   return (
     <div className="space-y-6">
       <SettingsHeader
-        heading="Wealthfolio Connect"
-        text="Connect your broker accounts and devices through our cloud service."
+        heading={t("settings:nav.items.connect")}
+        text={t("settings:connect_description_full")}
       />
       <Separator />
       {isConnected ? <ConnectedView /> : <LoginForm />}

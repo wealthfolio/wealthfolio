@@ -1,6 +1,7 @@
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface ProviderButtonProps {
   provider: "google" | "apple" | "email";
@@ -21,18 +22,19 @@ export function ProviderButton({
   className,
   type = "button",
 }: ProviderButtonProps) {
+  const { t } = useTranslation();
   const providerConfig = {
     google: {
       icon: Icons.Google,
-      label: "Continue with Google",
+      label: t("connect:providers.continueWithGoogle"),
     },
     apple: {
       icon: Icons.Apple,
-      label: "Continue with Apple",
+      label: t("connect:providers.continueWithApple"),
     },
     email: {
       icon: Icons.Mail,
-      label: "Continue with Email",
+      label: t("connect:providers.continueWithEmail"),
     },
   };
 
@@ -54,7 +56,9 @@ export function ProviderButton({
       )}
       <span className="flex-1 text-center">{config.label}</span>
       {isLastUsed && !isLoading && (
-        <span className="text-muted-foreground absolute right-3 text-xs">Last used</span>
+        <span className="text-muted-foreground absolute right-3 text-xs">
+          {t("connect:providers.lastUsed")}
+        </span>
       )}
     </Button>
   );

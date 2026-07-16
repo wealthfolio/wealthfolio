@@ -1,0 +1,15 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "byMonth": {},
+    "byType": {},
+    "currency": "USD",
+    "monthlyAverage": 0.0,
+    "period": "YTD",
+    "topAssets": [],
+    "totalIncome": 0.0
+  }
+}

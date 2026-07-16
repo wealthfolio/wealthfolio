@@ -1,3 +1,4 @@
+mod cash;
 mod drift_service;
 mod model;
 mod optimizer;

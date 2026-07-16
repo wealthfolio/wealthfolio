@@ -9,6 +9,7 @@ import {
 
 import type { AllocationTarget } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface TargetDetailHeaderProps {
   targets: AllocationTarget[];
@@ -29,6 +30,7 @@ export function TargetToolbarActions({
   onCreateTarget,
   onEditTarget,
 }: Omit<TargetDetailHeaderProps, "onBack" | "showActions">) {
+  const { t } = useTranslation();
   return (
     <div className="flex w-full min-w-0 items-center justify-end gap-2 md:w-auto">
       {targets.length > 0 && (
@@ -40,7 +42,7 @@ export function TargetToolbarActions({
             >
               <Icons.Target className="h-4 w-4 shrink-0 opacity-70" />
               <span className="min-w-0 flex-1 truncate text-left">
-                {target?.name ?? "Select target"}
+                {target?.name ?? t("allocation:header.selectTarget")}
               </span>
               <Icons.ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
             </Button>
@@ -62,8 +64,8 @@ export function TargetToolbarActions({
         variant="outline"
         className="bg-secondary/30 hover:bg-muted/80 h-10 w-10 shrink-0 rounded-full border-none p-0"
         onClick={onCreateTarget}
-        aria-label="New target"
-        title="New target"
+        aria-label={t("allocation:header.newTarget")}
+        title={t("allocation:header.newTarget")}
       >
         <Icons.Plus className="h-4 w-4" />
       </Button>
@@ -72,8 +74,8 @@ export function TargetToolbarActions({
           variant="outline"
           className="bg-secondary/30 hover:bg-muted/80 h-10 w-10 shrink-0 rounded-full border-none p-0"
           onClick={onEditTarget}
-          aria-label="Edit target"
-          title="Edit target"
+          aria-label={t("allocation:header.editTarget")}
+          title={t("allocation:header.editTarget")}
         >
           <Icons.Pencil className="h-4 w-4" />
         </Button>
@@ -92,11 +94,12 @@ export function TargetDetailHeader({
   onEditTarget,
   showActions = true,
 }: TargetDetailHeaderProps) {
+  const { t } = useTranslation();
   return (
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
       <Button variant="ghost" size="sm" className="-ml-2" onClick={onBack}>
         <Icons.ArrowLeft className="mr-1.5 h-4 w-4" />
-        Back to allocation
+        {t("allocation:header.backToAllocation")}
       </Button>
 
       {showActions && (

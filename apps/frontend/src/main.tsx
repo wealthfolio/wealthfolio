@@ -1,11 +1,12 @@
 import { isDesktop, getPlatform } from "@/adapters";
 import React from "react";
-import * as ReactDOMLegacy from "react-dom";
 import ReactDOM from "react-dom/client";
-import { debugAddonState, isAddonDevModeEnabled, loadAllAddons } from "./addons/addons-loader";
-import "./addons/addons-runtime-context";
+import { debugAddonState, isAddonDevModeEnabled } from "./addons/addons-loader";
 import App from "./App";
 import "./globals.css";
+// Initialize i18next before the app renders. The active language is applied
+// from the stored user setting by the settings provider.
+import "./i18n/i18n";
 
 if (isAddonDevModeEnabled) {
   void import("./addons/addons-dev-mode");
@@ -21,19 +22,22 @@ if (isAddonDevModeEnabled) {
   });
 }
 
-// Expose React and ReactDOM globally for addons
-// ReactDOM/client only has createRoot/hydrateRoot, but addons need createPortal from react-dom
-window.React = React;
-window.ReactDOM = ReactDOMLegacy;
-
-// Make debug function available globally for debugging
-globalThis.debugAddons = debugAddonState;
-
-// Load addons after context is injected
-loadAllAddons();
+if (import.meta.env.DEV) {
+  Object.defineProperty(globalThis, "debugAddons", {
+    configurable: true,
+    enumerable: false,
+    value: debugAddonState,
+    writable: false,
+  });
+}
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    {/* Suspense boundary for i18next lazy-loaded translation resources: the auth
+        layer reads translations before any route-level boundary, so a top-level
+        boundary prevents a cold-load suspend from blanking the app. */}
+    <React.Suspense fallback={null}>
+      <App />
+    </React.Suspense>
   </React.StrictMode>,
 );

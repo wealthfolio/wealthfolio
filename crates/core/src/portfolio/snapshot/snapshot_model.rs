@@ -22,7 +22,7 @@ pub enum SnapshotSource {
     BrokerImported,
     /// Imported from CSV file
     CsvImport,
-    /// Synthetic backfill snapshot (cloned from earliest for history)
+    /// Legacy synthetic backfill snapshot.
     Synthetic,
 }
 
@@ -103,7 +103,7 @@ pub struct AccountStateSnapshot {
 
     // --- Calculated Aggregates (Account Currency) ---
     #[serde(default)]
-    pub cost_basis: Decimal, // Sum of cost basis of all positions
+    pub cost_basis: Decimal, // Historical book cost of all positions in account currency
     #[serde(default)]
     pub net_contribution: Decimal, // Cumulative net deposits in account currency
     #[serde(default)]

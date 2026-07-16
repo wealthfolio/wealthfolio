@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { motion } from "motion/react";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons, type Icon } from "@wealthfolio/ui/components/ui/icons";
@@ -112,47 +114,90 @@ function computeSummary(draftActivities: DraftActivity[]): ImportSummary {
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ACTIVITY_TYPE_CONFIG: Record<string, { label: string; icon: Icon; color: string }> = {
-  BUY: { label: "Buy", icon: Icons.TrendingUp, color: "text-green-600 dark:text-green-400" },
-  SELL: { label: "Sell", icon: Icons.TrendingDown, color: "text-red-500 dark:text-red-400" },
+const ACTIVITY_TYPE_CONFIG: Record<string, { labelKey: string; icon: Icon; color: string }> = {
+  BUY: {
+    labelKey: "activity:import.confirm.typeBuy",
+    icon: Icons.TrendingUp,
+    color: "text-green-600 dark:text-green-400",
+  },
+  SELL: {
+    labelKey: "activity:import.confirm.typeSell",
+    icon: Icons.TrendingDown,
+    color: "text-red-500 dark:text-red-400",
+  },
   DIVIDEND: {
-    label: "Dividend",
+    labelKey: "activity:import.confirm.typeDividend",
     icon: Icons.DollarSign,
     color: "text-emerald-600 dark:text-emerald-400",
   },
-  INTEREST: { label: "Interest", icon: Icons.Coins, color: "text-amber-600 dark:text-amber-400" },
+  INTEREST: {
+    labelKey: "activity:import.confirm.typeInterest",
+    icon: Icons.Coins,
+    color: "text-amber-600 dark:text-amber-400",
+  },
   DEPOSIT: {
-    label: "Deposit",
+    labelKey: "activity:import.confirm.typeDeposit",
     icon: Icons.ArrowDownLeft,
     color: "text-blue-600 dark:text-blue-400",
   },
   WITHDRAWAL: {
-    label: "Withdrawal",
+    labelKey: "activity:import.confirm.typeWithdrawal",
     icon: Icons.ArrowUpRight,
     color: "text-orange-600 dark:text-orange-400",
   },
   TRANSFER_IN: {
-    label: "Transfer In",
+    labelKey: "activity:import.confirm.typeTransferIn",
     icon: Icons.ArrowDownLeft,
     color: "text-blue-600 dark:text-blue-400",
   },
   TRANSFER_OUT: {
-    label: "Transfer Out",
+    labelKey: "activity:import.confirm.typeTransferOut",
     icon: Icons.ArrowUpRight,
     color: "text-orange-600 dark:text-orange-400",
   },
-  FEE: { label: "Fee", icon: Icons.Receipt, color: "text-slate-600 dark:text-slate-400" },
-  TAX: { label: "Tax", icon: Icons.FileText, color: "text-slate-600 dark:text-slate-400" },
-  SPLIT: { label: "Split", icon: Icons.Split, color: "text-purple-600 dark:text-purple-400" },
-  UNKNOWN: { label: "Unknown", icon: Icons.HelpCircle, color: "text-muted-foreground" },
+  FEE: {
+    labelKey: "activity:import.confirm.typeFee",
+    icon: Icons.Receipt,
+    color: "text-slate-600 dark:text-slate-400",
+  },
+  TAX: {
+    labelKey: "activity:import.confirm.typeTax",
+    icon: Icons.FileText,
+    color: "text-slate-600 dark:text-slate-400",
+  },
+  SPLIT: {
+    labelKey: "activity:import.confirm.typeSplit",
+    icon: Icons.Split,
+    color: "text-purple-600 dark:text-purple-400",
+  },
+  UNKNOWN: {
+    labelKey: "activity:import.confirm.typeUnknown",
+    icon: Icons.HelpCircle,
+    color: "text-muted-foreground",
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Translate known internal skip-reason keys; fall back to the raw reason.
+function translateSkipReason(t: TFunction, reason: string): string {
+  switch (reason) {
+    case "Manual":
+      return t("activity:import.confirm.skipReasonManual");
+    case "Validation Error":
+      return t("activity:import.confirm.validationError");
+    case "Skipped":
+      return t("activity:import.review.skipReason");
+    default:
+      return reason;
+  }
+}
+
 export function ConfirmStep() {
   const { state, dispatch } = useImportContext();
+  const { t } = useTranslation();
   const [importError, setImportError] = useState<string | null>(null);
   const [isPreparingAssets, setIsPreparingAssets] = useState(false);
 
@@ -266,7 +311,7 @@ export function ConfirmStep() {
       (d) => d.status === "valid" || d.status === "warning" || d.status === "duplicate",
     );
     if (draftsToImport.length === 0) {
-      setImportError("No valid activities to import");
+      setImportError(t("activity:import.confirm.noValidActivities"));
       return;
     }
 
@@ -319,7 +364,7 @@ export function ConfirmStep() {
     } catch (error) {
       persistCreatedAssets(createdAssetIdsByKey);
       setImportError(
-        error instanceof Error ? error.message : "Failed to prepare assets for import.",
+        error instanceof Error ? error.message : t("activity:import.confirm.failedToPrepareAssets"),
       );
     } finally {
       setIsPreparingAssets(false);
@@ -333,10 +378,14 @@ export function ConfirmStep() {
   if (importError) {
     return (
       <div className="space-y-4">
-        <ImportAlert variant="destructive" title="Import Error" description={importError}>
+        <ImportAlert
+          variant="destructive"
+          title={t("activity:import.confirm.errorTitle")}
+          description={importError}
+        >
           <div className="mt-4">
             <Button variant="destructive" onClick={() => setImportError(null)} size="sm">
-              Try Again
+              {t("activity:import.confirm.tryAgain")}
             </Button>
           </div>
         </ImportAlert>
@@ -350,26 +399,28 @@ export function ConfirmStep() {
       {summary.toImport === 0 ? (
         <ImportAlert
           variant="warning"
-          title="No Activities to Import"
-          description="All activities have been skipped or have validation errors. Go back to review and fix any issues."
+          title={t("activity:import.confirm.noActivitiesTitle")}
+          description={t("activity:import.confirm.noActivitiesDescription")}
         />
       ) : summary.warnings > 0 ? (
         <ImportAlert
           variant="warning"
-          title={`${summary.toImport} activities ready to import`}
-          description={`${summary.warnings} activities have warnings but will still be imported.`}
+          title={t("activity:import.confirm.readyTitle", { count: summary.toImport })}
+          description={t("activity:import.confirm.warningsDescription", {
+            count: summary.warnings,
+          })}
         />
       ) : summary.forcedDuplicates > 0 ? (
         <ImportAlert
           variant="warning"
-          title={`${summary.toImport} activities ready to import`}
-          description={`Includes ${summary.forcedDuplicates} duplicate${summary.forcedDuplicates === 1 ? "" : "s"} marked "import anyway".`}
+          title={t("activity:import.confirm.readyTitle", { count: summary.toImport })}
+          description={t("activity:import.confirm.forcedDuplicatesDescription", {
+            count: summary.forcedDuplicates,
+          })}
         />
       ) : (
         <div>
-          <p className="text-muted-foreground">
-            Review the summary below, then click Import to proceed.
-          </p>
+          <p className="text-muted-foreground">{t("activity:import.confirm.reviewSummary")}</p>
         </div>
       )}
 
@@ -383,7 +434,9 @@ export function ConfirmStep() {
               <Icons.FileText className="text-muted-foreground h-5 w-5" />
             </div>
             <div>
-              <div className="text-muted-foreground text-sm">Total Rows</div>
+              <div className="text-muted-foreground text-sm">
+                {t("activity:import.confirm.totalRows")}
+              </div>
               <div className="text-2xl font-semibold">{summary.total}</div>
             </div>
           </div>
@@ -394,7 +447,7 @@ export function ConfirmStep() {
               <Icons.Import className="text-primary-foreground h-5 w-5" />
             </div>
             <div>
-              <div className="text-primary text-sm">To Import</div>
+              <div className="text-primary text-sm">{t("activity:import.confirm.toImport")}</div>
               <div className="text-primary text-2xl font-semibold">{summary.toImport}</div>
             </div>
           </div>
@@ -405,7 +458,9 @@ export function ConfirmStep() {
               <Icons.Minus className="text-muted-foreground h-5 w-5" />
             </div>
             <div>
-              <div className="text-muted-foreground text-sm">Skipped</div>
+              <div className="text-muted-foreground text-sm">
+                {t("activity:import.confirm.skipped")}
+              </div>
               <div className="text-muted-foreground text-2xl font-semibold">{skippedTotal}</div>
             </div>
           </div>
@@ -415,7 +470,7 @@ export function ConfirmStep() {
         {Object.keys(summary.byType).length > 0 && (
           <div className="space-y-3">
             <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-              By Activity Type
+              {t("activity:import.confirm.byActivityType")}
             </h4>
             <div className="flex flex-wrap gap-2">
               {Object.entries(summary.byType)
@@ -429,7 +484,7 @@ export function ConfirmStep() {
                       className="bg-muted/50 flex items-center gap-2 rounded-full px-3 py-1.5"
                     >
                       <IconComponent className={`h-4 w-4 ${config.color}`} />
-                      <span className="text-sm">{config.label}</span>
+                      <span className="text-sm">{t(config.labelKey)}</span>
                       <span className="text-muted-foreground bg-background rounded-full px-2 py-0.5 text-xs font-medium">
                         {count}
                       </span>
@@ -444,7 +499,7 @@ export function ConfirmStep() {
         {Object.keys(summary.bySkipReason).length > 0 && (
           <div className="space-y-3">
             <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-              Skipped Breakdown
+              {t("activity:import.confirm.skippedBreakdown")}
             </h4>
             <div className="flex flex-wrap gap-2">
               {Object.entries(summary.bySkipReason)
@@ -455,7 +510,9 @@ export function ConfirmStep() {
                     className="bg-muted/50 flex items-center gap-2 rounded-full px-3 py-1.5"
                   >
                     <Icons.XCircle className="text-muted-foreground h-4 w-4" />
-                    <span className="text-muted-foreground text-sm">{reason}</span>
+                    <span className="text-muted-foreground text-sm">
+                      {translateSkipReason(t, reason)}
+                    </span>
                     <span className="text-muted-foreground bg-background rounded-full px-2 py-0.5 text-xs font-medium">
                       {count}
                     </span>
@@ -468,9 +525,9 @@ export function ConfirmStep() {
 
       {/* Progress indicator dialog */}
       <ProgressIndicator
-        title="Import Progress"
-        description="Please wait while the application processes your data."
-        message="Importing activities..."
+        title={t("activity:import.confirm.progressTitle")}
+        description={t("activity:import.confirm.progressDescription")}
+        message={t("activity:import.confirm.progressMessage")}
         isLoading={isProcessing}
         open={isProcessing}
       />
@@ -479,7 +536,7 @@ export function ConfirmStep() {
       <div className="flex justify-between gap-3 border-t pt-6">
         <Button variant="outline" onClick={handleBack} disabled={isProcessing}>
           <Icons.ArrowLeft className="mr-2 h-4 w-4" />
-          Back
+          {t("activity:import.toolbar.back")}
         </Button>
 
         <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
@@ -491,12 +548,14 @@ export function ConfirmStep() {
             {isProcessing ? (
               <>
                 <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                {isPreparingAssets ? "Preparing assets..." : "Importing..."}
+                {isPreparingAssets
+                  ? t("activity:import.confirm.preparingAssets")
+                  : t("activity:import.confirm.importing")}
               </>
             ) : (
               <>
                 <Icons.Import className="mr-2 h-4 w-4" />
-                Import {summary.toImport} {summary.toImport === 1 ? "Activity" : "Activities"}
+                {t("activity:import.confirm.importActivities", { count: summary.toImport })}
               </>
             )}
           </Button>

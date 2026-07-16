@@ -1,5 +1,6 @@
 import { Area, AreaChart, ResponsiveContainer, YAxis } from "recharts";
 import { useId } from "react";
+import { useTranslation } from "react-i18next";
 
 interface CategoryTrendChartProps {
   data: { date: string; value: number }[];
@@ -9,12 +10,13 @@ interface CategoryTrendChartProps {
 
 /** Compact single-series area chart of a category's value over the range. */
 export function CategoryTrendChart({ data, color }: CategoryTrendChartProps) {
+  const { t } = useTranslation();
   const gradientId = `category-trend-gradient-${useId().replace(/:/g, "")}`;
 
   if (data.length < 2) {
     return (
       <div className="text-muted-foreground/60 flex h-32 items-center justify-center text-xs">
-        Not enough history
+        {t("insights:networth.trend.not_enough_history")}
       </div>
     );
   }

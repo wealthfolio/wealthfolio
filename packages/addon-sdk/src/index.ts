@@ -13,6 +13,9 @@
 export type {
   AddonContext,
   AddonEnableFunction,
+  AddonRouteLocation,
+  AddonRouteRenderContext,
+  AddonRouteRenderer,
   EventCallback,
   RouteConfig,
   RouterManager,
@@ -27,7 +30,12 @@ export type {
   ActivitySearchFilters,
   ActivitySort,
   HostAPI,
+  NetworkAuth,
+  NetworkAPI,
+  NetworkRequest,
+  NetworkResponse,
   SnapshotsAPI,
+  StorageAPI,
   ToastAPI,
   DividendEvent,
   FetchDividendsOptions,
@@ -43,6 +51,10 @@ export type * from './data-types';
 // Manifest and metadata types
 export type {
   AddonFile,
+  AddonContributedLink,
+  AddonContributedRoute,
+  AddonContributes,
+  AddonHostDependencies,
   AddonInstallResult,
   AddonManifest,
   AddonStoreListing,
@@ -66,9 +78,11 @@ export type {
 } from './permissions';
 
 export {
+  BASELINE_PERMISSION_CATEGORIES,
   getFunctionRiskLevel,
   getPermissionCategoriesByRisk,
   getPermissionCategory,
+  isBaselineCategory,
   isPermissionRequired,
   PERMISSION_CATEGORIES,
 } from './permissions';
@@ -85,35 +99,29 @@ export {
 // Goal progress calculation
 export { calculateGoalProgress } from './goal-progress';
 
-// -----------------------------------------------------------------------------
-// Framework version contract
-// -----------------------------------------------------------------------------
-
 /**
- * React version guaranteed by the host application. Addons may assert against
- * this at runtime if they rely on a particular React feature set.
+ * React version provided by the Wealthfolio add-on sandbox for host-externalized
+ * add-ons.
  */
-export const ReactVersion = '19.1.1';
+export const ReactVersion = '19.2.4';
+
+export { HOST_DEPENDENCIES } from './host-dependencies';
+
+// Sidebar icon names (see SidebarItemConfig.icon)
+export { ADDON_ICON_NAMES } from './icons';
+export type { AddonIconName } from './icons';
 
 /**
  * Addons receive their context as a parameter to the enable() function.
- * Each addon gets its own isolated context with scoped secret storage.
+ * Each addon gets its own isolated iframe context with scoped host APIs.
  *
  * Example:
  * export default function enable(ctx: AddonContext) {
  *   // Use ctx.api.secrets.set/get/delete for secure storage
  *   // Use ctx.sidebar.addItem() to add navigation
- *   // Use ctx.router.add() to register routes
+ *   // Use ctx.router.add() with a render callback to register routes
  * }
  */
-
-interface HostGlobals {
-  React: typeof import('react');
-  ReactDOM: typeof import('react-dom');
-}
-const hostGlobals = window as unknown as Partial<HostGlobals>;
-export const React = hostGlobals.React!;
-export const ReactDOM = hostGlobals.ReactDOM!;
 
 // Version
 export { SDK_VERSION } from './version';

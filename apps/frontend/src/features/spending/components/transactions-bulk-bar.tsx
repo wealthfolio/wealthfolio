@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import { Button, Icons } from "@wealthfolio/ui";
 
 import { QuickCategorizePopover, type QuickCategorizeScope } from "./quick-categorize-popover";
@@ -20,15 +22,18 @@ export function TransactionsBulkBar({
   onDelete,
   onClearSelection,
 }: TransactionsBulkBarProps) {
+  const { t } = useTranslation();
   return (
     <div
       role="region"
-      aria-label="Bulk actions"
+      aria-label={t("spending:transactions.bulkActions")}
       className="bg-muted/40 ring-border flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2 ring-1"
     >
       <div className="text-foreground flex items-center gap-2 text-sm">
         <Icons.Check className="h-4 w-4" aria-hidden="true" />
-        <span className="font-medium">{selectedCount} selected</span>
+        <span className="font-medium">
+          {t("spending:transactions.selectedCount", { count: selectedCount })}
+        </span>
       </div>
       <div className="flex items-center gap-2">
         {categoryScope ? (
@@ -39,7 +44,7 @@ export function TransactionsBulkBar({
             trigger={
               <Button size="sm" variant="default">
                 <Icons.Tag className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-                Categorize
+                {t("spending:transactions.categorize")}
               </Button>
             }
           />
@@ -48,10 +53,10 @@ export function TransactionsBulkBar({
             size="sm"
             variant="default"
             disabled
-            title="Select transactions from one non-neutral cash-flow bucket to categorize"
+            title={t("spending:transactions.categorizeHint")}
           >
             <Icons.Tag className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            Categorize
+            {t("spending:transactions.categorize")}
           </Button>
         )}
         <QuickEventPopover
@@ -61,7 +66,7 @@ export function TransactionsBulkBar({
           trigger={
             <Button size="sm" variant="outline">
               <Icons.Calendar className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-              Tag event
+              {t("spending:transactions.tagEvent")}
             </Button>
           }
         />
@@ -72,10 +77,10 @@ export function TransactionsBulkBar({
           onClick={onDelete}
         >
           <Icons.Trash className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-          Delete
+          {t("common:delete")}
         </Button>
         <Button size="sm" variant="ghost" onClick={onClearSelection}>
-          Clear
+          {t("common:clear")}
         </Button>
       </div>
     </div>

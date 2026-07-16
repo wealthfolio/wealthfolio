@@ -1,0 +1,13 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "currency": "USD",
+    "groupBy": "class",
+    "taxonomyId": "asset_classes",
+    "taxonomyName": "Asset Classes",
+    "totalValue": 0.0
+  }
+}

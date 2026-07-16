@@ -7,6 +7,7 @@ import { QueryKeys } from "@/lib/query-keys";
 import type { Goal } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import { cn, formatCompactAmount } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 const MAX_DISPLAYED_GOALS = 5;
@@ -43,36 +44,39 @@ function statusDotClass(status: Goal["statusHealth"]) {
   return "bg-muted-foreground/35";
 }
 
-function formatTimeRemaining(targetDate?: string): string {
-  if (!targetDate) return "NO DEADLINE";
+function formatTimeRemaining(t: (key: string) => string, targetDate?: string): string {
+  if (!targetDate) return t("dashboard:goals.time_no_deadline");
   const target = new Date(targetDate);
   const now = new Date();
-  if (!Number.isFinite(target.getTime())) return "NO DEADLINE";
-  if (target.getTime() <= now.getTime()) return "DUE";
+  if (!Number.isFinite(target.getTime())) return t("dashboard:goals.time_no_deadline");
+  if (target.getTime() <= now.getTime()) return t("dashboard:goals.time_due");
   let months =
     (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth());
   if (target.getDate() < now.getDate()) months -= 1;
   if (months < 0) months = 0;
   const years = Math.floor(months / 12);
   const remMonths = months % 12;
+  // Compact, language-neutral units (Y/M).
   if (years === 0) return `${Math.max(1, remMonths)}M`;
-  if (remMonths === 0) return `${years} YR${years === 1 ? "" : "S"}`;
+  if (remMonths === 0) return `${years}Y`;
   return `${years}Y ${remMonths}M`;
 }
 
 function ViewAllLink() {
+  const { t } = useTranslation();
   return (
     <Link
       to="/goals"
       className="text-muted-foreground hover:bg-success/10 inline-flex h-8 items-center rounded-md px-3 text-xs font-medium transition-colors"
     >
-      View All
+      {t("dashboard:view_all")}
       <Icons.ChevronRight className="ml-1 h-3 w-3" />
     </Link>
   );
 }
 
 export function SavingGoals() {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
 
   const { data: goals, isLoading } = useQuery<Goal[], Error>({
@@ -82,7 +86,7 @@ export function SavingGoals() {
 
   if (isLoading) {
     return (
-      <DashboardCard title="Goals" elevated>
+      <DashboardCard title={t("common:goals")} elevated>
         <div className="space-y-6">
           {[0, 1, 2].map((i) => (
             <div key={i} className="space-y-2">
@@ -104,14 +108,14 @@ export function SavingGoals() {
 
   if (activeGoals.length === 0) {
     return (
-      <DashboardCard title="Goals" elevated action={<ViewAllLink />}>
+      <DashboardCard title={t("common:goals")} elevated action={<ViewAllLink />}>
         <div className="py-2 text-center">
-          <p className="text-sm">No goals set.</p>
+          <p className="text-sm">{t("dashboard:goals.no_goals_set")}</p>
           <Link
             to="/goals/new"
             className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
           >
-            Create your first goal
+            {t("dashboard:goals.create_first_goal")}
             <Icons.ChevronRight className="h-3 w-3" />
           </Link>
         </div>
@@ -120,7 +124,7 @@ export function SavingGoals() {
   }
 
   return (
-    <DashboardCard title="Goals" elevated action={<ViewAllLink />}>
+    <DashboardCard title={t("common:goals")} elevated action={<ViewAllLink />}>
       {visibleGoals.map((goal) => {
         const progress = goal.summaryProgress ?? 0;
         const pct = Math.max(0, Math.min(1, progress));
@@ -128,7 +132,7 @@ export function SavingGoals() {
         const target = goal.summaryTargetAmount ?? goal.targetAmount ?? 0;
         const currency = goal.currency ?? "USD";
         const deadline = goal.targetDate ?? goal.projectedCompletionDate;
-        const timeStr = formatTimeRemaining(deadline);
+        const timeStr = formatTimeRemaining(t, deadline);
         const pctDisplay = Math.round(pct * 100);
 
         const currentDisplay = isBalanceHidden
@@ -195,9 +199,7 @@ export function SavingGoals() {
           to="/goals"
           className="text-muted-foreground hover:text-foreground flex items-center justify-between pt-3 text-xs transition-colors"
         >
-          <span>
-            +{hiddenGoalsCount} more {hiddenGoalsCount === 1 ? "goal" : "goals"}
-          </span>
+          <span>{t("dashboard:goals.more_goals", { count: hiddenGoalsCount })}</span>
           <Icons.ChevronRight className="h-4 w-4" />
         </Link>
       )}

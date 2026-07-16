@@ -3,6 +3,7 @@
 //! This module provides REST endpoints for syncing broker accounts and activities
 //! from the Wealthfolio Connect cloud service.
 
+use std::future::Future;
 use std::sync::Arc;
 
 use axum::{
@@ -13,6 +14,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info};
 
+#[cfg(feature = "device-sync")]
 use super::device_sync_engine;
 use crate::error::{ApiError, ApiResult};
 use crate::events::{
@@ -20,18 +22,74 @@ use crate::events::{
 };
 use crate::main_lib::AppState;
 use axum::http::StatusCode;
+use wealthfolio_connect::prepare_post_login_broker_bootstrap;
 use wealthfolio_connect::{
+    acquire_broker_sync_guard,
     broker::{
         BrokerApiClient, PlansResponse, SyncAccountsResponse, SyncActivitiesResponse,
         SyncConnectionsResponse, UserInfo,
     },
-    ensure_valid_access_token, fetch_subscription_plans_public, ConnectApiClient, SyncConfig,
-    SyncOrchestrator, SyncProgressPayload, SyncProgressReporter, SyncResult, TokenLifecycleConfig,
+    ensure_valid_access_token, fetch_subscription_plans_public, BrokerSyncRunGuard,
+    ConnectApiClient, PostLoginBootstrapReason, PostLoginBootstrapResult,
+    PostLoginBootstrapSyncResult, PostLoginBrokerBootstrapDecision, SyncConfig, SyncOrchestrator,
+    SyncProgressPayload, SyncProgressReporter, SyncResult, TokenLifecycleConfig,
     TokenLifecycleError, CLOUD_ACCESS_TOKEN_KEY, CLOUD_REFRESH_TOKEN_KEY,
 };
+#[cfg(feature = "device-sync")]
 use wealthfolio_device_sync::{EnableSyncResult, SyncState, SyncStateResult};
 
+#[cfg(feature = "device-sync")]
 const DEVICE_ID_KEY: &str = "sync_device_id";
+
+#[cfg(feature = "device-sync")]
+enum PostLoginDeviceBootstrapDecision {
+    StartBackground,
+    Skip(PostLoginBootstrapReason),
+}
+
+#[cfg(feature = "device-sync")]
+async fn prepare_post_login_device_bootstrap<
+    CheckBackgroundRunning,
+    CheckBackgroundRunningFuture,
+    LoadSyncState,
+    LoadSyncStateFuture,
+>(
+    can_run_background: bool,
+    check_background_running: CheckBackgroundRunning,
+    load_sync_state: LoadSyncState,
+) -> PostLoginDeviceBootstrapDecision
+where
+    CheckBackgroundRunning: FnOnce() -> CheckBackgroundRunningFuture,
+    CheckBackgroundRunningFuture: Future<Output = bool>,
+    LoadSyncState: FnOnce() -> LoadSyncStateFuture,
+    LoadSyncStateFuture: Future<Output = Result<SyncState, String>>,
+{
+    if !can_run_background {
+        return PostLoginDeviceBootstrapDecision::Skip(PostLoginBootstrapReason::NotEnrolled);
+    }
+
+    if check_background_running().await {
+        return PostLoginDeviceBootstrapDecision::Skip(PostLoginBootstrapReason::AlreadyRunning);
+    }
+
+    let sync_state = match load_sync_state().await {
+        Ok(sync_state) => sync_state,
+        Err(err) => {
+            debug!("[Connect] Post-login device sync skipped: {}", err);
+            return PostLoginDeviceBootstrapDecision::Skip(PostLoginBootstrapReason::Error);
+        }
+    };
+
+    if sync_state != SyncState::Ready {
+        return PostLoginDeviceBootstrapDecision::Skip(PostLoginBootstrapReason::NotReady);
+    }
+
+    PostLoginDeviceBootstrapDecision::StartBackground
+}
+
+fn try_acquire_broker_sync_guard(state: &AppState) -> Option<BrokerSyncRunGuard> {
+    acquire_broker_sync_guard(&state.broker_sync_running)
+}
 
 fn ensure_cloud_sync_enabled() -> ApiResult<()> {
     if crate::features::cloud_sync_enabled() {
@@ -53,6 +111,7 @@ fn ensure_connect_sync_enabled() -> ApiResult<()> {
     }
 }
 
+#[cfg(feature = "device-sync")]
 fn ensure_device_sync_enabled() -> ApiResult<()> {
     if crate::features::device_sync_enabled() {
         Ok(())
@@ -125,6 +184,7 @@ pub struct RestoreSyncSessionResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg(feature = "device-sync")]
 struct DeviceSyncEngineStatusResponse {
     cursor: i64,
     last_push_at: Option<String>,
@@ -140,6 +200,7 @@ struct DeviceSyncEngineStatusResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg(feature = "device-sync")]
 struct DeviceSyncPairingSourceStatusResponse {
     status: String,
     message: String,
@@ -149,6 +210,7 @@ struct DeviceSyncPairingSourceStatusResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg(feature = "device-sync")]
 struct DeviceSyncBootstrapOverwriteCheckTableResponse {
     table: String,
     rows: i64,
@@ -156,6 +218,7 @@ struct DeviceSyncBootstrapOverwriteCheckTableResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg(feature = "device-sync")]
 struct DeviceSyncBootstrapOverwriteCheckResponse {
     bootstrap_required: bool,
     has_local_data: bool,
@@ -165,6 +228,7 @@ struct DeviceSyncBootstrapOverwriteCheckResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg(feature = "device-sync")]
 struct DeviceSyncBootstrapResponse {
     status: String,
     message: String,
@@ -174,6 +238,7 @@ struct DeviceSyncBootstrapResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg(feature = "device-sync")]
 struct DeviceSyncCycleResponse {
     status: String,
     lock_version: i64,
@@ -188,6 +253,7 @@ struct DeviceSyncCycleResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg(feature = "device-sync")]
 struct DeviceSyncBackgroundResponse {
     status: String,
     message: String,
@@ -195,6 +261,7 @@ struct DeviceSyncBackgroundResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg(feature = "device-sync")]
 struct DeviceSyncReconcileReadyResponse {
     status: String,
     message: String,
@@ -209,6 +276,7 @@ struct DeviceSyncReconcileReadyResponse {
     background_status: String,
 }
 
+#[cfg(feature = "device-sync")]
 fn to_device_sync_reconcile_ready_response(
     result: device_sync_engine::SyncReconcileReadyStateResult,
 ) -> DeviceSyncReconcileReadyResponse {
@@ -229,6 +297,7 @@ fn to_device_sync_reconcile_ready_response(
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg(feature = "device-sync")]
 struct DeviceSyncReconcileReadyRequest {
     #[serde(default)]
     allow_overwrite: bool,
@@ -236,6 +305,7 @@ struct DeviceSyncReconcileReadyRequest {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg(feature = "device-sync")]
 struct DeviceSyncSnapshotUploadResponse {
     status: String,
     snapshot_id: Option<String>,
@@ -302,47 +372,112 @@ async fn store_sync_session(
     let _ = state.secret_store.delete_secret(CLOUD_ACCESS_TOKEN_KEY);
     state.token_lifecycle.clear_cache().await;
 
-    if crate::features::device_sync_enabled() {
-        let engine_state = Arc::clone(&state);
-        tokio::spawn(async move {
-            let token = match mint_access_token(&engine_state).await {
-                Ok(token) => token,
-                Err(err) => {
-                    debug!(
-                        "[Connect] Skipping post-login device sync background start: {}",
-                        err
-                    );
-                    return;
-                }
-            };
+    Ok(Json(()))
+}
 
-            match engine_state
+async fn post_login_bootstrap(
+    State(state): State<Arc<AppState>>,
+) -> ApiResult<Json<PostLoginBootstrapResult>> {
+    let broker_sync = run_post_login_broker_bootstrap(Arc::clone(&state)).await;
+    let device_sync = run_post_login_device_bootstrap(state).await;
+
+    Ok(Json(PostLoginBootstrapResult {
+        broker_sync,
+        device_sync,
+    }))
+}
+
+async fn run_post_login_broker_bootstrap(state: Arc<AppState>) -> PostLoginBootstrapSyncResult {
+    let entitlement_state = Arc::clone(&state);
+    let connections_state = Arc::clone(&state);
+    let guard_state = Arc::clone(&state);
+
+    let decision = prepare_post_login_broker_bootstrap(
+        crate::features::connect_sync_enabled(),
+        move || async move { has_broker_sync(&entitlement_state).await },
+        move || async move {
+            let client = create_connect_client(&connections_state)
+                .await
+                .map_err(|e| e.to_string())?;
+            client.list_connections().await.map_err(|e| e.to_string())
+        },
+        move || try_acquire_broker_sync_guard(&guard_state),
+    )
+    .await;
+
+    let guard = match decision {
+        PostLoginBrokerBootstrapDecision::Start(guard) => guard,
+        PostLoginBrokerBootstrapDecision::Skip(reason) => {
+            return PostLoginBootstrapSyncResult::skipped(reason);
+        }
+    };
+
+    tokio::spawn(async move {
+        match perform_broker_sync_with_guard(&state, guard).await {
+            Ok(_result) => {
+                info!("[Connect] Post-login broker sync completed successfully");
+            }
+            Err(err) => {
+                error!("[Connect] Post-login broker sync failed: {}", err);
+            }
+        }
+    });
+
+    PostLoginBootstrapSyncResult::started()
+}
+
+#[cfg(feature = "device-sync")]
+async fn run_post_login_device_bootstrap(state: Arc<AppState>) -> PostLoginBootstrapSyncResult {
+    let Some(identity) = device_sync_engine::get_sync_identity_from_store(&state) else {
+        return PostLoginBootstrapSyncResult::skipped(PostLoginBootstrapReason::NotEnrolled);
+    };
+
+    let background_state = Arc::clone(&state);
+    let sync_state_state = Arc::clone(&state);
+    let decision = prepare_post_login_device_bootstrap(
+        device_sync_engine::sync_identity_can_run_background(&identity),
+        move || async move {
+            background_state
+                .device_sync_runtime
+                .is_background_running()
+                .await
+        },
+        move || async move {
+            let token = mint_access_token(&sync_state_state)
+                .await
+                .map_err(|err| format!("failed to mint token ({})", err))?;
+            sync_state_state
                 .device_enroll_service
                 .get_sync_state(&token)
                 .await
-            {
-                Ok(sync_state) if sync_state.state == SyncState::Ready => {
-                    if let Err(err) =
-                        device_sync_engine::ensure_background_engine_started(engine_state).await
-                    {
-                        debug!(
-                            "[Connect] Failed to start device sync background engine after login: {}",
-                            err
-                        );
-                    }
-                }
-                Ok(_) => {}
-                Err(err) => {
-                    debug!(
-                        "[Connect] Skipping post-login device sync background start: {}",
-                        err.message
-                    );
-                }
-            }
-        });
+                .map(|sync_state| sync_state.state)
+                .map_err(|err| format!("failed to get sync state ({})", err.message))
+        },
+    )
+    .await;
+
+    match decision {
+        PostLoginDeviceBootstrapDecision::StartBackground => {}
+        PostLoginDeviceBootstrapDecision::Skip(reason) => {
+            return PostLoginBootstrapSyncResult::skipped(reason);
+        }
     }
 
-    Ok(Json(()))
+    match device_sync_engine::ensure_background_engine_started(Arc::clone(&state)).await {
+        Ok(()) => PostLoginBootstrapSyncResult::started(),
+        Err(err) => {
+            debug!(
+                "[Connect] Post-login device sync background start failed: {}",
+                err
+            );
+            PostLoginBootstrapSyncResult::skipped(PostLoginBootstrapReason::Error)
+        }
+    }
+}
+
+#[cfg(not(feature = "device-sync"))]
+async fn run_post_login_device_bootstrap(_state: Arc<AppState>) -> PostLoginBootstrapSyncResult {
+    PostLoginBootstrapSyncResult::skipped(PostLoginBootstrapReason::FeatureDisabled)
 }
 
 async fn clear_sync_session(State(state): State<Arc<AppState>>) -> ApiResult<Json<()>> {
@@ -353,6 +488,7 @@ async fn clear_sync_session(State(state): State<Arc<AppState>>) -> ApiResult<Jso
     let _ = state.secret_store.delete_secret(CLOUD_ACCESS_TOKEN_KEY);
 
     state.token_lifecycle.clear_cache().await;
+    #[cfg(feature = "device-sync")]
     device_sync_engine::clear_min_snapshot_created_at_from_store();
     let _ = state
         .app_sync_repository
@@ -527,11 +663,16 @@ async fn sync_broker_data(State(state): State<Arc<AppState>>) -> StatusCode {
         }
     }
 
+    let Some(guard) = try_acquire_broker_sync_guard(&state) else {
+        info!("[Connect] Broker sync skipped: sync already running");
+        return StatusCode::CONFLICT;
+    };
+
     info!("[Connect] Starting broker data sync (non-blocking)...");
 
     // Spawn background task to perform the sync
     tokio::spawn(async move {
-        match perform_broker_sync(&state).await {
+        match perform_broker_sync_with_guard(&state, guard).await {
             Ok(_result) => {
                 info!("[Connect] Broker sync completed successfully");
                 // Events are emitted by the orchestrator via EventBusProgressReporter
@@ -560,11 +701,28 @@ pub async fn has_broker_sync(state: &AppState) -> Result<bool, String> {
 /// Uses the centralized SyncOrchestrator for full pagination support.
 /// Also used by the background scheduler for periodic syncs.
 pub async fn perform_broker_sync(state: &AppState) -> Result<SyncResult, String> {
+    let guard = try_acquire_broker_sync_guard(state)
+        .ok_or_else(|| "Broker sync already running".to_string())?;
+    perform_broker_sync_with_guard(state, guard).await
+}
+
+async fn perform_broker_sync_with_guard(
+    state: &AppState,
+    _guard: BrokerSyncRunGuard,
+) -> Result<SyncResult, String> {
     ensure_connect_sync_enabled().map_err(|e| e.to_string())?;
     // Create API client
-    let client = create_connect_client(state)
-        .await
-        .map_err(|e| e.to_string())?;
+    let client = match create_connect_client(state).await {
+        Ok(client) => client,
+        Err(err) => {
+            let message = err.to_string();
+            state.event_bus.publish(ServerEvent::with_payload(
+                BROKER_SYNC_ERROR,
+                serde_json::json!({ "error": message }),
+            ));
+            return Err(message);
+        }
+    };
 
     // Create progress reporter and orchestrator
     let reporter = Arc::new(EventBusProgressReporter::new(state.event_bus.clone()));
@@ -810,6 +968,7 @@ async fn save_broker_sync_profile_rules(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Get the current device sync state (FRESH, REGISTERED, READY, STALE, RECOVERY, ORPHANED)
+#[cfg(feature = "device-sync")]
 async fn get_device_sync_state(
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<Json<SyncStateResult>> {
@@ -827,6 +986,7 @@ async fn get_device_sync_state(
 }
 
 /// Enable device sync - enrolls the device and initializes E2EE if first device
+#[cfg(feature = "device-sync")]
 async fn enable_device_sync(
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<Json<EnableSyncResult>> {
@@ -867,6 +1027,7 @@ async fn enable_device_sync(
 }
 
 /// Clear all device sync data and return to FRESH state
+#[cfg(feature = "device-sync")]
 async fn clear_device_sync_data(State(state): State<Arc<AppState>>) -> ApiResult<Json<()>> {
     ensure_device_sync_enabled()?;
     info!("[Connect] Clearing device sync data...");
@@ -892,6 +1053,7 @@ async fn clear_device_sync_data(State(state): State<Arc<AppState>>) -> ApiResult
 }
 
 /// Reinitialize device sync - resets server data and enables sync in one operation
+#[cfg(feature = "device-sync")]
 async fn reinitialize_device_sync(
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<Json<EnableSyncResult>> {
@@ -929,6 +1091,7 @@ async fn reinitialize_device_sync(
     Ok(Json(result))
 }
 
+#[cfg(feature = "device-sync")]
 async fn get_device_sync_engine_status(
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<Json<DeviceSyncEngineStatusResponse>> {
@@ -950,6 +1113,7 @@ async fn get_device_sync_engine_status(
     }))
 }
 
+#[cfg(feature = "device-sync")]
 async fn get_device_sync_pairing_source_status(
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<Json<DeviceSyncPairingSourceStatusResponse>> {
@@ -965,6 +1129,7 @@ async fn get_device_sync_pairing_source_status(
     }))
 }
 
+#[cfg(feature = "device-sync")]
 async fn get_device_sync_bootstrap_overwrite_check(
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<Json<DeviceSyncBootstrapOverwriteCheckResponse>> {
@@ -988,6 +1153,7 @@ async fn get_device_sync_bootstrap_overwrite_check(
     }))
 }
 
+#[cfg(feature = "device-sync")]
 async fn bootstrap_device_snapshot(
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<Json<DeviceSyncBootstrapResponse>> {
@@ -1019,6 +1185,7 @@ async fn bootstrap_device_snapshot(
     }))
 }
 
+#[cfg(feature = "device-sync")]
 async fn trigger_device_sync_cycle(
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<Json<DeviceSyncCycleResponse>> {
@@ -1039,6 +1206,7 @@ async fn trigger_device_sync_cycle(
     }))
 }
 
+#[cfg(feature = "device-sync")]
 async fn start_device_sync_background_engine(
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<Json<DeviceSyncBackgroundResponse>> {
@@ -1061,6 +1229,7 @@ async fn start_device_sync_background_engine(
     }))
 }
 
+#[cfg(feature = "device-sync")]
 async fn reconcile_device_sync_ready_state(
     State(state): State<Arc<AppState>>,
     Json(body): Json<DeviceSyncReconcileReadyRequest>,
@@ -1072,6 +1241,7 @@ async fn reconcile_device_sync_ready_state(
     Ok(Json(to_device_sync_reconcile_ready_response(result)))
 }
 
+#[cfg(feature = "device-sync")]
 async fn stop_device_sync_background_engine(
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<Json<DeviceSyncBackgroundResponse>> {
@@ -1085,6 +1255,7 @@ async fn stop_device_sync_background_engine(
     }))
 }
 
+#[cfg(feature = "device-sync")]
 async fn generate_device_snapshot_now(
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<Json<DeviceSyncSnapshotUploadResponse>> {
@@ -1100,6 +1271,7 @@ async fn generate_device_snapshot_now(
     }))
 }
 
+#[cfg(feature = "device-sync")]
 async fn cancel_device_snapshot_upload(
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<Json<DeviceSyncBackgroundResponse>> {
@@ -1116,9 +1288,10 @@ async fn cancel_device_snapshot_upload(
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<Arc<AppState>> {
-    Router::new()
+    let router = Router::new()
         // Session management
         .route("/connect/session", post(store_sync_session))
+        .route("/connect/post-login-bootstrap", post(post_login_bootstrap))
         .route("/connect/session", delete(clear_sync_session))
         .route("/connect/session/status", get(get_sync_session_status))
         .route("/connect/session/restore", get(restore_sync_session))
@@ -1144,8 +1317,10 @@ pub fn router() -> Router<Arc<AppState>> {
         // User & Subscription
         .route("/connect/plans", get(get_subscription_plans))
         .route("/connect/plans/public", get(get_subscription_plans_public))
-        .route("/connect/user", get(get_user_info))
-        // Device Sync / Enrollment
+        .route("/connect/user", get(get_user_info));
+
+    #[cfg(feature = "device-sync")]
+    let router = router
         .route("/connect/device/sync-state", get(get_device_sync_state))
         .route("/connect/device/enable", post(enable_device_sync))
         .route("/connect/device/sync-data", delete(clear_device_sync_data))
@@ -1192,18 +1367,253 @@ pub fn router() -> Router<Arc<AppState>> {
         .route(
             "/connect/device/cancel-snapshot",
             post(cancel_device_snapshot_upload),
-        )
+        );
+
+    router
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
 
+    fn broker_connection(
+        status: Option<&str>,
+        disabled: bool,
+    ) -> wealthfolio_connect::broker::BrokerConnection {
+        wealthfolio_connect::broker::BrokerConnection {
+            id: "connection-1".to_string(),
+            brokerage: None,
+            connection_type: None,
+            status: status.map(str::to_string),
+            disabled,
+            disabled_date: None,
+            updated_at: None,
+            name: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn broker_preflight_feature_disabled_skips_without_checks() {
+        let entitlement_calls = Arc::new(AtomicUsize::new(0));
+        let list_calls = Arc::new(AtomicUsize::new(0));
+
+        let decision = prepare_post_login_broker_bootstrap(
+            false,
+            {
+                let entitlement_calls = Arc::clone(&entitlement_calls);
+                move || async move {
+                    entitlement_calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(true)
+                }
+            },
+            {
+                let list_calls = Arc::clone(&list_calls);
+                move || async move {
+                    list_calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(vec![broker_connection(Some("connected"), false)])
+                }
+            },
+            || Some(()),
+        )
+        .await;
+
+        assert!(matches!(
+            decision,
+            PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::FeatureDisabled)
+        ));
+        assert_eq!(entitlement_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(list_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn broker_preflight_no_entitlement_skips_without_listing_connections() {
+        let list_calls = Arc::new(AtomicUsize::new(0));
+
+        let decision = prepare_post_login_broker_bootstrap(
+            true,
+            || async { Ok(false) },
+            {
+                let list_calls = Arc::clone(&list_calls);
+                move || async move {
+                    list_calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(vec![broker_connection(Some("connected"), false)])
+                }
+            },
+            || Some(()),
+        )
+        .await;
+
+        assert!(matches!(
+            decision,
+            PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::NotEntitled)
+        ));
+        assert_eq!(list_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn broker_preflight_zero_connections_skips_without_starting() {
+        let start_calls = Arc::new(AtomicUsize::new(0));
+
+        let decision = prepare_post_login_broker_bootstrap(
+            true,
+            || async { Ok(true) },
+            || async { Ok(vec![]) },
+            {
+                let start_calls = Arc::clone(&start_calls);
+                move || {
+                    start_calls.fetch_add(1, Ordering::SeqCst);
+                    Some(())
+                }
+            },
+        )
+        .await;
+
+        assert!(matches!(
+            decision,
+            PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::NoConnections)
+        ));
+        assert_eq!(start_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn broker_preflight_requires_active_usable_connection() {
+        let decision = prepare_post_login_broker_bootstrap(
+            true,
+            || async { Ok(true) },
+            || async {
+                Ok(vec![
+                    broker_connection(Some("disconnected"), false),
+                    broker_connection(Some("connected"), true),
+                    broker_connection(None, false),
+                ])
+            },
+            || Some(()),
+        )
+        .await;
+
+        assert!(matches!(
+            decision,
+            PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::NoConnections)
+        ));
+    }
+
+    #[tokio::test]
+    async fn broker_preflight_active_connection_starts() {
+        let decision = prepare_post_login_broker_bootstrap(
+            true,
+            || async { Ok(true) },
+            || async { Ok(vec![broker_connection(Some("connected"), false)]) },
+            || Some("guard"),
+        )
+        .await;
+
+        assert!(matches!(
+            decision,
+            PostLoginBrokerBootstrapDecision::Start("guard")
+        ));
+    }
+
+    #[tokio::test]
+    async fn broker_preflight_already_running_skips() {
+        let decision = prepare_post_login_broker_bootstrap(
+            true,
+            || async { Ok(true) },
+            || async { Ok(vec![broker_connection(Some("connected"), false)]) },
+            || None::<()>,
+        )
+        .await;
+
+        assert!(matches!(
+            decision,
+            PostLoginBrokerBootstrapDecision::Skip(PostLoginBootstrapReason::AlreadyRunning)
+        ));
+    }
+
+    #[cfg(feature = "device-sync")]
+    #[tokio::test]
+    async fn device_preflight_not_enrolled_skips_without_remote_state() {
+        let remote_calls = Arc::new(AtomicUsize::new(0));
+
+        let decision = prepare_post_login_device_bootstrap(false, || async { false }, {
+            let remote_calls = Arc::clone(&remote_calls);
+            move || async move {
+                remote_calls.fetch_add(1, Ordering::SeqCst);
+                Ok(SyncState::Ready)
+            }
+        })
+        .await;
+
+        assert!(matches!(
+            decision,
+            PostLoginDeviceBootstrapDecision::Skip(PostLoginBootstrapReason::NotEnrolled)
+        ));
+        assert_eq!(remote_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[cfg(feature = "device-sync")]
+    #[tokio::test]
+    async fn device_preflight_already_running_skips_without_remote_state() {
+        let remote_calls = Arc::new(AtomicUsize::new(0));
+
+        let decision = prepare_post_login_device_bootstrap(true, || async { true }, {
+            let remote_calls = Arc::clone(&remote_calls);
+            move || async move {
+                remote_calls.fetch_add(1, Ordering::SeqCst);
+                Ok(SyncState::Ready)
+            }
+        })
+        .await;
+
+        assert!(matches!(
+            decision,
+            PostLoginDeviceBootstrapDecision::Skip(PostLoginBootstrapReason::AlreadyRunning)
+        ));
+        assert_eq!(remote_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[cfg(feature = "device-sync")]
+    #[tokio::test]
+    async fn device_preflight_not_ready_skips() {
+        let decision = prepare_post_login_device_bootstrap(
+            true,
+            || async { false },
+            || async { Ok(SyncState::Registered) },
+        )
+        .await;
+
+        assert!(matches!(
+            decision,
+            PostLoginDeviceBootstrapDecision::Skip(PostLoginBootstrapReason::NotReady)
+        ));
+    }
+
+    #[cfg(feature = "device-sync")]
+    #[tokio::test]
+    async fn device_preflight_ready_starts_background() {
+        let decision = prepare_post_login_device_bootstrap(
+            true,
+            || async { false },
+            || async { Ok(SyncState::Ready) },
+        )
+        .await;
+
+        assert!(matches!(
+            decision,
+            PostLoginDeviceBootstrapDecision::StartBackground
+        ));
+    }
+
+    #[cfg(feature = "device-sync")]
     #[test]
     fn connect_router_includes_device_engine_routes() {
         let _router = router();
     }
 
+    #[cfg(feature = "device-sync")]
     #[test]
     fn reconcile_response_mapping_preserves_fields() {
         let source = device_sync_engine::SyncReconcileReadyStateResult {

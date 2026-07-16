@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 
 import { Skeleton, formatCompactAmount } from "@wealthfolio/ui";
@@ -56,6 +57,7 @@ export function CategorySparklineGrid({
   byDayByCategory,
   topN = 8,
 }: CategorySparklineGridProps) {
+  const { t } = useTranslation();
   const rows = useMemo(() => {
     if (granularity === "day") {
       return buildRowsFromDays(
@@ -81,7 +83,7 @@ export function CategorySparklineGrid({
   if (rows.length === 0) {
     return (
       <div className="text-muted-foreground py-8 text-center text-sm">
-        No category history yet for this window.
+        {t("spending:sparkline.noHistory")}
       </div>
     );
   }

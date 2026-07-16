@@ -7,7 +7,8 @@ import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wealthfolio/ui/components/ui/tabs";
 import { useMemo, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { SettingsHeader } from "../settings-header";
 
@@ -58,6 +59,7 @@ function ProviderSettings({
   onPrioritySave,
   isLast = false,
 }: ProviderSettingsProps) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
@@ -114,16 +116,28 @@ function ProviderSettings({
   const getFeatureDisplay = (feature: string) => {
     const normalized = feature.toLowerCase();
     if (normalized.includes("real-time")) {
-      return { icon: <Icons.Activity2 className="h-3 w-3" />, label: "Quote" };
+      return {
+        icon: <Icons.Activity2 className="h-3 w-3" />,
+        label: t("settings:market_data_page.feature_quote"),
+      };
     }
     if (normalized.includes("historical")) {
-      return { icon: <Icons.Clock className="h-3 w-3" />, label: "Historical" };
+      return {
+        icon: <Icons.Clock className="h-3 w-3" />,
+        label: t("settings:market_data_page.feature_historical"),
+      };
     }
     if (normalized.includes("search")) {
-      return { icon: <Icons.Search className="h-3 w-3" />, label: "Search" };
+      return {
+        icon: <Icons.Search className="h-3 w-3" />,
+        label: t("settings:market_data_page.feature_search"),
+      };
     }
     if (normalized.includes("profile")) {
-      return { icon: <Icons.FileText className="h-3 w-3" />, label: "Profiles" };
+      return {
+        icon: <Icons.FileText className="h-3 w-3" />,
+        label: t("settings:market_data_page.feature_profiles"),
+      };
     }
     return { icon: null, label: feature };
   };
@@ -163,12 +177,12 @@ function ProviderSettings({
                   className="border-warning/20 bg-warning/10 text-warning shrink-0 text-xs"
                 >
                   <Icons.AlertTriangle className="mr-1 h-3 w-3" />
-                  API Key Required
+                  {t("settings:market_data_page.api_key_required")}
                 </Badge>
               )}
               {provider.assetCount > 0 && (
                 <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
-                  {provider.assetCount} {provider.assetCount === 1 ? "asset" : "assets"}
+                  {t("settings:market_data_page.assets_count", { count: provider.assetCount })}
                 </Badge>
               )}
               {provider.errorCount > 0 && (
@@ -179,15 +193,18 @@ function ProviderSettings({
                       className="border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/20 shrink-0 cursor-pointer text-xs"
                     >
                       <Icons.XCircle className="mr-1 h-3 w-3" />
-                      {provider.errorCount} {provider.errorCount === 1 ? "error" : "errors"}
+                      {t("settings:market_data_page.errors_count", { count: provider.errorCount })}
                     </Badge>
                   </PopoverTrigger>
                   <PopoverContent className="w-80 p-0" align="start">
                     <div className="border-b px-3 py-2">
-                      <h4 className="text-sm font-medium">Sync Errors</h4>
+                      <h4 className="text-sm font-medium">
+                        {t("settings:market_data_page.sync_errors")}
+                      </h4>
                       <p className="text-muted-foreground text-xs">
-                        {provider.errorCount} {provider.errorCount === 1 ? "asset" : "assets"}{" "}
-                        failed to sync
+                        {t("settings:market_data_page.assets_failed_to_sync", {
+                          count: provider.errorCount,
+                        })}
                       </p>
                     </div>
                     <div className="max-h-60 overflow-auto p-2">
@@ -204,7 +221,7 @@ function ProviderSettings({
                         </ul>
                       ) : (
                         <p className="text-muted-foreground p-2 text-xs">
-                          No error details available
+                          {t("settings:market_data_page.no_error_details")}
                         </p>
                       )}
                     </div>
@@ -262,14 +279,16 @@ function ProviderSettings({
               {/* Left column - Capabilities */}
               <div className="space-y-4">
                 <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
-                  Capabilities
+                  {t("settings:market_data_page.capabilities")}
                 </h4>
                 <div className="space-y-3">
                   {provider.capabilities?.instruments && (
                     <div className="flex items-start gap-3">
                       <Icons.TrendingUp className="text-muted-foreground mt-0.5 h-4 w-4" />
                       <div>
-                        <p className="text-xs font-medium">Instruments</p>
+                        <p className="text-xs font-medium">
+                          {t("settings:market_data_page.instruments")}
+                        </p>
                         <p className="text-muted-foreground text-xs">
                           {provider.capabilities.instruments}
                         </p>
@@ -280,7 +299,9 @@ function ProviderSettings({
                     <div className="flex items-start gap-3">
                       <Icons.Globe className="text-muted-foreground mt-0.5 h-4 w-4" />
                       <div>
-                        <p className="text-xs font-medium">Coverage</p>
+                        <p className="text-xs font-medium">
+                          {t("settings:market_data_page.coverage")}
+                        </p>
                         <p className="text-muted-foreground text-xs">
                           {provider.capabilities.coverage}
                         </p>
@@ -291,7 +312,9 @@ function ProviderSettings({
                     <div className="flex items-start gap-3">
                       <Icons.Sparkles className="text-muted-foreground mt-0.5 h-4 w-4" />
                       <div>
-                        <p className="text-xs font-medium">Features</p>
+                        <p className="text-xs font-medium">
+                          {t("settings:market_data_page.features")}
+                        </p>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {provider.capabilities.features.map((feature) => (
                             <Badge
@@ -310,7 +333,9 @@ function ProviderSettings({
                     <div className="flex items-start gap-3">
                       <Icons.ExternalLink className="text-muted-foreground mt-0.5 h-4 w-4" />
                       <div>
-                        <p className="text-xs font-medium">Website</p>
+                        <p className="text-xs font-medium">
+                          {t("settings:market_data_page.website")}
+                        </p>
                         <a
                           href={provider.url}
                           target="_blank"
@@ -328,27 +353,31 @@ function ProviderSettings({
               {/* Right column - Settings */}
               <div className="space-y-4">
                 <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
-                  Settings
+                  {t("settings:market_data_page.settings")}
                 </h4>
                 <div className="space-y-4">
                   {provider.requiresApiKey && (
                     <div className="space-y-2">
                       <Label htmlFor={`apikey-${provider.id}`} className="text-xs font-medium">
-                        API Key
+                        {t("settings:market_data_page.api_key")}
                       </Label>
                       <div className="flex items-center gap-2">
                         <Input
                           id={`apikey-${provider.id}`}
                           type={showApiKey ? "text" : "password"}
                           value={
-                            hasLoadedKey
+                            hasLoadedKey || apiKeyValue
                               ? apiKeyValue
                               : provider.hasApiKey
                                 ? "••••••••••••••••••••••••"
                                 : ""
                           }
                           onChange={(e) => setApiKeyValue(e.target.value)}
-                          placeholder={provider.hasApiKey ? "" : "Enter API key"}
+                          placeholder={
+                            provider.hasApiKey
+                              ? ""
+                              : t("settings:market_data_page.api_key_placeholder")
+                          }
                           className="grow font-mono text-xs"
                           readOnly={!hasLoadedKey && provider.hasApiKey}
                         />
@@ -358,7 +387,11 @@ function ProviderSettings({
                           className="h-8 w-8"
                           onClick={handleRevealApiKey}
                           disabled={isLoadingKey}
-                          aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                          aria-label={
+                            showApiKey
+                              ? t("settings:market_data_page.hide_api_key")
+                              : t("settings:market_data_page.show_api_key")
+                          }
                         >
                           {isLoadingKey ? (
                             <Icons.Spinner className="h-3.5 w-3.5 animate-spin" />
@@ -374,14 +407,16 @@ function ProviderSettings({
                           className="h-8"
                           disabled={provider.hasApiKey && !hasLoadedKey}
                         >
-                          Save
+                          {t("settings:common_save")}
                         </Button>
                       </div>
                     </div>
                   )}
 
                   <div className="flex items-center gap-3">
-                    <Label className="text-xs font-medium">Priority</Label>
+                    <Label className="text-xs font-medium">
+                      {t("settings:market_data_page.priority")}
+                    </Label>
                     <div className="flex items-center">
                       <Button
                         variant="outline"
@@ -412,20 +447,23 @@ function ProviderSettings({
                       </Button>
                     </div>
                     <span className="text-muted-foreground text-[10px]">
-                      Lower = higher priority
+                      {t("settings:market_data_page.priority_hint")}
                     </span>
                   </div>
 
                   {/* Sync Status */}
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium">Sync Status</Label>
+                    <Label className="text-xs font-medium">
+                      {t("settings:market_data_page.sync_status")}
+                    </Label>
                     {provider.errorCount > 0 ? (
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <Icons.XCircle className="h-4 w-4 text-red-500" />
                           <span className="text-xs font-medium text-red-500">
-                            {provider.errorCount} {provider.errorCount === 1 ? "asset" : "assets"}{" "}
-                            with errors
+                            {t("settings:market_data_page.assets_with_errors", {
+                              count: provider.errorCount,
+                            })}
                           </span>
                         </div>
                         {provider.lastSyncError && (
@@ -435,7 +473,9 @@ function ProviderSettings({
                         )}
                         {provider.lastSyncedAt && (
                           <p className="text-muted-foreground text-xs">
-                            Last sync: {new Date(provider.lastSyncedAt).toLocaleString()}
+                            {t("settings:market_data_page.last_sync", {
+                              date: new Date(provider.lastSyncedAt).toLocaleString(),
+                            })}
                           </p>
                         )}
                       </div>
@@ -443,7 +483,7 @@ function ProviderSettings({
                       <div className="flex items-center gap-2">
                         <Icons.MinusCircle className="text-muted-foreground h-4 w-4" />
                         <span className="text-muted-foreground text-xs">
-                          No assets using this provider
+                          {t("settings:market_data_page.no_assets_using_provider")}
                         </span>
                       </div>
                     ) : (
@@ -451,8 +491,10 @@ function ProviderSettings({
                         <Icons.CheckCircle className="h-4 w-4 text-green-500" />
                         <span className="text-muted-foreground text-xs">
                           {provider.lastSyncedAt
-                            ? `Last sync: ${new Date(provider.lastSyncedAt).toLocaleString()}`
-                            : "Pending sync"}
+                            ? t("settings:market_data_page.last_sync", {
+                                date: new Date(provider.lastSyncedAt).toLocaleString(),
+                              })
+                            : t("settings:market_data_page.pending_sync")}
                         </span>
                       </div>
                     )}
@@ -484,6 +526,7 @@ function CustomProviderCard({
   isToggling?: boolean;
   isLast?: boolean;
 }) {
+  const { t } = useTranslation();
   const latestSource = provider.sources.find((s) => s.kind === "latest");
   const historicalSource = provider.sources.find((s) => s.kind === "historical");
 
@@ -499,7 +542,7 @@ function CustomProviderCard({
             <span className="font-medium">{provider.name}</span>
             {!provider.enabled && (
               <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
-                Disabled
+                {t("settings:market_data_page.disabled")}
               </Badge>
             )}
           </div>
@@ -516,7 +559,7 @@ function CustomProviderCard({
             {historicalSource && (
               <span className="text-muted-foreground inline-flex items-center gap-1 text-[11px]">
                 <Icons.Clock className="h-3 w-3" />
-                Historical
+                {t("settings:market_data_page.historical")}
               </span>
             )}
           </div>
@@ -541,10 +584,12 @@ function CustomProviderCard({
           <ActionConfirm
             handleConfirm={onDelete}
             isPending={isDeleting}
-            confirmTitle="Delete Custom Provider?"
-            confirmMessage={`This will permanently delete "${provider.name}" and remove it from all assets using it.`}
-            confirmButtonText="Delete"
-            cancelButtonText="Cancel"
+            confirmTitle={t("settings:market_data_page.delete_provider_title")}
+            confirmMessage={t("settings:market_data_page.delete_provider_message", {
+              name: provider.name,
+            })}
+            confirmButtonText={t("settings:common_delete")}
+            cancelButtonText={t("settings:common_cancel")}
             confirmButtonVariant="destructive"
             button={
               <Button
@@ -563,6 +608,8 @@ function CustomProviderCard({
 }
 
 export default function MarketDataSettingsPage() {
+  const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: providers, isLoading, error } = useMarketDataProviderSettings();
   const { mutate: updateSettings } = useUpdateMarketDataProviderSettings();
   const { mutate: updatePortfolio, isPending: isUpdating } = useUpdatePortfolioMutation();
@@ -577,6 +624,7 @@ export default function MarketDataSettingsPage() {
   const [editingProvider, setEditingProvider] = useState<CustomProviderWithSources | undefined>();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const showHealthBanner = searchParams.get("healthContext") === "marketData";
 
   // Split providers into built-in providers and the CUSTOM_SCRAPER aggregate
   const { builtinProviders, customScraperErrors } = useMemo(() => {
@@ -637,7 +685,10 @@ export default function MarketDataSettingsPage() {
   if (isLoading) {
     return (
       <div className="text-foreground space-y-6">
-        <SettingsHeader heading="Market Data" text="Configure your market data providers." />
+        <SettingsHeader
+          heading={t("settings:market_data_page.heading")}
+          text={t("settings:market_data_page.subtitle")}
+        />
         <Separator />
         <div className="overflow-hidden rounded-lg border">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
@@ -669,13 +720,18 @@ export default function MarketDataSettingsPage() {
   if (error) {
     return (
       <div className="text-foreground space-y-6">
-        <SettingsHeader heading="Market Data" text="Configure your market data providers." />
+        <SettingsHeader
+          heading={t("settings:market_data_page.heading")}
+          text={t("settings:market_data_page.subtitle")}
+        />
         <Separator />
         <div className="border-destructive/20 bg-destructive/5 rounded-lg border p-6">
           <div className="flex items-start gap-3">
             <Icons.XCircle className="text-destructive mt-0.5 h-5 w-5 shrink-0" />
             <div className="space-y-2">
-              <h3 className="text-destructive font-medium">Failed to load market data settings</h3>
+              <h3 className="text-destructive font-medium">
+                {t("settings:market_data_page.load_error_title")}
+              </h3>
               <p className="text-muted-foreground text-sm">{error.message}</p>
               <Button
                 variant="outline"
@@ -684,7 +740,7 @@ export default function MarketDataSettingsPage() {
                 className="mt-2"
               >
                 <Icons.Refresh className="mr-2 h-4 w-4" />
-                Retry
+                {t("settings:market_data_page.retry")}
               </Button>
             </div>
           </div>
@@ -696,8 +752,8 @@ export default function MarketDataSettingsPage() {
   return (
     <div className="text-foreground space-y-6">
       <SettingsHeader
-        heading="Market Data"
-        text="Configure your market data providers."
+        heading={t("settings:market_data_page.heading")}
+        text={t("settings:market_data_page.subtitle")}
         actionsInline
       >
         <div className="flex items-center gap-2">
@@ -706,7 +762,7 @@ export default function MarketDataSettingsPage() {
             variant="outline"
             size="icon"
             className="sm:hidden"
-            aria-label="Import quotes"
+            aria-label={t("settings:market_data_page.import_quotes_aria")}
           >
             <Link to="/settings/market-data/import">
               <Icons.Import className="h-4 w-4" />
@@ -717,22 +773,22 @@ export default function MarketDataSettingsPage() {
             variant="outline"
             size="sm"
             className="hidden sm:inline-flex"
-            aria-label="Import historical quotes"
+            aria-label={t("settings:market_data_page.import_historical_aria")}
           >
             <Link to="/settings/market-data/import">
               <Icons.Import className="mr-2 h-4 w-4" />
-              Import
+              {t("settings:market_data_page.import")}
             </Link>
           </Button>
           {/* Mobile icon-only actions */}
           <ActionConfirm
             handleConfirm={() => recalculatePortfolio()}
             isPending={isRecalculating}
-            confirmTitle="Rebuild Full History?"
-            confirmMessage="This will rebuild quote history from your first activity date (up to 5 years) and recalculate the portfolio. Use this to fix gaps or sync issues."
-            confirmButtonText="Rebuild"
-            pendingText="Rebuilding..."
-            cancelButtonText="Cancel"
+            confirmTitle={t("settings:market_data_page.rebuild_confirm_title")}
+            confirmMessage={t("settings:market_data_page.rebuild_confirm_message")}
+            confirmButtonText={t("settings:market_data_page.rebuild_confirm_button")}
+            pendingText={t("settings:market_data_page.rebuild_pending")}
+            cancelButtonText={t("settings:common_cancel")}
             confirmButtonVariant="destructive"
             button={
               <Button
@@ -740,7 +796,7 @@ export default function MarketDataSettingsPage() {
                 size="icon"
                 className="sm:hidden"
                 disabled={isRecalculating}
-                aria-label="Rebuild full history"
+                aria-label={t("settings:market_data_page.rebuild_history_aria")}
               >
                 {isRecalculating ? (
                   <Icons.Spinner className="h-4 w-4 animate-spin" />
@@ -755,7 +811,7 @@ export default function MarketDataSettingsPage() {
             className="sm:hidden"
             disabled={isUpdating}
             onClick={() => updatePortfolio()}
-            aria-label="Update"
+            aria-label={t("settings:market_data_page.update_aria")}
           >
             {isUpdating ? (
               <Icons.Spinner className="h-4 w-4 animate-spin" />
@@ -768,11 +824,11 @@ export default function MarketDataSettingsPage() {
           <ActionConfirm
             handleConfirm={() => recalculatePortfolio()}
             isPending={isRecalculating}
-            confirmTitle="Rebuild Full History?"
-            confirmMessage="This will rebuild quote history from your first activity date (up to 5 years) and recalculate the portfolio. Use this to fix gaps or sync issues."
-            confirmButtonText="Rebuild"
-            pendingText="Rebuilding..."
-            cancelButtonText="Cancel"
+            confirmTitle={t("settings:market_data_page.rebuild_confirm_title")}
+            confirmMessage={t("settings:market_data_page.rebuild_confirm_message")}
+            confirmButtonText={t("settings:market_data_page.rebuild_confirm_button")}
+            pendingText={t("settings:market_data_page.rebuild_pending")}
+            cancelButtonText={t("settings:common_cancel")}
             confirmButtonVariant="destructive"
             button={
               <Button
@@ -786,7 +842,7 @@ export default function MarketDataSettingsPage() {
                 ) : (
                   <Icons.Clock className="mr-2 h-4 w-4" />
                 )}
-                Rebuild History
+                {t("settings:market_data_page.rebuild_history")}
               </Button>
             }
           />
@@ -801,16 +857,40 @@ export default function MarketDataSettingsPage() {
             ) : (
               <Icons.Refresh className="mr-2 h-4 w-4" />
             )}
-            Update
+            {t("settings:market_data_page.update")}
           </Button>
         </div>
       </SettingsHeader>
       <Separator />
+      {showHealthBanner && (
+        <div className="border-border bg-muted/30 flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Icons.Info className="text-muted-foreground h-4 w-4 shrink-0" />
+            <p className="text-sm">{t("settings:health_banner_market_data")}</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              setSearchParams(
+                (prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.delete("healthContext");
+                  return next;
+                },
+                { replace: true },
+              )
+            }
+          >
+            {t("settings:health_banner_clear")}
+          </Button>
+        </div>
+      )}
 
       <Tabs defaultValue="builtin" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="builtin">
-            Built-in Providers
+            {t("settings:market_data_page.tab_builtin")}
             {builtinProviders.filter((p) => p.enabled).length > 0 && (
               <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-[10px] font-normal">
                 {builtinProviders.filter((p) => p.enabled).length}
@@ -818,7 +898,7 @@ export default function MarketDataSettingsPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="custom">
-            Custom Providers
+            {t("settings:market_data_page.tab_custom")}
             {customProviders.filter((p) => p.enabled).length > 0 && (
               <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-[10px] font-normal">
                 {customProviders.filter((p) => p.enabled).length}
@@ -829,7 +909,9 @@ export default function MarketDataSettingsPage() {
 
         <TabsContent value="builtin" className="mt-4">
           {builtinProviders.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No built-in providers configured.</p>
+            <p className="text-muted-foreground text-sm">
+              {t("settings:market_data_page.no_builtin")}
+            </p>
           ) : (
             <div className="overflow-hidden rounded-lg border">
               {builtinProviders.map((provider, index, arr) => (
@@ -858,7 +940,7 @@ export default function MarketDataSettingsPage() {
               }}
             >
               <Icons.Plus className="mr-1 h-3 w-3" />
-              Add Provider
+              {t("settings:market_data_page.add_provider")}
             </Button>
           </div>
           {customScraperErrors && customScraperErrors.errorCount > 0 && (
@@ -867,8 +949,9 @@ export default function MarketDataSettingsPage() {
                 <Icons.XCircle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-destructive text-sm font-medium">
-                    {customScraperErrors.errorCount} asset
-                    {customScraperErrors.errorCount > 1 ? "s" : ""} failed to sync
+                    {t("settings:market_data_page.assets_failed_to_sync", {
+                      count: customScraperErrors.errorCount,
+                    })}
                   </p>
                   {customScraperErrors.uniqueErrors?.map((err, i) => {
                     // Strip boilerplate prefix, keep just the actionable message
@@ -900,9 +983,11 @@ export default function MarketDataSettingsPage() {
           {customProviders.length === 0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center">
               <Icons.Globe className="text-muted-foreground/50 mx-auto h-8 w-8" />
-              <p className="text-muted-foreground mt-2 text-sm">No custom providers configured</p>
+              <p className="text-muted-foreground mt-2 text-sm">
+                {t("settings:market_data_page.custom_empty_title")}
+              </p>
               <p className="text-muted-foreground text-xs">
-                Add a custom data source to scrape prices from any website or API.
+                {t("settings:market_data_page.custom_empty_description")}
               </p>
             </div>
           ) : (

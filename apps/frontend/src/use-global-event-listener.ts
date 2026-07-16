@@ -1,6 +1,7 @@
 // useGlobalEventListener.ts
 import {
   isDesktop,
+  listenAssetClassificationsChanged,
   listenBrokerSyncComplete,
   listenBrokerSyncError,
   listenDatabaseRestored,
@@ -15,14 +16,19 @@ import {
 } from "@/adapters";
 import { usePortfolioSyncOptional } from "@/context/portfolio-sync-context";
 import { useIsMobileViewport } from "@/hooks/use-platform";
-import { shouldInvalidateAfterPortfolioUpdate } from "@/lib/query-invalidation";
+import {
+  invalidateAfterAssetClassificationsChanged,
+  shouldInvalidateAfterPortfolioUpdate,
+  type AssetClassificationsChangedPayload,
+} from "@/lib/query-invalidation";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 const TOAST_IDS = {
   marketSyncStart: "market-sync-start",
+  marketSyncError: "market-sync-error",
   portfolioUpdateStart: "portfolio-update-start",
   portfolioUpdateError: "portfolio-update-error",
 
@@ -32,18 +38,26 @@ const TOAST_IDS = {
 const BROKER_SYNC_FAILURE_DESCRIPTION =
   "We couldn't sync your broker data. Please try again later.";
 
+const POST_LOGIN_REQUIRED_LISTENERS = new Set(["broker-sync-complete", "broker-sync-error"]);
+
 interface MarketSyncCompletePayload {
   failed_syncs?: [string, string][];
   skipped_reasons?: [string, string][];
+  show_skipped_reasons?: boolean;
 }
 
 function getSyncFailures(payload?: MarketSyncCompletePayload | null): [string, string][] {
   return Array.isArray(payload?.failed_syncs) ? payload.failed_syncs : [];
 }
 
+function getSyncSkips(payload?: MarketSyncCompletePayload | null): [string, string][] {
+  return Array.isArray(payload?.skipped_reasons) ? payload.skipped_reasons : [];
+}
+
 const useGlobalEventListener = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [areListenersReady, setAreListenersReady] = useState(false);
   const hasTriggeredInitialUpdate = useRef(false);
   const isDesktopEnv = isDesktop;
   const isMobileViewport = useIsMobileViewport();
@@ -66,6 +80,7 @@ const useGlobalEventListener = () => {
   useEffect(() => {
     let isMounted = true;
     let cleanupFn: (() => void) | undefined;
+    setAreListenersReady(false);
 
     const handleMarketSyncStart = () => {
       if (isMobileViewportRef.current && syncContextRef.current) {
@@ -80,6 +95,7 @@ const useGlobalEventListener = () => {
 
     const handleMarketSyncComplete = (event: { payload: MarketSyncCompletePayload | null }) => {
       const failed_syncs = getSyncFailures(event.payload);
+      const skipped_reasons = getSyncSkips(event.payload);
 
       if (isMobileViewportRef.current && syncContextRef.current) {
         syncContextRef.current.setIdle();
@@ -91,7 +107,21 @@ const useGlobalEventListener = () => {
       if (failed_syncs && failed_syncs.length > 0) {
         const count = failed_syncs.length;
         toast.error(`Price update failed for ${count} asset${count === 1 ? "" : "s"}`, {
-          id: "market-sync-error",
+          id: TOAST_IDS.marketSyncError,
+          duration: 10000,
+          action: {
+            label: "View",
+            onClick: () => navigateRef.current("/health"),
+          },
+        });
+      }
+
+      if (event.payload?.show_skipped_reasons && skipped_reasons.length > 0) {
+        const count = skipped_reasons.length;
+        const reasons = [...new Set(skipped_reasons.map(([, reason]) => reason))];
+        toast.warning(`Price update skipped for ${count} asset${count === 1 ? "" : "s"}`, {
+          id: "market-sync-skipped",
+          description: reasons.slice(0, 2).join("; "),
           duration: 10000,
           action: {
             label: "View",
@@ -109,6 +139,7 @@ const useGlobalEventListener = () => {
         toast.dismiss(TOAST_IDS.marketSyncStart);
       }
       toast.error("Market Data Sync Failed", {
+        id: TOAST_IDS.marketSyncError,
         description: `${errorMsg}. Please try again later.`,
         duration: 10000,
       });
@@ -157,6 +188,12 @@ const useGlobalEventListener = () => {
       toast.success("Database restored successfully", {
         description: "Please restart the application to ensure all data is properly refreshed.",
       });
+    };
+
+    const handleAssetClassificationsChanged = (event: {
+      payload: AssetClassificationsChangedPayload | null;
+    }) => {
+      invalidateAfterAssetClassificationsChanged(queryClientRef.current, event.payload);
     };
 
     const handleBrokerSyncComplete = (event: {
@@ -263,33 +300,45 @@ const useGlobalEventListener = () => {
     };
 
     const setupListeners = async () => {
-      const unlistenPortfolioSyncStart = await listenPortfolioUpdateStart(
-        handlePortfolioUpdateStart,
-      );
-      const unlistenPortfolioSyncComplete = await listenPortfolioUpdateComplete(
-        handlePortfolioUpdateComplete,
-      );
-      const unlistenPortfolioSyncError = await listenPortfolioUpdateError((event) => {
-        handlePortfolioUpdateError(event.payload as string);
+      const listenerSetups: [name: string, setup: Promise<() => void>][] = [
+        ["portfolio-update-start", listenPortfolioUpdateStart(handlePortfolioUpdateStart)],
+        ["portfolio-update-complete", listenPortfolioUpdateComplete(handlePortfolioUpdateComplete)],
+        [
+          "portfolio-update-error",
+          listenPortfolioUpdateError((event) => {
+            handlePortfolioUpdateError(event.payload as string);
+          }),
+        ],
+        ["market-sync-start", listenMarketSyncStart(handleMarketSyncStart)],
+        ["market-sync-complete", listenMarketSyncComplete(handleMarketSyncComplete)],
+        ["market-sync-error", listenMarketSyncError(handleMarketSyncError)],
+        [
+          "asset-classifications-changed",
+          listenAssetClassificationsChanged(handleAssetClassificationsChanged),
+        ],
+        ["database-restored", listenDatabaseRestored(handleDatabaseRestored)],
+        ["broker-sync-complete", listenBrokerSyncComplete(handleBrokerSyncComplete)],
+        ["broker-sync-error", listenBrokerSyncError(handleBrokerSyncError)],
+      ];
+
+      const results = await Promise.allSettled(listenerSetups.map(([, setup]) => setup));
+      const cleanupFns: (() => void)[] = [];
+      const readyListeners = new Set<string>();
+
+      results.forEach((result, index) => {
+        const name = listenerSetups[index]?.[0] ?? "unknown";
+        if (result.status === "fulfilled") {
+          cleanupFns.push(result.value);
+          readyListeners.add(name);
+        } else {
+          logger.error(`Failed to setup ${name} listener: ${String(result.reason)}`);
+        }
       });
-      const unlistenMarketStart = await listenMarketSyncStart(handleMarketSyncStart);
-      const unlistenMarketComplete = await listenMarketSyncComplete(handleMarketSyncComplete);
-      const unlistenMarketError = await listenMarketSyncError(handleMarketSyncError);
-      const unlistenDatabaseRestored = await listenDatabaseRestored(handleDatabaseRestored);
-      const unlistenBrokerSyncComplete = await listenBrokerSyncComplete(handleBrokerSyncComplete);
-      const unlistenBrokerSyncError = await listenBrokerSyncError(handleBrokerSyncError);
 
       const cleanup = () => {
-        unlistenPortfolioSyncStart();
-        unlistenPortfolioSyncComplete();
-        unlistenPortfolioSyncError();
-        unlistenMarketStart();
-        unlistenMarketComplete();
-        unlistenMarketError();
-
-        unlistenDatabaseRestored();
-        unlistenBrokerSyncComplete();
-        unlistenBrokerSyncError();
+        for (const unlisten of cleanupFns) {
+          unlisten();
+        }
       };
 
       // If unmounted while setting up, clean up immediately
@@ -299,6 +348,9 @@ const useGlobalEventListener = () => {
       }
 
       cleanupFn = cleanup;
+      setAreListenersReady(
+        Array.from(POST_LOGIN_REQUIRED_LISTENERS).every((name) => readyListeners.has(name)),
+      );
 
       // Trigger initial portfolio update after listeners are set up
       if (!hasTriggeredInitialUpdate.current) {
@@ -314,16 +366,17 @@ const useGlobalEventListener = () => {
     };
 
     setupListeners().catch((error) => {
-      console.error("Failed to setup global event listeners:", error);
+      logger.error("Failed to setup global event listeners: " + String(error));
     });
 
     return () => {
       isMounted = false;
+      setAreListenersReady(false);
       cleanupFn?.();
     };
   }, [isDesktopEnv]); // Only re-run if isDesktopEnv changes (which it won't)
 
-  return null;
+  return areListenersReady;
 };
 
 export default useGlobalEventListener;

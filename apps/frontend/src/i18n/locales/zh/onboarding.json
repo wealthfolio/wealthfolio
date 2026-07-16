@@ -1,0 +1,96 @@
+{
+  "buttons": {
+    "continue": "继续",
+    "subscribeConnect": "订阅并连接",
+    "getStarted": "开始使用"
+  },
+  "steps": {
+    "chooseMode": {
+      "subtitle": "两种方式跟踪您的投资组合。",
+      "holdings": {
+        "title": "持仓",
+        "subtitle": "价值跟踪",
+        "badge": "最适合低维护的跟踪。",
+        "features": {
+          "netWorth": "净资产与配置",
+          "unrealizedPnl": "价值与未实现盈亏",
+          "priceBased": "基于价格的业绩",
+          "fastSetup": "快速轻量的设置"
+        },
+        "limit": "限制：不支持基于交易的 TWR/IRR。",
+        "note": "注意：需要维护持仓/仓位。"
+      },
+      "transactions": {
+        "title": "交易",
+        "subtitle": "业绩跟踪",
+        "badge": "最适合完整的业绩分析。",
+        "features": {
+          "totalReturn": "长期总回报",
+          "attribution": "收益与现金流归因",
+          "completeView": "最完整的业绩视图",
+          "brokerSync": "最适合搭配券商同步或 CSV 导入"
+        },
+        "limit": "限制：需要跟踪所有交易。",
+        "note": "注意：与券商同步后可自动完成。"
+      },
+      "footnote": "您可以为不同账户使用不同的模式。",
+      "learnMore": "了解更多"
+    },
+    "preferences": {
+      "subtitle": "只需几项偏好设置即可开始",
+      "currencyLabel": "货币",
+      "timezoneLabel": "时区",
+      "other": "其他",
+      "selectCurrency": "选择货币",
+      "selectTimezone": "选择时区",
+      "searchCurrenciesPlaceholder": "搜索货币……",
+      "searchTimezonesPlaceholder": "搜索时区……",
+      "noCurrenciesFound": "未找到货币",
+      "noTimezonesFound": "未找到时区",
+      "currencyRequired": "请选择一种基准货币。",
+      "timezoneRequired": "请选择一个时区。",
+      "languageLabel": "语言"
+    }
+  },
+  "appearance": {
+    "subtitle": "自定义您的体验",
+    "themeLabel": "主题",
+    "fontLabel": "字体",
+    "themeLight": "浅色",
+    "themeDark": "深色",
+    "themeSystem": "跟随系统",
+    "themeLightPreviewAlt": "浅色主题预览",
+    "themeDarkPreviewAlt": "深色主题预览",
+    "themeSystemPreviewAlt": "系统主题预览",
+    "fontSample": "清晰地投资。",
+    "fonts": {
+      "monoLabel": "等宽",
+      "monoDescription": "技术感与精确",
+      "sansLabel": "无衬线",
+      "sansDescription": "简洁而现代",
+      "serifLabel": "衬线",
+      "serifDescription": "经典而优雅"
+    },
+    "navigationLabel": "导航"
+  },
+  "connect": {
+    "optional": "可选",
+    "title": "Wealthfolio Connect",
+    "subtitle": "自动同步您的券商，同时保护您的数据隐私。",
+    "learnMore": "了解有关 Connect 的更多信息",
+    "features": {
+      "brokerageSync": {
+        "title": "券商同步",
+        "description": "自动将您的账户和交易同步到本地数据库。"
+      },
+      "deviceSync": {
+        "title": "设备同步",
+        "description": "通过端到端加密在所有设备间保持数据库同步。"
+      },
+      "householdView": {
+        "title": "家庭视图",
+        "description": "与家人共享选定的账户，共同查看汇总视图。"
+      }
+    }
+  }
+}

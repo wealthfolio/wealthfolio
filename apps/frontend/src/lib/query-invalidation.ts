@@ -1,4 +1,5 @@
 import { QueryKeys } from "@/lib/query-keys";
+import type { QueryClient } from "@tanstack/react-query";
 
 // Cloud/network-backed queries that should NOT be refetched on a portfolio change.
 const CLOUD_SYNC_INVALIDATION_EXCLUSIONS = new Set<string>([
@@ -30,4 +31,34 @@ export function shouldInvalidateAfterPortfolioUpdate(queryKey: readonly unknown[
   }
 
   return true;
+}
+
+export interface AssetClassificationsChangedPayload {
+  assetIds?: string[];
+  taxonomyIds?: string[];
+}
+
+export function invalidateAfterAssetClassificationsChanged(
+  queryClient: QueryClient,
+  payload?: AssetClassificationsChangedPayload | null,
+) {
+  const assetIds = Array.isArray(payload?.assetIds) ? payload.assetIds : [];
+
+  if (assetIds.length > 0) {
+    for (const assetId of assetIds) {
+      queryClient.invalidateQueries({
+        queryKey: QueryKeys.assetTaxonomyAssignments(assetId),
+      });
+    }
+  } else {
+    queryClient.invalidateQueries({
+      queryKey: [QueryKeys.ASSET_TAXONOMY_ASSIGNMENTS],
+    });
+  }
+
+  queryClient.invalidateQueries({ queryKey: [QueryKeys.PORTFOLIO_ALLOCATIONS] });
+  queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS] });
+  queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS_BY_ALLOCATION] });
+  queryClient.invalidateQueries({ queryKey: [QueryKeys.ALLOCATION_TARGET_DRIFT] });
+  queryClient.invalidateQueries({ queryKey: [QueryKeys.HEALTH_STATUS] });
 }

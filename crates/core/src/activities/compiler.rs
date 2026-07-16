@@ -43,7 +43,10 @@ impl ActivityCompiler for DefaultActivityCompiler {
 
         // Use effective_type() to respect user overrides
         let activity_type = activity.effective_type();
-        let subtype = NewActivity::canonicalize_subtype(activity.subtype.as_deref());
+        let subtype = NewActivity::canonicalize_subtype_for_activity(
+            activity_type,
+            activity.subtype.as_deref(),
+        );
 
         match (activity_type, subtype.as_deref()) {
             // DRIP: Dividend + Buy
@@ -137,15 +140,16 @@ impl DefaultActivityCompiler {
             .filter(|amount| !amount.is_zero())
             .or(derived_amount)
             .or(activity.amount);
-        let acquisition_unit_price = income_amount
-            .and_then(|amount| {
-                if quantity.is_zero() {
+        let acquisition_unit_price = activity.unit_price.or_else(|| {
+            income_amount.and_then(|amount| {
+                let reinvested_amount = amount - activity.fee_amt() - activity.tax_amt();
+                if quantity.is_zero() || reinvested_amount <= Decimal::ZERO {
                     None
                 } else {
-                    Some(amount / quantity)
+                    Some(reinvested_amount / quantity)
                 }
             })
-            .or(activity.unit_price);
+        });
 
         // Leg 1: income recognition
         let mut income_leg = activity.clone();
@@ -157,7 +161,8 @@ impl DefaultActivityCompiler {
         income_leg.unit_price = None;
         income_leg.amount = income_amount;
 
-        // Leg 2: BUY (asset acquisition at recognized income value)
+        // Leg 2: BUY. Explicit unit_price is the reinvestment/FMV price; when
+        // absent, derive from net income available after income-side charges.
         let mut buy_leg = activity.clone();
         buy_leg.id = format!("{}:buy", activity.id);
         buy_leg.activity_type = ACTIVITY_TYPE_BUY.to_string();
@@ -166,6 +171,7 @@ impl DefaultActivityCompiler {
         buy_leg.unit_price = acquisition_unit_price;
         buy_leg.amount = None;
         buy_leg.fee = Some(Decimal::ZERO);
+        buy_leg.tax = Some(Decimal::ZERO);
 
         vec![income_leg, buy_leg]
     }
@@ -200,6 +206,7 @@ mod tests {
             unit_price: Some(dec!(150)),
             amount: Some(dec!(100)),
             fee: Some(dec!(0)),
+            tax: None,
             currency: "USD".to_string(),
             fx_rate: None,
             notes: None,
@@ -331,6 +338,53 @@ mod tests {
         assert_eq!(result[0].amount, Some(dec!(100)));
         // BUY leg still has no amount (computed by calculator)
         assert!(result[1].amount.is_none());
+    }
+
+    #[test]
+    fn test_compile_drip_keeps_withholding_tax_on_income_leg_only() {
+        let compiler = DefaultActivityCompiler::new();
+        let mut activity = create_test_activity();
+        activity.activity_type = ACTIVITY_TYPE_DIVIDEND.to_string();
+        activity.subtype = Some(ACTIVITY_SUBTYPE_DRIP.to_string());
+        activity.quantity = Some(dec!(4));
+        activity.unit_price = Some(dec!(20));
+        activity.amount = Some(dec!(100));
+        activity.tax = Some(dec!(15));
+
+        let result = compiler.compile(&activity).unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].activity_type, ACTIVITY_TYPE_DIVIDEND);
+        assert_eq!(result[0].amount, Some(dec!(100)));
+        assert_eq!(result[0].tax, Some(dec!(15)));
+        assert_eq!(result[1].activity_type, ACTIVITY_TYPE_BUY);
+        assert_eq!(result[1].unit_price, Some(dec!(20)));
+        assert_eq!(result[1].tax, Some(Decimal::ZERO));
+    }
+
+    #[test]
+    fn test_compile_drip_without_price_derives_buy_price_from_net_reinvested_income() {
+        let compiler = DefaultActivityCompiler::new();
+        let mut activity = create_test_activity();
+        activity.activity_type = ACTIVITY_TYPE_DIVIDEND.to_string();
+        activity.subtype = Some(ACTIVITY_SUBTYPE_DRIP.to_string());
+        activity.quantity = Some(dec!(4));
+        activity.unit_price = None;
+        activity.amount = Some(dec!(100));
+        activity.fee = Some(dec!(5));
+        activity.tax = Some(dec!(15));
+
+        let result = compiler.compile(&activity).unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].activity_type, ACTIVITY_TYPE_DIVIDEND);
+        assert_eq!(result[0].amount, Some(dec!(100)));
+        assert_eq!(result[0].fee, Some(dec!(5)));
+        assert_eq!(result[0].tax, Some(dec!(15)));
+        assert_eq!(result[1].activity_type, ACTIVITY_TYPE_BUY);
+        assert_eq!(result[1].unit_price, Some(dec!(20)));
+        assert_eq!(result[1].fee, Some(Decimal::ZERO));
+        assert_eq!(result[1].tax, Some(Decimal::ZERO));
     }
 
     #[test]

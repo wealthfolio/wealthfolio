@@ -1,0 +1,247 @@
+{
+  "issues": {
+    "price_manual_valuation_missing": {
+      "title_one": "Fehlende manuelle Bewertung für {{symbol}}",
+      "title_other": "Fehlende manuelle Bewertungen für {{count}} Bestände",
+      "message": "Manuelle/benutzerdefinierte Bestände benötigen eine manuelle Bewertung, bevor sie als bewertete Performance-Positionen einbezogen werden können."
+    },
+    "price_no_market_data": {
+      "title_one": "Keine Marktdaten für {{symbol}}",
+      "title_other": "Keine Marktdaten für {{count}} Bestände",
+      "message": "Für einige Bestände konnten keine Marktdaten abgerufen werden. Dies kann an ungültigen Symbolen oder Anbieterproblemen liegen. Ihr Portfoliowert ist möglicherweise ungenau."
+    },
+    "price_stale_outdated": {
+      "title_one": "Veralteter Kurs für {{count}} Bestand",
+      "title_other": "Veraltete Kurse für {{count}} Bestände",
+      "message": "Bei einigen Beständen wurden die Kurse seit mehr als 3 Tagen nicht aktualisiert. Ihr Portfoliowert ist möglicherweise ungenau."
+    },
+    "price_update_needed": {
+      "title_one": "Kursaktualisierung für {{count}} Bestand erforderlich",
+      "title_other": "Kursaktualisierungen für {{count}} Bestände erforderlich",
+      "message": "Bei einigen Beständen wurden die Kurse kürzlich nicht aktualisiert. Erwägen Sie, die Kurse zu synchronisieren."
+    },
+    "fx_missing": {
+      "title_one": "Fehlender Wechselkurs für {{currency}}",
+      "title_other": "Fehlende Wechselkurse für {{count}} Währungen",
+      "message": "Wir können einige Bestände nicht in Ihre Basiswährung umrechnen. Dies beeinträchtigt Ihren gesamten Portfoliowert."
+    },
+    "fx_stale_error": {
+      "title_one": "Veralteter Wechselkurs",
+      "title_other": "Veraltete Wechselkurse für {{count}} Währungen",
+      "message": "Einige Wechselkurse wurden seit mehr als 3 Tagen nicht aktualisiert. Währungsumrechnungen sind möglicherweise ungenau."
+    },
+    "fx_stale_warning": {
+      "title_one": "Aktualisierung des Wechselkurses erforderlich",
+      "title_other": "Aktualisierungen der Wechselkurse für {{count}} Währungen erforderlich",
+      "message": "Einige Wechselkurse wurden kürzlich nicht aktualisiert. Erwägen Sie, die Kurse zu aktualisieren."
+    },
+    "classification_missing_category": {
+      "title_one": "{{count}} Bestand benötigt eine Kategorie",
+      "title_other": "{{count}} Bestände benötigen Kategorien",
+      "message": "Einigen Beständen ist kein {{taxonomy}} zugewiesen. Dies beeinflusst Ihre Allokationsdiagramme und Analysen."
+    },
+    "classification_legacy_migration": {
+      "title_one": "{{count}} Anlage besitzt veraltete Klassifizierungsdaten",
+      "title_other": "{{count}} Anlagen besitzen veraltete Klassifizierungsdaten",
+      "message": "Einige Anlagen besitzen Sektor-/Länderdaten aus dem alten Format. Migrieren Sie zum neuen Taxonomiesystem für eine bessere Allokationsverfolgung."
+    },
+    "data_orphan_activity_account": {
+      "title_one": "Transaktion verweist auf fehlendes Konto",
+      "title_other": "{{count}} Transaktionen verweisen auf fehlende Konten",
+      "message": "Einige Transaktionen verweisen auf Konten, die nicht mehr existieren. Dies kann zu Berechnungsfehlern führen."
+    },
+    "data_orphan_activity_asset": {
+      "title_one": "Transaktion verweist auf fehlende Anlage",
+      "title_other": "{{count}} Transaktionen verweisen auf fehlende Anlagen",
+      "message": "Einige Transaktionen verweisen auf Anlagen, die nicht mehr existieren. Dies kann zu Berechnungsfehlern führen."
+    },
+    "data_negative_position": {
+      "title_one": "Bestand hat negative Menge",
+      "title_other": "{{count}} Bestände haben negative Mengen",
+      "message": "Einige Bestände weisen negative Mengen auf, was normalerweise auf fehlende oder falsche Transaktionen hinweist."
+    },
+    "data_legacy_classification": {
+      "title_one": "{{count}} Anlage besitzt alte Klassifizierungsdaten",
+      "title_other": "{{count}} Anlagen besitzen alte Klassifizierungsdaten",
+      "message": "Einige Anlagen besitzen veraltete Sektor-/Länderdaten, die in das neue Klassifizierungssystem migriert werden können."
+    },
+    "data_negative_account_balance": {
+      "title_one": "Konto hat negativen Portfoliosaldo",
+      "title_other": "{{count}} Konten haben einen negativen Portfoliosaldo",
+      "message": "Ein oder mehrere Konten weisen in ihrem Verlauf einen negativen Gesamtwert auf. Dies wird normalerweise durch fehlende Kauftransaktionen verursacht. Überprüfen Sie Ihre Aktivitäten, um dies zu beheben."
+    },
+    "data_negative_cash_balance": {
+      "title_one": "Barkonto hatte einen negativen Saldo",
+      "title_other": "{{count}} Barkonten hatten einen negativen Saldo",
+      "message": "Ein oder mehrere Barkonten weisen in ihrem Verlauf einen negativen Saldo auf. Dies kann ein normaler Bankdispo oder ein fehlender Einzahlungseintrag sein."
+    },
+    "data_missing_lot_disposal_for_sell": {
+      "title_one": "Verkauf ohne Kostenbasis-Zuordnung",
+      "title_other": "{{count}} Verkäufe ohne Kostenbasis-Zuordnung",
+      "message": "Ein Verkauf konnte keinem Lot zugeordnet werden, sodass realisierte Gewinne/Verluste und die Performance-Zuordnung unvollständig sein können."
+    },
+    "data_missing_generated_valuation": {
+      "title_one": "Generierter Bewertungsverlauf ist unvollständig",
+      "title_other": "{{count}} generierte Bewertungszeilen fehlen",
+      "message": "Für einige Bestands-Snapshot-Daten gibt es keine generierten Bewertungszeilen. Erstellen Sie den Kontoverlauf neu, nachdem Sie fehlende Kurse, manuelle Bewertungen oder Wechselkurse korrigiert haben."
+    },
+    "data_incomplete_valuation_value": {
+      "title_one": "Bewertungsabdeckung ist unvollständig",
+      "title_other": "{{count}} Bewertungszeilen haben einen unvollständigen Marktwert",
+      "message": "Einige generierte Bewertungszeilen haben eine unvollständige Marktwertabdeckung. Die Performance schützt die Korrektheit, indem betroffene Renditen als nicht verfügbar oder eingeschränkt markiert werden; überprüfen Sie fehlende Kurse oder manuelle Bewertungen."
+    },
+    "data_incomplete_valuation_basis": {
+      "title_one": "Kostenbasisabdeckung ist unvollständig",
+      "title_other": "{{count}} Positionen haben eine unvollständige Kostenbasis",
+      "message": "Einige Positionen haben eine fehlende oder teilweise Anschaffungskostenbasis. Der Marktwert kann weiterhin angezeigt werden, aber Gewinn/Verlust und kostenbasisbasierte Renditen sind möglicherweise nicht verfügbar, bis die zugehörigen Aktivitäten korrigiert werden."
+    },
+    "data_unknown_performance_flow_source": {
+      "title_one": "Performance-Flussgrenze ist unbekannt",
+      "title_other": "{{count}} Bewertungszeilen haben eine unbekannte Transferklassifizierung",
+      "message": "Einige generierte Bewertungszeilen enthalten einen Transfer oder Fluss, dessen Portfoliogrenze unbekannt ist. Überprüfen Sie die Transferaktivitäten an den betroffenen Daten und markieren Sie jeden Transfer als extern oder verknüpfen Sie ihn mit dem passenden Konto."
+    },
+    "account_unconfigured": {
+      "title_one": "{{count}} Konto muss eingerichtet werden",
+      "title_other": "{{count}} Konten müssen eingerichtet werden",
+      "message_one": "Wählen Sie einen Tracking-Modus, um mit der Datensynchronisierung zu beginnen.",
+      "message_other": "Wählen Sie Tracking-Modi, um mit der Datensynchronisierung zu beginnen."
+    },
+    "account_timezone_missing": {
+      "title": "Zeitzone nicht konfiguriert",
+      "message": "Legen Sie Ihre Zeitzone in den allgemeinen Einstellungen fest, damit die Daten zu Ihrer Region passen."
+    },
+    "account_timezone_invalid": {
+      "title": "Konfigurierte Zeitzone ist ungültig",
+      "message": "Die konfigurierte Zeitzone „{{timezone}}“ ist ungültig. Aktualisieren Sie sie in den allgemeinen Einstellungen."
+    },
+    "account_timezone_mismatch": {
+      "title": "Browser- und App-Zeitzonen unterscheiden sich",
+      "message": "Die konfigurierte Zeitzone ist „{{configured}}“, aber die Browser-Zeitzone ist „{{browser}}“. Die Daten richten sich nach der konfigurierten Zeitzone."
+    },
+    "quote_sync_error": {
+      "title_one": "Kurssynchronisierung fehlgeschlagen für {{symbol}}",
+      "title_other": "Kurssynchronisierung fehlgeschlagen für {{count}} Anlagen",
+      "message": "Diese Anlagen konnten ihre Kurse wiederholt nicht synchronisieren. Überprüfen Sie die Symbole oder die Einstellungen des Datenanbieters."
+    },
+    "quote_sync_warning": {
+      "title_one": "Synchronisierungsprobleme für {{symbol}}",
+      "title_other": "Synchronisierungsprobleme für {{count}} Anlagen",
+      "message": "Einige Anlagen haben Schwierigkeiten, ihre Kurse zu synchronisieren. Dies kann sich automatisch beheben."
+    },
+    "transfer_incomplete": {
+      "title_one": "Unvollständiger Transfer erkannt",
+      "title_other": "{{count}} unvollständige Transfers erkannt",
+      "message": "Ein Transfer ist nicht gepaart oder seine Gegenbuchung fehlt, sodass sein Fluss als extern behandelt wurde und die Renditen verzerren kann. Paaren Sie ihn mit dem passenden Transfer oder markieren Sie ihn als extern, falls dies beabsichtigt ist."
+    }
+  },
+  "page": {
+    "heading": "Datenzustand",
+    "text": "Datenqualitätsprobleme erkennen und beheben"
+  },
+  "severity": {
+    "info": "Info",
+    "warning": "Warnung",
+    "error": "Fehler",
+    "critical": "Kritisch"
+  },
+  "category": {
+    "prices": "Kurse",
+    "fxRates": "Wechselkurse",
+    "categories": "Kategorien",
+    "data": "Daten",
+    "accounts": "Konten",
+    "settings": "Einstellungen"
+  },
+  "actions": {
+    "fix": "Beheben",
+    "clear": "Zurücksetzen",
+    "sync_prices": "Kurse aktualisieren",
+    "fetch_fx": "Wechselkurse abrufen",
+    "migrate_classifications": "Klassifizierungen migrieren",
+    "migrate_legacy_classifications": "Migration starten",
+    "retry_sync": "Synchronisierung wiederholen",
+    "to_holdings": "Bestände anzeigen",
+    "to_activities": "Aktivitäten anzeigen",
+    "to_accounts": "Konten anzeigen",
+    "to_taxonomies": "Klassifizierungen anzeigen",
+    "to_market_data": "Marktdaten anzeigen",
+    "to_general_settings": "Allgemeine Einstellungen öffnen",
+    "to_connect": "Konten konfigurieren",
+    "review_transfers": "Überweisungen prüfen"
+  },
+  "updatedAt": "Aktualisiert um {{time}}",
+  "healthy": {
+    "title": "Ihre Daten sehen gut aus",
+    "description": "Keine Probleme gefunden. Ihre Portfoliodaten sind konsistent und aktuell."
+  },
+  "loadError": {
+    "title": "Zustandsstatus konnte nicht geladen werden",
+    "retry": "Erneut versuchen"
+  },
+  "sheet": {
+    "groupedPriceMessage": "Wealthfolio verwendet für diese Daten fortgeschriebene Kurse. Aktualisieren Sie die Kurse oder fügen Sie Kurse für echte Handelstage hinzu; verwerfen Sie das Problem, wenn die Daten Feier- oder handelsfreie Tage waren.",
+    "pricesByInvestment": "Kurse nach Anlage",
+    "pricesByInvestmentHint": "Öffnen Sie eine Anlage, um Kurse zu aktualisieren oder hinzuzufügen. Wenn die Daten Feier- oder handelsfreie Tage waren, verwerfen Sie das Problem.",
+    "priceHistoryNeedsReview": "Kurshistorie muss überprüft werden",
+    "missingTradingDay_one": "1 fehlender Handelstag: {{dates}}",
+    "missingTradingDay_other": "{{count}} fehlende Handelstage: {{dates}}",
+    "dateRange": "{{from}} bis {{to}}",
+    "priceIssueSummary": "{{diagnosticCount}} Kurs-{{dateWord}} für {{assetCount}} {{assetWord}}",
+    "priceDate_one": "datum",
+    "priceDate_other": "daten",
+    "investment_one": "Anlage",
+    "investment_other": "Anlagen"
+  },
+  "detail": {
+    "categories": {
+      "priceStaleness": {
+        "label": "Veraltete Kurse",
+        "description": "Die Marktkurse sind veraltet und müssen aktualisiert werden. Dies kann die Genauigkeit Ihrer Portfoliobewertung beeinträchtigen."
+      },
+      "fxIntegrity": {
+        "label": "Wechselkurse",
+        "description": "Fehlende oder veraltete Wechselkurse für die Währungsumrechnung. Dies kann Berechnungen für Mehrwährungsportfolios beeinträchtigen."
+      },
+      "classification": {
+        "label": "Klassifizierung",
+        "description": "Bei einigen Anlagen fehlen Kategorien oder Klassifizierungen. Dies beeinflusst die Portfolioaufschlüsselung und die Allokationsanalyse."
+      },
+      "dataConsistency": {
+        "label": "Datenkonsistenz",
+        "description": "In den Portfoliodaten wurden Inkonsistenzen festgestellt. Dies kann zu ungenauen Berichten oder Berechnungen führen."
+      },
+      "accountConfiguration": {
+        "label": "Kontoeinrichtung",
+        "description": "Einige Konten müssen konfiguriert werden, bevor Daten synchronisiert werden können. Legen Sie den Tracking-Modus fest, um mit dem Datenimport zu beginnen."
+      },
+      "settingsConfiguration": {
+        "label": "Einstellungen",
+        "description": "Einige Anwendungseinstellungen erfordern Ihre Aufmerksamkeit, damit die Daten korrekt interpretiert werden."
+      },
+      "timezoneMissing": {
+        "label": "Zeitzoneneinstellungen",
+        "description": "Die Zeitzone Ihrer App ist nicht konfiguriert. Bis Sie sie festlegen, stimmen die angezeigten Daten möglicherweise nicht mit Ihrer Region überein."
+      },
+      "timezoneInvalid": {
+        "label": "Zeitzoneneinstellungen",
+        "description": "Ihre konfigurierte Zeitzone ist ungültig. Aktualisieren Sie sie in den allgemeinen Einstellungen, um eine konsistente Datumsbehandlung wiederherzustellen."
+      },
+      "timezoneMismatch": {
+        "label": "Zeitzoneneinstellungen",
+        "description": "Ihre Browser-Zeitzone weicht von der konfigurierten App-Zeitzone ab. Portfoliodaten richten sich nach der konfigurierten Zeitzone."
+      }
+    },
+    "affectedItems": "Betroffene Elemente ({{count}})",
+    "impact": "Auswirkung",
+    "affectedItemsCount": "Betroffene Elemente",
+    "portfolioImpact": "Portfolio-Auswirkung",
+    "details": "Details",
+    "aboutThisIssue": "Über dieses Problem",
+    "dismiss": "Ausblenden",
+    "dismissConfirm": {
+      "title": "Dieses Problem ausblenden?",
+      "message": "Dadurch wird das Problem in Ihrem Zustandscenter ausgeblendet. Es erscheint erneut, wenn sich die zugrunde liegenden Daten ändern.",
+      "pendingText": "Wird ausgeblendet..."
+    }
+  }
+}

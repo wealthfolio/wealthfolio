@@ -1,0 +1,247 @@
+{
+  "issues": {
+    "price_manual_valuation_missing": {
+      "title_one": "Valorisation manuelle manquante pour {{symbol}}",
+      "title_other": "Valorisations manuelles manquantes pour {{count}} positions",
+      "message": "Les positions manuelles/personnalisées nécessitent une valorisation manuelle avant de pouvoir être incluses comme positions de performance valorisées."
+    },
+    "price_no_market_data": {
+      "title_one": "Aucune donnée de marché pour {{symbol}}",
+      "title_other": "Aucune donnée de marché pour {{count}} positions",
+      "message": "Impossible de récupérer les données de marché pour certaines positions. Cela peut être dû à des symboles invalides ou à des problèmes de fournisseur. La valeur de votre portefeuille peut être inexacte."
+    },
+    "price_stale_outdated": {
+      "title_one": "Cours obsolète pour {{count}} position",
+      "title_other": "Cours obsolètes pour {{count}} positions",
+      "message": "Certaines positions n'ont pas eu de mise à jour de cours depuis plus de 3 jours. La valeur de votre portefeuille peut être inexacte."
+    },
+    "price_update_needed": {
+      "title_one": "Mise à jour du cours nécessaire pour {{count}} position",
+      "title_other": "Mises à jour des cours nécessaires pour {{count}} positions",
+      "message": "Certaines positions n'ont pas eu de mise à jour de cours récemment. Envisagez d'actualiser les cours."
+    },
+    "fx_missing": {
+      "title_one": "Taux de change manquant pour {{currency}}",
+      "title_other": "Taux de change manquants pour {{count}} devises",
+      "message": "Nous ne pouvons pas convertir certaines positions dans votre devise de base. Cela affecte la valeur totale de votre portefeuille."
+    },
+    "fx_stale_error": {
+      "title_one": "Taux de change obsolète",
+      "title_other": "Taux de change obsolètes pour {{count}} devises",
+      "message": "Certains taux de change n'ont pas été mis à jour depuis plus de 3 jours. Les conversions de devises peuvent être inexactes."
+    },
+    "fx_stale_warning": {
+      "title_one": "Mise à jour du taux de change nécessaire",
+      "title_other": "Mises à jour des taux de change nécessaires pour {{count}} devises",
+      "message": "Certains taux de change n'ont pas été mis à jour récemment. Envisagez d'actualiser les taux."
+    },
+    "classification_missing_category": {
+      "title_one": "{{count}} position nécessite une catégorie",
+      "title_other": "{{count}} positions nécessitent des catégories",
+      "message": "Certaines positions n'ont pas de {{taxonomy}} attribué. Cela affecte vos graphiques d'allocation et vos analyses."
+    },
+    "classification_legacy_migration": {
+      "title_one": "{{count}} actif possède des données de classification héritées",
+      "title_other": "{{count}} actifs possèdent des données de classification héritées",
+      "message": "Certains actifs possèdent des données de secteur/pays de l'ancien format. Migrez vers le nouveau système de taxonomie pour un meilleur suivi de l'allocation."
+    },
+    "data_orphan_activity_account": {
+      "title_one": "Une transaction référence un compte manquant",
+      "title_other": "{{count}} transactions référencent des comptes manquants",
+      "message": "Certaines transactions pointent vers des comptes qui n'existent plus. Cela peut entraîner des erreurs de calcul."
+    },
+    "data_orphan_activity_asset": {
+      "title_one": "Une transaction référence un actif manquant",
+      "title_other": "{{count}} transactions référencent des actifs manquants",
+      "message": "Certaines transactions pointent vers des actifs qui n'existent plus. Cela peut entraîner des erreurs de calcul."
+    },
+    "data_negative_position": {
+      "title_one": "Une position a une quantité négative",
+      "title_other": "{{count}} positions ont des quantités négatives",
+      "message": "Certaines positions affichent des quantités négatives, ce qui indique généralement des transactions manquantes ou incorrectes."
+    },
+    "data_legacy_classification": {
+      "title_one": "{{count}} actif possède d'anciennes données de classification",
+      "title_other": "{{count}} actifs possèdent d'anciennes données de classification",
+      "message": "Certains actifs possèdent des données de secteur/pays héritées qui peuvent être migrées vers le nouveau système de classification."
+    },
+    "data_negative_account_balance": {
+      "title_one": "Un compte a un solde de portefeuille négatif",
+      "title_other": "{{count}} comptes ont un solde de portefeuille négatif",
+      "message": "Un ou plusieurs comptes affichent une valeur totale négative dans leur historique. Cela est généralement causé par des transactions d'achat manquantes. Vérifiez vos activités pour corriger cela."
+    },
+    "data_negative_cash_balance": {
+      "title_one": "Un compte de trésorerie a eu un solde négatif",
+      "title_other": "{{count}} comptes de trésorerie ont eu un solde négatif",
+      "message": "Un ou plusieurs comptes de trésorerie affichent un solde négatif dans leur historique. Il peut s'agir d'un découvert bancaire normal ou d'une écriture de dépôt manquante."
+    },
+    "data_missing_lot_disposal_for_sell": {
+      "title_one": "Vente sans correspondance de coût de revient",
+      "title_other": "{{count}} ventes sans correspondance de coût de revient",
+      "message": "Une vente n'a pas pu être associée à un lot, de sorte que la plus/moins-value réalisée et l'attribution de performance peuvent être incomplètes."
+    },
+    "data_missing_generated_valuation": {
+      "title_one": "L'historique de valorisation généré est incomplet",
+      "title_other": "{{count}} lignes de valorisation générées sont manquantes",
+      "message": "Certaines dates de capture de positions n'ont pas de lignes de valorisation générées. Reconstruisez l'historique du compte après avoir corrigé les cours manquants, les valorisations manuelles ou les taux de change."
+    },
+    "data_incomplete_valuation_value": {
+      "title_one": "La couverture de valorisation est incomplète",
+      "title_other": "{{count}} lignes de valorisation ont une valeur de marché incomplète",
+      "message": "Certaines lignes de valorisation générées ont une couverture de valeur de marché incomplète. La performance protège l'exactitude en marquant les rendements concernés comme indisponibles ou dégradés ; vérifiez les cours manquants ou les valorisations manuelles."
+    },
+    "data_incomplete_valuation_basis": {
+      "title_one": "La couverture du coût de revient est incomplète",
+      "title_other": "{{count}} positions ont un coût de revient incomplet",
+      "message": "Certaines positions ont un coût de revient d'acquisition manquant ou partiel. La valeur de marché peut toujours être affichée, mais les plus/moins-values et les rendements basés sur le coût de revient peuvent être indisponibles jusqu'à ce que les activités associées soient corrigées."
+    },
+    "data_unknown_performance_flow_source": {
+      "title_one": "La limite du flux de performance est inconnue",
+      "title_other": "{{count}} lignes de valorisation ont une classification de transfert inconnue",
+      "message": "Certaines lignes de valorisation générées incluent un transfert ou un flux dont la limite de portefeuille est inconnue. Vérifiez les activités de transfert aux dates concernées et marquez chaque transfert comme externe ou associez-le à son compte correspondant."
+    },
+    "account_unconfigured": {
+      "title_one": "{{count}} compte nécessite une configuration",
+      "title_other": "{{count}} comptes nécessitent une configuration",
+      "message_one": "Choisissez un mode de suivi pour commencer à synchroniser les données.",
+      "message_other": "Choisissez des modes de suivi pour commencer à synchroniser les données."
+    },
+    "account_timezone_missing": {
+      "title": "Fuseau horaire non configuré",
+      "message": "Définissez votre fuseau horaire dans les paramètres généraux pour que les dates correspondent à votre région."
+    },
+    "account_timezone_invalid": {
+      "title": "Le fuseau horaire configuré est invalide",
+      "message": "Le fuseau horaire configuré « {{timezone}} » est invalide. Mettez-le à jour dans les paramètres généraux."
+    },
+    "account_timezone_mismatch": {
+      "title": "Les fuseaux horaires du navigateur et de l'application diffèrent",
+      "message": "Le fuseau horaire configuré est « {{configured}} » mais celui du navigateur est « {{browser}} ». Les dates suivent le fuseau horaire configuré."
+    },
+    "quote_sync_error": {
+      "title_one": "Échec de la synchronisation des cours pour {{symbol}}",
+      "title_other": "Échec de la synchronisation des cours pour {{count}} actifs",
+      "message": "Ces actifs n'ont pas réussi à synchroniser leurs cours à plusieurs reprises. Vérifiez les symboles ou les paramètres du fournisseur de données."
+    },
+    "quote_sync_warning": {
+      "title_one": "Problèmes de synchronisation pour {{symbol}}",
+      "title_other": "Problèmes de synchronisation pour {{count}} actifs",
+      "message": "Certains actifs ont des difficultés à synchroniser leurs cours. Cela peut se résoudre automatiquement."
+    },
+    "transfer_incomplete": {
+      "title_one": "Transfert incomplet détecté",
+      "title_other": "{{count}} transferts incomplets détectés",
+      "message": "Un transfert n'est pas apparié ou sa contrepartie est manquante, de sorte que son flux a été traité comme externe et peut fausser les rendements. Appariez-le avec le transfert correspondant, ou marquez-le comme externe si cela est intentionnel."
+    }
+  },
+  "page": {
+    "heading": "Santé des données",
+    "text": "Identifiez et résolvez les problèmes de qualité des données"
+  },
+  "severity": {
+    "info": "Info",
+    "warning": "Avertissement",
+    "error": "Erreur",
+    "critical": "Critique"
+  },
+  "category": {
+    "prices": "Cours",
+    "fxRates": "Taux de change",
+    "categories": "Catégories",
+    "data": "Données",
+    "accounts": "Comptes",
+    "settings": "Paramètres"
+  },
+  "actions": {
+    "fix": "Corriger",
+    "clear": "Effacer",
+    "sync_prices": "Actualiser les cours",
+    "fetch_fx": "Récupérer les taux de change",
+    "migrate_classifications": "Migrer les classifications",
+    "migrate_legacy_classifications": "Démarrer la migration",
+    "retry_sync": "Réessayer la synchronisation",
+    "to_holdings": "Voir les positions",
+    "to_activities": "Voir les activités",
+    "to_accounts": "Voir les comptes",
+    "to_taxonomies": "Voir les classifications",
+    "to_market_data": "Voir les données de marché",
+    "to_general_settings": "Ouvrir les paramètres généraux",
+    "to_connect": "Configurer les comptes",
+    "review_transfers": "Examiner les transferts"
+  },
+  "updatedAt": "Mis à jour à {{time}}",
+  "healthy": {
+    "title": "Vos données sont en parfait état",
+    "description": "Aucun problème détecté. Les données de votre portefeuille sont cohérentes et à jour."
+  },
+  "loadError": {
+    "title": "Échec du chargement de l'état de santé",
+    "retry": "Réessayer"
+  },
+  "sheet": {
+    "groupedPriceMessage": "Wealthfolio utilise des cours reportés pour ces dates. Actualisez ou ajoutez les cours des jours de bourse réels ; ignorez le problème si ces dates étaient des jours fériés ou non ouvrés.",
+    "pricesByInvestment": "Cours par investissement",
+    "pricesByInvestmentHint": "Ouvrez un investissement pour actualiser ou ajouter des cours. Si ces dates étaient des jours fériés ou non ouvrés, ignorez le problème.",
+    "priceHistoryNeedsReview": "L'historique des cours doit être vérifié",
+    "missingTradingDay_one": "1 jour de bourse manquant : {{dates}}",
+    "missingTradingDay_other": "{{count}} jours de bourse manquants : {{dates}}",
+    "dateRange": "du {{from}} au {{to}}",
+    "priceIssueSummary": "{{diagnosticCount}} {{dateWord}} de cours sur {{assetCount}} {{assetWord}}",
+    "priceDate_one": "date",
+    "priceDate_other": "dates",
+    "investment_one": "investissement",
+    "investment_other": "investissements"
+  },
+  "detail": {
+    "categories": {
+      "priceStaleness": {
+        "label": "Cours obsolètes",
+        "description": "Les cours du marché sont obsolètes et doivent être actualisés. Cela peut affecter l'exactitude de la valorisation de votre portefeuille."
+      },
+      "fxIntegrity": {
+        "label": "Taux de change",
+        "description": "Taux de change manquants ou obsolètes pour la conversion des devises. Cela peut affecter les calculs de portefeuille multidevises."
+      },
+      "classification": {
+        "label": "Classification",
+        "description": "Certains actifs n'ont pas de catégories ou de classifications. Cela affecte la répartition du portefeuille et l'analyse d'allocation."
+      },
+      "dataConsistency": {
+        "label": "Cohérence des données",
+        "description": "Des incohérences ont été détectées dans les données du portefeuille. Cela peut entraîner des rapports ou des calculs inexacts."
+      },
+      "accountConfiguration": {
+        "label": "Configuration du compte",
+        "description": "Certains comptes doivent être configurés avant que les données puissent être synchronisées. Définissez le mode de suivi pour commencer à importer les données."
+      },
+      "settingsConfiguration": {
+        "label": "Paramètres",
+        "description": "Certains paramètres de l'application nécessitent votre attention pour que les données soient interprétées correctement."
+      },
+      "timezoneMissing": {
+        "label": "Paramètres de fuseau horaire",
+        "description": "Le fuseau horaire de votre application n'est pas configuré. Tant que vous ne l'aurez pas défini, les dates affichées peuvent ne pas correspondre à votre région."
+      },
+      "timezoneInvalid": {
+        "label": "Paramètres de fuseau horaire",
+        "description": "Le fuseau horaire configuré est invalide. Mettez-le à jour dans les paramètres généraux pour rétablir une gestion cohérente des dates."
+      },
+      "timezoneMismatch": {
+        "label": "Paramètres de fuseau horaire",
+        "description": "Le fuseau horaire de votre navigateur diffère du fuseau horaire configuré de l'application. Les dates du portefeuille suivent le fuseau horaire configuré."
+      }
+    },
+    "affectedItems": "Éléments concernés ({{count}})",
+    "impact": "Impact",
+    "affectedItemsCount": "Éléments concernés",
+    "portfolioImpact": "Impact sur le portefeuille",
+    "details": "Détails",
+    "aboutThisIssue": "À propos de ce problème",
+    "dismiss": "Ignorer",
+    "dismissConfirm": {
+      "title": "Ignorer ce problème ?",
+      "message": "Cela masquera le problème de votre centre de santé. Il réapparaîtra si les données sous-jacentes changent.",
+      "pendingText": "Masquage en cours..."
+    }
+  }
+}

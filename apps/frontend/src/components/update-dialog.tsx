@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { isDesktop, openUrlInBrowser } from "@/adapters";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -34,7 +35,7 @@ function formatBytes(bytes: number): string {
 }
 
 function isDismissed(dismissed: DismissedUpdate | null, version: string): boolean {
-  if (!dismissed || dismissed.version !== version) return false;
+  if (dismissed?.version !== version) return false;
   return Date.now() - dismissed.dismissedAt < SNOOZE_DURATION_MS;
 }
 
@@ -56,6 +57,7 @@ function formatReleaseDate(pubDate?: string) {
 }
 
 export function UpdateDialog() {
+  const { t } = useTranslation();
   const { data: updateInfo } = useCheckUpdateOnStartup();
   const clearUpdate = useClearUpdate();
   const [isOpen, setIsOpen] = useState(false);
@@ -115,8 +117,8 @@ export function UpdateDialog() {
       await openUrlInBrowser(updateInfo.storeUrl);
     } catch (error) {
       toast({
-        title: "Unable to open the link",
-        description: "Try opening the link manually.",
+        title: t("common:component.unable_to_open_link"),
+        description: t("common:component.try_open_link_manually"),
         variant: "destructive",
       });
       console.error("Failed to open store for update", error);
@@ -130,8 +132,8 @@ export function UpdateDialog() {
       await openUrlInBrowser(updateInfo.changelogUrl);
     } catch (error) {
       toast({
-        title: "Unable to open changelog",
-        description: "Try opening the changelog manually in your browser.",
+        title: t("common:component.unable_to_open_changelog"),
+        description: t("common:component.try_open_changelog_manually"),
         variant: "destructive",
       });
       console.error("Failed to open changelog", error);
@@ -159,7 +161,7 @@ export function UpdateDialog() {
             <button
               onClick={handleDismiss}
               className="bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground absolute right-4 top-4 rounded-full p-2 transition-all duration-200 hover:scale-105"
-              aria-label="Close dialog"
+              aria-label={t("common:component.close_dialog")}
             >
               <Icons.Close className="h-4 w-4" />
             </button>
@@ -175,7 +177,7 @@ export function UpdateDialog() {
             {/* Title */}
             <div className="mb-3 space-y-3">
               <h2 className="text-foreground text-balance text-2xl font-bold">
-                New Update Available
+                {t("common:component.new_update_available")}
               </h2>
             </div>
 
@@ -197,7 +199,7 @@ export function UpdateDialog() {
                       <div className="border-border bg-secondary/30 relative aspect-video overflow-hidden rounded-xl border">
                         <img
                           src={screenshotUrl}
-                          alt={`Screenshot ${index + 1}`}
+                          alt={t("common:component.screenshot_alt", { number: index + 1 })}
                           className="object-cover"
                         />
                       </div>
@@ -223,7 +225,9 @@ export function UpdateDialog() {
               {phase === "downloading" ? (
                 <>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Downloading update...</span>
+                    <span className="text-muted-foreground">
+                      {t("common:component.downloading_update")}
+                    </span>
                     <span className="text-muted-foreground tabular-nums">
                       {progress.total
                         ? `${formatBytes(progress.downloaded)} / ${formatBytes(progress.total)}`
@@ -240,7 +244,9 @@ export function UpdateDialog() {
               ) : (
                 <div className="flex items-center gap-2 text-sm">
                   <Icons.Spinner className="h-4 w-4 animate-spin" />
-                  <span className="text-muted-foreground">Installing update...</span>
+                  <span className="text-muted-foreground">
+                    {t("common:component.installing_update")}
+                  </span>
                 </div>
               )}
             </div>
@@ -248,42 +254,42 @@ export function UpdateDialog() {
             // Error state with retry
             <div className="flex items-center justify-between gap-4">
               <p className="text-destructive text-sm">
-                {error || "Update failed. Please try again."}
+                {error || t("common:component.update_failed")}
               </p>
               <div className="flex items-center gap-3">
                 <Button variant="ghost" onClick={handleDismiss}>
-                  Close
+                  {t("common:close")}
                 </Button>
-                <Button onClick={handleInstall}>Retry</Button>
+                <Button onClick={handleInstall}>{t("common:retry")}</Button>
               </div>
             </div>
           ) : (
             // Default actions
             <div className="flex items-center justify-between gap-4">
               <Button variant="ghost" onClick={handleSnooze}>
-                Remind me later
+                {t("common:component.remind_me_later")}
               </Button>
               <div className="flex items-center gap-3">
                 {updateInfo.changelogUrl && (
                   <Button variant="outline" onClick={handleOpenChangelog}>
-                    View Changelog
+                    {t("common:component.view_changelog")}
                   </Button>
                 )}
                 {isDesktopEnv ? (
                   updateInfo.isAppStoreBuild ? (
                     <Button onClick={handleOpenStore} disabled={!updateInfo.storeUrl}>
-                      Open App Store
+                      {t("common:component.open_app_store")}
                     </Button>
                   ) : (
                     <Button onClick={handleInstall}>
                       <Icons.Download className="mr-2 h-4 w-4" />
-                      Update Now
+                      {t("common:component.update_now")}
                     </Button>
                   )
                 ) : (
                   <Button onClick={handleOpenStore} disabled={!updateInfo.storeUrl}>
                     <Icons.ExternalLink className="mr-2 h-4 w-4" />
-                    View Release
+                    {t("common:component.view_release")}
                   </Button>
                 )}
               </div>

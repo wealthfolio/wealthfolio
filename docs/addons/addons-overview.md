@@ -46,28 +46,36 @@ Includes hot-reload development server and comprehensive type definitions.
 
 ## Basic Addon Structure
 
-Every addon exports an enable function that receives a context object:
+Every addon exports an enable function that receives a context object. The
+sidebar entry and route are **declared in `manifest.json`**
+(`contributes.routes` + `contributes.links`), so the host renders navigation
+without booting the addon; `enable` only registers the route's component and any
+event listeners:
 
 ```typescript
-import type { AddonContext } from '@wealthfolio/addon-sdk';
-import { Icons } from '@wealthfolio/ui';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { AddonContext, AddonEnableFunction } from '@wealthfolio/addon-sdk';
+import { MyComponent } from './MyComponent';
 
-export default function enable(ctx: AddonContext) {
-  // Access financial data
-  const accounts = await ctx.api.accounts.getAll();
+// The host owns a single React root per addon and mounts the route `component`
+// itself (with no ctx). Capture the context at enable time so the wrapper can
+// hand it down. Do NOT call createRoot yourself — the host manages the root.
+let addonCtx: AddonContext | undefined;
 
-  // Add navigation item
-  const sidebarItem = ctx.sidebar.addItem({
-    id: 'my-addon',
-    icon: <Icons.Blocks className="h-5 w-5" />,
-    label: 'My Tool',
-    route: '/my-addon'
-  });
+const MyRoute = () => (
+  <QueryClientProvider client={addonCtx!.api.query.getClient() as QueryClient}>
+    <MyComponent ctx={addonCtx!} />
+  </QueryClientProvider>
+);
 
-  // Register route
+const enable: AddonEnableFunction = (ctx) => {
+  addonCtx = ctx;
+
+  // The route `id` MUST match `contributes.routes[].id` in the manifest.
   ctx.router.add({
-    path: '/my-addon',
-    component: MyComponent
+    id: 'my-addon',
+    path: '/addons/my-addon',
+    component: MyRoute,
   });
 
   // Listen to events
@@ -75,14 +83,14 @@ export default function enable(ctx: AddonContext) {
     // Handle portfolio updates
   });
 
-  // Cleanup function
-  return {
-    disable() {
-      sidebarItem.remove();
-      unlisten();
-    }
-  };
-}
+  // Cleanup: the host owns the React root, so there is nothing to unmount.
+  ctx.onDisable(() => {
+    addonCtx = undefined;
+    unlisten();
+  });
+};
+
+export default enable;
 ```
 
 ## Permission System
@@ -115,6 +123,13 @@ const accounts = await ctx.api.accounts.getAll();
 | `files`       | Medium     | openCsvDialog, openSaveDialog               |
 | `events`      | Low        | onDrop, onUpdateComplete, onSyncStart       |
 | `secrets`     | High       | set, get, delete                            |
+| `network`     | High       | request (brokered fetch to declared hosts)  |
+
+> **Baseline capabilities are not permissions.** `ui`, `query`, `toast`,
+> `logger`, and `storage` are granted to every addon and must **not** appear in
+> `manifest.json` `permissions`. Only data categories plus `files`, `network`,
+> `secrets`, `events`, `snapshots`, and `settings` require declaration and
+> consent.
 
 #### 3. User Approval
 
@@ -123,7 +138,9 @@ approve or reject the addon installation.
 
 ## Available APIs
 
-The addon context provides access to 14 domain-specific APIs:
+The addon context provides access to domain-specific data APIs plus a set of
+**baseline capabilities** (`query`, `storage`, `toast`, `logger`) that every
+addon gets without declaring a permission:
 
 ```typescript
 interface AddonContext {
@@ -131,6 +148,12 @@ interface AddonContext {
   router: RouterAPI;
   onDisable: (callback: () => void) => void;
   api: {
+    // Baseline capabilities — no permission declaration required
+    query: QueryAPI; // shared QueryClient (getClient, invalidate, refetch)
+    storage: StorageAPI; // durable, per-addon key/value store
+    toast: ToastAPI; // user-facing notifications
+    logger: LoggerAPI; // scoped logging
+    // Domain data APIs — declared in manifest `permissions`
     accounts: AccountsAPI;
     portfolio: PortfolioAPI;
     activities: ActivitiesAPI;
@@ -214,10 +237,41 @@ hello-world-addon/
   "main": "dist/addon.js",
   "description": "Addon description",
   "author": "Your Name",
-  "permissions": ["accounts.getAll", "portfolio.getHoldings"],
-  "sdkVersion": "1.0.0"
+  "sdkVersion": "3.6.1",
+  "minWealthfolioVersion": "3.6.1",
+  "enabled": true,
+  "contributes": {
+    "routes": [{ "id": "my-addon" }],
+    "links": {
+      "sidebar": [
+        {
+          "id": "my-addon",
+          "route": "my-addon",
+          "label": "My Addon",
+          "icon": "squares-four",
+          "order": 100
+        }
+      ]
+    }
+  },
+  "permissions": [
+    {
+      "category": "accounts",
+      "functions": ["getAll"],
+      "purpose": "List accounts"
+    },
+    {
+      "category": "portfolio",
+      "functions": ["getHoldings"],
+      "purpose": "Read holdings"
+    }
+  ]
 }
 ```
+
+The host mounts that route at `/addons/my-addon`, derived from the manifest
+`id`. Omit `path` for the root, or use a relative suffix such as
+`"path": "reports/:year"` for a nested page.
 
 ## Lifecycle Management
 
@@ -243,6 +297,15 @@ hello-world-addon/
 4. **Load**: Create isolated context with scoped APIs
 5. **Enable**: Call addon's enable function
 6. **Running**: Addon functionality is active
+
+### Lazy Activation
+
+Addons that declare `contributes.routes` **boot lazily**: the host reads the
+manifest into a ContributionRegistry and renders the addon's sidebar entries and
+routes _without executing any addon code_. The addon's `enable` function runs
+only on the first visit to one of its routes — not eagerly at startup. Addons
+**without** `contributes` stay eager and run at load time. This keeps startup
+fast and lets the host draw navigation for addons that have never been opened.
 
 ### Context Isolation
 
@@ -295,26 +358,51 @@ Available libraries:
 
 ### Build Configuration
 
-Standard Vite configuration externalizes React:
+Standard Vite configuration externalizes host-provided dependencies as ESM:
 
 ```typescript
 // vite.config.ts
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "vite";
+
+const hostProvidedDependencies = [
+  "@tanstack/react-query",
+  "@wealthfolio/addon-sdk",
+  "@wealthfolio/addon-sdk/host-api",
+  "@wealthfolio/addon-sdk/host-dependencies",
+  "@wealthfolio/addon-sdk/manifest",
+  "@wealthfolio/addon-sdk/permissions",
+  "@wealthfolio/addon-sdk/types",
+  "@wealthfolio/addon-sdk/utils",
+  "@wealthfolio/ui",
+  "@wealthfolio/ui/chart",
+  "date-fns",
+  "lucide-react",
+  "react",
+  "react-dom",
+  "react-dom/client",
+  "react/jsx-dev-runtime",
+  "react/jsx-runtime",
+  "recharts",
+];
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  define: {
+    "process.env.NODE_ENV": JSON.stringify("production"),
+  },
   build: {
     lib: {
       entry: "src/addon.tsx",
       fileName: () => "addon.js",
       formats: ["es"],
     },
+    outDir: "dist",
+    minify: true,
+    sourcemap: false,
     rollupOptions: {
-      external: ["react", "react-dom"],
-      plugins: [
-        externalGlobals({
-          react: "React",
-          "react-dom": "ReactDOM",
-        }),
-      ],
+      external: hostProvidedDependencies,
     },
   },
 });
@@ -344,6 +432,18 @@ export default defineConfig({
 - Errors are logged but don't affect other addons
 - Host application continues normally
 - Users see error notifications
+
+### Sandbox Error Classification
+
+Because each addon runs in an isolated sandbox, the host classifies common
+failure modes and surfaces them as a toast plus an inline panel in the addon
+frame:
+
+- **Blocked storage** — a `localStorage`/`sessionStorage` call (which throws in
+  the sandbox). Use `ctx.api.storage` instead.
+- **Unknown API** — calling a method the host doesn't expose.
+- **Unavailable route surface** — a route whose runtime `router.add({ id })`
+  doesn't match a declared `contributes.routes[].id`.
 
 ### Permission Violations
 

@@ -1,0 +1,66 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+assertion_line: 706
+expression: result
+---
+{
+  "ok": {
+    "assetQuery": "AAPL",
+    "changes": {
+      "addCount": 1,
+      "removeCount": 0,
+      "unchangedCount": 0,
+      "updateCount": 1
+    },
+    "currentAssignments": [
+      {
+        "assignmentId": "assignment-1",
+        "categoryColor": "#64748b",
+        "categoryId": "equity",
+        "categoryKey": "equity",
+        "categoryName": "Equity",
+        "source": "manual",
+        "weightBasisPoints": 10000
+      }
+    ],
+    "draftStatus": "draft",
+    "proposedAssignments": [
+      {
+        "assignmentId": null,
+        "categoryColor": "#64748b",
+        "categoryId": "equity",
+        "categoryKey": "equity",
+        "categoryName": "Equity",
+        "source": "ai",
+        "sourceLabel": "Equity",
+        "weightBasisPoints": 6000
+      },
+      {
+        "assignmentId": null,
+        "categoryColor": "#64748b",
+        "categoryId": "cash",
+        "categoryKey": "cash",
+        "categoryName": "Cash",
+        "source": "ai",
+        "sourceLabel": "Cash",
+        "weightBasisPoints": 3000
+      }
+    ],
+    "resolvedAsset": {
+      "assetId": "asset-aapl",
+      "currency": "USD",
+      "displayCode": "AAPL",
+      "exchangeMic": "XNAS",
+      "label": "AAPL - Apple Inc.",
+      "matchedBy": "symbol",
+      "name": "Apple Inc.",
+      "symbol": "AAPL"
+    },
+    "taxonomy": {
+      "isSingleSelect": false,
+      "name": "Asset Class",
+      "taxonomyId": "asset-tax"
+    },
+    "unallocatedBasisPoints": 1000
+  }
+}

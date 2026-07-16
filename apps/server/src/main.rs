@@ -7,11 +7,14 @@ mod error;
 mod events;
 mod features;
 mod main_lib;
+mod mcp;
 mod models;
+mod oidc;
 mod scheduler;
 mod secrets;
 
-use api::app_router;
+use api::{app_router, security_headers};
+use axum::middleware;
 use config::Config;
 use main_lib::{build_state, init_tracing};
 use tower_http::services::{ServeDir, ServeFile};
@@ -122,7 +125,9 @@ async fn main() -> anyhow::Result<()> {
     let static_dir = std::path::PathBuf::from(&config.static_dir);
     let index_file = static_dir.join("index.html");
     let static_service = ServeDir::new(static_dir).fallback(ServeFile::new(index_file));
-    let router = app_router(state, &config).fallback_service(static_service);
+    let router = app_router(state, &config)
+        .fallback_service(static_service)
+        .layer(middleware::from_fn(security_headers));
     if let Some(ref auth) = config.auth {
         tracing::info!(
             "Authentication enabled, cookie secure policy: {}",

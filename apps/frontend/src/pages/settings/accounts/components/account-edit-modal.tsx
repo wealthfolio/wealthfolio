@@ -33,7 +33,10 @@ export function AccountEditModal({ account, open, onClose }: AccountEditModalPro
 
   return (
     <Dialog open={open} onOpenChange={onClose} useIsMobile={useIsMobileViewport}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[625px]">
+      <DialogContent
+        data-testid="account-modal"
+        className="max-h-[90vh] overflow-y-auto p-0 sm:max-w-[920px]"
+      >
         <AccountForm defaultValues={defaultValues} onSuccess={onClose} />
       </DialogContent>
     </Dialog>

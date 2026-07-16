@@ -5,15 +5,34 @@
   "description": "{{description}}",
   "author": "{{author}}",
   "main": "dist/addon.js",
-  "sdkVersion": "1.0.0",
+  "sdkVersion": "3.6.3",
+  "minWealthfolioVersion": "3.6.3",
   "enabled": true,
-  "permissions": [
-    {
-      "category": "ui",
-      "functions": ["sidebar.addItem"],
-      "purpose": "Add navigation items to the sidebar"
+  "contributes": {
+    "routes": [{ "id": "{{addonId}}" }],
+    "links": {
+      "sidebar": [
+        {
+          "id": "{{addonId}}",
+          "route": "{{addonId}}",
+          "label": "{{addonName}}",
+          "icon": "squares-four",
+          "order": 100
+        }
+      ]
     }
-  ],
+  },
+  "hostDependencies": {
+    "@tanstack/react-query": "^5.90.0",
+    "@wealthfolio/addon-sdk": "^3.6.3",
+    "@wealthfolio/ui": "^3.6.0",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.561.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "recharts": "^3.7.0"
+  },
+  "permissions": [],
   "keywords": ["wealthfolio", "addon"],
   "license": "MIT"
 }

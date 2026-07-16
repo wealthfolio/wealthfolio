@@ -20,7 +20,9 @@ import { Input } from "@wealthfolio/ui/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@wealthfolio/ui/components/ui/input-otp";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
-import { useEffect, useState } from "react";
+import type { TFunction } from "i18next";
+import { useEffect, useMemo, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { useWealthfolioConnect } from "../providers/wealthfolio-connect-provider";
 import { ProviderButton } from "./provider-button";
 
@@ -33,27 +35,6 @@ type Provider = "google" | "email";
 // ─────────────────────────────────────────────────────────────────────────────
 // Features Section
 // ─────────────────────────────────────────────────────────────────────────────
-
-const features = [
-  {
-    icon: Icons.CloudSync2,
-    title: "Broker Sync",
-    description: "Auto-sync transactions daily",
-    color: "orange",
-  },
-  {
-    icon: Icons.Devices,
-    title: "Device Sync",
-    description: "End-to-end encrypted sync",
-    color: "green",
-  },
-  {
-    icon: Icons.Users,
-    title: "Household",
-    description: "Shared family portfolio view",
-    color: "blue",
-  },
-];
 
 const featureColors = {
   orange: {
@@ -70,7 +51,30 @@ const featureColors = {
   },
 };
 
-function FeaturesSection() {
+function FeaturesSection({ t }: { t: TFunction }) {
+  const features = useMemo(
+    () => [
+      {
+        icon: Icons.CloudSync2,
+        title: t("auth:connect.features.brokerSync.title"),
+        description: t("auth:connect.features.brokerSync.description"),
+        color: "orange",
+      },
+      {
+        icon: Icons.Devices,
+        title: t("auth:connect.features.deviceSync.title"),
+        description: t("auth:connect.features.deviceSync.description"),
+        color: "green",
+      },
+      {
+        icon: Icons.Users,
+        title: t("auth:connect.features.household.title"),
+        description: t("auth:connect.features.household.description"),
+        color: "blue",
+      },
+    ],
+    [t],
+  );
   return (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
       {features.map((feature) => {
@@ -97,6 +101,7 @@ function FeaturesSection() {
 }
 
 export function LoginForm() {
+  const { t } = useTranslation();
   const { signInWithOAuth, signInWithMagicLink, verifyOtp, error, clearError, isLoading } =
     useWealthfolioConnect();
 
@@ -161,7 +166,7 @@ export function LoginForm() {
       // Save provider preference
       savePreferredProvider(provider);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Sign in failed. Please try again.";
+      const message = err instanceof Error ? err.message : t("auth:connect.errors.signInFailed");
       setLocalError(message);
     } finally {
       setLoadingProvider(null);
@@ -175,14 +180,14 @@ export function LoginForm() {
     clearError();
 
     if (!email) {
-      setLocalError("Please enter your email address");
+      setLocalError(t("auth:connect.errors.enterEmail"));
       return;
     }
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setLocalError("Please enter a valid email address");
+      setLocalError(t("auth:connect.errors.invalidEmail"));
       return;
     }
 
@@ -197,8 +202,7 @@ export function LoginForm() {
       setShowOtpInput(true);
       setEmail(""); // Clear email input
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to send magic link. Please try again.";
+      const message = err instanceof Error ? err.message : t("auth:connect.errors.magicLinkFailed");
       setLocalError(message);
     } finally {
       setLoadingProvider(null);
@@ -207,7 +211,7 @@ export function LoginForm() {
 
   const handleOtpVerify = async () => {
     if (otpCode.length !== 6) {
-      setLocalError("Please enter the complete 6-digit code");
+      setLocalError(t("auth:connect.errors.incompleteCode"));
       return;
     }
 
@@ -225,8 +229,8 @@ export function LoginForm() {
         errorMessage.toLowerCase().includes("expired") ||
         errorMessage.toLowerCase().includes("invalid");
       const message = isOtpExpired
-        ? "Code expired or invalid. Please request a new code."
-        : errorMessage || "Invalid code. Please try again.";
+        ? t("auth:connect.errors.codeExpired")
+        : errorMessage || t("auth:connect.errors.invalidCode");
       setLocalError(message);
       setOtpCode(""); // Clear OTP on error
     } finally {
@@ -241,10 +245,10 @@ export function LoginForm() {
 
     try {
       await signInWithMagicLink(pendingEmail);
-      setSuccessMessage("A new code has been sent to your email.");
+      setSuccessMessage(t("auth:connect.codeResent"));
       setOtpCode(""); // Clear OTP input
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to resend code.";
+      const message = err instanceof Error ? err.message : t("auth:connect.errors.resendFailed");
       setLocalError(message);
     } finally {
       setLoadingProvider(null);
@@ -265,14 +269,16 @@ export function LoginForm() {
   return (
     <div className="space-y-6">
       {/* Features Grid */}
-      <FeaturesSection />
+      <FeaturesSection t={t} />
 
       {/* Sign In Card */}
       <Card>
         <CardHeader className="pb-4">
-          <CardTitle className="text-center text-base font-medium">Get started</CardTitle>
+          <CardTitle className="text-center text-base font-medium">
+            {t("auth:connect.getStarted")}
+          </CardTitle>
           <CardDescription className="text-center">
-            Sign in to connect your broker accounts
+            {t("auth:connect.getStartedDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -296,9 +302,13 @@ export function LoginForm() {
           {showOtpInput ? (
             <div className="flex flex-col items-center space-y-4">
               <div className="text-center">
-                <p className="text-sm font-medium">Enter verification code</p>
+                <p className="text-sm font-medium">{t("auth:connect.otp.title")}</p>
                 <p className="text-muted-foreground text-sm">
-                  We sent a code to <span className="font-medium">{pendingEmail}</span>
+                  <Trans
+                    i18nKey="auth:connect.otp.sentTo"
+                    values={{ email: pendingEmail }}
+                    components={[<span key="email" className="font-medium" />]}
+                  />
                 </p>
               </div>
 
@@ -328,10 +338,10 @@ export function LoginForm() {
                   {loadingProvider === "email" ? (
                     <>
                       <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                      Verifying...
+                      {t("auth:connect.otp.verifying")}
                     </>
                   ) : (
-                    "Verify"
+                    t("auth:connect.otp.verify")
                   )}
                 </Button>
                 <div className="flex items-center gap-2">
@@ -343,7 +353,7 @@ export function LoginForm() {
                     className="text-muted-foreground"
                   >
                     <Icons.ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to sign in
+                    {t("auth:connect.otp.backToSignIn")}
                   </Button>
                   <span className="text-muted-foreground">•</span>
                   <Button
@@ -354,7 +364,7 @@ export function LoginForm() {
                     disabled={loadingProvider === "email"}
                     className="text-muted-foreground"
                   >
-                    Resend code
+                    {t("auth:connect.otp.resendCode")}
                   </Button>
                 </div>
               </div>
@@ -374,11 +384,11 @@ export function LoginForm() {
                 {topProviders.includes("email") && (
                   <form onSubmit={handleMagicLinkSignIn} className="w-full max-w-sm space-y-3">
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email">{t("auth:connect.emailLabel")}</Label>
                       <Input
                         id="email"
                         type="email"
-                        placeholder="you@example.com"
+                        placeholder={t("auth:connect.emailPlaceholder")}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         autoComplete="email"
@@ -404,7 +414,9 @@ export function LoginForm() {
                     <Separator className="mx-auto max-w-sm" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background text-muted-foreground px-2">or</span>
+                    <span className="bg-background text-muted-foreground px-2">
+                      {t("auth:connect.or")}
+                    </span>
                   </div>
                 </div>
               )}
@@ -417,7 +429,9 @@ export function LoginForm() {
               <div className="flex justify-center">
                 <CollapsibleTrigger asChild>
                   <Button type="button" variant="ghost" className="gap-2" disabled={isLoading}>
-                    <span className="text-muted-foreground text-sm">More sign-in options</span>
+                    <span className="text-muted-foreground text-sm">
+                      {t("auth:connect.moreSignInOptions")}
+                    </span>
                     <Icons.ChevronDown
                       className={`h-4 w-4 transition-transform ${
                         isMoreOptionsOpen ? "rotate-180" : ""
@@ -440,11 +454,11 @@ export function LoginForm() {
                     className="flex w-full max-w-sm flex-col items-center space-y-3"
                   >
                     <div className="w-full space-y-2">
-                      <Label htmlFor="more-email">Email</Label>
+                      <Label htmlFor="more-email">{t("auth:connect.emailLabel")}</Label>
                       <Input
                         id="more-email"
                         type="email"
-                        placeholder="you@example.com"
+                        placeholder={t("auth:connect.emailPlaceholder")}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         autoComplete="email"
@@ -467,21 +481,21 @@ export function LoginForm() {
           {!showOtpInput && (
             <div className="pt-4">
               <p className="text-muted-foreground text-center text-xs">
-                By continuing, you agree to our{" "}
-                <ExternalLink
-                  href="https://wealthfolio.app/connect/legal/terms-of-use"
-                  className="hover:text-foreground underline underline-offset-4"
-                >
-                  Terms of Use
-                </ExternalLink>{" "}
-                and{" "}
-                <ExternalLink
-                  href="https://wealthfolio.app/connect/legal/privacy-policy"
-                  className="hover:text-foreground underline underline-offset-4"
-                >
-                  Privacy Policy
-                </ExternalLink>
-                .
+                <Trans
+                  i18nKey="auth:connect.terms"
+                  components={[
+                    <ExternalLink
+                      key="terms"
+                      href="https://wealthfolio.app/connect/legal/terms-of-use"
+                      className="hover:text-foreground underline underline-offset-4"
+                    />,
+                    <ExternalLink
+                      key="privacy"
+                      href="https://wealthfolio.app/connect/legal/privacy-policy"
+                      className="hover:text-foreground underline underline-offset-4"
+                    />,
+                  ]}
+                />
               </p>
             </div>
           )}
@@ -490,8 +504,7 @@ export function LoginForm() {
 
       {/* Privacy Footnote */}
       <p className="text-muted-foreground text-center text-xs">
-        Your portfolio data never leaves your device. Connect uses secure aggregators to sync
-        transactions directly to your local database.
+        {t("auth:connect.privacyFootnote")}
       </p>
     </div>
   );

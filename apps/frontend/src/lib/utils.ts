@@ -50,6 +50,8 @@ export function tryParseDate(dateStr: string): Date | null {
     // North American Banking Formats
     "MMM dd yyyy", // "MAY 01 2024" - Common in North American banks
     "MMMM dd yyyy", // "MAY 01 2024" (full month)
+    "MMM-dd-yyyy", // "MAY-01-2024" - Month name with separators
+    "MMMM-dd-yyyy", // "MAY-01-2024" (full month)
     "MM/dd/yyyy", // "05/01/2024" - US Standard
     "M/d/yyyy", // "5/1/2024" - US Relaxed
 

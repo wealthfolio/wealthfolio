@@ -9,7 +9,8 @@ import {
   isIncomeActivity,
   isSplitActivity,
 } from "@/lib/activity-utils";
-import { ActivityType, ActivityTypeNames } from "@/lib/constants";
+import { localizeActivityTypeName } from "@/lib/activity-utils";
+import { ActivityType } from "@/lib/constants";
 import { parseOccSymbol } from "@/lib/occ-symbol";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { ActivityDetails } from "@/lib/types";
@@ -18,6 +19,7 @@ import type { CashAuditReviewTarget } from "@/pages/account/cash-audit";
 import { Button, Card, EmptyPlaceholder, formatAmount, Icons } from "@wealthfolio/ui";
 import { format } from "date-fns";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { buildActivityFilterUrl } from "../utils/activity-links";
 
@@ -43,6 +45,7 @@ export function ActivityDateList({
   cashCurrency,
   cashAuditTarget,
 }: ActivityDateListProps) {
+  const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const appTimezone = settings?.timezone?.trim() || undefined;
   const [cashAuditFilter, setCashAuditFilter] = useState<CashAuditFilter>("all");
@@ -76,9 +79,9 @@ export function ActivityDateList({
         {cashAuditTarget ? <CashAuditCallout cashAuditTarget={cashAuditTarget} /> : null}
         <EmptyPlaceholder>
           <EmptyPlaceholder.Icon name="Activity" />
-          <EmptyPlaceholder.Title>No activities</EmptyPlaceholder.Title>
+          <EmptyPlaceholder.Title>{t("activity:date_list.no_activities")}</EmptyPlaceholder.Title>
           <EmptyPlaceholder.Description>
-            No activities were found for this date.
+            {t("activity:date_list.no_activities_desc")}
           </EmptyPlaceholder.Description>
         </EmptyPlaceholder>
       </div>
@@ -107,17 +110,17 @@ export function ActivityDateList({
       {hasCashContext ? (
         <div className="flex flex-wrap gap-2">
           <CashAuditFilterButton
-            label="All"
+            label={t("activity:date_list.filter_all")}
             active={cashAuditFilter === "all"}
             onClick={() => setCashAuditFilter("all")}
           />
           <CashAuditFilterButton
-            label="Cash-impacting"
+            label={t("activity:date_list.filter_cash_impacting")}
             active={cashAuditFilter === "cash-impacting"}
             onClick={() => setCashAuditFilter("cash-impacting")}
           />
           <CashAuditFilterButton
-            label="Possible missing cash"
+            label={t("activity:date_list.filter_possible_missing")}
             active={cashAuditFilter === "possible-missing"}
             onClick={() => setCashAuditFilter("possible-missing")}
           />
@@ -127,7 +130,9 @@ export function ActivityDateList({
       {filteredLedgerRows.length === 0 ? (
         <EmptyPlaceholder>
           <EmptyPlaceholder.Icon name="Activity" />
-          <EmptyPlaceholder.Title>No matching activities</EmptyPlaceholder.Title>
+          <EmptyPlaceholder.Title>
+            {t("activity:date_list.no_matching_activities")}
+          </EmptyPlaceholder.Title>
         </EmptyPlaceholder>
       ) : null}
 
@@ -157,6 +162,7 @@ function ActivityDateListItem({
   currency,
   showCashLedger,
 }: ActivityDateListItemProps) {
+  const { t } = useTranslation();
   const { activity } = row;
   const symbol = activity.assetSymbol;
   const activityType = activity.activityType;
@@ -168,14 +174,18 @@ function ActivityDateListItem({
     : isCashActivity(activityType) && !isAssetBackedIncome;
   const isOptionActivity = activity.instrumentType === "OPTION";
   const parsedOption = isOptionActivity ? parseOccSymbol(symbol) : null;
-  const displaySymbol = isCash ? "Cash" : parsedOption ? parsedOption.underlying : symbol;
+  const displaySymbol = isCash
+    ? t("activity:date_list.cash")
+    : parsedOption
+      ? parsedOption.underlying
+      : symbol;
   const avatarSymbol = isCash ? "$CASH" : symbol;
   const optionSubtitle = parsedOption
     ? `${new Date(parsedOption.expiration + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} $${parsedOption.strikePrice} ${parsedOption.optionType}`
     : null;
   const formattedDate = formatDateTime(activity.date, appTimezone);
   const displayValue = calculateActivityValue(activity);
-  const activityTypeLabel = ActivityTypeNames[activity.activityType];
+  const activityTypeLabel = localizeActivityTypeName(t, activity.activityType);
   const activityTone = getActivityTone(activity.activityType);
   const quantityLabel =
     !isCash &&
@@ -183,7 +193,7 @@ function ActivityDateListItem({
     !isSplitActivity(activity.activityType) &&
     !isFeeActivity(activity.activityType) &&
     activity.quantity
-      ? `${activity.quantity} ${isOptionActivity ? "contracts" : "shares"}`
+      ? `${activity.quantity} ${isOptionActivity ? t("activity:date_list.contracts") : t("activity:date_list.shares")}`
       : null;
   const activityFilterUrl = buildActivityFilterUrl(activity);
 
@@ -236,12 +246,13 @@ function ActivityDateListItem({
 }
 
 function CashLedgerMeta({ row, currency }: { row: ActivityCashLedgerRow; currency: string }) {
+  const { t } = useTranslation();
   const runningBalanceIsNegative = row.runningBalance !== undefined && row.runningBalance < 0;
 
   return (
     <div className="bg-muted/40 mt-3 grid grid-cols-2 gap-2 rounded-md p-2 text-xs sm:grid-cols-[1fr_1fr_auto]">
       <div>
-        <p className="text-muted-foreground">Cash impact</p>
+        <p className="text-muted-foreground">{t("activity:date_list.cash_impact")}</p>
         <p
           className={cn(
             "font-semibold",
@@ -253,7 +264,7 @@ function CashLedgerMeta({ row, currency }: { row: ActivityCashLedgerRow; currenc
         </p>
       </div>
       <div>
-        <p className="text-muted-foreground">Running cash</p>
+        <p className="text-muted-foreground">{t("activity:date_list.running_cash")}</p>
         <p className={cn("font-semibold", runningBalanceIsNegative && "text-destructive")}>
           {row.runningBalance === undefined ? "—" : formatAmount(row.runningBalance, currency)}
         </p>
@@ -261,7 +272,7 @@ function CashLedgerMeta({ row, currency }: { row: ActivityCashLedgerRow; currenc
       {row.crossesNegative ? (
         <div className="text-destructive col-span-2 flex items-center gap-1 font-medium sm:col-span-1 sm:justify-end">
           <Icons.AlertTriangle className="size-3.5" />
-          <span>Cash goes negative here</span>
+          <span>{t("activity:date_list.cash_goes_negative")}</span>
         </div>
       ) : null}
     </div>
@@ -285,6 +296,7 @@ function CashAuditSummary({
   accountId?: string;
   cashAuditTarget?: CashAuditReviewTarget;
 }) {
+  const { t } = useTranslation();
   const isEndingNegative = endingCashBalance !== undefined && endingCashBalance < 0;
   const redirectTo = accountId ? `/accounts/${encodeURIComponent(accountId)}` : undefined;
 
@@ -293,34 +305,47 @@ function CashAuditSummary({
       <div className="space-y-3">
         {cashAuditTarget ? <CashAuditCallout cashAuditTarget={cashAuditTarget} /> : null}
         <div className="grid grid-cols-3 gap-2 text-xs">
-          <CashAuditAmount label="Starting cash" value={startingCashBalance} currency={currency} />
-          <CashAuditAmount label="Net cash impact" value={totalCashImpact} currency={currency} />
-          <CashAuditAmount label="Ending cash" value={endingCashBalance} currency={currency} />
+          <CashAuditAmount
+            label={t("activity:date_list.starting_cash")}
+            value={startingCashBalance}
+            currency={currency}
+          />
+          <CashAuditAmount
+            label={t("activity:date_list.net_cash_impact")}
+            value={totalCashImpact}
+            currency={currency}
+          />
+          <CashAuditAmount
+            label={t("activity:date_list.ending_cash")}
+            value={endingCashBalance}
+            currency={currency}
+          />
         </div>
         {crossingRow ? (
           <div className="text-destructive flex items-start gap-2 text-xs">
             <Icons.AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
             <span>
-              Cash first went negative after{" "}
-              {ActivityTypeNames[crossingRow.activity.activityType].toLowerCase()}.
+              {t("activity:date_list.cash_negative_after", {
+                type: localizeActivityTypeName(t, crossingRow.activity.activityType),
+              })}
             </span>
           </div>
         ) : isEndingNegative ? (
           <div className="text-destructive flex items-start gap-2 text-xs">
             <Icons.AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-            <span>Cash was already negative before the first activity shown.</span>
+            <span>{t("activity:date_list.cash_already_negative")}</span>
           </div>
         ) : null}
         {isEndingNegative && accountId ? (
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" asChild>
               <Link to={buildActivityManagerUrl(accountId, ActivityType.DEPOSIT, redirectTo)}>
-                Add deposit
+                {t("activity:date_list.add_deposit")}
               </Link>
             </Button>
             <Button size="sm" variant="outline" asChild>
               <Link to={buildActivityManagerUrl(accountId, ActivityType.TRANSFER_IN, redirectTo)}>
-                Add transfer
+                {t("activity:date_list.add_transfer")}
               </Link>
             </Button>
           </div>
@@ -331,6 +356,7 @@ function CashAuditSummary({
 }
 
 function CashAuditCallout({ cashAuditTarget }: { cashAuditTarget: CashAuditReviewTarget }) {
+  const { t } = useTranslation();
   const valuationDate = formatAuditDate(cashAuditTarget.valuationDate);
   const activityDate = formatAuditDate(cashAuditTarget.activityDate);
 
@@ -339,13 +365,15 @@ function CashAuditCallout({ cashAuditTarget }: { cashAuditTarget: CashAuditRevie
       <div className="flex items-start gap-2">
         <Icons.AlertCircle className="text-warning mt-0.5 size-4 shrink-0" />
         <div className="min-w-0 space-y-1 text-sm">
-          <p className="font-medium">Cash went negative on {valuationDate}</p>
+          <p className="font-medium">
+            {t("activity:date_list.cash_went_negative_on", { date: valuationDate })}
+          </p>
           <p className="text-muted-foreground text-xs">
             {cashAuditTarget.hasExplainingActivity
               ? cashAuditTarget.isCarryForwardDate
-                ? `The negative balance was carried forward from activity on ${activityDate}. Review the cash impact and running balance below.`
-                : "Review the cash impact and running balance below to identify the activity that pushed cash below zero."
-              : "No cash-impacting activity was found before this date. Cash may have been negative before available history, or a deposit/transfer may be missing."}
+                ? t("activity:date_list.carry_forward", { date: activityDate })
+                : t("activity:date_list.review_to_identify")
+              : t("activity:date_list.no_activity_found")}
           </p>
         </div>
       </div>

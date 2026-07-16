@@ -25,6 +25,11 @@ pub struct AssetProfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sectors: Option<String>,
 
+    /// Asset-class allocation as JSON array for ETFs/Mutual Funds
+    /// Format: [{"name": "stock", "weight": 0.60}, {"name": "bond", "weight": 0.35}]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset_allocation: Option<String>,
+
     /// Industry within sector (e.g., "Consumer Electronics")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub industry: Option<String>,

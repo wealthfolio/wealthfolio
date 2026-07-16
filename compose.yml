@@ -40,9 +40,36 @@ services:
       # Set to "false" to skip the auth requirement (e.g. reverse proxy handles auth)
       # WF_AUTH_REQUIRED: "true"
 
+      # ── OIDC / SSO (optional) ─────────────────────────────────────────
+      # Sign in via any OpenID Connect provider (Authentik, PocketID, Authelia, …).
+      # Works alongside or instead of WF_AUTH_PASSWORD_HASH; enabled when both the
+      # issuer URL and client id are set. Redirect URL must be registered in the IdP.
+      WF_OIDC_ISSUER_URL: "${WF_OIDC_ISSUER_URL:-}"
+      WF_OIDC_CLIENT_ID: "${WF_OIDC_CLIENT_ID:-}"
+      WF_OIDC_CLIENT_SECRET: "${WF_OIDC_CLIENT_SECRET:-}"
+      WF_OIDC_REDIRECT_URL: "${WF_OIDC_REDIRECT_URL:-}"
+      # Optional space-separated scopes (default: "openid email profile")
+      WF_OIDC_SCOPES: "${WF_OIDC_SCOPES:-}"
+      # Allowlist (comma-separated). With NEITHER set the server refuses to start
+      # unless WF_OIDC_ALLOW_ANY=true is set — a missing allowlist must not silently
+      # grant every IdP user access.
+      WF_OIDC_ALLOWED_EMAILS: "${WF_OIDC_ALLOWED_EMAILS:-}"
+      WF_OIDC_ALLOWED_SUBS: "${WF_OIDC_ALLOWED_SUBS:-}"
+      # Set "true" to allow ANY IdP-authenticated user when no allowlist is set
+      # (only safe on a dedicated single-user IdP).
+      WF_OIDC_ALLOW_ANY: "${WF_OIDC_ALLOW_ANY:-}"
+      # Logout ends the IdP session too when supported (RP-Initiated Logout). To return
+      # to the app afterward, set this AND register it in the IdP; otherwise omit it.
+      WF_OIDC_POST_LOGOUT_REDIRECT_URL: "${WF_OIDC_POST_LOGOUT_REDIRECT_URL:-}"
+      # Set to "false" to force local-only logout even when the IdP supports RP-Initiated Logout.
+      WF_OIDC_RP_LOGOUT: "${WF_OIDC_RP_LOGOUT:-}"
+
       # Required when auth is enabled — set to your app's origin, e.g. https://wealthfolio.example.com
       WF_CORS_ALLOW_ORIGINS: "${WF_CORS_ALLOW_ORIGINS:-}"
       WF_REQUEST_TIMEOUT_MS: "${WF_REQUEST_TIMEOUT_MS:-30000}"
+
+      # Set to "true" to expose the MCP endpoint for external AI agents
+      WF_MCP_ENABLED: "${WF_MCP_ENABLED:-false}"
     healthcheck:
       test:
         ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8088/api/v1/healthz"]

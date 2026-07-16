@@ -1,12 +1,12 @@
 import { calculateDepositsForLimit, getContributionLimit } from "@/adapters";
-import { Card, CardContent, CardHeader } from "@wealthfolio/ui/components/ui/card";
+import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
 import { Progress } from "@wealthfolio/ui/components/ui/progress";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { QueryKeys } from "@/lib/query-keys";
 import { ContributionLimit, DepositsCalculation } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
-import { Icons, PrivacyAmount } from "@wealthfolio/ui";
-import { Link } from "react-router-dom";
+import { PrivacyAmount } from "@wealthfolio/ui";
+import { Trans, useTranslation } from "react-i18next";
 
 interface AccountContributionLimitProps {
   accountId: string;
@@ -23,11 +23,12 @@ export function AccountContributionLimit({ accountId }: AccountContributionLimit
   const limitForAccount = allLimits?.find(
     (limit) => limit.accountIds?.includes(accountId) && limit.contributionYear === currentYear,
   );
+  const limitForAccountId = limitForAccount?.id;
 
   const { data: deposits, isLoading: isDepositsLoading } = useQuery<DepositsCalculation, Error>({
-    queryKey: [QueryKeys.CONTRIBUTION_LIMIT_PROGRESS, accountId, currentYear],
-    queryFn: () => calculateDepositsForLimit(limitForAccount!.id),
-    enabled: !isLimitsLoading && !!limitForAccount,
+    queryKey: [QueryKeys.CONTRIBUTION_LIMIT_PROGRESS, accountId, currentYear, limitForAccountId],
+    queryFn: () => calculateDepositsForLimit(limitForAccountId!),
+    enabled: !isLimitsLoading && !!limitForAccountId,
   });
 
   if (isLimitsLoading) {
@@ -35,36 +36,18 @@ export function AccountContributionLimit({ accountId }: AccountContributionLimit
   }
 
   if (!limitForAccount) {
-    return (
-      <Card className="border-muted bg-muted/70 border-none p-6 shadow-none">
-        <div className="flex items-center justify-between text-sm">
-          <span>
-            No contribution limit set for this account.{" "}
-            <Link
-              to="/settings/contribution-limits"
-              className="text-primary inline-flex items-center gap-1 font-semibold"
-            >
-              Set limit
-              <Icons.ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </span>
-        </div>
-      </Card>
-    );
+    return null;
   }
 
   if (isDepositsLoading) {
     return <AccountContributionLimit.Skeleton />;
   }
 
-  const accountDeposit = deposits?.byAccount[accountId];
-
   return (
     <div className="space-y-4">
       <AccountContributionLimitItem
         key={limitForAccount.id}
         limit={limitForAccount}
-        deposit={accountDeposit}
         totalDeposits={deposits?.total ?? 0}
         baseCurrency={deposits?.baseCurrency ?? "USD"}
       />
@@ -74,66 +57,75 @@ export function AccountContributionLimit({ accountId }: AccountContributionLimit
 
 function AccountContributionLimitItem({
   limit,
-  deposit,
   totalDeposits,
   baseCurrency,
 }: {
   limit: ContributionLimit;
-  deposit?: { amount: number; currency: string; convertedAmount: number };
   totalDeposits: number;
   baseCurrency: string;
 }) {
+  const { t } = useTranslation();
   const progressValue = totalDeposits ? totalDeposits : 0;
   const progressPercentageNumber =
     limit.limitAmount > 0 ? (progressValue / limit.limitAmount) * 100 : 0;
-  const isOverLimit = progressPercentageNumber > 100;
-  const isAtLimit = progressPercentageNumber === 100;
+  const remainingAmount = limit.limitAmount - progressValue;
+  const isOverLimit = remainingAmount < 0;
+  const isAtLimit = remainingAmount === 0;
+  const statusClassName = isOverLimit
+    ? "text-destructive"
+    : isAtLimit
+      ? "text-success"
+      : "text-muted-foreground";
+  const groupName = limit.groupName.replace(new RegExp(`^${limit.contributionYear}\\s+`, "i"), "");
 
   return (
     <Card
-      className={`border-none pt-6 shadow-sm ${
+      className={`border-none shadow-sm ${
         isOverLimit ? "border-destructive/20 bg-destructive/10" : isAtLimit ? "bg-success/10" : ""
       }`}
     >
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="text-sm">
+      <CardContent className="space-y-3 p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">
+              {t("account:contribution.year_limit", {
+                year: limit.contributionYear,
+                group: groupName,
+              })}
+            </p>
+            <p className="text-muted-foreground text-xs">
+              <Trans
+                i18nKey="account:contribution.used"
+                components={{
+                  used: <PrivacyAmount value={progressValue} currency={baseCurrency} />,
+                  limit: <PrivacyAmount value={limit.limitAmount} currency={baseCurrency} />,
+                }}
+              />
+            </p>
+          </div>
+          <div className={`shrink-0 text-right text-xs font-semibold ${statusClassName}`}>
             {isOverLimit ? (
-              <span>
-                You&apos;ve contributed{" "}
-                <span className="font-semibold">
-                  <PrivacyAmount value={deposit?.convertedAmount ?? 0} currency={baseCurrency} />
-                </span>{" "}
-                to this account in {limit.contributionYear}. Your total is{" "}
-                <span className="text-destructive font-semibold">
-                  <PrivacyAmount value={totalDeposits} currency={baseCurrency} />
-                </span>{" "}
-                which is over the{" "}
-                <span className="font-semibold">
-                  <PrivacyAmount value={limit.limitAmount} currency={baseCurrency} />
-                </span>{" "}
-                limit.
-              </span>
+              <Trans
+                i18nKey="account:contribution.over_by"
+                components={{
+                  amount: (
+                    <PrivacyAmount value={Math.abs(remainingAmount)} currency={baseCurrency} />
+                  ),
+                }}
+              />
+            ) : isAtLimit ? (
+              t("account:contribution.limit_reached")
             ) : (
-              <span>
-                You&apos;ve contributed{" "}
-                <span className="font-semibold">
-                  <PrivacyAmount value={deposit?.convertedAmount ?? 0} currency={baseCurrency} />
-                </span>{" "}
-                to this account in {limit.contributionYear}. Your total contribution towards the{" "}
-                <span className="font-semibold">
-                  <PrivacyAmount value={limit.limitAmount} currency={baseCurrency} />
-                </span>{" "}
-                {limit.groupName} limit is{" "}
-                <span className="font-semibold">
-                  <PrivacyAmount value={totalDeposits} currency={baseCurrency} />
-                </span>
-                .
-              </span>
+              <Trans
+                i18nKey="account:contribution.left"
+                components={{
+                  amount: <PrivacyAmount value={remainingAmount} currency={baseCurrency} />,
+                }}
+              />
             )}
           </div>
         </div>
-        <Progress value={progressPercentageNumber} className="w-full" />
+        <Progress value={Math.min(progressPercentageNumber, 100)} className="w-full" />
       </CardContent>
     </Card>
   );
@@ -142,13 +134,16 @@ function AccountContributionLimitItem({
 AccountContributionLimit.Skeleton = function AccountContributionLimitSkeleton() {
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-5 w-2/5" />
-          <Skeleton className="h-4 w-4/5" />
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-4 w-full" />
+      <Card className="border-none shadow-sm">
+        <CardContent className="space-y-3 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-40" />
+            </div>
+            <Skeleton className="h-3 w-20" />
+          </div>
+          <Skeleton className="h-2 w-full" />
         </CardContent>
       </Card>
     </div>

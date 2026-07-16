@@ -6,7 +6,7 @@ use log::debug;
 use tauri::{AppHandle, State};
 use wealthfolio_core::fx::{ExchangeRate, NewExchangeRate};
 use wealthfolio_core::health::HealthServiceTrait;
-use wealthfolio_core::quotes::MarketSyncMode;
+use wealthfolio_core::quotes::{MarketSyncMode, DATA_SOURCE_MANUAL};
 use wealthfolio_core::settings::{Settings, SettingsUpdate};
 
 fn recalculate_mode_for_settings_change(
@@ -178,12 +178,21 @@ pub async fn add_exchange_rate(
         .await
         .map_err(|e| format!("Failed to add exchange rate: {}", e))?;
 
+    // Manual rates are saved as-is and need no market sync. Provider-backed
+    // pairs store no quote on add (#1143); sync their real rate now so the pair
+    // populates immediately instead of waiting for the next periodic sync.
+    let market_sync_mode = if result.source == DATA_SOURCE_MANUAL {
+        MarketSyncMode::None
+    } else {
+        MarketSyncMode::Incremental {
+            asset_ids: Some(vec![result.id.clone()]),
+        }
+    };
+
     let handle = handle.clone();
     tauri::async_runtime::spawn(async move {
-        // Emit event to trigger portfolio recalculation only - no market sync needed
-        // for manual exchange rate additions
         let payload = PortfolioRequestPayload::builder()
-            .market_sync_mode(MarketSyncMode::None)
+            .market_sync_mode(market_sync_mode)
             .build();
         emit_portfolio_trigger_recalculate(&handle, payload);
     });

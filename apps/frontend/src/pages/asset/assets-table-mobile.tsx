@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
-import { Badge, Card, Input } from "@wealthfolio/ui";
+import { Badge, Card, formatPrice, Input } from "@wealthfolio/ui";
 
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { ASSET_KIND_DISPLAY_NAMES, LatestQuoteSnapshot } from "@/lib/types";
 import { parseOccSymbol } from "@/lib/occ-symbol";
-import { cn, formatAmount, formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { ScrollArea, Separator } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
@@ -57,6 +58,7 @@ export function AssetsTableMobile({
   isUpdatingQuotes,
   isRefetchingQuotes,
 }: AssetsTableMobileProps) {
+  const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const navigate = useNavigate();
@@ -185,7 +187,7 @@ export function AssetsTableMobile({
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <Input
-          placeholder="Search..."
+          placeholder={t("asset:mobileTable.search_placeholder")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="bg-secondary/30 h-10 flex-1 rounded-full border-none"
@@ -217,7 +219,7 @@ export function AssetsTableMobile({
                   const parsedOption = parseOccSymbol(rawSymbol);
                   const displaySymbol = parsedOption
                     ? parsedOption.underlying
-                    : (asset.displayCode ?? asset.name ?? "Unknown");
+                    : (asset.displayCode ?? asset.name ?? t("asset:table.unknown"));
                   const subtitle = parsedOption
                     ? `${new Date(parsedOption.expiration + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} $${parsedOption.strikePrice} ${parsedOption.optionType}`
                     : (asset.name ?? "-");
@@ -230,7 +232,7 @@ export function AssetsTableMobile({
                           <p className="truncate font-semibold">{displaySymbol}</p>
                           {parsedOption ? (
                             <Badge variant="secondary" className="text-[10px]">
-                              Option
+                              {t("asset:mobileTable.option")}
                             </Badge>
                           ) : null}
                           <Badge variant="secondary" className="text-[10px] uppercase">
@@ -254,7 +256,7 @@ export function AssetsTableMobile({
                       return (
                         <>
                           <div className="flex items-center justify-end gap-1 font-semibold">
-                            {formatAmount(
+                            {formatPrice(
                               quote.close,
                               quote.currency ?? asset.quoteCcy ?? baseCurrency,
                             )}
@@ -263,11 +265,11 @@ export function AssetsTableMobile({
                                 <TooltipTrigger asChild>
                                   <Icons.AlertTriangle
                                     className="text-destructive h-3.5 w-3.5"
-                                    aria-label="Quote is behind market day"
+                                    aria-label={t("asset:mobileTable.quote_behind_aria")}
                                   />
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  Latest quote is behind the current market day
+                                  {t("asset:mobileTable.quote_behind_tooltip")}
                                 </TooltipContent>
                               </Tooltip>
                             ) : null}
@@ -292,7 +294,9 @@ export function AssetsTableMobile({
                           </TooltipTrigger>
                           <TooltipContent>{noQuoteReason}</TooltipContent>
                         </Tooltip>
-                        <span className="text-muted-foreground text-xs">No quotes</span>
+                        <span className="text-muted-foreground text-xs">
+                          {t("asset:mobileTable.no_quotes")}
+                        </span>
                       </div>
                     );
                   })()}
@@ -303,7 +307,7 @@ export function AssetsTableMobile({
                     <button
                       type="button"
                       className="hover:bg-muted text-muted-foreground inline-flex h-9 w-9 items-center justify-center rounded-md border transition"
-                      aria-label="Open actions"
+                      aria-label={t("asset:mobileTable.open_actions")}
                     >
                       <Icons.MoreVertical className="h-4 w-4" />
                     </button>
@@ -313,24 +317,26 @@ export function AssetsTableMobile({
                       onClick={() => onUpdateQuotes(asset)}
                       disabled={isUpdatingQuotes}
                     >
-                      Update quotes
+                      {t("asset:mobileTable.update_quotes")}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => onRefetchQuotes(asset)}
                       disabled={isRefetchingQuotes}
                     >
-                      Refetch price history
+                      {t("asset:mobileTable.refetch_price_history")}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => onClassify?.(asset)}>
-                      Classify
+                      {t("asset:mobileTable.classify")}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onEdit(asset)}>Edit</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onEdit(asset)}>
+                      {t("asset:mobileTable.edit")}
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
                       onSelect={() => onDelete(asset)}
                     >
-                      Delete
+                      {t("asset:mobileTable.delete")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -344,7 +350,7 @@ export function AssetsTableMobile({
       <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
         <SheetContent side="bottom" className="rounded-t-4xl mx-1 flex h-[70vh] flex-col">
           <SheetHeader className="text-left">
-            <SheetTitle>Filter Options</SheetTitle>
+            <SheetTitle>{t("asset:mobileTable.filter_options")}</SheetTitle>
           </SheetHeader>
           <ScrollArea className="flex-1 py-4">
             <div className="space-y-6">
@@ -352,7 +358,7 @@ export function AssetsTableMobile({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-                    Portfolio
+                    {t("asset:mobileTable.portfolio")}
                   </h4>
                   {selectedStatus.length > 0 &&
                     !(selectedStatus.length === 1 && selectedStatus[0] === "true") && (
@@ -362,14 +368,14 @@ export function AssetsTableMobile({
                         className="h-auto p-0 text-xs"
                         onClick={() => setSelectedStatus(["true"])}
                       >
-                        Reset
+                        {t("asset:mobileTable.reset")}
                       </Button>
                     )}
                 </div>
                 <div className="space-y-2">
                   {[
-                    { label: "Current", value: "true" },
-                    { label: "Past", value: "false" },
+                    { label: t("asset:mobileTable.current"), value: "true" },
+                    { label: t("asset:mobileTable.past"), value: "false" },
                   ].map((option) => {
                     const isSelected = selectedStatus.includes(option.value);
                     const count = assets.filter(
@@ -421,7 +427,7 @@ export function AssetsTableMobile({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-                    Data Source
+                    {t("asset:mobileTable.data_source")}
                   </h4>
                   {selectedDataSources.length > 0 && (
                     <Button
@@ -430,7 +436,7 @@ export function AssetsTableMobile({
                       className="h-auto p-0 text-xs"
                       onClick={() => setSelectedDataSources([])}
                     >
-                      Clear
+                      {t("asset:mobileTable.clear")}
                     </Button>
                   )}
                 </div>
@@ -482,7 +488,7 @@ export function AssetsTableMobile({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-                    Asset Kind
+                    {t("asset:mobileTable.asset_kind")}
                   </h4>
                   {selectedAssetKinds.length > 0 && (
                     <Button
@@ -491,7 +497,7 @@ export function AssetsTableMobile({
                       className="h-auto p-0 text-xs"
                       onClick={() => setSelectedAssetKinds([])}
                     >
-                      Clear
+                      {t("asset:mobileTable.clear")}
                     </Button>
                   )}
                 </div>
@@ -545,7 +551,7 @@ export function AssetsTableMobile({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-                    Price Status
+                    {t("asset:mobileTable.price_status")}
                   </h4>
                   {selectedPriceStatus.length > 0 && (
                     <Button
@@ -554,14 +560,14 @@ export function AssetsTableMobile({
                       className="h-auto p-0 text-xs"
                       onClick={() => setSelectedPriceStatus([])}
                     >
-                      Clear
+                      {t("asset:mobileTable.clear")}
                     </Button>
                   )}
                 </div>
                 <div className="space-y-2">
                   {[
-                    { label: "Up to Date", value: "false" },
-                    { label: "Stale", value: "true" },
+                    { label: t("asset:mobileTable.up_to_date"), value: "false" },
+                    { label: t("asset:mobileTable.stale"), value: "true" },
                   ].map((option) => {
                     const isSelected = selectedPriceStatus.includes(option.value);
                     const count = assets.filter((a) => {
@@ -613,12 +619,12 @@ export function AssetsTableMobile({
           <SheetFooter className="flex-row gap-2">
             {hasActiveFilters && (
               <Button variant="outline" className="flex-1" onClick={handleResetFilters}>
-                Reset All
+                {t("asset:mobileTable.reset_all")}
               </Button>
             )}
             <SheetClose asChild>
               <Button variant="default" className="flex-1">
-                Apply
+                {t("asset:mobileTable.apply")}
               </Button>
             </SheetClose>
           </SheetFooter>

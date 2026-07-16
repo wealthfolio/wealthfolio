@@ -6,8 +6,11 @@ import { QueryKeys } from "@/lib/query-keys";
 import {
   assignActivityCategory,
   bulkAssignCategories,
+  clearActivitySplits,
   getActivityAssignments,
+  getActivitySplits,
   listCashActivities,
+  replaceActivitySplits,
   searchCashActivities,
   setActivityEvent,
   unassignActivityCategory,
@@ -16,8 +19,10 @@ import {
 import { invalidateSpendingCaches } from "../lib/invalidation";
 import type {
   ActivityTaxonomyAssignment,
+  ActivitySplit,
   CashActivityFilter,
   CashActivity,
+  NewActivitySplit,
 } from "../types/cash-activity";
 
 /**
@@ -58,6 +63,14 @@ export function useActivityAssignments(activityId: string | null) {
   });
 }
 
+export function useActivitySplits(activityId: string | null) {
+  return useQuery<ActivitySplit[], Error>({
+    queryKey: [QueryKeys.SPENDING_TRANSACTIONS, "splits", activityId],
+    queryFn: () => (activityId ? getActivitySplits(activityId) : Promise.resolve([])),
+    enabled: !!activityId,
+  });
+}
+
 export function useAssignActivityCategory() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -73,6 +86,9 @@ export function useAssignActivityCategory() {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({
         queryKey: [QueryKeys.SPENDING_TRANSACTIONS, "assignments", vars.activityId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QueryKeys.SPENDING_TRANSACTIONS, "splits", vars.activityId],
       });
       invalidateSpendingCaches(queryClient);
     },
@@ -103,6 +119,37 @@ export function useUnassignActivityCategory() {
       invalidateSpendingCaches(queryClient);
     },
     onError: () => toast.error("Failed to clear category."),
+  });
+}
+
+export function useReplaceActivitySplits() {
+  const queryClient = useQueryClient();
+  return useMutation<ActivitySplit[], Error, { activityId: string; splits: NewActivitySplit[] }>({
+    mutationFn: ({ activityId, splits }) => replaceActivitySplits(activityId, splits),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({
+        queryKey: [QueryKeys.SPENDING_TRANSACTIONS, "splits", vars.activityId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QueryKeys.SPENDING_TRANSACTIONS, "assignments", vars.activityId],
+      });
+      invalidateSpendingCaches(queryClient);
+    },
+    onError: () => toast.error("Failed to save split."),
+  });
+}
+
+export function useClearActivitySplits() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, { activityId: string }>({
+    mutationFn: ({ activityId }) => clearActivitySplits(activityId),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({
+        queryKey: [QueryKeys.SPENDING_TRANSACTIONS, "splits", vars.activityId],
+      });
+      invalidateSpendingCaches(queryClient);
+    },
+    onError: () => toast.error("Failed to clear split."),
   });
 }
 

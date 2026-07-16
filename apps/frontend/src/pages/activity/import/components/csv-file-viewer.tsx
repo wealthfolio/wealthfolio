@@ -27,6 +27,7 @@ import {
 } from "@tanstack/react-table";
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 export interface CSVLine {
   id: number; // Line number
@@ -42,6 +43,7 @@ interface CSVFileViewerProps {
 }
 
 export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileViewerProps) {
+  const { t } = useTranslation();
   // Determine initial column filters based on whether lines have errors
   const initialColumnFilters = useMemo<ColumnFiltersState>(() => {
     const hasErrors = data.some((row) => !row.isValid);
@@ -60,10 +62,10 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
   const filters = [
     {
       id: "isValid",
-      title: "Status",
+      title: t("activity:import.csvViewer.status"),
       options: [
-        { label: "Error", value: "false" },
-        { label: "Valid", value: "true" },
+        { label: t("activity:import.csvViewer.error"), value: "false" },
+        { label: t("activity:import.csvViewer.valid"), value: "true" },
       ],
     },
   ] satisfies DataTableFacetedFilterProps<CSVLine, string>[];
@@ -72,13 +74,13 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
     {
       id: "id",
       accessorKey: "id",
-      header: () => <span className="sr-only">Line Number</span>,
+      header: () => <span className="sr-only">{t("activity:import.csvViewer.lineNumber")}</span>,
       enableSorting: true,
     },
     {
       id: "isValid",
       accessorKey: "isValid",
-      header: () => <span className="sr-only">Status</span>,
+      header: () => <span className="sr-only">{t("activity:import.csvViewer.status")}</span>,
       cell: ({ row }) => {
         const isValid = row.getValue("isValid");
         const errors = row.original.errors || [];
@@ -111,7 +113,9 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
                 sideOffset={10}
                 className="bg-destructive text-destructive-foreground max-w-xs border-none p-3"
               >
-                <h4 className="mb-2 font-medium">Validation Errors</h4>
+                <h4 className="mb-2 font-medium">
+                  {t("activity:import.csvViewer.validationErrors")}
+                </h4>
                 <ul className="max-h-[300px] list-disc space-y-1 overflow-y-auto pl-5 text-sm">
                   {errors.map((error, index) => (
                     <li key={index}>{error}</li>
@@ -131,7 +135,9 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
     {
       id: "content",
       accessorKey: "content",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="CSV Content" />,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t("activity:import.csvViewer.csvContent")} />
+      ),
       cell: ({ row }) => {
         const content = row.getValue("content");
         const isHeader = row.original.id === 0;
@@ -139,7 +145,9 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
         return (
           <div className={cn("whitespace-nowrap font-mono text-xs", isHeader && "font-semibold")}>
             {(content as React.ReactNode) || (
-              <span className="text-muted-foreground italic">empty line</span>
+              <span className="text-muted-foreground italic">
+                {t("activity:import.csvViewer.emptyLine")}
+              </span>
             )}
           </div>
         );
@@ -176,9 +184,13 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
       <div className="overflow-hidden rounded-md border">
         {/* Header bar similar to a code editor */}
         <div className="border-border bg-muted flex items-center justify-between border-b px-3 py-2">
-          <span className="text-muted-foreground text-xs">CSV File</span>
           <span className="text-muted-foreground text-xs">
-            {data.length > 0 ? `${data.length} lines` : "Empty file"}
+            {t("activity:import.csvViewer.csvFile")}
+          </span>
+          <span className="text-muted-foreground text-xs">
+            {data.length > 0
+              ? t("activity:import.csvViewer.lines", { count: data.length })
+              : t("activity:import.csvViewer.emptyFile")}
           </span>
         </div>
 
@@ -220,7 +232,9 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
                   <TableCell colSpan={columns.length} className="h-24 text-center">
                     <div className="flex flex-col items-center justify-center space-y-2 py-8">
                       <Icons.FileText className="text-muted-foreground h-10 w-10 opacity-40" />
-                      <p className="text-muted-foreground text-sm">No content found</p>
+                      <p className="text-muted-foreground text-sm">
+                        {t("activity:import.csvViewer.noContentFound")}
+                      </p>
                     </div>
                   </TableCell>
                 </TableRow>

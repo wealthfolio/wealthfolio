@@ -76,6 +76,7 @@ pub(crate) fn asset_provider_alias_symbols(asset: &Asset) -> Vec<String> {
     {
         let context = QuoteContext {
             instrument,
+            identifiers: Default::default(),
             overrides: provider_overrides_for_asset(asset),
             currency_hint: (!asset.quote_ccy.trim().is_empty())
                 .then(|| Cow::Owned(asset.quote_ccy.clone())),

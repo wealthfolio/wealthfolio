@@ -1,0 +1,35 @@
+/*
+ * Pre-mount splash styles. Kept as an EXTERNAL stylesheet on purpose: any
+ * inline <style> element in an HTML file Tauri serves makes Tauri append a
+ * runtime nonce to the CSP's style-src, which per the CSP spec disables
+ * 'unsafe-inline' for the whole document — silently breaking every library
+ * that injects runtime <style> tags (NumberFlow, sonner, addon CSS, ...) in
+ * packaged builds only. Do not move these rules back inline.
+ */
+
+/* Prevent mobile viewport bouncing */
+html,
+body {
+  touch-action: pan-x pan-y;
+  overscroll-behavior: none;
+}
+
+/* Simulate a Splash screen before react app mount */
+body {
+  background-color: #09090b;
+  background-image: url("/logo-gold.png");
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: 100px auto;
+  background-attachment: fixed;
+}
+
+/*
+ * Keep the root positioned without creating a stacking context. Normal root
+ * content still paints above the body background, while fixed host navigation
+ * can layer above the body-level add-on iframe parking layer.
+ */
+#root {
+  position: relative;
+  background-color: transparent;
+}

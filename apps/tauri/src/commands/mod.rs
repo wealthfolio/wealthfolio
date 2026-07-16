@@ -1,6 +1,7 @@
 pub mod account;
 pub mod activity;
 pub mod addon;
+pub mod addon_network;
 pub mod ai_chat;
 pub mod ai_providers;
 pub mod allocation_targets;
@@ -19,6 +20,7 @@ pub mod goal;
 pub mod health;
 pub mod limits;
 pub mod market_data;
+pub mod mcp;
 pub mod platform;
 pub mod portfolio;
 pub mod portfolios;

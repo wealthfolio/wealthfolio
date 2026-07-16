@@ -13,29 +13,23 @@
   "permissions": [
     "core:default",
     "fs:allow-read-file",
-    "fs:allow-write-file",
-    "fs:allow-read-dir",
     "fs:allow-copy-file",
-    "fs:allow-mkdir",
     "fs:allow-remove",
-    "fs:allow-remove",
-    "fs:allow-rename",
     "fs:allow-exists",
     {
       "identifier": "fs:scope",
       "allow": [
-        "$APPDATA/**"
+        "$APPDATA/pending-exports/**"
       ]
     },
     "core:window:allow-start-dragging",
     "core:window:allow-set-fullscreen",
     "core:window:allow-is-fullscreen",
-    "shell:allow-open",
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:default",
     "dialog:default",
-    "shell:default",
+    "deep-link:default",
     "core:app:allow-set-app-theme",
     "core:window:allow-set-theme",
     "core:window:allow-theme",

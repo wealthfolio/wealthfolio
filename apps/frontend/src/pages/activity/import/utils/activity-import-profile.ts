@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next";
+import { localizeActivityTypeName } from "@/lib/activity-utils";
 import {
   AccountType,
   ActivityType,
@@ -24,6 +26,7 @@ export type ImportReviewColumnId =
   | "amount"
   | "currency"
   | "fee"
+  | "tax"
   | "fxRate"
   | "comment";
 
@@ -72,6 +75,7 @@ const TRANSACTION_MAPPING_FIELDS = [
   ImportFormat.AMOUNT,
   ImportFormat.CURRENCY,
   ImportFormat.FEE,
+  ImportFormat.TAX,
   ImportFormat.COMMENT,
   ImportFormat.FX_RATE,
   ImportFormat.SUBTYPE,
@@ -90,6 +94,7 @@ const INVESTMENT_REVIEW_COLUMNS = [
   "amount",
   "currency",
   "fee",
+  "tax",
   "fxRate",
   "comment",
 ] as const satisfies readonly ImportReviewColumnId[];
@@ -103,6 +108,7 @@ const TRANSACTION_REVIEW_COLUMNS = [
   "amount",
   "currency",
   "fee",
+  "tax",
   "fxRate",
   "comment",
 ] as const satisfies readonly ImportReviewColumnId[];
@@ -254,8 +260,12 @@ export function activityTypeAllowedForImportProfile(
 export function getActivityTypeLabelForImportProfile(
   activityType: ActivityType,
   profile: ActivityImportProfile,
+  t?: TFunction,
 ): string {
-  return profile.activityTypeLabels?.[activityType] ?? ActivityTypeNames[activityType];
+  return (
+    profile.activityTypeLabels?.[activityType] ??
+    (t ? localizeActivityTypeName(t, activityType) : ActivityTypeNames[activityType])
+  );
 }
 
 function appendAliases(
@@ -312,6 +322,9 @@ export function getDefaultActivityMappingsForImportProfile(
       "CASHBACK",
       "CASH BACK",
       "REWARDS",
+      "REIMBURSEMENT",
+      "REIMBURSED",
+      "EXPENSE REIMBURSEMENT",
     ]);
     appendAliases(mappings, ActivityType.FEE, ["ANNUAL FEE", "LATE FEE", "SERVICE FEE"]);
     appendAliases(mappings, ActivityType.INTEREST, ["INTEREST CHARGE", "FINANCE CHARGE"]);
@@ -343,6 +356,9 @@ export function getDefaultActivityMappingsForImportProfile(
       "CASHBACK",
       "CASH BACK",
       "REWARDS",
+      "REIMBURSEMENT",
+      "REIMBURSED",
+      "EXPENSE REIMBURSEMENT",
     ]);
   }
 

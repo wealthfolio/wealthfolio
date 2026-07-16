@@ -593,6 +593,7 @@ mod tests {
                 ticker: Arc::from("X"),
                 mic: mic.map(Cow::Borrowed),
             },
+            identifiers: Default::default(),
             overrides: None,
             currency_hint: None,
             preferred_provider: None,
@@ -606,6 +607,7 @@ mod tests {
             instrument: InstrumentId::Bond {
                 isin: Arc::from("X"),
             },
+            identifiers: Default::default(),
             overrides: None,
             currency_hint: None,
             preferred_provider: None,

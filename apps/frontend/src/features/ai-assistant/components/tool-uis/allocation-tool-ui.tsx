@@ -14,6 +14,7 @@ import {
   formatPercent,
 } from "@wealthfolio/ui";
 import { memo, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { CompactToolCard } from "./shared";
@@ -167,6 +168,7 @@ type AllocationContentProps = ToolCallMessagePartProps<
 const AllocationContent = memo(AllocationContentImpl);
 
 function AllocationContentImpl({ args, result, status }: AllocationContentProps) {
+  const { t } = useTranslation();
   const typedArgs = args as GetAssetAllocationArgs | undefined;
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -202,7 +204,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
     [currency],
   );
 
-  const taxonomyName = parsed?.taxonomyName ?? "Allocation";
+  const taxonomyName = parsed?.taxonomyName ?? t("ai:allocation.defaultTitle");
   const categoryName = parsed?.categoryName;
   const isLoading = status?.type === "running";
   const isComplete = status?.type === "complete" || status?.type === "incomplete";
@@ -212,7 +214,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
 
   // Compact mode — just show a one-liner when used as a prerequisite
   if (args?.displayMode === "compact" && parsed && !isLoading) {
-    return <CompactToolCard label="Fetched asset allocation" />;
+    return <CompactToolCard label={t("ai:allocation.fetched")} />;
   }
 
   // Format value with privacy
@@ -235,7 +237,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
         <CardHeader className="pb-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <CardTitle className="text-sm font-medium">Allocation</CardTitle>
+              <CardTitle className="text-sm font-medium">{t("ai:allocation.title")}</CardTitle>
               <Skeleton className="mt-1 h-3 w-16" />
             </div>
             <Skeleton className="h-5 w-20" />
@@ -270,7 +272,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
     return (
       <Card className="bg-muted/40 border-destructive/30 w-full">
         <CardContent className="py-4">
-          <p className="text-destructive text-sm">Failed to load allocation data.</p>
+          <p className="text-destructive text-sm">{t("ai:allocation.error")}</p>
         </CardContent>
       </Card>
     );
@@ -281,7 +283,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
     return (
       <Card className="bg-muted/40 border-primary/10 w-full">
         <CardContent className="py-4">
-          <p className="text-muted-foreground text-sm">No allocation data found.</p>
+          <p className="text-muted-foreground text-sm">{t("ai:allocation.empty")}</p>
         </CardContent>
       </Card>
     );
@@ -294,13 +296,15 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
         <CardHeader className="pb-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <CardTitle className="text-sm font-medium">{categoryName ?? "Holdings"}</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                {categoryName ?? t("ai:allocation.holdings")}
+              </CardTitle>
               <p className="text-muted-foreground mt-1 text-xs">
-                {holdingsCount} holding{holdingsCount !== 1 ? "s" : ""}
+                {t("ai:allocation.holdingsCount", { count: holdingsCount })}
               </p>
             </div>
             <Badge variant="outline" className="text-xs">
-              Drill-down
+              {t("ai:allocation.drillDown")}
             </Badge>
           </div>
           <div className="mt-2">
@@ -312,10 +316,10 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-muted-foreground border-b text-left">
-                  <th className="pb-2 font-medium">Symbol</th>
-                  <th className="pb-2 font-medium">Name</th>
-                  <th className="pb-2 text-right font-medium">Value</th>
-                  <th className="pb-2 text-right font-medium">Weight</th>
+                  <th className="pb-2 font-medium">{t("ai:allocation.colSymbol")}</th>
+                  <th className="pb-2 font-medium">{t("ai:allocation.colName")}</th>
+                  <th className="pb-2 text-right font-medium">{t("ai:allocation.colValue")}</th>
+                  <th className="pb-2 text-right font-medium">{t("ai:allocation.colWeight")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -345,7 +349,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
           <div>
             <CardTitle className="text-sm font-medium">{taxonomyName}</CardTitle>
             <p className="text-muted-foreground mt-1 text-xs">
-              {categoryCount} categor{categoryCount !== 1 ? "ies" : "y"}
+              {t("ai:allocation.categories", { count: categoryCount })}
             </p>
           </div>
           {typedArgs?.accountId && typedArgs.accountId !== "all" && (

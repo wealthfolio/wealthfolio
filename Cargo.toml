@@ -7,7 +7,7 @@ members = [
 ]
 
 [workspace.package]
-version = "3.5.2"
+version = "3.6.3"
 edition = "2021"
 license = "AGPL-3.0"
 
@@ -53,6 +53,9 @@ num-traits = "0.2"
 async-trait = "0.1"
 futures = "0.3"
 
+# MCP (Model Context Protocol)
+rmcp = { version = "1.7", default-features = false, features = ["server", "transport-streamable-http-server"] }
+
 # Logging
 log = "0.4"
 
@@ -71,3 +74,5 @@ wealthfolio-storage-sqlite = { path = "crates/storage-sqlite" }
 wealthfolio-device-sync = { path = "crates/device-sync" }
 wealthfolio-ai = { path = "crates/ai" }
 wealthfolio-spending = { path = "crates/spending" }
+wealthfolio-agent-tools = { path = "crates/agent-tools" }
+wealthfolio-mcp = { path = "crates/wealthfolio-mcp" }

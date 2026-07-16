@@ -51,7 +51,7 @@ export function useAddonStore() {
       enableAfterInstall = true,
       onShowPermissionDialog?: (
         extractedAddon: ExtractedAddon,
-        onApprove: () => Promise<void>,
+        onApprove: (approvedNetworkHosts: string[]) => Promise<void>,
       ) => void,
     ) => {
       if (!onShowPermissionDialog) {
@@ -69,9 +69,9 @@ export function useAddonStore() {
         const extractedAddon = await downloadAddonForReview(listing.id);
 
         // Show permission dialog with pre-analyzed addon
-        onShowPermissionDialog(extractedAddon, async () => {
+        onShowPermissionDialog(extractedAddon, async (approvedNetworkHosts) => {
           // Install from staging after permission approval
-          await installFromStaging(listing.id, enableAfterInstall);
+          await installFromStaging(listing.id, enableAfterInstall, approvedNetworkHosts);
           // Invalidate installed addons cache to refresh the list
           queryClient.invalidateQueries({ queryKey: [QueryKeys.INSTALLED_ADDONS] });
         });

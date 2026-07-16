@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 
 import { formatCompactAmount } from "@wealthfolio/ui";
@@ -15,7 +17,15 @@ interface DayOfWeekChartProps {
   accent?: string;
 }
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_LABEL_KEYS = [
+  "spending:dayOfWeek.mon",
+  "spending:dayOfWeek.tue",
+  "spending:dayOfWeek.wed",
+  "spending:dayOfWeek.thu",
+  "spending:dayOfWeek.fri",
+  "spending:dayOfWeek.sat",
+  "spending:dayOfWeek.sun",
+];
 
 interface DayDatum {
   day: string;
@@ -35,10 +45,11 @@ export function DayOfWeekChart({
   currency,
   accent = "var(--success)",
 }: DayOfWeekChartProps) {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const data: DayDatum[] = useMemo(
-    () => buildSeries(activities, accountTypeById),
-    [accountTypeById, activities],
+    () => buildSeries(activities, accountTypeById, t),
+    [accountTypeById, activities, t],
   );
   const peak = useMemo(() => Math.max(0, ...data.map((d) => d.total)), [data]);
 
@@ -61,11 +72,13 @@ export function DayOfWeekChart({
                 <div className="bg-background rounded-md border px-3 py-2 text-xs shadow-sm">
                   <div className="text-foreground font-semibold">{d.day}</div>
                   <div className="text-muted-foreground">
-                    Total: {isBalanceHidden ? "••••" : formatAmount(d.total, currency)}
+                    {t("spending:dayOfWeek.total")}:{" "}
+                    {isBalanceHidden ? "••••" : formatAmount(d.total, currency)}
                   </div>
                   <div className="text-muted-foreground">
-                    Avg: {isBalanceHidden ? "••••" : formatAmount(d.avg, currency)} · {d.count}{" "}
-                    {d.count === 1 ? "transaction" : "transactions"}
+                    {t("spending:dayOfWeek.avg")}:{" "}
+                    {isBalanceHidden ? "••••" : formatAmount(d.avg, currency)} ·{" "}
+                    {t("spending:dayOfWeek.transactionCount", { count: d.count })}
                   </div>
                 </div>
               );
@@ -84,18 +97,25 @@ export function DayOfWeekChart({
       </ResponsiveContainer>
       <div className="text-muted-foreground/70 mt-1 flex justify-between text-[10px] tabular-nums">
         <span>
-          Min{" "}
+          {t("spending:dayOfWeek.min")}{" "}
           {isBalanceHidden
             ? "••••"
             : formatCompactAmount(Math.min(...data.map((d) => d.total)), currency)}
         </span>
-        <span>Max {isBalanceHidden ? "••••" : formatCompactAmount(peak, currency)}</span>
+        <span>
+          {t("spending:dayOfWeek.max")}{" "}
+          {isBalanceHidden ? "••••" : formatCompactAmount(peak, currency)}
+        </span>
       </div>
     </div>
   );
 }
 
-function buildSeries(activities: Activity[], accountTypeById?: Map<string, string>): DayDatum[] {
+function buildSeries(
+  activities: Activity[],
+  accountTypeById: Map<string, string> | undefined,
+  t: TFunction,
+): DayDatum[] {
   const totals = new Array(7).fill(0) as number[];
   const counts = new Array(7).fill(0) as number[];
   for (const a of activities) {
@@ -105,8 +125,8 @@ function buildSeries(activities: Activity[], accountTypeById?: Map<string, strin
     totals[dow] += spendingAmount;
     if (spendingAmount > 0) counts[dow] += 1;
   }
-  return DAY_LABELS.map((day, i) => ({
-    day,
+  return DAY_LABEL_KEYS.map((key, i) => ({
+    day: t(key),
     total: Math.max(0, totals[i]),
     count: counts[i],
     avg: counts[i] > 0 ? Math.max(0, totals[i]) / counts[i] : 0,

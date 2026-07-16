@@ -91,6 +91,13 @@ pub struct YahooTopHoldings {
     /// e.g., [{"technology": {"raw": 0.30}}, {"healthcare": {"raw": 0.15}}]
     #[serde(default)]
     pub sector_weightings: Vec<std::collections::HashMap<String, YahooPriceDetail>>,
+
+    pub stock_position: Option<YahooPriceDetail>,
+    pub bond_position: Option<YahooPriceDetail>,
+    pub cash_position: Option<YahooPriceDetail>,
+    pub other_position: Option<YahooPriceDetail>,
+    pub preferred_position: Option<YahooPriceDetail>,
+    pub convertible_position: Option<YahooPriceDetail>,
 }
 
 #[cfg(test)]
@@ -186,10 +193,30 @@ mod tests {
                 {"realestate": {"raw": 0.0261, "fmt": "2.61%"}},
                 {"consumer_cyclical": {"raw": 0.1023, "fmt": "10.23%"}},
                 {"technology": {"raw": 0.2915, "fmt": "29.15%"}}
-            ]
+            ],
+            "stockPosition": {"raw": 0.65, "fmt": "65.00%"},
+            "bondPosition": {"raw": 0.25, "fmt": "25.00%"},
+            "cashPosition": {"raw": 0.05, "fmt": "5.00%"},
+            "otherPosition": {"raw": 0.05, "fmt": "5.00%"}
         }"#;
         let holdings: YahooTopHoldings = serde_json::from_str(json).unwrap();
         assert_eq!(holdings.sector_weightings.len(), 3);
+        assert_eq!(
+            holdings.stock_position.as_ref().and_then(|d| d.raw),
+            Some(0.65)
+        );
+        assert_eq!(
+            holdings.bond_position.as_ref().and_then(|d| d.raw),
+            Some(0.25)
+        );
+        assert_eq!(
+            holdings.cash_position.as_ref().and_then(|d| d.raw),
+            Some(0.05)
+        );
+        assert_eq!(
+            holdings.other_position.as_ref().and_then(|d| d.raw),
+            Some(0.05)
+        );
 
         // Check first sector
         let first = &holdings.sector_weightings[0];

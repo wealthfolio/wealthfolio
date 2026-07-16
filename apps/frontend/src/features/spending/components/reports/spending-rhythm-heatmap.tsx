@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 import { PrivacyAmount } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -36,17 +38,30 @@ export function SpendingRhythmHeatmap({
   accent = "var(--success)",
   currency,
 }: SpendingRhythmHeatmapProps) {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
+  const dayNamesShort = useMemo(
+    () => [
+      t("spending:rhythm.dayShortMon"),
+      t("spending:rhythm.dayShortTue"),
+      t("spending:rhythm.dayShortWed"),
+      t("spending:rhythm.dayShortThu"),
+      t("spending:rhythm.dayShortFri"),
+      t("spending:rhythm.dayShortSat"),
+      t("spending:rhythm.dayShortSun"),
+    ],
+    [t],
+  );
   const { rows, max, heaviestDay, heaviestDayAvg } = useMemo(
-    () => buildRhythm(activities, weeks, accountTypeById),
-    [accountTypeById, activities, weeks],
+    () => buildRhythm(activities, weeks, accountTypeById, t),
+    [accountTypeById, activities, weeks, t],
   );
 
   return (
     <div>
       <div className="grid grid-cols-[auto_repeat(7,1fr)] gap-1.5">
         <div />
-        {DAY_NAMES_SHORT.map((d, i) => (
+        {dayNamesShort.map((d, i) => (
           <div
             key={`hd-${i}`}
             className="text-muted-foreground/70 text-center text-[10px] uppercase"
@@ -62,16 +77,19 @@ export function SpendingRhythmHeatmap({
             max={max}
             accent={accent}
             isBalanceHidden={isBalanceHidden}
+            weekLabel={t("spending:rhythm.week", { number: wi + 1 })}
+            noSpendLabel={t("spending:rhythm.noSpend")}
           />
         ))}
       </div>
       <div className="border-border/60 text-muted-foreground/80 mt-3 flex items-center justify-between border-t pt-2 text-xs">
         <span>
-          Heaviest: <span className="text-foreground font-medium">{heaviestDay}</span>
+          {t("spending:rhythm.heaviest")}:{" "}
+          <span className="text-foreground font-medium">{heaviestDay}</span>
         </span>
         {heaviestDayAvg > 0 && (
           <span className="tabular-nums">
-            avg <PrivacyAmount value={heaviestDayAvg} currency={currency} />
+            {t("spending:rhythm.avg")} <PrivacyAmount value={heaviestDayAvg} currency={currency} />
           </span>
         )}
       </div>
@@ -80,33 +98,36 @@ export function SpendingRhythmHeatmap({
 }
 
 function RhythmRow({
-  weekIndex,
   cells,
   max,
   accent,
   isBalanceHidden,
+  weekLabel,
+  noSpendLabel,
 }: {
   weekIndex: number;
   cells: Cell[];
   max: number;
   accent: string;
   isBalanceHidden: boolean;
+  weekLabel: string;
+  noSpendLabel: string;
 }) {
   return (
     <>
       <div className="text-muted-foreground/70 self-center pr-1 text-right text-[10px]">
-        W{weekIndex + 1}
+        {weekLabel}
       </div>
       {cells.map((cell, i) => {
-        const t = max > 0 ? cell.amount / max : 0;
-        const opacity = cell.amount === 0 ? 0.12 : 0.18 + t * 0.7;
+        const intensity = max > 0 ? cell.amount / max : 0;
+        const opacity = cell.amount === 0 ? 0.12 : 0.18 + intensity * 0.7;
         return (
           <div
             key={i}
             className="aspect-square rounded-md transition-opacity"
             style={{ backgroundColor: accent, opacity }}
             title={`${cell.date.toLocaleDateString()} · ${
-              cell.amount > 0 ? (isBalanceHidden ? "••••" : cell.amount.toFixed(2)) : "no spend"
+              cell.amount > 0 ? (isBalanceHidden ? "••••" : cell.amount.toFixed(2)) : noSpendLabel
             }`}
           />
         );
@@ -115,8 +136,15 @@ function RhythmRow({
   );
 }
 
-const DAY_NAMES_SHORT = ["M", "T", "W", "T", "F", "S", "S"];
-const DAY_NAMES_LONG = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_LONG_KEYS = [
+  "spending:rhythm.dayLongMon",
+  "spending:rhythm.dayLongTue",
+  "spending:rhythm.dayLongWed",
+  "spending:rhythm.dayLongThu",
+  "spending:rhythm.dayLongFri",
+  "spending:rhythm.dayLongSat",
+  "spending:rhythm.dayLongSun",
+];
 
 interface RhythmResult {
   rows: Cell[][];
@@ -128,7 +156,8 @@ interface RhythmResult {
 function buildRhythm(
   activities: Activity[],
   weeks: number,
-  accountTypeById?: Map<string, string>,
+  accountTypeById: Map<string, string> | undefined,
+  t: TFunction,
 ): RhythmResult {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -177,7 +206,10 @@ function buildRhythm(
   for (let i = 1; i < 7; i++) {
     if (dayTotals[i] > dayTotals[heaviestIdx]) heaviestIdx = i;
   }
-  const heaviestDay = dayTotals[heaviestIdx] > 0 ? `${DAY_NAMES_LONG[heaviestIdx]}s` : "—";
+  const heaviestDay =
+    dayTotals[heaviestIdx] > 0
+      ? t("spending:rhythm.heaviestDayName", { day: t(DAY_LONG_KEYS[heaviestIdx]) })
+      : "—";
   const heaviestDayAvg =
     dayCount[heaviestIdx] > 0 ? dayTotals[heaviestIdx] / dayCount[heaviestIdx] : 0;
 

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router-dom";
 
 import {
@@ -31,6 +32,7 @@ import { SettingsHeader } from "../../settings-header";
 import { SpendingBackLink } from "../components/spending-back-link";
 
 export default function SpendingEventsPage() {
+  const { t } = useTranslation();
   const { isEnabled, isLoading: settingsLoading } = useSpendingSettings();
   const {
     data: events = [],
@@ -90,8 +92,8 @@ export default function SpendingEventsPage() {
     <div className="space-y-6">
       <SpendingBackLink />
       <SettingsHeader
-        heading="Spending Events"
-        text="Manage event types and events used to tag cash transactions."
+        heading={t("settings:spending.events.heading")}
+        text={t("settings:spending.events.text")}
         backTo="/settings/spending"
         actionsInline
       >
@@ -99,13 +101,13 @@ export default function SpendingEventsPage() {
           size="sm"
           className="sm:hidden"
           onClick={handleAddEventType}
-          aria-label="Add event type"
+          aria-label={t("settings:spending.events.add_type")}
         >
           <Icons.Plus className="h-3.5 w-3.5" />
         </Button>
         <Button size="sm" className="hidden sm:inline-flex" onClick={handleAddEventType}>
           <Icons.Plus className="mr-2 h-3.5 w-3.5" />
-          Add event type
+          {t("settings:spending.events.add_type")}
         </Button>
       </SettingsHeader>
 
@@ -118,9 +120,11 @@ export default function SpendingEventsPage() {
       ) : eventsErrored || typesErrored ? (
         <EmptyPlaceholder>
           <EmptyPlaceholder.Icon name="AlertTriangle" />
-          <EmptyPlaceholder.Title>Events could not load</EmptyPlaceholder.Title>
+          <EmptyPlaceholder.Title>
+            {t("settings:spending.events.error_title")}
+          </EmptyPlaceholder.Title>
           <EmptyPlaceholder.Description>
-            Try again before editing event types or tagged events.
+            {t("settings:spending.events.error_description")}
           </EmptyPlaceholder.Description>
         </EmptyPlaceholder>
       ) : eventTypes.length > 0 ? (
@@ -161,14 +165,15 @@ export default function SpendingEventsPage() {
       ) : (
         <EmptyPlaceholder>
           <EmptyPlaceholder.Icon name="Calendar" />
-          <EmptyPlaceholder.Title>No event types</EmptyPlaceholder.Title>
+          <EmptyPlaceholder.Title>
+            {t("settings:spending.events.empty_title")}
+          </EmptyPlaceholder.Title>
           <EmptyPlaceholder.Description>
-            You don&apos;t have any event types yet. Create an event type to start tagging
-            transactions by trip, project, or any other grouping.
+            {t("settings:spending.events.empty_description")}
           </EmptyPlaceholder.Description>
           <Button onClick={handleAddEventType}>
             <Icons.Plus className="mr-2 h-4 w-4" />
-            Add event type
+            {t("settings:spending.events.add_type")}
           </Button>
         </EmptyPlaceholder>
       )}
@@ -195,21 +200,22 @@ function EventTypeRow({
   onEditEventType: () => void;
   onDeleteEventType: () => void;
 }) {
+  const { t } = useTranslation();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const paletteGroups: ActionPaletteGroup[] = [
     {
       items: [
-        { icon: Icons.Plus, label: "Add event", onClick: onAddEvent },
-        { icon: Icons.Pencil, label: "Edit", onClick: onEditEventType },
+        { icon: Icons.Plus, label: t("settings:spending.events.add_event"), onClick: onAddEvent },
+        { icon: Icons.Pencil, label: t("common:edit"), onClick: onEditEventType },
       ],
     },
     {
       items: [
         {
           icon: Icons.Trash,
-          label: "Delete",
+          label: t("common:delete"),
           variant: "destructive" as const,
           onClick: () => setConfirmDeleteOpen(true),
         },
@@ -247,17 +253,27 @@ function EventTypeRow({
 
       {/* Desktop: inline actions */}
       <div className="hidden shrink-0 items-center gap-1 sm:flex">
-        <Button variant="ghost" size="sm" onClick={onAddEvent} title="Add event">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onAddEvent}
+          title={t("settings:spending.events.add_event")}
+        >
           <Icons.Plus className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="sm" onClick={onEditEventType} title="Edit event type">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onEditEventType}
+          title={t("settings:spending.events.edit_type")}
+        >
           <Icons.Pencil className="h-4 w-4" />
         </Button>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setConfirmDeleteOpen(true)}
-          title="Delete event type"
+          title={t("settings:spending.events.delete_type")}
         >
           <Icons.Trash className="h-4 w-4" />
         </Button>
@@ -275,7 +291,7 @@ function EventTypeRow({
             variant="ghost"
             size="sm"
             className="text-muted-foreground hover:text-foreground h-8 w-8 shrink-0 p-0 sm:hidden"
-            aria-label="Event type actions"
+            aria-label={t("settings:spending.events.type_actions")}
           >
             <Icons.DotsThreeVertical className="h-4 w-4" />
           </Button>
@@ -285,24 +301,26 @@ function EventTypeRow({
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete event type</AlertDialogTitle>
+            <AlertDialogTitle>{t("settings:spending.events.delete_type_title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{type.name}&quot;?
+              {t("settings:spending.events.delete_type_confirm", { name: type.name })}
               {hasEvents && (
                 <span className="text-destructive mt-2 block font-medium">
-                  This will also delete all {typeEvents.length} event(s) under this type.
+                  {t("settings:spending.events.delete_type_cascade", {
+                    count: typeEvents.length,
+                  })}
                 </span>
-              )}
-              This action cannot be undone.
+              )}{" "}
+              {t("settings:spending.events.action_irreversible")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={onDeleteEventType}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {t("common:delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -322,18 +340,19 @@ function EventRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const paletteGroups: ActionPaletteGroup[] = [
     {
-      items: [{ icon: Icons.Pencil, label: "Edit", onClick: onEdit }],
+      items: [{ icon: Icons.Pencil, label: t("common:edit"), onClick: onEdit }],
     },
     {
       items: [
         {
           icon: Icons.Trash,
-          label: "Delete",
+          label: t("common:delete"),
           variant: "destructive" as const,
           onClick: () => setConfirmDeleteOpen(true),
         },
@@ -365,14 +384,19 @@ function EventRow({
 
         {/* Desktop: inline actions */}
         <div className="hidden shrink-0 items-center gap-1 sm:flex">
-          <Button variant="ghost" size="sm" onClick={onEdit} title="Edit event">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onEdit}
+            title={t("settings:spending.events.edit_event")}
+          >
             <Icons.Pencil className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setConfirmDeleteOpen(true)}
-            title="Delete event"
+            title={t("settings:spending.events.delete_event")}
           >
             <Icons.Trash className="h-4 w-4" />
           </Button>
@@ -390,7 +414,7 @@ function EventRow({
               variant="ghost"
               size="sm"
               className="text-muted-foreground hover:text-foreground h-8 w-8 shrink-0 p-0 sm:hidden"
-              aria-label="Event actions"
+              aria-label={t("settings:spending.events.event_actions")}
             >
               <Icons.DotsThreeVertical className="h-4 w-4" />
             </Button>
@@ -400,19 +424,20 @@ function EventRow({
         <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete event</AlertDialogTitle>
+              <AlertDialogTitle>
+                {t("settings:spending.events.delete_event_title")}
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete &quot;{event.name}&quot;? This action cannot be
-                undone.
+                {t("settings:spending.events.delete_event_confirm", { name: event.name })}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={onDelete}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                Delete
+                {t("common:delete")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

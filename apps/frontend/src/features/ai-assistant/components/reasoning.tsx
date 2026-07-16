@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react";
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -61,6 +62,7 @@ const ReasoningImpl: ReasoningMessagePartComponent = () => {
  * Collapsed by default; user can toggle open/closed manually.
  */
 const ReasoningGroupImpl: ReasoningGroupComponent = ({ children, startIndex, endIndex }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [duration, setDuration] = useState<number | undefined>(undefined);
   const startTimeRef = useRef<number | null>(null);
@@ -88,13 +90,13 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({ children, startIndex, end
 
   const thinkingMessage = useMemo(() => {
     if (isStreaming || duration === 0) {
-      return <Shimmer duration={1}>Thinking...</Shimmer>;
+      return <Shimmer duration={1}>{t("ai:reasoning.thinking")}</Shimmer>;
     }
     if (duration === undefined) {
-      return <span>Thought for a few seconds</span>;
+      return <span>{t("ai:reasoning.thoughtFewSeconds")}</span>;
     }
-    return <span>Thought for {duration} seconds</span>;
-  }, [isStreaming, duration]);
+    return <span>{t("ai:reasoning.thoughtForSeconds", { count: duration })}</span>;
+  }, [isStreaming, duration, t]);
 
   return (
     <Collapsible className="not-prose mb-4" open={isOpen} onOpenChange={setIsOpen}>

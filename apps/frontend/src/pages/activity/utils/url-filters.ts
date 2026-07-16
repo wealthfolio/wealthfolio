@@ -9,6 +9,10 @@ interface ActivityUrlFilters {
   dateFrom?: string;
   dateTo?: string;
   searchQuery?: string;
+  /** A single activity id to focus on (e.g. from a health-check deep-link). */
+  activityId?: string;
+  /** Identifies Health Center deep-links so the destination can show context copy. */
+  healthContext?: string;
 }
 
 export type ActivityTab = "investments" | "spending";
@@ -20,6 +24,8 @@ export function resolveActivityUrlFilters(searchParams: URLSearchParams): Activi
   const dateFrom = searchParams.get("from")?.trim();
   const dateTo = searchParams.get("to")?.trim();
   const searchQuery = searchParams.get("q")?.trim();
+  const activityId = searchParams.get("activity")?.trim();
+  const healthContext = searchParams.get("healthContext")?.trim();
 
   const activityTypes = typesRaw
     ? (typesRaw
@@ -35,6 +41,8 @@ export function resolveActivityUrlFilters(searchParams: URLSearchParams): Activi
     ...(dateFrom ? { dateFrom } : {}),
     ...(dateTo ? { dateTo } : {}),
     ...(searchQuery ? { searchQuery } : {}),
+    ...(activityId ? { activityId } : {}),
+    ...(healthContext ? { healthContext } : {}),
   };
 }
 
@@ -55,6 +63,8 @@ export function clearActivityUrlFilters(searchParams: URLSearchParams): URLSearc
   next.delete("from");
   next.delete("to");
   next.delete("q");
+  next.delete("activity");
+  next.delete("healthContext");
   return next;
 }
 

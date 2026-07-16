@@ -54,6 +54,8 @@ import {
   TooltipTrigger,
 } from "@wealthfolio/ui/components/ui/tooltip";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { toast } from "sonner";
 import {
   useDevices,
@@ -86,6 +88,7 @@ const platformIcons: Record<string, typeof Icons.Monitor> = {
 };
 
 export function DeviceSyncSection() {
+  const { t } = useTranslation();
   const status = useSyncStatus();
   const actions = useSyncActions();
   const queryClient = useQueryClient();
@@ -247,18 +250,18 @@ export function DeviceSyncSection() {
     try {
       if (isBackgroundRunning) {
         await actions.stopBgSync.mutateAsync();
-        toast.success("Background sync paused");
+        toast.success(t("sync:engine.backgroundPaused"));
       } else {
         await actions.startBgSync.mutateAsync();
-        toast.success("Background sync resumed");
+        toast.success(t("sync:engine.backgroundResumed"));
       }
     } catch (err) {
       logSyncError("Failed to update background sync", err);
-      toast.error("Failed to update background sync", {
+      toast.error(t("sync:engine.updateFailed"), {
         description: userFacingSyncErrorMessage(err),
       });
     }
-  }, [actions, isBackgroundRunning]);
+  }, [actions, isBackgroundRunning, t]);
 
   const handleBackupBeforeBootstrap = useCallback(async (): Promise<boolean> => {
     setIsBackingUpBeforeBootstrap(true);
@@ -278,9 +281,7 @@ export function DeviceSyncSection() {
           backupLocation = await backupDatabaseToPath(selectedDir);
         } else {
           if (runtimePlatform.os !== "ios") {
-            throw new Error(
-              "Backup before device sync is currently supported on desktop, web, and iOS only",
-            );
+            throw new Error(t("sync:errors.backupPlatformUnsupported"));
           }
           const { relativePath, filename } = await backupDatabaseToPendingExport();
           const saved = await saveAppDataFileViaPicker(relativePath, filename);
@@ -291,20 +292,20 @@ export function DeviceSyncSection() {
         }
       }
 
-      toast.success("Backup saved", {
-        description: `A backup was saved as ${backupLocation}.`,
+      toast.success(t("sync:backup.savedTitle"), {
+        description: t("sync:backup.savedDescription", { location: backupLocation }),
       });
       return true;
     } catch (err) {
       logSyncError("Backup before bootstrap failed", err);
-      toast.error("Backup failed", {
+      toast.error(t("sync:backup.failedTitle"), {
         description: userFacingSyncErrorMessage(err),
       });
       return false;
     } finally {
       setIsBackingUpBeforeBootstrap(false);
     }
-  }, []);
+  }, [t]);
 
   const handleApplyBootstrapOverwrite = useCallback(async () => {
     setBootstrapOwner("ready_state");
@@ -321,11 +322,11 @@ export function DeviceSyncSection() {
       setBootstrapOwner((owner) => (owner === "ready_state" ? "none" : owner));
     } catch (err) {
       logSyncError("Bootstrap overwrite failed", err);
-      toast.error("Unable to continue sync", {
+      toast.error(t("sync:bootstrap.unableToContinueTitle"), {
         description: userFacingSyncErrorMessage(err),
       });
     }
-  }, [actions]);
+  }, [actions, t]);
 
   const handleBackupThenApplyOverwrite = useCallback(async () => {
     const saved = await handleBackupBeforeBootstrap();
@@ -380,25 +381,25 @@ export function DeviceSyncSection() {
         setBootstrapOwner((owner) => (owner === "ready_state" ? "none" : owner));
         if (showToast) {
           if (result.status === "waiting_snapshot") {
-            toast.message("Waiting for your other device", {
-              description: "We’ll finish syncing as soon as a fresh snapshot is available.",
+            toast.message(t("sync:bootstrap.waitingOtherDeviceTitle"), {
+              description: t("sync:bootstrap.waitingOtherDeviceDescription"),
             });
           } else {
-            toast.success("Sync retry started", {
-              description: "Checking for an updated snapshot and applying pending sync changes.",
+            toast.success(t("sync:bootstrap.retryStartedTitle"), {
+              description: t("sync:bootstrap.retryStartedDescription"),
             });
           }
         }
       } catch (err) {
         logSyncError("Bootstrap retry failed", err);
         if (showToast) {
-          toast.error("Could not retry sync", {
+          toast.error(t("sync:bootstrap.couldNotRetryTitle"), {
             description: userFacingSyncErrorMessage(err),
           });
         }
       }
     },
-    [actions, canRunReadyStateBootstrap],
+    [actions, canRunReadyStateBootstrap, t],
   );
 
   const handleRetryBootstrap = useCallback(async () => {
@@ -415,35 +416,35 @@ export function DeviceSyncSection() {
     try {
       const result = await actions.generateSnapshot.mutateAsync();
       if (result.status === "uploaded") {
-        toast.success("Snapshot uploaded", {
-          description: "Newly connected devices can now finish syncing from this snapshot.",
+        toast.success(t("sync:snapshot.uploadedTitle"), {
+          description: t("sync:snapshot.uploadedDescription"),
         });
         return;
       }
       if (result.status === "skipped") {
-        toast.message("Snapshot upload skipped", {
+        toast.message(t("sync:snapshot.skippedTitle"), {
           description: result.message,
         });
         return;
       }
       if (result.status === "cancelled") {
-        toast.message("Snapshot upload cancelled", {
+        toast.message(t("sync:snapshot.cancelledTitle"), {
           description: result.message,
         });
         return;
       }
-      toast.message("Snapshot upload result", {
+      toast.message(t("sync:snapshot.resultTitle"), {
         description: result.message,
       });
     } catch (err) {
       logSyncError("Snapshot upload failed", err);
-      toast.error("Snapshot upload failed", {
+      toast.error(t("sync:snapshot.failedTitle"), {
         description: userFacingSyncErrorMessage(err),
       });
     } finally {
       setIsUploadingSnapshot(false);
     }
-  }, [actions]);
+  }, [actions, t]);
 
   const runReinitAndOpenPairing = useCallback(async () => {
     setBootstrapOwner((owner) => (owner === "pairing_failed" ? "none" : owner));
@@ -584,19 +585,21 @@ export function DeviceSyncSection() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-medium">Device Sync</CardTitle>
-          <CardDescription>Failed to initialize device sync.</CardDescription>
+          <CardTitle className="text-base font-medium">{t("sync:section.deviceSync")}</CardTitle>
+          <CardDescription>{t("sync:errorState.failedToInitialize")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <Icons.AlertCircle className="text-destructive mb-3 h-10 w-10 opacity-70" />
-            <p className="text-destructive text-sm font-medium">Initialization Failed</p>
+            <p className="text-destructive text-sm font-medium">
+              {t("sync:errorState.initializationFailed")}
+            </p>
             <p className="text-muted-foreground mt-1 max-w-sm text-xs">
               {userFacingSyncErrorMessage(status.error)}
             </p>
             <Button variant="outline" className="mt-4" onClick={handleRefresh}>
               <Icons.RefreshCw className="mr-2 h-4 w-4" />
-              Retry
+              {t("common:retry")}
             </Button>
           </div>
         </CardContent>
@@ -619,7 +622,7 @@ export function DeviceSyncSection() {
             <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
               <Icons.Smartphone className="text-muted-foreground h-4 w-4" />
             </div>
-            <h3 className="text-base font-semibold">Device Sync</h3>
+            <h3 className="text-base font-semibold">{t("sync:section.deviceSync")}</h3>
           </div>
           <OrphanedKeysPrompt
             onReinitialize={async () => {
@@ -641,7 +644,7 @@ export function DeviceSyncSection() {
             <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
               <Icons.Smartphone className="text-muted-foreground h-4 w-4" />
             </div>
-            <h3 className="text-base font-semibold">Connected Devices</h3>
+            <h3 className="text-base font-semibold">{t("sync:section.connectedDevices")}</h3>
           </div>
 
           <div className="mt-4">
@@ -664,14 +667,14 @@ export function DeviceSyncSection() {
             onInteractOutside={(e) => e.preventDefault()}
           >
             <DialogHeader className="sr-only">
-              <DialogTitle>Connect This Device</DialogTitle>
+              <DialogTitle>{t("sync:pairing.connectThisDeviceTitle")}</DialogTitle>
             </DialogHeader>
             <PairingFlow
               onComplete={handlePairingComplete}
               onCancel={handlePairingCancel}
               onBootstrapStateChange={handlePairingBootstrapStateChange}
-              title="Connect This Device"
-              description="Enter the code from your other connected device"
+              title={t("sync:pairing.connectThisDeviceTitle")}
+              description={t("sync:pairing.enterCodeDescription")}
               forceRole="claimer"
             />
           </DialogContent>
@@ -690,21 +693,22 @@ export function DeviceSyncSection() {
             <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
               <Icons.Smartphone className="text-muted-foreground h-4 w-4" />
             </div>
-            <h3 className="text-base font-semibold">Device Sync</h3>
+            <h3 className="text-base font-semibold">{t("sync:section.deviceSync")}</h3>
           </div>
 
           <div className="flex flex-col items-center justify-center py-4 text-center sm:py-6">
             <div className="mb-3 rounded-full bg-amber-100 p-2.5 sm:mb-4 sm:p-3 dark:bg-amber-900/30">
               <Icons.RefreshCw className="h-5 w-5 text-amber-600 sm:h-6 sm:w-6 dark:text-amber-400" />
             </div>
-            <p className="text-foreground text-sm font-medium">Keys need updating</p>
+            <p className="text-foreground text-sm font-medium">
+              {t("sync:stale.keysNeedUpdating")}
+            </p>
             <p className="text-muted-foreground mt-1 max-w-xs text-xs">
-              Security settings changed on another device. Connect this device again to keep
-              syncing.
+              {t("sync:stale.keysNeedUpdatingDescription")}
             </p>
             <Button className="mt-3 sm:mt-4" onClick={openPairingDialog}>
               <Icons.Link className="mr-2 h-4 w-4" />
-              Update This Device
+              {t("sync:stale.updateThisDevice")}
             </Button>
           </div>
         </CardContent>
@@ -719,14 +723,14 @@ export function DeviceSyncSection() {
             onInteractOutside={(e) => e.preventDefault()}
           >
             <DialogHeader className="sr-only">
-              <DialogTitle>Update This Device</DialogTitle>
+              <DialogTitle>{t("sync:stale.updateThisDevice")}</DialogTitle>
             </DialogHeader>
             <PairingFlow
               onComplete={handlePairingComplete}
               onCancel={handlePairingCancel}
               onBootstrapStateChange={handlePairingBootstrapStateChange}
-              title="Update This Device"
-              description="Enter the code from your other connected device"
+              title={t("sync:stale.updateThisDevice")}
+              description={t("sync:pairing.enterCodeDescription")}
               forceRole="claimer"
             />
           </DialogContent>
@@ -743,10 +747,12 @@ export function DeviceSyncSection() {
   const isWaitingForRemoteSnapshot =
     status.engineStatus?.lastCycleStatus === "wait_snapshot" ||
     status.engineStatus?.lastCycleStatus === "stale_cursor";
-  const dialogTitle = isTrusted ? "Connect Another Device" : "Connect This Device";
+  const dialogTitle = isTrusted
+    ? t("sync:pairing.connectAnotherTitle")
+    : t("sync:pairing.connectThisDeviceTitle");
   const dialogDescription = isTrusted
-    ? "Scan or enter this code on your other device"
-    : "Enter the code from your other connected device";
+    ? t("sync:pairing.scanOrEnterDescription")
+    : t("sync:pairing.enterCodeDescription");
   const isTogglingEngine = actions.startBgSync.isPending || actions.stopBgSync.isPending;
 
   return (
@@ -759,7 +765,7 @@ export function DeviceSyncSection() {
               <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
                 <Icons.Smartphone className="text-muted-foreground h-4 w-4" />
               </div>
-              <h3 className="text-base font-semibold">Connected Devices</h3>
+              <h3 className="text-base font-semibold">{t("sync:section.connectedDevices")}</h3>
               <SyncStatusDot engineStatus={status.engineStatus} />
             </div>
             <div className="flex items-center gap-1">
@@ -788,17 +794,17 @@ export function DeviceSyncSection() {
                 {isTogglingEngine ? (
                   <>
                     <Icons.Loader className="h-4 w-4 animate-spin" />
-                    Updating...
+                    {t("sync:engine.updating")}
                   </>
                 ) : isBackgroundRunning ? (
                   <>
                     <Icons.PauseCircle className="h-4 w-4" />
-                    Pause Sync
+                    {t("sync:engine.pauseSync")}
                   </>
                 ) : (
                   <>
                     <Icons.PlayCircle className="h-4 w-4" />
-                    Resume Sync
+                    {t("sync:engine.resumeSync")}
                   </>
                 )}
               </Button>
@@ -827,7 +833,7 @@ export function DeviceSyncSection() {
                 className="text-muted-foreground hover:text-foreground hidden sm:inline-flex"
                 onClick={() => window.open(PORTAL_DEVICES_URL, "_blank")}
               >
-                Manage devices
+                {t("sync:section.manageDevices")}
                 <Icons.ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             </div>
@@ -838,7 +844,7 @@ export function DeviceSyncSection() {
             {actions.bootstrapSync.isPending && (
               <div className="bg-muted/60 text-muted-foreground mb-3 flex items-center gap-2 rounded-md px-3 py-2 text-xs">
                 <Icons.Loader className="h-3.5 w-3.5 animate-spin" />
-                Sync bootstrap in progress...
+                {t("sync:bootstrap.inProgress")}
               </div>
             )}
             {actions.bootstrapSync.error && (
@@ -854,13 +860,13 @@ export function DeviceSyncSection() {
                   <div className="min-w-0 flex-1">
                     <p className="text-foreground font-medium">
                       {isTrusted
-                        ? "Your other device is still finishing setup."
-                        : "Your setup is almost done."}
+                        ? t("sync:waitingSnapshot.otherDeviceFinishing")
+                        : t("sync:waitingSnapshot.setupAlmostDone")}
                     </p>
                     <p className="mt-1 leading-relaxed">
                       {isTrusted
-                        ? "You can speed things up now, or wait and we'll continue automatically in the background."
-                        : "Please finish setup on your other connected device first. This page will update automatically."}
+                        ? t("sync:waitingSnapshot.trustedHint")
+                        : t("sync:waitingSnapshot.untrustedHint")}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Button
@@ -872,12 +878,12 @@ export function DeviceSyncSection() {
                         {actions.bootstrapSync.isPending ? (
                           <>
                             <Icons.Spinner className="mr-2 h-3.5 w-3.5 animate-spin" />
-                            Checking...
+                            {t("sync:waitingSnapshot.checking")}
                           </>
                         ) : (
                           <>
                             <Icons.RefreshCw className="mr-2 h-3.5 w-3.5" />
-                            Check again
+                            {t("sync:waitingSnapshot.checkAgain")}
                           </>
                         )}
                       </Button>
@@ -891,12 +897,12 @@ export function DeviceSyncSection() {
                           {isUploadingSnapshot ? (
                             <>
                               <Icons.Spinner className="mr-2 h-3.5 w-3.5 animate-spin" />
-                              Preparing...
+                              {t("sync:waitingSnapshot.preparing")}
                             </>
                           ) : (
                             <>
                               <Icons.Upload className="mr-2 h-3.5 w-3.5" />
-                              Speed up setup
+                              {t("sync:waitingSnapshot.speedUpSetup")}
                             </>
                           )}
                         </Button>
@@ -911,17 +917,14 @@ export function DeviceSyncSection() {
                 <div className="flex items-start gap-2">
                   <Icons.AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium">This device already has data</p>
-                    <p className="mt-1 leading-relaxed">
-                      To finish syncing, the data on this device will be replaced with data from
-                      your other device.
-                    </p>
+                    <p className="font-medium">{t("sync:bootstrap.hasDataTitle")}</p>
+                    <p className="mt-1 leading-relaxed">{t("sync:bootstrap.hasDataDescription")}</p>
                     <div className="mt-2">
                       <Button
                         size="sm"
                         onClick={() => handleBootstrapOverwriteDialogOpenChange(true)}
                       >
-                        Continue
+                        {t("sync:bootstrap.continue")}
                       </Button>
                     </div>
                   </div>
@@ -960,8 +963,8 @@ export function DeviceSyncSection() {
             </DialogHeader>
             {isPreparing && !prepareError ? (
               <WaitingState
-                title="Getting this device ready..."
-                description="This will only take a moment."
+                title={t("sync:pairing.gettingReadyTitle")}
+                description={t("sync:pairing.gettingReadyDescription")}
               />
             ) : isPreparing && prepareError ? (
               <div className="flex flex-col items-center px-4 py-6">
@@ -970,16 +973,16 @@ export function DeviceSyncSection() {
                 </div>
                 <div className="mb-6 text-center">
                   <p className="text-foreground text-base font-semibold">
-                    We couldn&apos;t finish getting this device ready.
+                    {t("sync:pairing.prepareFailed")}
                   </p>
                   <p className="text-muted-foreground mt-2 max-w-[240px] text-sm">{prepareError}</p>
                 </div>
                 <div className="flex gap-3">
                   <Button variant="outline" onClick={() => void beginPairingFlow()}>
-                    Try Again
+                    {t("sync:pairing.tryAgain")}
                   </Button>
                   <Button variant="ghost" onClick={handlePairingCancel}>
-                    Cancel
+                    {t("common:cancel")}
                   </Button>
                 </div>
               </div>
@@ -1010,15 +1013,14 @@ export function DeviceSyncSection() {
                 <Icons.AlertTriangle className="h-6 w-6 text-amber-500" />
               </div>
               <AlertDialogTitle className="text-center text-xl">
-                Replace data on this device?
+                {t("sync:overwrite.replaceDataTitle")}
               </AlertDialogTitle>
               <AlertDialogDescription className="text-center text-sm">
-                Your local data will be replaced with data from your other connected device.
+                {t("sync:overwrite.replaceDataDescription")}
               </AlertDialogDescription>
               {overwriteRisk && overwriteRisk.localRows > 0 && (
                 <p className="text-muted-foreground text-center text-xs">
-                  {overwriteRisk.localRows} local {overwriteRisk.localRows === 1 ? "row" : "rows"}{" "}
-                  will be replaced.
+                  {t("sync:overwrite.localRowsReplaced", { count: overwriteRisk.localRows })}
                 </p>
               )}
             </AlertDialogHeader>
@@ -1029,7 +1031,7 @@ export function DeviceSyncSection() {
                 onClick={() => handleBootstrapOverwriteDialogOpenChange(false)}
                 disabled={isBackingUpBeforeBootstrap || actions.bootstrapSync.isPending}
               >
-                Not now
+                {t("sync:overwrite.notNow")}
               </Button>
               <Button
                 variant="outline"
@@ -1039,10 +1041,10 @@ export function DeviceSyncSection() {
                 {isBackingUpBeforeBootstrap ? (
                   <>
                     <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                    Backing up...
+                    {t("sync:backup.backingUp")}
                   </>
                 ) : (
-                  "Back up first"
+                  t("sync:backup.backUpFirst")
                 )}
               </Button>
               <Button
@@ -1052,10 +1054,10 @@ export function DeviceSyncSection() {
                 {actions.bootstrapSync.isPending ? (
                   <>
                     <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                    Syncing...
+                    {t("sync:overwrite.syncing")}
                   </>
                 ) : (
-                  "Replace & Sync"
+                  t("sync:overwrite.replaceAndSync")
                 )}
               </Button>
             </div>
@@ -1069,18 +1071,19 @@ export function DeviceSyncSection() {
                 <Icons.AlertTriangle className="h-6 w-6 text-amber-500" />
               </div>
               <AlertDialogTitle className="text-center text-xl">
-                Set up sync again from this device?
+                {t("sync:reinit.title")}
               </AlertDialogTitle>
               <AlertDialogDescription className="text-center text-sm">
-                We&apos;ll keep the data on this device and use it to restart sync. Other connected
-                devices may need to be connected again.
+                {t("sync:reinit.description")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
               <Button variant="ghost" onClick={() => setShowReinitConfirmDialog(false)}>
-                Not now
+                {t("sync:reinit.notNow")}
               </Button>
-              <Button onClick={() => void handleReinitConfirm()}>Continue</Button>
+              <Button onClick={() => void handleReinitConfirm()}>
+                {t("sync:reinit.continue")}
+              </Button>
             </div>
           </AlertDialogContent>
         </AlertDialog>
@@ -1100,20 +1103,21 @@ function UntrustedDevicePrompt({
   onStartPairing: () => void;
   trustedDeviceCount?: number;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center justify-center py-4 text-center sm:py-6">
       <div className="bg-muted/50 mb-3 rounded-full p-2.5 sm:mb-4 sm:p-3">
         <Icons.ShieldAlert className="h-5 w-5 opacity-60 sm:h-6 sm:w-6" />
       </div>
-      <p className="text-foreground text-sm font-medium">This device is not connected yet</p>
+      <p className="text-foreground text-sm font-medium">{t("sync:untrusted.notConnectedYet")}</p>
       <p className="text-muted-foreground mt-1 max-w-xs text-xs">
         {trustedDeviceCount !== undefined && trustedDeviceCount > 0
-          ? `Enter the code from one of your ${trustedDeviceCount} other connected device${trustedDeviceCount > 1 ? "s" : ""}.`
-          : "Enter the code from your other connected device to sync your data."}
+          ? t("sync:untrusted.enterCodeFromDevices", { count: trustedDeviceCount })
+          : t("sync:untrusted.enterCodeGeneric")}
       </p>
       <Button className="mt-3 sm:mt-4" onClick={onStartPairing}>
         <Icons.Link className="mr-2 h-4 w-4" />
-        Connect This Device
+        {t("sync:untrusted.connectThisDevice")}
       </Button>
     </div>
   );
@@ -1121,6 +1125,7 @@ function UntrustedDevicePrompt({
 
 // Prompt for orphaned state (keys exist but no trusted devices)
 function OrphanedKeysPrompt({ onReinitialize }: { onReinitialize: () => Promise<void> }) {
+  const { t } = useTranslation();
   const [isReinitializing, setIsReinitializing] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
@@ -1131,7 +1136,7 @@ function OrphanedKeysPrompt({ onReinitialize }: { onReinitialize: () => Promise<
       setShowConfirmDialog(false);
     } catch (err) {
       logSyncError("Reinitialize sync failed", err);
-      toast.error("Failed to reinitialize sync", { description: userFacingSyncErrorMessage(err) });
+      toast.error(t("sync:toasts.reinitFailed"), { description: userFacingSyncErrorMessage(err) });
     } finally {
       setIsReinitializing(false);
     }
@@ -1143,10 +1148,9 @@ function OrphanedKeysPrompt({ onReinitialize }: { onReinitialize: () => Promise<
         <div className="mb-3 rounded-full bg-amber-100 p-2.5 sm:mb-4 sm:p-3 dark:bg-amber-900/30">
           <Icons.AlertTriangle className="h-5 w-5 text-amber-600 sm:h-6 sm:w-6 dark:text-amber-400" />
         </div>
-        <p className="text-foreground text-sm font-medium">Use This Device to Restore Sync</p>
+        <p className="text-foreground text-sm font-medium">{t("sync:orphaned.restoreTitle")}</p>
         <p className="text-muted-foreground mt-1 max-w-xs text-xs">
-          No other connected device is available. We&apos;ll restart sync using the data already on
-          this device.
+          {t("sync:orphaned.restoreDescription")}
         </p>
         <Button
           className="mt-3 sm:mt-4"
@@ -1155,28 +1159,26 @@ function OrphanedKeysPrompt({ onReinitialize }: { onReinitialize: () => Promise<
           disabled={isReinitializing}
         >
           <Icons.RefreshCw className="mr-2 h-4 w-4" />
-          Use This Device to Restore Sync
+          {t("sync:orphaned.restoreTitle")}
         </Button>
       </div>
 
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Use This Device to Restore Sync</AlertDialogTitle>
-            <AlertDialogDescription>
-              We&apos;ll restart sync using the data already on this device.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t("sync:orphaned.restoreTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("sync:orphaned.confirmDescription")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isReinitializing}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isReinitializing}>{t("common:cancel")}</AlertDialogCancel>
             <Button onClick={handleReinitialize} disabled={isReinitializing}>
               {isReinitializing ? (
                 <>
                   <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                  Restarting...
+                  {t("sync:orphaned.restarting")}
                 </>
               ) : (
-                "Use This Device to Restore Sync"
+                t("sync:orphaned.restoreTitle")
               )}
             </Button>
           </AlertDialogFooter>
@@ -1186,20 +1188,27 @@ function OrphanedKeysPrompt({ onReinitialize }: { onReinitialize: () => Promise<
   );
 }
 
+// Whether a device counts as currently online based on last-seen time
+function isLastSeenOnline(lastSeenAt: string | null): boolean {
+  if (!lastSeenAt) return false;
+  const diffMins = Math.floor((Date.now() - new Date(lastSeenAt).getTime()) / 60000);
+  return diffMins < 5;
+}
+
 // Helper to format relative time
-function formatLastSeen(lastSeenAt: string | null): string {
-  if (!lastSeenAt) return "Never";
+function formatLastSeen(lastSeenAt: string | null, t: TFunction): string {
+  if (!lastSeenAt) return t("sync:status.never");
   const now = new Date();
   const lastSeen = new Date(lastSeenAt);
   const diffMs = now.getTime() - lastSeen.getTime();
   const diffMins = Math.floor(diffMs / 60000);
 
-  if (diffMins < 5) return "Online";
-  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffMins < 5) return t("sync:status.online");
+  if (diffMins < 60) return t("sync:status.minutesAgo", { count: diffMins });
   const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffHours < 24) return t("sync:status.hoursAgo", { count: diffHours });
   const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d ago`;
+  return t("sync:status.daysAgo", { count: diffDays });
 }
 
 // Connected devices list component
@@ -1214,6 +1223,7 @@ function ConnectedDevicesList({
   mode?: "trusted" | "unpaired";
   trustedDeviceCount?: number;
 }) {
+  const { t } = useTranslation();
   const { data: devices, isLoading, error } = useDevices("my");
 
   if (isLoading) {
@@ -1229,8 +1239,8 @@ function ConnectedDevicesList({
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border p-6 text-center">
         <Icons.AlertCircle className="text-destructive mb-2 h-8 w-8 opacity-70" />
-        <p className="text-sm font-medium">Failed to load devices</p>
-        <p className="text-muted-foreground mt-1 text-xs">Please try refreshing.</p>
+        <p className="text-sm font-medium">{t("sync:errorState.failedToLoadDevices")}</p>
+        <p className="text-muted-foreground mt-1 text-xs">{t("sync:errorState.tryRefreshing")}</p>
       </div>
     );
   }
@@ -1279,7 +1289,7 @@ function ConnectedDevicesList({
         <div className="mt-4">
           <Button onClick={onLinkDevice} size="sm">
             <Icons.Link className="mr-2 h-4 w-4" />
-            Connect Another Device
+            {t("sync:connect.connectAnotherDevice")}
           </Button>
         </div>
       )}
@@ -1288,6 +1298,7 @@ function ConnectedDevicesList({
 }
 
 function PairThisDeviceItem({ onPair }: { onPair: () => void }) {
+  const { t } = useTranslation();
   const { clearSyncData } = useSyncActions();
   const [showResetAlert, setShowResetAlert] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -1299,7 +1310,7 @@ function PairThisDeviceItem({ onPair }: { onPair: () => void }) {
       setShowResetAlert(false);
     } catch (err) {
       logSyncError("Disconnect device failed", err);
-      toast.error("Failed to disconnect", {
+      toast.error(t("sync:toasts.disconnectFailed"), {
         description: userFacingSyncErrorMessage(err),
       });
     } finally {
@@ -1318,24 +1329,24 @@ function PairThisDeviceItem({ onPair }: { onPair: () => void }) {
           </Avatar>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-medium">This device</span>
+              <span className="truncate text-sm font-medium">{t("sync:status.thisDevice")}</span>
               <Badge
                 variant="outline"
                 className="text-warning border-warning/20 bg-warning/20 h-5 shrink-0 text-[10px]"
               >
-                Not connected
+                {t("sync:status.notConnected")}
               </Badge>
             </div>
             <div className="text-muted-foreground flex items-center gap-1 text-xs">
               <Icons.ShieldAlert className="h-3 w-3 text-amber-600 dark:text-amber-500" />
-              Connect this device to start syncing.
+              {t("sync:untrusted.connectToStartSyncing")}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Button size="default" className="w-full shrink-0 sm:w-auto" onClick={onPair}>
             <Icons.Link className="mr-2 h-4 w-4" />
-            Connect This Device
+            {t("sync:connect.connectThisDevice")}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1345,7 +1356,7 @@ function PairThisDeviceItem({ onPair }: { onPair: () => void }) {
                 className="text-muted-foreground h-8 w-8 shrink-0"
               >
                 <Icons.MoreVertical className="h-4 w-4" />
-                <span className="sr-only">Options</span>
+                <span className="sr-only">{t("sync:section.options")}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -1354,7 +1365,7 @@ function PairThisDeviceItem({ onPair }: { onPair: () => void }) {
                 className="text-destructive focus:text-destructive"
               >
                 <Icons.LogOut className="mr-2 h-4 w-4" />
-                Disconnect
+                {t("sync:connect.disconnect")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1364,21 +1375,21 @@ function PairThisDeviceItem({ onPair }: { onPair: () => void }) {
       <AlertDialog open={showResetAlert} onOpenChange={setShowResetAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Disconnect this device?</AlertDialogTitle>
+            <AlertDialogTitle>{t("sync:disconnectDialog.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove sync from this device. You can set it up again later.
+              {t("sync:disconnectDialog.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isResetting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isResetting}>{t("common:cancel")}</AlertDialogCancel>
             <Button variant="destructive" onClick={handleDisconnect} disabled={isResetting}>
               {isResetting ? (
                 <>
                   <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                  Disconnecting...
+                  {t("sync:disconnectDialog.disconnecting")}
                 </>
               ) : (
-                "Disconnect"
+                t("sync:disconnectDialog.disconnect")
               )}
             </Button>
           </AlertDialogFooter>
@@ -1393,6 +1404,7 @@ function SyncStatusDot({
 }: {
   engineStatus: ReturnType<typeof useSyncStatus>["engineStatus"];
 }) {
+  const { t } = useTranslation();
   if (!engineStatus) return null;
 
   const { backgroundRunning, lastCycleStatus, lastError, consecutiveFailures } = engineStatus;
@@ -1402,16 +1414,16 @@ function SyncStatusDot({
 
   if (lastError || consecutiveFailures > 2) {
     color = "bg-red-500";
-    label = "Sync error";
+    label = t("sync:status.syncError");
   } else if (!backgroundRunning) {
     color = "bg-gray-400";
-    label = "Sync paused";
+    label = t("sync:status.syncPaused");
   } else if (lastCycleStatus === "ok") {
     color = "bg-green-500";
-    label = "Synced";
+    label = t("sync:status.synced");
   } else {
     color = "bg-yellow-500";
-    label = "Syncing";
+    label = t("sync:status.syncing");
   }
 
   return (
@@ -1440,6 +1452,7 @@ function DeviceCard({
   onResetSync: () => Promise<void>;
   onPair: () => void;
 }) {
+  const { t } = useTranslation();
   const renameDevice = useRenameDevice();
   const revokeDevice = useRevokeDevice();
   const { clearSyncData } = useSyncActions();
@@ -1454,8 +1467,11 @@ function DeviceCard({
   const isTrusted = device.trustState === "trusted";
   const isUntrusted = device.trustState === "untrusted";
   const isRevoked = device.trustState === "revoked";
-  // Current device is always "Online", others show relative time
-  const lastSeenText = device.isCurrent ? "Online" : formatLastSeen(device.lastSeenAt);
+  // Current device is always online, others show relative time
+  const isOnline = device.isCurrent || isLastSeenOnline(device.lastSeenAt);
+  const lastSeenText = device.isCurrent
+    ? t("sync:status.online")
+    : formatLastSeen(device.lastSeenAt, t);
 
   const handleStartRename = () => {
     setNewName(device.displayName);
@@ -1488,7 +1504,7 @@ function DeviceCard({
       setShowUnpairAlert(false);
     } catch (err) {
       logSyncError("Unpair device failed", err);
-      toast.error("Failed to unpair device", { description: userFacingSyncErrorMessage(err) });
+      toast.error(t("sync:toasts.unpairFailed"), { description: userFacingSyncErrorMessage(err) });
     } finally {
       setIsUnpairing(false);
     }
@@ -1502,7 +1518,7 @@ function DeviceCard({
           <div className="bg-muted/60 flex h-10 w-10 items-center justify-center rounded-full">
             <Icon className="text-foreground/70 h-[18px] w-[18px]" />
           </div>
-          {lastSeenText === "Online" && (
+          {isOnline && (
             <span className="border-background absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 bg-green-500" />
           )}
         </div>
@@ -1550,7 +1566,7 @@ function DeviceCard({
                 <span className="truncate text-sm font-medium">{device.displayName}</span>
                 {device.isCurrent && (
                   <span className="text-muted-foreground shrink-0 text-xs font-normal">
-                    · This device
+                    {t("sync:status.thisDeviceSuffix")}
                   </span>
                 )}
               </div>
@@ -1558,22 +1574,24 @@ function DeviceCard({
                 {isTrusted && (
                   <>
                     <Icons.ShieldCheck className="h-3 w-3 text-green-600 dark:text-green-500" />
-                    <span>Connected</span>
+                    <span>{t("sync:status.connected")}</span>
                   </>
                 )}
                 {isUntrusted && (
                   <>
                     <Icons.ShieldAlert className="h-3 w-3 text-amber-600 dark:text-amber-500" />
-                    <span className="text-amber-600 dark:text-amber-500">Needs setup</span>
+                    <span className="text-amber-600 dark:text-amber-500">
+                      {t("sync:status.needsSetup")}
+                    </span>
                   </>
                 )}
                 {isRevoked && (
                   <>
                     <Icons.XCircle className="h-3 w-3" />
-                    <span>Revoked</span>
+                    <span>{t("sync:status.revoked")}</span>
                   </>
                 )}
-                {lastSeenText !== "Online" && !device.isCurrent && (
+                {!isOnline && !device.isCurrent && (
                   <>
                     <span className="text-muted-foreground/30 mx-0.5">·</span>
                     <span>{lastSeenText}</span>
@@ -1589,7 +1607,7 @@ function DeviceCard({
           <div className="flex shrink-0 items-center gap-2">
             {isUntrusted && !device.isCurrent && (
               <Button variant="outline" size="sm" onClick={onPair}>
-                Pair
+                {t("sync:connect.pair")}
               </Button>
             )}
 
@@ -1601,13 +1619,13 @@ function DeviceCard({
                   className="text-muted-foreground h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100"
                 >
                   <Icons.MoreVertical className="h-4 w-4" />
-                  <span className="sr-only">Device actions</span>
+                  <span className="sr-only">{t("sync:section.deviceActions")}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={handleStartRename}>
                   <Icons.Pencil className="mr-2 h-4 w-4" />
-                  Rename
+                  {t("sync:connect.rename")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -1615,7 +1633,7 @@ function DeviceCard({
                   className="text-destructive focus:text-destructive"
                 >
                   <Icons.LogOut className="mr-2 h-4 w-4" />
-                  {device.isCurrent ? "Unpair" : "Revoke"}
+                  {device.isCurrent ? t("sync:connect.unpair") : t("sync:connect.revoke")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1628,24 +1646,26 @@ function DeviceCard({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {isLastTrustedDevice ? "Unpair your last device?" : "Unpair device?"}
+              {isLastTrustedDevice
+                ? t("sync:unpairDialog.titleLast")
+                : t("sync:unpairDialog.title")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {isLastTrustedDevice
-                ? "This is your only connected device. You'll need to connect a device again to continue syncing your data."
-                : `This will remove "${device.displayName}" from your account. The device will need to be connected again to sync data.`}
+                ? t("sync:unpairDialog.descriptionLast")
+                : t("sync:unpairDialog.description", { name: device.displayName })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isUnpairing}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isUnpairing}>{t("common:cancel")}</AlertDialogCancel>
             <Button variant="destructive" onClick={handleUnpair} disabled={isUnpairing}>
               {isUnpairing ? (
                 <>
                   <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                  Unpairing...
+                  {t("sync:unpairDialog.unpairing")}
                 </>
               ) : (
-                "Unpair"
+                t("sync:unpairDialog.unpair")
               )}
             </Button>
           </AlertDialogFooter>

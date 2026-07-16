@@ -1,4 +1,3 @@
-import { Toaster } from "@/components/sonner";
 import { ErrorBoundary } from "@wealthfolio/ui";
 import { Outlet } from "react-router-dom";
 
@@ -15,7 +14,6 @@ const OnboardingLayout = () => {
           </main>
         </ErrorBoundary>
       </div>
-      <Toaster mobileOffset={{ top: "68px" }} closeButton expand={false} />
     </div>
   );
 };

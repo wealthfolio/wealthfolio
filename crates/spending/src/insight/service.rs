@@ -16,13 +16,16 @@ use super::model::{
     DayCategoryBucket, GroupInsight, Headline, HealthStatus, MonthBucket, MonthlyAmount, PaceState,
     PeriodMeta, SpendingInsight, SpendingInsightRequest, UncategorizedBucket,
 };
-use crate::activity_assignments::{
-    ActivityTaxonomyAssignment, ActivityTaxonomyAssignmentRepositoryTrait,
+use crate::activity_allocations::{
+    allocations_for_taxonomy, group_assignments as group_activity_assignments, group_splits,
+    AssignmentsByActivity, SplitsByActivity,
 };
+use crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait;
 use crate::activity_classification::{
     activity_abs_amount, classify_activity, classify_activity_for_aggregation, decimal_to_f64,
     within_spending_transfer_groups,
 };
+use crate::activity_splits::ActivitySplitRepositoryTrait;
 use crate::budget::service::{
     category_meta, resolve_group_for_category, top_category_id, top_level_categories, TargetIndex,
 };
@@ -49,17 +52,20 @@ pub struct InsightService {
     activity_repo: Arc<dyn ActivityRepositoryTrait>,
     account_repo: Arc<dyn AccountRepositoryTrait>,
     assignment_repo: Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
+    split_repo: Arc<dyn ActivitySplitRepositoryTrait>,
     settings: Arc<SpendingSettingsService>,
     taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
     fx_service: Arc<dyn FxServiceTrait>,
 }
 
 impl InsightService {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         budget_repo: Arc<dyn BudgetRepositoryTrait>,
         activity_repo: Arc<dyn ActivityRepositoryTrait>,
         account_repo: Arc<dyn AccountRepositoryTrait>,
         assignment_repo: Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
+        split_repo: Arc<dyn ActivitySplitRepositoryTrait>,
         settings: Arc<SpendingSettingsService>,
         taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
         fx_service: Arc<dyn FxServiceTrait>,
@@ -69,6 +75,7 @@ impl InsightService {
             activity_repo,
             account_repo,
             assignment_repo,
+            split_repo,
             settings,
             taxonomy_service,
             fx_service,
@@ -203,13 +210,9 @@ impl InsightService {
             .assignment_repo
             .list_for_activities(&activity_ids)
             .await?;
-        let mut assignments_by_activity: HashMap<String, Vec<_>> = HashMap::new();
-        for assignment in assignments {
-            assignments_by_activity
-                .entry(assignment.activity_id.clone())
-                .or_default()
-                .push(assignment);
-        }
+        let assignments_by_activity = group_activity_assignments(assignments);
+        let splits_by_activity =
+            group_splits(self.split_repo.list_for_activities(&activity_ids).await?);
 
         // ── 5. Aggregate spend (current + prior) ──────────────────────────────
         // FX is applied inline: each activity's spending/income amount is
@@ -217,21 +220,23 @@ impl InsightService {
         // typically base) using FxService at `period.end`. Matches the
         // net_worth snapshot-date convention — one rate per report.
         let fx_as_of = end.date_naive();
-        let current_agg = aggregate_spend(
+        let current_agg = aggregate_spend_with_splits(
             &current_acts,
             &account_types,
             &transfer_groups,
             &assignments_by_activity,
+            &splits_by_activity,
             &spending_meta,
             self.fx_service.as_ref(),
             currency,
             fx_as_of,
         );
-        let prior_agg = aggregate_spend(
+        let prior_agg = aggregate_spend_with_splits(
             &prior_acts,
             &account_types,
             &transfer_groups,
             &assignments_by_activity,
+            &splits_by_activity,
             &spending_meta,
             self.fx_service.as_ref(),
             currency,
@@ -418,10 +423,11 @@ impl InsightService {
             currency,
             fx_as_of,
         );
-        let by_day_by_category = compute_by_day_by_category(
+        let by_day_by_category = compute_by_day_by_category_with_splits(
             &current_acts,
             &account_types,
             &assignments_by_activity,
+            &splits_by_activity,
             timezone,
             self.fx_service.as_ref(),
             currency,
@@ -564,6 +570,7 @@ fn fx_to_target(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 fn aggregate_spend(
     acts: &[&Activity],
     account_types: &HashMap<String, String>,
@@ -572,6 +579,32 @@ fn aggregate_spend(
         String,
         Vec<crate::activity_assignments::ActivityTaxonomyAssignment>,
     >,
+    spending_meta: &HashMap<String, wealthfolio_core::taxonomies::Category>,
+    fx: &dyn FxServiceTrait,
+    target_currency: &str,
+    fx_as_of: NaiveDate,
+) -> SpendAggregate {
+    let splits_by_activity = SplitsByActivity::new();
+    aggregate_spend_with_splits(
+        acts,
+        account_types,
+        transfer_groups,
+        assignments_by_activity,
+        &splits_by_activity,
+        spending_meta,
+        fx,
+        target_currency,
+        fx_as_of,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn aggregate_spend_with_splits(
+    acts: &[&Activity],
+    account_types: &HashMap<String, String>,
+    transfer_groups: &HashSet<String>,
+    assignments_by_activity: &AssignmentsByActivity,
+    splits_by_activity: &SplitsByActivity,
     spending_meta: &HashMap<String, wealthfolio_core::taxonomies::Category>,
     fx: &dyn FxServiceTrait,
     target_currency: &str,
@@ -610,18 +643,28 @@ fn aggregate_spend(
             add_taxonomy_breakdown(
                 &mut agg.income_by_category,
                 assignments_by_activity,
+                splits_by_activity,
                 &a.id,
                 INCOME_TAXONOMY,
-                income,
+                income_native,
+                fx,
+                &a.currency,
+                target_currency,
+                fx_as_of,
             );
         }
         if saved != Decimal::ZERO {
             add_taxonomy_breakdown(
                 &mut agg.savings_by_category,
                 assignments_by_activity,
+                splits_by_activity,
                 &a.id,
                 SAVINGS_TAXONOMY,
-                saved,
+                saving_native,
+                fx,
+                &a.currency,
+                target_currency,
+                fx_as_of,
             );
         }
 
@@ -636,83 +679,98 @@ fn aggregate_spend(
                 .or_insert(Decimal::ZERO) += spending_native;
         }
 
-        let mut assignments = assignments_by_activity
-            .get(&a.id)
-            .into_iter()
-            .flatten()
-            .filter(|asg| asg.taxonomy_id == SPENDING_TAXONOMY)
-            .collect::<Vec<_>>();
+        let allocations = allocations_for_taxonomy(
+            &a.id,
+            SPENDING_TAXONOMY,
+            spending_native,
+            assignments_by_activity,
+            splits_by_activity,
+        );
 
-        if assignments.is_empty() {
+        if allocations.is_empty() {
             agg.uncategorized_spend += spending;
             agg.uncategorized_count += 1;
             continue;
         }
 
-        // Spending taxonomies are single-select: the activity_taxonomy_assignments
-        // service deletes any prior (activity_id, taxonomy_id) row before insert,
-        // and the unique index on (activity_id, taxonomy_id, category_id) enforces
-        // it at the DB layer. Treat extra rows as a data-integrity issue, but
-        // keep the release fallback deterministic instead of depending on repo
-        // row order.
-        debug_assert!(
-            assignments.len() == 1,
-            "single-select invariant violated for activity {} in spending_categories: {} assignments",
-            a.id,
-            assignments.len(),
-        );
-        assignments.sort_by(|a, b| {
-            a.created_at
-                .cmp(&b.created_at)
-                .then_with(|| a.id.cmp(&b.id))
-        });
-        let primary = assignments[0];
-        let top_id = top_category_id(&primary.category_id, spending_meta);
-        let entry = agg
-            .spending_by_top
-            .entry(top_id)
-            .or_insert((Decimal::ZERO, 0));
-        entry.0 += spending;
-        entry.1 += 1;
+        for allocation in allocations {
+            let Some(amount) = fx_to_target(
+                fx,
+                allocation.amount,
+                &a.currency,
+                target_currency,
+                fx_as_of,
+            ) else {
+                continue;
+            };
+            if amount == Decimal::ZERO {
+                continue;
+            }
+            let top_id = top_category_id(&allocation.category_id, spending_meta);
+            let entry = agg
+                .spending_by_top
+                .entry(top_id)
+                .or_insert((Decimal::ZERO, 0));
+            entry.0 += amount;
+            entry.1 += 1;
+        }
     }
     // outflow may go slightly negative due to refunds — keep it as-is so totals stay reconciled.
     agg
 }
 
+#[allow(clippy::too_many_arguments)]
 fn add_taxonomy_breakdown(
     bucket: &mut HashMap<String, (Decimal, u32)>,
-    assignments_by_activity: &HashMap<String, Vec<ActivityTaxonomyAssignment>>,
+    assignments_by_activity: &AssignmentsByActivity,
+    splits_by_activity: &SplitsByActivity,
     activity_id: &str,
     taxonomy_id: &str,
-    amount: Decimal,
+    native_amount: Decimal,
+    fx: &dyn FxServiceTrait,
+    from_currency: &str,
+    target_currency: &str,
+    fx_as_of: NaiveDate,
 ) {
-    let mut assignments = assignments_by_activity
-        .get(activity_id)
-        .into_iter()
-        .flatten()
-        .filter(|asg| asg.taxonomy_id == taxonomy_id)
-        .collect::<Vec<_>>();
-    assignments.sort_by(|a, b| {
-        a.created_at
-            .cmp(&b.created_at)
-            .then_with(|| a.id.cmp(&b.id))
-    });
-    let category_id = assignments
-        .first()
-        .map(|asg| asg.category_id.as_str())
-        .unwrap_or(UNCATEGORIZED_CATEGORY_ID);
-    debug_assert!(
-        assignments.len() <= 1,
-        "single-select invariant violated for activity {} in {}: {} assignments",
+    let allocations = allocations_for_taxonomy(
         activity_id,
         taxonomy_id,
-        assignments.len(),
+        native_amount,
+        assignments_by_activity,
+        splits_by_activity,
     );
-    let entry = bucket
-        .entry(category_id.to_string())
-        .or_insert((Decimal::ZERO, 0));
-    entry.0 += amount;
-    entry.1 += 1;
+    if allocations.is_empty() {
+        let amount = fx_to_target(fx, native_amount, from_currency, target_currency, fx_as_of)
+            .unwrap_or(Decimal::ZERO);
+        if amount == Decimal::ZERO {
+            return;
+        }
+        let entry = bucket
+            .entry(UNCATEGORIZED_CATEGORY_ID.to_string())
+            .or_insert((Decimal::ZERO, 0));
+        entry.0 += amount;
+        entry.1 += 1;
+        return;
+    }
+
+    for allocation in allocations {
+        let amount = fx_to_target(
+            fx,
+            allocation.amount,
+            from_currency,
+            target_currency,
+            fx_as_of,
+        )
+        .unwrap_or(Decimal::ZERO);
+        if amount == Decimal::ZERO {
+            continue;
+        }
+        let entry = bucket
+            .entry(allocation.category_id)
+            .or_insert((Decimal::ZERO, 0));
+        entry.0 += amount;
+        entry.1 += 1;
+    }
 }
 
 fn category_breakdown_rows(
@@ -791,10 +849,38 @@ fn compute_by_day(
     out
 }
 
+#[cfg(test)]
 fn compute_by_day_by_category(
     acts: &[&Activity],
     account_types: &HashMap<String, String>,
-    assignments_by_activity: &HashMap<String, Vec<ActivityTaxonomyAssignment>>,
+    assignments_by_activity: &HashMap<
+        String,
+        Vec<crate::activity_assignments::ActivityTaxonomyAssignment>,
+    >,
+    timezone: &str,
+    fx: &dyn FxServiceTrait,
+    target_currency: &str,
+    fx_as_of: NaiveDate,
+) -> Vec<DayCategoryBucket> {
+    let splits_by_activity = SplitsByActivity::new();
+    compute_by_day_by_category_with_splits(
+        acts,
+        account_types,
+        assignments_by_activity,
+        &splits_by_activity,
+        timezone,
+        fx,
+        target_currency,
+        fx_as_of,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn compute_by_day_by_category_with_splits(
+    acts: &[&Activity],
+    account_types: &HashMap<String, String>,
+    assignments_by_activity: &AssignmentsByActivity,
+    splits_by_activity: &SplitsByActivity,
     timezone: &str,
     fx: &dyn FxServiceTrait,
     target_currency: &str,
@@ -824,30 +910,49 @@ fn compute_by_day_by_category(
             timezone,
         );
         let date = format_date(date);
-        let assignments = assignments_by_activity
-            .get(&a.id)
-            .into_iter()
-            .flatten()
-            .filter(|asg| asg.taxonomy_id == SPENDING_TAXONOMY)
-            .collect::<Vec<_>>();
-        let category_id = match assignments.as_slice() {
-            [] => UNCATEGORIZED_CATEGORY_ID,
-            [primary, ..] => {
-                debug_assert!(
-                    assignments.len() == 1,
-                    "single-select invariant violated for activity {} in spending_categories: {} assignments",
-                    a.id,
-                    assignments.len(),
-                );
-                primary.category_id.as_str()
-            }
-        };
+        let allocations = allocations_for_taxonomy(
+            &a.id,
+            SPENDING_TAXONOMY,
+            spending_native,
+            assignments_by_activity,
+            splits_by_activity,
+        );
+        if allocations.is_empty() {
+            let entry = map
+                .entry((
+                    date,
+                    SPENDING_TAXONOMY.to_string(),
+                    UNCATEGORIZED_CATEGORY_ID.to_string(),
+                ))
+                .or_insert((Decimal::ZERO, 0));
+            entry.0 += amount;
+            entry.1 += 1;
+            continue;
+        }
 
-        let entry = map
-            .entry((date, SPENDING_TAXONOMY.to_string(), category_id.to_string()))
-            .or_insert((Decimal::ZERO, 0));
-        entry.0 += amount;
-        entry.1 += 1;
+        for allocation in allocations {
+            let Some(line_amount) = fx_to_target(
+                fx,
+                allocation.amount,
+                &a.currency,
+                target_currency,
+                fx_as_of,
+            ) else {
+                continue;
+            };
+            if line_amount == Decimal::ZERO {
+                continue;
+            }
+            let entry = map
+                .entry((
+                    date.clone(),
+                    SPENDING_TAXONOMY.to_string(),
+                    allocation.category_id,
+                ))
+                .or_insert((Decimal::ZERO, 0));
+            entry.0 += line_amount;
+            entry.1 += 1;
+        }
     }
 
     let mut out: Vec<DayCategoryBucket> = map
@@ -1851,6 +1956,7 @@ mod tests {
                 unit_price: None,
                 amount: Some(amount),
                 fee: None,
+                tax: None,
                 currency: "USD".to_string(),
                 fx_rate: None,
                 notes: None,
@@ -1893,6 +1999,7 @@ mod tests {
             unit_price: None,
             amount: Some(Decimal::new(10000, 2)), // 100.00
             fee: None,
+            tax: None,
             currency: "USD".to_string(),
             fx_rate: None,
             notes: None,
@@ -2009,6 +2116,7 @@ mod tests {
             unit_price: None,
             amount: Some(Decimal::new(900000, 2)),
             fee: None,
+            tax: None,
             currency: "USD".to_string(),
             fx_rate: None,
             notes: None,
@@ -2122,6 +2230,7 @@ mod tests {
             unit_price: None,
             amount: Some(Decimal::new(10000, 2)),
             fee: None,
+            tax: None,
             currency: "EUR".to_string(),
             fx_rate: None,
             notes: None,

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   Command,
@@ -65,6 +66,12 @@ export function QuickCategorizePopover({
   onClear,
   align = "start",
 }: QuickCategorizePopoverProps) {
+  const { t } = useTranslation();
+  const groupLabels: Record<FlatOption["group"], string> = {
+    Expense: t("spending:cashFlow.spending"),
+    Savings: t("spending:cashFlow.saving"),
+    Income: t("spending:cashFlow.income"),
+  };
   const [open, setOpen] = useState(false);
   const spending = useTaxonomy(SPENDING_TAXONOMY);
   const income = useTaxonomy(INCOME_TAXONOMY);
@@ -109,14 +116,14 @@ export function QuickCategorizePopover({
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent className="w-70 p-0" align={align}>
         <Command>
-          <CommandInput placeholder="Search categories..." />
+          <CommandInput placeholder={t("spending:category.searchCategories")} />
           <CommandList>
-            <CommandEmpty>No categories found.</CommandEmpty>
+            <CommandEmpty>{t("spending:category.noCategoriesFound")}</CommandEmpty>
             {(["Expense", "Savings", "Income"] as const).map((groupKey) => {
               const items = grouped[groupKey];
               if (items.length === 0) return null;
               return (
-                <CommandGroup key={groupKey} heading={groupKey}>
+                <CommandGroup key={groupKey} heading={groupLabels[groupKey]}>
                   {items.map((opt) => {
                     const label = opt.parent
                       ? `${opt.parent.name} / ${opt.category.name}`
@@ -153,7 +160,7 @@ export function QuickCategorizePopover({
                     onSelect={handleClear}
                     className="text-destructive hover:bg-destructive/10 justify-center text-center text-sm"
                   >
-                    Clear category
+                    {t("spending:category.clearCategory")}
                   </CommandItem>
                 </CommandGroup>
               </>

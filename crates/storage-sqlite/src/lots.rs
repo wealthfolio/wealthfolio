@@ -18,6 +18,7 @@ use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
 use wealthfolio_core::assets::Asset;
 use wealthfolio_core::errors::Result;
+use wealthfolio_core::fx::currency::{normalize_amount, normalize_currency_code, resolve_currency};
 use wealthfolio_core::lots::{
     AssetLotSource, AssetLotView, LotClosure, LotDisposal, LotRecord, LotRepositoryTrait,
 };
@@ -42,6 +43,8 @@ struct LotRecordDB {
     remaining_cost_basis_base: String,
     fee_allocated: String,
     fee_allocated_base: String,
+    tax_allocated: String,
+    tax_allocated_base: String,
     currency: String,
     base_currency: String,
     fx_rate_to_base: String,
@@ -88,6 +91,8 @@ struct LatestHoldingsSnapshotRow {
     #[diesel(sql_type = Text)]
     account_name: String,
     #[diesel(sql_type = Text)]
+    currency: String,
+    #[diesel(sql_type = Text)]
     snapshot_date: String,
     #[diesel(sql_type = Text)]
     positions: String,
@@ -110,6 +115,8 @@ impl From<LotRecordDB> for LotRecord {
             remaining_cost_basis_base: r.remaining_cost_basis_base,
             fee_allocated: r.fee_allocated,
             fee_allocated_base: r.fee_allocated_base,
+            tax_allocated: r.tax_allocated,
+            tax_allocated_base: r.tax_allocated_base,
             currency: r.currency,
             base_currency: r.base_currency,
             fx_rate_to_base: r.fx_rate_to_base,
@@ -140,6 +147,8 @@ impl From<&LotRecord> for LotRecordDB {
             remaining_cost_basis_base: r.remaining_cost_basis_base.clone(),
             fee_allocated: r.fee_allocated.clone(),
             fee_allocated_base: r.fee_allocated_base.clone(),
+            tax_allocated: r.tax_allocated.clone(),
+            tax_allocated_base: r.tax_allocated_base.clone(),
             currency: r.currency.clone(),
             base_currency: r.base_currency.clone(),
             fx_rate_to_base: r.fx_rate_to_base.clone(),
@@ -474,6 +483,9 @@ impl LotRepositoryTrait for LotsRepository {
                             dsl::fee_allocated.eq(diesel::upsert::excluded(dsl::fee_allocated)),
                             dsl::fee_allocated_base
                                 .eq(diesel::upsert::excluded(dsl::fee_allocated_base)),
+                            dsl::tax_allocated.eq(diesel::upsert::excluded(dsl::tax_allocated)),
+                            dsl::tax_allocated_base
+                                .eq(diesel::upsert::excluded(dsl::tax_allocated_base)),
                             dsl::currency.eq(diesel::upsert::excluded(dsl::currency)),
                             dsl::base_currency.eq(diesel::upsert::excluded(dsl::base_currency)),
                             dsl::fx_rate_to_base.eq(diesel::upsert::excluded(dsl::fx_rate_to_base)),
@@ -516,6 +528,8 @@ impl LotRepositoryTrait for LotsRepository {
                         remaining_cost_basis_base: "0".to_string(),
                         fee_allocated: closure.fee_allocated.clone(),
                         fee_allocated_base: closure.fee_allocated_base.clone(),
+                        tax_allocated: closure.tax_allocated.clone(),
+                        tax_allocated_base: closure.tax_allocated_base.clone(),
                         currency: closure.currency.clone(),
                         base_currency: closure.base_currency.clone(),
                         fx_rate_to_base: closure.fx_rate_to_base.clone(),
@@ -562,6 +576,9 @@ impl LotRepositoryTrait for LotsRepository {
                             dsl::fee_allocated.eq(diesel::upsert::excluded(dsl::fee_allocated)),
                             dsl::fee_allocated_base
                                 .eq(diesel::upsert::excluded(dsl::fee_allocated_base)),
+                            dsl::tax_allocated.eq(diesel::upsert::excluded(dsl::tax_allocated)),
+                            dsl::tax_allocated_base
+                                .eq(diesel::upsert::excluded(dsl::tax_allocated_base)),
                             dsl::currency.eq(diesel::upsert::excluded(dsl::currency)),
                             dsl::base_currency.eq(diesel::upsert::excluded(dsl::base_currency)),
                             dsl::fx_rate_to_base.eq(diesel::upsert::excluded(dsl::fx_rate_to_base)),
@@ -719,6 +736,19 @@ impl LotRepositoryTrait for LotsRepository {
         start_date_exclusive: NaiveDate,
         end_date_inclusive: NaiveDate,
     ) -> Result<Vec<LotDisposal>> {
+        self.get_lot_disposals_for_accounts_in_date_range_sync(
+            account_ids,
+            start_date_exclusive,
+            end_date_inclusive,
+        )
+    }
+
+    fn get_lot_disposals_for_accounts_in_date_range_sync(
+        &self,
+        account_ids: &[String],
+        start_date_exclusive: NaiveDate,
+        end_date_inclusive: NaiveDate,
+    ) -> Result<Vec<LotDisposal>> {
         use crate::schema::lot_disposals::dsl;
 
         if account_ids.is_empty() {
@@ -812,6 +842,19 @@ fn parse_nonzero_ratio(value: &str) -> Decimal {
     }
 }
 
+fn non_empty_currency(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn normalize_lot_money(amount: Decimal, currency: &str) -> Decimal {
+    normalize_amount(amount, currency).0
+}
+
 #[derive(Default)]
 struct LotDisposalTotals {
     proceeds: Decimal,
@@ -854,6 +897,15 @@ fn transaction_lot_view_row(
     let split_ratio = parse_nonzero_ratio(&row.split_ratio);
     let remaining_quantity = parse_decimal(&row.remaining_quantity);
     let original_quantity = parse_decimal(&row.original_quantity);
+    let currency = resolve_currency(&[row.currency.as_str(), row.base_currency.as_str()]);
+    let base_currency = non_empty_currency(&row.base_currency);
+    let valuation_currency = normalize_currency_code(&currency).to_string();
+    let cost_basis = parse_decimal(&row.remaining_cost_basis);
+    let cost_basis_base = parse_decimal(&row.remaining_cost_basis_base);
+    let unit_cost = parse_decimal(&row.cost_per_unit);
+    let fees = parse_decimal(&row.fee_allocated);
+    let taxes = parse_decimal(&row.tax_allocated);
+    let taxes_base = parse_decimal(&row.tax_allocated_base);
     let disposal_proceeds = disposal_totals.map(|totals| totals.proceeds);
     let disposal_cost_basis = disposal_totals.map(|totals| totals.cost_basis);
     let disposal_cost_basis_base = disposal_totals.map(|totals| totals.cost_basis_base);
@@ -866,13 +918,20 @@ fn transaction_lot_view_row(
         account_name,
         asset_id: row.asset_id,
         source: AssetLotSource::TransactionLot,
+        currency: currency.clone(),
+        base_currency,
+        valuation_currency,
         quantity: remaining_quantity * split_ratio,
         original_quantity,
         remaining_quantity,
-        cost_basis: parse_decimal(&row.remaining_cost_basis),
-        cost_basis_base: Some(parse_decimal(&row.remaining_cost_basis_base)),
-        unit_cost: parse_decimal(&row.cost_per_unit),
-        fees: parse_decimal(&row.fee_allocated),
+        cost_basis,
+        cost_basis_base: Some(cost_basis_base),
+        unit_cost,
+        fees,
+        taxes,
+        taxes_base: Some(taxes_base),
+        valuation_unit_cost: normalize_lot_money(unit_cost, &currency),
+        valuation_cost_basis: normalize_lot_money(cost_basis, &currency),
         fx_rate_to_base: Some(parse_decimal(&row.fx_rate_to_base)),
         split_ratio,
         contract_multiplier,
@@ -885,6 +944,9 @@ fn transaction_lot_view_row(
         disposal_cost_basis_base,
         realized_pnl,
         realized_pnl_base,
+        valuation_disposal_cost_basis: disposal_cost_basis
+            .map(|amount| normalize_lot_money(amount, &currency)),
+        valuation_realized_pnl: realized_pnl.map(|amount| normalize_lot_money(amount, &currency)),
     }
 }
 
@@ -893,9 +955,13 @@ fn snapshot_position_view_row(
     quantity: Decimal,
     average_cost: Decimal,
     total_cost_basis: Decimal,
+    currency: &str,
     contract_multiplier: Decimal,
     asset_id: &str,
 ) -> AssetLotView {
+    let currency = resolve_currency(&[currency, snapshot.currency.as_str()]);
+    let valuation_currency = normalize_currency_code(&currency).to_string();
+
     AssetLotView {
         id: format!(
             "SNAPSHOT-{}-{}-{}",
@@ -905,6 +971,9 @@ fn snapshot_position_view_row(
         account_name: snapshot.account_name.clone(),
         asset_id: asset_id.to_string(),
         source: AssetLotSource::SnapshotPosition,
+        currency: currency.clone(),
+        base_currency: None,
+        valuation_currency,
         quantity,
         original_quantity: quantity,
         remaining_quantity: quantity,
@@ -912,6 +981,10 @@ fn snapshot_position_view_row(
         cost_basis_base: None,
         unit_cost: average_cost,
         fees: Decimal::ZERO,
+        taxes: Decimal::ZERO,
+        taxes_base: None,
+        valuation_unit_cost: normalize_lot_money(average_cost, &currency),
+        valuation_cost_basis: normalize_lot_money(total_cost_basis, &currency),
         fx_rate_to_base: None,
         split_ratio: Decimal::ONE,
         contract_multiplier,
@@ -924,6 +997,8 @@ fn snapshot_position_view_row(
         disposal_cost_basis_base: None,
         realized_pnl: None,
         realized_pnl_base: None,
+        valuation_disposal_cost_basis: None,
+        valuation_realized_pnl: None,
     }
 }
 
@@ -937,6 +1012,7 @@ fn load_snapshot_lot_view_rows(
             hs.id AS snapshot_id,
             hs.account_id AS account_id,
             a.name AS account_name,
+            CAST(hs.currency AS TEXT) AS currency,
             CAST(hs.snapshot_date AS TEXT) AS snapshot_date,
             hs.positions AS positions
         FROM holdings_snapshots hs
@@ -982,9 +1058,9 @@ fn load_snapshot_lot_view_rows(
             .collect()
     };
 
-    let relational_positions: HashMap<String, (Decimal, Decimal, Decimal, Decimal)> = {
+    let relational_positions: HashMap<String, (Decimal, Decimal, Decimal, String, Decimal)> = {
         use crate::schema::snapshot_positions::dsl as sp;
-        let rows: Vec<(String, String, String, String, String)> = sp::snapshot_positions
+        let rows: Vec<(String, String, String, String, String, String)> = sp::snapshot_positions
             .filter(sp::snapshot_id.eq_any(&snapshot_ids))
             .filter(sp::asset_id.eq(asset_id_param))
             .select((
@@ -992,6 +1068,7 @@ fn load_snapshot_lot_view_rows(
                 sp::quantity,
                 sp::average_cost,
                 sp::total_cost_basis,
+                sp::currency,
                 sp::contract_multiplier,
             ))
             .load(conn)
@@ -999,13 +1076,21 @@ fn load_snapshot_lot_view_rows(
 
         rows.into_iter()
             .map(
-                |(snapshot_id, quantity, average_cost, total_cost_basis, contract_multiplier)| {
+                |(
+                    snapshot_id,
+                    quantity,
+                    average_cost,
+                    total_cost_basis,
+                    currency,
+                    contract_multiplier,
+                )| {
                     (
                         snapshot_id,
                         (
                             parse_decimal(&quantity),
                             parse_decimal(&average_cost),
                             parse_decimal(&total_cost_basis),
+                            currency,
                             parse_nonzero_ratio(&contract_multiplier),
                         ),
                     )
@@ -1016,14 +1101,15 @@ fn load_snapshot_lot_view_rows(
 
     let mut rows = Vec::new();
     for snapshot in &latest_snapshots {
-        if let Some((quantity, average_cost, total_cost_basis, contract_multiplier)) =
-            relational_positions.get(&snapshot.snapshot_id).copied()
+        if let Some((quantity, average_cost, total_cost_basis, currency, contract_multiplier)) =
+            relational_positions.get(&snapshot.snapshot_id).cloned()
         {
             rows.push(snapshot_position_view_row(
                 snapshot,
                 quantity,
                 average_cost,
                 total_cost_basis,
+                &currency,
                 contract_multiplier,
                 asset_id_param,
             ));
@@ -1041,6 +1127,7 @@ fn load_snapshot_lot_view_rows(
                 position.quantity,
                 position.average_cost,
                 position.total_cost_basis,
+                &position.currency,
                 position.contract_multiplier,
                 asset_id_param,
             ));
@@ -1216,6 +1303,10 @@ mod tests {
     use crate::db::{create_pool, run_migrations, write_actor::spawn_writer};
     use tempfile::tempdir;
 
+    fn dec(value: &str) -> Decimal {
+        value.parse::<Decimal>().unwrap()
+    }
+
     async fn setup() -> (
         LotsRepository,
         Arc<Pool<ConnectionManager<SqliteConnection>>>,
@@ -1294,6 +1385,8 @@ mod tests {
             remaining_cost_basis_base: "15000".to_string(),
             fee_allocated: "0".to_string(),
             fee_allocated_base: "0".to_string(),
+            tax_allocated: "0".to_string(),
+            tax_allocated_base: "0".to_string(),
             currency: "USD".to_string(),
             base_currency: "USD".to_string(),
             fx_rate_to_base: "1".to_string(),
@@ -1334,6 +1427,41 @@ mod tests {
             cost_basis_method: "FIFO".to_string(),
             created_at: "2026-02-01T00:00:00.000Z".to_string(),
         }
+    }
+
+    #[tokio::test]
+    async fn asset_lot_view_normalizes_quote_unit_display_fields_without_using_base() {
+        let (repo, pool, _dir) = setup().await;
+        insert_account(&pool, "acc1");
+        insert_asset(&pool, "CTY");
+
+        let mut lot = make_lot_record("cty-lot", "acc1", "CTY", "51");
+        lot.currency = "GBp".to_string();
+        lot.base_currency = "USD".to_string();
+        lot.fx_rate_to_base = "0.0125".to_string();
+        lot.cost_per_unit = "556.765".to_string();
+        lot.original_cost_basis = "28395.015".to_string();
+        lot.remaining_cost_basis = "28395.015".to_string();
+        lot.original_cost_basis_base = "354.9376875".to_string();
+        lot.remaining_cost_basis_base = "354.9376875".to_string();
+        lot.fee_allocated = "100".to_string();
+        lot.fee_allocated_base = "1.25".to_string();
+        lot.tax_allocated = "50".to_string();
+        lot.tax_allocated_base = "0.625".to_string();
+
+        repo.replace_lots_for_account("acc1", &[lot]).await.unwrap();
+
+        let rows = repo.get_asset_lot_view("CTY", false).await.unwrap();
+        assert_eq!(rows.len(), 1);
+        let row = &rows[0];
+        assert_eq!(row.currency, "GBp");
+        assert_eq!(row.base_currency.as_deref(), Some("USD"));
+        assert_eq!(row.valuation_currency, "GBP");
+        assert_eq!(row.unit_cost, dec("556.765"));
+        assert_eq!(row.cost_basis, dec("28395.015"));
+        assert_eq!(row.cost_basis_base, Some(dec("354.9376875")));
+        assert_eq!(row.valuation_unit_cost, dec("5.56765"));
+        assert_eq!(row.valuation_cost_basis, dec("283.95015"));
     }
 
     #[tokio::test]
@@ -1695,6 +1823,8 @@ mod tests {
             remaining_cost_basis_base: "0".to_string(),
             fee_allocated: "10".to_string(),
             fee_allocated_base: "10".to_string(),
+            tax_allocated: "0".to_string(),
+            tax_allocated_base: "0".to_string(),
             currency: "USD".to_string(),
             base_currency: "USD".to_string(),
             fx_rate_to_base: "1".to_string(),
@@ -1726,6 +1856,8 @@ mod tests {
             remaining_cost_basis_base: "0".to_string(),
             fee_allocated: "25".to_string(),
             fee_allocated_base: "25".to_string(),
+            tax_allocated: "0".to_string(),
+            tax_allocated_base: "0".to_string(),
             currency: "USD".to_string(),
             base_currency: "USD".to_string(),
             fx_rate_to_base: "1".to_string(),
@@ -1832,8 +1964,52 @@ mod tests {
         assert_eq!(snapshot_row.quantity, Decimal::from(12));
         assert_eq!(snapshot_row.unit_cost, Decimal::from(200));
         assert_eq!(snapshot_row.cost_basis, Decimal::from(2400));
+        assert_eq!(snapshot_row.currency, "USD");
+        assert_eq!(snapshot_row.valuation_currency, "USD");
+        assert_eq!(snapshot_row.valuation_unit_cost, Decimal::from(200));
+        assert_eq!(snapshot_row.valuation_cost_basis, Decimal::from(2400));
         assert_eq!(snapshot_row.contract_multiplier, Decimal::ONE);
         assert_eq!(snapshot_row.snapshot_date.as_deref(), Some("2026-05-20"));
+    }
+
+    #[tokio::test]
+    async fn asset_lot_view_normalizes_snapshot_position_quote_unit_currency() {
+        let (repo, pool, _dir) = setup().await;
+        insert_account_with_tracking_mode(&pool, "acc_holdings", "HOLDINGS");
+        insert_asset(&pool, "CTY");
+
+        let mut conn = get_connection(&pool).unwrap();
+        diesel::sql_query(
+            "INSERT INTO holdings_snapshots (id, account_id, snapshot_date, currency, positions, \
+             cash_balances, cost_basis, net_contribution, calculated_at, net_contribution_base, \
+             cash_total_account_currency, cash_total_base_currency, source) \
+             VALUES ('snap-gbp', 'acc_holdings', '2026-05-20', 'GBP', '{}', '{}', \
+             '283.95015', '0', '2026-05-20T00:00:00Z', '0', '0', '0', 'MANUAL_ENTRY')",
+        )
+        .execute(&mut conn)
+        .unwrap();
+        diesel::sql_query(
+            "INSERT INTO snapshot_positions (snapshot_id, asset_id, quantity, average_cost, \
+             total_cost_basis, currency, inception_date, is_alternative, contract_multiplier, \
+             created_at, last_updated) \
+             VALUES ('snap-gbp', 'CTY', '51', '556.765', '28395.015', 'GBp', \
+             '2026-05-20T00:00:00Z', 0, '1', '2026-05-20T00:00:00Z', \
+             '2026-05-20T00:00:00Z')",
+        )
+        .execute(&mut conn)
+        .unwrap();
+        drop(conn);
+
+        let rows = repo.get_asset_lot_view("CTY", true).await.unwrap();
+        assert_eq!(rows.len(), 1);
+        let row = &rows[0];
+        assert_eq!(row.source, AssetLotSource::SnapshotPosition);
+        assert_eq!(row.currency, "GBp");
+        assert_eq!(row.valuation_currency, "GBP");
+        assert_eq!(row.unit_cost, dec("556.765"));
+        assert_eq!(row.cost_basis, dec("28395.015"));
+        assert_eq!(row.valuation_unit_cost, dec("5.56765"));
+        assert_eq!(row.valuation_cost_basis, dec("283.95015"));
     }
 
     #[tokio::test]
@@ -1877,6 +2053,57 @@ mod tests {
         assert_eq!(closed_row.remaining_quantity, Decimal::ZERO);
         assert_eq!(closed_row.quantity, Decimal::ZERO);
         assert_eq!(closed_row.close_date.as_deref(), Some("2024-03-01"));
+    }
+
+    #[tokio::test]
+    async fn asset_lot_view_normalizes_closed_lot_disposal_display_fields() {
+        let (repo, pool, _dir) = setup().await;
+        insert_account(&pool, "acc1");
+        insert_asset(&pool, "AAPL");
+        insert_activity(&pool, "sell-1");
+
+        let mut closed_lot = make_lot_record("closed-lot", "acc1", "AAPL", "51");
+        closed_lot.currency = "GBp".to_string();
+        closed_lot.base_currency = "GBP".to_string();
+        closed_lot.fx_rate_to_base = "0.01".to_string();
+        closed_lot.cost_per_unit = "556.765".to_string();
+        closed_lot.original_cost_basis = "28395.015".to_string();
+        closed_lot.original_cost_basis_base = "283.95015".to_string();
+        closed_lot.remaining_quantity = "0".to_string();
+        closed_lot.remaining_cost_basis = "0".to_string();
+        closed_lot.remaining_cost_basis_base = "0".to_string();
+        closed_lot.is_closed = true;
+        closed_lot.close_date = Some("2024-03-01".to_string());
+
+        repo.replace_lots_for_account("acc1", &[closed_lot])
+            .await
+            .unwrap();
+
+        let mut disposal =
+            make_lot_disposal("disp-1", "acc1", "closed-lot", "sell-1", "2024-03-01");
+        disposal.asset_id = "AAPL".to_string();
+        disposal.proceeds = "31000".to_string();
+        disposal.cost_basis = "28395.015".to_string();
+        disposal.realized_pnl = "2604.985".to_string();
+        disposal.proceeds_base = "310".to_string();
+        disposal.cost_basis_base = "283.95015".to_string();
+        disposal.realized_pnl_base = "26.04985".to_string();
+        disposal.currency = "GBp".to_string();
+        disposal.base_currency = "GBP".to_string();
+        disposal.fx_rate_to_base = "0.01".to_string();
+        repo.sync_lot_disposals_for_account("acc1", &[], &[disposal], true)
+            .await
+            .unwrap();
+
+        let rows = repo.get_asset_lot_view("AAPL", false).await.unwrap();
+        let row = rows.iter().find(|row| row.id == "closed-lot").unwrap();
+        assert_eq!(row.currency, "GBp");
+        assert_eq!(row.valuation_currency, "GBP");
+        assert_eq!(row.disposal_proceeds, Some(dec("31000")));
+        assert_eq!(row.disposal_cost_basis, Some(dec("28395.015")));
+        assert_eq!(row.realized_pnl, Some(dec("2604.985")));
+        assert_eq!(row.valuation_disposal_cost_basis, Some(dec("283.95015")));
+        assert_eq!(row.valuation_realized_pnl, Some(dec("26.04985")));
     }
 
     #[tokio::test]

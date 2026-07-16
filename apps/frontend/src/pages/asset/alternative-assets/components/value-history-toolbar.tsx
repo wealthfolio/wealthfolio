@@ -1,4 +1,5 @@
 import { Button, Icons } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
 
 interface ValueHistoryToolbarProps {
   selectedRowCount: number;
@@ -23,20 +24,20 @@ export function ValueHistoryToolbar({
   onCancel,
   isLiability = false,
 }: ValueHistoryToolbarProps) {
-  const valueLabel = isLiability ? "Balance" : "Value";
+  const { t } = useTranslation();
 
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
         <Button variant="default" size="sm" onClick={onAddRow}>
           <Icons.Plus className="mr-2 h-4 w-4" />
-          Add {valueLabel}
+          {isLiability ? t("asset:valueToolbar.add_balance") : t("asset:valueToolbar.add_value")}
         </Button>
 
         {selectedRowCount > 0 && (
           <Button variant="outline" size="sm" onClick={onDeleteSelected}>
             <Icons.Trash className="mr-2 h-4 w-4" />
-            Delete ({selectedRowCount})
+            {t("asset:valueToolbar.delete_count", { count: selectedRowCount })}
           </Button>
         )}
       </div>
@@ -45,16 +46,16 @@ export function ValueHistoryToolbar({
         {hasUnsavedChanges && (
           <>
             <span className="text-muted-foreground text-sm">
-              {dirtyCount > 0 && `${dirtyCount} modified`}
+              {dirtyCount > 0 && t("asset:valueToolbar.modified", { count: dirtyCount })}
               {dirtyCount > 0 && deletedCount > 0 && ", "}
-              {deletedCount > 0 && `${deletedCount} to delete`}
+              {deletedCount > 0 && t("asset:valueToolbar.to_delete", { count: deletedCount })}
             </span>
             <Button variant="ghost" size="sm" onClick={onCancel}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button variant="default" size="sm" onClick={onSave}>
               <Icons.Save className="mr-2 h-4 w-4" />
-              Save Changes
+              {t("asset:valueToolbar.save_changes")}
             </Button>
           </>
         )}

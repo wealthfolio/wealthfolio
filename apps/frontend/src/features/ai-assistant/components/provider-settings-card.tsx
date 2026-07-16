@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { ExternalLink } from "@/components/external-link";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -65,14 +66,14 @@ interface ProviderSettingsCardProps {
 // Each card can represent multiple backend tools that belong to the same user capability.
 const DATA_ACCESS_OPTIONS = [
   {
-    toolIds: ["get_accounts", "get_cash_balances"],
-    label: "Accounts",
-    description: "Account details and cash balances",
+    toolIds: ["get_accounts", "get_cash_balances", "get_portfolios"],
+    labelKey: "ai:providerSettings.dataAccess.accountsLabel",
+    descriptionKey: "ai:providerSettings.dataAccess.accountsDescription",
   },
   {
-    toolIds: ["get_holdings"],
-    label: "Holdings",
-    description: "Current positions and their values",
+    toolIds: ["get_holdings", "get_net_worth"],
+    labelKey: "ai:providerSettings.dataAccess.holdingsLabel",
+    descriptionKey: "ai:providerSettings.dataAccess.holdingsDescription",
   },
   {
     toolIds: [
@@ -84,20 +85,28 @@ const DATA_ACCESS_OPTIONS = [
       "list_categorization_context",
       "create_categorization_rule",
     ],
-    label: "Transactions",
-    description: "View, draft, import, and categorize activities",
+    labelKey: "ai:providerSettings.dataAccess.transactionsLabel",
+    descriptionKey: "ai:providerSettings.dataAccess.transactionsDescription",
   },
   {
     toolIds: ["get_performance"],
-    label: "Performance",
-    description: "Returns and performance metrics",
+    labelKey: "ai:providerSettings.dataAccess.performanceLabel",
+    descriptionKey: "ai:providerSettings.dataAccess.performanceDescription",
   },
-  { toolIds: ["get_income"], label: "Income", description: "Income summary and breakdown" },
-  { toolIds: ["get_goals"], label: "Goals", description: "Investment goals and progress" },
+  {
+    toolIds: ["get_income"],
+    labelKey: "ai:providerSettings.dataAccess.incomeLabel",
+    descriptionKey: "ai:providerSettings.dataAccess.incomeDescription",
+  },
+  {
+    toolIds: ["get_goals", "get_contribution_limits"],
+    labelKey: "ai:providerSettings.dataAccess.goalsLabel",
+    descriptionKey: "ai:providerSettings.dataAccess.goalsDescription",
+  },
   {
     toolIds: ["get_asset_allocation"],
-    label: "Allocation",
-    description: "Portfolio allocation breakdown",
+    labelKey: "ai:providerSettings.dataAccess.allocationLabel",
+    descriptionKey: "ai:providerSettings.dataAccess.allocationDescription",
   },
   {
     toolIds: [
@@ -105,13 +114,13 @@ const DATA_ACCESS_OPTIONS = [
       "get_asset_taxonomy_assignments",
       "prepare_asset_classification",
     ],
-    label: "Classifications",
-    description: "Asset taxonomies and classification drafts",
+    labelKey: "ai:providerSettings.dataAccess.classificationsLabel",
+    descriptionKey: "ai:providerSettings.dataAccess.classificationsDescription",
   },
   {
     toolIds: ["get_valuation_history"],
-    label: "History",
-    description: "Portfolio value over time",
+    labelKey: "ai:providerSettings.dataAccess.historyLabel",
+    descriptionKey: "ai:providerSettings.dataAccess.historyDescription",
   },
 ];
 
@@ -143,6 +152,7 @@ export function ProviderSettingsCard({
   fetchModelsError: externalFetchModelsError,
   onRefreshModels,
 }: ProviderSettingsCardProps) {
+  const { t } = useTranslation();
   // Suppress unused variable warnings for deprecated/unused props
   void _onSelectModel;
   void _onSetDefault;
@@ -344,7 +354,7 @@ export function ProviderSettingsCard({
               <span className="font-medium">{provider.name}</span>
               {provider.isDefault && (
                 <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
-                  Default
+                  {t("ai:providerSettings.default")}
                 </Badge>
               )}
               {provider.enabled && !provider.hasApiKey && provider.type === "api" && (
@@ -353,7 +363,7 @@ export function ProviderSettingsCard({
                   className="border-warning/20 bg-warning/10 text-warning shrink-0 text-xs"
                 >
                   <Icons.AlertTriangle className="mr-1 h-3 w-3" />
-                  API Key Required
+                  {t("ai:providerSettings.apiKeyRequired")}
                 </Badge>
               )}
             </div>
@@ -390,14 +400,14 @@ export function ProviderSettingsCard({
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <Label htmlFor={`apikey-${provider.id}`} className="text-sm font-medium">
-                        API Key
+                        {t("ai:providerSettings.apiKey")}
                       </Label>
                       {provider.documentationUrl && (
                         <ExternalLink
                           href={provider.documentationUrl}
                           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs transition-colors"
                         >
-                          Get API key
+                          {t("ai:providerSettings.getApiKey")}
                           <Icons.ExternalLink className="h-3 w-3" />
                         </ExternalLink>
                       )}
@@ -415,7 +425,9 @@ export function ProviderSettingsCard({
                                 : ""
                           }
                           onChange={(e) => setApiKeyValue(e.target.value)}
-                          placeholder={provider.hasApiKey ? "" : "Enter API key"}
+                          placeholder={
+                            provider.hasApiKey ? "" : t("ai:providerSettings.enterApiKey")
+                          }
                           className="bg-background pr-9 font-mono text-sm"
                           readOnly={!hasLoadedKey && provider.hasApiKey}
                         />
@@ -426,7 +438,11 @@ export function ProviderSettingsCard({
                           className="absolute right-0 top-0 h-full w-9 hover:bg-transparent"
                           onClick={handleRevealApiKey}
                           disabled={isLoadingKey}
-                          aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                          aria-label={
+                            showApiKey
+                              ? t("ai:providerSettings.hideApiKey")
+                              : t("ai:providerSettings.showApiKey")
+                          }
                         >
                           {isLoadingKey ? (
                             <Icons.Spinner className="h-4 w-4 animate-spin" />
@@ -443,7 +459,7 @@ export function ProviderSettingsCard({
                         className="shrink-0"
                         disabled={!hasLoadedKey && provider.hasApiKey}
                       >
-                        Save
+                        {t("ai:providerSettings.save")}
                       </Button>
                     </div>
                   </div>
@@ -456,7 +472,9 @@ export function ProviderSettingsCard({
                   <div className="space-y-3">
                     {/* Header with Add button */}
                     <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">Models</Label>
+                      <Label className="text-sm font-medium">
+                        {t("ai:providerSettings.models")}
+                      </Label>
                       <div className="flex items-center gap-2">
                         {provider.supportsModelListing && onRefreshModels && (
                           <Button
@@ -479,25 +497,28 @@ export function ProviderSettingsCard({
                           <PopoverTrigger asChild>
                             <Button variant="outline" size="sm" className="h-7 gap-1 text-xs">
                               <Icons.Plus className="h-3 w-3" />
-                              Add
+                              {t("ai:providerSettings.add")}
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-80 p-0" align="end">
                             <Command>
-                              <CommandInput placeholder="Search models..." className="h-9" />
+                              <CommandInput
+                                placeholder={t("ai:providerSettings.searchModels")}
+                                className="h-9"
+                              />
                               <CommandList>
                                 <CommandEmpty>
                                   {isFetchingModels ? (
                                     <div className="flex items-center justify-center gap-2 py-2">
                                       <Icons.Spinner className="h-4 w-4 animate-spin" />
-                                      <span>Loading...</span>
+                                      <span>{t("ai:providerSettings.loading")}</span>
                                     </div>
                                   ) : (
-                                    "No models found."
+                                    t("ai:providerSettings.noModelsFound")
                                   )}
                                 </CommandEmpty>
                                 {/* Recommended models */}
-                                <CommandGroup heading="Recommended">
+                                <CommandGroup heading={t("ai:providerSettings.recommended")}>
                                   {allModels
                                     .filter((m) => "isCatalog" in m && m.isCatalog)
                                     .map((model) => {
@@ -540,7 +561,7 @@ export function ProviderSettingsCard({
                                 {/* Other available models */}
                                 {allModels.filter((m) => !("isCatalog" in m && m.isCatalog))
                                   .length > 0 && (
-                                  <CommandGroup heading="Other Available">
+                                  <CommandGroup heading={t("ai:providerSettings.otherAvailable")}>
                                     {allModels
                                       .filter((m) => !("isCatalog" in m && m.isCatalog))
                                       .map((model) => {
@@ -576,7 +597,7 @@ export function ProviderSettingsCard({
                     <div className="bg-background rounded-md border">
                       {enabledModels.length === 0 ? (
                         <div className="text-muted-foreground flex items-center justify-center py-6 text-sm">
-                          No models selected. Click &quot;Add&quot; to add models.
+                          {t("ai:providerSettings.noModelsSelected")}
                         </div>
                       ) : (
                         <div className="divide-y">
@@ -610,17 +631,17 @@ export function ProviderSettingsCard({
                                   {/* Capability badges */}
                                   {capabilities?.tools && (
                                     <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                                      Tools
+                                      {t("ai:providerSettings.tools")}
                                     </Badge>
                                   )}
                                   {capabilities?.vision && (
                                     <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                                      Vision
+                                      {t("ai:providerSettings.vision")}
                                     </Badge>
                                   )}
                                   {capabilities?.thinking && (
                                     <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                                      Thinking
+                                      {t("ai:providerSettings.thinking")}
                                     </Badge>
                                   )}
                                   {needsConfig && (
@@ -629,7 +650,7 @@ export function ProviderSettingsCard({
                                       className="border-warning/50 text-warning h-5 px-1.5 text-[10px]"
                                     >
                                       <Icons.AlertTriangle className="mr-1 h-3 w-3" />
-                                      Config
+                                      {t("ai:providerSettings.config")}
                                     </Badge>
                                   )}
                                   {/* Remove button */}
@@ -671,7 +692,7 @@ export function ProviderSettingsCard({
                               <p className="text-sm font-medium">{model.name ?? model.id}</p>
                               {isRecommended && (
                                 <Badge variant="secondary" className="text-xs">
-                                  Recommended
+                                  {t("ai:providerSettings.recommended")}
                                 </Badge>
                               )}
                             </div>
@@ -684,7 +705,7 @@ export function ProviderSettingsCard({
                                   }
                                   disabled={isRecommended}
                                 />
-                                Tools
+                                {t("ai:providerSettings.tools")}
                               </label>
                               <label className="flex items-center gap-2 text-sm">
                                 <Checkbox
@@ -694,7 +715,7 @@ export function ProviderSettingsCard({
                                   }
                                   disabled={isRecommended}
                                 />
-                                Vision
+                                {t("ai:providerSettings.vision")}
                               </label>
                               <label className="flex items-center gap-2 text-sm">
                                 <Checkbox
@@ -704,12 +725,12 @@ export function ProviderSettingsCard({
                                   }
                                   disabled={isRecommended}
                                 />
-                                Thinking
+                                {t("ai:providerSettings.thinking")}
                               </label>
                             </div>
                             {isRecommended && (
                               <p className="text-muted-foreground mt-2 text-xs">
-                                Capabilities are preset for recommended models.
+                                {t("ai:providerSettings.capabilitiesPreset")}
                               </p>
                             )}
                           </div>
@@ -726,18 +747,21 @@ export function ProviderSettingsCard({
               {onToolsAllowlistChange && (
                 <div className="bg-muted/40 space-y-3 rounded-lg p-4">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Data Access</Label>
+                    <Label className="text-sm font-medium">
+                      {t("ai:providerSettings.dataAccessTitle")}
+                    </Label>
                     <span className="text-muted-foreground text-xs">
-                      What data the AI can access
+                      {t("ai:providerSettings.dataAccessSubtitle")}
                     </span>
                   </div>
                   <div className="border-border/70 bg-background/60 flex gap-2 rounded-md border px-3 py-2.5">
                     <Icons.Info className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
                     <div className="space-y-0.5">
-                      <p className="text-sm font-medium">AI data sharing</p>
+                      <p className="text-sm font-medium">
+                        {t("ai:providerSettings.aiDataSharing")}
+                      </p>
                       <p className="text-muted-foreground text-xs leading-relaxed">
-                        Enabled AI tools may share relevant portfolio data and attachments with your
-                        selected AI provider when used in chat.
+                        {t("ai:providerSettings.aiDataSharingDescription")}
                       </p>
                     </div>
                   </div>
@@ -746,7 +770,7 @@ export function ProviderSettingsCard({
                       const isEnabled = isToolGroupEnabled(option.toolIds);
                       return (
                         <button
-                          key={option.label}
+                          key={option.labelKey}
                           type="button"
                           onClick={() => handleToolToggle(option.toolIds, !isEnabled)}
                           className={cn(
@@ -767,9 +791,9 @@ export function ProviderSettingsCard({
                             {isEnabled && <Icons.Check className="h-3 w-3" />}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <span className="text-sm font-medium">{option.label}</span>
+                            <span className="text-sm font-medium">{t(option.labelKey)}</span>
                             <p className="text-muted-foreground mt-0.5 text-xs leading-tight">
-                              {option.description}
+                              {t(option.descriptionKey)}
                             </p>
                           </div>
                         </button>
@@ -823,8 +847,8 @@ type TuningFieldSource = "primary" | "extra";
 type TuningFieldGroup = "sampling" | "limits" | "repetition" | "other";
 
 interface PrimaryFieldMeta {
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
   group: TuningFieldGroup;
   bounds: { min: number; max: number; step: number };
   format: (v: number) => string;
@@ -837,23 +861,22 @@ interface PrimaryFieldMeta {
 const PRIMARY_FIELDS: Record<"temperature" | "maxTokens" | "maxTokensThinking", PrimaryFieldMeta> =
   {
     temperature: {
-      label: "Temperature",
-      description: "Controls randomness. Lower = more deterministic output.",
+      labelKey: "ai:providerSettings.field.temperature",
+      descriptionKey: "ai:providerSettings.field.temperatureDescription",
       group: "sampling",
       bounds: { min: 0, max: 2, step: 0.05 },
       format: (v) => v.toFixed(2),
     },
     maxTokens: {
-      label: "Max output tokens",
-      description: "Safety cap on response length.",
+      labelKey: "ai:providerSettings.field.maxTokens",
+      descriptionKey: "ai:providerSettings.field.maxTokensDescription",
       group: "limits",
       bounds: { min: 256, max: 131_072, step: 256 },
       format: (v) => v.toLocaleString(),
     },
     maxTokensThinking: {
-      label: "Max tokens (thinking)",
-      description:
-        "Used when the model reasons internally — reasoning tokens count against this cap, so it should be larger than Max output tokens.",
+      labelKey: "ai:providerSettings.field.maxTokensThinking",
+      descriptionKey: "ai:providerSettings.field.maxTokensThinkingDescription",
       group: "limits",
       bounds: { min: 256, max: 131_072, step: 256 },
       format: (v) => v.toLocaleString(),
@@ -861,72 +884,51 @@ const PRIMARY_FIELDS: Record<"temperature" | "maxTokens" | "maxTokensThinking", 
   };
 
 /**
- * Grouping + descriptions for known provider-specific scalar keys under
+ * Grouping + description keys for known provider-specific scalar keys under
  * `extraOptions`. Unknown keys fall into "other".
  */
-const EXTRA_FIELD_META: Record<string, { group: TuningFieldGroup; description: string }> = {
-  num_ctx: {
-    group: "limits",
-    description: "Context window size in tokens. Input + output must fit inside.",
-  },
-  num_predict: {
-    group: "limits",
-    description: "Max tokens to generate (Ollama's equivalent of max_tokens).",
-  },
-  top_k: {
-    group: "sampling",
-    description: "Only sample from the top-K most likely tokens. 0 = disabled.",
-  },
-  top_p: {
-    group: "sampling",
-    description: "Nucleus sampling — consider tokens up to this cumulative probability.",
-  },
-  min_p: {
-    group: "sampling",
-    description: "Minimum probability threshold for candidate tokens.",
-  },
-  mirostat: {
-    group: "sampling",
-    description: "Mirostat sampling mode. 0 = off, 1 or 2 = enabled.",
-  },
-  mirostat_eta: { group: "sampling", description: "Mirostat learning rate." },
-  mirostat_tau: { group: "sampling", description: "Mirostat target entropy." },
+const EXTRA_FIELD_META: Record<string, { group: TuningFieldGroup; descriptionKey: string }> = {
+  num_ctx: { group: "limits", descriptionKey: "ai:providerSettings.extra.num_ctx" },
+  num_predict: { group: "limits", descriptionKey: "ai:providerSettings.extra.num_predict" },
+  top_k: { group: "sampling", descriptionKey: "ai:providerSettings.extra.top_k" },
+  top_p: { group: "sampling", descriptionKey: "ai:providerSettings.extra.top_p" },
+  min_p: { group: "sampling", descriptionKey: "ai:providerSettings.extra.min_p" },
+  mirostat: { group: "sampling", descriptionKey: "ai:providerSettings.extra.mirostat" },
+  mirostat_eta: { group: "sampling", descriptionKey: "ai:providerSettings.extra.mirostat_eta" },
+  mirostat_tau: { group: "sampling", descriptionKey: "ai:providerSettings.extra.mirostat_tau" },
   repeat_penalty: {
     group: "repetition",
-    description: "Penalize repeated tokens. 1 = none, >1 = discourage repetition.",
+    descriptionKey: "ai:providerSettings.extra.repeat_penalty",
   },
-  repeat_last_n: {
-    group: "repetition",
-    description: "How many recent tokens the repeat penalty considers.",
-  },
+  repeat_last_n: { group: "repetition", descriptionKey: "ai:providerSettings.extra.repeat_last_n" },
   frequency_penalty: {
     group: "repetition",
-    description: "Penalize tokens by how often they've appeared. Range -2 to 2.",
+    descriptionKey: "ai:providerSettings.extra.frequency_penalty",
   },
   presence_penalty: {
     group: "sampling",
-    description: "Encourage new topics by penalizing any repetition. Range -2 to 2.",
+    descriptionKey: "ai:providerSettings.extra.presence_penalty",
   },
-  seed: {
-    group: "other",
-    description: "Seed for reproducible output. Leave empty for random.",
-  },
+  seed: { group: "other", descriptionKey: "ai:providerSettings.extra.seed" },
 };
 
-const GROUP_META: Record<TuningFieldGroup, { title: string; blurb: string }> = {
+const GROUP_META: Record<TuningFieldGroup, { titleKey: string; blurbKey: string }> = {
   sampling: {
-    title: "Sampling",
-    blurb: "How randomly the model picks the next token.",
+    titleKey: "ai:providerSettings.group.samplingTitle",
+    blurbKey: "ai:providerSettings.group.samplingBlurb",
   },
   limits: {
-    title: "Output limits",
-    blurb: "Caps on response length and context size.",
+    titleKey: "ai:providerSettings.group.limitsTitle",
+    blurbKey: "ai:providerSettings.group.limitsBlurb",
   },
   repetition: {
-    title: "Repetition",
-    blurb: "Discourage the model from repeating itself.",
+    titleKey: "ai:providerSettings.group.repetitionTitle",
+    blurbKey: "ai:providerSettings.group.repetitionBlurb",
   },
-  other: { title: "Other", blurb: "Miscellaneous provider-specific options." },
+  other: {
+    titleKey: "ai:providerSettings.group.otherTitle",
+    blurbKey: "ai:providerSettings.group.otherBlurb",
+  },
 };
 
 const GROUP_ORDER: TuningFieldGroup[] = ["sampling", "limits", "repetition", "other"];
@@ -986,6 +988,7 @@ function AdvancedTuningSection({
   onCustomUrlSave,
   supportsCustomUrl,
 }: AdvancedTuningSectionProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   const catalog: ProviderTuning = provider.catalogTuning ?? {};
@@ -1020,9 +1023,9 @@ function AdvancedTuningSection({
       list.push({
         id: key,
         source: "primary",
-        label: meta.label,
+        label: t(meta.labelKey),
         monoLabel: false,
-        description: meta.description,
+        description: t(meta.descriptionKey),
         group: meta.group,
         type: "number",
         catalogValue,
@@ -1036,7 +1039,7 @@ function AdvancedTuningSection({
     // Extra options — iterate the catalog, keep primitives, drop complex shapes.
     const catalogExtras = catalog.extraOptions ?? {};
     if (catalogExtras && typeof catalogExtras === "object" && !Array.isArray(catalogExtras)) {
-      for (const [key, value] of Object.entries(catalogExtras as Record<string, unknown>)) {
+      for (const [key, value] of Object.entries(catalogExtras)) {
         if (!isPrimitive(value)) continue;
         const meta = EXTRA_FIELD_META[key];
         list.push({
@@ -1044,7 +1047,7 @@ function AdvancedTuningSection({
           source: "extra",
           label: key,
           monoLabel: true,
-          description: meta?.description ?? "",
+          description: meta?.descriptionKey ? t(meta.descriptionKey) : "",
           group: meta?.group ?? "other",
           type: typeof value as "number" | "boolean" | "string",
           catalogValue: value,
@@ -1060,7 +1063,7 @@ function AdvancedTuningSection({
     }
 
     return list;
-  }, [catalog, overrides, resolved, extraOverrides, supportsThinking]);
+  }, [catalog, overrides, resolved, extraOverrides, supportsThinking, t]);
 
   // Bucket by group and preserve insertion order inside each.
   const grouped = useMemo(() => {
@@ -1078,7 +1081,7 @@ function AdvancedTuningSection({
   const complexEntries = useMemo(() => {
     const extras = catalog.extraOptions;
     if (!extras || typeof extras !== "object" || Array.isArray(extras)) return [];
-    return Object.entries(extras as Record<string, unknown>).filter(([, v]) => !isPrimitive(v));
+    return Object.entries(extras).filter(([, v]) => !isPrimitive(v));
   }, [catalog.extraOptions]);
 
   // Orphaned: user override exists for a key no longer in the catalog.
@@ -1086,7 +1089,7 @@ function AdvancedTuningSection({
     const catalogKeys = new Set<string>();
     const extras = catalog.extraOptions;
     if (extras && typeof extras === "object" && !Array.isArray(extras)) {
-      for (const k of Object.keys(extras as Record<string, unknown>)) catalogKeys.add(k);
+      for (const k of Object.keys(extras)) catalogKeys.add(k);
     }
     return Object.entries(extraOverrides).filter(([k]) => !catalogKeys.has(k));
   }, [catalog.extraOptions, extraOverrides]);
@@ -1178,10 +1181,10 @@ function AdvancedTuningSection({
                   open && "rotate-90",
                 )}
               />
-              Advanced Options
+              {t("ai:providerSettings.advancedOptions")}
               {hasOverrides && (
                 <Badge variant="secondary" className="ml-1 text-[10px] uppercase">
-                  Customized
+                  {t("ai:providerSettings.customized")}
                 </Badge>
               )}
             </button>
@@ -1194,7 +1197,7 @@ function AdvancedTuningSection({
               className="text-muted-foreground hover:text-foreground h-7 px-2 text-xs"
               onClick={resetAll}
             >
-              Reset to defaults
+              {t("ai:providerSettings.resetToDefaults")}
             </Button>
           )}
         </div>
@@ -1216,8 +1219,8 @@ function AdvancedTuningSection({
               return (
                 <TuningGroupCard
                   key={groupKey}
-                  title={GROUP_META[groupKey].title}
-                  blurb={GROUP_META[groupKey].blurb}
+                  title={t(GROUP_META[groupKey].titleKey)}
+                  blurb={t(GROUP_META[groupKey].blurbKey)}
                   fields={groupFields}
                   providerId={provider.id}
                   onCommit={commitField}
@@ -1230,11 +1233,11 @@ function AdvancedTuningSection({
                 <div className="flex items-center gap-1.5">
                   <Icons.Settings className="text-muted-foreground h-3 w-3" />
                   <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
-                    Structured options
+                    {t("ai:providerSettings.structuredOptions")}
                   </span>
                 </div>
                 <p className="text-muted-foreground text-[11px] leading-tight">
-                  Arrays and objects ship with the app and can't be edited here.
+                  {t("ai:providerSettings.structuredOptionsDescription")}
                 </p>
                 <dl className="font-mono text-[11px]">
                   {complexEntries.map(([key, value]) => (
@@ -1250,7 +1253,7 @@ function AdvancedTuningSection({
             {orphanedEntries.length > 0 && (
               <div className="border-warning/30 bg-warning/5 space-y-2 rounded-md border p-3">
                 <p className="text-warning text-[11px] font-medium">
-                  Orphaned overrides — the following keys are no longer in the catalog:
+                  {t("ai:providerSettings.orphanedOverrides")}
                 </p>
                 <ul className="space-y-1">
                   {orphanedEntries.map(([key, value]) => (
@@ -1268,7 +1271,7 @@ function AdvancedTuningSection({
                         className="text-muted-foreground h-6 px-2 text-[11px]"
                         onClick={() => clearOrphaned(key)}
                       >
-                        Remove
+                        {t("ai:providerSettings.remove")}
                       </Button>
                     </li>
                   ))}
@@ -1328,6 +1331,7 @@ interface TuningFieldRowProps {
 }
 
 function TuningFieldRow({ field, providerId, onCommit }: TuningFieldRowProps) {
+  const { t } = useTranslation();
   const {
     id,
     label,
@@ -1344,7 +1348,8 @@ function TuningFieldRow({ field, providerId, onCommit }: TuningFieldRowProps) {
   const inputId = `tuning-${providerId}-${id}`;
   const hasOverride = overrideValue !== undefined && overrideValue !== null;
 
-  const catalogDisplay = catalogValue !== undefined ? formatValue(catalogValue) : "model default";
+  const catalogDisplay =
+    catalogValue !== undefined ? formatValue(catalogValue) : t("ai:providerSettings.modelDefault");
   const effectiveDisplay = effectiveValue !== undefined ? formatValue(effectiveValue) : "—";
 
   // Local draft so blur-to-commit works without re-rendering on every keypress.
@@ -1378,7 +1383,9 @@ function TuningFieldRow({ field, providerId, onCommit }: TuningFieldRowProps) {
             }}
           />
           <span className="text-muted-foreground text-[10px] tabular-nums">
-            {hasOverride ? "Overridden" : `Default: ${catalogDisplay}`}
+            {hasOverride
+              ? t("ai:providerSettings.overridden")
+              : t("ai:providerSettings.defaultValue", { value: catalogDisplay })}
           </span>
         </div>
       </div>
@@ -1447,7 +1454,7 @@ function TuningFieldRow({ field, providerId, onCommit }: TuningFieldRowProps) {
           className="bg-background !h-8 w-28 !px-2 !py-1 font-mono !text-sm tabular-nums [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
         <span className="text-muted-foreground text-[10px] tabular-nums">
-          Effective: {effectiveDisplay}
+          {t("ai:providerSettings.effective", { value: effectiveDisplay })}
         </span>
       </div>
     </div>
@@ -1478,25 +1485,26 @@ function EndpointGroupCard({
   onValueChange,
   onSave,
 }: EndpointGroupCardProps) {
+  const { t } = useTranslation();
   return (
     <div className="bg-muted/40 space-y-3 rounded-md p-3">
       <div className="space-y-0.5">
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
-            Endpoint
+            {t("ai:providerSettings.endpoint")}
           </span>
           {field.helpUrl && (
             <ExternalLink
               href={field.helpUrl}
               className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-[11px] transition-colors"
             >
-              Learn more
+              {t("ai:providerSettings.learnMore")}
               <Icons.ExternalLink className="h-3 w-3" />
             </ExternalLink>
           )}
         </div>
         <p className="text-muted-foreground/80 text-[11px] leading-tight">
-          Override the default endpoint for this provider.
+          {t("ai:providerSettings.endpointDescription")}
         </p>
       </div>
       <div className="space-y-1.5">
@@ -1519,7 +1527,7 @@ function EndpointGroupCard({
             variant="outline"
             className="shrink-0"
           >
-            Save
+            {t("ai:providerSettings.save")}
           </Button>
         </div>
       </div>

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -5,6 +7,12 @@ use serde::{Deserialize, Serialize};
 use super::instrument::InstrumentId;
 use super::provider_params::ProviderOverrides;
 use super::types::{Currency, ProviderId};
+
+/// Security identifiers carried alongside quote requests.
+#[derive(Clone, Debug, Default)]
+pub struct QuoteIdentifiers {
+    pub isin: Option<Cow<'static, str>>,
+}
 
 /// Bond metadata needed for yield-curve-based price calculation.
 #[derive(Clone, Debug)]
@@ -24,6 +32,9 @@ pub struct BondQuoteMetadata {
 pub struct QuoteContext {
     /// Canonical instrument
     pub instrument: InstrumentId,
+
+    /// Security identifiers that do not define the quote instrument by themselves
+    pub identifiers: QuoteIdentifiers,
 
     /// Pre-resolved provider overrides (from Asset.provider_overrides)
     pub overrides: Option<ProviderOverrides>,

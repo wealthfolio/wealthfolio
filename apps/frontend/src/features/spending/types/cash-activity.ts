@@ -18,6 +18,26 @@ export interface ActivityTaxonomyAssignment {
   updatedAt: string;
 }
 
+export interface ActivitySplit {
+  id: string;
+  activityId: string;
+  taxonomyId: string;
+  categoryId: string;
+  amount: string | number;
+  note?: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewActivitySplit {
+  taxonomyId: string;
+  categoryId: string;
+  amount: string | number;
+  note?: string | null;
+  sortOrder?: number | null;
+}
+
 export type CashFlowBucket = "spending" | "income" | "saving" | "neutral";
 export type TransferLinkStatus = "linked" | "unlinked" | "invalid";
 
@@ -56,6 +76,7 @@ export interface CashActivitySearchRequest {
 export interface CashActivity extends Activity {
   cashFlowBucket: CashFlowBucket;
   assignments: ActivityTaxonomyAssignment[];
+  splits: ActivitySplit[];
   /** Spending event tag from the `activity_events` join. `undefined` when untagged. */
   eventId?: string | null;
   /** Transfer pair validity for effective TRANSFER_IN / TRANSFER_OUT rows. */

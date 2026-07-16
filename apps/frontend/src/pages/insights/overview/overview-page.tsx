@@ -1,4 +1,5 @@
 import { useAccounts } from "@/hooks/use-accounts";
+import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { useHoldings } from "@/hooks/use-holdings";
 import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
 import { usePortfolios } from "@/hooks/use-portfolios";
@@ -26,7 +27,8 @@ import { PortfolioComposition } from "@/pages/holdings/components/composition-ch
 import { DrillableAccountChart } from "@/pages/holdings/components/drillable-account-chart";
 import { DrillableDonutChart } from "@/pages/holdings/components/drillable-donut-chart";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { computeValueStrip } from "./allocation-derivations";
+import { useTranslation } from "react-i18next";
+import { computeValueStrip, valueStripFromCurrentSummary } from "./allocation-derivations";
 import { PortfolioExplorer } from "./portfolio-explorer";
 import { TargetRailsCard } from "./target-rails-card";
 import { ValueStrip } from "./value-strip";
@@ -45,6 +47,7 @@ export function OverviewPage({
   onFilterChange,
   onToolbarActionsChange,
 }: OverviewPageProps) {
+  const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
@@ -56,6 +59,10 @@ export function OverviewPage({
     dataUpdatedAt: holdingsUpdatedAt,
     isLoading: holdingsLoading,
   } = useHoldings(accountFilter);
+  const { currentValuation, isLoading: currentValuationLoading } = useCurrentValuation(
+    accountFilter,
+    { includeAccounts: true },
+  );
   const { allocations, isLoading: allocationsLoading } = usePortfolioAllocations(accountFilter);
   const { accounts } = useAccounts();
   const { data: portfolios = [] } = usePortfolios();
@@ -102,7 +109,7 @@ export function OverviewPage({
     includeHoldings: workspaceView === "details",
   });
 
-  const isLoading = holdingsLoading || allocationsLoading;
+  const isLoading = holdingsLoading || allocationsLoading || currentValuationLoading;
   const targetLoading = targetsLoading || driftLoading;
 
   const filteredAccountIds = useMemo(() => {
@@ -127,18 +134,22 @@ export function OverviewPage({
     () => portfolioHoldings.filter((h) => h.holdingType?.toLowerCase() !== "cash"),
     [portfolioHoldings],
   );
-  const availableCash = useMemo(
+  const totalCash = useMemo(
     () =>
       holdings
         .filter((h) => h.holdingType === HoldingType.CASH)
         .reduce((sum, h) => sum + (h.marketValue.base ?? 0), 0),
     [holdings],
   );
+  const availableCash = driftReport?.deployableCash ?? totalCash;
   const rebalanceSourceVersion = `${holdingsUpdatedAt}:${driftUpdatedAt}:${effectiveTarget?.updatedAt ?? ""}`;
 
   const valueStrip = useMemo(
-    () => computeValueStrip(portfolioHoldings, accounts),
-    [portfolioHoldings, accounts],
+    () =>
+      currentValuation?.summary
+        ? valueStripFromCurrentSummary(currentValuation.summary, portfolioHoldings)
+        : computeValueStrip(portfolioHoldings, accounts),
+    [currentValuation?.summary, portfolioHoldings, accounts],
   );
 
   // Detail sheet
@@ -273,10 +284,12 @@ export function OverviewPage({
                 onClick={() => backTo(effectiveTargetId ? "details" : "current")}
               >
                 <Icons.ArrowLeft className="mr-1.5 h-4 w-4" />
-                Back to allocation
+                {t("insights:insights.back_to_allocation")}
               </Button>
               <span className="bg-border hidden h-5 w-px sm:block" />
-              <h2 className="text-foreground text-[16px] font-semibold">Target allocation</h2>
+              <h2 className="text-foreground text-[16px] font-semibold">
+                {t("insights:insights.target_allocation")}
+              </h2>
             </div>
           </div>
           {targetsLoading ? (
@@ -327,10 +340,12 @@ export function OverviewPage({
             onClick={() => backTo("details")}
           >
             <Icons.ArrowLeft className="mr-1.5 h-4 w-4" />
-            Back to overview
+            {t("insights:insights.back_to_overview")}
           </Button>
           <span className="bg-border hidden h-5 w-px sm:block" />
-          <h2 className="text-foreground min-w-0 text-[16px] font-semibold">Rebalance</h2>
+          <h2 className="text-foreground min-w-0 text-[16px] font-semibold">
+            {t("insights:insights.rebalance")}
+          </h2>
         </div>
         <RebalanceTab
           profile={effectiveTarget ?? null}
@@ -362,6 +377,7 @@ export function OverviewPage({
             report={driftReport}
             taxonomyId={effectiveTarget?.taxonomyId ?? "asset_classes"}
             targetName={effectiveTarget?.name}
+            target={effectiveTarget}
             onRebalanceClick={() => setWorkspaceView("rebalance")}
           />
         ) : targetLoading ? (
@@ -375,11 +391,11 @@ export function OverviewPage({
         ) : (
           <EmptyPlaceholder
             icon={<Icons.Target className="text-muted-foreground h-10 w-10" />}
-            title="No target selected"
-            description="Create a target allocation to compare current weights against intended weights."
+            title={t("insights:insights.no_target_selected")}
+            description={t("insights:insights.no_target_selected_description")}
           >
             <Button size="sm" onClick={handleCreateTarget}>
-              Set target allocation
+              {t("insights:insights.set_target_allocation")}
             </Button>
           </EmptyPlaceholder>
         )}
@@ -395,9 +411,13 @@ export function OverviewPage({
 
         {/* Row 2 — exploration previews */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <DrillableAccountChart isLoading={isLoading} accountIds={filteredAccountIds} />
+          <DrillableAccountChart
+            isLoading={isLoading}
+            accountIds={filteredAccountIds}
+            accountValuations={currentValuation?.accounts}
+          />
           <DrillableDonutChart
-            title="Classes"
+            title={t("insights:insights.chart_classes")}
             allocation={allocations?.assetClasses}
             baseCurrency={baseCurrency}
             isLoading={isLoading}
@@ -407,7 +427,7 @@ export function OverviewPage({
             onCardClick={() => openAllocationSheet(allocations?.assetClasses)}
           />
           <DrillableDonutChart
-            title="Regions"
+            title={t("insights:insights.chart_regions")}
             allocation={allocations?.regions}
             baseCurrency={baseCurrency}
             isLoading={isLoading}
@@ -415,7 +435,7 @@ export function OverviewPage({
             onCardClick={() => openAllocationSheet(allocations?.regions)}
           />
           <DrillableDonutChart
-            title="Sectors"
+            title={t("insights:insights.chart_sectors")}
             allocation={allocations?.sectors}
             baseCurrency={baseCurrency}
             isLoading={isLoading}
@@ -434,7 +454,6 @@ export function OverviewPage({
             selectedTargetId={effectiveTargetId}
             onTargetChange={requestTargetChange}
             driftReport={driftReport}
-            driftBandBps={effectiveTarget?.driftBandBps ?? 0}
             isLoading={driftLoading && !driftReport}
             onCreateTarget={handleCreateTarget}
             onViewDetails={() => setWorkspaceView("details")}
@@ -447,6 +466,7 @@ export function OverviewPage({
           holdings={holdings ?? []}
           accounts={accounts}
           accountIds={filteredAccountIds}
+          accountValuations={currentValuation?.accounts}
           currency={baseCurrency}
           isLoading={isLoading}
           onOpenAllocation={openAllocationSheet}

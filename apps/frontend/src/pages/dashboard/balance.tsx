@@ -13,6 +13,7 @@ interface BalanceProps {
   /** Compact notation (e.g. $1.1M) — useful for large values on narrow screens. */
   compact?: boolean;
   isLoading?: boolean;
+  isUnavailable?: boolean;
 }
 
 const Balance: React.FC<BalanceProps> = ({
@@ -22,6 +23,7 @@ const Balance: React.FC<BalanceProps> = ({
   displayDecimal = true,
   compact = false,
   isLoading = false,
+  isUnavailable = false,
 }) => {
   const { isBalanceHidden } = useBalancePrivacy();
   const validCurrency = isValidCurrencyCode(currency);
@@ -61,6 +63,17 @@ const Balance: React.FC<BalanceProps> = ({
 
   if (isLoading) {
     return <Skeleton className="h-9 w-48" />;
+  }
+
+  if (isUnavailable) {
+    return (
+      <h1
+        className="font-heading text-muted-foreground text-3xl font-bold tracking-tight"
+        data-testid="portfolio-balance"
+      >
+        N/A
+      </h1>
+    );
   }
 
   return (

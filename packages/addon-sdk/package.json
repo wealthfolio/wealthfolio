@@ -1,6 +1,6 @@
 {
   "name": "@wealthfolio/addon-sdk",
-  "version": "3.5.2",
+  "version": "3.6.3",
   "type": "module",
   "description": "TypeScript SDK for building Wealthfolio addons with enhanced functionality and type safety",
   "main": "dist/index.js",
@@ -14,9 +14,33 @@
       "import": "./dist/types.js",
       "types": "./dist/src/types.d.ts"
     },
+    "./host-api": {
+      "import": "./dist/host-api.js",
+      "types": "./dist/src/host-api.d.ts"
+    },
+    "./host-dependencies": {
+      "import": "./dist/host-dependencies.js",
+      "types": "./dist/src/host-dependencies.d.ts"
+    },
+    "./manifest": {
+      "import": "./dist/manifest.js",
+      "types": "./dist/src/manifest.d.ts"
+    },
     "./permissions": {
       "import": "./dist/permissions.js",
       "types": "./dist/src/permissions.d.ts"
+    },
+    "./query-keys": {
+      "import": "./dist/query-keys.js",
+      "types": "./dist/src/query-keys.d.ts"
+    },
+    "./utils": {
+      "import": "./dist/utils.js",
+      "types": "./dist/src/utils.d.ts"
+    },
+    "./goal-progress": {
+      "import": "./dist/goal-progress.js",
+      "types": "./dist/src/goal-progress.d.ts"
     }
   },
   "files": [

@@ -82,7 +82,10 @@ export function useBudgetMutations(periodKey?: string) {
     mutationFn: ({ id, reassignToGroupId }: { id: string; reassignToGroupId: string }) =>
       deleteBudgetGroup(id, reassignToGroupId, periodKey),
     onSuccess: invalidate,
-    onError: () => toast.error("Failed to delete budget group."),
+    onError: (error) =>
+      toast.error(
+        error instanceof Error && error.message ? error.message : "Failed to delete budget group.",
+      ),
   });
 
   const assignCategory = useMutation({

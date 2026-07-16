@@ -81,6 +81,7 @@ mod tests {
             unit_price: Some(dec!(150.50)),
             amount: Some(dec!(1505)),
             fee: Some(dec!(5.99)),
+            tax: None,
             currency: "USD".to_string(),
             fx_rate: None,
             notes: None,
@@ -276,6 +277,7 @@ mod tests {
             unit_price: Some(dec!(150)),
             currency: "USD".to_string(),
             fee: Some(dec!(5)),
+            tax: None,
             amount: Some(dec!(1505)),
             status: None,
             notes: None,
@@ -286,6 +288,7 @@ mod tests {
             source_record_id: None,
             source_group_id: None,
             idempotency_key: None,
+            import_run_id: None,
         }
     }
 
@@ -427,6 +430,39 @@ mod tests {
     }
 
     #[test]
+    fn test_position_intent_aliases_are_canonicalized_by_activity_type() {
+        assert_eq!(
+            NewActivity::canonicalize_subtype_for_activity("BUY", Some("BUY_TO_OPEN")).as_deref(),
+            Some("POSITION_OPEN")
+        );
+        assert_eq!(
+            NewActivity::canonicalize_subtype_for_activity("SELL", Some("STO")).as_deref(),
+            Some("POSITION_OPEN")
+        );
+        assert_eq!(
+            NewActivity::canonicalize_subtype_for_activity("BUY", Some("BUY_TO_CLOSE")).as_deref(),
+            Some("POSITION_CLOSE")
+        );
+        assert_eq!(
+            NewActivity::canonicalize_subtype_for_activity("SELL", Some("STC")).as_deref(),
+            Some("POSITION_CLOSE")
+        );
+        assert_eq!(
+            NewActivity::canonicalize_subtype_for_activity("DIVIDEND", Some("BUY_TO_OPEN"))
+                .as_deref(),
+            Some("BUY_TO_OPEN")
+        );
+        assert_eq!(
+            NewActivity::canonicalize_subtype_for_activity("SELL", Some("SELL_SHORT")).as_deref(),
+            Some("POSITION_OPEN")
+        );
+        assert_eq!(
+            NewActivity::canonicalize_subtype_for_activity("BUY", Some("BUY_TO_COVER")).as_deref(),
+            Some("POSITION_CLOSE")
+        );
+    }
+
+    #[test]
     fn test_new_activity_treats_zero_income_value_source_as_missing() {
         let mut activity = create_test_new_activity();
         activity.activity_type = "INTEREST".to_string();
@@ -488,6 +524,7 @@ mod tests {
             unit_price: Some(Some(dec!(150))),
             currency: "USD".to_string(),
             fee: Some(Some(dec!(5))),
+            tax: None,
             amount: Some(Some(dec!(1505))),
             status: None,
             notes: None,
@@ -782,6 +819,7 @@ mod tests {
             unit_price: Some(dec!(1)),
             currency: "GBP".to_string(),
             fee: Some(dec!(0)),
+            tax: None,
             amount: Some(dec!(1)),
             status: None,
             notes: None,
@@ -792,6 +830,7 @@ mod tests {
             source_record_id: None,
             source_group_id: None,
             idempotency_key: None,
+            import_run_id: None,
         };
 
         assert_eq!(activity.get_quote_ccy(), Some("GBp"));
@@ -809,6 +848,7 @@ mod tests {
             unit_price: Some(dec!(120)),
             currency: "GBP".to_string(),
             fee: Some(dec!(0)),
+            tax: None,
             amount: Some(dec!(1200)),
             comment: None,
             account_id: Some("acc-1".to_string()),
@@ -858,6 +898,7 @@ mod tests {
             unit_price: Some(dec!(150)),
             currency: "USD".to_string(),
             fee: None,
+            tax: None,
             amount: None,
             comment: None,
             account_id: Some("acc-1".to_string()),
@@ -901,6 +942,7 @@ mod tests {
             unit_price: Some(dec!(150)),
             currency: "USD".to_string(),
             fee: None,
+            tax: None,
             amount: None,
             comment: None,
             account_id: Some("acc-1".to_string()),
@@ -941,6 +983,7 @@ mod tests {
             unit_price: Some(dec!(150)),
             currency: "USD".to_string(),
             fee: None,
+            tax: None,
             amount: None,
             comment: None,
             account_id: Some("acc-1".to_string()),

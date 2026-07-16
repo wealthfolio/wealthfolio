@@ -42,8 +42,8 @@ use wealthfolio_market_data::{
     AssetProfile as MarketAssetProfile, BoerseFrankfurtProvider, BondQuoteMetadata, DividendEvent,
     ExchangeMap, FinnhubProvider, FixtureProvider, MarketDataAppProvider, MetalPriceApiProvider,
     OpenFigiProvider, ProviderId, ProviderRegistry, Quote as MarketQuote, QuoteContext,
-    ResolverChain, SearchResult as MarketSearchResult, SplitEvent, UsTreasuryCalcProvider,
-    YahooProvider,
+    QuoteIdentifiers, ResolverChain, SearchResult as MarketSearchResult, SplitEvent,
+    UsTreasuryCalcProvider, YahooProvider,
 };
 
 /// Market data error types.
@@ -450,12 +450,27 @@ impl MarketDataClient {
 
         Ok(QuoteContext {
             instrument,
+            identifiers: Self::quote_identifiers(asset),
             overrides,
             currency_hint,
             preferred_provider,
             bond_metadata,
             custom_provider_code,
         })
+    }
+
+    fn quote_identifiers(asset: &Asset) -> QuoteIdentifiers {
+        let isin = asset
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.get("identifiers"))
+            .and_then(|identifiers| identifiers.get("isin"))
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| Cow::Owned(value.to_uppercase()));
+
+        QuoteIdentifiers { isin }
     }
 
     /// Convert a market-data Quote to a core Quote.
@@ -844,7 +859,7 @@ impl MarketDataClient {
             sectors,
             industry: profile.industry,
             categories: None,
-            classes: None,
+            classes: profile.asset_allocation,
             attributes: None,
             url: profile.website,
             // Financial metrics
@@ -1095,6 +1110,26 @@ mod tests {
         assert_eq!(result.canonical_symbol.as_deref(), Some("GOLD"));
     }
 
+    #[test]
+    fn test_convert_profile_maps_asset_allocation_to_classes() {
+        let market_profile = MarketAssetProfile {
+            name: Some("Balanced ETF".to_string()),
+            quote_type: Some("ETF".to_string()),
+            asset_allocation: Some(
+                r#"[{"name":"stock","weight":0.60},{"name":"bond","weight":0.40}]"#.to_string(),
+            ),
+            ..Default::default()
+        };
+
+        let provider_profile = MarketDataClient::convert_profile(market_profile, "BAL");
+
+        assert_eq!(provider_profile.asset_type.as_deref(), Some("ETF"));
+        assert_eq!(
+            provider_profile.classes.as_deref(),
+            Some(r#"[{"name":"stock","weight":0.60},{"name":"bond","weight":0.40}]"#)
+        );
+    }
+
     // =========================================================================
     // Build Quote Context Tests
     // =========================================================================
@@ -1142,6 +1177,27 @@ mod tests {
             }
             _ => panic!("Expected Equity instrument"),
         }
+    }
+
+    #[test]
+    fn test_build_quote_context_preserves_equity_isin_identifier() {
+        let mut asset = create_test_asset(AssetKind::Investment, "LKPG", "EUR");
+        asset.metadata = Some(serde_json::json!({
+            "identifiers": {
+                "isin": "SI0031101346"
+            }
+        }));
+
+        let client = create_test_client();
+        let context = client.build_quote_context(&asset).unwrap();
+
+        match context.instrument {
+            wealthfolio_market_data::InstrumentId::Equity { ticker, .. } => {
+                assert_eq!(ticker.as_ref(), "LKPG");
+            }
+            _ => panic!("Expected Equity instrument"),
+        }
+        assert_eq!(context.identifiers.isin.as_deref(), Some("SI0031101346"));
     }
 
     #[test]

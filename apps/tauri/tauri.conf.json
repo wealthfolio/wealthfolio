@@ -28,11 +28,19 @@
       "bundleVersion": "20260301.1",
       "signingIdentity": "Apple Distribution: Teymz Inc (DYDJ2RNL5H)",
       "minimumSystemVersion": "10.13"
+    },
+    "linux": {
+      "deb": {
+        "desktopTemplate": "linux/wealthfolio.desktop"
+      },
+      "rpm": {
+        "desktopTemplate": "linux/wealthfolio.desktop"
+      }
     }
   },
   "productName": "Wealthfolio",
   "mainBinaryName": "Wealthfolio",
-  "version": "3.5.2",
+  "version": "3.6.3",
   "identifier": "com.teymz.wealthfolio",
   "plugins": {
     "updater": {
@@ -54,9 +62,11 @@
     }
   },
   "app": {
-    "withGlobalTauri": true,
+    "withGlobalTauri": false,
     "windows": [
       {
+        "label": "main",
+        "create": false,
         "dragDropEnabled": false,
         "fullscreen": false,
         "resizable": true,
@@ -69,7 +79,8 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' blob: tauri: http://tauri.localhost https://tauri.localhost; style-src 'self' 'unsafe-inline' tauri: http://tauri.localhost https://tauri.localhost; img-src 'self' data: blob: https: tauri: http://tauri.localhost https://tauri.localhost; font-src 'self' data: tauri: http://tauri.localhost https://tauri.localhost; connect-src 'self' https://wealthfolio.app https://auth.wealthfolio.app https://connect.wealthfolio.app https://connect-staging.wealthfolio.app; frame-src 'self' blob: about:; child-src 'self' blob: about:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; worker-src 'self' blob:",
+      "devCsp": "default-src 'self' http://localhost:1420; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: http://localhost:1420; style-src 'self' 'unsafe-inline' http://localhost:1420; img-src 'self' data: blob: https: http://localhost:1420; font-src 'self' data: http://localhost:1420; connect-src 'self' http://localhost:1420 ws://localhost:1420 http://localhost:3001 https://wealthfolio.app https://auth.wealthfolio.app https://connect.wealthfolio.app https://connect-staging.wealthfolio.app; frame-src 'self' blob: about:; child-src 'self' blob: about:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; worker-src 'self' blob:"
     }
   }
 }

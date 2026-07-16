@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { useIsMobile as defaultUseIsMobile } from "../../hooks/use-mobile";
 import { cn } from "../../lib/utils";
 import { Button } from "./button";
@@ -42,6 +43,7 @@ export function ResponsiveSelect({
   displayMode = "auto",
   useIsMobile,
 }: ResponsiveSelectProps) {
+  const { t } = useTranslation();
   const useIsMobileHook = useIsMobile ?? defaultUseIsMobile;
   const isMobile = displayMode === "mobile" || (displayMode === "auto" && useIsMobileHook());
   const [open, setOpen] = React.useState(false);
@@ -113,7 +115,7 @@ export function ResponsiveSelect({
                   {options.length === 0 ? (
                     <div className="text-muted-foreground flex flex-col items-center justify-center gap-2 py-12 text-sm">
                       <Icons.Search className="h-10 w-10 opacity-20" />
-                      <span>No options available.</span>
+                      <span>{t("ui:search.noOptions", "No options available.")}</span>
                     </div>
                   ) : null}
                 </div>

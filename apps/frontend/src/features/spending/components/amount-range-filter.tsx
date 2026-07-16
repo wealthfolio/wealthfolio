@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   Badge,
@@ -33,6 +34,7 @@ export function AmountRangeFilter({ value, onChange }: AmountRangeFilterProps) {
 }
 
 function AmountRangeFilterInner({ value, onChange }: AmountRangeFilterProps) {
+  const { t } = useTranslation();
   const [minStr, setMinStr] = useState(value.min == null ? "" : String(value.min));
   const [maxStr, setMaxStr] = useState(value.max == null ? "" : String(value.max));
 
@@ -74,7 +76,7 @@ function AmountRangeFilterInner({ value, onChange }: AmountRangeFilterProps) {
           )}
         >
           <Icons.PlusCircle className="mr-2 h-4 w-4" />
-          Amount
+          {t("spending:common.amount")}
           {isActive && summary && (
             <>
               <Separator orientation="vertical" className="mx-2 h-4" />
@@ -89,7 +91,9 @@ function AmountRangeFilterInner({ value, onChange }: AmountRangeFilterProps) {
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-muted-foreground text-[11px]">Min</label>
+              <label className="text-muted-foreground text-[11px]">
+                {t("spending:common.min")}
+              </label>
               <Input
                 type="number"
                 inputMode="decimal"
@@ -101,7 +105,9 @@ function AmountRangeFilterInner({ value, onChange }: AmountRangeFilterProps) {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-muted-foreground text-[11px]">Max</label>
+              <label className="text-muted-foreground text-[11px]">
+                {t("spending:common.max")}
+              </label>
               <Input
                 type="number"
                 inputMode="decimal"
@@ -116,13 +122,13 @@ function AmountRangeFilterInner({ value, onChange }: AmountRangeFilterProps) {
           <div className="flex items-center justify-between gap-2 pt-1">
             {isActive ? (
               <Button variant="ghost" size="sm" onClick={clear} className="text-destructive">
-                Clear
+                {t("common:clear")}
               </Button>
             ) : (
               <span />
             )}
             <Button size="sm" onClick={apply}>
-              Apply
+              {t("common:apply")}
             </Button>
           </div>
         </div>

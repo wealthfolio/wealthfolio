@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 
@@ -9,13 +10,16 @@ interface StageNavProps {
   onStageChange: (s: InsightsStage) => void;
 }
 
-const STAGES: { id: InsightsStage; label: string }[] = [
-  { id: "where", label: "Where I am" },
-  { id: "changed", label: "What changed" },
-  { id: "when", label: "When & where" },
-];
-
 export function StageNav({ stage, onStageChange }: StageNavProps) {
+  const { t } = useTranslation();
+  const STAGES = useMemo<{ id: InsightsStage; label: string }[]>(
+    () => [
+      { id: "where", label: t("spending:insights.stageWhere") },
+      { id: "changed", label: t("spending:insights.stageChanged") },
+      { id: "when", label: t("spending:insights.stageWhen") },
+    ],
+    [t],
+  );
   const activeRef = useRef<HTMLButtonElement | null>(null);
   // When the URL deep-links to a stage on mount or `stage` changes
   // (e.g. via the dashboard "Where I am" link), scroll the active chip
@@ -30,7 +34,7 @@ export function StageNav({ stage, onStageChange }: StageNavProps) {
 
   return (
     <nav
-      aria-label="Insights stages"
+      aria-label={t("spending:insights.stagesLabel")}
       className="border-border/60 bg-card/40 flex items-center gap-1 overflow-x-auto rounded-2xl border p-1 backdrop-blur-xl"
     >
       {STAGES.map((s) => {

@@ -4,6 +4,7 @@
 
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
 
 interface SASVerificationProps {
   sas: string;
@@ -13,6 +14,7 @@ interface SASVerificationProps {
 }
 
 export function SASVerification({ sas, onConfirm, onReject, isLoading }: SASVerificationProps) {
+  const { t } = useTranslation();
   const formattedSAS = sas.length > 3 ? `${sas.slice(0, 3)} ${sas.slice(3)}` : sas;
 
   return (
@@ -21,15 +23,15 @@ export function SASVerification({ sas, onConfirm, onReject, isLoading }: SASVeri
         <span className="font-mono text-4xl font-bold tracking-widest">{formattedSAS}</span>
       </div>
 
-      <p className="text-muted-foreground text-sm">Same code on both devices?</p>
+      <p className="text-muted-foreground text-sm">{t("sync:sas.sameCodeQuestion")}</p>
 
       <div className="flex gap-3">
         <Button variant="outline" onClick={onReject} disabled={isLoading}>
-          No
+          {t("common:no")}
         </Button>
         <Button onClick={onConfirm} disabled={isLoading}>
           {isLoading ? <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Yes
+          {t("common:yes")}
         </Button>
       </div>
     </div>

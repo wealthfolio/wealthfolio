@@ -22,13 +22,13 @@ export function targetLabel(targetName: string | undefined) {
 
 export function formatPp(bps: number, decimals = 1) {
   const pp = bps / 100;
-  return `${pp > 0 ? "+" : ""}${pp.toFixed(decimals)} pp`;
+  return `${pp > 0 ? "+" : ""}${pp.toFixed(decimals)}%`;
 }
 
 export function formatTolerance(bps: number) {
   const pp = bps / 100;
   const value = Number.isInteger(pp) ? pp.toFixed(0) : pp.toFixed(1);
-  return `±${value} pp`;
+  return `±${value}%`;
 }
 
 export function formatRoundedCurrency(amount: number, currency: string) {

@@ -19,8 +19,12 @@ use super::model::{
     NewBudgetRolloverSetting, NewBudgetTarget, UpdateBudgetGroup,
 };
 use super::traits::BudgetRepositoryTrait;
+use crate::activity_allocations::{
+    allocations_for_taxonomy, group_assignments, group_splits, SplitsByActivity,
+};
 use crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait;
 use crate::activity_classification::{activity_abs_amount, classify_activity, decimal_to_f64};
+use crate::activity_splits::ActivitySplitRepositoryTrait;
 use crate::error::SpendingError;
 use crate::settings::SpendingSettingsService;
 
@@ -189,17 +193,20 @@ pub struct BudgetService {
     activity_repo: Arc<dyn ActivityRepositoryTrait>,
     account_repo: Arc<dyn AccountRepositoryTrait>,
     assignment_repo: Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
+    split_repo: Arc<dyn ActivitySplitRepositoryTrait>,
     spending_settings: Arc<SpendingSettingsService>,
     taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
     fx_service: Arc<dyn wealthfolio_core::fx::FxServiceTrait>,
 }
 
 impl BudgetService {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         repo: Arc<dyn BudgetRepositoryTrait>,
         activity_repo: Arc<dyn ActivityRepositoryTrait>,
         account_repo: Arc<dyn AccountRepositoryTrait>,
         assignment_repo: Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
+        split_repo: Arc<dyn ActivitySplitRepositoryTrait>,
         spending_settings: Arc<SpendingSettingsService>,
         taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
         fx_service: Arc<dyn wealthfolio_core::fx::FxServiceTrait>,
@@ -209,6 +216,7 @@ impl BudgetService {
             activity_repo,
             account_repo,
             assignment_repo,
+            split_repo,
             spending_settings,
             taxonomy_service,
             fx_service,
@@ -904,13 +912,9 @@ impl BudgetService {
             .assignment_repo
             .list_for_activities(&activity_ids)
             .await?;
-        let mut assignments_by_activity: HashMap<String, Vec<_>> = HashMap::new();
-        for assignment in assignments {
-            assignments_by_activity
-                .entry(assignment.activity_id.clone())
-                .or_default()
-                .push(assignment);
-        }
+        let assignments_by_activity = group_assignments(assignments);
+        let splits_by_activity =
+            group_splits(self.split_repo.list_for_activities(&activity_ids).await?);
 
         // FX: one as_of date for the entire window (end of the latest month
         // covered). Mirrors net_worth / insight snapshot convention so all
@@ -929,55 +933,78 @@ impl BudgetService {
             if spending_native == Decimal::ZERO && income_native == Decimal::ZERO {
                 continue;
             }
-            // Convert to the budget's target currency. Mirrors
-            // insight::aggregate_spend so headline.spent and
-            // BudgetSnapshot.spending_actual agree by construction.
-            let spending =
-                fx_to_target(fx, spending_native, &activity.currency, currency, fx_as_of)
-                    .unwrap_or(Decimal::ZERO);
-            let income = fx_to_target(fx, income_native, &activity.currency, currency, fx_as_of)
-                .unwrap_or(Decimal::ZERO);
             // Bucket by user-local month so a midnight-local activity on
             // month boundaries lands in the month the user perceives,
             // mirroring insight::compute_by_month.
             let month = period_key_for_date_in_tz(activity.activity_date, timezone);
             let month_actuals = actuals.entry(month).or_default();
-            // Spending + income taxonomies are single-select per (activity_id,
-            // taxonomy_id) — enforced by the DB unique index and the
-            // ActivityTaxonomyAssignmentsService::assign_many_single_select
-            // delete-then-insert pattern. Dedupe per taxonomy here as a
-            // defensive measure so a corrupted DB row can't double-count the
-            // same activity into two top categories. Matches the single-select
-            // contract honored by insight/service.rs:aggregate_spend.
-            let mut seen_taxonomies: std::collections::HashSet<&str> =
-                std::collections::HashSet::new();
-            for assignment in assignments_by_activity
-                .get(&activity.id)
-                .into_iter()
-                .flatten()
-            {
-                if !seen_taxonomies.insert(assignment.taxonomy_id.as_str()) {
-                    debug_assert!(
-                        false,
-                        "single-select invariant violated for activity {} in {}",
-                        activity.id, assignment.taxonomy_id
-                    );
-                    continue;
-                }
-                if assignment.taxonomy_id == SPENDING_TAXONOMY && spending != Decimal::ZERO {
-                    let top_id = top_category_id(&assignment.category_id, spending_meta);
-                    *month_actuals
-                        .entry((SPENDING_TAXONOMY.to_string(), top_id))
-                        .or_insert(Decimal::ZERO) += spending;
-                } else if assignment.taxonomy_id == INCOME_TAXONOMY && income != Decimal::ZERO {
-                    let top_id = top_category_id(&assignment.category_id, income_meta);
-                    *month_actuals
-                        .entry((INCOME_TAXONOMY.to_string(), top_id))
-                        .or_insert(Decimal::ZERO) += income;
-                }
-            }
+            add_allocated_actuals(
+                month_actuals,
+                &activity.id,
+                SPENDING_TAXONOMY,
+                spending_native,
+                spending_meta,
+                &assignments_by_activity,
+                &splits_by_activity,
+                fx,
+                &activity.currency,
+                currency,
+                fx_as_of,
+            );
+            add_allocated_actuals(
+                month_actuals,
+                &activity.id,
+                INCOME_TAXONOMY,
+                income_native,
+                income_meta,
+                &assignments_by_activity,
+                &splits_by_activity,
+                fx,
+                &activity.currency,
+                currency,
+                fx_as_of,
+            );
         }
         Ok(actuals)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn add_allocated_actuals(
+    month_actuals: &mut MonthActuals,
+    activity_id: &str,
+    taxonomy_id: &str,
+    amount: Decimal,
+    meta: &HashMap<String, Category>,
+    assignments_by_activity: &crate::activity_allocations::AssignmentsByActivity,
+    splits_by_activity: &SplitsByActivity,
+    fx: &dyn wealthfolio_core::fx::FxServiceTrait,
+    from_currency: &str,
+    target_currency: &str,
+    fx_as_of: NaiveDate,
+) {
+    for allocation in allocations_for_taxonomy(
+        activity_id,
+        taxonomy_id,
+        amount,
+        assignments_by_activity,
+        splits_by_activity,
+    ) {
+        let amount = fx_to_target(
+            fx,
+            allocation.amount,
+            from_currency,
+            target_currency,
+            fx_as_of,
+        )
+        .unwrap_or(Decimal::ZERO);
+        if amount == Decimal::ZERO {
+            continue;
+        }
+        let top_id = top_category_id(&allocation.category_id, meta);
+        *month_actuals
+            .entry((taxonomy_id.to_string(), top_id))
+            .or_insert(Decimal::ZERO) += amount;
     }
 }
 

@@ -23,12 +23,13 @@ export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
           to={item.href}
           className={cn(
             buttonVariants({ variant: "ghost" }),
-            "h-9 justify-start rounded-md px-2 [&_svg]:size-4",
+            "h-9 min-w-0 justify-start rounded-md px-2 [&_svg]:size-4",
             location.pathname.includes(item.href) ? "bg-muted hover:bg-muted" : "hover:bg-muted/50",
           )}
+          title={item.title}
         >
           {item.icon && <span className="mr-1.5 hidden lg:inline-block">{item.icon}</span>}
-          {item.title}
+          <span className="min-w-0 flex-1 truncate text-left">{item.title}</span>
         </NavLink>
       ))}
     </nav>

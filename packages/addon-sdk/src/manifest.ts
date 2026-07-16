@@ -2,7 +2,63 @@
  * Addon manifest and metadata types
  */
 
+import type { AddonIconName } from './icons';
 import type { Permission } from './permissions';
+
+export interface AddonNetworkAccess {
+  allowedHosts: string[];
+  approvedHosts?: string[];
+}
+
+export type AddonHostDependencies = Record<string, string>;
+
+/**
+ * A durable addon page declared via `contributes.routes`. The host ingests
+ * these at boot without executing addon code, so the route exists before (and
+ * independently of) the addon's runtime activation — it is the lazy-activation
+ * surface.
+ */
+export interface AddonContributedRoute {
+  /** Stable route id. MUST equal the route id the addon registers at runtime. */
+  id: string;
+  /**
+   * Optional path relative to the host-owned `/addons/<addon-id>` mount.
+   * Omit for the addon root; use a suffix such as `reports/:year` for a
+   * nested page. Absolute paths, traversal, query strings, and fragments are
+   * rejected by the host.
+   */
+  path?: string;
+}
+
+/**
+ * A placement in a host slot (e.g. `"sidebar"`) declared via
+ * `contributes.links`, pointing at a route declared in `contributes.routes`
+ * of the same addon.
+ */
+export interface AddonContributedLink {
+  /** Optional stable link id; defaults to the referenced route id */
+  id?: string;
+  /** Id of a route declared in this addon's `contributes.routes` */
+  route: string;
+  /** Human-readable label shown in the host slot */
+  label: string;
+  /** Optional host-supported icon name (see {@link AddonIconName}) */
+  icon?: AddonIconName;
+  /** Optional sort order within the slot */
+  order?: number;
+}
+
+/**
+ * Declarative contributions an addon makes to the host: durable routes plus
+ * links placed in host slots, keyed by slot id. Only the `"sidebar"` slot is
+ * consumed today; unknown slot keys are preserved for future host surfaces.
+ */
+export interface AddonContributes {
+  /** Durable addon pages, host-renderable before the addon boots */
+  routes?: AddonContributedRoute[];
+  /** Slot placements pointing at declared routes, keyed by slot id */
+  links?: Record<string, AddonContributedLink[]>;
+}
 
 /**
  * Unified addon manifest structure that handles both development and runtime scenarios
@@ -40,6 +96,12 @@ export interface AddonManifest {
   keywords?: string[];
   /** Addon icon (base64 or relative path) */
   icon?: string;
+  /** Network hosts this addon may reach through the host broker */
+  network?: AddonNetworkAccess;
+  /** Host-provided packages this addon imports instead of bundling */
+  hostDependencies?: AddonHostDependencies;
+  /** Declarative contributions to the host (routes + slot links) */
+  contributes?: AddonContributes;
 
   // Runtime fields (only present after installation)
   /** Installation timestamp in ISO format */
@@ -154,6 +216,8 @@ export interface AddonUpdateInfo {
   updateAvailable: boolean;
   /** Download URL for the update */
   downloadUrl?: string;
+  /** Optional SHA-256 digest for the update package bytes */
+  sha256?: string;
   /** Release notes for the latest version */
   releaseNotes?: string;
   /** Release date of the latest version */
@@ -188,6 +252,8 @@ export interface AddonStoreListing {
   metadata: AddonManifest;
   /** Download URL */
   downloadUrl: string;
+  /** Optional SHA-256 digest for the package bytes */
+  sha256?: string;
   /** Number of downloads */
   downloads?: number;
   /** Average rating */

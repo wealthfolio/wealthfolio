@@ -1,0 +1,96 @@
+{
+  "buttons": {
+    "continue": "Weiter",
+    "subscribeConnect": "Abonnieren & verbinden",
+    "getStarted": "Loslegen"
+  },
+  "steps": {
+    "chooseMode": {
+      "subtitle": "Zwei Möglichkeiten, Ihr Portfolio zu verfolgen.",
+      "holdings": {
+        "title": "Bestände",
+        "subtitle": "Wertverfolgung",
+        "badge": "Ideal für wartungsarmes Tracking.",
+        "features": {
+          "netWorth": "Nettovermögen & Allokation",
+          "unrealizedPnl": "Wert & nicht realisierter G/V",
+          "priceBased": "Kursbasierte Performance",
+          "fastSetup": "Schnelle & schlanke Einrichtung"
+        },
+        "limit": "Einschränkung: Kein transaktionsbasierter TWR/IRR.",
+        "note": "Hinweis: Erfordert die Pflege der Bestände/Positionen."
+      },
+      "transactions": {
+        "title": "Transaktionen",
+        "subtitle": "Performance-Verfolgung",
+        "badge": "Ideal für vollständige Performance-Analysen.",
+        "features": {
+          "totalReturn": "Gesamtrendite im Zeitverlauf",
+          "attribution": "Gewinn- & Cashflow-Attribution",
+          "completeView": "Umfassendste Performance-Ansicht",
+          "brokerSync": "Am besten mit Broker-Synchronisierung oder CSV-Import"
+        },
+        "limit": "Einschränkung: Erfordert die Erfassung aller Transaktionen.",
+        "note": "Hinweis: Automatisiert bei Synchronisierung mit einem Broker."
+      },
+      "footnote": "Sie können für verschiedene Konten unterschiedliche Modi verwenden.",
+      "learnMore": "Mehr erfahren"
+    },
+    "preferences": {
+      "subtitle": "Nur ein paar Einstellungen für den Einstieg",
+      "currencyLabel": "Währung",
+      "timezoneLabel": "Zeitzone",
+      "other": "Andere",
+      "selectCurrency": "Währung auswählen",
+      "selectTimezone": "Zeitzone auswählen",
+      "searchCurrenciesPlaceholder": "Währungen suchen...",
+      "searchTimezonesPlaceholder": "Zeitzonen suchen...",
+      "noCurrenciesFound": "Keine Währungen gefunden",
+      "noTimezonesFound": "Keine Zeitzonen gefunden",
+      "currencyRequired": "Bitte wählen Sie eine Basiswährung aus.",
+      "timezoneRequired": "Bitte wählen Sie eine Zeitzone aus.",
+      "languageLabel": "Sprache"
+    }
+  },
+  "appearance": {
+    "subtitle": "Passen Sie Ihr Erlebnis an",
+    "themeLabel": "Design",
+    "fontLabel": "Schriftart",
+    "themeLight": "Hell",
+    "themeDark": "Dunkel",
+    "themeSystem": "System",
+    "themeLightPreviewAlt": "Vorschau des hellen Designs",
+    "themeDarkPreviewAlt": "Vorschau des dunklen Designs",
+    "themeSystemPreviewAlt": "Vorschau des System-Designs",
+    "fontSample": "Investieren mit Klarheit.",
+    "fonts": {
+      "monoLabel": "Mono",
+      "monoDescription": "Technisch & präzise",
+      "sansLabel": "Sans",
+      "sansDescription": "Klar & modern",
+      "serifLabel": "Serif",
+      "serifDescription": "Klassisch & elegant"
+    },
+    "navigationLabel": "Navigation"
+  },
+  "connect": {
+    "optional": "Optional",
+    "title": "Wealthfolio Connect",
+    "subtitle": "Synchronisieren Sie Ihre Broker automatisch und halten Sie Ihre Daten privat.",
+    "learnMore": "Mehr über Connect erfahren",
+    "features": {
+      "brokerageSync": {
+        "title": "Broker-Synchronisierung",
+        "description": "Synchronisieren Sie Ihre Konten und Transaktionen automatisch in Ihre lokale Datenbank."
+      },
+      "deviceSync": {
+        "title": "Geräte-Synchronisierung",
+        "description": "Halten Sie Ihre Datenbank auf allen Geräten mit Ende-zu-Ende-Verschlüsselung synchron."
+      },
+      "householdView": {
+        "title": "Haushaltsansicht",
+        "description": "Teilen Sie ausgewählte Konten mit Ihrer Familie und sehen Sie gemeinsam eine aggregierte Ansicht."
+      }
+    }
+  }
+}

@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 
 use super::model::{HealthCategory, HealthConfig, HealthIssue, IssueDismissal};
 use crate::errors::Result;
+use crate::portfolio::snapshot::SnapshotServiceTrait;
 
 // =============================================================================
 // Health Context
@@ -316,6 +317,7 @@ pub trait HealthServiceTrait: Send + Sync {
     /// * `asset_service` - Service for accessing assets
     /// * `taxonomy_service` - Service for accessing taxonomy data
     /// * `valuation_service` - Service for accessing account valuation history
+    /// * `snapshot_service` - Service for accessing generated holdings snapshots
     /// * `activity_service` - Service for accessing activities
     /// * `lot_repository` - Repository for accessing lot disposal records
     /// * `configured_timezone` - App-configured timezone from settings
@@ -330,6 +332,7 @@ pub trait HealthServiceTrait: Send + Sync {
         asset_service: Arc<dyn AssetServiceTrait>,
         taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
         valuation_service: Arc<dyn ValuationServiceTrait>,
+        snapshot_service: Arc<dyn SnapshotServiceTrait>,
         activity_service: Arc<dyn ActivityServiceTrait>,
         lot_repository: Arc<dyn LotRepositoryTrait>,
         configured_timezone: Option<&str>,

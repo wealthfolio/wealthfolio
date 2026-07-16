@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import {
   Button,
@@ -62,6 +63,7 @@ export function CategoryTransactionsSheet({
   rangeEnd,
   currency,
 }: CategoryTransactionsSheetProps) {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const isTopLevel = !!category && !category.parentId;
 
@@ -167,14 +169,14 @@ export function CategoryTransactionsSheet({
     if (directAmount > 0) {
       rows.push({
         id: "__direct__",
-        name: "Direct",
+        name: t("spending:categorySheet.direct"),
         color: category.color ?? "var(--muted-foreground)",
         amount: directAmount,
       });
     }
     const total = rows.reduce((s, r) => s + r.amount, 0);
     return rows.map((r) => ({ ...r, share: total > 0 ? (r.amount / total) * 100 : 0 }));
-  }, [accountById, category, isTopLevel, items, taxonomyCategories]);
+  }, [accountById, category, isTopLevel, items, taxonomyCategories, t]);
 
   const transactionsLink = useMemo(() => {
     if (!category) return "/activities?tab=spending";
@@ -216,7 +218,7 @@ export function CategoryTransactionsSheet({
           }}
         >
           <div className="text-muted-foreground/80 text-[10px] font-semibold uppercase tracking-[0.14em]">
-            Spending · Category
+            {t("spending:categorySheet.eyebrow")}
           </div>
           <div className="mt-2 flex items-start gap-3">
             <span
@@ -231,18 +233,18 @@ export function CategoryTransactionsSheet({
             </span>
             <div className="min-w-0 flex-1">
               <SheetTitle className="text-foreground truncate text-2xl font-semibold tracking-tight">
-                {category?.name ?? "Category"}
+                {category?.name ?? t("spending:categorySheet.categoryFallback")}
               </SheetTitle>
               <p className="text-muted-foreground mt-0.5 text-xs">
-                {formatRangeLabel(rangeStart, rangeEnd)} · {stats.days}{" "}
-                {stats.days === 1 ? "day" : "days"}
+                {formatRangeLabel(rangeStart, rangeEnd)} ·{" "}
+                {t("spending:categorySheet.daysCount", { count: stats.days })}
               </p>
             </div>
           </div>
 
           <div className="mt-5 grid grid-cols-4 gap-3">
             <Stat
-              label="Spent"
+              label={t("spending:categorySheet.spent")}
               value={
                 isLoading ? (
                   <Skeleton className="h-5 w-16" />
@@ -252,19 +254,19 @@ export function CategoryTransactionsSheet({
                   formatCompactAmount(stats.outflow, currency)
                 )
               }
-              hint={isTopLevel ? "All subcategories" : null}
+              hint={isTopLevel ? t("spending:categorySheet.allSubcategories") : null}
             />
             <Stat
-              label="Tx"
+              label={t("spending:categorySheet.tx")}
               value={isLoading ? <Skeleton className="h-5 w-10" /> : totalCount.toLocaleString()}
               hint={
                 stats.outflowCount > 0 && stats.outflowCount < totalCount
-                  ? `${stats.outflowCount} outflows`
+                  ? t("spending:categorySheet.outflowsCount", { count: stats.outflowCount })
                   : null
               }
             />
             <Stat
-              label="Avg / tx"
+              label={t("spending:categorySheet.avgPerTx")}
               value={
                 isLoading ? (
                   <Skeleton className="h-5 w-14" />
@@ -274,10 +276,10 @@ export function CategoryTransactionsSheet({
                   formatCompactAmount(stats.avg, currency)
                 )
               }
-              hint="Outflows only"
+              hint={t("spending:categorySheet.outflowsOnly")}
             />
             <Stat
-              label="Daily pace"
+              label={t("spending:categorySheet.dailyPace")}
               value={
                 isLoading ? (
                   <Skeleton className="h-5 w-14" />
@@ -287,7 +289,7 @@ export function CategoryTransactionsSheet({
                   formatCompactAmount(stats.dailyPace, currency)
                 )
               }
-              hint="In this period"
+              hint={t("spending:categorySheet.inThisPeriod")}
             />
           </div>
         </header>
@@ -297,9 +299,11 @@ export function CategoryTransactionsSheet({
           {/* Subcategory composition */}
           {isTopLevel && (subBreakdown.length > 0 || isLoading) && (
             <section className="mb-6">
-              <h3 className="text-foreground text-sm font-semibold">Subcategory mix</h3>
+              <h3 className="text-foreground text-sm font-semibold">
+                {t("spending:categorySheet.subcategoryMix")}
+              </h3>
               <p className="text-muted-foreground mt-0.5 text-xs">
-                Where this category's spending landed.
+                {t("spending:categorySheet.subcategoryMixHint")}
               </p>
               <div className="mt-3 space-y-2">
                 {isLoading ? (
@@ -344,9 +348,13 @@ export function CategoryTransactionsSheet({
           {/* Transactions list */}
           <section>
             <div className="mb-3 flex items-baseline justify-between">
-              <h3 className="text-foreground text-sm font-semibold">Transactions</h3>
+              <h3 className="text-foreground text-sm font-semibold">
+                {t("spending:categorySheet.transactions")}
+              </h3>
               <span className="text-muted-foreground text-[11px] tabular-nums">
-                {isLoading ? "Loading…" : `${totalCount.toLocaleString()} total`}
+                {isLoading
+                  ? t("spending:categorySheet.loading")
+                  : t("spending:categorySheet.totalCount", { count: totalCount })}
               </span>
             </div>
 
@@ -359,12 +367,12 @@ export function CategoryTransactionsSheet({
             ) : isError ? (
               <div className="text-destructive border-border/60 flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-10 text-center text-sm">
                 <Icons.AlertTriangle className="h-6 w-6 opacity-70" aria-hidden />
-                <div>{error?.message ?? "Transactions could not load."}</div>
+                <div>{error?.message ?? t("spending:categorySheet.loadError")}</div>
               </div>
             ) : items.length === 0 ? (
               <div className="text-muted-foreground border-border/60 flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-10 text-center text-sm">
                 <Icons.Activity className="h-6 w-6 opacity-50" aria-hidden />
-                <div>No transactions in this period.</div>
+                <div>{t("spending:categorySheet.noTransactions")}</div>
               </div>
             ) : (
               <ul className="divide-border/40 divide-y">
@@ -426,10 +434,12 @@ export function CategoryTransactionsSheet({
                   {isFetchingNextPage ? (
                     <>
                       <Icons.Spinner className="mr-2 h-3.5 w-3.5 animate-spin" aria-hidden />
-                      Loading…
+                      {t("spending:categorySheet.loading")}
                     </>
                   ) : (
-                    `Load ${Math.min(50, totalCount - items.length)} more`
+                    t("spending:categorySheet.loadMore", {
+                      count: Math.min(50, totalCount - items.length),
+                    })
                   )}
                 </Button>
               </div>
@@ -441,7 +451,7 @@ export function CategoryTransactionsSheet({
         <div className="border-border/60 bg-background/70 border-t px-6 py-3 backdrop-blur">
           <Button asChild size="sm" className="w-full">
             <Link to={transactionsLink} onClick={() => onOpenChange(false)}>
-              Open in Transactions
+              {t("spending:categorySheet.openInTransactions")}
               <Icons.ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
             </Link>
           </Button>

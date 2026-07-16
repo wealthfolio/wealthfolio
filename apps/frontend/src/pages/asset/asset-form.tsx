@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -33,11 +34,6 @@ const assetFormSchema = z.object({
 
 export type AssetFormValues = z.infer<typeof assetFormSchema>;
 
-const quoteModeOptions: ResponsiveSelectOption[] = [
-  { label: "Market Data", value: QuoteMode.MARKET },
-  { label: "Manual", value: QuoteMode.MANUAL },
-];
-
 interface AssetFormProps {
   asset: ParsedAsset;
   onSubmit: (values: AssetFormValues) => Promise<void>;
@@ -46,6 +42,14 @@ interface AssetFormProps {
 }
 
 export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProps) {
+  const { t } = useTranslation();
+  const quoteModeOptions: ResponsiveSelectOption[] = useMemo(
+    () => [
+      { label: t("asset:assetForm.market_data"), value: QuoteMode.MARKET },
+      { label: t("asset:assetForm.manual"), value: QuoteMode.MANUAL },
+    ],
+    [t],
+  );
   const { data: taxonomies = [] } = useTaxonomies({ scope: "asset" });
 
   // Split taxonomies by selection type and sort by sortOrder
@@ -87,7 +91,7 @@ export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProp
             name="symbol"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Symbol</FormLabel>
+                <FormLabel>{t("asset:assetForm.symbol")}</FormLabel>
                 <FormControl>
                   <Input {...field} disabled className="bg-muted/50" />
                 </FormControl>
@@ -100,7 +104,7 @@ export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProp
             name="currency"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Currency</FormLabel>
+                <FormLabel>{t("asset:assetForm.currency")}</FormLabel>
                 <FormControl>
                   <Input {...field} disabled className="bg-muted/50" />
                 </FormControl>
@@ -113,9 +117,9 @@ export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProp
             name="name"
             render={({ field }) => (
               <FormItem className="md:col-span-2">
-                <FormLabel>Name</FormLabel>
+                <FormLabel>{t("asset:assetForm.name")}</FormLabel>
                 <FormControl>
-                  <Input placeholder="Asset display name" {...field} />
+                  <Input placeholder={t("asset:assetForm.name_placeholder")} {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -126,15 +130,15 @@ export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProp
             name="quoteMode"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Quote Mode</FormLabel>
+                <FormLabel>{t("asset:assetForm.quote_mode")}</FormLabel>
                 <FormControl>
                   <ResponsiveSelect
                     value={field.value}
                     onValueChange={field.onChange}
                     options={quoteModeOptions}
-                    placeholder="Select quote mode"
-                    sheetTitle="Quote Mode"
-                    sheetDescription="Choose how prices are managed for this asset."
+                    placeholder={t("asset:assetForm.select_quote_mode")}
+                    sheetTitle={t("asset:assetForm.quote_mode")}
+                    sheetDescription={t("asset:assetForm.quote_mode_sheet_description")}
                   />
                 </FormControl>
                 <FormMessage />
@@ -146,7 +150,7 @@ export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProp
         {/* Classifications Section */}
         {asset.id && (singleSelectTaxonomies.length > 0 || multiSelectTaxonomies.length > 0) && (
           <div className="space-y-4 border-t pt-4">
-            <h4 className="text-sm font-medium">Classifications</h4>
+            <h4 className="text-sm font-medium">{t("asset:assetForm.classifications")}</h4>
 
             {/* Single-select taxonomies */}
             {singleSelectTaxonomies.map((tax) => (
@@ -176,9 +180,13 @@ export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProp
             name="notes"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Notes</FormLabel>
+                <FormLabel>{t("asset:assetForm.notes")}</FormLabel>
                 <FormControl>
-                  <Textarea rows={5} placeholder="Add any context or links" {...field} />
+                  <Textarea
+                    rows={5}
+                    placeholder={t("asset:assetForm.notes_placeholder")}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -189,16 +197,16 @@ export function AssetForm({ asset, onSubmit, onCancel, isSaving }: AssetFormProp
         <div className="flex justify-end gap-3">
           {onCancel ? (
             <Button type="button" variant="ghost" onClick={onCancel} disabled={isSaving}>
-              Cancel
+              {t("common:cancel")}
             </Button>
           ) : null}
           <Button type="submit" disabled={isSaving || form.formState.isSubmitting}>
             {isSaving || form.formState.isSubmitting ? (
               <span className="flex items-center gap-2">
-                <Icons.Spinner className="h-4 w-4 animate-spin" /> Saving
+                <Icons.Spinner className="h-4 w-4 animate-spin" /> {t("asset:assetForm.saving")}
               </span>
             ) : (
-              "Save changes"
+              t("asset:assetForm.save_changes")
             )}
           </Button>
         </div>

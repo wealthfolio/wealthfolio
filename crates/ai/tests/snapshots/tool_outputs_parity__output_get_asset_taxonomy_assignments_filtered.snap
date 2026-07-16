@@ -1,0 +1,31 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "assetQuery": "AAPL",
+    "assignments": [
+      {
+        "assignmentId": "assignment-1",
+        "categoryId": "equity",
+        "categoryKey": "equity",
+        "categoryName": "Equity",
+        "source": "manual",
+        "taxonomyId": "asset-tax",
+        "taxonomyName": "Asset Class",
+        "weightBasisPoints": 10000
+      }
+    ],
+    "resolvedAsset": {
+      "assetId": "asset-aapl",
+      "currency": "USD",
+      "displayCode": "AAPL",
+      "exchangeMic": "XNAS",
+      "label": "AAPL - Apple Inc.",
+      "matchedBy": "symbol",
+      "name": "Apple Inc.",
+      "symbol": "AAPL"
+    }
+  }
+}

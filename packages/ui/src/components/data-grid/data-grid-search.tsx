@@ -4,6 +4,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Icons } from "../ui/icons";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { useDebouncedCallback } from "../../hooks/use-debounced-callback";
 import type { SearchState } from "./data-grid-types";
 
@@ -45,6 +46,7 @@ function DataGridSearchImpl({
   onNavigateToNextMatch,
   onNavigateToPrevMatch,
 }: DataGridSearchProps) {
+  const { t } = useTranslation();
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -146,7 +148,7 @@ function DataGridSearchImpl({
           autoCorrect="off"
           autoCapitalize="off"
           spellCheck={false}
-          placeholder="Find in table..."
+          placeholder={t("ui:search.findInTable", "Find in table...")}
           className="h-8 w-64"
           ref={inputRef}
           value={searchQuery}
@@ -155,7 +157,7 @@ function DataGridSearchImpl({
         />
         <div className="flex items-center gap-1">
           <Button
-            aria-label="Previous match"
+            aria-label={t("ui:search.previousMatch", "Previous match")}
             variant="ghost"
             size="icon"
             className="size-7"
@@ -166,7 +168,7 @@ function DataGridSearchImpl({
             <Icons.ChevronUp />
           </Button>
           <Button
-            aria-label="Next match"
+            aria-label={t("ui:search.nextMatch", "Next match")}
             variant="ghost"
             size="icon"
             className="size-7"
@@ -176,7 +178,13 @@ function DataGridSearchImpl({
           >
             <Icons.ChevronDown />
           </Button>
-          <Button aria-label="Close search" variant="ghost" size="icon" className="size-7" onClick={onClose}>
+          <Button
+            aria-label={t("ui:search.closeSearch", "Close search")}
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={onClose}
+          >
             <Icons.X />
           </Button>
         </div>
@@ -184,12 +192,15 @@ function DataGridSearchImpl({
       <div className="text-muted-foreground flex items-center gap-1 whitespace-nowrap text-xs">
         {searchMatches.length > 0 ? (
           <span>
-            {matchIndex + 1} of {searchMatches.length}
+            {t("ui:search.matchCount", "{{current}} of {{total}}", {
+              current: matchIndex + 1,
+              total: searchMatches.length,
+            })}
           </span>
         ) : searchQuery ? (
-          <span>No results</span>
+          <span>{t("ui:search.noResults", "No results")}</span>
         ) : (
-          <span>Type to search</span>
+          <span>{t("ui:search.typeToSearch", "Type to search")}</span>
         )}
       </div>
     </div>

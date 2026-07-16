@@ -3,9 +3,9 @@ import { isAssetBackedIncomeSubtype } from "@/lib/activity-utils";
 
 /**
  * Parse a numeric value from a string, handling various formats.
- * Always returns absolute values — brokers often use negative values to indicate direction.
+ * Preserves the sign so callers can use broker-provided direction when needed.
  */
-export function parseNumericValue(
+export function parseSignedNumericValue(
   value: string | undefined,
   decimalSeparator: string,
   thousandsSeparator: string,
@@ -79,7 +79,21 @@ export function parseNumericValue(
 
   const numericCheck = Number(candidate);
   if (!Number.isFinite(numericCheck)) return undefined;
-  // Return absolute value — brokers often use negative values to indicate direction
+
+  return candidate;
+}
+
+/**
+ * Parse a numeric value from a string, handling various formats.
+ * Always returns absolute values — brokers often use negative values to indicate direction.
+ */
+export function parseNumericValue(
+  value: string | undefined,
+  decimalSeparator: string,
+  thousandsSeparator: string,
+): string | undefined {
+  const candidate = parseSignedNumericValue(value, decimalSeparator, thousandsSeparator);
+  if (!candidate) return undefined;
   return candidate.startsWith("-") ? candidate.slice(1) : candidate;
 }
 

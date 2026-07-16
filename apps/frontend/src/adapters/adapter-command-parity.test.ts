@@ -249,6 +249,49 @@ describe("scope-based routing — get_holdings", () => {
   });
 });
 
+describe("scope-based routing — get_holdings_list", () => {
+  it("all → POST /holdings/list/query", async () => {
+    const mock = stubFetch();
+    await invoke("get_holdings_list", { filter: { type: "all" } });
+    const { url, method, body } = lastCall(mock);
+    expect(url).toBe("/api/v1/holdings/list/query");
+    expect(method).toBe("POST");
+    expect(JSON.parse(body as string)).toEqual({ filter: { type: "all" } });
+  });
+
+  it("account → GET /holdings/list?accountId=...", async () => {
+    const mock = stubFetch();
+    await invoke("get_holdings_list", { filter: { type: "account", accountId: "acc_1" } });
+    const { url, method } = lastCall(mock);
+    expect(url).toBe("/api/v1/holdings/list?accountId=acc_1");
+    expect(method).toBe("GET");
+  });
+
+  it("portfolio → POST /holdings/list/query", async () => {
+    const mock = stubFetch();
+    await invoke("get_holdings_list", { filter: { type: "portfolio", portfolioId: "pf_1" } });
+    const { url, method, body } = lastCall(mock);
+    expect(url).toBe("/api/v1/holdings/list/query");
+    expect(method).toBe("POST");
+    expect(JSON.parse(body as string)).toEqual({
+      filter: { type: "portfolio", portfolioId: "pf_1" },
+    });
+  });
+
+  it("accounts → POST /holdings/list/query", async () => {
+    const mock = stubFetch();
+    await invoke("get_holdings_list", {
+      filter: { type: "accounts", accountIds: ["acc_1", "acc_2"] },
+    });
+    const { url, method, body } = lastCall(mock);
+    expect(url).toBe("/api/v1/holdings/list/query");
+    expect(method).toBe("POST");
+    expect(JSON.parse(body as string)).toEqual({
+      filter: { type: "accounts", accountIds: ["acc_1", "acc_2"] },
+    });
+  });
+});
+
 describe("scope-based routing — get_portfolio_allocations", () => {
   it("all → POST /allocations/query", async () => {
     const mock = stubFetch();
@@ -440,7 +483,7 @@ describe("scope-based routing — performance filters", () => {
       scopes: [{ accountIds: ["acc_2", "acc_1"] }],
       startDate: "2026-01-01",
       endDate: "2026-01-31",
-      profile: "headline",
+      profile: "summary",
     });
 
     const { url, method, body } = lastCall(mock);
@@ -450,7 +493,7 @@ describe("scope-based routing — performance filters", () => {
       scopes: [{ accountIds: ["acc_2", "acc_1"] }],
       startDate: "2026-01-01",
       endDate: "2026-01-31",
-      profile: "headline",
+      profile: "summary",
     });
   });
 });

@@ -26,6 +26,8 @@ import {
 } from "@wealthfolio/ui/components/ui/tooltip";
 import type { CSSProperties } from "react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   Area,
   AreaChart,
@@ -79,28 +81,28 @@ function pct(value: number) {
   return `${(value * 100).toFixed(0)}%`;
 }
 
-function moneyLastsDefinition(plannerMode: PlannerMode, horizonAge: number) {
+function moneyLastsDefinition(t: TFunction, plannerMode: PlannerMode, horizonAge: number) {
   if (plannerMode === "traditional") {
-    return `Money lasts means the plan covers essential spending and still has money left through age ${horizonAge}.`;
+    return t("goals:risk_lab.results.money_lasts_definition_traditional", { horizonAge });
   }
 
-  return `Money lasts means the plan reaches financial independence, covers essential spending, and still has money left through age ${horizonAge}.`;
+  return t("goals:risk_lab.results.money_lasts_definition_fire", { horizonAge });
 }
 
-function moneyLastsSummary(plannerMode: PlannerMode, horizonAge: number) {
+function moneyLastsSummary(t: TFunction, plannerMode: PlannerMode, horizonAge: number) {
   if (plannerMode === "traditional") {
-    return `stays funded through age ${horizonAge}`;
+    return t("goals:risk_lab.results.money_lasts_summary_traditional", { horizonAge });
   }
 
-  return `FI reached + funded through age ${horizonAge}`;
+  return t("goals:risk_lab.results.money_lasts_summary_fire", { horizonAge });
 }
 
-function moneyLastsPrompt(plannerMode: PlannerMode, horizonAge: number) {
+function moneyLastsPrompt(t: TFunction, plannerMode: PlannerMode, horizonAge: number) {
   if (plannerMode === "traditional") {
-    return `Run 10k paths to see how often the plan stays funded through age ${horizonAge}.`;
+    return t("goals:risk_lab.results.money_lasts_prompt_traditional", { horizonAge });
   }
 
-  return `Run 10k paths to see how often the plan reaches FI and stays funded through age ${horizonAge}.`;
+  return t("goals:risk_lab.results.money_lasts_prompt_fire", { horizonAge });
 }
 
 function severityRank(severity: StressSeverity) {
@@ -117,12 +119,12 @@ function stableSeed(parts: unknown[]) {
   return hash >>> 0;
 }
 
-function errorMessage(error: unknown) {
+function errorMessage(t: TFunction, error: unknown) {
   if (!error) return null;
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   if (typeof error === "number" || typeof error === "boolean") return String(error);
-  return "An unknown error occurred.";
+  return t("goals:risk_lab.errors.unknown");
 }
 
 function topStress(stresses?: StressTestResult[]) {
@@ -151,6 +153,7 @@ function InlineAmountTooltip({
   delta: number;
   tone?: "default" | "shortfall";
 }) {
+  const { t } = useTranslation();
   return (
     <UiTooltip>
       <TooltipTrigger asChild>
@@ -166,11 +169,11 @@ function InlineAmountTooltip({
       <TooltipContent className="max-w-xs text-xs">
         <div className="text-[10px] font-semibold uppercase tracking-wider">{label}</div>
         <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 tabular-nums">
-          <span className="text-muted-foreground">Base plan</span>
+          <span className="text-muted-foreground">{t("goals:risk_lab.results.base_plan")}</span>
           <span className="text-right">{fmt(baseline, currency)}</span>
-          <span className="text-muted-foreground">Stress test</span>
+          <span className="text-muted-foreground">{t("goals:risk_lab.results.stress_test")}</span>
           <span className="text-right">{fmt(stressed, currency)}</span>
-          <span className="text-muted-foreground">Change</span>
+          <span className="text-muted-foreground">{t("goals:risk_lab.results.change")}</span>
           <span className={cn("text-right", delta < 0 ? "text-destructive" : "text-amber-600")}>
             {delta > 0 ? "+" : delta < 0 ? "-" : ""}
             {fmt(Math.abs(delta), currency)}
@@ -182,13 +185,14 @@ function InlineAmountTooltip({
 }
 
 function deterministicRiskContent(
+  t: TFunction,
   stress: StressTestResult | undefined,
   currency: string,
   plannerMode: PlannerMode,
 ) {
-  if (!stress) return "Stress tests are loading.";
+  if (!stress) return t("goals:risk_lab.stress.loading_short");
   if (stress.severity === "low") {
-    return "None of these stress tests materially change your base plan.";
+    return t("goals:risk_lab.results.no_material_stress");
   }
 
   const horizonDrop = Math.max(0, -stress.delta.portfolioAtHorizon);
@@ -197,11 +201,11 @@ function deterministicRiskContent(
   if (horizonDrop > 0) {
     fragments.push(
       <>
-        money left at the end drops by{" "}
+        {t("goals:risk_lab.results.money_left_drops_by")}{" "}
         <InlineAmountTooltip
           value={horizonDrop}
           currency={currency}
-          label="Money left at the end"
+          label={t("goals:risk_lab.results.money_left_at_end")}
           baseline={stress.baseline.portfolioAtHorizon}
           stressed={stress.stressed.portfolioAtHorizon}
           delta={stress.delta.portfolioAtHorizon}
@@ -212,11 +216,11 @@ function deterministicRiskContent(
   if (shortfallIncrease > 0) {
     fragments.push(
       <>
-        retirement gap increases by{" "}
+        {t("goals:risk_lab.results.retirement_gap_increases_by")}{" "}
         <InlineAmountTooltip
           value={shortfallIncrease}
           currency={currency}
-          label="Retirement gap"
+          label={t("goals:risk_lab.results.retirement_gap")}
           baseline={stress.baseline.shortfallAtGoalAge}
           stressed={stress.stressed.shortfallAtGoalAge}
           delta={stress.delta.shortfallAtGoalAge}
@@ -228,20 +232,20 @@ function deterministicRiskContent(
   if (plannerMode === "fire" && stress.delta.fiAgeYears && stress.delta.fiAgeYears > 0) {
     fragments.push(
       <>
-        FI moves{" "}
+        {t("goals:risk_lab.results.fi_moves_prefix")}{" "}
         <span className="text-foreground font-medium tabular-nums">{stress.delta.fiAgeYears}</span>{" "}
-        years later
+        {t("goals:risk_lab.results.fi_moves_suffix")}
       </>,
     );
   }
 
   return (
     <>
-      {stress.label} is the largest risk
+      {t("goals:risk_lab.results.largest_risk", { label: stress.label })}
       {fragments.length ? ": " : "."}
       {fragments.map((fragment, index) => (
         <Fragment key={index}>
-          {index > 0 ? " and " : ""}
+          {index > 0 ? ` ${t("goals:risk_lab.results.and")} ` : ""}
           {fragment}
         </Fragment>
       ))}
@@ -250,19 +254,24 @@ function deterministicRiskContent(
   );
 }
 
-function baselineStatusCopy(isFunded: boolean, fiAge: number | null, desiredAge: number) {
-  if (isFunded) return "on track";
-  if (!fiAge) return "not reachable";
+function baselineStatusCopy(
+  t: TFunction,
+  isFunded: boolean,
+  fiAge: number | null,
+  desiredAge: number,
+) {
+  if (isFunded) return t("goals:risk_lab.status.on_track");
+  if (!fiAge) return t("goals:risk_lab.status.not_reachable");
   const years = fiAge - desiredAge;
-  if (years <= 0) return "on track";
-  return `${years} ${years === 1 ? "year" : "years"} late`;
+  if (years <= 0) return t("goals:risk_lab.status.on_track");
+  return t("goals:risk_lab.status.years_late", { count: years });
 }
 
-function retirementStatusCopy(status?: string) {
-  if (status === "depleted") return "projected to run short";
-  if (status === "shortfall") return "short at retirement";
-  if (status === "overfunded") return "ahead of target";
-  return "on track";
+function retirementStatusCopy(t: TFunction, status?: string) {
+  if (status === "depleted") return t("goals:risk_lab.status.projected_run_short");
+  if (status === "shortfall") return t("goals:risk_lab.status.short_at_retirement");
+  if (status === "overfunded") return t("goals:risk_lab.status.ahead_of_target");
+  return t("goals:risk_lab.status.on_track");
 }
 
 function HeroMetric({
@@ -299,8 +308,8 @@ function RefreshActionButton({
   onClick,
   disabled,
   loading,
-  children = "Refresh",
-  loadingText = "Updating...",
+  children,
+  loadingText,
 }: {
   onClick: () => void;
   disabled?: boolean;
@@ -308,10 +317,13 @@ function RefreshActionButton({
   children?: React.ReactNode;
   loadingText?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <Button variant="ghost" size="sm" onClick={onClick} disabled={disabled} className="gap-1.5">
       <Icons.RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-      {loading ? loadingText : children}
+      {loading
+        ? (loadingText ?? t("goals:risk_lab.actions.updating"))
+        : (children ?? t("goals:risk_lab.actions.refresh"))}
     </Button>
   );
 }
@@ -331,37 +343,40 @@ function PlanResilienceHero({
   mc?: MonteCarloResult;
   plannerMode?: PlannerMode;
 }) {
+  const { t } = useTranslation();
   const currency = plan.currency;
   const isTraditional = plannerMode === "traditional";
   const desiredAge = overview?.desiredFireAge ?? plan.personal.targetRetirementAge;
   const fiAge = overview?.fiAge ?? null;
   const isFunded = overview?.fundedAtGoalAge ?? false;
   const status = isTraditional
-    ? retirementStatusCopy(overview?.successStatus)
-    : baselineStatusCopy(isFunded, fiAge, desiredAge);
+    ? retirementStatusCopy(t, overview?.successStatus)
+    : baselineStatusCopy(t, isFunded, fiAge, desiredAge);
   const topRisk = topStress(stresses);
   const risk = stressLoading
-    ? "Stress tests are loading."
-    : deterministicRiskContent(topRisk, currency, plannerMode);
+    ? t("goals:risk_lab.stress.loading_short")
+    : deterministicRiskContent(t, topRisk, currency, plannerMode);
   const hasGap = (overview?.shortfallAtGoalAge ?? 0) > 0;
   const surplus = overview?.surplusAtGoalAge ?? 0;
   const gapLabel =
     !overview || !hasGap
       ? isTraditional && surplus > 0
         ? formatCompactAmount(surplus, currency)
-        : "None"
+        : t("goals:risk_lab.results.none")
       : formatCompactAmount(overview.shortfallAtGoalAge, currency);
   const gapDetail =
     !overview || !hasGap
       ? isTraditional && surplus > 0
-        ? "surplus"
-        : "funded"
-      : `${formatCompactAmount(overview.shortfallAtGoalAge, currency)} gap`;
+        ? t("goals:risk_lab.results.surplus")
+        : t("goals:risk_lab.results.funded")
+      : t("goals:risk_lab.results.amount_gap", {
+          amount: formatCompactAmount(overview.shortfallAtGoalAge, currency),
+        });
   const fiDetail = fiAge
     ? fiAge <= desiredAge
-      ? "on target"
-      : `${fiAge - desiredAge} ${fiAge - desiredAge === 1 ? "year" : "years"} late`
-    : "not reached";
+      ? t("goals:risk_lab.results.on_target")
+      : t("goals:risk_lab.status.years_late", { count: fiAge - desiredAge })
+    : t("goals:risk_lab.results.not_reached");
   const isBaselineHealthy = isTraditional
     ? overview?.successStatus === "on_track" || overview?.successStatus === "overfunded"
     : isFunded;
@@ -379,10 +394,10 @@ function PlanResilienceHero({
           <div className="min-w-0 space-y-3">
             <div>
               <p className="text-muted-foreground text-[9px] font-semibold uppercase tracking-[0.22em]">
-                Base case
+                {t("goals:risk_lab.hero.base_case")}
               </p>
               <h2 className="mt-2 max-w-[95%] font-serif text-2xl font-normal leading-[1.15] tracking-tight">
-                Your base plan is{" "}
+                {t("goals:risk_lab.hero.your_base_plan_is")}{" "}
                 <span
                   className={cn(
                     "whitespace-nowrap font-medium",
@@ -402,35 +417,47 @@ function PlanResilienceHero({
 
         <div className="bg-muted/25 grid overflow-hidden rounded-lg border md:grid-cols-4">
           <HeroMetric
-            label={isTraditional ? "Retirement age" : "Desired age"}
+            label={
+              isTraditional
+                ? t("goals:risk_lab.hero.retirement_age")
+                : t("goals:risk_lab.hero.desired_age")
+            }
             value={desiredAge}
-            detail="your goal"
+            detail={t("goals:risk_lab.hero.your_goal")}
           />
           {isTraditional ? (
             <HeroMetric
-              label="Projected balance"
+              label={t("goals:risk_lab.hero.projected_balance")}
               value={overview ? formatCompactAmount(overview.portfolioAtGoalAge, currency) : "—"}
-              detail={`at age ${desiredAge}`}
+              detail={t("goals:risk_lab.hero.at_age", { age: desiredAge })}
               tone={isBaselineHealthy ? "good" : "bad"}
             />
           ) : (
             <HeroMetric
-              label="Base financial independence age"
+              label={t("goals:risk_lab.hero.base_fi_age")}
               value={fiAge ?? "—"}
               detail={fiDetail}
               tone={fiAge && fiAge <= desiredAge ? "good" : fiAge ? "bad" : "default"}
             />
           )}
           <HeroMetric
-            label={isTraditional ? "Gap / surplus" : "Gap at target age"}
+            label={
+              isTraditional
+                ? t("goals:risk_lab.hero.gap_surplus")
+                : t("goals:risk_lab.hero.gap_at_target_age")
+            }
             value={gapLabel}
             detail={gapDetail}
             tone={overview && !hasGap ? "good" : "bad"}
           />
           <HeroMetric
-            label="Money lasts"
+            label={t("goals:risk_lab.hero.money_lasts")}
             value={mc ? pct(mc.successRate) : "—"}
-            detail={mc ? `${mc.nSimulations.toLocaleString()} paths` : "not run"}
+            detail={
+              mc
+                ? t("goals:risk_lab.hero.paths_count", { count: mc.nSimulations.toLocaleString() })
+                : t("goals:risk_lab.hero.not_run")
+            }
             tone={mc ? (mc.successRate >= 0.9 ? "good" : "bad") : "default"}
           />
         </div>
@@ -446,19 +473,23 @@ function compactDelta(value: number, currency: string) {
   return `${direction}${sign}${formatCompactAmount(Math.abs(value), currency)}`;
 }
 
-function fiAgeDeltaLabel(stress: StressTestResult) {
+function fiAgeDeltaLabel(t: TFunction, stress: StressTestResult) {
   const delta = stress.delta.fiAgeYears;
   if (delta === null) return "—";
-  if (delta === 0) return "unchanged";
-  return delta > 0 ? `↑+${delta} yr` : `↓${Math.abs(delta)} yr`;
+  if (delta === 0) return t("goals:risk_lab.results.unchanged");
+  return delta > 0
+    ? `↑+${t("goals:risk_lab.results.years_short", { count: delta })}`
+    : `↓${t("goals:risk_lab.results.years_short", { count: Math.abs(delta) })}`;
 }
 
-function retirementOutcomeLabel(outcome: StressTestResult["baseline"]) {
-  if (outcome.failureAge) return `Runs short at ${outcome.failureAge}`;
-  if (outcome.spendingShortfallAge) return `Gap starts at ${outcome.spendingShortfallAge}`;
-  if (outcome.fundedAtGoalAge) return "Funded";
-  if (outcome.shortfallAtGoalAge > 0) return "Gap";
-  return "Funded";
+function retirementOutcomeLabel(t: TFunction, outcome: StressTestResult["baseline"]) {
+  if (outcome.failureAge)
+    return t("goals:risk_lab.results.runs_short_at", { age: outcome.failureAge });
+  if (outcome.spendingShortfallAge)
+    return t("goals:risk_lab.results.gap_starts_at", { age: outcome.spendingShortfallAge });
+  if (outcome.fundedAtGoalAge) return t("goals:risk_lab.results.funded");
+  if (outcome.shortfallAtGoalAge > 0) return t("goals:risk_lab.results.gap");
+  return t("goals:risk_lab.results.funded");
 }
 
 function severityBadgeClass(severity: StressSeverity) {
@@ -508,13 +539,16 @@ function StressMetric({
   from: React.ReactNode;
   tone?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div>
       <p className="text-muted-foreground text-[10px] font-semibold uppercase tracking-[0.18em]">
         {label}
       </p>
       <p className={cn("mt-2 text-sm font-semibold tabular-nums", tone)}>{value}</p>
-      <p className="text-muted-foreground mt-2 text-xs tabular-nums">from {from}</p>
+      <p className="text-muted-foreground mt-2 text-xs tabular-nums">
+        {t("goals:risk_lab.results.from")} {from}
+      </p>
     </div>
   );
 }
@@ -566,6 +600,7 @@ function StressTestsSection({
   onRun: () => void;
   plannerMode?: PlannerMode;
 }) {
+  const { t } = useTranslation();
   const isTraditional = plannerMode === "traditional";
   const sorted = useMemo(
     () =>
@@ -576,17 +611,17 @@ function StressTestsSection({
       ),
     [stresses],
   );
-  const message = errorMessage(error);
+  const message = errorMessage(t, error);
 
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
           <p className="text-muted-foreground/55 text-[10px] font-normal uppercase leading-none tracking-[0.24em]">
-            What could break this plan? · {sorted.length || 6} scenarios
+            {t("goals:risk_lab.stress.eyebrow_with_count", { count: sorted.length || 6 })}
           </p>
           <h2 className="mt-2 font-serif text-[23px] font-normal leading-[1.05] tracking-[-0.02em]">
-            What could break this plan?
+            {t("goals:risk_lab.stress.heading")}
           </h2>
         </div>
         <div className="flex items-center gap-3">
@@ -602,7 +637,7 @@ function StressTestsSection({
         <div className="space-y-3">
           <p className="text-muted-foreground flex items-center gap-2 text-xs">
             <Icons.Spinner className="size-3 animate-spin" />
-            Running 6 stress scenarios against your plan…
+            {t("goals:risk_lab.stress.running")}
           </p>
           <div className="grid gap-3 lg:grid-cols-2">
             {Array.from({ length: 6 }).map((_, index) => (
@@ -643,22 +678,26 @@ function StressTestsSection({
                       severityBadgeClass(stress.severity),
                     )}
                   >
-                    {stress.severity}
+                    {t(`goals:risk_lab.severity.${stress.severity}`)}
                   </Badge>
                 </div>
 
                 <div className="mt-5 border-t pt-4">
                   <div className="grid grid-cols-3 gap-4">
                     <StressMetric
-                      label={isTraditional ? "Outcome" : "FI age"}
+                      label={
+                        isTraditional
+                          ? t("goals:risk_lab.stress.outcome")
+                          : t("goals:risk_lab.stress.fi_age")
+                      }
                       value={
                         isTraditional
-                          ? retirementOutcomeLabel(stress.stressed)
-                          : fiAgeDeltaLabel(stress)
+                          ? retirementOutcomeLabel(t, stress.stressed)
+                          : fiAgeDeltaLabel(t, stress)
                       }
                       from={
                         isTraditional
-                          ? retirementOutcomeLabel(stress.baseline)
+                          ? retirementOutcomeLabel(t, stress.baseline)
                           : (stress.baseline.fiAge ?? "—")
                       }
                       tone={
@@ -675,13 +714,13 @@ function StressTestsSection({
                       }
                     />
                     <StressMetric
-                      label="Extra gap"
+                      label={t("goals:risk_lab.stress.extra_gap")}
                       value={compactDelta(stress.delta.shortfallAtGoalAge, currency)}
                       from={formatCompactAmount(stress.baseline.shortfallAtGoalAge, currency)}
                       tone={impactTextClass(stress.delta.shortfallAtGoalAge)}
                     />
                     <StressMetric
-                      label="Money left"
+                      label={t("goals:risk_lab.stress.money_left")}
                       value={compactDelta(stress.delta.portfolioAtHorizon, currency)}
                       from={formatCompactAmount(stress.baseline.portfolioAtHorizon, currency)}
                       tone={impactTextClass(stress.delta.portfolioAtHorizon, false)}
@@ -708,11 +747,12 @@ function MonteCarloTooltip({
   label?: string | number;
   currency: string;
 }) {
+  const { t } = useTranslation();
   const point = payload?.[0]?.payload;
   if (!active || !point) return null;
   return (
     <div className="bg-popover rounded-lg border p-3 text-xs shadow-sm">
-      <p className="font-semibold">Age {label}</p>
+      <p className="font-semibold">{t("goals:risk_lab.chart.age_label", { age: label })}</p>
       <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
         <span className="text-muted-foreground">P90</span>
         <span className="text-right tabular-nums">{fmt(point.p90, currency)}</span>
@@ -782,6 +822,7 @@ function MonteCarloFanChart({
   showMedianFiLine?: boolean;
   goalLabel?: string;
 }) {
+  const { t } = useTranslation();
   const chartData = useMemo(
     () =>
       result.ageAxis.map((age, index) => {
@@ -838,7 +879,7 @@ function MonteCarloFanChart({
           label={(props) => (
             <ReferenceCaption
               {...props}
-              value={`${goalLabel} @${desiredAge}`}
+              value={t("goals:risk_lab.chart.goal_at_age", { label: goalLabel, age: desiredAge })}
               fill={CHART.reference}
               side="left"
             />
@@ -853,7 +894,7 @@ function MonteCarloFanChart({
             label={(props) => (
               <ReferenceCaption
                 {...props}
-                value={`median FI @${result.medianFireAge}`}
+                value={t("goals:risk_lab.chart.median_fi_at_age", { age: result.medianFireAge })}
                 fill={CHART.success}
                 side="right"
               />
@@ -882,12 +923,13 @@ function MonteCarloDistributionSection({
   activeSims: number;
   plannerMode?: PlannerMode;
 }) {
-  const message = errorMessage(error);
+  const { t } = useTranslation();
+  const message = errorMessage(t, error);
   const desiredAge = plan.personal.targetRetirementAge;
   const isTraditional = plannerMode === "traditional";
-  const moneyLastsCopy = moneyLastsDefinition(plannerMode, plan.personal.planningHorizonAge);
-  const moneyLastsDetail = moneyLastsSummary(plannerMode, plan.personal.planningHorizonAge);
-  const moneyLastsCta = moneyLastsPrompt(plannerMode, plan.personal.planningHorizonAge);
+  const moneyLastsCopy = moneyLastsDefinition(t, plannerMode, plan.personal.planningHorizonAge);
+  const moneyLastsDetail = moneyLastsSummary(t, plannerMode, plan.personal.planningHorizonAge);
+  const moneyLastsCta = moneyLastsPrompt(t, plannerMode, plan.personal.planningHorizonAge);
 
   return (
     <Card className="overflow-hidden">
@@ -895,14 +937,13 @@ function MonteCarloDistributionSection({
         <div className="flex flex-col gap-5 p-5 md:flex-row md:items-start md:justify-between md:p-6">
           <div className="min-w-0 flex-1">
             <p className="text-muted-foreground/60 text-[10px] font-normal uppercase leading-none tracking-[0.24em]">
-              Market paths
+              {t("goals:risk_lab.montecarlo.eyebrow")}
             </p>
             <CardTitle className="mt-2 font-serif text-[23px] font-normal leading-[1.05] tracking-[-0.02em]">
-              How often could the money last?
+              {t("goals:risk_lab.montecarlo.heading")}
             </CardTitle>
             <p className="text-muted-foreground mt-4 max-w-[900px] text-sm leading-relaxed">
-              We test the same plan across many possible market paths. The shaded range shows
-              bad-to-good outcomes; the line shows the middle path. {moneyLastsCopy}
+              {t("goals:risk_lab.montecarlo.intro")} {moneyLastsCopy}
             </p>
           </div>
           {result && (
@@ -911,17 +952,17 @@ function MonteCarloDistributionSection({
                 onClick={() => onRun(10_000)}
                 disabled={running}
                 loading={running && activeSims === 10_000}
-                loadingText="Running…"
+                loadingText={t("goals:risk_lab.montecarlo.running_short")}
               >
-                Run 10k paths
+                {t("goals:risk_lab.montecarlo.run_10k")}
               </RefreshActionButton>
               <RefreshActionButton
                 onClick={() => onRun(100_000)}
                 disabled={running}
                 loading={running && activeSims === 100_000}
-                loadingText="Running…"
+                loadingText={t("goals:risk_lab.montecarlo.running_short")}
               >
-                Run 100k paths
+                {t("goals:risk_lab.montecarlo.run_100k")}
               </RefreshActionButton>
             </div>
           )}
@@ -935,10 +976,11 @@ function MonteCarloDistributionSection({
               <span className="flex size-11 items-center justify-center rounded-full bg-[hsl(91,34%,29%)]/10 text-[hsl(91,34%,29%)]">
                 <Icons.Spinner className="size-5 animate-spin" />
               </span>
-              <p className="mt-4 text-sm font-semibold">Running simulations</p>
+              <p className="mt-4 text-sm font-semibold">
+                {t("goals:risk_lab.montecarlo.running_title")}
+              </p>
               <p className="text-muted-foreground mt-1 max-w-md text-sm leading-relaxed">
-                Testing many possible market paths. Results and the fan chart will appear when the
-                run finishes.
+                {t("goals:risk_lab.montecarlo.running_detail")}
               </p>
             </div>
           </div>
@@ -947,7 +989,7 @@ function MonteCarloDistributionSection({
           <div className="m-5 rounded-xl bg-[hsl(88,45%,84%)] px-4 py-4 text-[hsl(91,31%,24%)] md:m-6 md:px-5">
             <div className="flex flex-col gap-4 text-center md:flex-row md:items-center md:justify-between md:text-left">
               <div>
-                <p className="text-sm font-semibold">No market-path run yet.</p>
+                <p className="text-sm font-semibold">{t("goals:risk_lab.montecarlo.no_run_yet")}</p>
                 <p className="mt-1 max-w-4xl text-sm leading-relaxed text-[hsl(91,22%,32%)]">
                   {moneyLastsCta}
                 </p>
@@ -960,7 +1002,9 @@ function MonteCarloDistributionSection({
                   className="bg-[hsl(91,34%,29%)] text-white hover:bg-[hsl(91,34%,24%)]"
                 >
                   <Icons.Sparkles className="mr-2 size-3.5" />
-                  {running && activeSims === 10_000 ? "Running…" : "Run 10k paths"}
+                  {running && activeSims === 10_000
+                    ? t("goals:risk_lab.montecarlo.running_short")
+                    : t("goals:risk_lab.montecarlo.run_10k")}
                 </Button>
                 <Button
                   variant="ghost"
@@ -969,7 +1013,9 @@ function MonteCarloDistributionSection({
                   disabled={running}
                   className="text-[hsl(91,31%,24%)] hover:bg-[hsl(91,34%,29%)]/10"
                 >
-                  {running && activeSims === 100_000 ? "Running…" : "Run 100k paths"}
+                  {running && activeSims === 100_000
+                    ? t("goals:risk_lab.montecarlo.running_short")
+                    : t("goals:risk_lab.montecarlo.run_100k")}
                 </Button>
               </div>
             </div>
@@ -979,31 +1025,45 @@ function MonteCarloDistributionSection({
           <>
             <div className="bg-muted/10 grid border-b md:grid-cols-5">
               <SimulationMetric
-                label="Money lasts"
+                label={t("goals:risk_lab.montecarlo.money_lasts")}
                 value={pct(result.successRate)}
                 detail={moneyLastsDetail}
                 tone={result.successRate >= 0.9 ? "good" : "bad"}
               />
               <SimulationMetric
-                label={isTraditional ? "Withdrawals start" : "Median FI age"}
+                label={
+                  isTraditional
+                    ? t("goals:risk_lab.montecarlo.withdrawals_start")
+                    : t("goals:risk_lab.montecarlo.median_fi_age")
+                }
                 value={isTraditional ? desiredAge : (result.medianFireAge ?? "—")}
-                detail={isTraditional ? "withdrawals start" : `vs goal ${desiredAge}`}
+                detail={
+                  isTraditional
+                    ? t("goals:risk_lab.montecarlo.withdrawals_start_detail")
+                    : t("goals:risk_lab.montecarlo.vs_goal", { age: desiredAge })
+                }
               />
               <SimulationMetric
-                label="Bad path"
+                label={t("goals:risk_lab.montecarlo.bad_path")}
                 value={formatCompactAmount(result.finalPortfolioAtHorizon.p10, plan.currency)}
-                detail={`age ${plan.personal.planningHorizonAge}`}
+                detail={t("goals:risk_lab.chart.age_detail", {
+                  age: plan.personal.planningHorizonAge,
+                })}
                 tone={result.finalPortfolioAtHorizon.p10 > 0 ? "default" : "bad"}
               />
               <SimulationMetric
-                label="Middle path"
+                label={t("goals:risk_lab.montecarlo.middle_path")}
                 value={formatCompactAmount(result.finalPortfolioAtHorizon.p50, plan.currency)}
-                detail={`age ${plan.personal.planningHorizonAge}`}
+                detail={t("goals:risk_lab.chart.age_detail", {
+                  age: plan.personal.planningHorizonAge,
+                })}
               />
               <SimulationMetric
-                label="Good path"
+                label={t("goals:risk_lab.montecarlo.good_path")}
                 value={formatCompactAmount(result.finalPortfolioAtHorizon.p90, plan.currency)}
-                detail={`age ${plan.personal.planningHorizonAge}`}
+                detail={t("goals:risk_lab.chart.age_detail", {
+                  age: plan.personal.planningHorizonAge,
+                })}
                 tone="good"
               />
             </div>
@@ -1013,20 +1073,24 @@ function MonteCarloDistributionSection({
                 currency={plan.currency}
                 desiredAge={desiredAge}
                 showMedianFiLine={!isTraditional}
-                goalLabel={isTraditional ? "retire" : "goal"}
+                goalLabel={
+                  isTraditional ? t("goals:risk_lab.chart.retire") : t("goals:risk_lab.chart.goal")
+                }
               />
               <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-5 text-sm">
                 <span className="flex items-center gap-2">
                   <span className="size-3 rounded-sm" style={{ backgroundColor: CHART.fan }} />
-                  Bad-good range
+                  {t("goals:risk_lab.chart.bad_good_range")}
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="h-0.5 w-6" style={{ backgroundColor: CHART.success }} />
-                  Median path
+                  {t("goals:risk_lab.chart.median_path")}
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="border-muted-foreground h-0 w-6 border-t border-dashed" />
-                  {isTraditional ? "Retirement age" : "Goal age"}
+                  {isTraditional
+                    ? t("goals:risk_lab.chart.retirement_age")
+                    : t("goals:risk_lab.chart.goal_age")}
                 </span>
                 {!isTraditional && result.medianFireAge && result.medianFireAge !== desiredAge && (
                   <span className="flex items-center gap-2">
@@ -1034,11 +1098,13 @@ function MonteCarloDistributionSection({
                       className="h-0 w-6 border-t border-dashed"
                       style={{ borderColor: CHART.success }}
                     />
-                    Median FI age
+                    {t("goals:risk_lab.chart.median_fi_age")}
                   </span>
                 )}
                 <span className="ml-auto italic">
-                  {result.nSimulations.toLocaleString()} market paths
+                  {t("goals:risk_lab.chart.market_paths_count", {
+                    count: result.nSimulations.toLocaleString(),
+                  })}
                 </span>
               </div>
             </div>
@@ -1185,12 +1251,12 @@ function sensitivityCellStyle({
   };
 }
 
-function decisionCellLabel(cell: DecisionSensitivityCell, currency: string) {
+function decisionCellLabel(t: TFunction, cell: DecisionSensitivityCell, currency: string) {
   if (cell.shortfallAtGoalAge > 1) {
     return `-${formatCompactAmount(cell.shortfallAtGoalAge, currency)}`;
   }
   if (cell.portfolioAtHorizon <= 0) {
-    return "Runs short";
+    return t("goals:risk_lab.results.runs_short");
   }
   return formatCompactAmount(cell.portfolioAtHorizon, currency);
 }
@@ -1210,6 +1276,7 @@ function DecisionHeatmap({
   flatColumnHint?: string;
   ageMetricLabel: string;
 }) {
+  const { t } = useTranslation();
   const range = useMemo(() => matrixDeltaRange(matrix), [matrix]);
   const baseline = useMemo(() => matrixBaselineCell(matrix), [matrix]);
 
@@ -1270,7 +1337,7 @@ function DecisionHeatmap({
                           )}
                           style={sensitivityCellStyle({ cell, baseline, range, active })}
                         >
-                          {decisionCellLabel(cell, currency)}
+                          {decisionCellLabel(t, cell, currency)}
                         </div>
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs text-xs">
@@ -1286,11 +1353,15 @@ function DecisionHeatmap({
                           <span className="text-right">
                             {formatColumn(columnValue, matrix.columnLabels[column] ?? "")}
                           </span>
-                          <span className="text-muted-foreground">Money left at the end</span>
+                          <span className="text-muted-foreground">
+                            {t("goals:risk_lab.results.money_left_at_end")}
+                          </span>
                           <span className="text-right">
                             {fmt(cell.portfolioAtHorizon, currency)}
                           </span>
-                          <span className="text-muted-foreground">Change vs base plan</span>
+                          <span className="text-muted-foreground">
+                            {t("goals:risk_lab.results.change_vs_base_plan")}
+                          </span>
                           <span
                             className={cn(
                               "text-right",
@@ -1308,8 +1379,12 @@ function DecisionHeatmap({
                             )}
                           </span>
                           <span className="text-muted-foreground">{ageMetricLabel}</span>
-                          <span className="text-right">{cell.fiAge ?? "Not reached"}</span>
-                          <span className="text-muted-foreground">Shortfall at retirement</span>
+                          <span className="text-right">
+                            {cell.fiAge ?? t("goals:risk_lab.results.not_reached")}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {t("goals:risk_lab.results.shortfall_at_retirement")}
+                          </span>
                           <span className="text-right">
                             {fmt(cell.shortfallAtGoalAge, currency)}
                           </span>
@@ -1368,7 +1443,8 @@ function WhatMovesThePlanSection({
   plan: RetirementPlan;
   plannerMode?: PlannerMode;
 }) {
-  const message = errorMessage(error);
+  const { t } = useTranslation();
+  const message = errorMessage(t, error);
   const isFireMode = plannerMode !== "traditional";
   const loading = contributionLoading || spendingLoading;
   const hasAnyMap = Boolean(contributionReturn || retirementAgeSpending);
@@ -1379,14 +1455,13 @@ function WhatMovesThePlanSection({
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
           <p className="text-muted-foreground/55 text-[10px] font-normal uppercase leading-none tracking-[0.24em]">
-            What changes the plan most?
+            {t("goals:risk_lab.moves.eyebrow")}
           </p>
           <h2 className="mt-2 font-serif text-[23px] font-normal leading-[1.05] tracking-[-0.02em]">
-            What moves the plan?
+            {t("goals:risk_lab.moves.heading")}
           </h2>
           <p className="text-muted-foreground mt-2 max-w-4xl text-sm leading-relaxed xl:whitespace-nowrap">
-            Shows how savings, returns, retirement age, and spending change the outcome. Green =
-            more money left; red = shortfall or runs short.
+            {t("goals:risk_lab.moves.description")}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -1399,15 +1474,14 @@ function WhatMovesThePlanSection({
         <div className="bg-muted/10 rounded-xl border border-dashed p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm font-semibold">See which changes would help most.</p>
+              <p className="text-sm font-semibold">{t("goals:risk_lab.moves.empty_title")}</p>
               <p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-relaxed">
-                Compare saving more, earning a different return, spending less, or retiring at a
-                different age.
+                {t("goals:risk_lab.moves.empty_description")}
               </p>
             </div>
             <Button size="sm" onClick={onRun} disabled={loading}>
               <Icons.Sparkles className="mr-2 size-3.5" />
-              {loading ? "Building..." : "Build maps"}
+              {loading ? t("goals:risk_lab.moves.building") : t("goals:risk_lab.moves.build_maps")}
             </Button>
           </div>
         </div>
@@ -1416,46 +1490,58 @@ function WhatMovesThePlanSection({
         <div className="grid gap-3 lg:grid-cols-2">
           {contributionReturn ? (
             <SensitivityMatrixCard
-              title="Contribution × Return"
-              subtitle="Money left at the end, in today's dollars"
+              title={t("goals:risk_lab.moves.contribution_return")}
+              subtitle={t("goals:risk_lab.moves.money_left_subtitle")}
             >
               <DecisionHeatmap
                 matrix={contributionReturn}
                 currency={plan.currency}
                 formatRow={(value, label) => label || `${(value * 100).toFixed(1)}%`}
                 formatColumn={(value) => axisMoney(value, plan.currency)}
-                ageMetricLabel={isFireMode ? "FI age" : "Readiness age"}
+                ageMetricLabel={
+                  isFireMode
+                    ? t("goals:risk_lab.moves.fi_age")
+                    : t("goals:risk_lab.moves.readiness_age")
+                }
               />
             </SensitivityMatrixCard>
           ) : (
             <SensitivityLoadingCard
-              title="Contribution × Return"
-              description="Checking how saving and after-fee returns change the result."
+              title={t("goals:risk_lab.moves.contribution_return")}
+              description={t("goals:risk_lab.moves.contribution_return_loading")}
             />
           )}
 
           {retirementAgeSpending ? (
             <SensitivityMatrixCard
-              title={`${isFireMode ? "Desired age" : "Retirement age"} × Spending`}
-              subtitle="Money left at the end, in today's dollars"
+              title={
+                isFireMode
+                  ? t("goals:risk_lab.moves.desired_age_spending")
+                  : t("goals:risk_lab.moves.retirement_age_spending")
+              }
+              subtitle={t("goals:risk_lab.moves.money_left_subtitle")}
             >
               <DecisionHeatmap
                 matrix={retirementAgeSpending}
                 currency={plan.currency}
                 formatRow={(value) => axisMoney(value, plan.currency)}
                 formatColumn={(value, label) => label || String(Math.round(value))}
-                ageMetricLabel={isFireMode ? "FI age" : "Readiness age"}
-                flatColumnHint={
+                ageMetricLabel={
                   isFireMode
-                    ? "This age does not change much here because spending starts when the plan becomes financially independent."
-                    : undefined
+                    ? t("goals:risk_lab.moves.fi_age")
+                    : t("goals:risk_lab.moves.readiness_age")
                 }
+                flatColumnHint={isFireMode ? t("goals:risk_lab.moves.flat_column_hint") : undefined}
               />
             </SensitivityMatrixCard>
           ) : (
             <SensitivityLoadingCard
-              title={`${isFireMode ? "Desired age" : "Retirement age"} × Spending`}
-              description="Checking how timing and retirement spending change the result."
+              title={
+                isFireMode
+                  ? t("goals:risk_lab.moves.desired_age_spending")
+                  : t("goals:risk_lab.moves.retirement_age_spending")
+              }
+              description={t("goals:risk_lab.moves.retirement_age_spending_loading")}
             />
           )}
         </div>
@@ -1505,12 +1591,13 @@ function SorrTooltip({
   label?: string | number;
   currency: string;
 }) {
+  const { t } = useTranslation();
   const visiblePayload = payload?.filter((entry) => entry.value != null) ?? [];
   if (!active || visiblePayload.length === 0) return null;
 
   return (
     <div className="bg-popover min-w-56 rounded-lg border p-3 text-xs shadow-sm">
-      <p className="font-semibold">Age {label}</p>
+      <p className="font-semibold">{t("goals:risk_lab.chart.age_label", { age: label })}</p>
       <div className="mt-2 space-y-1.5">
         {visiblePayload.map((entry) => (
           <div
@@ -1602,13 +1689,15 @@ function sorrRiskAge(scenario: SorrScenario) {
   return scenario.failureAge ?? scenario.spendingShortfallAge ?? null;
 }
 
-function sorrOutcomeText(scenario: SorrScenario, currency: string) {
+function sorrOutcomeText(t: TFunction, scenario: SorrScenario, currency: string) {
   if (scenario.survived) {
     return formatCompactAmount(scenario.finalValue, currency);
   }
 
   const riskAge = sorrRiskAge(scenario);
-  return riskAge ? `Runs short ${riskAge}` : "Runs short";
+  return riskAge
+    ? t("goals:risk_lab.advanced.runs_short_age", { age: riskAge })
+    : t("goals:risk_lab.results.runs_short");
 }
 
 function worstSorrScenario(scenarios: SorrScenario[]) {
@@ -1634,6 +1723,7 @@ function AdvancedSection({
   sorrError: unknown;
   onRunSorr: () => void;
 }) {
+  const { t } = useTranslation();
   const retirementStartAge = overview?.retirementStartAge ?? plan.personal.targetRetirementAge;
   const canRunSorr = (overview?.portfolioAtRetirementStart ?? 0) > 0;
   const baseCase = sorrResult?.find((scenario) => scenario.label === "Base case");
@@ -1648,10 +1738,10 @@ function AdvancedSection({
           <Icons.ChevronDown className="text-muted-foreground mt-3 size-3.5 transition-transform group-open:rotate-180" />
           <div className="min-w-0">
             <p className="text-muted-foreground/60 text-[10px] font-normal uppercase leading-none tracking-[0.24em]">
-              Advanced checks
+              {t("goals:risk_lab.advanced.eyebrow")}
             </p>
             <h2 className="mt-1.5 text-lg font-semibold tracking-[-0.01em]">
-              Early market crash paths
+              {t("goals:risk_lab.advanced.heading")}
             </h2>
           </div>
         </div>
@@ -1667,36 +1757,38 @@ function AdvancedSection({
               onClick={onRunSorr}
               disabled={sorrRunning}
               loading={sorrRunning}
-              loadingText="Running…"
+              loadingText={t("goals:risk_lab.advanced.running_short")}
             >
-              {sorrResult ? "Refresh" : "Run paths"}
+              {sorrResult
+                ? t("goals:risk_lab.actions.refresh")
+                : t("goals:risk_lab.advanced.run_paths")}
             </RefreshActionButton>
           </div>
         )}
       </summary>
       <div className="border-t p-5">
-        {errorMessage(sorrError) && (
-          <p className="text-destructive mb-4 text-sm">{errorMessage(sorrError)}</p>
+        {errorMessage(t, sorrError) && (
+          <p className="text-destructive mb-4 text-sm">{errorMessage(t, sorrError)}</p>
         )}
         {sorrResult ? (
           <>
             <p className="text-muted-foreground mb-3 text-sm">
-              Tests five crash-timing paths through retirement.
+              {t("goals:risk_lab.advanced.intro")}
             </p>
             <div className="bg-muted/10 grid gap-3 border-y px-4 py-3 text-sm sm:grid-cols-3">
               <div>
                 <p className="text-muted-foreground text-[10px] font-semibold uppercase tracking-[0.16em]">
-                  Earliest shortfall
+                  {t("goals:risk_lab.advanced.earliest_shortfall")}
                 </p>
                 <p className="mt-1 font-semibold tabular-nums">
                   {hardestPath && hardestPathRiskAge
                     ? `${hardestPath.label} @ ${hardestPathRiskAge}`
-                    : "None"}
+                    : t("goals:risk_lab.results.none")}
                 </p>
               </div>
               <div>
                 <p className="text-muted-foreground text-[10px] font-semibold uppercase tracking-[0.16em]">
-                  Paths survive
+                  {t("goals:risk_lab.advanced.paths_survive")}
                 </p>
                 <p className="mt-1 font-semibold tabular-nums">
                   {survivingPaths}/{sorrResult.length}
@@ -1704,10 +1796,10 @@ function AdvancedSection({
               </div>
               <div>
                 <p className="text-muted-foreground text-[10px] font-semibold uppercase tracking-[0.16em]">
-                  Base case
+                  {t("goals:risk_lab.advanced.base_case")}
                 </p>
                 <p className="mt-1 font-semibold tabular-nums">
-                  {baseCase ? sorrOutcomeText(baseCase, plan.currency) : "—"}
+                  {baseCase ? sorrOutcomeText(t, baseCase, plan.currency) : "—"}
                 </p>
               </div>
             </div>
@@ -1738,7 +1830,7 @@ function AdvancedSection({
                       scenario.survived ? "text-[hsl(102,32%,39%)]" : "text-destructive",
                     )}
                   >
-                    {sorrOutcomeText(scenario, plan.currency)}
+                    {sorrOutcomeText(t, scenario, plan.currency)}
                   </span>
                 </div>
               ))}
@@ -1749,12 +1841,14 @@ function AdvancedSection({
             <div className="flex flex-col gap-4 text-center md:flex-row md:items-center md:justify-between md:text-left">
               <div>
                 <p className="text-sm font-semibold">
-                  {canRunSorr ? "Check crash timing risk." : "Crash paths unavailable."}
+                  {canRunSorr
+                    ? t("goals:risk_lab.advanced.empty_title")
+                    : t("goals:risk_lab.advanced.unavailable_title")}
                 </p>
                 <p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-relaxed">
                   {canRunSorr
-                    ? "Run the five paths to see which sequence would put the plan under pressure first."
-                    : "This check needs a positive projected portfolio at retirement start."}
+                    ? t("goals:risk_lab.advanced.empty_description")
+                    : t("goals:risk_lab.advanced.unavailable_description")}
                 </p>
               </div>
               {canRunSorr && (
@@ -1764,7 +1858,9 @@ function AdvancedSection({
                   ) : (
                     <Icons.RefreshCw className="mr-2 size-3.5" />
                   )}
-                  {sorrRunning ? "Running…" : "Run paths"}
+                  {sorrRunning
+                    ? t("goals:risk_lab.advanced.running_short")
+                    : t("goals:risk_lab.advanced.run_paths")}
                 </Button>
               )}
             </div>

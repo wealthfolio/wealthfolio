@@ -1,13 +1,14 @@
 import { expect, Page, test } from "@playwright/test";
 import {
   BASE_URL,
-  TEST_PASSWORD,
   completeOnboardingIfNeeded,
   createAccount,
   fillDateField,
   gotoActivities,
+  gotoAppPath,
   openAddActivitySheet,
   searchAndSelectSymbol,
+  selectAccountOption,
   selectActivityType,
   waitForSyncToast,
 } from "./helpers";
@@ -115,12 +116,7 @@ test.describe("Asset-backed income subtypes update holdings", () => {
   }
 
   async function selectAccount() {
-    const accountSelect = page.getByTestId("account-select");
-    await accountSelect.click();
-    await page
-      .getByRole("option", { name: new RegExp(`${accountName}.*\\(${currency}\\)`) })
-      .first()
-      .click();
+    await selectAccountOption(page, accountName, currency);
   }
 
   async function selectSubtype(subtype: string) {
@@ -138,7 +134,12 @@ test.describe("Asset-backed income subtypes update holdings", () => {
   }
 
   async function fillNotes(notes: string) {
+    // Notes live inside the collapsible "Advanced & notes" section — expand it first.
     const input = page.getByTestId("notes-input");
+    if (!(await input.isVisible().catch(() => false))) {
+      await page.getByTestId("advanced-options-button").click();
+      await expect(input).toBeVisible({ timeout: 5000 });
+    }
     await input.fill(notes);
     await input.blur();
   }
@@ -211,7 +212,7 @@ test.describe("Asset-backed income subtypes update holdings", () => {
   }
 
   async function expectHoldingVisibleInAccount(symbol: string, quantity: number) {
-    await page.goto(`${BASE_URL}/settings/accounts`, { waitUntil: "domcontentloaded" });
+    await gotoAppPath(page, "/settings/accounts");
     const accountLink = page.getByRole("link", { name: accountName });
     await expect(accountLink).toBeVisible({ timeout: 10000 });
     await accountLink.click();
@@ -219,30 +220,12 @@ test.describe("Asset-backed income subtypes update holdings", () => {
 
     const row = page.locator("tbody tr").filter({ hasText: symbol }).first();
     await expect(row).toBeVisible({ timeout: 15000 });
-    await expect(row).toContainText(new RegExp(`${quantity}\\s*shares`));
+    const escapedQuantity = String(quantity).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    await expect(row).toContainText(new RegExp(`(^|\\D)${escapedQuantity}(\\D|$)`));
   }
 
   test("1. Setup: login/onboard and create isolated account", async () => {
     test.setTimeout(180_000);
-
-    await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
-
-    const loginInput = page.getByPlaceholder("Enter your password");
-    const continueButton = page.getByRole("button", { name: "Continue" });
-    const dashboardHeading = page.getByRole("heading", { name: "Dashboard" });
-    const accountsHeading = page.getByRole("heading", { name: "Accounts" });
-
-    await expect(
-      loginInput.or(continueButton).or(dashboardHeading).or(accountsHeading),
-    ).toBeVisible({ timeout: 120_000 });
-
-    if (await loginInput.isVisible()) {
-      await loginInput.fill(TEST_PASSWORD);
-      await page.getByRole("button", { name: "Sign In" }).click();
-      await expect(continueButton.or(dashboardHeading).or(accountsHeading)).toBeVisible({
-        timeout: 30_000,
-      });
-    }
 
     await completeOnboardingIfNeeded(page);
     await createAccount(page, accountName, currency);

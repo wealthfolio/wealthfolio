@@ -4,6 +4,7 @@
  * self-contained (no shared state with the rest of the stage).
  */
 import { useMemo, type FC } from "react";
+import { useTranslation } from "react-i18next";
 
 import { formatCompactAmount } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -17,7 +18,15 @@ import { createZonedDayHourFormatter, type ZonedDayHour } from "../../../lib/tim
 const CARD_CLASS = "border-border/60 bg-card/40 rounded-2xl border p-5 backdrop-blur-xl";
 const LABEL_CLASS = "text-muted-foreground/70 text-[10px] font-normal uppercase tracking-[0.12em]";
 
-const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_NAME_KEYS = [
+  "spending:dayOfWeek.mon",
+  "spending:dayOfWeek.tue",
+  "spending:dayOfWeek.wed",
+  "spending:dayOfWeek.thu",
+  "spending:dayOfWeek.fri",
+  "spending:dayOfWeek.sat",
+  "spending:dayOfWeek.sun",
+];
 const HOUR_LABELS = ["12a", "3a", "6a", "9a", "12p", "3p", "6p", "9p"];
 
 export interface WhenYouSpendCardProps {
@@ -37,6 +46,7 @@ export const WhenYouSpendCard: FC<WhenYouSpendCardProps> = ({
   timezone,
   onCellClick,
 }) => {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const isPhone = useIsMobileViewport();
   const cols = isPhone ? 8 : 24;
@@ -49,13 +59,13 @@ export const WhenYouSpendCard: FC<WhenYouSpendCardProps> = ({
     return (
       <div className={CARD_CLASS}>
         <header className="mb-3">
-          <h3 className="text-foreground text-base font-semibold tracking-tight">When you spend</h3>
-          <p className="text-muted-foreground text-xs">
-            Last 12 weeks · spending intensity by weekday and hour.
-          </p>
+          <h3 className="text-foreground text-base font-semibold tracking-tight">
+            {t("spending:whenYouSpend.title")}
+          </h3>
+          <p className="text-muted-foreground text-xs">{t("spending:whenYouSpend.subtitle")}</p>
         </header>
         <div className="text-muted-foreground py-8 text-center text-sm">
-          No cash activity in the last 12 weeks.
+          {t("spending:whenYouSpend.noActivity")}
         </div>
       </div>
     );
@@ -65,12 +75,18 @@ export const WhenYouSpendCard: FC<WhenYouSpendCardProps> = ({
     <div className={CARD_CLASS}>
       <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h3 className="text-foreground text-base font-semibold tracking-tight">When you spend</h3>
+          <h3 className="text-foreground text-base font-semibold tracking-tight">
+            {t("spending:whenYouSpend.title")}
+          </h3>
           <p className="text-muted-foreground text-xs">
-            {isPhone ? "Last 12 weeks" : "Last 12 weeks · spending intensity by weekday and hour."}
+            {isPhone
+              ? t("spending:whenYouSpend.subtitleShort")
+              : t("spending:whenYouSpend.subtitle")}
           </p>
         </div>
-        {!isPhone && <span className={LABEL_CLASS}>MEDIAN PER WEEKDAY</span>}
+        {!isPhone && (
+          <span className={LABEL_CLASS}>{t("spending:whenYouSpend.medianPerWeekday")}</span>
+        )}
       </header>
 
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1">
@@ -86,13 +102,13 @@ export const WhenYouSpendCard: FC<WhenYouSpendCardProps> = ({
         <div />
 
         {/* 7 weekday rows */}
-        {DAY_NAMES.map((day, di) => {
+        {DAY_NAME_KEYS.map((dayKey, di) => {
           const row = grid.cells[di];
           const median = grid.medians[di];
           return (
             <Row
               key={di}
-              day={day}
+              day={t(dayKey)}
               weekdayIndex={di}
               cells={row}
               max={grid.max}
@@ -101,6 +117,7 @@ export const WhenYouSpendCard: FC<WhenYouSpendCardProps> = ({
               isPhone={isPhone}
               isBalanceHidden={isBalanceHidden}
               onCellClick={onCellClick}
+              noSpendLabel={t("spending:whenYouSpend.noSpend")}
             />
           );
         })}
@@ -109,8 +126,10 @@ export const WhenYouSpendCard: FC<WhenYouSpendCardProps> = ({
       <div className="border-border/40 mt-4 flex items-center justify-between border-t pt-3 text-[11px]">
         {!isPhone && (
           <span className="text-muted-foreground/70">
-            Each cell is one weekday-hour over 12 weeks. <span className="dark:hidden">Darker</span>
-            <span className="hidden dark:inline">Brighter</span> = more spend.
+            {t("spending:whenYouSpend.legendIntro")}{" "}
+            <span className="dark:hidden">{t("spending:whenYouSpend.darker")}</span>
+            <span className="hidden dark:inline">{t("spending:whenYouSpend.brighter")}</span>{" "}
+            {t("spending:whenYouSpend.moreSpend")}
           </span>
         )}
         <Legend />
@@ -129,6 +148,7 @@ function Row({
   isPhone,
   isBalanceHidden,
   onCellClick,
+  noSpendLabel,
 }: {
   day: string;
   weekdayIndex: number;
@@ -139,6 +159,7 @@ function Row({
   isPhone: boolean;
   isBalanceHidden: boolean;
   onCellClick?: (weekday: number, startHour: number, endHour: number) => void;
+  noSpendLabel: string;
 }) {
   const cols = cells.length;
   const hoursPerCell = Math.max(1, Math.round(24 / cols));
@@ -162,7 +183,7 @@ function Row({
               ? formatHour(startHour)
               : `${formatHour(startHour)}–${formatHour(endHour + 1)}`;
           const label = `${day} ${range} · ${
-            amount > 0 ? (isBalanceHidden ? "••••" : formatAmount(amount, currency)) : "no spend"
+            amount > 0 ? (isBalanceHidden ? "••••" : formatAmount(amount, currency)) : noSpendLabel
           }`;
           if (!onCellClick) {
             return (
@@ -203,9 +224,10 @@ function Row({
 }
 
 function Legend() {
+  const { t } = useTranslation();
   return (
     <span className="text-muted-foreground/70 inline-flex items-center gap-1.5">
-      <span>less</span>
+      <span>{t("spending:whenYouSpend.less")}</span>
       {[0.18, 0.4, 0.65, 0.95].map((o, i) => (
         <span
           key={i}
@@ -213,7 +235,7 @@ function Legend() {
           style={{ backgroundColor: "var(--heatmap-accent)", opacity: o }}
         />
       ))}
-      <span>more</span>
+      <span>{t("spending:whenYouSpend.more")}</span>
     </span>
   );
 }

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { DashboardCard } from "@/components/dashboard-card";
 import { QueryKeys } from "@/lib/query-keys";
@@ -31,6 +32,7 @@ export function RecentActivityCard({
   currency: string;
   uncategorizedCount?: number;
 }) {
+  const { t } = useTranslation();
   const recent = useMemo(() => {
     return activities
       .slice()
@@ -99,8 +101,8 @@ export function RecentActivityCard({
     const yest = new Date(today);
     yest.setDate(today.getDate() - 1);
     const yestKey = formatDateISO(yest);
-    if (key === todayKey) return "Today";
-    if (key === yestKey) return "Yesterday";
+    if (key === todayKey) return t("spending:dashboard.today");
+    if (key === yestKey) return t("spending:dashboard.yesterday");
     return new Date(key + "T00:00:00").toLocaleDateString(undefined, {
       weekday: "short",
       month: "short",
@@ -110,7 +112,7 @@ export function RecentActivityCard({
 
   return (
     <DashboardCard
-      title="Recent activity"
+      title={t("spending:dashboard.recentActivity")}
       padded={false}
       className="overflow-hidden"
       action={
@@ -122,13 +124,15 @@ export function RecentActivityCard({
           }
           className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
         >
-          {uncategorizedCount > 0 ? `View all · ${uncategorizedCount} to tag →` : "View all →"}
+          {uncategorizedCount > 0
+            ? t("spending:dashboard.viewAllToTag", { count: uncategorizedCount })
+            : t("spending:dashboard.viewAll")}
         </Link>
       }
     >
       {recent.length === 0 ? (
         <div className="text-muted-foreground px-4 py-6 text-center text-xs md:px-5">
-          No recent activity.
+          {t("spending:dashboard.noRecentActivity")}
         </div>
       ) : (
         grouped.map(([dateKey, items], gi) => (
@@ -171,13 +175,17 @@ export function RecentActivityCard({
                 >
                   <div className="min-w-0 flex-1">
                     <div className="text-foreground/90 truncate text-xs font-medium">
-                      {payee || <span className="text-muted-foreground italic">No payee</span>}
+                      {payee || (
+                        <span className="text-muted-foreground italic">
+                          {t("spending:dashboard.noPayee")}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {badge ? (
                     <CategoryBadge name={badge.name} color={badge.color} icon={badge.icon} />
                   ) : needsReview ? (
-                    <ReviewPill label="Uncategorized" />
+                    <ReviewPill label={t("spending:dashboard.uncategorized")} />
                   ) : null}
                   <div
                     className={cn(

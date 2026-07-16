@@ -62,12 +62,10 @@ pub const INCOME_ACTIVITY_TYPES: [&str; 2] = [ACTIVITY_TYPE_DIVIDEND, ACTIVITY_T
 
 /// Activity types where `unit_price` represents the asset's per-unit market
 /// price and can be used as a fallback quote. Income activities (DIVIDEND,
-/// INTEREST) store payment amounts, not asset prices.
-pub const PRICE_BEARING_ACTIVITY_TYPES: [&str; 3] = [
-    ACTIVITY_TYPE_BUY,
-    ACTIVITY_TYPE_SELL,
-    ACTIVITY_TYPE_TRANSFER_IN,
-];
+/// INTEREST) store payment amounts, not asset prices. Securities transfers
+/// store book cost basis in `unit_price`; valuation derives transfer market
+/// value from quotes instead.
+pub const PRICE_BEARING_ACTIVITY_TYPES: [&str; 2] = [ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_SELL];
 
 /// Activity types that always require a symbol/asset.
 /// Everything else: symbol is optional (cash-only or dual-use like TRANSFER_IN).
@@ -251,9 +249,22 @@ pub const ACTIVITY_SUBTYPE_REBATE: &str = "REBATE";
 /// Examples: erroneous fee refund, service credit.
 pub const ACTIVITY_SUBTYPE_REFUND: &str = "REFUND";
 
+/// Reimbursement: External cash credit that offsets an expense category.
+/// Used by spending/budgeting to reduce actuals without treating the money as income.
+/// Examples: friend reimburses dinner, employer pays back a travel expense.
+pub const ACTIVITY_SUBTYPE_REIMBURSEMENT: &str = "REIMBURSEMENT";
+
 /// Option expiry: option contract expired worthless.
 /// Removes lots via FIFO with no cash effect.
 pub const ACTIVITY_SUBTYPE_OPTION_EXPIRY: &str = "OPTION_EXPIRY";
+
+/// Position-opening trade intent.
+/// Examples: buy-to-open for long options, sell-to-open for short options.
+pub const ACTIVITY_SUBTYPE_POSITION_OPEN: &str = "POSITION_OPEN";
+
+/// Position-closing trade intent.
+/// Examples: sell-to-close for long options, buy-to-close for short options.
+pub const ACTIVITY_SUBTYPE_POSITION_CLOSE: &str = "POSITION_CLOSE";
 
 #[cfg(test)]
 mod tests {
@@ -304,6 +315,14 @@ mod tests {
         assert!(!requires_symbol(ACTIVITY_TYPE_UNKNOWN));
         assert!(!requires_symbol("INVALID"));
         assert!(!requires_symbol(""));
+    }
+
+    #[test]
+    fn test_price_bearing_types_exclude_transfers() {
+        assert!(PRICE_BEARING_ACTIVITY_TYPES.contains(&ACTIVITY_TYPE_BUY));
+        assert!(PRICE_BEARING_ACTIVITY_TYPES.contains(&ACTIVITY_TYPE_SELL));
+        assert!(!PRICE_BEARING_ACTIVITY_TYPES.contains(&ACTIVITY_TYPE_TRANSFER_IN));
+        assert!(!PRICE_BEARING_ACTIVITY_TYPES.contains(&ACTIVITY_TYPE_TRANSFER_OUT));
     }
 
     // ── is_cash_symbol ──────────────────────────────────────────────────

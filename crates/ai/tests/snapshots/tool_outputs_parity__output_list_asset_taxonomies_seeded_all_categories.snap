@@ -1,0 +1,48 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "taxonomies": [
+      {
+        "categories": [
+          {
+            "categoryId": "equity",
+            "color": "#64748b",
+            "key": "equity",
+            "name": "Equity",
+            "parentId": null,
+            "sortOrder": 1,
+            "taxonomyId": "asset-tax"
+          },
+          {
+            "categoryId": "equity-us",
+            "color": "#64748b",
+            "key": "us_equity",
+            "name": "US Equity",
+            "parentId": "equity",
+            "sortOrder": 1,
+            "taxonomyId": "asset-tax"
+          },
+          {
+            "categoryId": "cash",
+            "color": "#64748b",
+            "key": "cash",
+            "name": "Cash",
+            "parentId": null,
+            "sortOrder": 1,
+            "taxonomyId": "asset-tax"
+          }
+        ],
+        "categoryCount": 3,
+        "color": "#2563eb",
+        "description": null,
+        "isSingleSelect": false,
+        "name": "Asset Class",
+        "sortOrder": 1,
+        "taxonomyId": "asset-tax"
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "accounts": [
+      {
+        "accountType": "SECURITIES",
+        "currency": "USD",
+        "id": "acc-1",
+        "isActive": true,
+        "name": "Brokerage"
+      },
+      {
+        "accountType": "CASH",
+        "currency": "EUR",
+        "id": "acc-2",
+        "isActive": true,
+        "name": "Savings"
+      }
+    ],
+    "count": 2
+  }
+}

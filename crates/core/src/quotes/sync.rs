@@ -133,10 +133,16 @@ fn should_treat_fetch_error_as_non_fatal(
 
     matches!(
         error,
-        Error::MarketData(MarketDataError::NoData)
-            | Error::MarketData(MarketDataError::NotFound(_))
+        Error::MarketData(MarketDataError::NotFound(_))
             | Error::MarketData(MarketDataError::ProviderExhausted(_))
     )
+}
+
+fn fetch_error_skip_reason(error: &Error) -> Option<AssetSkipReason> {
+    match error {
+        Error::MarketData(MarketDataError::NoData) => Some(AssetSkipReason::NoDataForRange),
+        _ => None,
+    }
 }
 
 fn error_message_contains_provider_id(message: &str) -> bool {
@@ -215,6 +221,12 @@ fn should_include_closed_positions(mode: SyncMode, targeted_sync: bool) -> bool 
             mode,
             SyncMode::RefetchRecent { .. } | SyncMode::BackfillHistory { .. }
         )
+}
+
+fn should_skip_for_error_limit(mode: SyncMode, targeted_sync: bool, error_count: i32) -> bool {
+    !targeted_sync
+        && !matches!(mode, SyncMode::BackfillHistory { .. })
+        && error_count >= MAX_SYNC_ERRORS
 }
 
 fn min_optional_date(left: Option<NaiveDate>, right: Option<NaiveDate>) -> Option<NaiveDate> {
@@ -334,6 +346,8 @@ pub struct AssetSyncResult {
     pub status: SyncStatus,
     /// Optional error message if sync failed.
     pub error: Option<String>,
+    /// Structured reason when the sync was skipped.
+    pub skip_reason: Option<AssetSkipReason>,
 }
 
 /// Status of a sync operation.
@@ -366,6 +380,8 @@ pub enum AssetSkipReason {
     TooManyErrors,
     /// No fetchable quote window remains for the requested sync.
     NoQuoteWindow,
+    /// Providers returned no quotes for the requested date range.
+    NoDataForRange,
     /// Bond has matured — price is par, no further sync needed.
     MaturedBond,
     /// Option has expired — no further quotes available.
@@ -383,6 +399,9 @@ impl std::fmt::Display for AssetSkipReason {
             AssetSkipReason::SyncInProgress => write!(f, "Sync already in progress"),
             AssetSkipReason::TooManyErrors => write!(f, "Too many consecutive sync failures"),
             AssetSkipReason::NoQuoteWindow => write!(f, "No quote refresh needed"),
+            AssetSkipReason::NoDataForRange => {
+                write!(f, "No data for requested date range")
+            }
             AssetSkipReason::MaturedBond => write!(f, "Bond has matured (price is par)"),
             AssetSkipReason::ExpiredOption => write!(f, "Option has expired"),
         }
@@ -438,6 +457,10 @@ impl SyncResult {
             }
             SyncStatus::Skipped => {
                 self.skipped += 1;
+                if let Some(reason) = result.skip_reason {
+                    self.skipped_reasons
+                        .push((result.asset_id.0.clone(), reason));
+                }
             }
             SyncStatus::Failed => {
                 self.failed += 1;
@@ -765,6 +788,7 @@ where
                     None,
                     None,
                     Some(split.ratio),
+                    None,
                     currency,
                     None,
                     None,
@@ -781,6 +805,7 @@ where
                     quantity: None,
                     unit_price: None,
                     fee: None,
+                    tax: None,
                     notes: Some(format!("Auto-imported split ({})", split.ratio)),
                     subtype: None,
                     status: None,
@@ -828,7 +853,8 @@ where
                     asset_id,
                     quotes_added: 0,
                     status: SyncStatus::Skipped,
-                    error: Some("Sync already in progress".to_string()),
+                    error: None,
+                    skip_reason: Some(AssetSkipReason::SyncInProgress),
                 };
             }
         };
@@ -911,6 +937,7 @@ where
                                 quotes_added: quotes_count,
                                 status: SyncStatus::Success,
                                 error: None,
+                                skip_reason: None,
                             }
                         }
                         Err(e) => {
@@ -930,24 +957,37 @@ where
                                 quotes_added: 0,
                                 status: SyncStatus::Failed,
                                 error: Some(format!("Storage error: {}", e)),
+                                skip_reason: None,
                             }
                         }
                     }
                 } else {
                     debug!("No quotes returned for {}", asset.id);
-                    if let Err(e) = self.sync_state_store.update_after_sync(&asset.id).await {
-                        warn!("Failed to update sync state for {}: {:?}", asset.id, e);
-                    }
                     AssetSyncResult {
                         asset_id,
                         quotes_added: 0,
-                        status: SyncStatus::Success,
+                        status: SyncStatus::Skipped,
                         error: None,
+                        skip_reason: Some(AssetSkipReason::NoDataForRange),
                     }
                 }
             }
             Err(fetch_error) => {
                 let error = fetch_error.error;
+                if let Some(skip_reason) = fetch_error_skip_reason(&error) {
+                    debug!(
+                        "No quotes available for {} in the requested range",
+                        asset.id
+                    );
+                    return AssetSyncResult {
+                        asset_id,
+                        quotes_added: 0,
+                        status: SyncStatus::Skipped,
+                        error: None,
+                        skip_reason: Some(skip_reason),
+                    };
+                }
+
                 let sync_failure_message =
                     format_sync_failure_message(&error, fetch_error.provider_id.as_deref());
 
@@ -969,6 +1009,7 @@ where
                         quotes_added: 0,
                         status: SyncStatus::Success,
                         error: None,
+                        skip_reason: None,
                     };
                 }
 
@@ -991,6 +1032,7 @@ where
                     quotes_added: 0,
                     status: SyncStatus::Failed,
                     error: Some(sync_failure_message),
+                    skip_reason: None,
                 }
             }
         }
@@ -1043,6 +1085,7 @@ where
                                 quotes_added: 0,
                                 status: SyncStatus::Failed,
                                 error: Some("Asset not found".to_string()),
+                                skip_reason: None,
                             }
                         }
                     }
@@ -1424,17 +1467,15 @@ where
             let fetch_end_date =
                 market_fetch_end_date(now, asset.instrument_exchange_mic.as_deref());
 
-            // Skip assets with too many consecutive errors (unless full resync)
-            if !matches!(mode, SyncMode::BackfillHistory { .. }) {
-                if let Some(ref s) = state {
-                    if s.error_count >= MAX_SYNC_ERRORS {
-                        debug!(
-                            "Skipping {} - too many consecutive errors ({})",
-                            asset.id, s.error_count
-                        );
-                        result.add_skipped(asset.id.clone(), AssetSkipReason::TooManyErrors);
-                        continue;
-                    }
+            // Explicit targeted retries bypass the broad-sync error cutoff.
+            if let Some(ref s) = state {
+                if should_skip_for_error_limit(mode, targeted_sync, s.error_count) {
+                    debug!(
+                        "Skipping {} - too many consecutive errors ({})",
+                        asset.id, s.error_count
+                    );
+                    result.add_skipped(asset.id.clone(), AssetSkipReason::TooManyErrors);
+                    continue;
                 }
             }
 
@@ -1745,13 +1786,12 @@ mod tests {
     }
 
     #[test]
-    fn test_backfill_no_data_error_is_non_fatal() {
+    fn test_no_data_error_is_a_neutral_skip() {
         let err = Error::MarketData(MarketDataError::NoData);
-        assert!(should_treat_fetch_error_as_non_fatal(
-            &SyncCategory::NeedsBackfill,
-            &err,
-            false
-        ));
+        assert_eq!(
+            fetch_error_skip_reason(&err),
+            Some(AssetSkipReason::NoDataForRange)
+        );
     }
 
     #[test]
@@ -1773,36 +1813,6 @@ mod tests {
             &SyncCategory::NeedsBackfill,
             &err,
             false
-        ));
-    }
-
-    #[test]
-    fn test_closed_history_no_data_error_is_non_fatal() {
-        let err = Error::MarketData(MarketDataError::NoData);
-        assert!(should_treat_fetch_error_as_non_fatal(
-            &SyncCategory::Closed,
-            &err,
-            true
-        ));
-    }
-
-    #[test]
-    fn test_targeted_closed_history_no_data_error_remains_fatal() {
-        let err = Error::MarketData(MarketDataError::NoData);
-        assert!(!should_treat_fetch_error_as_non_fatal(
-            &SyncCategory::Closed,
-            &err,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_active_no_data_error_remains_fatal() {
-        let err = Error::MarketData(MarketDataError::NoData);
-        assert!(!should_treat_fetch_error_as_non_fatal(
-            &SyncCategory::Active,
-            &err,
-            true
         ));
     }
 
@@ -2043,12 +2053,32 @@ mod tests {
             quotes_added: 10,
             status: SyncStatus::Success,
             error: None,
+            skip_reason: None,
         };
 
         assert_eq!(result.asset_id.as_str(), "AAPL");
         assert_eq!(result.quotes_added, 10);
         assert_eq!(result.status, SyncStatus::Success);
         assert!(result.error.is_none());
+        assert!(result.skip_reason.is_none());
+    }
+
+    #[test]
+    fn test_skipped_result_records_structured_reason() {
+        let mut result = SyncResult::default();
+        result.add_result(AssetSyncResult {
+            asset_id: AssetId::new("SPARSE"),
+            quotes_added: 0,
+            status: SyncStatus::Skipped,
+            error: None,
+            skip_reason: Some(AssetSkipReason::NoDataForRange),
+        });
+
+        assert_eq!(result.skipped, 1);
+        assert_eq!(
+            result.skipped_reasons,
+            vec![("SPARSE".to_string(), AssetSkipReason::NoDataForRange)]
+        );
     }
 
     #[test]
@@ -2074,6 +2104,10 @@ mod tests {
         assert_eq!(
             AssetSkipReason::NoQuoteWindow.to_string(),
             "No quote refresh needed"
+        );
+        assert_eq!(
+            AssetSkipReason::NoDataForRange.to_string(),
+            "No data for requested date range"
         );
     }
 
@@ -2116,6 +2150,20 @@ mod tests {
         assert!(!is_targeted_asset_sync(None));
         assert!(!is_targeted_asset_sync(Some(&empty_ids)));
         assert!(is_targeted_asset_sync(Some(&targeted_ids)));
+    }
+
+    #[test]
+    fn test_targeted_sync_bypasses_error_limit() {
+        assert!(!should_skip_for_error_limit(
+            SyncMode::Incremental,
+            true,
+            MAX_SYNC_ERRORS,
+        ));
+        assert!(should_skip_for_error_limit(
+            SyncMode::Incremental,
+            false,
+            MAX_SYNC_ERRORS,
+        ));
     }
 
     #[test]

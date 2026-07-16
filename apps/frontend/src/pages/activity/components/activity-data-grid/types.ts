@@ -126,7 +126,7 @@ export interface SavePayloadResult {
 
 /**
  * Base activity payload fields (shared between create and update)
- * Note: Decimal fields (quantity, unitPrice, amount, fee, fxRate) use strings
+ * Note: Decimal fields (quantity, unitPrice, amount, fee, tax, fxRate) use strings
  * to preserve precision for very small values like 0.000000099
  */
 interface ActivityBasePayload {
@@ -142,6 +142,7 @@ interface ActivityBasePayload {
   amount?: string | null;
   currency?: string;
   fee?: string | null;
+  tax?: string | null;
   fxRate?: string | null;
   notes?: string | null;
   /** JSON blob for metadata (e.g., flow.is_external for transfers) */

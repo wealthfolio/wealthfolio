@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Icons, Input, Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui";
 
@@ -76,6 +77,7 @@ const HEX_PATTERN = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
  * Avoids the OS native color picker (which renders outside the Tauri window).
  */
 export function ColorPicker({ value, onChange, presets = [] }: ColorPickerProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [hexInput, setHexInput] = useState(value ?? "#888888");
 
@@ -107,7 +109,7 @@ export function ColorPicker({ value, onChange, presets = [] }: ColorPickerProps)
                     "conic-gradient(from 0deg, #ef4444, #f59e0b, #22c55e, #06b6d4, #6366f1, #d946ef, #ef4444)",
                 }
           }
-          aria-label="Pick a custom color"
+          aria-label={t("spending:category.pickCustomColor")}
         >
           {!isCustom && (
             <Icons.Plus className="text-foreground h-4 w-4 drop-shadow-[0_0_2px_rgba(0,0,0,0.6)]" />
@@ -132,14 +134,14 @@ export function ColorPicker({ value, onChange, presets = [] }: ColorPickerProps)
                     isActive ? "border-foreground" : "border-transparent",
                   )}
                   style={{ backgroundColor: color }}
-                  aria-label={`Use color ${color}`}
+                  aria-label={t("spending:category.useColor", { color })}
                 />
               );
             })}
           </div>
           <div className="space-y-1.5">
             <label className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
-              Hex
+              {t("spending:category.hex")}
             </label>
             <div className="flex items-center gap-2">
               <span

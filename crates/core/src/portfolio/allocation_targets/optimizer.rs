@@ -6,7 +6,7 @@ use rust_decimal_macros::dec;
 use crate::errors::Result as CoreResult;
 
 use super::model::{
-    RebalanceGoal, RebalancePlan, RebalanceWarning, RebalanceWarningKind, ScenarioMode,
+    BandType, RebalanceGoal, RebalancePlan, RebalanceWarning, RebalanceWarningKind, ScenarioMode,
     SuggestedManualTrade,
 };
 
@@ -15,9 +15,18 @@ use super::model::{
 pub struct RebalanceProfile {
     pub target_id: String,
     pub drift_band_bps: i32,
+    pub band_type: BandType,
+    pub relative_factor_bps: i32,
     pub rebalance_goal: RebalanceGoal,
     pub min_trade_amount: Decimal,
     pub whole_shares_only: bool,
+}
+
+impl RebalanceProfile {
+    pub fn effective_band_bps(&self, target_bps: i32) -> i32 {
+        self.band_type
+            .effective_band_bps(target_bps, self.drift_band_bps, self.relative_factor_bps)
+    }
 }
 
 pub struct CategoryState {
@@ -43,6 +52,9 @@ pub struct AssetCandidate {
 pub struct SellCandidate {
     pub holding_id: String,
     pub asset_id: String,
+    pub account_id: String,
+    /// All real account IDs that hold this asset (for account-level constraint filtering).
+    pub source_account_ids: Vec<String>,
     pub symbol: String,
     pub name: Option<String>,
     pub price: Decimal,
@@ -61,6 +73,8 @@ pub struct RebalanceInput {
     pub sell_candidates: Vec<SellCandidate>,
     /// Pre-populated classification warnings (UnclassifiedAsset, PartialClassification).
     pub warnings: Vec<RebalanceWarning>,
+    /// Max % of portfolio value that can be sold in one plan.
+    pub max_turnover_bps: Option<Decimal>,
 }
 
 // ── Trait ─────────────────────────────────────────────────────────────────────
@@ -76,10 +90,12 @@ pub trait RebalanceOptimizer: Send + Sync {
 pub struct DriftPriorityOptimizer;
 
 impl DriftPriorityOptimizer {
-    fn desired_bps_for_goal(target_bps: i32, goal: &RebalanceGoal, band: Decimal) -> Decimal {
+    fn desired_bps_for_goal(target_bps: i32, goal: &RebalanceGoal, band_bps: i32) -> Decimal {
         match goal {
             RebalanceGoal::ExactTarget => Decimal::from(target_bps),
-            RebalanceGoal::NearestBand => (Decimal::from(target_bps) - band).max(Decimal::ZERO),
+            RebalanceGoal::NearestBand => {
+                (Decimal::from(target_bps) - Decimal::from(band_bps)).max(Decimal::ZERO)
+            }
         }
     }
 
@@ -89,8 +105,7 @@ impl DriftPriorityOptimizer {
         values: &HashMap<String, Decimal>,
         categories: &[CategoryState],
         total_value: Decimal,
-        goal: &RebalanceGoal,
-        band: Decimal,
+        profile: &RebalanceProfile,
     ) -> Decimal {
         if candidate.price <= Decimal::ZERO || cash <= Decimal::ZERO {
             return Decimal::ZERO;
@@ -107,7 +122,9 @@ impl DriftPriorityOptimizer {
                 continue;
             }
 
-            let desired_bps = Self::desired_bps_for_goal(cat.target_bps, goal, band);
+            let band_bps = profile.effective_band_bps(cat.target_bps);
+            let desired_bps =
+                Self::desired_bps_for_goal(cat.target_bps, &profile.rebalance_goal, band_bps);
             let desired_value = desired_bps / scale * total_value;
             let base = values.get(&cat.category_id).copied().unwrap_or_default();
             if base < desired_value {
@@ -162,7 +179,6 @@ impl DriftPriorityOptimizer {
         categories: &[CategoryState],
         total_value: Decimal,
         profile: &RebalanceProfile,
-        drift_band: Decimal,
         sell_proceeds: Decimal,
         buy_amount: Decimal,
     ) -> Option<Decimal> {
@@ -179,40 +195,34 @@ impl DriftPriorityOptimizer {
 
         let current_cash: Decimal = required_cash.iter().map(|c| c.current_value).sum();
         let target_bps: i32 = required_cash.iter().map(|c| c.target_bps).sum();
+        let cash_band = Decimal::from(profile.effective_band_bps(target_bps));
         let stop_bps = match profile.rebalance_goal {
             RebalanceGoal::ExactTarget => Decimal::from(target_bps),
-            RebalanceGoal::NearestBand => (Decimal::from(target_bps) + drift_band).min(dec!(10000)),
+            RebalanceGoal::NearestBand => (Decimal::from(target_bps) + cash_band).min(dec!(10000)),
         };
         let stop_value = stop_bps / dec!(10000) * total_value;
 
         Some((current_cash + sell_proceeds - stop_value - buy_amount).max(Decimal::ZERO))
     }
 
-    /// Per-category drift the planner tries to minimise.
-    ///
-    /// `ExactTarget` measures distance to the exact target. `NearestBand` only counts
-    /// the distance *outside* the [target ± band] tolerance, so once a category is
-    /// inside its band it contributes zero and the greedy stops deploying into it.
     fn category_drift(
         bps: Decimal,
         target_bps: i32,
         goal: &RebalanceGoal,
-        band: Decimal,
+        band_bps: i32,
     ) -> Decimal {
         let dist = (bps - Decimal::from(target_bps)).abs();
         match goal {
             RebalanceGoal::ExactTarget => dist,
-            RebalanceGoal::NearestBand => (dist - band).max(Decimal::ZERO),
+            RebalanceGoal::NearestBand => (dist - Decimal::from(band_bps)).max(Decimal::ZERO),
         }
     }
 
-    /// Σ drift for required non-cash categories (band-aware via `category_drift`).
     fn total_drift(
         values: &HashMap<String, Decimal>,
         categories: &[CategoryState],
         total_value: Decimal,
-        goal: &RebalanceGoal,
-        band: Decimal,
+        profile: &RebalanceProfile,
     ) -> Decimal {
         if total_value == Decimal::ZERO {
             return Decimal::ZERO;
@@ -224,19 +234,18 @@ impl DriftPriorityOptimizer {
             .map(|c| {
                 let v = values.get(&c.category_id).copied().unwrap_or_default();
                 let bps = v / total_value * scale;
-                Self::category_drift(bps, c.target_bps, goal, band)
+                let band_bps = profile.effective_band_bps(c.target_bps);
+                Self::category_drift(bps, c.target_bps, &profile.rebalance_goal, band_bps)
             })
             .sum()
     }
 
-    /// Same as `total_drift` but adds `exposure` delta without mutating state.
     fn total_drift_with_buy(
         values: &HashMap<String, Decimal>,
         categories: &[CategoryState],
         total_value: Decimal,
         exposure: &HashMap<String, Decimal>,
-        goal: &RebalanceGoal,
-        band: Decimal,
+        profile: &RebalanceProfile,
     ) -> Decimal {
         if total_value == Decimal::ZERO {
             return Decimal::ZERO;
@@ -249,7 +258,8 @@ impl DriftPriorityOptimizer {
                 let base = values.get(&c.category_id).copied().unwrap_or_default();
                 let delta = exposure.get(&c.category_id).copied().unwrap_or_default();
                 let bps = (base + delta) / total_value * scale;
-                Self::category_drift(bps, c.target_bps, goal, band)
+                let band_bps = profile.effective_band_bps(c.target_bps);
+                Self::category_drift(bps, c.target_bps, &profile.rebalance_goal, band_bps)
             })
             .sum()
     }
@@ -262,14 +272,15 @@ impl DriftPriorityOptimizer {
         total_value: Decimal,
         categories: &[CategoryState],
         sell_candidates: &[SellCandidate],
-        goal: &RebalanceGoal,
-        drift_band: Decimal,
-        whole_shares_only: bool,
-        min_trade_amount: Decimal,
+        profile: &RebalanceProfile,
+        max_turnover_bps: Option<Decimal>,
+        warnings: &mut Vec<RebalanceWarning>,
     ) -> (HashMap<String, Decimal>, Decimal, Vec<SuggestedManualTrade>) {
         if total_value == Decimal::ZERO || sell_candidates.is_empty() {
             return (values.clone(), Decimal::ZERO, vec![]);
         }
+
+        let turnover_cap_value = max_turnover_bps.map(|p| total_value * p / dec!(10000));
 
         let scale = dec!(10000);
         let initial_values = values.clone();
@@ -277,10 +288,11 @@ impl DriftPriorityOptimizer {
         let mut qty_remaining: Vec<Decimal> =
             sell_candidates.iter().map(|c| c.quantity_owned).collect();
         let mut shares_sold: Vec<Decimal> = vec![Decimal::ZERO; sell_candidates.len()];
+        let mut cumulative_sold = Decimal::ZERO;
+        let mut turnover_cap_reached = false;
 
         loop {
-            let drift_before =
-                Self::total_drift(&values, categories, total_value, goal, drift_band);
+            let drift_before = Self::total_drift(&values, categories, total_value, profile);
             if drift_before == Decimal::ZERO {
                 break;
             }
@@ -297,13 +309,12 @@ impl DriftPriorityOptimizer {
                     continue;
                 }
 
-                let sell_qty = if whole_shares_only {
+                let sell_qty = if profile.whole_shares_only {
                     if qty_remaining[idx] < Decimal::ONE {
                         continue;
                     }
                     Decimal::ONE
                 } else {
-                    // Cap fractional sell at the band edge for each exposed category
                     let mut max_shares = qty_remaining[idx];
                     for cat in categories.iter().filter(|c| c.is_required && !c.is_cash) {
                         let Some(expo) = candidate.exposure_per_share.get(&cat.category_id) else {
@@ -314,17 +325,14 @@ impl DriftPriorityOptimizer {
                         }
                         let current_v = values.get(&cat.category_id).copied().unwrap_or_default();
                         let current_bps = current_v / total_value * scale;
-                        // For NearestBand: stop at target + band (overweight edge)
-                        // For ExactTarget: stop at exact target
-                        let stop_bps = match goal {
+                        let cat_band = Decimal::from(profile.effective_band_bps(cat.target_bps));
+                        let stop_bps = match profile.rebalance_goal {
                             RebalanceGoal::ExactTarget => Decimal::from(cat.target_bps),
                             RebalanceGoal::NearestBand => {
-                                (Decimal::from(cat.target_bps) + drift_band).min(dec!(10000))
+                                (Decimal::from(cat.target_bps) + cat_band).min(dec!(10000))
                             }
                         };
                         if current_bps <= stop_bps {
-                            // This sleeve is not overweight — skip cap for it.
-                            // Let drift_before - drift_after reject net-bad sells.
                             continue;
                         }
                         let stop_value = stop_bps / scale * total_value;
@@ -340,7 +348,6 @@ impl DriftPriorityOptimizer {
                     continue;
                 }
 
-                // Simulate sell: subtract exposure from values
                 let neg_exposure: HashMap<String, Decimal> = candidate
                     .exposure_per_share
                     .iter()
@@ -351,8 +358,7 @@ impl DriftPriorityOptimizer {
                     categories,
                     total_value,
                     &neg_exposure,
-                    goal,
-                    drift_band,
+                    profile,
                 );
                 let improvement = drift_before - drift_after;
                 if improvement <= Decimal::ZERO {
@@ -375,8 +381,7 @@ impl DriftPriorityOptimizer {
             };
 
             let candidate = &sell_candidates[idx];
-            let batch = if whole_shares_only {
-                // Batch only when sole improving candidate
+            let batch = if profile.whole_shares_only {
                 let improving_count = sell_candidates
                     .iter()
                     .enumerate()
@@ -394,8 +399,7 @@ impl DriftPriorityOptimizer {
                             categories,
                             total_value,
                             &neg,
-                            goal,
-                            drift_band,
+                            profile,
                         );
                         (drift_before - da) > Decimal::ZERO
                     })
@@ -411,10 +415,11 @@ impl DriftPriorityOptimizer {
                             continue;
                         }
                         let current_v = values.get(&cat.category_id).copied().unwrap_or_default();
-                        let stop_bps = match goal {
+                        let cat_band = Decimal::from(profile.effective_band_bps(cat.target_bps));
+                        let stop_bps = match profile.rebalance_goal {
                             RebalanceGoal::ExactTarget => Decimal::from(cat.target_bps),
                             RebalanceGoal::NearestBand => {
-                                (Decimal::from(cat.target_bps) + drift_band).min(dec!(10000))
+                                (Decimal::from(cat.target_bps) + cat_band).min(dec!(10000))
                             }
                         };
                         let stop_value = stop_bps / dec!(10000) * total_value;
@@ -434,10 +439,34 @@ impl DriftPriorityOptimizer {
                 best_sell_shares
             };
 
-            let actual = batch.min(qty_remaining[idx]);
+            let mut actual = batch.min(qty_remaining[idx]);
             if actual <= Decimal::ZERO {
                 break;
             }
+
+            if let Some(cap) = turnover_cap_value {
+                let sell_amount = candidate.price * actual;
+                let remaining_budget = (cap - cumulative_sold).max(Decimal::ZERO);
+                if remaining_budget <= Decimal::ZERO {
+                    turnover_cap_reached = true;
+                    break;
+                }
+                if sell_amount > remaining_budget {
+                    let capped_shares = remaining_budget / candidate.price;
+                    actual = if profile.whole_shares_only {
+                        let floored = capped_shares.floor();
+                        if floored <= Decimal::ZERO {
+                            turnover_cap_reached = true;
+                            break;
+                        }
+                        floored
+                    } else {
+                        capped_shares
+                    };
+                }
+            }
+
+            cumulative_sold += candidate.price * actual;
 
             for (cat_id, expo) in &candidate.exposure_per_share {
                 let entry = values.entry(cat_id.clone()).or_default();
@@ -457,15 +486,11 @@ impl DriftPriorityOptimizer {
             }
 
             let estimated_amount = shares * candidate.price;
-            if min_trade_amount > Decimal::ZERO && estimated_amount < min_trade_amount {
+            if profile.min_trade_amount > Decimal::ZERO
+                && estimated_amount < profile.min_trade_amount
+            {
                 continue;
             }
-
-            for (cat_id, expo) in &candidate.exposure_per_share {
-                let entry = kept_values.entry(cat_id.clone()).or_default();
-                *entry = (*entry - expo * shares).max(Decimal::ZERO);
-            }
-            proceeds += estimated_amount;
 
             let (primary_cat_id, primary_cat_name) = candidate
                 .exposure_per_share
@@ -481,19 +506,69 @@ impl DriftPriorityOptimizer {
                 })
                 .unwrap_or_else(|| ("unknown".to_string(), "Unknown".to_string()));
 
+            let drift_info = if total_value > Decimal::ZERO {
+                let cat_current_bps = kept_values
+                    .get(&primary_cat_id)
+                    .copied()
+                    .unwrap_or_default()
+                    / total_value
+                    * scale;
+                let cat_target_bps = categories
+                    .iter()
+                    .find(|c| c.category_id == primary_cat_id)
+                    .map(|c| c.target_bps)
+                    .unwrap_or(0);
+                let overweight_bps = (cat_current_bps - Decimal::from(cat_target_bps))
+                    .round()
+                    .to_string()
+                    .parse::<i32>()
+                    .unwrap_or(0);
+                if overweight_bps > 0 {
+                    format!(
+                        "Sell {}: {} overweight by {} bps.",
+                        candidate.symbol, primary_cat_name, overweight_bps
+                    )
+                } else {
+                    format!(
+                        "Sell {}: reduces {} drift.",
+                        candidate.symbol, primary_cat_name
+                    )
+                }
+            } else {
+                format!("Sell {}: reduces portfolio drift.", candidate.symbol)
+            };
+
+            for (cat_id, expo) in &candidate.exposure_per_share {
+                let entry = kept_values.entry(cat_id.clone()).or_default();
+                *entry = (*entry - expo * shares).max(Decimal::ZERO);
+            }
+            proceeds += estimated_amount;
+
             sell_trades.push(SuggestedManualTrade {
                 action: "sell".to_string(),
                 category_id: primary_cat_id,
                 category_name: primary_cat_name,
                 asset_id: Some(candidate.asset_id.clone()),
+                account_id: Some(candidate.account_id.clone()),
+                holding_id: Some(candidate.holding_id.clone()),
                 symbol: Some(candidate.symbol.clone()),
                 name: candidate.name.clone(),
                 quantity: Some(shares),
                 estimated_price: Some(candidate.price),
                 estimated_amount,
-                reason: format!(
-                    "{} is overweight — selling reduces portfolio drift.",
-                    candidate.symbol
+                reason: drift_info,
+            });
+        }
+
+        if turnover_cap_reached && proceeds > Decimal::ZERO {
+            warnings.push(RebalanceWarning {
+                kind: RebalanceWarningKind::TurnoverCapReached,
+                category_id: String::new(),
+                message: format!(
+                    "Turnover cap ({:.1}%) reached — {:.2} of {:.2} portfolio already sold.",
+                    max_turnover_bps.unwrap_or_default() / dec!(100),
+                    proceeds,
+                    total_value,
                 ),
             });
         }
@@ -598,15 +673,12 @@ impl DriftPriorityOptimizer {
         }
     }
 
-    /// Greedy buy loop. Mutates `values` and returns shares bought per candidate index.
-    #[allow(clippy::too_many_arguments)]
     fn run_buy_greedy(
         values: &mut HashMap<String, Decimal>,
         candidates: &[AssetCandidate],
         cash_pool: Decimal,
         categories: &[CategoryState],
         profile: &RebalanceProfile,
-        drift_band: Decimal,
         total_value: Decimal,
         scale: Decimal,
     ) -> Vec<Decimal> {
@@ -617,13 +689,7 @@ impl DriftPriorityOptimizer {
             if cash <= Decimal::ZERO {
                 break;
             }
-            let drift_before = Self::total_drift(
-                values,
-                categories,
-                total_value,
-                &profile.rebalance_goal,
-                drift_band,
-            );
+            let drift_before = Self::total_drift(values, categories, total_value, profile);
 
             let mut best_score = Decimal::ZERO;
             let mut best_idx: Option<usize> = None;
@@ -648,8 +714,7 @@ impl DriftPriorityOptimizer {
                             values,
                             categories,
                             total_value,
-                            &profile.rebalance_goal,
-                            drift_band,
+                            profile,
                         );
                         if shares <= Decimal::ZERO {
                             continue;
@@ -666,8 +731,7 @@ impl DriftPriorityOptimizer {
                     categories,
                     total_value,
                     &exposure_to_score,
-                    &profile.rebalance_goal,
-                    drift_band,
+                    profile,
                 );
                 let improvement = drift_before - drift_after;
                 if improvement <= Decimal::ZERO {
@@ -706,10 +770,11 @@ impl DriftPriorityOptimizer {
                     if *expo <= Decimal::ZERO {
                         continue;
                     }
+                    let cat_band_bps = profile.effective_band_bps(cat.target_bps);
                     let desired_bps = Self::desired_bps_for_goal(
                         cat.target_bps,
                         &profile.rebalance_goal,
-                        drift_band,
+                        cat_band_bps,
                     );
                     let desired_value = desired_bps / scale * total_value;
                     let base = values.get(&cat.category_id).copied().unwrap_or_default();
@@ -770,6 +835,7 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
             mut candidates,
             sell_candidates,
             mut warnings,
+            max_turnover_bps,
         } = input;
 
         if total_value == Decimal::ZERO && available_cash == Decimal::ZERO {
@@ -787,7 +853,6 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
         }
 
         let scale = dec!(10000);
-        let drift_band = Decimal::from(profile.drift_band_bps);
 
         let mut values: HashMap<String, Decimal> = categories
             .iter()
@@ -816,10 +881,9 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
                     total_value,
                     &categories,
                     &sell_candidates,
-                    &profile.rebalance_goal,
-                    drift_band,
-                    profile.whole_shares_only,
-                    profile.min_trade_amount,
+                    &profile,
+                    max_turnover_bps,
+                    &mut warnings,
                 );
                 values = updated_values;
                 (trades, proceeds)
@@ -840,12 +904,9 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
         // Track them so sleeve-level dollar trades can be added after the greedy.
         let mut no_candidate_categories: Vec<&CategoryState> = Vec::new();
         for cat in categories.iter().filter(|c| c.is_required && !c.is_cash) {
-            let desired_bps = match profile.rebalance_goal {
-                RebalanceGoal::ExactTarget => Decimal::from(cat.target_bps),
-                RebalanceGoal::NearestBand => {
-                    (Decimal::from(cat.target_bps) - drift_band).max(Decimal::ZERO)
-                }
-            };
+            let cat_band_bps = profile.effective_band_bps(cat.target_bps);
+            let desired_bps =
+                Self::desired_bps_for_goal(cat.target_bps, &profile.rebalance_goal, cat_band_bps);
             let desired_value = desired_bps / scale * total_value;
             if cat.current_value >= desired_value {
                 continue;
@@ -876,6 +937,8 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
                 .then_with(|| a.asset_id.cmp(&b.asset_id))
         });
 
+        let values_before_buy_trades = values.clone();
+
         // ── Buy phase(s) via run_buy_greedy ──────────────────────────────────
         //
         // CashFlowOnly / SellToRebalance: single pass with buy_pool.
@@ -888,21 +951,16 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
 
         let shares_bought: Vec<Decimal> = match &scenario_mode {
             ScenarioMode::Hybrid => {
-                // Pass 1: buy with available_cash only.
                 let mut sb = Self::run_buy_greedy(
                     &mut values,
                     &candidates,
                     available_cash,
                     &categories,
                     &profile,
-                    drift_band,
                     total_value,
                     scale,
                 );
 
-                // Check if any required category is still overweight outside band
-                // in the post-cash-buy state. Cash cannot reduce overweight (only
-                // selling can), so this check is authoritative.
                 let still_overweight = categories
                     .iter()
                     .filter(|c| c.is_required && !c.is_cash)
@@ -912,46 +970,39 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
                         }
                         let v = values.get(&c.category_id).copied().unwrap_or_default();
                         let bps = v / total_value * scale;
+                        let cat_band = Decimal::from(profile.effective_band_bps(c.target_bps));
                         let threshold = match profile.rebalance_goal {
                             RebalanceGoal::ExactTarget => Decimal::from(c.target_bps),
                             RebalanceGoal::NearestBand => {
-                                (Decimal::from(c.target_bps) + drift_band).min(dec!(10000))
+                                (Decimal::from(c.target_bps) + cat_band).min(dec!(10000))
                             }
                         };
                         bps > threshold
                     });
 
                 if still_overweight && !sell_candidates.is_empty() {
-                    // Pass 2a: sell overweight on the post-cash-buy values.
                     let (updated_values, proceeds, extra_sell_trades) = Self::run_sell_phase(
                         &values,
                         total_value,
                         &categories,
                         &sell_candidates,
-                        &profile.rebalance_goal,
-                        drift_band,
-                        profile.whole_shares_only,
-                        profile.min_trade_amount,
+                        &profile,
+                        max_turnover_bps,
+                        &mut warnings,
                     );
                     values = updated_values;
-                    // Merge sell trades into sell_trades (already empty for Hybrid first pass).
-                    // We reassign the outer sell_trades/sell_proceeds below by reconstructing.
-                    // Pass 2b: buy with proceeds from the hybrid sell.
                     let sb2 = Self::run_buy_greedy(
                         &mut values,
                         &candidates,
                         proceeds,
                         &categories,
                         &profile,
-                        drift_band,
                         total_value,
                         scale,
                     );
-                    // Accumulate shares and merge sell trades.
                     for (i, s) in sb2.into_iter().enumerate() {
                         sb[i] += s;
                     }
-                    // Prepend the hybrid sell trades (before buy trades at output).
                     sell_trades = extra_sell_trades;
                     sell_proceeds = proceeds;
                 }
@@ -964,15 +1015,11 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
                 buy_pool,
                 &categories,
                 &profile,
-                drift_band,
                 total_value,
                 scale,
             ),
         };
 
-        // Proportional top-up: deploy remaining cash proportionally to target_bps.
-        // Skipped for SellToRebalance (proceeds left over stay as cash_remaining to avoid
-        // circular sell→rebuy patterns).
         let mut shares_bought = shares_bought;
         if !matches!(scenario_mode, ScenarioMode::SellToRebalance) {
             let topup_pool = match &scenario_mode {
@@ -989,7 +1036,6 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
                 &categories,
                 total_value,
                 &profile,
-                drift_band,
                 sell_proceeds,
                 greedy_used,
             ) {
@@ -1010,6 +1056,7 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
 
         // Build trades from accumulated shares; apply min_trade_amount filter.
         let mut trades: Vec<SuggestedManualTrade> = Vec::new();
+        let mut buy_reason_values = values_before_buy_trades;
 
         for (idx, &shares) in shares_bought.iter().enumerate() {
             if shares == Decimal::ZERO {
@@ -1039,18 +1086,56 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
                 })
                 .unwrap_or_else(|| ("unknown".to_string(), "Unknown".to_string()));
 
+            let buy_reason = if total_value > Decimal::ZERO {
+                let cat_target_bps = categories
+                    .iter()
+                    .find(|c| c.category_id == primary_cat_id)
+                    .map(|c| c.target_bps)
+                    .unwrap_or(0);
+                let cat_current_value = categories
+                    .iter()
+                    .find(|c| c.category_id == primary_cat_id)
+                    .and_then(|c| buy_reason_values.get(&c.category_id).copied())
+                    .unwrap_or_default();
+                let current_bps: i32 = (cat_current_value / total_value * dec!(10000))
+                    .round()
+                    .to_string()
+                    .parse()
+                    .unwrap_or(0);
+                let underweight_bps = cat_target_bps - current_bps;
+                if underweight_bps > 0 {
+                    format!(
+                        "Buy {}: {} underweight by {} bps.",
+                        candidate.symbol, primary_cat_name, underweight_bps
+                    )
+                } else {
+                    format!(
+                        "Buy {}: improves {} drift.",
+                        candidate.symbol, primary_cat_name
+                    )
+                }
+            } else {
+                format!("Buy {}: improves portfolio drift.", candidate.symbol)
+            };
+
             trades.push(SuggestedManualTrade {
                 action: "buy".to_string(),
                 category_id: primary_cat_id,
                 category_name: primary_cat_name,
                 asset_id: Some(candidate.asset_id.clone()),
+                account_id: None,
+                holding_id: None,
                 symbol: Some(candidate.symbol.clone()),
                 name: candidate.name.clone(),
                 quantity: Some(shares),
                 estimated_price: Some(candidate.price),
                 estimated_amount,
-                reason: format!("{} improves portfolio drift.", candidate.symbol),
+                reason: buy_reason,
             });
+
+            for (cat_id, expo) in &candidate.exposure_per_share {
+                *buy_reason_values.entry(cat_id.clone()).or_default() += expo * shares;
+            }
         }
 
         // Sleeve-level dollar trades for uncovered underweight categories.
@@ -1068,8 +1153,9 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
             if manual_cash <= Decimal::ZERO {
                 break;
             }
+            let cat_band_bps = profile.effective_band_bps(cat.target_bps);
             let desired_bps =
-                Self::desired_bps_for_goal(cat.target_bps, &profile.rebalance_goal, drift_band);
+                Self::desired_bps_for_goal(cat.target_bps, &profile.rebalance_goal, cat_band_bps);
             let shortfall =
                 ((desired_bps / scale * total_value) - cat.current_value).max(Decimal::ZERO);
             let amount = shortfall.min(manual_cash);
@@ -1080,13 +1166,15 @@ impl RebalanceOptimizer for DriftPriorityOptimizer {
                     category_id: cat.category_id.clone(),
                     category_name: cat.category_name.clone(),
                     asset_id: None,
+                    account_id: None,
+                    holding_id: None,
                     symbol: None,
                     name: None,
                     quantity: None,
                     estimated_price: None,
                     estimated_amount: amount,
                     reason: format!(
-                        "Category {} is underweight. Allocate manually.",
+                        "{} is underweight — no classified holding available. Allocate manually.",
                         cat.category_name
                     ),
                 });
@@ -1205,6 +1293,8 @@ mod tests {
         let sell_candidates = vec![SellCandidate {
             holding_id: "h-bond".to_string(),
             asset_id: "a-bond".to_string(),
+            account_id: "acc-1".to_string(),
+            source_account_ids: vec!["acc-1".to_string()],
             symbol: "BND".to_string(),
             name: Some("BND".to_string()),
             price: dec!(100),
@@ -1212,15 +1302,24 @@ mod tests {
             exposure_per_share: HashMap::from([("bond".to_string(), dec!(100))]),
         }];
 
+        let profile = RebalanceProfile {
+            target_id: "test".to_string(),
+            drift_band_bps: 500,
+            band_type: BandType::Absolute,
+            relative_factor_bps: 2000,
+            rebalance_goal: RebalanceGoal::ExactTarget,
+            min_trade_amount: dec!(500),
+            whole_shares_only: false,
+        };
+        let mut warnings = vec![];
         let (updated_values, proceeds, trades) = DriftPriorityOptimizer::run_sell_phase(
             &values,
             dec!(10000),
             &categories,
             &sell_candidates,
-            &RebalanceGoal::ExactTarget,
-            dec!(500),
-            false,
-            dec!(500),
+            &profile,
+            None,
+            &mut warnings,
         );
 
         assert!(trades.is_empty(), "sub-minimum sell should be filtered");
@@ -1229,6 +1328,390 @@ mod tests {
             updated_values.get("bond").copied(),
             Some(dec!(7000)),
             "filtered sells must not alter the state used by the buy phase"
+        );
+    }
+
+    #[test]
+    fn turnover_cap_ignores_sub_minimum_dropped_sells() {
+        let optimizer = DriftPriorityOptimizer;
+        let mut input = make_sell_rebalance_input();
+        input.profile.min_trade_amount = dec!(100);
+        input.max_turnover_bps = Some(dec!(50)); // 0.5% of $10,000 = $50
+
+        let plan = optimizer.plan(input).unwrap();
+
+        assert!(
+            plan.trades.iter().all(|trade| trade.action != "sell"),
+            "cap only allows a $50 sell, which is below the $100 min trade"
+        );
+        assert!(
+            !plan
+                .warnings
+                .iter()
+                .any(|warning| warning.kind == RebalanceWarningKind::TurnoverCapReached),
+            "a sell dropped by min_trade_amount must not consume turnover budget"
+        );
+    }
+
+    fn make_two_sleeve_input(band_type: BandType) -> RebalanceInput {
+        // EQUITY 60% target, currently 68% (overweight +800 bps)
+        // BOND   40% target, currently 32% (underweight -800 bps)
+        // Cash: $500. Band floor: 500 bps. Relative factor: 20%.
+        //
+        // Absolute effective bands: EQUITY=500, BOND=500
+        //   → BOND desired = 4000-500 = 3500 bps, current 3200 → greedy buys BOND first
+        //
+        // Hybrid effective bands: EQUITY=max(6000*20%,500)=1200, BOND=max(4000*20%,500)=800
+        //   → BOND desired = 4000-800 = 3200 bps, current 3200 → already at desired
+        //   → greedy has nothing to do, all cash goes to proportional top-up
+        RebalanceInput {
+            profile: RebalanceProfile {
+                target_id: "test".to_string(),
+                drift_band_bps: 500,
+                band_type,
+                relative_factor_bps: 2000,
+                rebalance_goal: RebalanceGoal::NearestBand,
+                min_trade_amount: Decimal::ZERO,
+                whole_shares_only: false,
+            },
+            scenario_mode: ScenarioMode::CashFlowOnly,
+            available_cash: dec!(500),
+            total_value: dec!(10000),
+            categories: vec![
+                CategoryState {
+                    category_id: "equity".to_string(),
+                    category_name: "Equity".to_string(),
+                    target_bps: 6000,
+                    current_value: dec!(6800),
+                    is_cash: false,
+                    is_required: true,
+                },
+                CategoryState {
+                    category_id: "bond".to_string(),
+                    category_name: "Bond".to_string(),
+                    target_bps: 4000,
+                    current_value: dec!(3200),
+                    is_cash: false,
+                    is_required: true,
+                },
+            ],
+            candidates: vec![
+                AssetCandidate {
+                    holding_id: "h-vti".to_string(),
+                    asset_id: "a-vti".to_string(),
+                    symbol: "VTI".to_string(),
+                    name: Some("Vanguard Total Stock".to_string()),
+                    price: dec!(50),
+                    exposure_per_share: HashMap::from([("equity".to_string(), dec!(50))]),
+                },
+                AssetCandidate {
+                    holding_id: "h-bnd".to_string(),
+                    asset_id: "a-bnd".to_string(),
+                    symbol: "BND".to_string(),
+                    name: Some("Vanguard Total Bond".to_string()),
+                    price: dec!(50),
+                    exposure_per_share: HashMap::from([("bond".to_string(), dec!(50))]),
+                },
+            ],
+            sell_candidates: vec![],
+            warnings: vec![],
+            max_turnover_bps: None,
+        }
+    }
+
+    fn buy_amount_for(plan: &RebalancePlan, symbol: &str) -> Decimal {
+        plan.trades
+            .iter()
+            .filter(|t| t.action == "buy" && t.symbol.as_deref() == Some(symbol))
+            .map(|t| t.estimated_amount)
+            .sum()
+    }
+
+    #[test]
+    fn hybrid_vs_absolute_produces_different_trade_allocation() {
+        let optimizer = DriftPriorityOptimizer;
+
+        let abs_plan = optimizer
+            .plan(make_two_sleeve_input(BandType::Absolute))
+            .unwrap();
+        let hyb_plan = optimizer
+            .plan(make_two_sleeve_input(BandType::Hybrid))
+            .unwrap();
+
+        let abs_bnd = buy_amount_for(&abs_plan, "BND");
+        let abs_vti = buy_amount_for(&abs_plan, "VTI");
+        let hyb_bnd = buy_amount_for(&hyb_plan, "BND");
+        let hyb_vti = buy_amount_for(&hyb_plan, "VTI");
+
+        // Absolute: BOND is underweight outside band → greedy prioritizes BND
+        assert!(
+            abs_bnd > abs_vti,
+            "absolute should buy more BND ({abs_bnd}) than VTI ({abs_vti})"
+        );
+
+        // Hybrid: BOND is at desired level → proportional top-up favors larger-weight EQUITY
+        assert!(
+            hyb_vti > hyb_bnd,
+            "hybrid should buy more VTI ({hyb_vti}) than BND ({hyb_bnd})"
+        );
+
+        // Both use all available cash
+        let abs_total = abs_bnd + abs_vti;
+        let hyb_total = hyb_bnd + hyb_vti;
+        assert!(abs_total > Decimal::ZERO);
+        assert!(hyb_total > Decimal::ZERO);
+    }
+
+    fn make_sell_rebalance_input() -> RebalanceInput {
+        // EQUITY 30% (target 70%), BOND 70% (target 30%).
+        // BND is overweight, VTI is underweight.
+        RebalanceInput {
+            profile: RebalanceProfile {
+                target_id: "test".to_string(),
+                drift_band_bps: 500,
+                band_type: BandType::Absolute,
+                relative_factor_bps: 2000,
+                rebalance_goal: RebalanceGoal::ExactTarget,
+                min_trade_amount: Decimal::ZERO,
+                whole_shares_only: false,
+            },
+            scenario_mode: ScenarioMode::SellToRebalance,
+            available_cash: Decimal::ZERO,
+            total_value: dec!(10000),
+            categories: vec![
+                CategoryState {
+                    category_id: "equity".to_string(),
+                    category_name: "Equity".to_string(),
+                    target_bps: 7000,
+                    current_value: dec!(3000),
+                    is_cash: false,
+                    is_required: true,
+                },
+                CategoryState {
+                    category_id: "bond".to_string(),
+                    category_name: "Bond".to_string(),
+                    target_bps: 3000,
+                    current_value: dec!(7000),
+                    is_cash: false,
+                    is_required: true,
+                },
+            ],
+            candidates: vec![AssetCandidate {
+                holding_id: "h-vti".to_string(),
+                asset_id: "a-vti".to_string(),
+                symbol: "VTI".to_string(),
+                name: Some("Vanguard Total Stock".to_string()),
+                price: dec!(100),
+                exposure_per_share: HashMap::from([("equity".to_string(), dec!(100))]),
+            }],
+            sell_candidates: vec![SellCandidate {
+                holding_id: "h-bnd".to_string(),
+                asset_id: "a-bnd".to_string(),
+                account_id: "acc-1".to_string(),
+                source_account_ids: vec!["acc-1".to_string()],
+                symbol: "BND".to_string(),
+                name: Some("Vanguard Total Bond".to_string()),
+                price: dec!(100),
+                quantity_owned: dec!(70),
+                exposure_per_share: HashMap::from([("bond".to_string(), dec!(100))]),
+            }],
+            warnings: vec![],
+            max_turnover_bps: None,
+        }
+    }
+
+    #[test]
+    fn turnover_cap_limits_sell_amount() {
+        let optimizer = DriftPriorityOptimizer;
+        let mut input = make_sell_rebalance_input();
+        // Cap at 10% turnover = $1000 max sold out of $10000
+        input.max_turnover_bps = Some(dec!(1000));
+
+        let plan = optimizer.plan(input).unwrap();
+
+        let sell_total: Decimal = plan
+            .trades
+            .iter()
+            .filter(|t| t.action == "sell")
+            .map(|t| t.estimated_amount)
+            .sum();
+
+        assert!(
+            sell_total <= dec!(1000),
+            "sell total ({sell_total}) should not exceed 10% turnover cap ($1000)"
+        );
+        assert!(
+            plan.warnings
+                .iter()
+                .any(|w| w.kind == RebalanceWarningKind::TurnoverCapReached),
+            "should emit TurnoverCapReached warning"
+        );
+    }
+
+    #[test]
+    fn turnover_cap_warning_formats_basis_points_as_percent() {
+        let optimizer = DriftPriorityOptimizer;
+        let mut input = make_sell_rebalance_input();
+        input.profile.whole_shares_only = true;
+        input.max_turnover_bps = Some(dec!(100));
+
+        let plan = optimizer.plan(input).unwrap();
+
+        let warning = plan
+            .warnings
+            .iter()
+            .find(|w| w.kind == RebalanceWarningKind::TurnoverCapReached)
+            .expect("turnover warning expected");
+        assert!(
+            warning.message.contains("(1.0%)"),
+            "turnover warning should format bps as percent: {}",
+            warning.message
+        );
+    }
+
+    #[test]
+    fn sell_trade_preserves_account_and_holding_context() {
+        let optimizer = DriftPriorityOptimizer;
+        let input = make_sell_rebalance_input();
+
+        let plan = optimizer.plan(input).unwrap();
+
+        let sell = plan
+            .trades
+            .iter()
+            .find(|t| t.action == "sell")
+            .expect("sell trade expected");
+        assert_eq!(sell.account_id.as_deref(), Some("acc-1"));
+        assert_eq!(sell.holding_id.as_deref(), Some("h-bnd"));
+    }
+
+    #[test]
+    fn sell_reason_uses_pre_sell_overweight_bps() {
+        let optimizer = DriftPriorityOptimizer;
+        let input = make_sell_rebalance_input();
+
+        let plan = optimizer.plan(input).unwrap();
+
+        let sell = plan
+            .trades
+            .iter()
+            .find(|t| t.action == "sell")
+            .expect("sell trade expected");
+        assert!(
+            sell.reason.contains("overweight by 4000 bps"),
+            "sell reason should describe the pre-sell overweight state: {}",
+            sell.reason
+        );
+    }
+
+    #[test]
+    fn no_turnover_cap_sells_as_needed() {
+        let optimizer = DriftPriorityOptimizer;
+        let input = make_sell_rebalance_input();
+
+        let plan = optimizer.plan(input).unwrap();
+
+        let sell_total: Decimal = plan
+            .trades
+            .iter()
+            .filter(|t| t.action == "sell")
+            .map(|t| t.estimated_amount)
+            .sum();
+
+        assert!(
+            sell_total > dec!(1000),
+            "without cap, should sell more than $1000 to fix 40pp drift"
+        );
+        assert!(
+            !plan
+                .warnings
+                .iter()
+                .any(|w| w.kind == RebalanceWarningKind::TurnoverCapReached),
+            "no turnover cap warning expected"
+        );
+    }
+
+    #[test]
+    fn buy_reason_includes_underweight_bps() {
+        let optimizer = DriftPriorityOptimizer;
+        let input = make_two_sleeve_input(BandType::Absolute);
+        let plan = optimizer.plan(input).unwrap();
+
+        let bnd_trade = plan
+            .trades
+            .iter()
+            .find(|t| t.symbol.as_deref() == Some("BND"))
+            .expect("BND trade expected");
+        assert!(
+            bnd_trade.reason.contains("underweight"),
+            "buy reason should mention underweight: got '{}'",
+            bnd_trade.reason
+        );
+    }
+
+    #[test]
+    fn buy_reasons_use_running_underweight_after_prior_buys() {
+        let optimizer = DriftPriorityOptimizer;
+        let input = RebalanceInput {
+            profile: RebalanceProfile {
+                target_id: "test".to_string(),
+                drift_band_bps: 0,
+                band_type: BandType::Absolute,
+                relative_factor_bps: 2000,
+                rebalance_goal: RebalanceGoal::ExactTarget,
+                min_trade_amount: Decimal::ZERO,
+                whole_shares_only: true,
+            },
+            scenario_mode: ScenarioMode::CashFlowOnly,
+            available_cash: dec!(250),
+            total_value: dec!(10000),
+            categories: vec![CategoryState {
+                category_id: "equity".to_string(),
+                category_name: "Equity".to_string(),
+                target_bps: 10000,
+                current_value: dec!(6000),
+                is_cash: false,
+                is_required: true,
+            }],
+            candidates: vec![
+                AssetCandidate {
+                    holding_id: "h-big".to_string(),
+                    asset_id: "a-big".to_string(),
+                    symbol: "BIG".to_string(),
+                    name: Some("Big Equity".to_string()),
+                    price: dec!(150),
+                    exposure_per_share: HashMap::from([("equity".to_string(), dec!(150))]),
+                },
+                AssetCandidate {
+                    holding_id: "h-small".to_string(),
+                    asset_id: "a-small".to_string(),
+                    symbol: "SMALL".to_string(),
+                    name: Some("Small Equity".to_string()),
+                    price: dec!(100),
+                    exposure_per_share: HashMap::from([("equity".to_string(), dec!(50))]),
+                },
+            ],
+            sell_candidates: vec![],
+            warnings: vec![],
+            max_turnover_bps: None,
+        };
+
+        let plan = optimizer.plan(input).unwrap();
+        let equity_reasons: Vec<&str> = plan
+            .trades
+            .iter()
+            .filter(|trade| trade.action == "buy" && trade.category_id == "equity")
+            .map(|trade| trade.reason.as_str())
+            .collect();
+
+        assert_eq!(equity_reasons.len(), 2, "expected two equity buy trades");
+        let stale_reason_count = equity_reasons
+            .iter()
+            .filter(|reason| reason.contains("underweight by 4000 bps"))
+            .count();
+        assert_eq!(
+            stale_reason_count, 1,
+            "only the first buy should report the original underweight: {equity_reasons:?}"
         );
     }
 }

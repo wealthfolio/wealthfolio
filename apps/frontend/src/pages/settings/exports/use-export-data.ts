@@ -34,6 +34,7 @@ type ExportMutationResult = SQLiteBackupResult | FileExportResult | null;
 const datasetLabels: Record<ExportDataType, string> = {
   accounts: "accounts",
   activities: "activities",
+  holdings: "holdings",
   goals: "goals",
   "portfolio-history": "portfolio history records",
 };

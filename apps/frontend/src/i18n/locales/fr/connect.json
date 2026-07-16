@@ -1,0 +1,282 @@
+{
+  "page": {
+    "title": "Synchronisation et connexions",
+    "subtitle": "Vos appareils, tous au même endroit.",
+    "subtitleWithBrokers": "Vos courtiers et vos appareils, tous au même endroit.",
+    "brokerages": "Courtiers",
+    "devices": "Appareils",
+    "recentActivity": "Activité récente",
+    "manage": "Gérer",
+    "timeAgo": "il y a {{time}}",
+    "noBrokeragesConnected": "Aucun courtier connecté",
+    "noBrokeragesDescription": "Reliez un courtier pour commencer à synchroniser vos comptes.",
+    "noDevicesSyncing": "Aucun appareil synchronisé pour le moment",
+    "noDevicesDescription": "Configurez la synchronisation des appareils dans les paramètres pour garder vos données synchronisées sur tous vos appareils.",
+    "noActivity": "Aucune activité pour le moment",
+    "noActivityDescription": "Les mises à jour apparaîtront ici dès que vos données commenceront à se synchroniser."
+  },
+  "emptyState": {
+    "optional": "Facultatif",
+    "subtitle": "Synchronisez automatiquement vos courtiers tout en gardant vos données privées.",
+    "getStarted": "Commencer avec Connect",
+    "loginToAccount": "Connectez-vous à votre compte",
+    "learnMore": "En savoir plus sur Connect",
+    "features": {
+      "brokerageSync": {
+        "title": "Synchronisation des courtiers",
+        "description": "Synchronisez automatiquement vos comptes et transactions chaque jour."
+      },
+      "deviceSync": {
+        "title": "Synchronisation des appareils",
+        "description": "Synchronisez entre appareils avec un chiffrement de bout en bout."
+      },
+      "householdView": {
+        "title": "Vue foyer",
+        "description": "Partagez des comptes avec les membres de votre famille."
+      }
+    }
+  },
+  "flow": {
+    "yourDevice": "Votre appareil",
+    "localDatabase": "Base de données locale",
+    "dataStaysHere": "Les données restent ici",
+    "aggregators": "Agrégateurs",
+    "brokerages": "Courtiers",
+    "banks": "Banques",
+    "crypto": "Crypto"
+  },
+  "account": {
+    "userAvatar": "Avatar de l'utilisateur",
+    "userFallback": "Utilisateur",
+    "active": "Actif",
+    "signOut": "Se déconnecter",
+    "signOutTitle": "Se déconnecter de Wealthfolio Connect ?",
+    "signOutMessage": "Vous devrez vous reconnecter pour accéder à vos comptes de courtier synchronisés. Vos données locales ne seront pas affectées.",
+    "signOutConfirm": "Se déconnecter",
+    "signingOut": "Déconnexion..."
+  },
+  "accounts": {
+    "title": "Comptes",
+    "manage": "Gérer les comptes",
+    "accountFallback": "Compte",
+    "platformFallback": "Plateforme",
+    "brokerFallback": "Courtier",
+    "paper": "Papier",
+    "shared": "Partagé",
+    "sharedBy": "Partagé par {{name}}",
+    "syncEnabled": "Synchronisation activée",
+    "excludedFromSync": "Exclu de la synchronisation",
+    "noDataYet": "Aucune donnée pour le moment",
+    "dataAsOf": "Données au {{date}}",
+    "emptyTitle": "Aucun compte synchronisé pour le moment",
+    "emptyDescription": "Connectez un courtier pour commencer à synchroniser vos comptes."
+  },
+  "connections": {
+    "title": "Connexions de courtiers",
+    "manage": "Gérer les connexions",
+    "empty": "Aucune connexion de courtier pour le moment",
+    "connectBroker": "Connecter un courtier",
+    "unknownBroker": "Courtier inconnu",
+    "unknown": "Inconnu",
+    "connected": "Connecté",
+    "disconnected": "Déconnecté",
+    "reconnect": "Reconnecter",
+    "noAccountsFound": "Aucun compte trouvé",
+    "allAccountsExcluded": "Tous les comptes exclus",
+    "accountsSyncing_one": "{{count}} compte en cours de synchronisation",
+    "accountsSyncing_other": "{{count}} comptes en cours de synchronisation",
+    "partialSyncing_one": "{{syncing}} compte sur {{total}} en cours de synchronisation · {{excluded}} compte exclu",
+    "partialSyncing_other": "{{syncing}} comptes sur {{total}} en cours de synchronisation · {{excluded}} comptes exclus"
+  },
+  "sync": {
+    "syncNow": "Synchroniser maintenant",
+    "sync": "Synchroniser",
+    "syncAll": "Tout synchroniser",
+    "syncingShort": "Synchronisation...",
+    "statusTitle": "État de synchronisation",
+    "syncingBrokerData": "Synchronisation des données du courtier...",
+    "startFailed": "Échec du démarrage de la synchronisation : {{error}}",
+    "needAttention_one": "{{count}} compte nécessite votre attention",
+    "needAttention_other": "{{count}} comptes nécessitent votre attention"
+  },
+  "status": {
+    "upToDate": "À jour",
+    "syncing": "Synchronisation",
+    "syncingEllipsis": "Synchronisation...",
+    "needsReview": "À vérifier",
+    "failed": "Échoué",
+    "notConnected": "Non connecté",
+    "lastSynced": "Dernière synchronisation {{time}}",
+    "neverSynced": "Jamais synchronisé"
+  },
+  "runStatus": {
+    "running": "En cours",
+    "applied": "Appliqué",
+    "needsReview": "À vérifier",
+    "failed": "Échoué",
+    "cancelled": "Annulé"
+  },
+  "syncRuns": {
+    "title": "Synchronisations récentes",
+    "empty": "Aucune synchronisation pour le moment.",
+    "warningsCount_one": "{{count}} avertissement",
+    "warningsCount_other": "{{count}} avertissements",
+    "fetched": "Récupéré",
+    "inserted": "Inséré",
+    "updated": "Mis à jour",
+    "skipped": "Ignoré",
+    "warningsLabel": "Avertissements :",
+    "andMore": "... et {{count}} de plus",
+    "reviewActivities": "Vérifier les activités",
+    "duration": "Durée :",
+    "inProgress": "En cours..."
+  },
+  "syncHistory": {
+    "title": "Historique de synchronisation",
+    "success": "Réussi",
+    "review": "Vérifier",
+    "emptyTitle": "Aucune synchronisation pour le moment",
+    "emptyDescription": "Votre historique de synchronisation apparaîtra ici après votre première synchronisation",
+    "runCount_one": "{{count}} synchronisation",
+    "runCount_other": "{{count}} synchronisations",
+    "loadMore": "Charger plus",
+    "lessThanOneSecond": "<1 s",
+    "new": "nouveaux",
+    "updated": "mis à jour",
+    "skipped": "ignorés",
+    "warningsCount_one": "{{count}} avertissement",
+    "warningsCount_other": "{{count}} avertissements",
+    "andMore": "+{{count}} de plus"
+  },
+  "activity": {
+    "syncingData": "Synchronisation de vos données...",
+    "somethingWentWrong": "Une erreur s'est produite",
+    "upToDate": "Tout est à jour",
+    "itemsNeedReview_one": "{{count}} élément nécessite votre vérification",
+    "itemsNeedReview_other": "{{count}} éléments nécessitent votre vérification",
+    "newItems": {
+      "transaction_one": "{{count}} nouvelle transaction",
+      "transaction_other": "{{count}} nouvelles transactions",
+      "position_one": "{{count}} nouvelle position",
+      "position_other": "{{count}} nouvelles positions"
+    },
+    "updatedItems": {
+      "transaction_one": "{{count}} transaction mise à jour",
+      "transaction_other": "{{count}} transactions mises à jour",
+      "position_one": "{{count}} position mise à jour",
+      "position_other": "{{count}} positions mises à jour"
+    },
+    "removedItems": {
+      "transaction_one": "{{count}} transaction supprimée",
+      "transaction_other": "{{count}} transactions supprimées",
+      "position_one": "{{count}} position supprimée",
+      "position_other": "{{count}} positions supprimées"
+    }
+  },
+  "attention": {
+    "title": "La synchronisation du courtier nécessite votre attention",
+    "description_one": "{{count}} compte nécessite une nouvelle tentative ou une vérification du courtier.",
+    "description_other": "{{count}} comptes nécessitent une nouvelle tentative ou une vérification du courtier."
+  },
+  "setup": {
+    "newAccountsTitle": "De nouveaux comptes doivent être configurés",
+    "newAccountsDescription_one": "{{count}} compte nécessite une configuration rapide avant de pouvoir commencer la synchronisation.",
+    "newAccountsDescription_other": "{{count}} comptes nécessitent une configuration rapide avant de pouvoir commencer la synchronisation.",
+    "reviewAccounts": "Vérifier les comptes"
+  },
+  "devices": {
+    "thisDevice": "Cet appareil",
+    "activeNow": "Actif maintenant",
+    "lastSeen": "Vu {{time}}",
+    "online": "En ligne",
+    "never": "Jamais"
+  },
+  "deviceStatus": {
+    "syncError": "Erreur de synchronisation",
+    "syncPaused": "Synchronisation en pause",
+    "upToDate": "À jour",
+    "syncing": "Synchronisation"
+  },
+  "serviceUnavailable": {
+    "title": "Service temporairement indisponible",
+    "description": "Nous rencontrons des difficultés pour nous connecter à Wealthfolio Connect. Cela est généralement temporaire et devrait se résoudre rapidement.",
+    "retrying": "Nouvelle tentative...",
+    "tryAgain": "Réessayer"
+  },
+  "upgrade": {
+    "title": "Passez à un forfait supérieur pour synchroniser vos comptes de courtier",
+    "description": "Connectez vos comptes de courtier pour une synchronisation automatique de votre portefeuille.",
+    "button": "Mettre à niveau"
+  },
+  "privacy": {
+    "footnote": "Wealthfolio Connect ne stocke pas vos identifiants de courtier ni vos données financières. Tout se synchronise en toute sécurité via un agrégateur vers votre base de données locale. La synchronisation des appareils utilise un chiffrement de bout en bout. <privacyLink>En savoir plus</privacyLink>"
+  },
+  "providers": {
+    "continueWithGoogle": "Continuer avec Google",
+    "continueWithApple": "Continuer avec Apple",
+    "continueWithEmail": "Continuer avec l'e-mail",
+    "lastUsed": "Dernier utilisé"
+  },
+  "subscription": {
+    "comingSoon": "Bientôt disponible",
+    "getStarted": "Commencer",
+    "perMonthShort": "mois",
+    "perYearShort": "an",
+    "savings": "Économisez {{percent}} % par rapport au mensuel",
+    "choosePlan": "Choisissez votre forfait",
+    "choosePlanDescription": "Abonnez-vous pour débloquer la synchronisation des courtiers et les fonctionnalités cloud.",
+    "monthly": "Mensuel",
+    "yearly": "Annuel",
+    "monthlyBilling": "Facturation mensuelle",
+    "yearlyBilling": "Facturation annuelle",
+    "alreadySubscribed": "Déjà abonné ?",
+    "connectionIssueTitle": "Problème de connexion",
+    "connectionIssueDescription": "Nous rencontrons des difficultés pour nous connecter à votre compte. Cela peut se produire si votre session a expiré.",
+    "unableToLoadTitle": "Impossible de charger les forfaits",
+    "unableToLoadDescription": "Nous n'avons pas pu récupérer les forfaits d'abonnement pour le moment. Il s'agit généralement d'un problème temporaire.",
+    "contactSupport": "Contacter le support",
+    "emailCopied": "E-mail copié dans le presse-papiers",
+    "reconnecting": "Reconnexion...",
+    "reconnect": "Reconnecter",
+    "refreshPage": "Actualiser la page"
+  },
+  "authCallback": {
+    "processing": "Traitement de l'authentification...",
+    "completing": "Finalisation de la connexion..."
+  },
+  "authErrors": {
+    "noSessionReturned": "Aucune session renvoyée après la connexion.",
+    "completeSignInFailed": "Échec de la finalisation de la connexion",
+    "signInFailed": "Échec de la connexion",
+    "signUpFailed": "Échec de l'inscription",
+    "confirmEmail": "Veuillez consulter votre e-mail pour confirmer votre compte.",
+    "oauthFailed": "Échec de la connexion OAuth",
+    "magicLinkFailed": "Échec de l'envoi du lien magique",
+    "invalidVerificationCode": "Code de vérification invalide",
+    "signOutFailed": "Échec de la déconnexion",
+    "fetchUserInfoFailed": "Échec de la récupération des informations utilisateur"
+  },
+  "newAccounts": {
+    "title": "Nouveaux comptes trouvés",
+    "description": "Choisissez comment suivre chaque compte. Vous pourrez modifier ce choix plus tard.",
+    "trackingInfo": "Le mode <strong>Transactions</strong> suit chaque opération pour des analyses de performance complètes. Le mode <strong>Positions</strong> importe uniquement des instantanés avec des indicateurs limités. <docsLink>En savoir plus</docsLink>",
+    "accountName": "Nom du compte",
+    "group": "Groupe (facultatif)",
+    "groupPlaceholder": "ex. : Retraite",
+    "trackingMode": "Mode de suivi",
+    "transactions": "Transactions",
+    "transactionsDescription": "Analyses de performance complètes",
+    "holdings": "Positions",
+    "holdingsDescription": "Instantanés uniquement",
+    "holdingsWarning": "Les indicateurs de performance seront limités sans l'historique des transactions.",
+    "notNow": "Pas maintenant",
+    "saving": "Enregistrement...",
+    "saveAndSync": "Enregistrer et synchroniser",
+    "configured": "Comptes configurés",
+    "configuredDescription": "Démarrage de la synchronisation avec vos paramètres sélectionnés...",
+    "saveFailed": "Échec de l'enregistrement des comptes"
+  },
+  "errors": {
+    "unknown": "Erreur inconnue"
+  }
+}

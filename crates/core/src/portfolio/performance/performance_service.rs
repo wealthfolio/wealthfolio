@@ -1,20 +1,27 @@
-use crate::accounts::{account_types, TrackingMode};
+use crate::accounts::{account_types, Account, TrackingMode};
 use crate::activities::{Activity, ActivityRepositoryTrait, ActivityType, TransferPairResolution};
 use crate::constants::DECIMAL_PRECISION;
 use crate::errors::{self, Result, ValidationError};
 use crate::fx::FxServiceTrait;
 use crate::lots::{LotDisposal, LotRecord, LotRepositoryTrait};
 use crate::performance::ReturnData;
+use crate::portfolio::economic_events::{
+    ActivityEconomicsResolver, BasisStatus, EconomicEventEffect, EconomicEventKind,
+    TransferBoundary,
+};
 use crate::quotes::QuoteServiceTrait;
+use crate::utils::occ_symbol::looks_like_occ_symbol;
 use crate::utils::time_utils::{activity_date_in_tz, parse_user_timezone_or_default, user_today};
 use crate::valuation::ValuationServiceTrait;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, NaiveDate, Utc};
+use futures::stream::{self, StreamExt};
 use num_traits::ToPrimitive;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
 use log::{debug, warn};
 use rust_decimal::prelude::FromPrimitive;
@@ -23,9 +30,15 @@ use rust_decimal::MathematicalOps;
 use rust_decimal_macros::dec;
 
 use super::{
-    is_external_transfer, DataQualityStatus, PerformanceAttribution, PerformanceDataQuality,
-    PerformancePeriod, PerformanceResult, PerformanceReturns, PerformanceRisk,
-    PerformanceScopeDescriptor, PerformanceSummaryProfile, ReturnMethod, SimplePerformanceMetrics,
+    empty_performance_metrics, is_external_transfer, performance_account_ids_from_map,
+    performance_account_tracking_modes_from_map, performance_account_types_from_map,
+    performance_summary_scope_key, performance_tracking_composition,
+    sync_performance_summary_quality, unavailable_performance_metrics, DataQualityStatus,
+    PerformanceAttribution, PerformanceDataQuality, PerformancePeriod, PerformanceResult,
+    PerformanceReturns, PerformanceRisk, PerformanceScopeDescriptor, PerformanceSummary,
+    PerformanceSummaryBasis, PerformanceSummaryBatchResult, PerformanceSummaryBatchScope,
+    PerformanceSummaryProfile, PerformanceSummaryScopeTiming, PerformanceSummaryStatus,
+    ReturnMethod, SimplePerformanceMetrics,
 };
 use crate::portfolio::valuation::{
     DailyAccountValuation, ExternalFlowSource as ValuationExternalFlowSource,
@@ -88,6 +101,192 @@ pub trait PerformanceServiceTrait: Send + Sync {
     ) -> Result<Vec<SimplePerformanceMetrics>>;
 }
 
+pub const PERFORMANCE_SUMMARY_BATCH_PARALLELISM: usize = 4;
+
+struct PerformanceSummaryBatchScopeResult {
+    key: String,
+    result: PerformanceResult,
+    timing: PerformanceSummaryScopeTiming,
+}
+
+pub async fn calculate_performance_summary_batch_for_accounts<T>(
+    performance_service: Arc<T>,
+    scopes: Vec<PerformanceSummaryBatchScope>,
+    accounts_by_id: HashMap<String, Account>,
+    base_currency: String,
+    start_date: Option<NaiveDate>,
+    end_date: Option<NaiveDate>,
+    profile: PerformanceSummaryProfile,
+) -> PerformanceSummaryBatchResult
+where
+    T: PerformanceServiceTrait + ?Sized + 'static,
+{
+    let total_scope_count = scopes.len();
+    let batch_start = Instant::now();
+    let mut results = HashMap::new();
+    let mut scope_results = stream::iter(scopes.into_iter().enumerate())
+        .map(|(scope_index, scope)| {
+            let performance_service = Arc::clone(&performance_service);
+            let accounts_by_id = accounts_by_id.clone();
+            let base_currency = base_currency.clone();
+            async move {
+                let key = performance_summary_scope_key(&scope.account_ids);
+                let account_ids =
+                    performance_account_ids_from_map(&accounts_by_id, &scope.account_ids);
+                let scope_start = Instant::now();
+
+                if account_ids.is_empty() {
+                    let mut result = empty_performance_metrics(
+                        &key,
+                        base_currency.clone(),
+                        start_date,
+                        end_date,
+                    );
+                    if !scope.account_ids.is_empty() {
+                        result.data_quality.warnings.push(
+                            "Requested accounts were excluded because they are archived or not eligible for performance."
+                                .to_string(),
+                        );
+                        sync_performance_summary_quality(&mut result);
+                    }
+                    let timing = PerformanceSummaryScopeTiming {
+                        index: scope_index + 1,
+                        total: total_scope_count,
+                        key: key.clone(),
+                        requested_accounts: scope.account_ids.len(),
+                        eligible_accounts: 0,
+                        tracking_composition: "none".to_string(),
+                        warnings: result.data_quality.warnings.len(),
+                        skipped: true,
+                        failed: false,
+                        elapsed_ms: scope_start.elapsed().as_secs_f64() * 1000.0,
+                    };
+                    return PerformanceSummaryBatchScopeResult {
+                        key,
+                        result,
+                        timing,
+                    };
+                }
+
+                let tracking_modes =
+                    performance_account_tracking_modes_from_map(&accounts_by_id, &account_ids);
+                let account_types =
+                    performance_account_types_from_map(&accounts_by_id, &account_ids);
+                let tracking_composition =
+                    performance_tracking_composition(&tracking_modes, &account_ids);
+                let requested_account_count = scope.account_ids.len();
+                let handle = tokio::runtime::Handle::current();
+                let key_for_task = key.clone();
+                let account_ids_for_task = account_ids.clone();
+                let base_currency_for_task = base_currency.clone();
+                let tracking_modes_for_task = tracking_modes.clone();
+                let account_types_for_task = account_types.clone();
+                let calculation = match tokio::task::spawn_blocking(move || {
+                    handle.block_on(async move {
+                        performance_service
+                            .calculate_performance_summary_for_accounts(
+                                &key_for_task,
+                                &account_ids_for_task,
+                                &base_currency_for_task,
+                                &tracking_modes_for_task,
+                                &account_types_for_task,
+                                start_date,
+                                end_date,
+                                profile,
+                            )
+                            .await
+                    })
+                })
+                .await
+                {
+                    Ok(result) => result
+                        .map_err(|e| format!("Failed to calculate performance summary: {}", e)),
+                    Err(error) => Err(format!(
+                        "Failed to join performance summary calculation for {}: {}",
+                        key, error
+                    )),
+                };
+
+                let mut result = match calculation {
+                    Ok(result) => result,
+                    Err(error) => {
+                        let mut result = unavailable_performance_metrics(
+                            &key,
+                            base_currency.clone(),
+                            start_date,
+                            end_date,
+                            format!("Performance unavailable for this scope: {error}"),
+                        );
+                        result.data_quality.status = DataQualityStatus::Partial;
+                        sync_performance_summary_quality(&mut result);
+                        let timing = PerformanceSummaryScopeTiming {
+                            index: scope_index + 1,
+                            total: total_scope_count,
+                            key: key.clone(),
+                            requested_accounts: requested_account_count,
+                            eligible_accounts: account_ids.len(),
+                            tracking_composition,
+                            warnings: result.data_quality.warnings.len(),
+                            skipped: false,
+                            failed: true,
+                            elapsed_ms: scope_start.elapsed().as_secs_f64() * 1000.0,
+                        };
+                        return PerformanceSummaryBatchScopeResult {
+                            key,
+                            result,
+                            timing,
+                        };
+                    }
+                };
+
+                if account_ids.len() != requested_account_count {
+                    result.data_quality.warnings.push(
+                        "Some requested accounts were excluded because they are archived or not eligible for performance."
+                            .to_string(),
+                    );
+                    result.data_quality.status = DataQualityStatus::Partial;
+                    sync_performance_summary_quality(&mut result);
+                }
+
+                let timing = PerformanceSummaryScopeTiming {
+                    index: scope_index + 1,
+                    total: total_scope_count,
+                    key: key.clone(),
+                    requested_accounts: requested_account_count,
+                    eligible_accounts: account_ids.len(),
+                    tracking_composition,
+                    warnings: result.data_quality.warnings.len(),
+                    skipped: false,
+                    failed: false,
+                    elapsed_ms: scope_start.elapsed().as_secs_f64() * 1000.0,
+                };
+                PerformanceSummaryBatchScopeResult {
+                    key,
+                    result,
+                    timing,
+                }
+            }
+        })
+        .buffer_unordered(PERFORMANCE_SUMMARY_BATCH_PARALLELISM);
+
+    let mut failed_scope_count = 0usize;
+    let mut scope_timings = Vec::new();
+    while let Some(scope_result) = scope_results.next().await {
+        if scope_result.timing.failed {
+            failed_scope_count += 1;
+        }
+        scope_timings.push(scope_result.timing);
+        results.insert(scope_result.key, scope_result.result);
+    }
+
+    PerformanceSummaryBatchResult {
+        results,
+        failed_scope_count,
+        scope_timings,
+        elapsed_ms: batch_start.elapsed().as_secs_f64() * 1000.0,
+    }
+}
+
 pub struct PerformanceService {
     valuation_service: Arc<dyn ValuationServiceTrait + Send + Sync>,
     quote_service: Arc<dyn QuoteServiceTrait + Send + Sync>,
@@ -99,6 +298,7 @@ pub struct PerformanceService {
 
 const DAYS_PER_YEAR_DECIMAL: Decimal = dec!(365.25);
 const SQRT_DAYS_PER_YEAR_APPROX: Decimal = dec!(19.111514854); // sqrt(365.25)
+const MIN_ANNUALIZATION_DAYS: i64 = 30;
 const ATTRIBUTION_RESIDUAL_TOLERANCE_RATE: Decimal = dec!(0.002);
 const ATTRIBUTION_RESIDUAL_LEGACY_WARNING_PREFIX: &str = "Attribution residual ";
 const ATTRIBUTION_INCOMPLETE_WARNING_PREFIX: &str = "Performance attribution is incomplete";
@@ -171,6 +371,34 @@ enum ScopedTrackingComposition {
     Mixed,
 }
 
+struct MixedScopeAccountHistory<'a> {
+    account_id: &'a str,
+    tracking_mode: TrackingMode,
+    account_type: Option<&'a str>,
+    history: &'a [DailyAccountValuation],
+}
+
+#[derive(Clone, Debug)]
+struct MixedScopeComponentMetrics {
+    account_id: String,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+    amount: Option<Decimal>,
+    denominator: Option<Decimal>,
+    contributes_to_scope: bool,
+    basis_status: BasisStatus,
+    attribution: PerformanceAttribution,
+    warnings: Vec<String>,
+    not_applicable_reasons: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+struct MixedScopeSeriesPoint {
+    date: NaiveDate,
+    amount: Decimal,
+    denominator: Option<Decimal>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 enum ExternalFlowBasis {
@@ -182,6 +410,40 @@ enum ExternalFlowBasis {
 enum AttributionBaseline {
     PeriodStart,
     Inception,
+}
+
+#[derive(Clone, Debug)]
+struct AttributionEffectSet {
+    effects: Vec<EconomicEventEffect>,
+    warnings: Vec<String>,
+    complete: bool,
+}
+
+impl Default for AttributionEffectSet {
+    fn default() -> Self {
+        Self {
+            effects: Vec::new(),
+            warnings: Vec::new(),
+            complete: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct AttributionEffectSeed {
+    include_base_market_movement: bool,
+    effects: Vec<EconomicEventEffect>,
+    warnings: Vec<String>,
+}
+
+impl Default for AttributionEffectSeed {
+    fn default() -> Self {
+        Self {
+            include_base_market_movement: true,
+            effects: Vec::new(),
+            warnings: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -276,14 +538,6 @@ impl PerformanceService {
         (start_utc, end_exclusive_utc)
     }
 
-    fn activity_flow_amount(activity: &Activity) -> Decimal {
-        activity
-            .amount
-            .or_else(|| Some(activity.quantity? * activity.unit_price?))
-            .unwrap_or(Decimal::ZERO)
-            .abs()
-    }
-
     // =========================================================================
     // Shared performance math
     //
@@ -300,9 +554,10 @@ impl PerformanceService {
     ) -> Result<TwrComputation> {
         let mut cumulative_twr_factor = Decimal::ONE;
         let mut samples = Vec::new();
-        let warnings = Vec::new();
+        let mut warnings = Vec::new();
         let mut not_applicable_reasons = Vec::new();
         let mut chain_started = false;
+        let mut warned_partial_value_coverage = false;
 
         for (window, flow) in history.windows(2).zip(daily_flows.iter()) {
             let prev_point = &window[0];
@@ -311,10 +566,64 @@ impl PerformanceService {
             let prev_value = Self::return_total_value(prev_point, flow_basis);
             let curr_value = Self::return_total_value(curr_point, flow_basis);
 
+            if Self::is_unavailable_external_flow_source(flow.source) {
+                not_applicable_reasons.push(format!(
+                    "TWR unavailable for {} because an external flow amount or transfer boundary is unknown.",
+                    curr_point.valuation_date
+                ));
+                samples.push((
+                    curr_point.valuation_date,
+                    DailyReturnSample {
+                        twr: Decimal::ZERO,
+                        cumulative_twr_to_date: cumulative_twr_factor - Decimal::ONE,
+                        excluded_from_compounding: true,
+                    },
+                ));
+                continue;
+            }
+
+            if prev_point.value_status.is_unavailable_for_returns()
+                || curr_point.value_status.is_unavailable_for_returns()
+            {
+                not_applicable_reasons.push(format!(
+                    "TWR unavailable for {} because valuation coverage is unavailable; review missing prices or manual valuations.",
+                    curr_point.valuation_date
+                ));
+                samples.push((
+                    curr_point.valuation_date,
+                    DailyReturnSample {
+                        twr: Decimal::ZERO,
+                        cumulative_twr_to_date: cumulative_twr_factor - Decimal::ONE,
+                        excluded_from_compounding: true,
+                    },
+                ));
+                continue;
+            }
+
+            if !warned_partial_value_coverage
+                && (prev_point.value_status.is_degraded() || curr_point.value_status.is_degraded())
+            {
+                warnings.push(
+                    "Some valuation rows exclude unpriced held positions; returns are computed on the priced subset and may not represent the full scope."
+                        .to_string(),
+                );
+                warned_partial_value_coverage = true;
+            }
+
             if prev_value.is_sign_negative() || curr_value.is_sign_negative() {
-                return Err(errors::Error::Validation(ValidationError::InvalidInput(
-                    "Account has negative portfolio value in its history. This may be caused by missing buy activities. Please review your transactions on the Activities page.".to_string(),
-                )));
+                not_applicable_reasons.push(format!(
+                    "TWR unavailable for {} because portfolio value is negative. Review the underlying transactions, prices, and cash balances.",
+                    curr_point.valuation_date
+                ));
+                samples.push((
+                    curr_point.valuation_date,
+                    DailyReturnSample {
+                        twr: Decimal::ZERO,
+                        cumulative_twr_to_date: cumulative_twr_factor - Decimal::ONE,
+                        excluded_from_compounding: true,
+                    },
+                ));
+                continue;
             }
 
             let twr_denominator = prev_value + flow.inflow;
@@ -392,10 +701,30 @@ impl PerformanceService {
                 curr_point.net_contribution - prev_point.net_contribution
             }
             ExternalFlowBasis::BaseCurrency => {
-                if curr_point.external_flow_source.is_explicit_gross()
-                    || curr_point.external_flow_source
-                        == ValuationExternalFlowSource::NetContributionFallback
+                if curr_point.external_flow_source
+                    == ValuationExternalFlowSource::UnknownBoundaryTransfer
                 {
+                    return DailyExternalFlow {
+                        date,
+                        inflow: curr_point.external_inflow_base,
+                        outflow: curr_point.external_outflow_base,
+                        source: ValuationExternalFlowSource::UnknownBoundaryTransfer,
+                    };
+                }
+
+                if curr_point.external_flow_source == ValuationExternalFlowSource::Unknown {
+                    // A row only carries `Unknown` when a real flow event could not
+                    // be valued (quiet days get `NoFlow`/`CashAmount`). Preserve it so
+                    // the TWR/IRR availability gate fires; never synthesize it away.
+                    return DailyExternalFlow {
+                        date,
+                        inflow: curr_point.external_inflow_base,
+                        outflow: curr_point.external_outflow_base,
+                        source: ValuationExternalFlowSource::Unknown,
+                    };
+                }
+
+                if curr_point.external_flow_source.is_explicit_gross() {
                     return DailyExternalFlow {
                         date,
                         inflow: curr_point.external_inflow_base,
@@ -445,12 +774,7 @@ impl PerformanceService {
         let used_net_fallback = daily_flows
             .iter()
             .any(|flow| flow.source == ValuationExternalFlowSource::NetContributionFallback);
-        let used_degraded_gross = daily_flows.iter().any(|flow| {
-            matches!(
-                flow.source,
-                ValuationExternalFlowSource::Unknown | ValuationExternalFlowSource::Mixed
-            )
-        });
+        let used_degraded_gross = daily_flows.iter().any(|flow| flow.source.is_degraded());
 
         let mut warnings = Vec::new();
         if used_net_fallback {
@@ -498,6 +822,72 @@ impl PerformanceService {
             ExternalFlowBasis::AccountCurrency => point.cost_basis,
             ExternalFlowBasis::BaseCurrency => point.cost_basis_base,
         }
+    }
+
+    fn return_book_basis(point: &DailyAccountValuation, flow_basis: ExternalFlowBasis) -> Decimal {
+        match flow_basis {
+            ExternalFlowBasis::AccountCurrency => point.book_basis,
+            ExternalFlowBasis::BaseCurrency => point.book_basis_base,
+        }
+    }
+
+    fn holdings_basis_is_complete(point: &DailyAccountValuation) -> bool {
+        matches!(
+            point.basis_status,
+            BasisStatus::Complete | BasisStatus::NotApplicable
+        )
+    }
+
+    fn holdings_basis_status(point: &DailyAccountValuation) -> BasisStatus {
+        point.basis_status
+    }
+
+    fn combine_basis_statuses(statuses: impl IntoIterator<Item = BasisStatus>) -> BasisStatus {
+        let mut has_complete = false;
+        let mut has_partial = false;
+        let mut has_unknown = false;
+
+        for status in statuses {
+            match status {
+                BasisStatus::Complete => has_complete = true,
+                BasisStatus::PartialUnknown => has_partial = true,
+                BasisStatus::Unknown => has_unknown = true,
+                BasisStatus::NotApplicable => {}
+            }
+        }
+
+        if has_partial || (has_complete && has_unknown) {
+            BasisStatus::PartialUnknown
+        } else if has_unknown {
+            BasisStatus::Unknown
+        } else if has_complete {
+            BasisStatus::Complete
+        } else {
+            BasisStatus::NotApplicable
+        }
+    }
+
+    fn holdings_all_time_unavailable_reason(
+        end_point: &DailyAccountValuation,
+        flow_basis: ExternalFlowBasis,
+        metric_label: &str,
+        subject_label: &str,
+    ) -> Option<String> {
+        if Self::return_book_basis(end_point, flow_basis) <= Decimal::ZERO {
+            return Some(format!(
+                "{} unavailable for {} because ending book basis is zero or negative.",
+                metric_label, subject_label
+            ));
+        }
+
+        if !Self::holdings_basis_is_complete(end_point) {
+            return Some(format!(
+                "{} unavailable for {} because book basis is incomplete.",
+                metric_label, subject_label
+            ));
+        }
+
+        None
     }
 
     fn is_cash_only_history(history: &[DailyAccountValuation]) -> bool {
@@ -569,16 +959,29 @@ impl PerformanceService {
         flow_basis: ExternalFlowBasis,
     ) -> Option<Decimal> {
         let start_point = full_history.first()?;
-        let end_point = full_history.last()?;
         let start_value = Self::return_total_value(start_point, flow_basis);
         if start_value <= Decimal::ZERO {
             return None;
         }
 
-        let net_cash_flow: Decimal = daily_flows.iter().map(|flow| flow.net()).sum();
-        let end_value = Self::return_total_value(end_point, flow_basis);
+        Self::compute_simple_value_return_amount(full_history, daily_flows, flow_basis)
+            .map(|amount| amount / start_value)
+    }
 
-        Some((end_value - start_value - net_cash_flow) / start_value)
+    fn compute_simple_value_return_amount(
+        full_history: &[DailyAccountValuation],
+        daily_flows: &[DailyExternalFlow],
+        flow_basis: ExternalFlowBasis,
+    ) -> Option<Decimal> {
+        let start_point = full_history.first()?;
+        let end_point = full_history.last()?;
+        let net_cash_flow: Decimal = daily_flows.iter().map(|flow| flow.net()).sum();
+
+        Some(
+            Self::return_total_value(end_point, flow_basis)
+                - Self::return_total_value(start_point, flow_basis)
+                - net_cash_flow,
+        )
     }
 
     fn total_external_flows(daily_flows: &[DailyExternalFlow]) -> (Decimal, Decimal) {
@@ -586,6 +989,54 @@ impl PerformanceService {
             (Decimal::ZERO, Decimal::ZERO),
             |(inflows, outflows), flow| (inflows + flow.inflow, outflows + flow.outflow),
         )
+    }
+
+    fn attribution_pnl(attribution: &PerformanceAttribution) -> Decimal {
+        attribution.income
+            + attribution.realized_pnl
+            + attribution.unrealized_pnl_change
+            + attribution.fx_effect
+            - attribution.fees
+            - attribution.taxes
+    }
+
+    fn attribution_from_event_effects(effects: &[EconomicEventEffect]) -> PerformanceAttribution {
+        let mut attribution = PerformanceAttribution::default();
+        for effect in effects {
+            if effect.external_flow.is_sign_positive() {
+                attribution.contributions += effect.external_flow;
+            } else if effect.external_flow.is_sign_negative() {
+                attribution.distributions += effect.external_flow.abs();
+            }
+            attribution.income += effect.income;
+            attribution.realized_pnl += effect.realized_pnl;
+            attribution.unrealized_pnl_change += effect.unrealized_movement;
+            attribution.fx_effect += effect.fx_effect;
+            attribution.fees += effect.fee;
+            attribution.taxes += effect.tax;
+        }
+        attribution.contributions = attribution.contributions.round_dp(DECIMAL_PRECISION);
+        attribution.distributions = attribution.distributions.round_dp(DECIMAL_PRECISION);
+        attribution.income = attribution.income.round_dp(DECIMAL_PRECISION);
+        attribution.realized_pnl = attribution.realized_pnl.round_dp(DECIMAL_PRECISION);
+        attribution.unrealized_pnl_change = attribution
+            .unrealized_pnl_change
+            .round_dp(DECIMAL_PRECISION);
+        attribution.fx_effect = attribution.fx_effect.round_dp(DECIMAL_PRECISION);
+        attribution.fees = attribution.fees.round_dp(DECIMAL_PRECISION);
+        attribution.taxes = attribution.taxes.round_dp(DECIMAL_PRECISION);
+        attribution
+    }
+
+    fn add_attribution(target: &mut PerformanceAttribution, source: &PerformanceAttribution) {
+        target.contributions += source.contributions;
+        target.distributions += source.distributions;
+        target.income += source.income;
+        target.realized_pnl += source.realized_pnl;
+        target.unrealized_pnl_change += source.unrealized_pnl_change;
+        target.fx_effect += source.fx_effect;
+        target.fees += source.fees;
+        target.taxes += source.taxes;
     }
 
     fn attribution_baseline(
@@ -656,6 +1107,38 @@ impl PerformanceService {
         )
     }
 
+    fn attribution_component_total(attribution: &PerformanceAttribution) -> Decimal {
+        attribution.contributions - attribution.distributions + Self::attribution_pnl(attribution)
+    }
+
+    fn attribution_unreconciled_delta(
+        delta_total_value: Decimal,
+        attribution: &PerformanceAttribution,
+    ) -> Decimal {
+        (delta_total_value - Self::attribution_component_total(attribution))
+            .round_dp(DECIMAL_PRECISION)
+    }
+
+    fn push_attribution_diagnostic_if_needed(
+        data_quality: &mut PerformanceDataQuality,
+        unreconciled_delta: Decimal,
+        delta_total_value: Decimal,
+        end_value: Decimal,
+    ) {
+        data_quality
+            .warnings
+            .retain(|warning| !Self::is_attribution_residual_warning(warning));
+        let residual_threshold = Self::attribution_residual_threshold(delta_total_value, end_value);
+        if unreconciled_delta.abs() > residual_threshold {
+            data_quality
+                .warnings
+                .push(Self::attribution_residual_warning(
+                    unreconciled_delta,
+                    residual_threshold.round_dp(DECIMAL_PRECISION),
+                ));
+        }
+    }
+
     fn calculate_xirr(
         history: &[DailyAccountValuation],
         daily_flows: &[DailyExternalFlow],
@@ -667,6 +1150,18 @@ impl PerformanceService {
                 warnings: Vec::new(),
                 not_applicable_reasons: vec![
                     "IRR unavailable: at least two valuation points are required.".to_string(),
+                ],
+            };
+        }
+        if daily_flows
+            .iter()
+            .any(|flow| Self::is_unavailable_external_flow_source(flow.source))
+        {
+            return IrrComputation {
+                annualized_irr: None,
+                warnings: Vec::new(),
+                not_applicable_reasons: vec![
+                    "IRR unavailable because an external flow amount or transfer boundary is unknown.".to_string(),
                 ],
             };
         }
@@ -749,7 +1244,7 @@ impl PerformanceService {
                         "IRR unavailable: solver could not evaluate cash flows.".to_string()
                     ],
                     not_applicable_reasons: Vec::new(),
-                }
+                };
             }
         };
         let mut npv_high = npv(high).unwrap_or(f64::NAN);
@@ -805,11 +1300,18 @@ impl PerformanceService {
         }
     }
 
+    fn is_unavailable_external_flow_source(source: ValuationExternalFlowSource) -> bool {
+        source.is_unavailable_for_returns()
+    }
+
     fn annualize_optional_return(
         start_date: NaiveDate,
         end_date: NaiveDate,
         value: Option<Decimal>,
     ) -> Option<Decimal> {
+        if (end_date - start_date).num_days() < MIN_ANNUALIZATION_DAYS {
+            return None;
+        }
         value.map(|return_value| {
             Self::calculate_annualized_return(start_date, end_date, return_value)
                 .round_dp(DECIMAL_PRECISION)
@@ -882,7 +1384,13 @@ impl PerformanceService {
         is_holdings_mode: bool,
         is_mixed_tracking_mode: bool,
     ) -> PerformanceResult {
-        PerformanceResult {
+        let basis_status = Self::basis_status_for_result(
+            mode,
+            &data_quality,
+            is_holdings_mode,
+            is_mixed_tracking_mode,
+        );
+        let mut result = PerformanceResult {
             scope: PerformanceScopeDescriptor { id, currency },
             period: PerformancePeriod {
                 start_date,
@@ -893,42 +1401,272 @@ impl PerformanceService {
             attribution,
             risk,
             data_quality,
+            basis_status,
+            summary: PerformanceSummary {
+                amount_status: PerformanceSummaryStatus::Complete,
+                percent_status: PerformanceSummaryStatus::Complete,
+                ..PerformanceSummary::default()
+            },
             series,
             is_holdings_mode,
             is_mixed_tracking_mode,
+        };
+        Self::refresh_summary(&mut result);
+        result
+    }
+
+    fn refresh_summary(result: &mut PerformanceResult) {
+        let mut amount_available =
+            result.summary.amount_status == PerformanceSummaryStatus::Complete;
+        let mut percent_available =
+            result.summary.percent_status == PerformanceSummaryStatus::Complete;
+        if result.is_holdings_mode
+            && matches!(
+                result.basis_status,
+                BasisStatus::Unknown | BasisStatus::PartialUnknown
+            )
+        {
+            amount_available = false;
+            percent_available = false;
+        }
+        let reasons = result
+            .data_quality
+            .warnings
+            .iter()
+            .chain(result.data_quality.not_applicable_reasons.iter())
+            .cloned()
+            .collect();
+        let percent = Self::summary_percent(result, percent_available);
+        let amount = Self::summary_amount(result, amount_available);
+        result.summary = PerformanceSummary {
+            amount,
+            percent,
+            method: result.mode,
+            basis: Self::summary_basis(result),
+            quality: result.data_quality.status.clone(),
+            amount_status: if amount.is_some() {
+                PerformanceSummaryStatus::Complete
+            } else {
+                PerformanceSummaryStatus::Unavailable
+            },
+            percent_status: if percent.is_some() {
+                PerformanceSummaryStatus::Complete
+            } else {
+                PerformanceSummaryStatus::Unavailable
+            },
+            basis_status: result.basis_status,
+            reasons,
+        };
+    }
+
+    fn summary_percent(result: &PerformanceResult, percent_available: bool) -> Option<Decimal> {
+        if result.is_holdings_mode
+            && matches!(
+                result.basis_status,
+                BasisStatus::Unknown | BasisStatus::PartialUnknown
+            )
+        {
+            return None;
+        }
+
+        if !percent_available {
+            return None;
+        }
+
+        match result.mode {
+            ReturnMethod::TimeWeighted => result.returns.twr,
+            ReturnMethod::ValueReturn | ReturnMethod::SymbolPriceBased => {
+                result.returns.value_return
+            }
+            ReturnMethod::NotApplicable => None,
         }
     }
 
-    async fn apply_external_attribution_best_effort(
+    fn summary_amount(result: &PerformanceResult, amount_available: bool) -> Option<Decimal> {
+        if matches!(
+            result.mode,
+            ReturnMethod::NotApplicable | ReturnMethod::SymbolPriceBased
+        ) || matches!(
+            result.data_quality.status,
+            DataQualityStatus::NoData | DataQualityStatus::NotApplicable
+        ) {
+            return None;
+        }
+
+        if result.is_holdings_mode
+            && matches!(
+                result.basis_status,
+                BasisStatus::Unknown | BasisStatus::PartialUnknown
+            )
+        {
+            return None;
+        }
+
+        if !amount_available {
+            return None;
+        }
+
+        Some(Self::attribution_pnl(&result.attribution))
+    }
+
+    fn summary_basis(result: &PerformanceResult) -> PerformanceSummaryBasis {
+        if result.is_mixed_tracking_mode {
+            PerformanceSummaryBasis::Mixed
+        } else if result.is_holdings_mode || result.mode == ReturnMethod::ValueReturn {
+            PerformanceSummaryBasis::BookBasis
+        } else if result.mode == ReturnMethod::SymbolPriceBased
+            || result.mode == ReturnMethod::TimeWeighted
+        {
+            PerformanceSummaryBasis::MarketValue
+        } else {
+            PerformanceSummaryBasis::NotApplicable
+        }
+    }
+
+    fn basis_status_for_result(
+        mode: ReturnMethod,
+        _data_quality: &PerformanceDataQuality,
+        is_holdings_mode: bool,
+        is_mixed_tracking_mode: bool,
+    ) -> BasisStatus {
+        if is_holdings_mode || is_mixed_tracking_mode || mode == ReturnMethod::ValueReturn {
+            BasisStatus::Complete
+        } else {
+            BasisStatus::NotApplicable
+        }
+    }
+
+    async fn finalize_attribution_from_event_effects(
         &self,
         result: &mut PerformanceResult,
         account_ids: &[String],
         history: &[DailyAccountValuation],
         baseline: AttributionBaseline,
+        seed: AttributionEffectSeed,
     ) {
-        self.apply_activity_attribution_best_effort(result, account_ids, history, baseline)
+        let mut effects = Self::base_attribution_event_effects(
+            result,
+            history,
+            seed.include_base_market_movement,
+        );
+        effects.extend(seed.effects);
+        let mut warnings = seed.warnings;
+        let activity_effects = self
+            .collect_activity_attribution_event_effects(result, account_ids)
             .await;
+        effects.extend(activity_effects.effects);
+        warnings.extend(activity_effects.warnings);
         let period_disposals = self
-            .load_period_lot_disposals_best_effort(result, account_ids)
+            .load_period_lot_disposals_for_attribution(result, account_ids)
             .await;
-        self.apply_realized_attribution_best_effort(
+        let realized_effects =
+            Self::collect_realized_attribution_event_effects(period_disposals.as_deref());
+        effects.extend(realized_effects.effects);
+        warnings.extend(realized_effects.warnings);
+        let charge_effects = self
+            .collect_trade_charge_pnl_gross_up_event_effects(
+                result,
+                account_ids,
+                period_disposals.as_deref(),
+            )
+            .await;
+        effects.extend(charge_effects.effects);
+        warnings.extend(charge_effects.warnings);
+
+        for effect in &effects {
+            warnings.extend(effect.diagnostics.clone());
+        }
+
+        result.attribution = Self::attribution_from_event_effects(&effects);
+        if !warnings.is_empty() {
+            result.data_quality.warnings.extend(warnings);
+        }
+        Self::recompute_attribution_residual(
             result,
-            period_disposals.as_deref(),
             history,
+            ExternalFlowBasis::BaseCurrency,
             baseline,
-        )
-        .await;
-        self.apply_trade_fee_pnl_gross_up_best_effort(
-            result,
-            account_ids,
-            period_disposals.as_deref(),
-            history,
-            baseline,
-        )
-        .await;
+        );
+        Self::refresh_summary(result);
     }
 
-    async fn load_period_lot_disposals_best_effort(
+    fn base_attribution_event_effects(
+        result: &PerformanceResult,
+        history: &[DailyAccountValuation],
+        include_market_movement: bool,
+    ) -> Vec<EconomicEventEffect> {
+        let Some(effect_date) = result
+            .period
+            .end_date
+            .or_else(|| history.last().map(|point| point.valuation_date))
+            .or(result.period.start_date)
+        else {
+            return Vec::new();
+        };
+
+        let mut effects = Vec::new();
+        if !result.attribution.contributions.is_zero() {
+            let mut effect = Self::synthetic_attribution_effect(
+                "__valuation_external_inflow__",
+                result,
+                effect_date,
+                EconomicEventKind::CashFlow,
+            );
+            effect.external_flow = result.attribution.contributions;
+            effects.push(effect);
+        }
+        if !result.attribution.distributions.is_zero() {
+            let mut effect = Self::synthetic_attribution_effect(
+                "__valuation_external_outflow__",
+                result,
+                effect_date,
+                EconomicEventKind::CashFlow,
+            );
+            effect.external_flow = -result.attribution.distributions;
+            effects.push(effect);
+        }
+        if include_market_movement
+            && (!result.attribution.unrealized_pnl_change.is_zero()
+                || !result.attribution.fx_effect.is_zero())
+        {
+            let mut effect = Self::synthetic_attribution_effect(
+                "__valuation_market_movement__",
+                result,
+                effect_date,
+                EconomicEventKind::Other,
+            );
+            effect.unrealized_movement = result.attribution.unrealized_pnl_change;
+            effect.fx_effect = result.attribution.fx_effect;
+            effects.push(effect);
+        }
+
+        effects
+    }
+
+    fn synthetic_attribution_effect(
+        id: &str,
+        result: &PerformanceResult,
+        date: NaiveDate,
+        event_kind: EconomicEventKind,
+    ) -> EconomicEventEffect {
+        EconomicEventEffect {
+            activity_id: id.to_string(),
+            account_id: result.scope.id.clone(),
+            asset_id: None,
+            date,
+            event_kind,
+            external_flow: Decimal::ZERO,
+            realized_pnl: Decimal::ZERO,
+            unrealized_movement: Decimal::ZERO,
+            income: Decimal::ZERO,
+            fee: Decimal::ZERO,
+            tax: Decimal::ZERO,
+            fx_effect: Decimal::ZERO,
+            diagnostics: Vec::new(),
+        }
+    }
+
+    async fn load_period_lot_disposals_for_attribution(
         &self,
         result: &PerformanceResult,
         account_ids: &[String],
@@ -940,36 +1678,85 @@ impl PerformanceService {
             return Some(Vec::new());
         }
 
-        match lot_repository
+        let mut disposals = match lot_repository
             .get_lot_disposals_for_accounts_in_date_range(account_ids, start_date, end_date)
             .await
         {
-            Ok(disposals) => Some(disposals),
+            Ok(disposals) => disposals,
             Err(e) => {
                 warn!(
                     "Failed to load lot disposals for performance attribution scope {}: {}",
                     result.scope.id, e
                 );
-                None
+                return None;
             }
+        };
+
+        if let Some(trade_activity_ids) =
+            self.disposal_trade_activity_ids_for_period(account_ids, start_date, end_date)
+        {
+            disposals
+                .retain(|disposal| trade_activity_ids.contains(&disposal.disposal_activity_id));
         }
+
+        Some(disposals)
     }
 
-    async fn apply_scoped_unrealized_attribution_best_effort(
+    fn disposal_trade_activity_ids_for_period(
         &self,
-        result: &mut PerformanceResult,
         account_ids: &[String],
-        aggregate_history: &[DailyAccountValuation],
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+    ) -> Option<HashSet<String>> {
+        let activity_repository = self.activity_repository.as_ref()?;
+        let (start_utc, end_utc) = Self::activity_query_utc_bounds(start_date, end_date);
+        let activities = match activity_repository.get_activities_by_account_ids_in_date_range(
+            account_ids,
+            start_utc,
+            end_utc,
+        ) {
+            Ok(activities) => activities,
+            Err(e) => {
+                warn!(
+                    "Failed to load activities for trade disposal filtering: {}. Lot disposals remain unfiltered.",
+                    e
+                );
+                return None;
+            }
+        };
+
+        Some(
+            activities
+                .into_iter()
+                .filter(|activity| activity.is_posted())
+                .filter(|activity| {
+                    let activity_date = self.activity_local_date(activity);
+                    activity_date > start_date && activity_date <= end_date
+                })
+                .filter(|activity| {
+                    ActivityType::from_str(activity.effective_type()).is_ok_and(|activity_type| {
+                        matches!(activity_type, ActivityType::Buy | ActivityType::Sell)
+                    })
+                })
+                .map(|activity| activity.id)
+                .collect(),
+        )
+    }
+
+    async fn collect_scoped_unrealized_attribution_event_effects(
+        &self,
+        result: &PerformanceResult,
+        account_ids: &[String],
         baseline: AttributionBaseline,
-    ) {
+    ) -> AttributionEffectSet {
         let Some(start_date) = result.period.start_date else {
-            return;
+            return AttributionEffectSet::default();
         };
         let Some(end_date) = result.period.end_date else {
-            return;
+            return AttributionEffectSet::default();
         };
         if account_ids.is_empty() {
-            return;
+            return AttributionEffectSet::default();
         }
 
         let histories_by_account = match self
@@ -978,12 +1765,14 @@ impl PerformanceService {
         {
             Ok(histories) => histories,
             Err(e) => {
-                result.data_quality.warnings.push(format!(
-                    "Scoped FX attribution skipped because valuation history failed: {}",
-                    e
-                ));
-                Self::refresh_data_quality_status(&mut result.data_quality);
-                return;
+                return AttributionEffectSet {
+                    effects: Vec::new(),
+                    warnings: vec![format!(
+                        "Scoped FX attribution skipped because valuation history failed: {}",
+                        e
+                    )],
+                    complete: false,
+                };
             }
         };
         let account_histories: Vec<Vec<DailyAccountValuation>> = account_ids
@@ -1002,40 +1791,50 @@ impl PerformanceService {
             end_date,
             baseline,
         );
-        result.data_quality.warnings.extend(attribution.warnings);
         if !attribution.complete {
-            Self::refresh_data_quality_status(&mut result.data_quality);
-            return;
+            return AttributionEffectSet {
+                effects: Vec::new(),
+                warnings: attribution.warnings,
+                complete: false,
+            };
         }
 
-        result.attribution.unrealized_pnl_change = attribution.unrealized_pnl_change;
-        result.attribution.fx_effect = attribution.fx_effect;
-        Self::recompute_attribution_residual(
+        let mut effect = Self::synthetic_attribution_effect(
+            "__scoped_unrealized_movement__",
             result,
-            aggregate_history,
-            ExternalFlowBasis::BaseCurrency,
-            baseline,
+            end_date,
+            EconomicEventKind::Other,
         );
+        effect.unrealized_movement = attribution.unrealized_pnl_change;
+        effect.fx_effect = attribution.fx_effect;
+        let effects = if effect.unrealized_movement.is_zero() && effect.fx_effect.is_zero() {
+            Vec::new()
+        } else {
+            vec![effect]
+        };
+        AttributionEffectSet {
+            effects,
+            warnings: attribution.warnings,
+            complete: true,
+        }
     }
 
-    async fn apply_scoped_transfer_pair_attribution_best_effort(
+    async fn collect_scoped_transfer_pair_attribution_event_effects(
         &self,
-        result: &mut PerformanceResult,
+        result: &PerformanceResult,
         account_ids: &[String],
-        history: &[DailyAccountValuation],
-        baseline: AttributionBaseline,
-    ) {
+    ) -> AttributionEffectSet {
         let Some(activity_repository) = &self.activity_repository else {
-            return;
+            return AttributionEffectSet::default();
         };
         let Some(start_date) = result.period.start_date else {
-            return;
+            return AttributionEffectSet::default();
         };
         let Some(end_date) = result.period.end_date else {
-            return;
+            return AttributionEffectSet::default();
         };
         if account_ids.is_empty() {
-            return;
+            return AttributionEffectSet::default();
         }
 
         let (start_utc, end_exclusive_utc) = Self::activity_query_utc_bounds(start_date, end_date);
@@ -1051,7 +1850,7 @@ impl PerformanceService {
                     "Failed to load transfer pairs for performance attribution scope {}: {}",
                     result.scope.id, e
                 );
-                return;
+                return AttributionEffectSet::default();
             }
         };
 
@@ -1060,6 +1859,28 @@ impl PerformanceService {
         let mut warnings = Vec::new();
         let mut warned_invalid_groups = HashSet::new();
         let mut warned_unresolved_activities = HashSet::new();
+        let transfer_asset_ids: HashSet<String> = transfer_activities
+            .iter()
+            .filter_map(|activity| activity.asset_id.clone())
+            .collect();
+        let mut transfer_quotes_by_key = HashMap::new();
+        if !transfer_asset_ids.is_empty() {
+            match self
+                .quote_service
+                .get_quotes_in_range_filled(&transfer_asset_ids, start_date, end_date)
+            {
+                Ok(quotes) => {
+                    for quote in quotes {
+                        transfer_quotes_by_key
+                            .insert((quote.asset_id.clone(), quote.timestamp.date_naive()), quote);
+                    }
+                }
+                Err(e) => warnings.push(format!(
+                    "Transfer FX attribution will use degraded flow values because transfer-date quotes could not be loaded: {}",
+                    e
+                )),
+            }
+        }
 
         for activity in &transfer_activities {
             if !scope_account_ids.contains(&activity.account_id) {
@@ -1118,6 +1939,12 @@ impl PerformanceService {
             if !touches_period {
                 continue;
             }
+            if is_external_transfer(&pair.transfer_in) || is_external_transfer(&pair.transfer_out) {
+                warnings.push(format!(
+                    "Transfer group {} ignored external transfer metadata because the valid pair is internal to the selected scope.",
+                    pair.group_id
+                ));
+            }
             if pair
                 .transfer_in
                 .currency
@@ -1126,15 +1953,34 @@ impl PerformanceService {
                 continue;
             }
 
-            let in_base = Self::activity_flow_amount(&pair.transfer_in);
-            let out_base = Self::activity_flow_amount(&pair.transfer_out);
-            if in_base.is_zero() && out_base.is_zero() {
+            let in_quote = pair.transfer_in.asset_id.as_ref().and_then(|asset_id| {
+                transfer_quotes_by_key.get(&(asset_id.clone(), transfer_in_date))
+            });
+            let out_quote = pair.transfer_out.asset_id.as_ref().and_then(|asset_id| {
+                transfer_quotes_by_key.get(&(asset_id.clone(), transfer_out_date))
+            });
+            let in_economics = ActivityEconomicsResolver::compile_activity_with_unit_multiplier(
+                &pair.transfer_in,
+                in_quote,
+                TransferBoundary::External,
+                Self::attribution_unit_multiplier(&pair.transfer_in),
+            );
+            let out_economics = ActivityEconomicsResolver::compile_activity_with_unit_multiplier(
+                &pair.transfer_out,
+                out_quote,
+                TransferBoundary::External,
+                Self::attribution_unit_multiplier(&pair.transfer_out),
+            );
+            if in_economics.performance_flow_value.is_zero()
+                && out_economics.performance_flow_value.is_zero()
+            {
                 continue;
             }
 
-            let Some(in_base) = self.convert_activity_amount_for_attribution(
-                &pair.transfer_in,
-                in_base,
+            let Some(in_base) = self.convert_amount_for_attribution(
+                &pair.transfer_in.id,
+                in_economics.performance_flow_value.abs(),
+                &in_economics.performance_flow_currency,
                 &result.scope.currency,
                 transfer_in_date,
             ) else {
@@ -1144,9 +1990,10 @@ impl PerformanceService {
                 ));
                 continue;
             };
-            let Some(out_base) = self.convert_activity_amount_for_attribution(
-                &pair.transfer_out,
-                out_base,
+            let Some(out_base) = self.convert_amount_for_attribution(
+                &pair.transfer_out.id,
+                out_economics.performance_flow_value.abs(),
+                &out_economics.performance_flow_currency,
                 &result.scope.currency,
                 transfer_out_date,
             ) else {
@@ -1160,42 +2007,42 @@ impl PerformanceService {
             transfer_fx_effect += in_base - out_base;
         }
 
-        let changed = !transfer_fx_effect.is_zero();
-        if changed {
-            result.attribution.fx_effect =
-                (result.attribution.fx_effect + transfer_fx_effect).round_dp(DECIMAL_PRECISION);
-        }
-        if !warnings.is_empty() {
-            result.data_quality.warnings.extend(warnings);
-        }
-        if changed || !result.data_quality.warnings.is_empty() {
-            Self::recompute_attribution_residual(
+        let effects = if transfer_fx_effect.is_zero() {
+            Vec::new()
+        } else {
+            let mut effect = Self::synthetic_attribution_effect(
+                "__scoped_internal_transfer_fx__",
                 result,
-                history,
-                ExternalFlowBasis::BaseCurrency,
-                baseline,
+                end_date,
+                EconomicEventKind::InternalSecurityTransfer,
             );
+            effect.fx_effect = transfer_fx_effect.round_dp(DECIMAL_PRECISION);
+            vec![effect]
+        };
+
+        AttributionEffectSet {
+            effects,
+            warnings,
+            complete: true,
         }
     }
 
-    async fn apply_activity_attribution_best_effort(
+    async fn collect_activity_attribution_event_effects(
         &self,
-        result: &mut PerformanceResult,
+        result: &PerformanceResult,
         account_ids: &[String],
-        history: &[DailyAccountValuation],
-        baseline: AttributionBaseline,
-    ) {
+    ) -> AttributionEffectSet {
         let Some(activity_repository) = &self.activity_repository else {
-            return;
+            return AttributionEffectSet::default();
         };
         let Some(start_date) = result.period.start_date else {
-            return;
+            return AttributionEffectSet::default();
         };
         let Some(end_date) = result.period.end_date else {
-            return;
+            return AttributionEffectSet::default();
         };
         if account_ids.is_empty() {
-            return;
+            return AttributionEffectSet::default();
         }
 
         let (start_utc, end_utc) = Self::activity_query_utc_bounds(start_date, end_date);
@@ -1211,13 +2058,11 @@ impl PerformanceService {
                     "Failed to load activities for performance attribution scope {}: {}",
                     result.scope.id, e
                 );
-                return;
+                return AttributionEffectSet::default();
             }
         };
 
-        let mut income = Decimal::ZERO;
-        let mut fees = Decimal::ZERO;
-        let mut taxes = Decimal::ZERO;
+        let mut effects = Vec::new();
         let mut warnings = Vec::new();
 
         for activity in activities {
@@ -1235,6 +2080,15 @@ impl PerformanceService {
             };
             let (raw_income, raw_fees, raw_taxes) =
                 Self::activity_attribution_components(&activity, &activity_type);
+            let event_kind = match activity_type {
+                ActivityType::Dividend | ActivityType::Interest => EconomicEventKind::Income,
+                ActivityType::Fee => EconomicEventKind::Fee,
+                ActivityType::Tax => EconomicEventKind::Tax,
+                ActivityType::Buy | ActivityType::Sell => EconomicEventKind::Trade,
+                _ => EconomicEventKind::Other,
+            };
+            let mut effect = EconomicEventEffect::empty(&activity, activity_date, event_kind);
+            let mut has_effect = false;
 
             if !raw_income.is_zero() {
                 match self.convert_activity_amount_for_attribution(
@@ -1243,7 +2097,10 @@ impl PerformanceService {
                     &result.scope.currency,
                     activity_date,
                 ) {
-                    Some(amount) => income += amount,
+                    Some(amount) => {
+                        effect.income = amount;
+                        has_effect = true;
+                    }
                     None => warnings.push(format!(
                         "Income attribution skipped for activity {} because FX conversion failed.",
                         activity.id
@@ -1258,7 +2115,10 @@ impl PerformanceService {
                     &result.scope.currency,
                     activity_date,
                 ) {
-                    Some(amount) => fees += amount,
+                    Some(amount) => {
+                        effect.fee = amount;
+                        has_effect = true;
+                    }
                     None => warnings.push(format!(
                         "Fee attribution skipped for activity {} because FX conversion failed.",
                         activity.id
@@ -1273,31 +2133,26 @@ impl PerformanceService {
                     &result.scope.currency,
                     activity_date,
                 ) {
-                    Some(amount) => taxes += amount,
+                    Some(amount) => {
+                        effect.tax = amount;
+                        has_effect = true;
+                    }
                     None => warnings.push(format!(
                         "Tax attribution skipped for activity {} because FX conversion failed.",
                         activity.id
                     )),
                 }
             }
+
+            if has_effect {
+                effects.push(effect);
+            }
         }
 
-        let changed = !income.is_zero() || !fees.is_zero() || !taxes.is_zero();
-        if changed {
-            result.attribution.income = income.round_dp(DECIMAL_PRECISION);
-            result.attribution.fees = fees.round_dp(DECIMAL_PRECISION);
-            result.attribution.taxes = taxes.round_dp(DECIMAL_PRECISION);
-        }
-        if !warnings.is_empty() {
-            result.data_quality.warnings.extend(warnings);
-        }
-        if changed || !result.data_quality.warnings.is_empty() {
-            Self::recompute_attribution_residual(
-                result,
-                history,
-                ExternalFlowBasis::BaseCurrency,
-                baseline,
-            );
+        AttributionEffectSet {
+            effects,
+            warnings,
+            complete: true,
         }
     }
 
@@ -1307,30 +2162,48 @@ impl PerformanceService {
     ) -> (Decimal, Decimal, Decimal) {
         match activity_type {
             ActivityType::Dividend | ActivityType::Interest => {
-                (activity.amt(), activity.fee_amt(), Decimal::ZERO)
+                (activity.amt(), activity.fee_amt(), activity.tax_amt())
             }
             ActivityType::Fee => (
                 Decimal::ZERO,
-                Self::activity_charge_amount(activity),
+                activity.charge_amt_for(activity_type),
                 Decimal::ZERO,
             ),
             ActivityType::Buy | ActivityType::Sell => {
-                (Decimal::ZERO, activity.fee_amt(), Decimal::ZERO)
+                (Decimal::ZERO, activity.fee_amt(), activity.tax_amt())
             }
             ActivityType::Tax => (
                 Decimal::ZERO,
                 Decimal::ZERO,
-                Self::activity_charge_amount(activity),
+                activity.charge_amt_for(activity_type),
             ),
+            // Note: fees on these cash flows (and cash transfers below) are booked
+            // to cash but knowingly not attributed — only trade and income fees are
+            // treated as performance costs today.
+            ActivityType::Credit | ActivityType::Deposit | ActivityType::Withdrawal => {
+                (Decimal::ZERO, Decimal::ZERO, activity.tax_amt())
+            }
+            // Cash transfers book tax to cash; asset transfers book only the fee.
+            // Attribute tax only when it was actually booked (empty asset_id = cash),
+            // so "attributed ⇔ booked" stays in sync and no phantom residual appears.
+            ActivityType::TransferIn | ActivityType::TransferOut
+                if activity.asset_id.as_deref().unwrap_or("").is_empty() =>
+            {
+                (Decimal::ZERO, Decimal::ZERO, activity.tax_amt())
+            }
             _ => (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
         }
     }
 
-    fn activity_charge_amount(activity: &Activity) -> Decimal {
-        if activity.fee_amt().is_zero() {
-            activity.amt()
+    fn attribution_unit_multiplier(activity: &Activity) -> Decimal {
+        if activity
+            .asset_id
+            .as_deref()
+            .is_some_and(looks_like_occ_symbol)
+        {
+            Decimal::new(100, 0)
         } else {
-            activity.fee_amt()
+            Decimal::ONE
         }
     }
 
@@ -1341,21 +2214,38 @@ impl PerformanceService {
         target_currency: &str,
         activity_date: NaiveDate,
     ) -> Option<Decimal> {
-        if activity.currency == target_currency {
+        self.convert_amount_for_attribution(
+            &activity.id,
+            amount,
+            &activity.currency,
+            target_currency,
+            activity_date,
+        )
+    }
+
+    fn convert_amount_for_attribution(
+        &self,
+        activity_id: &str,
+        amount: Decimal,
+        source_currency: &str,
+        target_currency: &str,
+        activity_date: NaiveDate,
+    ) -> Option<Decimal> {
+        if source_currency.eq_ignore_ascii_case(target_currency) {
             return Some(amount);
         }
 
         let Some(fx_service) = &self.fx_service else {
             warn!(
                 "Missing FX service for performance attribution conversion {} -> {} on activity {}",
-                activity.currency, target_currency, activity.id
+                source_currency, target_currency, activity_id
             );
             return None;
         };
 
         match fx_service.convert_currency_for_date(
             amount,
-            &activity.currency,
+            source_currency,
             target_currency,
             activity_date,
         ) {
@@ -1363,7 +2253,7 @@ impl PerformanceService {
             Err(e) => {
                 warn!(
                     "Failed performance attribution FX conversion for activity {}: {} {} -> {} on {}: {}",
-                    activity.id, amount, activity.currency, target_currency, activity_date, e
+                    activity_id, amount, source_currency, target_currency, activity_date, e
                 );
                 None
             }
@@ -1383,9 +2273,12 @@ impl PerformanceService {
 
         let cost_basis = parse_decimal_lossy(&disposal.cost_basis);
         let cost_basis_base = parse_decimal_lossy(&disposal.cost_basis_base);
+        let cost_basis_sign_mismatch = (cost_basis.is_sign_positive()
+            && cost_basis_base.is_sign_negative())
+            || (cost_basis.is_sign_negative() && cost_basis_base.is_sign_positive());
         if disposal.currency != disposal.base_currency
-            && cost_basis > Decimal::ZERO
-            && cost_basis_base <= Decimal::ZERO
+            && !cost_basis.is_zero()
+            && (cost_basis_base.is_zero() || cost_basis_sign_mismatch)
         {
             return Err(format!(
                 "Realized P&L attribution skipped for disposal {} because acquisition FX conversion was unavailable.",
@@ -1396,67 +2289,81 @@ impl PerformanceService {
         Ok(parse_decimal_lossy(&disposal.realized_pnl_base))
     }
 
-    async fn apply_realized_attribution_best_effort(
-        &self,
-        result: &mut PerformanceResult,
+    fn collect_realized_attribution_event_effects(
         period_disposals: Option<&[LotDisposal]>,
-        history: &[DailyAccountValuation],
-        baseline: AttributionBaseline,
-    ) {
+    ) -> AttributionEffectSet {
         let Some(disposals) = period_disposals else {
-            return;
+            return AttributionEffectSet::default();
         };
 
-        let mut realized_pnl_base = Decimal::ZERO;
-        let initial_warning_count = result.data_quality.warnings.len();
+        let mut effects = Vec::new();
+        let mut warnings = Vec::new();
         for disposal in disposals {
             match Self::realized_pnl_base_from_disposal(disposal) {
-                Ok(amount) => realized_pnl_base += amount,
-                Err(warning) => result.data_quality.warnings.push(warning),
+                Ok(amount) => {
+                    if amount.is_zero() {
+                        continue;
+                    }
+                    let Ok(disposal_date) =
+                        NaiveDate::parse_from_str(&disposal.disposal_date, "%Y-%m-%d")
+                    else {
+                        warnings.push(format!(
+                            "Realized P&L attribution skipped for disposal {} because disposal date was invalid.",
+                            disposal.id
+                        ));
+                        continue;
+                    };
+                    effects.push(EconomicEventEffect {
+                        activity_id: disposal.disposal_activity_id.clone(),
+                        account_id: disposal.account_id.clone(),
+                        asset_id: Some(disposal.asset_id.clone()),
+                        date: disposal_date,
+                        event_kind: EconomicEventKind::Trade,
+                        external_flow: Decimal::ZERO,
+                        realized_pnl: amount,
+                        unrealized_movement: Decimal::ZERO,
+                        income: Decimal::ZERO,
+                        fee: Decimal::ZERO,
+                        tax: Decimal::ZERO,
+                        fx_effect: Decimal::ZERO,
+                        diagnostics: Vec::new(),
+                    });
+                }
+                Err(warning) => warnings.push(warning),
             }
         }
 
-        if realized_pnl_base.is_zero() {
-            if result.data_quality.warnings.len() != initial_warning_count {
-                Self::refresh_data_quality_status(&mut result.data_quality);
-            }
-            return;
+        AttributionEffectSet {
+            effects,
+            warnings,
+            complete: true,
         }
-
-        result.attribution.realized_pnl = realized_pnl_base.round_dp(DECIMAL_PRECISION);
-        Self::recompute_attribution_residual(
-            result,
-            history,
-            ExternalFlowBasis::BaseCurrency,
-            baseline,
-        );
     }
 
-    async fn apply_trade_fee_pnl_gross_up_best_effort(
+    async fn collect_trade_charge_pnl_gross_up_event_effects(
         &self,
-        result: &mut PerformanceResult,
+        result: &PerformanceResult,
         account_ids: &[String],
         period_disposals: Option<&[LotDisposal]>,
-        history: &[DailyAccountValuation],
-        baseline: AttributionBaseline,
-    ) {
+    ) -> AttributionEffectSet {
         let Some(activity_repository) = &self.activity_repository else {
-            return;
+            return AttributionEffectSet::default();
         };
-        let Some(lot_repository) = &self.lot_repository else {
-            return;
-        };
-        let Some(disposals) = period_disposals else {
-            return;
-        };
+        let disposals = period_disposals.unwrap_or(&[]);
         let Some(start_date) = result.period.start_date else {
-            return;
+            return AttributionEffectSet::default();
         };
         let Some(end_date) = result.period.end_date else {
-            return;
+            return AttributionEffectSet::default();
         };
         if account_ids.is_empty() {
-            return;
+            return AttributionEffectSet::default();
+        }
+
+        #[derive(Clone, Copy)]
+        struct TradeChargeAttributionInput {
+            charge: Decimal,
+            quantity: Decimal,
         }
 
         let start_utc = (start_date - Duration::days(1))
@@ -1476,17 +2383,18 @@ impl PerformanceService {
             Ok(activities) => activities,
             Err(e) => {
                 warn!(
-                    "Failed to load activities for trade-fee performance attribution scope {}: {}",
+                    "Failed to load activities for trade-charge performance attribution scope {}: {}",
                     result.scope.id, e
                 );
-                return;
+                return AttributionEffectSet::default();
             }
         };
 
-        let mut buy_fee_by_activity = HashMap::<String, Decimal>::new();
-        let mut sell_fee_by_activity = HashMap::<String, Decimal>::new();
+        let mut trade_charge_by_activity = HashMap::<String, TradeChargeAttributionInput>::new();
+        let mut fallback_buy_charge_by_activity = HashMap::<String, Decimal>::new();
         for activity in activities {
-            if !activity.is_posted() || activity.fee_amt().is_zero() {
+            let raw_charge = activity.fee_amt() + activity.tax_amt();
+            if !activity.is_posted() || raw_charge.is_zero() {
                 continue;
             }
 
@@ -1502,49 +2410,116 @@ impl PerformanceService {
                 continue;
             }
 
-            let Some(fee) = self.convert_activity_amount_for_attribution(
+            let Some(charge) = self.convert_activity_amount_for_attribution(
                 &activity,
-                activity.fee_amt(),
+                raw_charge,
                 &result.scope.currency,
                 activity_date,
             ) else {
                 continue;
             };
 
-            match activity_type {
-                ActivityType::Buy => {
-                    buy_fee_by_activity.insert(activity.id, fee);
-                }
-                ActivityType::Sell => {
-                    sell_fee_by_activity.insert(activity.id, fee);
-                }
-                _ => {}
+            if matches!(activity_type, ActivityType::Buy) {
+                fallback_buy_charge_by_activity.insert(activity.id.clone(), charge);
             }
+            let quantity = activity.qty();
+            trade_charge_by_activity.insert(
+                activity.id,
+                TradeChargeAttributionInput { charge, quantity },
+            );
         }
 
-        if buy_fee_by_activity.is_empty() && sell_fee_by_activity.is_empty() {
-            return;
+        if trade_charge_by_activity.is_empty() {
+            return AttributionEffectSet::default();
         }
 
         let mut lot_by_account_and_id = HashMap::<(String, String), LotRecord>::new();
-        for account_id in account_ids {
-            match lot_repository.get_all_lots_for_account(account_id).await {
-                Ok(lots) => {
-                    for lot in lots {
-                        lot_by_account_and_id.insert((account_id.clone(), lot.id.clone()), lot);
+        let mut loaded_lots = false;
+        if !disposals.is_empty() || !trade_charge_by_activity.is_empty() {
+            if let Some(lot_repository) = &self.lot_repository {
+                for account_id in account_ids {
+                    match lot_repository.get_all_lots_for_account(account_id).await {
+                        Ok(lots) => {
+                            loaded_lots = true;
+                            for lot in lots {
+                                lot_by_account_and_id
+                                    .insert((account_id.clone(), lot.id.clone()), lot);
+                            }
+                        }
+                        Err(e) => warn!(
+                            "Failed to load lots for trade-charge performance attribution account {}: {}",
+                            account_id, e
+                        ),
                     }
                 }
-                Err(e) => warn!(
-                    "Failed to load lots for trade-fee performance attribution account {}: {}",
-                    account_id, e
-                ),
+            } else {
+                warn!(
+                    "Lot repository unavailable while grossing up disposed acquisition trade charges for performance attribution scope {}",
+                    result.scope.id
+                );
             }
         }
 
-        let mut acquisition_fees_disposed = Decimal::ZERO;
+        let mut period_open_charge_by_activity = HashMap::<String, Decimal>::new();
+        let mut saw_period_open_lot_records = false;
+        let mut remaining_open_charges_from_lots = Decimal::ZERO;
+        if loaded_lots {
+            for lot in lot_by_account_and_id.values() {
+                let Some(open_activity_id) = lot.open_activity_id.as_ref() else {
+                    continue;
+                };
+                if !trade_charge_by_activity.contains_key(open_activity_id) {
+                    continue;
+                }
+                let Ok(open_date) = NaiveDate::parse_from_str(&lot.open_date, "%Y-%m-%d") else {
+                    continue;
+                };
+                if open_date <= start_date || open_date > end_date {
+                    continue;
+                }
+
+                saw_period_open_lot_records = true;
+                let full_charge = parse_decimal_lossy(&lot.fee_allocated_base)
+                    + parse_decimal_lossy(&lot.tax_allocated_base);
+                if full_charge.is_zero() {
+                    continue;
+                }
+                *period_open_charge_by_activity
+                    .entry(open_activity_id.clone())
+                    .or_default() += full_charge;
+
+                let remaining_quantity = parse_decimal_lossy(&lot.remaining_quantity);
+                if remaining_quantity.is_zero() {
+                    continue;
+                }
+
+                let original_quantity = parse_decimal_lossy(&lot.original_quantity).abs();
+                let remaining_charge = if original_quantity > Decimal::ZERO {
+                    full_charge * remaining_quantity.abs() / original_quantity
+                } else {
+                    let original_cost_basis_base =
+                        parse_decimal_lossy(&lot.original_cost_basis_base).abs();
+                    let remaining_cost_basis_base =
+                        parse_decimal_lossy(&lot.remaining_cost_basis_base).abs();
+                    if original_cost_basis_base > Decimal::ZERO {
+                        full_charge * remaining_cost_basis_base / original_cost_basis_base
+                    } else {
+                        full_charge
+                    }
+                };
+
+                remaining_open_charges_from_lots += remaining_charge;
+            }
+        }
+
+        let mut acquisition_charges_disposed = Decimal::ZERO;
         let mut disposal_activity_ids = HashSet::<String>::new();
+        let mut disposal_quantity_by_activity = HashMap::<String, Decimal>::new();
         for disposal in disposals {
             disposal_activity_ids.insert(disposal.disposal_activity_id.clone());
+            *disposal_quantity_by_activity
+                .entry(disposal.disposal_activity_id.clone())
+                .or_default() += parse_decimal_lossy(&disposal.quantity).abs();
 
             let Some(lot) =
                 lot_by_account_and_id.get(&(disposal.account_id.clone(), disposal.lot_id.clone()))
@@ -1558,53 +2533,110 @@ impl PerformanceService {
                 continue;
             }
 
-            let original_cost_basis_base = parse_decimal_lossy(&lot.original_cost_basis_base);
-            let fee_allocated_base = parse_decimal_lossy(&lot.fee_allocated_base);
-            let disposal_cost_basis_base = parse_decimal_lossy(&disposal.cost_basis_base);
-            if original_cost_basis_base <= Decimal::ZERO || fee_allocated_base.is_zero() {
+            let Some(open_activity_id) = lot.open_activity_id.as_ref() else {
+                continue;
+            };
+            if !trade_charge_by_activity.contains_key(open_activity_id) {
                 continue;
             }
 
-            acquisition_fees_disposed +=
-                disposal_cost_basis_base * fee_allocated_base / original_cost_basis_base;
+            let fee_allocated_base = parse_decimal_lossy(&lot.fee_allocated_base);
+            let tax_allocated_base = parse_decimal_lossy(&lot.tax_allocated_base);
+            let charge_allocated_base = fee_allocated_base + tax_allocated_base;
+            if charge_allocated_base.is_zero() {
+                continue;
+            }
+
+            let original_quantity = parse_decimal_lossy(&lot.original_quantity).abs();
+            let disposed_quantity = parse_decimal_lossy(&disposal.quantity).abs();
+            if original_quantity > Decimal::ZERO {
+                acquisition_charges_disposed +=
+                    charge_allocated_base * disposed_quantity / original_quantity;
+            } else {
+                let original_cost_basis_base =
+                    parse_decimal_lossy(&lot.original_cost_basis_base).abs();
+                let disposal_cost_basis_base = parse_decimal_lossy(&disposal.cost_basis_base).abs();
+                if original_cost_basis_base > Decimal::ZERO {
+                    acquisition_charges_disposed +=
+                        disposal_cost_basis_base * charge_allocated_base / original_cost_basis_base;
+                }
+            }
         }
 
-        let period_buy_fees = buy_fee_by_activity
+        let mut period_open_charges = period_open_charge_by_activity
             .values()
             .copied()
             .sum::<Decimal>()
             .round_dp(DECIMAL_PRECISION);
-        let period_sell_fees = disposal_activity_ids
+        if period_open_charges.is_zero() && !saw_period_open_lot_records {
+            period_open_charges = fallback_buy_charge_by_activity
+                .iter()
+                .filter(|(activity_id, _)| !disposal_activity_ids.contains(*activity_id))
+                .map(|(_, charge)| *charge)
+                .sum::<Decimal>()
+                .round_dp(DECIMAL_PRECISION);
+        }
+        let period_disposal_charges = disposal_quantity_by_activity
             .iter()
-            .filter_map(|activity_id| sell_fee_by_activity.get(activity_id))
-            .copied()
+            .filter_map(|(activity_id, disposed_quantity)| {
+                let charge_input = trade_charge_by_activity.get(activity_id)?;
+                if charge_input.quantity > Decimal::ZERO {
+                    Some(
+                        (charge_input.charge * *disposed_quantity / charge_input.quantity)
+                            .min(charge_input.charge),
+                    )
+                } else {
+                    Some(charge_input.charge)
+                }
+            })
             .sum::<Decimal>()
             .round_dp(DECIMAL_PRECISION);
-        let acquisition_fees_disposed = acquisition_fees_disposed
-            .min(period_buy_fees)
+        let acquisition_charges_disposed = acquisition_charges_disposed
+            .min(period_open_charges)
             .round_dp(DECIMAL_PRECISION);
-        let remaining_period_buy_fees =
-            (period_buy_fees - acquisition_fees_disposed).round_dp(DECIMAL_PRECISION);
+        let remaining_period_open_charges = if saw_period_open_lot_records {
+            remaining_open_charges_from_lots
+                .min(period_open_charges)
+                .round_dp(DECIMAL_PRECISION)
+        } else {
+            (period_open_charges - acquisition_charges_disposed).round_dp(DECIMAL_PRECISION)
+        };
 
-        if period_sell_fees.is_zero()
-            && acquisition_fees_disposed.is_zero()
-            && remaining_period_buy_fees.is_zero()
+        if period_disposal_charges.is_zero()
+            && acquisition_charges_disposed.is_zero()
+            && remaining_period_open_charges.is_zero()
         {
-            return;
+            return AttributionEffectSet::default();
         }
 
-        result.attribution.realized_pnl =
-            (result.attribution.realized_pnl + period_sell_fees + acquisition_fees_disposed)
+        let mut effects = Vec::new();
+        if !period_disposal_charges.is_zero() || !acquisition_charges_disposed.is_zero() {
+            let mut effect = Self::synthetic_attribution_effect(
+                "__trade_charge_realized_gross_up__",
+                result,
+                end_date,
+                EconomicEventKind::Trade,
+            );
+            effect.realized_pnl = (period_disposal_charges + acquisition_charges_disposed)
                 .round_dp(DECIMAL_PRECISION);
-        result.attribution.unrealized_pnl_change = (result.attribution.unrealized_pnl_change
-            + remaining_period_buy_fees)
-            .round_dp(DECIMAL_PRECISION);
-        Self::recompute_attribution_residual(
-            result,
-            history,
-            ExternalFlowBasis::BaseCurrency,
-            baseline,
-        );
+            effects.push(effect);
+        }
+        if !remaining_period_open_charges.is_zero() {
+            let mut effect = Self::synthetic_attribution_effect(
+                "__trade_charge_unrealized_gross_up__",
+                result,
+                end_date,
+                EconomicEventKind::Trade,
+            );
+            effect.unrealized_movement = remaining_period_open_charges.round_dp(DECIMAL_PRECISION);
+            effects.push(effect);
+        }
+
+        AttributionEffectSet {
+            effects,
+            warnings: Vec::new(),
+            complete: true,
+        }
     }
 
     fn recompute_attribution_residual(
@@ -1623,30 +2655,15 @@ impl PerformanceService {
         let end_value = Self::return_total_value(end_point, flow_basis);
         let delta_total_value =
             Self::attribution_total_value_delta(start_point, end_point, flow_basis, baseline);
-        result.attribution.residual = (delta_total_value
-            - (result.attribution.contributions - result.attribution.distributions
-                + result.attribution.income
-                + result.attribution.realized_pnl
-                + result.attribution.unrealized_pnl_change
-                + result.attribution.fx_effect
-                - result.attribution.fees
-                - result.attribution.taxes))
-            .round_dp(DECIMAL_PRECISION);
-
-        result
-            .data_quality
-            .warnings
-            .retain(|warning| !Self::is_attribution_residual_warning(warning));
-        let residual_threshold = Self::attribution_residual_threshold(delta_total_value, end_value);
-        if result.attribution.residual.abs() > residual_threshold {
-            result
-                .data_quality
-                .warnings
-                .push(Self::attribution_residual_warning(
-                    result.attribution.residual.round_dp(DECIMAL_PRECISION),
-                    residual_threshold.round_dp(DECIMAL_PRECISION),
-                ));
-        }
+        result.attribution.residual = Decimal::ZERO;
+        let unreconciled_delta =
+            Self::attribution_unreconciled_delta(delta_total_value, &result.attribution);
+        Self::push_attribution_diagnostic_if_needed(
+            &mut result.data_quality,
+            unreconciled_delta,
+            delta_total_value,
+            end_value,
+        );
         Self::refresh_data_quality_status(&mut result.data_quality);
     }
 
@@ -1655,39 +2672,41 @@ impl PerformanceService {
     /// HOLDINGS mode doesn't track cash flows at the transaction level, so
     /// TWR/IRR aren't meaningful — we measure unrealized P&L growth instead.
     ///
-    /// * `is_all_time` — when `true`, divides by ending `cost_basis` (the full
-    ///   amount invested). When `false`, divides by `investment_market_value`
-    ///   at the period start. Non-positive denominators make the percentage
-    ///   undefined, so the return is omitted rather than reported as 0%.
+    /// * `is_all_time` — when `true`, measures gain versus ending book basis
+    ///   (the recorded invested capital). When `false`, measures total value
+    ///   change over starting value. Non-positive denominators make the
+    ///   percentage undefined, so the return is omitted rather than reported as
+    ///   0%.
     fn compute_holdings_value_return(
         start_point: &DailyAccountValuation,
         end_point: &DailyAccountValuation,
         is_all_time: bool,
         flow_basis: ExternalFlowBasis,
-    ) -> (Decimal, Option<Decimal>) {
-        let start_unrealized_pnl = Self::return_investment_market_value(start_point, flow_basis)
-            - Self::return_cost_basis(start_point, flow_basis);
-        let end_unrealized_pnl = Self::return_investment_market_value(end_point, flow_basis)
-            - Self::return_cost_basis(end_point, flow_basis);
-        let pnl_change = end_unrealized_pnl - start_unrealized_pnl;
+    ) -> (Option<Decimal>, Option<Decimal>) {
+        if is_all_time {
+            let end_book_basis = Self::return_book_basis(end_point, flow_basis);
+            if end_book_basis <= Decimal::ZERO || !Self::holdings_basis_is_complete(end_point) {
+                return (None, None);
+            } else {
+                let gain_vs_book_basis =
+                    Self::return_total_value(end_point, flow_basis) - end_book_basis;
+                return (
+                    Some(gain_vs_book_basis),
+                    Some(gain_vs_book_basis / end_book_basis),
+                );
+            }
+        }
 
-        let value_return = if is_all_time {
-            let end_cost_basis = Self::return_cost_basis(end_point, flow_basis);
-            if end_cost_basis <= Decimal::ZERO {
-                None
-            } else {
-                Some(end_unrealized_pnl / end_cost_basis)
-            }
+        let start_value = Self::return_total_value(start_point, flow_basis);
+        let value_change = Self::return_total_value(end_point, flow_basis)
+            - Self::return_total_value(start_point, flow_basis);
+        let value_return = if start_value <= Decimal::ZERO {
+            None
         } else {
-            let start_market_value = Self::return_investment_market_value(start_point, flow_basis);
-            if start_market_value <= Decimal::ZERO {
-                None
-            } else {
-                Some(pnl_change / start_market_value)
-            }
+            Some(value_change / start_value)
         };
 
-        (pnl_change, value_return)
+        (Some(value_change), value_return)
     }
 
     fn unrealized_attribution_components(
@@ -1829,7 +2848,11 @@ impl PerformanceService {
         )?;
 
         if full_history.len() < 2 {
-            warn!("Performance calculation for account '{}': Not enough valuation data ({} points). Returning empty response.", account_id, full_history.len());
+            warn!(
+                "Performance calculation for account '{}': Not enough valuation data ({} points). Returning empty response.",
+                account_id,
+                full_history.len()
+            );
             let currency = full_history
                 .first()
                 .map(|point| point.base_currency.as_str())
@@ -1865,18 +2888,19 @@ impl PerformanceService {
             matches!(tracking_mode, Some(TrackingMode::Holdings)),
             start_date_opt,
         );
-        self.apply_external_attribution_best_effort(
+        self.finalize_attribution_from_event_effects(
             &mut metrics,
             &[account_id.to_string()],
             &full_history,
             attribution_baseline,
+            AttributionEffectSeed::default(),
         )
         .await;
         Ok(metrics)
     }
 
     /// Summary account performance calculation. `Full` keeps the rich scalar
-    /// metrics; `Headline` keeps dashboard-visible return/P&L fields only.
+    /// metrics; `Summary` keeps dashboard-visible return/P&L fields only.
     async fn calculate_account_performance_summary(
         &self,
         account_id: &str,
@@ -1937,15 +2961,20 @@ impl PerformanceService {
             Self::is_cash_account_type(account_type),
         )?;
         metrics.scope.id = account_id.to_string();
+        if profile == PerformanceSummaryProfile::Dashboard {
+            return Ok(metrics);
+        }
+
         let attribution_baseline = Self::attribution_baseline(
             matches!(tracking_mode, Some(TrackingMode::Holdings)),
             start_date_opt,
         );
-        self.apply_external_attribution_best_effort(
+        self.finalize_attribution_from_event_effects(
             &mut metrics,
             &[account_id.to_string()],
             &full_history,
             attribution_baseline,
+            AttributionEffectSeed::default(),
         )
         .await;
         Ok(metrics)
@@ -1986,6 +3015,57 @@ impl PerformanceService {
         }
         let scoped_tracking_composition =
             Self::scoped_tracking_composition(account_ids, account_tracking_modes);
+
+        if scoped_tracking_composition == ScopedTrackingComposition::Mixed {
+            let histories_by_account = match self
+                .valuation_service
+                .get_historical_valuations_by_account(account_ids, start_date_opt, end_date_opt)
+            {
+                Ok(histories) => histories,
+                Err(errors::Error::Calculation(error)) => {
+                    let warning = format!(
+                        "Performance is partially unavailable for this scope because account valuation history is incomplete: {}",
+                        error
+                    );
+                    warn!("{}", warning);
+                    return Ok(PerformanceService::partial_response(
+                        scope_id,
+                        base_currency,
+                        start_date_opt,
+                        end_date_opt,
+                        warning,
+                    ));
+                }
+                Err(error) => return Err(error),
+            };
+            let empty_history: &[DailyAccountValuation] = &[];
+            let account_histories: Vec<MixedScopeAccountHistory<'_>> = account_ids
+                .iter()
+                .map(|account_id| MixedScopeAccountHistory {
+                    account_id,
+                    tracking_mode: account_tracking_modes
+                        .get(account_id)
+                        .copied()
+                        .unwrap_or(TrackingMode::Transactions),
+                    account_type: account_types.get(account_id).map(String::as_str),
+                    history: histories_by_account
+                        .get(account_id)
+                        .map(Vec::as_slice)
+                        .unwrap_or(empty_history),
+                })
+                .collect();
+            let mut metrics = self
+                .compute_mixed_scope_performance_from_account_histories_with_attribution(
+                    &account_histories,
+                    base_currency,
+                    start_date_opt,
+                    include_returns_series,
+                    profile,
+                )
+                .await?;
+            metrics.scope.id = scope_id.to_string();
+            return Ok(metrics);
+        }
 
         let full_history = match self
             .valuation_service
@@ -2057,16 +3137,18 @@ impl PerformanceService {
                     cash_fx_attribution_enabled,
                 )?
             }
-            ScopedTrackingComposition::Mixed => Self::compute_mixed_scope_performance_with_profile(
-                &full_history,
-                include_returns_series,
-                profile,
-            )?,
+            ScopedTrackingComposition::Mixed => {
+                unreachable!("mixed scopes return before aggregate history calculation")
+            }
         };
 
         metrics.scope.id = scope_id.to_string();
-        // Mixed scopes keep period-start attribution because their holdings-mode
-        // portion is inherently period-based.
+        if profile == PerformanceSummaryProfile::Dashboard {
+            return Ok(metrics);
+        }
+
+        // Transaction-only all-time scopes can use inception attribution; holdings-only
+        // scopes stay period-based because holdings snapshots do not carry cash-flow history.
         let attribution_baseline = if scoped_tracking_composition
             == ScopedTrackingComposition::TransactionsOnly
             && start_date_opt.is_none()
@@ -2075,25 +3157,36 @@ impl PerformanceService {
         } else {
             AttributionBaseline::PeriodStart
         };
-        self.apply_scoped_unrealized_attribution_best_effort(
+        let scoped_unrealized_effects = self
+            .collect_scoped_unrealized_attribution_event_effects(
+                &metrics,
+                account_ids,
+                attribution_baseline,
+            )
+            .await;
+        let scoped_transfer_effects = self
+            .collect_scoped_transfer_pair_attribution_event_effects(&metrics, account_ids)
+            .await;
+        let mut effect_seed = AttributionEffectSeed::default();
+        if scoped_unrealized_effects.complete {
+            effect_seed.include_base_market_movement = false;
+            effect_seed
+                .effects
+                .extend(scoped_unrealized_effects.effects);
+        }
+        effect_seed
+            .warnings
+            .extend(scoped_unrealized_effects.warnings);
+        effect_seed.effects.extend(scoped_transfer_effects.effects);
+        effect_seed
+            .warnings
+            .extend(scoped_transfer_effects.warnings);
+        self.finalize_attribution_from_event_effects(
             &mut metrics,
             account_ids,
             &full_history,
             attribution_baseline,
-        )
-        .await;
-        self.apply_scoped_transfer_pair_attribution_best_effort(
-            &mut metrics,
-            account_ids,
-            &full_history,
-            attribution_baseline,
-        )
-        .await;
-        self.apply_external_attribution_best_effort(
-            &mut metrics,
-            account_ids,
-            &full_history,
-            attribution_baseline,
+            effect_seed,
         )
         .await;
         Ok(metrics)
@@ -2295,19 +3388,32 @@ impl PerformanceService {
             Self::empty_risk()
         };
 
-        let (mode, value_return, value_return_not_applicable_reason) = if is_holdings_mode {
-            let (_pnl_change, ret) = Self::compute_holdings_value_return(
+        let holdings_value_return = if is_holdings_mode {
+            Some(Self::compute_holdings_value_return(
                 start_point,
                 end_point,
                 start_date_opt.is_none(),
                 flow_basis,
-            );
+            ))
+        } else {
+            None
+        };
+
+        let (mode, value_return, value_return_not_applicable_reason) = if is_holdings_mode {
+            let (_amount, ret) = holdings_value_return.unwrap();
             let reason = if ret.is_none() {
                 Some(if start_date_opt.is_none() {
-                    "Value return unavailable for holdings-only scope because ending cost basis is zero or negative."
-                        .to_string()
+                    Self::holdings_all_time_unavailable_reason(
+                        end_point,
+                        flow_basis,
+                        "Value return",
+                        "holdings-only scope",
+                    )
+                    .unwrap_or_else(|| {
+                        "Value return unavailable for holdings-only scope.".to_string()
+                    })
                 } else {
-                    "Value return unavailable for holdings-only scope because starting market value is zero or negative."
+                    "Value return unavailable for holdings-only scope because starting total value is zero or negative."
                         .to_string()
                 })
             } else {
@@ -2327,65 +3433,109 @@ impl PerformanceService {
             };
             (ReturnMethod::TimeWeighted, value_return, reason)
         };
+        let holdings_pnl_not_applicable_reason = holdings_value_return.and_then(|(amount, _)| {
+            if amount.is_none() && start_date_opt.is_none() {
+                Self::holdings_all_time_unavailable_reason(
+                    end_point,
+                    flow_basis,
+                    "P&L",
+                    "holdings-only scope",
+                )
+            } else {
+                None
+            }
+        });
 
-        let (contributions, distributions) = Self::total_external_flows_for_attribution(
-            &daily_flows,
-            start_point,
-            flow_basis,
-            attribution_baseline,
-        );
-        let (unrealized_pnl_change, investment_fx_effect) = Self::unrealized_attribution_components(
-            start_point,
-            end_point,
-            flow_basis,
-            attribution_baseline,
-        );
-        let fx_effect = (investment_fx_effect
-            + Self::cash_only_fx_effect_from_history(
-                full_history,
-                flow_basis,
-                cash_fx_attribution_enabled,
-            ))
-        .round_dp(DECIMAL_PRECISION);
+        let (contributions, distributions, unrealized_pnl_change, fx_effect) =
+            if let Some((holdings_amount, _)) = holdings_value_return {
+                (
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                    holdings_amount
+                        .unwrap_or(Decimal::ZERO)
+                        .round_dp(DECIMAL_PRECISION),
+                    Decimal::ZERO,
+                )
+            } else if profile == PerformanceSummaryProfile::Dashboard {
+                (
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                    Self::compute_simple_value_return_amount(
+                        full_history,
+                        &daily_flows,
+                        flow_basis,
+                    )
+                    .unwrap_or(Decimal::ZERO)
+                    .round_dp(DECIMAL_PRECISION),
+                    Decimal::ZERO,
+                )
+            } else {
+                let (contributions, distributions) = Self::total_external_flows_for_attribution(
+                    &daily_flows,
+                    start_point,
+                    flow_basis,
+                    attribution_baseline,
+                );
+                let (unrealized_pnl_change, investment_fx_effect) =
+                    Self::unrealized_attribution_components(
+                        start_point,
+                        end_point,
+                        flow_basis,
+                        attribution_baseline,
+                    );
+                let fx_effect = (investment_fx_effect
+                    + Self::cash_only_fx_effect_from_history(
+                        full_history,
+                        flow_basis,
+                        cash_fx_attribution_enabled,
+                    ))
+                .round_dp(DECIMAL_PRECISION);
+                (
+                    contributions,
+                    distributions,
+                    unrealized_pnl_change,
+                    fx_effect,
+                )
+            };
         let delta_total_value = Self::attribution_total_value_delta(
             start_point,
             end_point,
             flow_basis,
             attribution_baseline,
         );
-        let mut attribution = PerformanceAttribution {
+        let attribution = PerformanceAttribution {
             contributions,
             distributions,
             unrealized_pnl_change,
             fx_effect,
             ..PerformanceAttribution::default()
         };
-        attribution.residual = delta_total_value
-            - (attribution.contributions - attribution.distributions
-                + attribution.income
-                + attribution.realized_pnl
-                + attribution.unrealized_pnl_change
-                + attribution.fx_effect
-                - attribution.fees
-                - attribution.taxes);
 
         let mut warnings = Self::external_flow_quality_warnings(&daily_flows);
         warnings.extend(twr.warnings);
         warnings.extend(irr.warnings);
-        let residual_threshold = Self::attribution_residual_threshold(delta_total_value, end_value);
-        if attribution.residual.abs() > residual_threshold {
-            warnings.push(Self::attribution_residual_warning(
-                attribution.residual.round_dp(DECIMAL_PRECISION),
-                residual_threshold.round_dp(DECIMAL_PRECISION),
-            ));
-        }
         let mut not_applicable_reasons = twr.not_applicable_reasons;
         not_applicable_reasons.extend(irr.not_applicable_reasons);
         if let Some(reason) = value_return_not_applicable_reason {
             not_applicable_reasons.push(reason);
         }
+        if let Some(reason) = holdings_pnl_not_applicable_reason {
+            not_applicable_reasons.push(reason);
+        }
+        let mut data_quality = Self::data_quality(warnings, not_applicable_reasons, false);
+        if !is_holdings_mode {
+            let unreconciled_delta =
+                Self::attribution_unreconciled_delta(delta_total_value, &attribution);
+            Self::push_attribution_diagnostic_if_needed(
+                &mut data_quality,
+                unreconciled_delta,
+                delta_total_value,
+                end_value,
+            );
+            Self::refresh_data_quality_status(&mut data_quality);
+        }
 
-        Ok(Self::build_result(
+        let mut result = Self::build_result(
             String::new(),
             currency,
             Some(actual_start_date),
@@ -2427,11 +3577,611 @@ impl PerformanceService {
             },
             attribution,
             risk,
-            Self::data_quality(warnings, not_applicable_reasons, false),
+            data_quality,
             series,
             is_holdings_mode,
             false,
-        ))
+        );
+        if is_holdings_mode {
+            result.basis_status = Self::holdings_basis_status(end_point);
+            Self::refresh_summary(&mut result);
+        }
+        Ok(result)
+    }
+
+    fn mixed_scope_component_denominator(
+        history: &[DailyAccountValuation],
+        tracking_mode: TrackingMode,
+        is_all_time: bool,
+        flow_basis: ExternalFlowBasis,
+    ) -> Option<Decimal> {
+        let denominator = if matches!(tracking_mode, TrackingMode::Holdings) && is_all_time {
+            history
+                .last()
+                .filter(|point| Self::holdings_basis_is_complete(point))
+                .map(|point| Self::return_book_basis(point, flow_basis))
+                .unwrap_or(Decimal::ZERO)
+        } else if is_all_time {
+            history
+                .iter()
+                .map(|point| Self::return_total_value(point, flow_basis))
+                .find(|value| *value > Decimal::ZERO)
+                .unwrap_or(Decimal::ZERO)
+        } else {
+            history
+                .first()
+                .map(|point| Self::return_total_value(point, flow_basis))
+                .unwrap_or(Decimal::ZERO)
+        };
+
+        if denominator > Decimal::ZERO {
+            Some(denominator)
+        } else {
+            None
+        }
+    }
+
+    fn compute_mixed_scope_transaction_component_result(
+        component: &MixedScopeAccountHistory<'_>,
+        start_date_opt: Option<NaiveDate>,
+        flow_basis: ExternalFlowBasis,
+        profile: PerformanceSummaryProfile,
+    ) -> Result<PerformanceResult> {
+        Self::compute_account_performance_with_flow_basis(
+            component.history,
+            Some(TrackingMode::Transactions),
+            start_date_opt,
+            false,
+            flow_basis,
+            profile,
+            Self::is_cash_account_type(component.account_type),
+        )
+    }
+
+    fn mixed_scope_component_not_applicable_reasons(
+        reasons: Vec<String>,
+        tracking_mode: TrackingMode,
+    ) -> Vec<String> {
+        if matches!(tracking_mode, TrackingMode::Holdings) {
+            return reasons;
+        }
+
+        reasons
+            .into_iter()
+            .filter(|reason| {
+                !reason.starts_with("Value return unavailable for transaction-mode scope")
+            })
+            .collect()
+    }
+
+    fn compute_mixed_scope_component_metrics(
+        component: &MixedScopeAccountHistory<'_>,
+        start_date_opt: Option<NaiveDate>,
+        profile: PerformanceSummaryProfile,
+        flow_basis: ExternalFlowBasis,
+        is_all_time: bool,
+    ) -> Result<MixedScopeComponentMetrics> {
+        debug_assert!(component.history.len() >= 2);
+
+        let start_point = component.history.first().expect("len checked");
+        let end_point = component.history.last().expect("len checked");
+        let contributes_to_scope = Self::return_total_value(start_point, flow_basis)
+            > Decimal::ZERO
+            || Self::return_total_value(end_point, flow_basis) > Decimal::ZERO;
+        let denominator = Self::mixed_scope_component_denominator(
+            component.history,
+            component.tracking_mode,
+            is_all_time,
+            flow_basis,
+        );
+        let mut warnings = Vec::new();
+        let mut not_applicable_reasons = Vec::new();
+
+        let component_basis_status = if matches!(component.tracking_mode, TrackingMode::Holdings) {
+            Self::holdings_basis_status(end_point)
+        } else {
+            BasisStatus::NotApplicable
+        };
+        let (amount, attribution) = if matches!(component.tracking_mode, TrackingMode::Holdings) {
+            let (amount, _) = Self::compute_holdings_value_return(
+                start_point,
+                end_point,
+                is_all_time,
+                flow_basis,
+            );
+            let mut attribution = PerformanceAttribution::default();
+            if let Some(amount) = amount {
+                attribution.unrealized_pnl_change = amount.round_dp(DECIMAL_PRECISION);
+            } else {
+                let subject = format!("holdings account {}", component.account_id);
+                let pnl_reason = Self::holdings_all_time_unavailable_reason(
+                    end_point, flow_basis, "P&L", &subject,
+                )
+                .unwrap_or_else(|| format!("P&L unavailable for {}.", subject));
+                warnings.push(format!(
+                    "Mixed performance excluded account {} from all-time gain/loss because its holdings basis is incomplete or unavailable.",
+                    component.account_id
+                ));
+                not_applicable_reasons.push(pnl_reason);
+            }
+            (amount, attribution)
+        } else {
+            let component_result = Self::compute_mixed_scope_transaction_component_result(
+                component,
+                start_date_opt,
+                flow_basis,
+                profile,
+            )?;
+            warnings.extend(component_result.data_quality.warnings);
+            not_applicable_reasons.extend(Self::mixed_scope_component_not_applicable_reasons(
+                component_result.data_quality.not_applicable_reasons,
+                component.tracking_mode,
+            ));
+            (
+                Some(Self::attribution_pnl(&component_result.attribution)),
+                component_result.attribution,
+            )
+        };
+
+        Ok(MixedScopeComponentMetrics {
+            account_id: component.account_id.to_string(),
+            start_date: start_point.valuation_date,
+            end_date: end_point.valuation_date,
+            amount,
+            denominator,
+            contributes_to_scope,
+            basis_status: component_basis_status,
+            attribution,
+            warnings,
+            not_applicable_reasons,
+        })
+    }
+
+    fn mixed_scope_component_bounded_series(
+        component: &MixedScopeAccountHistory<'_>,
+        flow_basis: ExternalFlowBasis,
+    ) -> Vec<MixedScopeSeriesPoint> {
+        if component.history.len() < 2
+            || component
+                .history
+                .iter()
+                .any(|point| Self::return_total_value(point, flow_basis).is_sign_negative())
+        {
+            return Vec::new();
+        }
+
+        let denominator = Self::mixed_scope_component_denominator(
+            component.history,
+            component.tracking_mode,
+            false,
+            flow_basis,
+        );
+        let start_point = component.history.first().expect("len checked");
+        let start_value = Self::return_total_value(start_point, flow_basis);
+
+        if matches!(component.tracking_mode, TrackingMode::Holdings) {
+            return component
+                .history
+                .iter()
+                .skip(1)
+                .map(|point| MixedScopeSeriesPoint {
+                    date: point.valuation_date,
+                    amount: Self::return_total_value(point, flow_basis) - start_value,
+                    denominator,
+                })
+                .collect();
+        }
+
+        let daily_flows = Self::daily_external_flow_series(component.history, flow_basis);
+        let mut net_flow = Decimal::ZERO;
+        component
+            .history
+            .iter()
+            .skip(1)
+            .zip(daily_flows.iter())
+            .map(|(point, flow)| {
+                net_flow += flow.net();
+                MixedScopeSeriesPoint {
+                    date: point.valuation_date,
+                    amount: Self::return_total_value(point, flow_basis) - start_value - net_flow,
+                    denominator,
+                }
+            })
+            .collect()
+    }
+
+    fn mixed_scope_bounded_return_series(
+        account_histories: &[MixedScopeAccountHistory<'_>],
+        actual_start_date: NaiveDate,
+    ) -> Vec<ReturnData> {
+        let flow_basis = ExternalFlowBasis::BaseCurrency;
+        let component_series: Vec<Vec<MixedScopeSeriesPoint>> = account_histories
+            .iter()
+            .map(|component| Self::mixed_scope_component_bounded_series(component, flow_basis))
+            .collect();
+        let mut dates: Vec<NaiveDate> = component_series
+            .iter()
+            .flat_map(|series| series.iter().map(|point| point.date))
+            .filter(|date| *date >= actual_start_date)
+            .collect();
+        dates.push(actual_start_date);
+        dates.sort_unstable();
+        dates.dedup();
+
+        let mut series = Vec::with_capacity(dates.len());
+        let mut component_indexes: Vec<Option<usize>> = vec![None; component_series.len()];
+        for date in dates {
+            if date == actual_start_date {
+                series.push(ReturnData {
+                    date,
+                    value: Decimal::ZERO,
+                });
+                continue;
+            }
+
+            let mut cumulative_amount = Decimal::ZERO;
+            let mut denominator = Decimal::ZERO;
+            for (component_index, points) in component_series.iter().enumerate() {
+                let mut next_index =
+                    component_indexes[component_index].map_or(0, |index| index + 1);
+                while next_index < points.len() && points[next_index].date <= date {
+                    component_indexes[component_index] = Some(next_index);
+                    next_index += 1;
+                }
+
+                if let Some(point_index) = component_indexes[component_index] {
+                    let point = &points[point_index];
+                    cumulative_amount += point.amount;
+                    if let Some(value) = point.denominator {
+                        denominator += value;
+                    }
+                }
+            }
+
+            if denominator > Decimal::ZERO {
+                series.push(ReturnData {
+                    date,
+                    value: (cumulative_amount / denominator).round_dp(DECIMAL_PRECISION),
+                });
+            }
+        }
+
+        series
+    }
+
+    fn build_mixed_scope_performance_from_component_metrics(
+        account_histories: &[MixedScopeAccountHistory<'_>],
+        component_metrics: Vec<MixedScopeComponentMetrics>,
+        skipped_warnings: Vec<String>,
+        currency: &str,
+        start_date_opt: Option<NaiveDate>,
+        include_returns_series: bool,
+        profile: PerformanceSummaryProfile,
+    ) -> Result<PerformanceResult> {
+        let is_all_time = start_date_opt.is_none();
+        let include_annualized_returns = profile == PerformanceSummaryProfile::Full;
+        let mut attribution = PerformanceAttribution::default();
+        let mut summary_amount = Decimal::ZERO;
+        let mut denominator = Decimal::ZERO;
+        let mut warnings = vec![if profile == PerformanceSummaryProfile::Full {
+            "This scope mixes transaction-mode and holdings-mode accounts, so TWR and IRR are unavailable. The return is a value return over account-level components.".to_string()
+        } else {
+            "This scope mixes transaction-mode and holdings-mode accounts, so TWR is unavailable. The return is a value return over account-level components.".to_string()
+        }];
+        warnings.extend(skipped_warnings);
+        let mut not_applicable_reasons =
+            vec!["TWR unavailable for mixed transaction and holdings scopes.".to_string()];
+        if profile == PerformanceSummaryProfile::Full {
+            not_applicable_reasons
+                .push("IRR unavailable for mixed transaction and holdings scopes.".to_string());
+        }
+        let mut percent_coverage_complete = true;
+
+        if component_metrics.is_empty() {
+            not_applicable_reasons.push(
+                "Performance unavailable: at least two valuation points are required.".to_string(),
+            );
+            let mut result = Self::build_result(
+                String::new(),
+                currency.to_string(),
+                start_date_opt,
+                None,
+                ReturnMethod::NotApplicable,
+                PerformanceReturns {
+                    twr: None,
+                    annualized_twr: None,
+                    irr: None,
+                    annualized_irr: None,
+                    value_return: None,
+                    annualized_value_return: None,
+                },
+                PerformanceAttribution::default(),
+                Self::empty_risk(),
+                Self::data_quality(warnings, not_applicable_reasons, true),
+                Vec::new(),
+                false,
+                true,
+            );
+            result.basis_status = BasisStatus::Unknown;
+            Self::refresh_summary(&mut result);
+            return Ok(result);
+        }
+
+        let mut actual_start_date = component_metrics[0].start_date;
+        let mut actual_end_date = component_metrics[0].end_date;
+        for component in &component_metrics {
+            actual_start_date = actual_start_date.min(component.start_date);
+            actual_end_date = actual_end_date.max(component.end_date);
+
+            warnings.extend(component.warnings.clone());
+            not_applicable_reasons.extend(component.not_applicable_reasons.clone());
+
+            let amount_available = component.amount.is_some();
+            if let Some(amount) = component.amount {
+                summary_amount += amount;
+                Self::add_attribution(&mut attribution, &component.attribution);
+            }
+
+            match component.denominator {
+                Some(value) if amount_available => denominator += value,
+                Some(_) => {
+                    percent_coverage_complete = false;
+                    warnings.push(format!(
+                        "Mixed performance percentage excluded account {} because its summary amount is unavailable.",
+                        component.account_id
+                    ));
+                }
+                None if amount_available => {
+                    percent_coverage_complete = false;
+                    warnings.push(format!(
+                        "Mixed performance percentage unavailable because account {} contributes to the summary amount but has no valid return denominator.",
+                        component.account_id
+                    ));
+                }
+                None if component.contributes_to_scope => {
+                    percent_coverage_complete = false;
+                    warnings.push(format!(
+                        "Mixed performance percentage unavailable because account {} is in scope but has no complete summary amount or return denominator.",
+                        component.account_id
+                    ));
+                }
+                None => {}
+            }
+        }
+
+        let value_return = if !percent_coverage_complete {
+            not_applicable_reasons.push(
+                "Value return unavailable for mixed scope because summary amount and denominator coverage differ."
+                    .to_string(),
+            );
+            None
+        } else if denominator > Decimal::ZERO {
+            Some(summary_amount / denominator)
+        } else {
+            not_applicable_reasons.push(
+                "Value return unavailable for mixed scope because all account-level denominators are zero or negative."
+                    .to_string(),
+            );
+            None
+        };
+
+        let mut series = Vec::new();
+        if include_returns_series && value_return.is_some() {
+            if is_all_time {
+                warnings.push(
+                    "Return series unavailable for all-time mixed scopes because transaction and holdings components use different baselines."
+                        .to_string(),
+                );
+            } else {
+                series =
+                    Self::mixed_scope_bounded_return_series(account_histories, actual_start_date);
+            }
+        }
+
+        let display_pnl = Self::attribution_pnl(&attribution);
+        let residual_delta = summary_amount - display_pnl;
+        if !residual_delta.is_zero() {
+            warnings.push(format!(
+                "Mixed performance attribution did not reconcile to the summary amount; unreconciled delta is {}.",
+                residual_delta.round_dp(DECIMAL_PRECISION)
+            ));
+        }
+
+        let mut result = Self::build_result(
+            String::new(),
+            currency.to_string(),
+            Some(actual_start_date),
+            Some(actual_end_date),
+            ReturnMethod::ValueReturn,
+            PerformanceReturns {
+                twr: None,
+                annualized_twr: None,
+                irr: None,
+                annualized_irr: None,
+                value_return: value_return.map(|value| value.round_dp(DECIMAL_PRECISION)),
+                annualized_value_return: if include_annualized_returns {
+                    Self::annualize_optional_return(
+                        actual_start_date,
+                        actual_end_date,
+                        value_return,
+                    )
+                } else {
+                    None
+                },
+            },
+            attribution,
+            Self::empty_risk(),
+            Self::data_quality(warnings, not_applicable_reasons, false),
+            series,
+            false,
+            true,
+        );
+        result.basis_status = Self::combine_basis_statuses(
+            component_metrics.iter().map(|metric| metric.basis_status),
+        );
+        let amount_available = component_metrics
+            .iter()
+            .any(|component| component.amount.is_some());
+        result.summary.amount_status = if amount_available {
+            PerformanceSummaryStatus::Complete
+        } else {
+            PerformanceSummaryStatus::Unavailable
+        };
+        result.summary.percent_status = if value_return.is_some() && percent_coverage_complete {
+            PerformanceSummaryStatus::Complete
+        } else {
+            PerformanceSummaryStatus::Unavailable
+        };
+        Self::refresh_summary(&mut result);
+        Ok(result)
+    }
+
+    #[cfg(test)]
+    fn compute_mixed_scope_performance_from_account_histories(
+        account_histories: &[MixedScopeAccountHistory<'_>],
+        currency: &str,
+        start_date_opt: Option<NaiveDate>,
+        include_returns_series: bool,
+        profile: PerformanceSummaryProfile,
+    ) -> Result<PerformanceResult> {
+        let flow_basis = ExternalFlowBasis::BaseCurrency;
+        let is_all_time = start_date_opt.is_none();
+        let mut component_metrics = Vec::new();
+        let mut skipped_warnings = Vec::new();
+
+        for component in account_histories {
+            if component.history.len() < 2 {
+                skipped_warnings.push(format!(
+                    "Mixed performance skipped account {} because at least two valuation points are required.",
+                    component.account_id
+                ));
+                continue;
+            }
+
+            if component
+                .history
+                .iter()
+                .any(|point| Self::return_total_value(point, flow_basis).is_sign_negative())
+            {
+                skipped_warnings.push(format!(
+                    "Mixed performance skipped account {} because it has negative portfolio value in its history. Please review the underlying transactions and holdings.",
+                    component.account_id
+                ));
+                continue;
+            }
+
+            component_metrics.push(Self::compute_mixed_scope_component_metrics(
+                component,
+                start_date_opt,
+                profile,
+                flow_basis,
+                is_all_time,
+            )?);
+        }
+
+        Self::build_mixed_scope_performance_from_component_metrics(
+            account_histories,
+            component_metrics,
+            skipped_warnings,
+            currency,
+            start_date_opt,
+            include_returns_series,
+            profile,
+        )
+    }
+
+    async fn compute_mixed_scope_performance_from_account_histories_with_attribution(
+        &self,
+        account_histories: &[MixedScopeAccountHistory<'_>],
+        currency: &str,
+        start_date_opt: Option<NaiveDate>,
+        include_returns_series: bool,
+        profile: PerformanceSummaryProfile,
+    ) -> Result<PerformanceResult> {
+        let flow_basis = ExternalFlowBasis::BaseCurrency;
+        let is_all_time = start_date_opt.is_none();
+        let mut component_metrics = Vec::new();
+        let mut skipped_warnings = Vec::new();
+
+        for component in account_histories {
+            if component.history.len() < 2 {
+                skipped_warnings.push(format!(
+                    "Mixed performance skipped account {} because at least two valuation points are required.",
+                    component.account_id
+                ));
+                continue;
+            }
+
+            if component
+                .history
+                .iter()
+                .any(|point| Self::return_total_value(point, flow_basis).is_sign_negative())
+            {
+                skipped_warnings.push(format!(
+                    "Mixed performance skipped account {} because it has negative portfolio value in its history. Please review the underlying transactions and holdings.",
+                    component.account_id
+                ));
+                continue;
+            }
+
+            let component_profile = if profile == PerformanceSummaryProfile::Dashboard {
+                PerformanceSummaryProfile::Dashboard
+            } else {
+                PerformanceSummaryProfile::Summary
+            };
+            let mut metrics = Self::compute_mixed_scope_component_metrics(
+                component,
+                start_date_opt,
+                component_profile,
+                flow_basis,
+                is_all_time,
+            )?;
+
+            if profile != PerformanceSummaryProfile::Dashboard
+                && matches!(component.tracking_mode, TrackingMode::Transactions)
+            {
+                let mut component_result = Self::compute_mixed_scope_transaction_component_result(
+                    component,
+                    start_date_opt,
+                    flow_basis,
+                    PerformanceSummaryProfile::Summary,
+                )?;
+                component_result.scope.id = component.account_id.to_string();
+                self.finalize_attribution_from_event_effects(
+                    &mut component_result,
+                    &[component.account_id.to_string()],
+                    component.history,
+                    Self::attribution_baseline(false, start_date_opt),
+                    AttributionEffectSeed::default(),
+                )
+                .await;
+                metrics.amount = Some(Self::attribution_pnl(&component_result.attribution));
+                metrics.attribution = component_result.attribution;
+                metrics.warnings = component_result.data_quality.warnings;
+                metrics.not_applicable_reasons = Self::mixed_scope_component_not_applicable_reasons(
+                    component_result.data_quality.not_applicable_reasons,
+                    component.tracking_mode,
+                );
+            }
+
+            metrics.denominator = Self::mixed_scope_component_denominator(
+                component.history,
+                component.tracking_mode,
+                is_all_time,
+                flow_basis,
+            );
+            component_metrics.push(metrics);
+        }
+
+        Self::build_mixed_scope_performance_from_component_metrics(
+            account_histories,
+            component_metrics,
+            skipped_warnings,
+            currency,
+            start_date_opt,
+            include_returns_series,
+            profile,
+        )
     }
 
     #[cfg(test)]
@@ -2446,6 +4196,7 @@ impl PerformanceService {
         )
     }
 
+    #[cfg(test)]
     fn compute_mixed_scope_performance_with_profile(
         full_history: &[DailyAccountValuation],
         include_returns_series: bool,
@@ -2466,19 +4217,14 @@ impl PerformanceService {
         let gain_loss_amount = end_value - start_value - net_cash_flow;
         let include_risk = profile == PerformanceSummaryProfile::Full;
         let include_annualized_returns = profile == PerformanceSummaryProfile::Full;
-        let value_return = if start_value > Decimal::ZERO {
+        let has_negative_value = full_history
+            .iter()
+            .any(|point| Self::return_total_value(point, flow_basis).is_sign_negative());
+        let value_return = if !has_negative_value && start_value > Decimal::ZERO {
             Some(gain_loss_amount / start_value)
         } else {
             None
         };
-        if full_history
-            .iter()
-            .any(|point| Self::return_total_value(point, flow_basis).is_sign_negative())
-        {
-            return Err(errors::Error::Validation(ValidationError::InvalidInput(
-                "Account scope has negative portfolio value in its history. Please review the underlying transactions and holdings.".to_string(),
-            )));
-        }
 
         let mut returns = Vec::new();
         let mut risk_samples = Vec::new();
@@ -2499,9 +4245,7 @@ impl PerformanceService {
                 let prev_value = Self::return_total_value(prev_point, flow_basis);
                 let curr_value = Self::return_total_value(curr_point, flow_basis);
                 if prev_value.is_sign_negative() || curr_value.is_sign_negative() {
-                    return Err(errors::Error::Validation(ValidationError::InvalidInput(
-                        "Account scope has negative portfolio value in its history. Please review the underlying transactions and holdings.".to_string(),
-                    )));
+                    continue;
                 }
 
                 cumulative_external_flow += flow.net();
@@ -2541,21 +4285,13 @@ impl PerformanceService {
             AttributionBaseline::PeriodStart,
         );
         let delta_total_value = end_value - start_value;
-        let mut attribution = PerformanceAttribution {
+        let attribution = PerformanceAttribution {
             contributions,
             distributions,
             unrealized_pnl_change,
             fx_effect,
             ..PerformanceAttribution::default()
         };
-        attribution.residual = delta_total_value
-            - (attribution.contributions - attribution.distributions
-                + attribution.income
-                + attribution.realized_pnl
-                + attribution.unrealized_pnl_change
-                + attribution.fx_effect
-                - attribution.fees
-                - attribution.taxes);
         let risk = if include_risk {
             Self::risk_from_samples(&risk_samples, Some(actual_start_date))
         } else {
@@ -2566,6 +4302,12 @@ impl PerformanceService {
         } else {
             "This scope mixes transaction-mode and holdings-mode accounts, so TWR is unavailable. The return is a value return over the selected scope.".to_string()
         }];
+        if has_negative_value {
+            warnings.push(
+                "Mixed performance value return unavailable because the scope has negative portfolio value in its history. Review the underlying transactions, prices, and cash balances."
+                    .to_string(),
+            );
+        }
         warnings.extend(Self::external_flow_quality_warnings(&daily_flows));
         let mut not_applicable_reasons =
             vec!["TWR unavailable for mixed transaction and holdings scopes.".to_string()];
@@ -2574,13 +4316,23 @@ impl PerformanceService {
                 .push("IRR unavailable for mixed transaction and holdings scopes.".to_string());
         }
         if value_return.is_none() {
-            not_applicable_reasons.push(
+            let reason = if has_negative_value {
+                "Value return unavailable for mixed scope because portfolio value is negative during the period."
+            } else {
                 "Value return unavailable for mixed scope because starting value is zero or negative."
-                    .to_string(),
-            );
+            };
+            not_applicable_reasons.push(reason.to_string());
+        }
+        let unreconciled_delta =
+            Self::attribution_unreconciled_delta(delta_total_value, &attribution);
+        if !unreconciled_delta.is_zero() {
+            warnings.push(format!(
+                "Mixed performance attribution did not reconcile to the summary amount; unreconciled delta is {}.",
+                unreconciled_delta.round_dp(DECIMAL_PRECISION)
+            ));
         }
 
-        Ok(Self::build_result(
+        let mut result = Self::build_result(
             String::new(),
             currency,
             Some(actual_start_date),
@@ -2608,7 +4360,10 @@ impl PerformanceService {
             returns,
             false,
             true,
-        ))
+        );
+        result.basis_status = Self::holdings_basis_status(end_point);
+        Self::refresh_summary(&mut result);
+        Ok(result)
     }
 
     /// Internal function for calculating symbol/benchmark performance (Full)
@@ -2743,7 +4498,7 @@ impl PerformanceService {
             (end_price / start_price) - Decimal::ONE
         };
         let annualized_return =
-            Self::calculate_annualized_return(actual_start_date, actual_end_date, total_return);
+            Self::annualize_optional_return(actual_start_date, actual_end_date, Some(total_return));
         let result = Self::build_result(
             asset_id.to_string(),
             currency,
@@ -2756,7 +4511,7 @@ impl PerformanceService {
                 irr: None,
                 annualized_irr: None,
                 value_return: Some(total_return.round_dp(DECIMAL_PRECISION)),
-                annualized_value_return: Some(annualized_return.round_dp(DECIMAL_PRECISION)),
+                annualized_value_return: annualized_return,
             },
             PerformanceAttribution::default(),
             Self::risk_from_samples(&risk_samples, Some(actual_start_date)),
@@ -3142,7 +4897,7 @@ impl PerformanceServiceTrait for PerformanceService {
         .await
     }
 
-    /// Calculates summary performance metrics. The `Headline` profile is used by
+    /// Calculates summary performance metrics. The `Summary` profile is used by
     /// dashboard cards to avoid unused IRR/risk work.
     async fn calculate_performance_summary(
         &self,
@@ -3294,7 +5049,10 @@ mod tests {
     };
     use crate::fx::{ExchangeRate, FxServiceTrait, NewExchangeRate};
     use crate::lots::{AssetLotView, LotClosure};
-    use crate::portfolio::snapshot::{AccountStateSnapshot, HoldingsCalculator, Lot, Position};
+    use crate::portfolio::snapshot::{
+        AccountStateSnapshot, HoldingsCalculator, Lot, Position, ProjectionRun,
+    };
+    use crate::portfolio::valuation::ValuationStatus;
     use crate::portfolio::valuation::{
         ExternalFlowSource, NegativeBalanceInfo, ValuationRecalcMode,
     };
@@ -3304,6 +5062,7 @@ mod tests {
         SyncResult,
     };
     use chrono::{DateTime, Utc};
+    use serde_json::json;
     use std::collections::VecDeque;
     use wealthfolio_market_data::DividendEvent;
 
@@ -3314,7 +5073,6 @@ mod tests {
             + result.attribution.fx_effect
             - result.attribution.fees
             - result.attribution.taxes
-            + result.attribution.residual
     }
 
     fn valuation(
@@ -3335,18 +5093,47 @@ mod tests {
             investment_market_value,
             total_value,
             cost_basis,
+            book_basis: net_contribution,
             net_contribution,
             cash_balance_base: total_value - investment_market_value,
             investment_market_value_base: investment_market_value,
             total_value_base: total_value,
             cost_basis_base: cost_basis,
+            book_basis_base: net_contribution,
             net_contribution_base: net_contribution,
             external_inflow_base: Decimal::ZERO,
             external_outflow_base: Decimal::ZERO,
-            external_flow_source: ValuationExternalFlowSource::Unknown,
+            // No explicit flow provenance set: neutral by default (a quiet day).
+            external_flow_source: ValuationExternalFlowSource::NoFlow,
             performance_eligible_value_base: total_value,
+            value_status: ValuationStatus::Complete,
+            basis_status: if investment_market_value.is_zero() {
+                BasisStatus::NotApplicable
+            } else {
+                BasisStatus::Complete
+            },
             calculated_at: DateTime::<Utc>::from_timestamp(0, 0).unwrap(),
         }
+    }
+
+    fn account_valuation(
+        account_id: &str,
+        date: &str,
+        total_value: Decimal,
+        net_contribution: Decimal,
+        investment_market_value: Decimal,
+        cost_basis: Decimal,
+    ) -> DailyAccountValuation {
+        let mut valuation = valuation(
+            date,
+            total_value,
+            net_contribution,
+            investment_market_value,
+            cost_basis,
+        );
+        valuation.id = format!("{}-{}", account_id, date);
+        valuation.account_id = account_id.to_string();
+        valuation
     }
 
     fn lot_disposal(
@@ -3397,11 +5184,22 @@ mod tests {
     #[derive(Clone)]
     struct TestValuationService {
         history: Vec<DailyAccountValuation>,
+        fail_aggregate_scope_history: bool,
     }
 
     impl TestValuationService {
         fn new(history: Vec<DailyAccountValuation>) -> Self {
-            Self { history }
+            Self {
+                history,
+                fail_aggregate_scope_history: false,
+            }
+        }
+
+        fn new_with_aggregate_failure(history: Vec<DailyAccountValuation>) -> Self {
+            Self {
+                history,
+                fail_aggregate_scope_history: true,
+            }
         }
 
         fn filtered_history(
@@ -3451,6 +5249,12 @@ mod tests {
             start_date_opt: Option<NaiveDate>,
             end_date_opt: Option<NaiveDate>,
         ) -> Result<Vec<DailyAccountValuation>> {
+            if self.fail_aggregate_scope_history {
+                return Err(errors::Error::Unexpected(
+                    "aggregate scoped history should not be loaded".to_string(),
+                ));
+            }
+
             Ok(self
                 .filtered_history(start_date_opt, end_date_opt)
                 .into_iter()
@@ -3553,11 +5357,31 @@ mod tests {
 
         fn get_quotes_in_range_filled(
             &self,
-            _symbols: &HashSet<String>,
-            _start: NaiveDate,
-            _end: NaiveDate,
+            symbols: &HashSet<String>,
+            start: NaiveDate,
+            end: NaiveDate,
         ) -> Result<Vec<Quote>> {
-            Ok(Vec::new())
+            let quote_date = date("2026-05-02");
+            if !symbols.contains("AAPL240119C00150000") || quote_date < start || quote_date > end {
+                return Ok(Vec::new());
+            }
+
+            let timestamp = quote_date.and_hms_opt(0, 0, 0).unwrap().and_utc();
+            Ok(vec![Quote {
+                id: "quote-AAPL240119C00150000".to_string(),
+                asset_id: "AAPL240119C00150000".to_string(),
+                timestamp,
+                open: dec!(5),
+                high: dec!(5),
+                low: dec!(5),
+                close: dec!(5),
+                adjclose: dec!(5),
+                volume: Decimal::ZERO,
+                currency: "USD".to_string(),
+                data_source: "TEST".to_string(),
+                created_at: timestamp,
+                notes: None,
+            }])
         }
 
         async fn get_daily_quotes(
@@ -3770,9 +5594,13 @@ mod tests {
         ) -> Result<Decimal> {
             if from_currency == to_currency {
                 Ok(Decimal::ONE)
+            } else if from_currency == "CAD" && to_currency == "USD" {
+                Ok(dec!(0.75))
+            } else if from_currency == "USD" && to_currency == "CAD" {
+                Ok(dec!(1.3333333333333333333333333333))
             } else {
                 Err(errors::Error::Unexpected(
-                    "TestFxService only supports same-currency conversion".to_string(),
+                    "TestFxService only supports same-currency and CAD/USD conversion".to_string(),
                 ))
             }
         }
@@ -3804,9 +5632,13 @@ mod tests {
         ) -> Result<Decimal> {
             if from_currency == to_currency {
                 Ok(amount)
+            } else if from_currency == "CAD" && to_currency == "USD" {
+                Ok(amount * dec!(0.75))
+            } else if from_currency == "USD" && to_currency == "CAD" {
+                Ok(amount * dec!(1.3333333333333333333333333333))
             } else {
                 Err(errors::Error::Unexpected(
-                    "TestFxService only supports same-currency conversion".to_string(),
+                    "TestFxService only supports same-currency and CAD/USD conversion".to_string(),
                 ))
             }
         }
@@ -3955,9 +5787,10 @@ mod tests {
         }
     }
 
-    #[derive(Clone)]
+    #[derive(Clone, Default)]
     struct TestLotRepository {
         disposals: Vec<LotDisposal>,
+        lots: Vec<LotRecord>,
     }
 
     #[async_trait]
@@ -3986,8 +5819,13 @@ mod tests {
             Ok(Vec::new())
         }
 
-        async fn get_all_lots_for_account(&self, _account_id: &str) -> Result<Vec<LotRecord>> {
-            Ok(Vec::new())
+        async fn get_all_lots_for_account(&self, account_id: &str) -> Result<Vec<LotRecord>> {
+            Ok(self
+                .lots
+                .iter()
+                .filter(|lot| lot.account_id == account_id)
+                .cloned()
+                .collect())
         }
 
         async fn get_lots_for_asset(&self, _asset_id: &str) -> Result<Vec<LotRecord>> {
@@ -4023,6 +5861,24 @@ mod tests {
                 .disposals
                 .iter()
                 .filter(|disposal| disposal.account_id == account_id)
+                .cloned()
+                .collect())
+        }
+
+        fn get_lot_disposals_for_accounts_in_date_range_sync(
+            &self,
+            account_ids: &[String],
+            start_date_exclusive: NaiveDate,
+            end_date_inclusive: NaiveDate,
+        ) -> Result<Vec<LotDisposal>> {
+            Ok(self
+                .disposals
+                .iter()
+                .filter(|disposal| account_ids.contains(&disposal.account_id))
+                .filter(|disposal| {
+                    NaiveDate::parse_from_str(&disposal.disposal_date, "%Y-%m-%d")
+                        .is_ok_and(|date| date > start_date_exclusive && date <= end_date_inclusive)
+                })
                 .cloned()
                 .collect())
         }
@@ -4148,6 +6004,7 @@ mod tests {
             _date_from: Option<NaiveDate>,
             _date_to: Option<NaiveDate>,
             _instrument_type_filter: Option<Vec<String>>,
+            _activity_id_filter: Option<Vec<String>>,
         ) -> Result<crate::activities::ActivitySearchResponse> {
             Err(errors::Error::Unexpected(
                 "TestActivityRepository::search_activities should not be called".to_string(),
@@ -4397,6 +6254,7 @@ mod tests {
         let mut deposit_day =
             valuation("2026-03-15", dec!(2100), dec!(2100), dec!(1820), dec!(1820));
         deposit_day.external_inflow_base = dec!(2000);
+        deposit_day.external_flow_source = ValuationExternalFlowSource::CashAmount;
         history.push(deposit_day);
 
         // Mar 16 → Apr 13: holdings drift down by ~0.7/day (~$20 total over ~29 days).
@@ -4457,6 +6315,7 @@ mod tests {
             unit_price: None,
             amount: None,
             fee: Some(Decimal::ZERO),
+            tax: None,
             currency: "USD".to_string(),
             fx_rate: None,
             notes: None,
@@ -4487,6 +6346,20 @@ mod tests {
         activity
     }
 
+    fn buy_activity_on(
+        id: &str,
+        account_id: &str,
+        date_str: &str,
+        quantity: Decimal,
+        price: Decimal,
+    ) -> Activity {
+        let mut activity = test_activity(id, account_id, ActivityType::Buy, date_str);
+        activity.asset_id = Some("AAPL".to_string());
+        activity.quantity = Some(quantity);
+        activity.unit_price = Some(price);
+        activity
+    }
+
     fn sell_activity(id: &str, account_id: &str, quantity: Decimal, price: Decimal) -> Activity {
         sell_activity_on(id, account_id, "2026-05-02", quantity, price)
     }
@@ -4510,6 +6383,54 @@ mod tests {
         activity
     }
 
+    fn transfer_out_activity_on(
+        id: &str,
+        account_id: &str,
+        date_str: &str,
+        quantity: Decimal,
+    ) -> Activity {
+        let mut activity = test_activity(id, account_id, ActivityType::TransferOut, date_str);
+        activity.asset_id = Some("AAPL".to_string());
+        activity.quantity = Some(quantity);
+        activity.unit_price = Some(Decimal::ZERO);
+        activity
+    }
+
+    fn lot_record_for_fee_gross_up(
+        id: &str,
+        account_id: &str,
+        open_activity_id: &str,
+    ) -> LotRecord {
+        LotRecord {
+            id: id.to_string(),
+            account_id: account_id.to_string(),
+            asset_id: "AAPL".to_string(),
+            open_date: "2026-05-02".to_string(),
+            open_activity_id: Some(open_activity_id.to_string()),
+            original_quantity: "1".to_string(),
+            remaining_quantity: "0".to_string(),
+            cost_per_unit: "100".to_string(),
+            original_cost_basis: "110".to_string(),
+            remaining_cost_basis: "0".to_string(),
+            original_cost_basis_base: "110".to_string(),
+            remaining_cost_basis_base: "0".to_string(),
+            fee_allocated: "10".to_string(),
+            fee_allocated_base: "10".to_string(),
+            tax_allocated: "0".to_string(),
+            tax_allocated_base: "0".to_string(),
+            currency: "USD".to_string(),
+            base_currency: "USD".to_string(),
+            fx_rate_to_base: "1".to_string(),
+            cost_basis_method: "FIFO".to_string(),
+            split_ratio: "1".to_string(),
+            is_closed: true,
+            close_date: Some("2026-05-03".to_string()),
+            close_activity_id: Some("transfer-out-1".to_string()),
+            created_at: "2026-05-02T00:00:00.000Z".to_string(),
+            updated_at: "2026-05-03T00:00:00.000Z".to_string(),
+        }
+    }
+
     fn generate_fifo_sell_disposal() -> LotDisposal {
         let account_id = "acct";
         let start_date = date("2026-05-01");
@@ -4529,13 +6450,20 @@ mod tests {
             id: "lot-1".to_string(),
             position_id: position.id.clone(),
             acquisition_date: acquisition_time,
+            acquisition_local_date: None,
             quantity: dec!(10),
             original_quantity: dec!(10),
             cost_basis: dec!(1000),
             acquisition_price: dec!(100),
             acquisition_fees: Decimal::ZERO,
             original_acquisition_fees: Decimal::ZERO,
+            acquisition_taxes: Decimal::ZERO,
+            original_acquisition_taxes: Decimal::ZERO,
             fx_rate_to_position: None,
+            fx_rate_to_account: None,
+            account_currency: None,
+            fx_rate_to_base: None,
+            base_currency: None,
             source_activity_id: Some("buy-1".to_string()),
             split_ratio: Decimal::ONE,
         }]);
@@ -4558,8 +6486,10 @@ mod tests {
             Arc::new(RwLock::new("USD".to_string())),
             Arc::new(TestAssetRepository),
         );
+        let mut run = ProjectionRun::new();
         let result = calculator
             .calculate_next_holdings(
+                &mut run,
                 &previous_snapshot,
                 &[sell_activity("sell-1", account_id, dec!(4), dec!(120))],
                 sell_date,
@@ -4574,7 +6504,7 @@ mod tests {
         assert_eq!(position.quantity, dec!(6));
         assert_eq!(position.total_cost_basis, dec!(600));
 
-        let disposals = calculator.take_lot_disposals(account_id, "FIFO");
+        let disposals = run.take_lot_disposals(account_id, "FIFO");
         assert_eq!(disposals.len(), 1);
         disposals.into_iter().next().unwrap()
     }
@@ -4599,13 +6529,20 @@ mod tests {
             id: "lot-1".to_string(),
             position_id: position.id.clone(),
             acquisition_date: acquisition_time,
+            acquisition_local_date: None,
             quantity: dec!(10),
             original_quantity: dec!(10),
             cost_basis: dec!(1000),
             acquisition_price: dec!(100),
             acquisition_fees: Decimal::ZERO,
             original_acquisition_fees: Decimal::ZERO,
+            acquisition_taxes: Decimal::ZERO,
+            original_acquisition_taxes: Decimal::ZERO,
             fx_rate_to_position: None,
+            fx_rate_to_account: None,
+            account_currency: None,
+            fx_rate_to_base: None,
+            base_currency: None,
             source_activity_id: Some("buy-1".to_string()),
             split_ratio: Decimal::ONE,
         }]);
@@ -4628,8 +6565,10 @@ mod tests {
             Arc::new(RwLock::new("USD".to_string())),
             Arc::new(TestAssetRepository),
         );
+        let mut run = ProjectionRun::new();
         let split_result = calculator
             .calculate_next_holdings(
+                &mut run,
                 &previous_snapshot,
                 &[split_activity_on(
                     "split-1",
@@ -4653,6 +6592,7 @@ mod tests {
 
         let sell_result = calculator
             .calculate_next_holdings(
+                &mut run,
                 &split_result.snapshot,
                 &[sell_activity_on(
                     "sell-split-1",
@@ -4675,7 +6615,7 @@ mod tests {
         assert_eq!(position.lots[0].quantity, dec!(7));
         assert_eq!(position.lots[0].split_ratio, dec!(2));
 
-        let disposals = calculator.take_lot_disposals(account_id, "FIFO");
+        let disposals = run.take_lot_disposals(account_id, "FIFO");
         assert_eq!(disposals.len(), 1);
         disposals.into_iter().next().unwrap()
     }
@@ -4727,6 +6667,7 @@ mod tests {
             PerformanceService::new(valuation_service, Arc::new(TestQuoteService))
                 .with_lot_repository(Arc::new(TestLotRepository {
                     disposals: vec![disposal],
+                    ..Default::default()
                 }));
         let account_ids = vec!["acct".to_string()];
 
@@ -4749,6 +6690,7 @@ mod tests {
         assert_eq!(performance.attribution.unrealized_pnl_change, dec!(120));
         assert_eq!(performance.attribution.residual, Decimal::ZERO);
         assert_eq!(attribution_pnl(&performance), dec!(200));
+        assert_eq!(performance.summary.amount, Some(dec!(200)));
         assert_eq!(performance.returns.twr.unwrap().round_dp(4), dec!(0.2));
         assert_eq!(
             performance.returns.value_return.unwrap().round_dp(4),
@@ -4758,6 +6700,65 @@ mod tests {
             performance.series.last().unwrap().value.round_dp(4),
             dec!(0.2)
         );
+    }
+
+    #[tokio::test]
+    async fn buy_to_cover_lot_disposal_feeds_realized_pnl_into_performance() {
+        let mut start = valuation("2026-05-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        start.account_currency = "USD".to_string();
+        start.base_currency = "USD".to_string();
+        start.external_flow_source = ExternalFlowSource::ActivityDerived;
+
+        let mut after_cover =
+            valuation("2026-05-03", dec!(1080), dec!(1000), dec!(1000), dec!(1000));
+        after_cover.account_currency = "USD".to_string();
+        after_cover.base_currency = "USD".to_string();
+        after_cover.external_flow_source = ExternalFlowSource::ActivityDerived;
+
+        let mut cover_disposal = lot_disposal("USD", "USD", "1", "-400", "-400", "80");
+        cover_disposal.id = "cover-disposal-1".to_string();
+        cover_disposal.disposal_activity_id = "cover-1".to_string();
+        cover_disposal.disposal_date = "2026-05-02".to_string();
+        cover_disposal.quantity = "-4".to_string();
+
+        let valuation_service = Arc::new(TestValuationService::new(vec![start, after_cover]));
+        let performance_service =
+            PerformanceService::new(valuation_service, Arc::new(TestQuoteService))
+                .with_lot_repository(Arc::new(TestLotRepository {
+                    disposals: vec![cover_disposal],
+                    ..Default::default()
+                }))
+                .with_activity_repository(
+                    Arc::new(TestActivityRepository::new(vec![buy_activity_on(
+                        "cover-1",
+                        "acct",
+                        "2026-05-02",
+                        dec!(4),
+                        dec!(80),
+                    )])),
+                    Arc::new(TestFxService),
+                );
+
+        let performance = performance_service
+            .calculate_performance_history_for_accounts(
+                "scope:acct",
+                &["acct".to_string()],
+                "USD",
+                &HashMap::new(),
+                &HashMap::new(),
+                Some(date("2026-05-01")),
+                Some(date("2026-05-03")),
+            )
+            .await
+            .expect("performance should include buy-to-cover disposal attribution");
+
+        assert_eq!(performance.attribution.contributions, Decimal::ZERO);
+        assert_eq!(performance.attribution.distributions, Decimal::ZERO);
+        assert_eq!(performance.attribution.realized_pnl, dec!(80));
+        assert_eq!(performance.attribution.unrealized_pnl_change, Decimal::ZERO);
+        assert_eq!(performance.attribution.residual, Decimal::ZERO);
+        assert_eq!(attribution_pnl(&performance), dec!(80));
+        assert_eq!(performance.summary.amount, Some(dec!(80)));
     }
 
     #[tokio::test]
@@ -4836,6 +6837,7 @@ mod tests {
             PerformanceService::new(valuation_service, Arc::new(TestQuoteService))
                 .with_lot_repository(Arc::new(TestLotRepository {
                     disposals: vec![disposal],
+                    ..Default::default()
                 }))
                 .with_activity_repository(activity_repo, Arc::new(TestFxService));
         let account_ids = vec!["acct".to_string()];
@@ -4862,6 +6864,7 @@ mod tests {
         assert_eq!(performance.attribution.taxes, Decimal::ZERO);
         assert_eq!(performance.attribution.residual, Decimal::ZERO);
         assert_eq!(attribution_pnl(&performance), dec!(520));
+        assert_eq!(performance.summary.amount, Some(dec!(520)));
         assert_eq!(performance.returns.twr.unwrap().round_dp(4), dec!(0.52));
         assert_eq!(
             performance.returns.value_return.unwrap().round_dp(4),
@@ -4871,6 +6874,819 @@ mod tests {
             performance.series.last().unwrap().value.round_dp(4),
             dec!(0.52)
         );
+    }
+
+    #[tokio::test]
+    async fn transfer_out_lot_feedback_does_not_feed_realized_pnl() {
+        let mut start = valuation("2026-05-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        start.account_currency = "USD".to_string();
+        start.base_currency = "USD".to_string();
+        start.external_flow_source = ExternalFlowSource::ActivityDerived;
+
+        let mut after_transfer =
+            valuation("2026-05-03", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        after_transfer.account_currency = "USD".to_string();
+        after_transfer.base_currency = "USD".to_string();
+        after_transfer.external_flow_source = ExternalFlowSource::ActivityDerived;
+
+        let mut transfer_disposal = lot_disposal("USD", "USD", "1", "100", "100", "33");
+        transfer_disposal.id = "transfer-disposal-1".to_string();
+        transfer_disposal.disposal_activity_id = "transfer-out-1".to_string();
+        transfer_disposal.disposal_date = "2026-05-02".to_string();
+
+        let transfer_out =
+            transfer_out_activity_on("transfer-out-1", "acct", "2026-05-02", dec!(1));
+        let valuation_service = Arc::new(TestValuationService::new(vec![start, after_transfer]));
+        let performance_service =
+            PerformanceService::new(valuation_service, Arc::new(TestQuoteService))
+                .with_lot_repository(Arc::new(TestLotRepository {
+                    disposals: vec![transfer_disposal],
+                    ..Default::default()
+                }))
+                .with_activity_repository(
+                    Arc::new(TestActivityRepository::new(vec![transfer_out])),
+                    Arc::new(TestFxService),
+                );
+
+        let performance = performance_service
+            .calculate_performance_history_for_accounts(
+                "scope:acct",
+                &["acct".to_string()],
+                "USD",
+                &HashMap::new(),
+                &HashMap::new(),
+                Some(date("2026-05-01")),
+                Some(date("2026-05-03")),
+            )
+            .await
+            .expect("transfer lot feedback should not be realized P&L");
+
+        assert_eq!(performance.attribution.realized_pnl, Decimal::ZERO);
+        assert_eq!(attribution_pnl(&performance), Decimal::ZERO);
+    }
+
+    #[tokio::test]
+    async fn transfer_out_lot_feedback_does_not_realize_trade_fee_gross_up() {
+        let mut start = valuation("2026-05-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        start.account_currency = "USD".to_string();
+        start.base_currency = "USD".to_string();
+        start.external_flow_source = ExternalFlowSource::ActivityDerived;
+
+        let mut after_transfer =
+            valuation("2026-05-03", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        after_transfer.account_currency = "USD".to_string();
+        after_transfer.base_currency = "USD".to_string();
+        after_transfer.external_flow_source = ExternalFlowSource::ActivityDerived;
+
+        let mut transfer_disposal = lot_disposal("USD", "USD", "1", "110", "110", "0");
+        transfer_disposal.id = "transfer-disposal-fees".to_string();
+        transfer_disposal.lot_id = "lot-fee".to_string();
+        transfer_disposal.disposal_activity_id = "transfer-out-1".to_string();
+        transfer_disposal.disposal_date = "2026-05-03".to_string();
+
+        let mut buy = test_activity("buy-1", "acct", ActivityType::Buy, "2026-05-02");
+        buy.asset_id = Some("AAPL".to_string());
+        buy.quantity = Some(dec!(1));
+        buy.unit_price = Some(dec!(100));
+        buy.fee = Some(dec!(10));
+        let transfer_out =
+            transfer_out_activity_on("transfer-out-1", "acct", "2026-05-03", dec!(1));
+
+        let valuation_service = Arc::new(TestValuationService::new(vec![start, after_transfer]));
+        let performance_service =
+            PerformanceService::new(valuation_service, Arc::new(TestQuoteService))
+                .with_lot_repository(Arc::new(TestLotRepository {
+                    disposals: vec![transfer_disposal],
+                    lots: vec![lot_record_for_fee_gross_up("lot-fee", "acct", "buy-1")],
+                }))
+                .with_activity_repository(
+                    Arc::new(TestActivityRepository::new(vec![buy, transfer_out])),
+                    Arc::new(TestFxService),
+                );
+
+        let performance = performance_service
+            .calculate_performance_history_for_accounts(
+                "scope:acct",
+                &["acct".to_string()],
+                "USD",
+                &HashMap::new(),
+                &HashMap::new(),
+                Some(date("2026-05-01")),
+                Some(date("2026-05-03")),
+            )
+            .await
+            .expect("transfer lot feedback should not gross up buy fees as realized P&L");
+
+        assert_eq!(performance.attribution.realized_pnl, Decimal::ZERO);
+        assert_eq!(performance.attribution.unrealized_pnl_change, Decimal::ZERO);
+        assert_eq!(performance.attribution.fees, dec!(10));
+        assert_eq!(attribution_pnl(&performance), dec!(-10));
+        assert_eq!(performance.summary.amount, Some(dec!(-10)));
+    }
+
+    #[tokio::test]
+    async fn open_buy_trade_charges_are_grossed_up_as_unrealized_without_disposals() {
+        let mut buy = buy_activity_on("buy-open-charge", "acct", "2026-05-02", dec!(1), dec!(100));
+        buy.fee = Some(dec!(5));
+        buy.tax = Some(dec!(2));
+
+        let performance_service = PerformanceService::new(
+            Arc::new(TestValuationService::new(Vec::new())),
+            Arc::new(TestQuoteService),
+        )
+        .with_activity_repository(
+            Arc::new(TestActivityRepository::new(vec![buy.clone()])),
+            Arc::new(TestFxService),
+        );
+        let result = PerformanceService::build_result(
+            "scope:acct".to_string(),
+            "USD".to_string(),
+            Some(date("2026-05-01")),
+            Some(date("2026-05-02")),
+            ReturnMethod::ValueReturn,
+            PerformanceReturns {
+                twr: None,
+                annualized_twr: None,
+                irr: None,
+                annualized_irr: None,
+                value_return: None,
+                annualized_value_return: None,
+            },
+            PerformanceAttribution::default(),
+            PerformanceService::empty_risk(),
+            PerformanceDataQuality {
+                status: DataQualityStatus::Ok,
+                warnings: Vec::new(),
+                not_applicable_reasons: Vec::new(),
+            },
+            Vec::new(),
+            false,
+            false,
+        );
+
+        let empty_disposals: Vec<LotDisposal> = Vec::new();
+        for period_disposals in [None, Some(empty_disposals.as_slice())] {
+            let effects = performance_service
+                .collect_trade_charge_pnl_gross_up_event_effects(
+                    &result,
+                    &["acct".to_string()],
+                    period_disposals,
+                )
+                .await;
+
+            assert!(effects.complete);
+            assert_eq!(effects.effects.len(), 1);
+            assert_eq!(effects.effects[0].realized_pnl, Decimal::ZERO);
+            assert_eq!(effects.effects[0].unrealized_movement, dec!(7));
+        }
+
+        let mut open_lot =
+            lot_record_for_fee_gross_up("lot-open-charge", "acct", "buy-open-charge");
+        open_lot.remaining_quantity = "1".to_string();
+        open_lot.original_cost_basis = "107".to_string();
+        open_lot.remaining_cost_basis = "107".to_string();
+        open_lot.original_cost_basis_base = "107".to_string();
+        open_lot.remaining_cost_basis_base = "107".to_string();
+        open_lot.fee_allocated = "5".to_string();
+        open_lot.fee_allocated_base = "5".to_string();
+        open_lot.tax_allocated = "2".to_string();
+        open_lot.tax_allocated_base = "2".to_string();
+        open_lot.is_closed = false;
+        open_lot.close_date = None;
+        open_lot.close_activity_id = None;
+
+        let performance_service_with_lot = PerformanceService::new(
+            Arc::new(TestValuationService::new(Vec::new())),
+            Arc::new(TestQuoteService),
+        )
+        .with_lot_repository(Arc::new(TestLotRepository {
+            lots: vec![open_lot],
+            ..Default::default()
+        }))
+        .with_activity_repository(
+            Arc::new(TestActivityRepository::new(vec![buy])),
+            Arc::new(TestFxService),
+        );
+
+        let effects = performance_service_with_lot
+            .collect_trade_charge_pnl_gross_up_event_effects(
+                &result,
+                &["acct".to_string()],
+                Some(empty_disposals.as_slice()),
+            )
+            .await;
+
+        assert!(effects.complete);
+        assert_eq!(effects.effects.len(), 1);
+        assert_eq!(effects.effects[0].realized_pnl, Decimal::ZERO);
+        assert_eq!(effects.effects[0].unrealized_movement, dec!(7));
+    }
+
+    #[tokio::test]
+    async fn open_short_trade_charges_are_grossed_up_as_unrealized_without_disposals() {
+        let mut sell = sell_activity_on(
+            "sell-open-short-charge",
+            "acct",
+            "2026-05-02",
+            dec!(1),
+            dec!(100),
+        );
+        sell.fee = Some(dec!(5));
+        sell.tax = Some(dec!(2));
+
+        let mut open_lot =
+            lot_record_for_fee_gross_up("lot-open-short-charge", "acct", "sell-open-short-charge");
+        open_lot.original_quantity = "-1".to_string();
+        open_lot.remaining_quantity = "-1".to_string();
+        open_lot.original_cost_basis = "-93".to_string();
+        open_lot.remaining_cost_basis = "-93".to_string();
+        open_lot.original_cost_basis_base = "-93".to_string();
+        open_lot.remaining_cost_basis_base = "-93".to_string();
+        open_lot.fee_allocated = "5".to_string();
+        open_lot.fee_allocated_base = "5".to_string();
+        open_lot.tax_allocated = "2".to_string();
+        open_lot.tax_allocated_base = "2".to_string();
+        open_lot.is_closed = false;
+        open_lot.close_date = None;
+        open_lot.close_activity_id = None;
+
+        let performance_service = PerformanceService::new(
+            Arc::new(TestValuationService::new(Vec::new())),
+            Arc::new(TestQuoteService),
+        )
+        .with_lot_repository(Arc::new(TestLotRepository {
+            lots: vec![open_lot],
+            ..Default::default()
+        }))
+        .with_activity_repository(
+            Arc::new(TestActivityRepository::new(vec![sell])),
+            Arc::new(TestFxService),
+        );
+        let result = PerformanceService::build_result(
+            "scope:acct".to_string(),
+            "USD".to_string(),
+            Some(date("2026-05-01")),
+            Some(date("2026-05-02")),
+            ReturnMethod::ValueReturn,
+            PerformanceReturns {
+                twr: None,
+                annualized_twr: None,
+                irr: None,
+                annualized_irr: None,
+                value_return: None,
+                annualized_value_return: None,
+            },
+            PerformanceAttribution::default(),
+            PerformanceService::empty_risk(),
+            PerformanceDataQuality {
+                status: DataQualityStatus::Ok,
+                warnings: Vec::new(),
+                not_applicable_reasons: Vec::new(),
+            },
+            Vec::new(),
+            false,
+            false,
+        );
+
+        let empty_disposals: Vec<LotDisposal> = Vec::new();
+        let effects = performance_service
+            .collect_trade_charge_pnl_gross_up_event_effects(
+                &result,
+                &["acct".to_string()],
+                Some(empty_disposals.as_slice()),
+            )
+            .await;
+
+        assert!(effects.complete);
+        assert_eq!(effects.effects.len(), 1);
+        assert_eq!(effects.effects[0].realized_pnl, Decimal::ZERO);
+        assert_eq!(effects.effects[0].unrealized_movement, dec!(7));
+    }
+
+    #[tokio::test]
+    async fn partial_same_period_buy_sell_prorates_trade_charge_gross_up() {
+        let mut buy = buy_activity_on(
+            "buy-partial-charge",
+            "acct",
+            "2026-05-02",
+            dec!(10),
+            dec!(100),
+        );
+        buy.fee = Some(dec!(5));
+        buy.tax = Some(dec!(2));
+        let sell = sell_activity_on(
+            "sell-partial-charge",
+            "acct",
+            "2026-05-03",
+            dec!(4),
+            dec!(110),
+        );
+
+        let mut open_lot =
+            lot_record_for_fee_gross_up("lot-partial-charge", "acct", "buy-partial-charge");
+        open_lot.original_quantity = "10".to_string();
+        open_lot.remaining_quantity = "6".to_string();
+        open_lot.original_cost_basis = "1007".to_string();
+        open_lot.remaining_cost_basis = "604.2".to_string();
+        open_lot.original_cost_basis_base = "1007".to_string();
+        open_lot.remaining_cost_basis_base = "604.2".to_string();
+        open_lot.fee_allocated = "5".to_string();
+        open_lot.fee_allocated_base = "5".to_string();
+        open_lot.tax_allocated = "2".to_string();
+        open_lot.tax_allocated_base = "2".to_string();
+        open_lot.is_closed = false;
+        open_lot.close_date = None;
+        open_lot.close_activity_id = None;
+
+        let mut disposal = lot_disposal("USD", "USD", "1", "402.8", "402.8", "37.2");
+        disposal.id = "partial-charge-disposal".to_string();
+        disposal.lot_id = open_lot.id.clone();
+        disposal.asset_id = "AAPL".to_string();
+        disposal.disposal_activity_id = sell.id.clone();
+        disposal.disposal_date = "2026-05-03".to_string();
+        disposal.quantity = "4".to_string();
+        let period_disposals = vec![disposal.clone()];
+
+        let performance_service = PerformanceService::new(
+            Arc::new(TestValuationService::new(Vec::new())),
+            Arc::new(TestQuoteService),
+        )
+        .with_lot_repository(Arc::new(TestLotRepository {
+            disposals: vec![disposal],
+            lots: vec![open_lot],
+        }))
+        .with_activity_repository(
+            Arc::new(TestActivityRepository::new(vec![buy, sell])),
+            Arc::new(TestFxService),
+        );
+        let result = PerformanceService::build_result(
+            "scope:acct".to_string(),
+            "USD".to_string(),
+            Some(date("2026-05-01")),
+            Some(date("2026-05-03")),
+            ReturnMethod::ValueReturn,
+            PerformanceReturns {
+                twr: None,
+                annualized_twr: None,
+                irr: None,
+                annualized_irr: None,
+                value_return: None,
+                annualized_value_return: None,
+            },
+            PerformanceAttribution::default(),
+            PerformanceService::empty_risk(),
+            PerformanceDataQuality {
+                status: DataQualityStatus::Ok,
+                warnings: Vec::new(),
+                not_applicable_reasons: Vec::new(),
+            },
+            Vec::new(),
+            false,
+            false,
+        );
+
+        let effects = performance_service
+            .collect_trade_charge_pnl_gross_up_event_effects(
+                &result,
+                &["acct".to_string()],
+                Some(period_disposals.as_slice()),
+            )
+            .await;
+
+        assert!(effects.complete);
+        assert_eq!(effects.effects.len(), 2);
+        let realized = effects
+            .effects
+            .iter()
+            .map(|effect| effect.realized_pnl)
+            .sum::<Decimal>();
+        let unrealized = effects
+            .effects
+            .iter()
+            .map(|effect| effect.unrealized_movement)
+            .sum::<Decimal>();
+        assert_eq!(realized.round_dp(2), dec!(2.80));
+        assert_eq!(unrealized.round_dp(2), dec!(4.20));
+        assert_eq!((realized + unrealized).round_dp(2), dec!(7.00));
+    }
+
+    #[tokio::test]
+    async fn mixed_sell_close_and_open_prorates_activity_trade_charge_gross_up() {
+        let mut sell = sell_activity_on(
+            "sell-mixed-charge",
+            "acct",
+            "2026-05-02",
+            dec!(10),
+            dec!(100),
+        );
+        sell.fee = Some(dec!(8));
+        sell.tax = Some(dec!(2));
+
+        let mut closed_long_lot =
+            lot_record_for_fee_gross_up("lot-prior-long", "acct", "buy-before-period");
+        closed_long_lot.open_date = "2026-04-15".to_string();
+        closed_long_lot.open_activity_id = Some("buy-before-period".to_string());
+        closed_long_lot.original_quantity = "4".to_string();
+        closed_long_lot.remaining_quantity = "0".to_string();
+        closed_long_lot.original_cost_basis = "400".to_string();
+        closed_long_lot.remaining_cost_basis = "0".to_string();
+        closed_long_lot.original_cost_basis_base = "400".to_string();
+        closed_long_lot.remaining_cost_basis_base = "0".to_string();
+        closed_long_lot.fee_allocated = "0".to_string();
+        closed_long_lot.fee_allocated_base = "0".to_string();
+        closed_long_lot.tax_allocated = "0".to_string();
+        closed_long_lot.tax_allocated_base = "0".to_string();
+        closed_long_lot.is_closed = true;
+        closed_long_lot.close_date = Some("2026-05-02".to_string());
+        closed_long_lot.close_activity_id = Some(sell.id.clone());
+
+        let mut open_short_lot =
+            lot_record_for_fee_gross_up("lot-open-short-mixed", "acct", &sell.id);
+        open_short_lot.original_quantity = "-6".to_string();
+        open_short_lot.remaining_quantity = "-6".to_string();
+        open_short_lot.original_cost_basis = "-594".to_string();
+        open_short_lot.remaining_cost_basis = "-594".to_string();
+        open_short_lot.original_cost_basis_base = "-594".to_string();
+        open_short_lot.remaining_cost_basis_base = "-594".to_string();
+        open_short_lot.fee_allocated = "4.8".to_string();
+        open_short_lot.fee_allocated_base = "4.8".to_string();
+        open_short_lot.tax_allocated = "1.2".to_string();
+        open_short_lot.tax_allocated_base = "1.2".to_string();
+        open_short_lot.is_closed = false;
+        open_short_lot.close_date = None;
+        open_short_lot.close_activity_id = None;
+
+        let mut disposal = lot_disposal("USD", "USD", "1", "400", "400", "0");
+        disposal.id = "mixed-sell-close-disposal".to_string();
+        disposal.lot_id = closed_long_lot.id.clone();
+        disposal.asset_id = "AAPL".to_string();
+        disposal.disposal_activity_id = sell.id.clone();
+        disposal.disposal_date = "2026-05-02".to_string();
+        disposal.quantity = "4".to_string();
+        let period_disposals = vec![disposal.clone()];
+
+        let performance_service = PerformanceService::new(
+            Arc::new(TestValuationService::new(Vec::new())),
+            Arc::new(TestQuoteService),
+        )
+        .with_lot_repository(Arc::new(TestLotRepository {
+            disposals: vec![disposal],
+            lots: vec![closed_long_lot, open_short_lot],
+        }))
+        .with_activity_repository(
+            Arc::new(TestActivityRepository::new(vec![sell])),
+            Arc::new(TestFxService),
+        );
+        let result = PerformanceService::build_result(
+            "scope:acct".to_string(),
+            "USD".to_string(),
+            Some(date("2026-05-01")),
+            Some(date("2026-05-02")),
+            ReturnMethod::ValueReturn,
+            PerformanceReturns {
+                twr: None,
+                annualized_twr: None,
+                irr: None,
+                annualized_irr: None,
+                value_return: None,
+                annualized_value_return: None,
+            },
+            PerformanceAttribution::default(),
+            PerformanceService::empty_risk(),
+            PerformanceDataQuality {
+                status: DataQualityStatus::Ok,
+                warnings: Vec::new(),
+                not_applicable_reasons: Vec::new(),
+            },
+            Vec::new(),
+            false,
+            false,
+        );
+
+        let effects = performance_service
+            .collect_trade_charge_pnl_gross_up_event_effects(
+                &result,
+                &["acct".to_string()],
+                Some(period_disposals.as_slice()),
+            )
+            .await;
+
+        assert!(effects.complete);
+        assert_eq!(effects.effects.len(), 2);
+        let realized = effects
+            .effects
+            .iter()
+            .map(|effect| effect.realized_pnl)
+            .sum::<Decimal>();
+        let unrealized = effects
+            .effects
+            .iter()
+            .map(|effect| effect.unrealized_movement)
+            .sum::<Decimal>();
+        assert_eq!(realized.round_dp(2), dec!(4.00));
+        assert_eq!(unrealized.round_dp(2), dec!(6.00));
+        assert_eq!((realized + unrealized).round_dp(2), dec!(10.00));
+    }
+
+    #[tokio::test]
+    async fn mixed_buy_cover_and_open_prorates_activity_trade_charge_gross_up() {
+        let mut buy = buy_activity_on(
+            "buy-mixed-charge",
+            "acct",
+            "2026-05-02",
+            dec!(10),
+            dec!(100),
+        );
+        buy.fee = Some(dec!(8));
+        buy.tax = Some(dec!(2));
+
+        let mut closed_short_lot =
+            lot_record_for_fee_gross_up("lot-prior-short", "acct", "sell-before-period");
+        closed_short_lot.open_date = "2026-04-15".to_string();
+        closed_short_lot.open_activity_id = Some("sell-before-period".to_string());
+        closed_short_lot.original_quantity = "-4".to_string();
+        closed_short_lot.remaining_quantity = "0".to_string();
+        closed_short_lot.original_cost_basis = "-400".to_string();
+        closed_short_lot.remaining_cost_basis = "0".to_string();
+        closed_short_lot.original_cost_basis_base = "-400".to_string();
+        closed_short_lot.remaining_cost_basis_base = "0".to_string();
+        closed_short_lot.fee_allocated = "0".to_string();
+        closed_short_lot.fee_allocated_base = "0".to_string();
+        closed_short_lot.tax_allocated = "0".to_string();
+        closed_short_lot.tax_allocated_base = "0".to_string();
+        closed_short_lot.is_closed = true;
+        closed_short_lot.close_date = Some("2026-05-02".to_string());
+        closed_short_lot.close_activity_id = Some(buy.id.clone());
+
+        let mut open_long_lot = lot_record_for_fee_gross_up("lot-open-long-mixed", "acct", &buy.id);
+        open_long_lot.original_quantity = "6".to_string();
+        open_long_lot.remaining_quantity = "6".to_string();
+        open_long_lot.original_cost_basis = "606".to_string();
+        open_long_lot.remaining_cost_basis = "606".to_string();
+        open_long_lot.original_cost_basis_base = "606".to_string();
+        open_long_lot.remaining_cost_basis_base = "606".to_string();
+        open_long_lot.fee_allocated = "4.8".to_string();
+        open_long_lot.fee_allocated_base = "4.8".to_string();
+        open_long_lot.tax_allocated = "1.2".to_string();
+        open_long_lot.tax_allocated_base = "1.2".to_string();
+        open_long_lot.is_closed = false;
+        open_long_lot.close_date = None;
+        open_long_lot.close_activity_id = None;
+
+        let mut disposal = lot_disposal("USD", "USD", "1", "-400", "-400", "0");
+        disposal.id = "mixed-buy-cover-disposal".to_string();
+        disposal.lot_id = closed_short_lot.id.clone();
+        disposal.asset_id = "AAPL".to_string();
+        disposal.disposal_activity_id = buy.id.clone();
+        disposal.disposal_date = "2026-05-02".to_string();
+        disposal.quantity = "-4".to_string();
+        let period_disposals = vec![disposal.clone()];
+
+        let performance_service = PerformanceService::new(
+            Arc::new(TestValuationService::new(Vec::new())),
+            Arc::new(TestQuoteService),
+        )
+        .with_lot_repository(Arc::new(TestLotRepository {
+            disposals: vec![disposal],
+            lots: vec![closed_short_lot, open_long_lot],
+        }))
+        .with_activity_repository(
+            Arc::new(TestActivityRepository::new(vec![buy])),
+            Arc::new(TestFxService),
+        );
+        let result = PerformanceService::build_result(
+            "scope:acct".to_string(),
+            "USD".to_string(),
+            Some(date("2026-05-01")),
+            Some(date("2026-05-02")),
+            ReturnMethod::ValueReturn,
+            PerformanceReturns {
+                twr: None,
+                annualized_twr: None,
+                irr: None,
+                annualized_irr: None,
+                value_return: None,
+                annualized_value_return: None,
+            },
+            PerformanceAttribution::default(),
+            PerformanceService::empty_risk(),
+            PerformanceDataQuality {
+                status: DataQualityStatus::Ok,
+                warnings: Vec::new(),
+                not_applicable_reasons: Vec::new(),
+            },
+            Vec::new(),
+            false,
+            false,
+        );
+
+        let effects = performance_service
+            .collect_trade_charge_pnl_gross_up_event_effects(
+                &result,
+                &["acct".to_string()],
+                Some(period_disposals.as_slice()),
+            )
+            .await;
+
+        assert!(effects.complete);
+        assert_eq!(effects.effects.len(), 2);
+        let realized = effects
+            .effects
+            .iter()
+            .map(|effect| effect.realized_pnl)
+            .sum::<Decimal>();
+        let unrealized = effects
+            .effects
+            .iter()
+            .map(|effect| effect.unrealized_movement)
+            .sum::<Decimal>();
+        assert_eq!(realized.round_dp(2), dec!(4.00));
+        assert_eq!(unrealized.round_dp(2), dec!(6.00));
+        assert_eq!((realized + unrealized).round_dp(2), dec!(10.00));
+    }
+
+    #[tokio::test]
+    async fn transfer_pair_fx_attribution_uses_compiled_security_economics() {
+        let mut start = valuation("2026-05-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        start.account_currency = "USD".to_string();
+        start.base_currency = "USD".to_string();
+
+        let mut after_transfer =
+            valuation("2026-05-02", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        after_transfer.account_currency = "USD".to_string();
+        after_transfer.base_currency = "USD".to_string();
+
+        let mut transfer_out = test_activity(
+            "transfer-out",
+            "from-acct",
+            ActivityType::TransferOut,
+            "2026-05-02",
+        );
+        transfer_out.asset_id = Some("AAPL240119C00150000".to_string());
+        transfer_out.quantity = Some(dec!(2));
+        transfer_out.unit_price = Some(dec!(5));
+        transfer_out.amount = Some(dec!(888));
+        transfer_out.currency = "USD".to_string();
+        transfer_out.source_group_id = Some("transfer-pair-1".to_string());
+
+        let mut transfer_in = test_activity(
+            "transfer-in",
+            "to-acct",
+            ActivityType::TransferIn,
+            "2026-05-02",
+        );
+        transfer_in.asset_id = Some("AAPL240119C00150000".to_string());
+        transfer_in.quantity = Some(dec!(2));
+        transfer_in.unit_price = Some(dec!(5));
+        transfer_in.amount = Some(dec!(999));
+        transfer_in.currency = "CAD".to_string();
+        transfer_in.source_group_id = Some("transfer-pair-1".to_string());
+
+        let history = vec![start, after_transfer];
+        let valuation_service = Arc::new(TestValuationService::new(history.clone()));
+        let activity_repo = Arc::new(TestActivityRepository::new(vec![transfer_out, transfer_in]));
+        let performance_service =
+            PerformanceService::new(valuation_service, Arc::new(TestQuoteService))
+                .with_activity_repository(activity_repo, Arc::new(TestFxService));
+        let account_ids = vec!["from-acct".to_string(), "to-acct".to_string()];
+        let mut result = PerformanceService::build_result(
+            "scope:acct".to_string(),
+            "USD".to_string(),
+            Some(date("2026-05-01")),
+            Some(date("2026-05-02")),
+            ReturnMethod::ValueReturn,
+            PerformanceReturns {
+                twr: None,
+                annualized_twr: None,
+                irr: None,
+                annualized_irr: None,
+                value_return: None,
+                annualized_value_return: None,
+            },
+            PerformanceAttribution::default(),
+            PerformanceService::empty_risk(),
+            PerformanceDataQuality {
+                status: DataQualityStatus::Ok,
+                warnings: Vec::new(),
+                not_applicable_reasons: Vec::new(),
+            },
+            Vec::new(),
+            false,
+            false,
+        );
+
+        let transfer_effects = performance_service
+            .collect_scoped_transfer_pair_attribution_event_effects(&result, &account_ids)
+            .await;
+        performance_service
+            .finalize_attribution_from_event_effects(
+                &mut result,
+                &account_ids,
+                &history,
+                AttributionBaseline::PeriodStart,
+                AttributionEffectSeed {
+                    effects: transfer_effects.effects,
+                    warnings: transfer_effects.warnings,
+                    ..Default::default()
+                },
+            )
+            .await;
+
+        assert_eq!(result.attribution.fx_effect, Decimal::ZERO);
+        assert_eq!(result.attribution.residual, Decimal::ZERO);
+        assert_eq!(attribution_pnl(&result), Decimal::ZERO);
+    }
+
+    #[tokio::test]
+    async fn paired_transfer_with_external_metadata_emits_conflict_diagnostic() {
+        let mut start = valuation("2026-05-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        start.account_currency = "USD".to_string();
+        start.base_currency = "USD".to_string();
+
+        let mut after_transfer =
+            valuation("2026-05-02", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        after_transfer.account_currency = "USD".to_string();
+        after_transfer.base_currency = "USD".to_string();
+
+        let mut transfer_out = test_activity(
+            "transfer-out-conflict",
+            "from-acct",
+            ActivityType::TransferOut,
+            "2026-05-02",
+        );
+        transfer_out.asset_id = Some("AAPL".to_string());
+        transfer_out.quantity = Some(dec!(1));
+        transfer_out.unit_price = Some(dec!(100));
+        transfer_out.source_group_id = Some("transfer-pair-conflict".to_string());
+        transfer_out.metadata = Some(json!({ "flow": { "is_external": true } }));
+
+        let mut transfer_in = test_activity(
+            "transfer-in-conflict",
+            "to-acct",
+            ActivityType::TransferIn,
+            "2026-05-02",
+        );
+        transfer_in.asset_id = Some("AAPL".to_string());
+        transfer_in.quantity = Some(dec!(1));
+        transfer_in.unit_price = Some(dec!(100));
+        transfer_in.source_group_id = Some("transfer-pair-conflict".to_string());
+
+        let history = vec![start, after_transfer];
+        let valuation_service = Arc::new(TestValuationService::new(history.clone()));
+        let activity_repo = Arc::new(TestActivityRepository::new(vec![transfer_out, transfer_in]));
+        let performance_service =
+            PerformanceService::new(valuation_service, Arc::new(TestQuoteService))
+                .with_activity_repository(activity_repo, Arc::new(TestFxService));
+        let account_ids = vec!["from-acct".to_string(), "to-acct".to_string()];
+        let mut result = PerformanceService::build_result(
+            "scope:acct".to_string(),
+            "USD".to_string(),
+            Some(date("2026-05-01")),
+            Some(date("2026-05-02")),
+            ReturnMethod::ValueReturn,
+            PerformanceReturns {
+                twr: None,
+                annualized_twr: None,
+                irr: None,
+                annualized_irr: None,
+                value_return: None,
+                annualized_value_return: None,
+            },
+            PerformanceAttribution::default(),
+            PerformanceService::empty_risk(),
+            PerformanceDataQuality {
+                status: DataQualityStatus::Ok,
+                warnings: Vec::new(),
+                not_applicable_reasons: Vec::new(),
+            },
+            Vec::new(),
+            false,
+            false,
+        );
+
+        let transfer_effects = performance_service
+            .collect_scoped_transfer_pair_attribution_event_effects(&result, &account_ids)
+            .await;
+        performance_service
+            .finalize_attribution_from_event_effects(
+                &mut result,
+                &account_ids,
+                &history,
+                AttributionBaseline::PeriodStart,
+                AttributionEffectSeed {
+                    effects: transfer_effects.effects,
+                    warnings: transfer_effects.warnings,
+                    ..Default::default()
+                },
+            )
+            .await;
+
+        assert_eq!(result.attribution.contributions, Decimal::ZERO);
+        assert_eq!(result.attribution.distributions, Decimal::ZERO);
+        assert!(result.data_quality.warnings.iter().any(|warning| {
+            warning.contains("ignored external transfer metadata")
+                && warning.contains("transfer-pair-conflict")
+        }));
     }
 
     #[tokio::test]
@@ -4923,6 +7739,56 @@ mod tests {
         assert_eq!(performance.attribution.residual, Decimal::ZERO);
     }
 
+    #[tokio::test]
+    async fn event_effect_finalization_refreshes_headline_after_income_effects() {
+        let mut start = valuation("2026-05-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        start.account_id = "acct".to_string();
+        start.account_currency = "USD".to_string();
+        start.base_currency = "USD".to_string();
+        start.external_flow_source = ExternalFlowSource::ActivityDerived;
+
+        let mut end = valuation("2026-05-02", dec!(1015), dec!(1000), dec!(1000), dec!(1000));
+        end.account_id = "acct".to_string();
+        end.account_currency = "USD".to_string();
+        end.base_currency = "USD".to_string();
+        end.external_flow_source = ExternalFlowSource::ActivityDerived;
+
+        let mut dividend = income_activity_on(
+            "dividend-summary",
+            "acct",
+            "2026-05-02",
+            ActivityType::Dividend,
+            dec!(20),
+        );
+        dividend.tax = Some(dec!(5));
+        let activity_repo = Arc::new(TestActivityRepository::new(vec![dividend]));
+        let valuation_service = Arc::new(TestValuationService::new(vec![start, end]));
+        let performance_service =
+            PerformanceService::new(valuation_service, Arc::new(TestQuoteService))
+                .with_activity_repository(activity_repo, Arc::new(TestFxService));
+
+        let performance = performance_service
+            .calculate_account_performance(
+                "acct",
+                Some(date("2026-05-01")),
+                Some(date("2026-05-02")),
+                Some(TrackingMode::Transactions),
+                Some(account_types::SECURITIES),
+            )
+            .await
+            .expect("performance should finalize attribution before building summary");
+
+        assert_eq!(performance.attribution.income, dec!(20));
+        assert_eq!(performance.attribution.taxes, dec!(5));
+        assert_eq!(performance.attribution.residual, Decimal::ZERO);
+        assert_eq!(performance.summary.amount, Some(dec!(15)));
+        assert!(!performance
+            .summary
+            .reasons
+            .iter()
+            .any(|reason| PerformanceService::is_attribution_residual_warning(reason)));
+    }
+
     fn activity_fixture(activity_type: ActivityType, amount: Decimal, fee: Decimal) -> Activity {
         let now = DateTime::<Utc>::from_timestamp(0, 0).unwrap();
         Activity {
@@ -4940,6 +7806,7 @@ mod tests {
             unit_price: None,
             amount: Some(amount),
             fee: Some(fee),
+            tax: None,
             currency: "CAD".to_string(),
             fx_rate: None,
             notes: None,
@@ -4958,10 +7825,11 @@ mod tests {
 
     #[test]
     fn activity_attribution_components_separate_income_fees_and_taxes() {
-        let dividend = activity_fixture(ActivityType::Dividend, dec!(50), dec!(2));
+        let mut dividend = activity_fixture(ActivityType::Dividend, dec!(50), dec!(2));
+        dividend.tax = Some(dec!(3));
         assert_eq!(
             PerformanceService::activity_attribution_components(&dividend, &ActivityType::Dividend),
-            (dec!(50), dec!(2), Decimal::ZERO)
+            (dec!(50), dec!(2), dec!(3))
         );
 
         let explicit_fee = activity_fixture(ActivityType::Fee, dec!(4), Decimal::ZERO);
@@ -4976,14 +7844,125 @@ mod tests {
             (Decimal::ZERO, Decimal::ZERO, dec!(7))
         );
 
+        let mut explicit_tax = activity_fixture(ActivityType::Tax, Decimal::ZERO, Decimal::ZERO);
+        explicit_tax.tax = Some(dec!(9));
+        assert_eq!(
+            PerformanceService::activity_attribution_components(&explicit_tax, &ActivityType::Tax),
+            (Decimal::ZERO, Decimal::ZERO, dec!(9))
+        );
+
         let buy = activity_fixture(ActivityType::Buy, dec!(100), dec!(1));
         assert_eq!(
             PerformanceService::activity_attribution_components(&buy, &ActivityType::Buy),
             (Decimal::ZERO, dec!(1), Decimal::ZERO)
         );
+
+        let mut taxable_buy = activity_fixture(ActivityType::Buy, dec!(100), dec!(1));
+        taxable_buy.tax = Some(dec!(3));
+        assert_eq!(
+            PerformanceService::activity_attribution_components(&taxable_buy, &ActivityType::Buy),
+            (Decimal::ZERO, dec!(1), dec!(3))
+        );
+
+        // Cash activity types book tax to cash, so their tax is attributed.
+        for cash_type in [
+            ActivityType::Credit,
+            ActivityType::Deposit,
+            ActivityType::Withdrawal,
+        ] {
+            let mut cash = activity_fixture(cash_type.clone(), dec!(100), dec!(2));
+            cash.tax = Some(dec!(10));
+            assert_eq!(
+                PerformanceService::activity_attribution_components(&cash, &cash_type),
+                (Decimal::ZERO, Decimal::ZERO, dec!(10)),
+                "{} tax should be attributed",
+                cash_type.as_str()
+            );
+        }
+
+        // Cash transfers (no asset_id) book tax to cash, so tax is attributed.
+        for transfer_type in [ActivityType::TransferIn, ActivityType::TransferOut] {
+            let mut cash_transfer = activity_fixture(transfer_type.clone(), dec!(100), dec!(2));
+            cash_transfer.tax = Some(dec!(10));
+            assert_eq!(
+                cash_transfer.asset_id, None,
+                "fixture should default to a cash transfer"
+            );
+            assert_eq!(
+                PerformanceService::activity_attribution_components(&cash_transfer, &transfer_type),
+                (Decimal::ZERO, Decimal::ZERO, dec!(10)),
+                "cash {} tax should be attributed",
+                transfer_type.as_str()
+            );
+
+            // Asset transfers book only the fee to cash — tax must NOT be attributed,
+            // otherwise attribution reports a tax that never hit cash (phantom residual).
+            let mut asset_transfer = activity_fixture(transfer_type.clone(), dec!(100), dec!(2));
+            asset_transfer.asset_id = Some("AAPL".to_string());
+            asset_transfer.tax = Some(dec!(10));
+            assert_eq!(
+                PerformanceService::activity_attribution_components(
+                    &asset_transfer,
+                    &transfer_type
+                ),
+                (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO),
+                "asset {} tax must not be attributed",
+                transfer_type.as_str()
+            );
+        }
     }
 
-    /// Regression test for the reporter's bug. Pre-fix, the headline return was
+    #[test]
+    fn event_effects_aggregate_attribution_without_residual() {
+        let effect_date = date("2026-06-02");
+        let effects = vec![
+            EconomicEventEffect {
+                activity_id: "deposit-1".to_string(),
+                account_id: "acct".to_string(),
+                asset_id: None,
+                date: effect_date,
+                event_kind: EconomicEventKind::CashFlow,
+                external_flow: dec!(1000),
+                realized_pnl: Decimal::ZERO,
+                unrealized_movement: Decimal::ZERO,
+                income: Decimal::ZERO,
+                fee: Decimal::ZERO,
+                tax: Decimal::ZERO,
+                fx_effect: Decimal::ZERO,
+                diagnostics: Vec::new(),
+            },
+            EconomicEventEffect {
+                activity_id: "effect-1".to_string(),
+                account_id: "acct".to_string(),
+                asset_id: Some("AAPL".to_string()),
+                date: effect_date,
+                event_kind: EconomicEventKind::Trade,
+                external_flow: dec!(-250),
+                realized_pnl: dec!(40),
+                unrealized_movement: dec!(15),
+                income: dec!(5),
+                fee: dec!(2),
+                tax: dec!(3),
+                fx_effect: dec!(1),
+                diagnostics: Vec::new(),
+            },
+        ];
+
+        let attribution = PerformanceService::attribution_from_event_effects(&effects);
+
+        assert_eq!(attribution.contributions, dec!(1000));
+        assert_eq!(attribution.distributions, dec!(250));
+        assert_eq!(attribution.realized_pnl, dec!(40));
+        assert_eq!(attribution.unrealized_pnl_change, dec!(15));
+        assert_eq!(attribution.income, dec!(5));
+        assert_eq!(attribution.fees, dec!(2));
+        assert_eq!(attribution.taxes, dec!(3));
+        assert_eq!(attribution.fx_effect, dec!(1));
+        assert_eq!(attribution.residual, Decimal::ZERO);
+        assert_eq!(PerformanceService::attribution_pnl(&attribution), dec!(56));
+    }
+
+    /// Regression test for the reporter's bug. Pre-fix, the summary return was
     /// `gain / start_value` = -10.84/100 = -10.84%. Post-fix, it's daily-linked
     /// TWR — should end up near zero, dominated by the synthetic ~1.1% AAPL
     /// drift between Mar 15 and Apr 14.
@@ -5029,12 +8008,12 @@ mod tests {
         assert!(result.returns.twr.is_some());
     }
 
-    /// Invariant: summary and full paths must agree on headline returns. This is
+    /// Invariant: summary and full paths must agree on summary returns. This is
     /// the core guarantee the refactor is meant to enforce — the dashboard card
     /// and account-detail page showing different percentages for the same
     /// account / range was the original user complaint.
     #[test]
-    fn perf_full_and_summary_paths_agree_on_headline_return() {
+    fn perf_full_and_summary_paths_agree_on_summary_return() {
         let history = fixture_small_seed_then_large_deposit();
         let start = Some(date("2026-01-01"));
 
@@ -5046,46 +8025,37 @@ mod tests {
         )
         .expect("full should compute");
 
-        let summary = PerformanceService::compute_account_performance(
-            &history,
-            Some(TrackingMode::Transactions),
-            start,
-            false,
-        )
-        .expect("summary should compute");
-        let headline = PerformanceService::compute_account_performance_with_flow_basis(
+        let summary = PerformanceService::compute_account_performance_with_flow_basis(
             &history,
             Some(TrackingMode::Transactions),
             start,
             false,
             ExternalFlowBasis::BaseCurrency,
-            PerformanceSummaryProfile::Headline,
+            PerformanceSummaryProfile::Summary,
             false,
         )
-        .expect("headline should compute");
+        .expect("summary should compute");
 
-        // Headline percentage must match exactly — that's the user-visible
+        // Summary percentage must match exactly — that's the user-visible
         // invariant. Everything else (returns series, risk metrics) is summary
         // vs full differentiation.
-        assert_eq!(full.returns.irr, summary.returns.irr);
         assert_eq!(full.mode, ReturnMethod::TimeWeighted);
         assert_eq!(summary.mode, ReturnMethod::TimeWeighted);
         assert_eq!(full.returns.twr, summary.returns.twr);
-        assert_eq!(full.returns.twr, headline.returns.twr);
+        assert_eq!(full.summary.percent, summary.summary.percent);
         assert_eq!(attribution_pnl(&full), attribution_pnl(&summary));
-        assert_eq!(attribution_pnl(&full), attribution_pnl(&headline));
         assert_eq!(full.returns.value_return, summary.returns.value_return);
-        assert_eq!(full.returns.value_return, headline.returns.value_return);
+        assert_eq!(full.summary.amount, summary.summary.amount);
+        assert!(summary.returns.irr.is_none());
 
         // Differentiation: full path populates returns[] and risk metrics;
         // summary stays empty/zero to save allocation on the dashboard.
         assert!(!full.series.is_empty());
         assert!(summary.series.is_empty());
         assert!(full.risk.volatility.unwrap() > Decimal::ZERO);
-        assert!(summary.risk.volatility.is_some());
-        assert!(headline.returns.irr.is_none());
-        assert!(headline.returns.annualized_twr.is_none());
-        assert!(headline.risk.volatility.is_none());
+        assert!(summary.returns.irr.is_none());
+        assert!(summary.returns.annualized_twr.is_none());
+        assert!(summary.risk.volatility.is_none());
     }
 
     /// Well-formed account (`start_value == net_contribution`) stays sane —
@@ -5124,7 +8094,7 @@ mod tests {
             "TWR = {} should be small for well-formed account",
             twr
         );
-        assert_eq!(attribution_pnl(&result).round_dp(2), dec!(-0.52));
+        assert_eq!(attribution_pnl(&result).round_dp(2), dec!(-1.00));
     }
 
     #[test]
@@ -5212,12 +8182,46 @@ mod tests {
         )
         .expect("performance should compute");
 
-        assert_eq!(result.attribution.residual, dec!(1.5));
+        assert_eq!(result.attribution.residual, Decimal::ZERO);
         assert!(!result
             .data_quality
             .warnings
             .iter()
             .any(|warning| PerformanceService::is_attribution_residual_warning(warning)));
+    }
+
+    #[test]
+    fn attribution_residual_is_diagnostic_not_display_component() {
+        let history = vec![
+            valuation(
+                "2026-05-01",
+                dec!(1000),
+                dec!(1000),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            valuation(
+                "2026-05-02",
+                dec!(1003),
+                dec!(1000),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("performance should compute");
+
+        assert_eq!(result.attribution.residual, Decimal::ZERO);
+        assert!(result.data_quality.warnings.iter().any(|warning| {
+            warning.starts_with("Performance attribution is incomplete for this period")
+                && warning.contains("Difference: 3")
+        }));
     }
 
     #[test]
@@ -5247,7 +8251,7 @@ mod tests {
         )
         .expect("performance should compute");
 
-        assert_eq!(result.attribution.residual, dec!(3));
+        assert_eq!(result.attribution.residual, Decimal::ZERO);
         assert!(result.data_quality.warnings.iter().any(|warning| {
             warning.starts_with("Performance attribution is incomplete for this period")
                 && warning.contains("Difference: 3")
@@ -5280,11 +8284,12 @@ mod tests {
 
     #[test]
     fn perf_all_time_transactions_with_negative_net_contribution_keeps_lifetime_pnl() {
-        let history = vec![
+        let mut history = vec![
             valuation("2026-02-01", dec!(1030), dec!(1000), dec!(930), dec!(900)),
             valuation("2026-02-10", dec!(1400), dec!(1000), dec!(1200), dec!(900)),
             valuation("2026-02-20", dec!(50), dec!(-400), dec!(50), Decimal::ZERO),
         ];
+        history[2].external_flow_source = ExternalFlowSource::NetContributionFallback;
 
         let result = PerformanceService::compute_account_performance(
             &history,
@@ -5297,13 +8302,18 @@ mod tests {
         assert_eq!(result.attribution.contributions, dec!(1000));
         assert_eq!(result.attribution.distributions, dec!(1400));
         assert_eq!(result.attribution.unrealized_pnl_change, dec!(50));
-        assert_eq!(result.attribution.residual, dec!(400));
-        assert_eq!(attribution_pnl(&result), dec!(450));
+        assert_eq!(result.attribution.residual, Decimal::ZERO);
+        assert_eq!(attribution_pnl(&result), dec!(50));
+        assert!(result
+            .data_quality
+            .warnings
+            .iter()
+            .any(|warning| PerformanceService::is_attribution_residual_warning(warning)));
     }
 
     #[test]
     fn twr_uses_start_of_day_inflow_convention() {
-        let history = vec![
+        let mut history = vec![
             valuation(
                 "2026-05-01",
                 dec!(100),
@@ -5319,6 +8329,7 @@ mod tests {
                 Decimal::ZERO,
             ),
         ];
+        history[1].external_flow_source = ExternalFlowSource::NetContributionFallback;
 
         let result = PerformanceService::compute_account_performance(
             &history,
@@ -5333,7 +8344,7 @@ mod tests {
 
     #[test]
     fn twr_uses_end_of_day_outflow_convention() {
-        let history = vec![
+        let mut history = vec![
             valuation(
                 "2026-05-01",
                 dec!(200),
@@ -5349,6 +8360,7 @@ mod tests {
                 Decimal::ZERO,
             ),
         ];
+        history[1].external_flow_source = ExternalFlowSource::NetContributionFallback;
 
         let result = PerformanceService::compute_account_performance(
             &history,
@@ -5387,6 +8399,7 @@ mod tests {
             ),
         ];
         history[1].external_inflow_base = dec!(100);
+        history[1].external_flow_source = ExternalFlowSource::CashAmount;
 
         let result = PerformanceService::compute_account_performance(
             &history,
@@ -5427,6 +8440,7 @@ mod tests {
         ];
         history[1].external_inflow_base = dec!(100);
         history[1].external_outflow_base = dec!(40);
+        history[1].external_flow_source = ExternalFlowSource::CashAmount;
 
         let result = PerformanceService::compute_account_performance(
             &history,
@@ -5454,10 +8468,11 @@ mod tests {
 
     #[test]
     fn net_flow_fallback_is_shared_by_twr_irr_value_return_and_attribution() {
-        let history = vec![
+        let mut history = vec![
             valuation("2026-05-01", dec!(100), dec!(100), dec!(100), dec!(100)),
             valuation("2027-05-01", dec!(160), dec!(150), dec!(160), dec!(150)),
         ];
+        history[1].external_flow_source = ExternalFlowSource::NetContributionFallback;
 
         let result = PerformanceService::compute_account_performance(
             &history,
@@ -5585,6 +8600,16 @@ mod tests {
     }
 
     #[test]
+    fn realized_pnl_attribution_warns_when_short_cover_acquisition_fx_is_missing() {
+        let disposal = lot_disposal("USD", "CAD", "1.1", "-100", "0", "0");
+
+        let warning = PerformanceService::realized_pnl_base_from_disposal(&disposal)
+            .expect_err("missing acquisition FX should make base realized P&L unusable");
+
+        assert!(warning.contains("acquisition FX conversion was unavailable"));
+    }
+
+    #[test]
     fn realized_pnl_attribution_accepts_complete_base_disposal() {
         let disposal = lot_disposal("USD", "CAD", "1.1", "100", "110", "22");
 
@@ -5613,6 +8638,7 @@ mod tests {
             ),
         ];
         history[1].external_outflow_base = dec!(10);
+        history[1].external_flow_source = ExternalFlowSource::CashAmount;
 
         let daily_flows = PerformanceService::daily_external_flow_series(
             &history,
@@ -5858,7 +8884,12 @@ mod tests {
         .expect("performance should compute");
 
         assert_eq!(result.attribution.fx_effect, Decimal::ZERO);
-        assert_eq!(result.attribution.residual, dec!(100));
+        assert_eq!(result.attribution.residual, Decimal::ZERO);
+        assert!(result
+            .data_quality
+            .warnings
+            .iter()
+            .any(|warning| PerformanceService::is_attribution_residual_warning(warning)));
     }
 
     #[test]
@@ -6077,11 +9108,10 @@ mod tests {
         assert_eq!(bounded.fx_effect, Decimal::ZERO);
     }
 
-    /// Negative portfolio value (like TEST's unfunded-BUY shape) surfaces as a
-    /// validation error in both paths — downstream percentages are meaningless
-    /// when the underlying data is broken.
+    /// Negative portfolio value (like TEST's unfunded-BUY shape) degrades
+    /// return percentages instead of failing the whole response.
     #[test]
-    fn perf_rejects_negative_portfolio_value() {
+    fn perf_degrades_negative_portfolio_value() {
         let history = vec![
             valuation(
                 "2026-04-01",
@@ -6094,20 +9124,25 @@ mod tests {
         ];
 
         for include_series in [true, false] {
-            let err = PerformanceService::compute_account_performance(
+            let result = PerformanceService::compute_account_performance(
                 &history,
                 Some(TrackingMode::Transactions),
                 None,
                 include_series,
             )
-            .expect_err("should error on negative portfolio value");
+            .expect("negative portfolio value should degrade, not fail");
 
-            assert!(
-                format!("{}", err).contains("negative portfolio value"),
-                "expected 'negative portfolio value' in error (include_series={}), got: {}",
-                include_series,
-                err
-            );
+            assert_eq!(result.returns.twr, None);
+            assert_eq!(result.summary.percent, None);
+            assert!(matches!(
+                result.data_quality.status,
+                DataQualityStatus::Partial
+            ));
+            assert!(result
+                .data_quality
+                .not_applicable_reasons
+                .iter()
+                .any(|reason| reason.contains("portfolio value is negative")));
         }
     }
 
@@ -6126,6 +9161,7 @@ mod tests {
         curr.total_value_base = dec!(231);
         curr.net_contribution_base = dec!(220);
         curr.external_inflow_base = dec!(110);
+        curr.external_flow_source = ExternalFlowSource::StoredGross;
 
         let flow =
             PerformanceService::daily_external_flows(&prev, &curr, ExternalFlowBasis::BaseCurrency);
@@ -6133,6 +9169,306 @@ mod tests {
         assert_eq!(flow.inflow, dec!(110));
         assert_eq!(flow.outflow, Decimal::ZERO);
         assert_eq!(flow.source, ExternalFlowSource::StoredGross);
+    }
+
+    #[test]
+    fn daily_external_flows_do_not_infer_unknown_boundary_transfer_from_net_contribution() {
+        let mut prev = valuation("2026-04-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        let mut curr = valuation("2026-04-02", dec!(1200), dec!(1200), dec!(1200), dec!(1200));
+        prev.external_flow_source = ExternalFlowSource::UnknownBoundaryTransfer;
+        curr.external_flow_source = ExternalFlowSource::UnknownBoundaryTransfer;
+
+        let flow =
+            PerformanceService::daily_external_flows(&prev, &curr, ExternalFlowBasis::BaseCurrency);
+
+        assert_eq!(flow.inflow, Decimal::ZERO);
+        assert_eq!(flow.outflow, Decimal::ZERO);
+        assert_eq!(flow.source, ExternalFlowSource::UnknownBoundaryTransfer);
+    }
+
+    #[test]
+    fn twr_unavailable_when_aggregate_source_has_unknown_boundary_transfer() {
+        let mut history = vec![
+            valuation("2026-04-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000)),
+            valuation("2026-04-02", dec!(1200), dec!(1100), dec!(1200), dec!(1000)),
+        ];
+        history[1].external_inflow_base = dec!(100);
+        history[1].external_flow_source = ExternalFlowSource::UnknownBoundaryTransfer;
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("performance should return a degraded result");
+
+        assert!(result.returns.twr.is_none());
+        assert!(result
+            .data_quality
+            .not_applicable_reasons
+            .iter()
+            .any(|reason| {
+                reason.contains("external flow amount or transfer boundary is unknown")
+            }));
+    }
+
+    #[test]
+    fn mixed_flow_source_is_degraded_but_still_computable() {
+        let mut history = vec![
+            valuation("2026-04-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000)),
+            valuation("2026-04-02", dec!(1110), dec!(1100), dec!(1110), dec!(1000)),
+        ];
+        history[1].external_inflow_base = dec!(100);
+        history[1].external_flow_source = ExternalFlowSource::Mixed;
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("mixed known-source flow should compute");
+
+        assert_eq!(result.returns.twr.unwrap().round_dp(4), dec!(0.0091));
+        assert!(result
+            .data_quality
+            .warnings
+            .iter()
+            .any(|warning| { warning.contains("External cash flow provenance is incomplete") }));
+        assert!(
+            result
+                .data_quality
+                .not_applicable_reasons
+                .iter()
+                .all(|reason| !reason
+                    .contains("external flow amount or transfer boundary is unknown"))
+        );
+    }
+
+    #[test]
+    fn partial_unpriced_valuation_warns_but_still_computes_priced_subset() {
+        let mut history = vec![
+            valuation("2026-04-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000)),
+            valuation("2026-04-02", dec!(1100), dec!(1000), dec!(1100), dec!(1000)),
+        ];
+        history[1].value_status = ValuationStatus::PartialUnpriced;
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("partial valuation coverage should compute");
+
+        assert_eq!(result.returns.twr.unwrap().round_dp(4), dec!(0.1));
+        assert_eq!(result.data_quality.status, DataQualityStatus::Partial);
+        assert!(result
+            .data_quality
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("priced subset")));
+    }
+
+    #[test]
+    fn unavailable_valuation_coverage_blocks_twr() {
+        let mut history = vec![
+            valuation("2026-04-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000)),
+            valuation(
+                "2026-04-02",
+                Decimal::ZERO,
+                dec!(1000),
+                Decimal::ZERO,
+                dec!(1000),
+            ),
+        ];
+        history[1].value_status = ValuationStatus::Unavailable;
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("unavailable valuation coverage should return degraded result");
+
+        assert!(result.returns.twr.is_none());
+        assert!(result
+            .data_quality
+            .not_applicable_reasons
+            .iter()
+            .any(|reason| reason.contains("valuation coverage is unavailable")));
+    }
+
+    #[test]
+    fn daily_external_flows_do_not_infer_unknown_compiled_flow_from_net_contribution() {
+        let mut prev = valuation("2026-04-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        let mut curr = valuation("2026-04-02", dec!(1200), dec!(1200), dec!(1200), dec!(1200));
+        prev.external_flow_source = ExternalFlowSource::CashAmount;
+        curr.external_flow_source = ExternalFlowSource::Unknown;
+
+        let flow =
+            PerformanceService::daily_external_flows(&prev, &curr, ExternalFlowBasis::BaseCurrency);
+
+        assert_eq!(flow.inflow, Decimal::ZERO);
+        assert_eq!(flow.outflow, Decimal::ZERO);
+        assert_eq!(flow.source, ExternalFlowSource::Unknown);
+    }
+
+    // A real `Unknown` daily flow (quiet days carry `NoFlow`/`CashAmount`, never
+    // `Unknown`) must be preserved even with zero gross amounts and a zero
+    // net-contribution delta, so the TWR/IRR availability gate fires.
+    #[test]
+    fn daily_external_flows_keep_unknown_on_zero_amount_zero_delta() {
+        let prev = valuation("2026-04-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        let mut curr = valuation("2026-04-02", dec!(1200), dec!(1000), dec!(1200), dec!(1000));
+        // Equal net contribution => zero delta; no gross amounts recorded.
+        curr.external_flow_source = ExternalFlowSource::Unknown;
+        curr.external_inflow_base = Decimal::ZERO;
+        curr.external_outflow_base = Decimal::ZERO;
+
+        let flow =
+            PerformanceService::daily_external_flows(&prev, &curr, ExternalFlowBasis::BaseCurrency);
+
+        assert_eq!(flow.source, ExternalFlowSource::Unknown);
+    }
+
+    // End to end: a zero-amount `Unknown` daily flow must make TWR unavailable
+    // rather than reporting a return for a period whose flow we could not value.
+    #[test]
+    fn returns_unavailable_when_a_daily_flow_is_zero_amount_unknown() {
+        let mut history = vec![
+            valuation("2026-04-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000)),
+            valuation("2026-04-02", dec!(1200), dec!(1000), dec!(1200), dec!(1000)),
+        ];
+        // A real flow event we could not value: unchanged net contribution and
+        // no gross amounts, but the provenance says the flow is unknown.
+        history[1].external_flow_source = ExternalFlowSource::Unknown;
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("performance should return a degraded result, not error");
+
+        assert!(
+            result.returns.twr.is_none(),
+            "TWR must be unavailable when a daily flow source is Unknown",
+        );
+        assert!(result
+            .data_quality
+            .not_applicable_reasons
+            .iter()
+            .any(|reason| {
+                reason.contains("external flow amount or transfer boundary is unknown")
+            }));
+    }
+
+    // ── Phase 3 parity/closure gate ──────────────────────────────────────────
+    //
+    // The refactor's plan is to rebuild attribution by summing categorized
+    // economic effects and *delete the residual*. That is only valid if the
+    // current engine's attribution already reconciles to the value delta with no
+    // residual. This test characterizes that on representative histories. If it
+    // ever fails, "delete the residual" is the wrong design — the failing case is
+    // a real economic effect the effect model must capture, not a rounding fudge.
+    #[test]
+    fn attribution_reconciles_to_value_delta_without_residual() {
+        struct Case {
+            name: &'static str,
+            start: DailyAccountValuation,
+            end: DailyAccountValuation,
+        }
+
+        let mut deposit_then_gain_end =
+            valuation("2026-02-01", dec!(1500), dec!(1200), dec!(1500), dec!(1200));
+        deposit_then_gain_end.external_inflow_base = dec!(200);
+        deposit_then_gain_end.external_flow_source = ExternalFlowSource::CashAmount;
+
+        let mut withdrawal_end =
+            valuation("2026-02-01", dec!(850), dec!(800), dec!(850), dec!(800));
+        withdrawal_end.external_outflow_base = dec!(200);
+        withdrawal_end.external_flow_source = ExternalFlowSource::CashAmount;
+
+        let cases = [
+            Case {
+                name: "pure unrealized gain, no flow",
+                start: valuation("2026-01-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000)),
+                end: valuation("2026-02-01", dec!(1300), dec!(1000), dec!(1300), dec!(1000)),
+            },
+            Case {
+                name: "deposit plus gain",
+                start: valuation("2026-01-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000)),
+                end: deposit_then_gain_end,
+            },
+            Case {
+                name: "withdrawal plus gain",
+                start: valuation("2026-01-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000)),
+                end: withdrawal_end,
+            },
+        ];
+
+        let tolerance = dec!(0.01);
+        for case in cases {
+            // All-time scope uses an inception baseline: the opening balance is
+            // treated as initial capital, so the components explain the *ending
+            // value*, not the period delta. (Bounded scopes would reconcile to the
+            // delta instead — the closure identity is baseline-dependent, which is
+            // exactly what the effect-summation rewrite must preserve.)
+            let end_value = case.end.total_value_base;
+            let result = PerformanceService::compute_account_performance(
+                &[case.start, case.end],
+                Some(TrackingMode::Transactions),
+                None,
+                false,
+            )
+            .expect("performance should compute");
+            let a = &result.attribution;
+            let explained = (a.contributions - a.distributions)
+                + a.income
+                + a.realized_pnl
+                + a.unrealized_pnl_change
+                + a.fx_effect
+                - a.fees
+                - a.taxes;
+            let residual = end_value - explained;
+            assert!(
+                residual.abs() <= tolerance,
+                "[{}] attribution did not reconcile: end_value={end_value}, explained={explained}, residual={residual}",
+                case.name,
+            );
+            assert!(
+                !result
+                    .data_quality
+                    .warnings
+                    .iter()
+                    .any(|w| w.starts_with("Attribution residual")),
+                "[{}] engine emitted a residual warning",
+                case.name,
+            );
+        }
+    }
+
+    #[test]
+    fn basis_status_is_not_inferred_from_display_reasons() {
+        let data_quality = PerformanceDataQuality {
+            status: DataQualityStatus::Partial,
+            warnings: vec!["Display copy mentions basis is missing.".to_string()],
+            not_applicable_reasons: Vec::new(),
+        };
+
+        assert_eq!(
+            PerformanceService::basis_status_for_result(
+                ReturnMethod::TimeWeighted,
+                &data_quality,
+                false,
+                false,
+            ),
+            BasisStatus::NotApplicable
+        );
     }
 
     #[test]
@@ -6150,6 +9486,7 @@ mod tests {
         curr.total_value_base = dec!(231);
         curr.net_contribution_base = dec!(220);
         curr.external_inflow_base = dec!(110);
+        curr.external_flow_source = ExternalFlowSource::StoredGross;
 
         let result = PerformanceService::compute_account_performance(
             &[prev, curr],
@@ -6160,18 +9497,18 @@ mod tests {
         .expect("foreign-currency account performance should compute");
 
         assert_eq!(result.scope.currency, "USD");
-        assert_eq!(attribution_pnl(&result), dec!(11));
+        assert_eq!(attribution_pnl(&result), dec!(10));
         assert_eq!(result.returns.twr.unwrap().round_dp(4), dec!(0.05));
     }
 
-    /// HOLDINGS mode uses the cost-basis formula in both paths. TWR/IRR are
-    /// returned as `None` because they aren't meaningful without per-transaction
+    /// HOLDINGS mode uses gain-vs-book-basis for all-time. TWR/IRR are returned
+    /// as `None` because they aren't meaningful without per-transaction
     /// cash-flow tracking.
     #[test]
-    fn perf_holdings_mode_uses_cost_basis_formula() {
+    fn perf_holdings_mode_uses_book_basis_formula() {
         let history = vec![
-            valuation("2026-02-15", dec!(1000), dec!(1000), dec!(1000), dec!(1000)),
-            valuation("2026-04-14", dec!(900), dec!(1000), dec!(900), dec!(1000)),
+            valuation("2026-02-15", dec!(1250), dec!(1200), dec!(1000), dec!(1000)),
+            valuation("2026-04-14", dec!(1170), dec!(1200), dec!(900), dec!(1000)),
         ];
 
         let result = PerformanceService::compute_account_performance(
@@ -6182,11 +9519,81 @@ mod tests {
         )
         .expect("holdings should compute");
 
-        // end_unrealized_pnl = 900 - 1000 = -100; return = -100 / 1000 = -0.10.
-        assert_eq!(result.returns.value_return.unwrap().round_dp(4), dec!(-0.1));
+        // end P&L = total value 1170 - book basis 1200 = -30; return = -30 / 1200.
+        assert_eq!(
+            result.returns.value_return.unwrap().round_dp(4),
+            dec!(-0.025)
+        );
+        assert_eq!(attribution_pnl(&result), dec!(-30));
         assert!(result.returns.twr.is_none());
         assert!(result.returns.irr.is_none());
         assert!(result.is_holdings_mode);
+    }
+
+    #[test]
+    fn perf_holdings_mode_period_uses_value_change_not_book_basis_delta() {
+        let history = vec![
+            valuation(
+                "2026-06-12",
+                dec!(106237.35656319),
+                Decimal::ZERO,
+                dec!(40927.18483152),
+                dec!(64350.62189612),
+            ),
+            valuation(
+                "2026-06-19",
+                dec!(107423.43363762),
+                dec!(131508.39981717),
+                dec!(41182.62224114),
+                dec!(65267.58842069),
+            ),
+        ];
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Holdings),
+            Some(date("2026-06-12")),
+            false,
+        )
+        .expect("holdings period should compute");
+
+        assert_eq!(
+            result.returns.value_return.unwrap().round_dp(4),
+            dec!(0.0112)
+        );
+        assert_eq!(attribution_pnl(&result).round_dp(2), dec!(1186.08));
+        assert_eq!(result.attribution.contributions, Decimal::ZERO);
+        assert_eq!(result.attribution.residual, Decimal::ZERO);
+    }
+
+    #[test]
+    fn perf_holdings_period_partial_basis_suppresses_headline_amount_and_percent() {
+        let mut history = vec![
+            valuation("2026-06-12", dec!(1000), dec!(1000), dec!(800), dec!(800)),
+            valuation("2026-06-19", dec!(1100), dec!(1000), dec!(900), dec!(800)),
+        ];
+        history[1].performance_eligible_value_base = dec!(700);
+        history[1].basis_status = BasisStatus::PartialUnknown;
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Holdings),
+            Some(date("2026-06-12")),
+            false,
+        )
+        .expect("holdings period should compute with degraded basis quality");
+
+        assert_eq!(result.basis_status, BasisStatus::PartialUnknown);
+        assert_eq!(result.summary.amount, None);
+        assert_eq!(result.summary.percent, None);
+        assert_eq!(
+            result.summary.amount_status,
+            PerformanceSummaryStatus::Unavailable
+        );
+        assert_eq!(
+            result.summary.percent_status,
+            PerformanceSummaryStatus::Unavailable
+        );
     }
 
     #[test]
@@ -6221,7 +9628,12 @@ mod tests {
             .data_quality
             .not_applicable_reasons
             .iter()
-            .any(|reason| reason.contains("ending cost basis")));
+            .any(|reason| reason.contains("ending book basis")));
+        assert!(all_time
+            .data_quality
+            .not_applicable_reasons
+            .iter()
+            .any(|reason| reason.contains("P&L unavailable")));
 
         let period = PerformanceService::compute_account_performance(
             &history,
@@ -6236,7 +9648,38 @@ mod tests {
             .data_quality
             .not_applicable_reasons
             .iter()
-            .any(|reason| reason.contains("starting market value")));
+            .any(|reason| reason.contains("starting total value")));
+    }
+
+    #[test]
+    fn perf_holdings_mode_all_time_omits_return_when_basis_is_incomplete() {
+        let mut history = vec![
+            valuation("2026-02-15", dec!(500), dec!(500), dec!(500), dec!(500)),
+            valuation("2026-04-14", dec!(600), dec!(100), dec!(600), dec!(100)),
+        ];
+        history[1].performance_eligible_value_base = dec!(100);
+        history[1].basis_status = BasisStatus::PartialUnknown;
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Holdings),
+            None,
+            false,
+        )
+        .expect("holdings should compute with degraded basis quality");
+
+        assert!(result.returns.value_return.is_none());
+        assert_eq!(attribution_pnl(&result), Decimal::ZERO);
+        assert!(result
+            .data_quality
+            .not_applicable_reasons
+            .iter()
+            .any(|reason| reason.contains("basis is incomplete")));
+        assert!(result
+            .data_quality
+            .not_applicable_reasons
+            .iter()
+            .any(|reason| reason.contains("P&L unavailable")));
     }
 
     #[test]
@@ -6261,6 +9704,903 @@ mod tests {
         let composition = PerformanceService::scoped_tracking_composition(&account_ids, &modes);
 
         assert_eq!(composition, ScopedTrackingComposition::HoldingsOnly);
+    }
+
+    #[test]
+    fn mixed_scope_account_level_headline_ignores_holdings_book_basis_jump() {
+        let cash_cad = vec![
+            account_valuation(
+                "cash-cad",
+                "2026-06-12",
+                dec!(85000),
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            account_valuation(
+                "cash-cad",
+                "2026-06-19",
+                dec!(85000),
+                dec!(85000),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+        let cash_usd = vec![
+            account_valuation(
+                "cash-usd",
+                "2026-06-12",
+                dec!(113176.44),
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            account_valuation(
+                "cash-usd",
+                "2026-06-19",
+                dec!(114789.16),
+                dec!(114789.16),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+        let invest_cad = vec![
+            account_valuation(
+                "invest-cad",
+                "2026-06-12",
+                dec!(45068.75),
+                dec!(36000),
+                dec!(45068.75),
+                dec!(36000),
+            ),
+            account_valuation(
+                "invest-cad",
+                "2026-06-19",
+                dec!(45986.16),
+                dec!(36000),
+                dec!(45986.16),
+                dec!(36000),
+            ),
+        ];
+        let invest_usd = vec![
+            account_valuation(
+                "invest-usd",
+                "2026-06-12",
+                dec!(62360.29),
+                dec!(49298.88),
+                dec!(62360.29),
+                dec!(49298.88),
+            ),
+            account_valuation(
+                "invest-usd",
+                "2026-06-19",
+                dec!(63803.10),
+                dec!(49298.88),
+                dec!(63803.10),
+                dec!(49298.88),
+            ),
+        ];
+        let components = vec![
+            MixedScopeAccountHistory {
+                account_id: "cash-cad",
+                tracking_mode: TrackingMode::Holdings,
+                account_type: Some(account_types::CASH),
+                history: &cash_cad,
+            },
+            MixedScopeAccountHistory {
+                account_id: "cash-usd",
+                tracking_mode: TrackingMode::Holdings,
+                account_type: Some(account_types::CASH),
+                history: &cash_usd,
+            },
+            MixedScopeAccountHistory {
+                account_id: "invest-cad",
+                tracking_mode: TrackingMode::Transactions,
+                account_type: None,
+                history: &invest_cad,
+            },
+            MixedScopeAccountHistory {
+                account_id: "invest-usd",
+                tracking_mode: TrackingMode::Transactions,
+                account_type: None,
+                history: &invest_usd,
+            },
+        ];
+
+        let result = PerformanceService::compute_mixed_scope_performance_from_account_histories(
+            &components,
+            "CAD",
+            Some(date("2026-06-12")),
+            true,
+            PerformanceSummaryProfile::Summary,
+        )
+        .expect("mixed scope should compute from account-level components");
+
+        assert!(result.is_mixed_tracking_mode);
+        assert_eq!(result.mode, ReturnMethod::ValueReturn);
+        assert_eq!(attribution_pnl(&result).round_dp(2), dec!(3972.94));
+        assert_eq!(
+            result.returns.value_return.unwrap().round_dp(4),
+            dec!(0.0130)
+        );
+        assert_eq!(result.attribution.contributions, Decimal::ZERO);
+        assert_eq!(
+            result.series.last().unwrap().value.round_dp(4),
+            dec!(0.0130)
+        );
+    }
+
+    #[test]
+    fn mixed_scope_account_level_headline_subtracts_transaction_flows_only() {
+        let holdings = vec![
+            account_valuation(
+                "holdings",
+                "2026-06-12",
+                dec!(500),
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            account_valuation(
+                "holdings",
+                "2026-06-19",
+                dec!(550),
+                dec!(550),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+        let mut transaction = [
+            account_valuation(
+                "transaction",
+                "2026-06-12",
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+            ),
+            account_valuation(
+                "transaction",
+                "2026-06-19",
+                dec!(1200),
+                dec!(1100),
+                dec!(1200),
+                dec!(1100),
+            ),
+        ];
+        transaction[1].external_inflow_base = dec!(100);
+        transaction[1].external_flow_source = ValuationExternalFlowSource::StoredGross;
+        let components = vec![
+            MixedScopeAccountHistory {
+                account_id: "holdings",
+                tracking_mode: TrackingMode::Holdings,
+                account_type: None,
+                history: &holdings,
+            },
+            MixedScopeAccountHistory {
+                account_id: "transaction",
+                tracking_mode: TrackingMode::Transactions,
+                account_type: None,
+                history: &transaction,
+            },
+        ];
+
+        let result = PerformanceService::compute_mixed_scope_performance_from_account_histories(
+            &components,
+            "CAD",
+            Some(date("2026-06-12")),
+            false,
+            PerformanceSummaryProfile::Summary,
+        )
+        .expect("mixed scope should compute transaction flows at account level");
+
+        assert_eq!(attribution_pnl(&result), dec!(150));
+        assert_eq!(result.attribution.contributions, dec!(100));
+        assert_eq!(result.returns.value_return.unwrap().round_dp(4), dec!(0.1));
+    }
+
+    #[test]
+    fn mixed_scope_bounded_series_uses_account_component_timelines() {
+        let mut transaction = [
+            account_valuation(
+                "transaction",
+                "2026-06-12",
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+            ),
+            account_valuation(
+                "transaction",
+                "2026-06-13",
+                dec!(1100),
+                dec!(1000),
+                dec!(1100),
+                dec!(1000),
+            ),
+            account_valuation(
+                "transaction",
+                "2026-06-14",
+                dec!(1200),
+                dec!(1000),
+                dec!(1200),
+                dec!(1000),
+            ),
+        ];
+        transaction[1].external_flow_source = ValuationExternalFlowSource::StoredGross;
+        transaction[2].external_flow_source = ValuationExternalFlowSource::StoredGross;
+        let holdings = vec![
+            account_valuation(
+                "holdings",
+                "2026-06-13",
+                dec!(500),
+                dec!(500),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            account_valuation(
+                "holdings",
+                "2026-06-14",
+                dec!(550),
+                dec!(500),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+        let components = vec![
+            MixedScopeAccountHistory {
+                account_id: "transaction",
+                tracking_mode: TrackingMode::Transactions,
+                account_type: None,
+                history: &transaction,
+            },
+            MixedScopeAccountHistory {
+                account_id: "holdings",
+                tracking_mode: TrackingMode::Holdings,
+                account_type: None,
+                history: &holdings,
+            },
+        ];
+
+        let result = PerformanceService::compute_mixed_scope_performance_from_account_histories(
+            &components,
+            "CAD",
+            Some(date("2026-06-12")),
+            true,
+            PerformanceSummaryProfile::Summary,
+        )
+        .expect("mixed scope should build a component-level series");
+
+        assert_eq!(attribution_pnl(&result), dec!(250));
+        assert_eq!(
+            result.returns.value_return.unwrap().round_dp(4),
+            dec!(0.1667)
+        );
+        assert_eq!(result.series.len(), 3);
+        assert_eq!(result.series[0].date, date("2026-06-12"));
+        assert_eq!(result.series[0].value, Decimal::ZERO);
+        assert_eq!(result.series[1].date, date("2026-06-13"));
+        assert_eq!(result.series[1].value.round_dp(4), dec!(0.1));
+        assert_eq!(result.series[2].date, date("2026-06-14"));
+        assert_eq!(result.series[2].value.round_dp(4), dec!(0.1667));
+    }
+
+    #[test]
+    fn mixed_scope_all_time_suppresses_combined_percent_when_holdings_basis_incomplete() {
+        let transaction = [
+            account_valuation(
+                "transaction",
+                "2026-06-12",
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+            ),
+            account_valuation(
+                "transaction",
+                "2026-06-14",
+                dec!(1100),
+                dec!(1000),
+                dec!(1100),
+                dec!(1000),
+            ),
+        ];
+        let mut holdings = vec![
+            account_valuation(
+                "holdings",
+                "2026-06-12",
+                dec!(500),
+                dec!(500),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            account_valuation(
+                "holdings",
+                "2026-06-14",
+                dec!(600),
+                dec!(100),
+                dec!(600),
+                dec!(100),
+            ),
+        ];
+        holdings[1].performance_eligible_value_base = dec!(100);
+        holdings[1].basis_status = BasisStatus::PartialUnknown;
+        let components = vec![
+            MixedScopeAccountHistory {
+                account_id: "transaction",
+                tracking_mode: TrackingMode::Transactions,
+                account_type: None,
+                history: &transaction,
+            },
+            MixedScopeAccountHistory {
+                account_id: "holdings",
+                tracking_mode: TrackingMode::Holdings,
+                account_type: None,
+                history: &holdings,
+            },
+        ];
+
+        let result = PerformanceService::compute_mixed_scope_performance_from_account_histories(
+            &components,
+            "CAD",
+            None,
+            true,
+            PerformanceSummaryProfile::Summary,
+        )
+        .expect("mixed all-time scope should degrade incomplete holdings basis");
+
+        assert_eq!(attribution_pnl(&result), dec!(100));
+        assert_eq!(result.returns.value_return, None);
+        assert_eq!(result.summary.amount, Some(dec!(100)));
+        assert_eq!(result.summary.percent, None);
+        assert_eq!(
+            result.summary.amount_status,
+            PerformanceSummaryStatus::Complete
+        );
+        assert_eq!(
+            result.summary.percent_status,
+            PerformanceSummaryStatus::Unavailable
+        );
+        assert!(result
+            .data_quality
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("excluded account holdings")));
+        assert!(result
+            .data_quality
+            .not_applicable_reasons
+            .iter()
+            .any(|reason| reason.contains("basis is incomplete")));
+    }
+
+    #[test]
+    fn mixed_scope_returns_no_combined_percent_when_component_denominator_is_missing() {
+        let holdings = vec![
+            account_valuation(
+                "holdings",
+                "2026-06-12",
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            account_valuation(
+                "holdings",
+                "2026-06-19",
+                dec!(50),
+                dec!(50),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+        let transaction = [
+            account_valuation(
+                "transaction",
+                "2026-06-12",
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+            ),
+            account_valuation(
+                "transaction",
+                "2026-06-19",
+                dec!(1100),
+                dec!(1000),
+                dec!(1100),
+                dec!(1000),
+            ),
+        ];
+        let components = vec![
+            MixedScopeAccountHistory {
+                account_id: "holdings",
+                tracking_mode: TrackingMode::Holdings,
+                account_type: None,
+                history: &holdings,
+            },
+            MixedScopeAccountHistory {
+                account_id: "transaction",
+                tracking_mode: TrackingMode::Transactions,
+                account_type: None,
+                history: &transaction,
+            },
+        ];
+
+        let result = PerformanceService::compute_mixed_scope_performance_from_account_histories(
+            &components,
+            "CAD",
+            Some(date("2026-06-12")),
+            true,
+            PerformanceSummaryProfile::Summary,
+        )
+        .expect("mixed scope should compute with a degraded denominator");
+
+        assert_eq!(attribution_pnl(&result), dec!(150));
+        assert_eq!(result.returns.value_return, None);
+        assert!(result.series.is_empty());
+        assert!(result.data_quality.warnings.iter().any(|warning| {
+            warning.contains("account holdings contributes to the summary amount")
+        }));
+        assert!(result
+            .data_quality
+            .not_applicable_reasons
+            .iter()
+            .any(|reason| reason.contains("summary amount and denominator coverage differ")));
+    }
+
+    #[test]
+    fn mixed_scope_all_time_transactions_use_first_positive_value_denominator() {
+        let mut transaction = vec![
+            account_valuation(
+                "transaction",
+                "2026-01-01",
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            account_valuation(
+                "transaction",
+                "2026-01-02",
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+            ),
+            account_valuation(
+                "transaction",
+                "2026-01-03",
+                dec!(1100),
+                dec!(1000),
+                dec!(1100),
+                dec!(1000),
+            ),
+        ];
+        transaction[1].external_inflow_base = dec!(1000);
+        transaction[1].external_flow_source = ValuationExternalFlowSource::StoredGross;
+        let holdings = vec![
+            account_valuation(
+                "holdings",
+                "2026-01-01",
+                dec!(500),
+                dec!(500),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            account_valuation(
+                "holdings",
+                "2026-01-03",
+                dec!(550),
+                dec!(500),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+        let components = vec![
+            MixedScopeAccountHistory {
+                account_id: "transaction",
+                tracking_mode: TrackingMode::Transactions,
+                account_type: None,
+                history: &transaction,
+            },
+            MixedScopeAccountHistory {
+                account_id: "holdings",
+                tracking_mode: TrackingMode::Holdings,
+                account_type: None,
+                history: &holdings,
+            },
+        ];
+
+        let result = PerformanceService::compute_mixed_scope_performance_from_account_histories(
+            &components,
+            "CAD",
+            None,
+            true,
+            PerformanceSummaryProfile::Summary,
+        )
+        .expect("mixed all-time scope should compute");
+
+        assert_eq!(attribution_pnl(&result), dec!(150));
+        assert_eq!(result.returns.value_return.unwrap().round_dp(4), dec!(0.1));
+        assert!(result.series.is_empty());
+        assert!(result
+            .data_quality
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("Return series unavailable")));
+        assert!(!result
+            .data_quality
+            .not_applicable_reasons
+            .iter()
+            .any(|reason| reason.contains("transaction-mode scope because starting value")));
+    }
+
+    #[test]
+    fn mixed_scope_skips_negative_component_instead_of_failing_scope() {
+        let holdings = vec![
+            account_valuation(
+                "holdings",
+                "2026-06-12",
+                dec!(500),
+                dec!(500),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            account_valuation(
+                "holdings",
+                "2026-06-19",
+                dec!(550),
+                dec!(500),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+        let negative_transaction = vec![
+            account_valuation(
+                "negative-transaction",
+                "2026-06-12",
+                dec!(100),
+                dec!(100),
+                dec!(100),
+                dec!(100),
+            ),
+            account_valuation(
+                "negative-transaction",
+                "2026-06-19",
+                dec!(-10),
+                dec!(100),
+                dec!(-10),
+                dec!(100),
+            ),
+        ];
+        let components = vec![
+            MixedScopeAccountHistory {
+                account_id: "holdings",
+                tracking_mode: TrackingMode::Holdings,
+                account_type: None,
+                history: &holdings,
+            },
+            MixedScopeAccountHistory {
+                account_id: "negative-transaction",
+                tracking_mode: TrackingMode::Transactions,
+                account_type: None,
+                history: &negative_transaction,
+            },
+        ];
+
+        let result = PerformanceService::compute_mixed_scope_performance_from_account_histories(
+            &components,
+            "CAD",
+            Some(date("2026-06-12")),
+            true,
+            PerformanceSummaryProfile::Summary,
+        )
+        .expect("mixed scope should degrade negative component");
+
+        assert_eq!(attribution_pnl(&result), dec!(50));
+        assert_eq!(result.returns.value_return.unwrap().round_dp(4), dec!(0.1));
+        assert_eq!(result.series.last().unwrap().value.round_dp(4), dec!(0.1));
+        assert!(result
+            .data_quality
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("negative portfolio value")));
+    }
+
+    #[tokio::test]
+    async fn mixed_scope_summary_uses_account_histories_not_aggregate_scope_history() {
+        let mut transaction = [
+            account_valuation(
+                "transaction",
+                "2026-06-12",
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+            ),
+            account_valuation(
+                "transaction",
+                "2026-06-19",
+                dec!(1200),
+                dec!(1100),
+                dec!(1200),
+                dec!(1100),
+            ),
+        ];
+        transaction[1].external_inflow_base = dec!(100);
+        transaction[1].external_flow_source = ValuationExternalFlowSource::StoredGross;
+        let history = vec![
+            account_valuation(
+                "holdings",
+                "2026-06-12",
+                dec!(500),
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            account_valuation(
+                "holdings",
+                "2026-06-19",
+                dec!(550),
+                dec!(550),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            transaction[0].clone(),
+            transaction[1].clone(),
+        ];
+        let service = PerformanceService::new(
+            Arc::new(TestValuationService::new_with_aggregate_failure(history)),
+            Arc::new(TestQuoteService),
+        );
+        let account_ids = vec!["holdings".to_string(), "transaction".to_string()];
+        let mut modes = HashMap::new();
+        modes.insert("holdings".to_string(), TrackingMode::Holdings);
+        modes.insert("transaction".to_string(), TrackingMode::Transactions);
+        let account_types = HashMap::new();
+
+        let result = service
+            .calculate_performance_summary_for_accounts(
+                "mixed-scope",
+                &account_ids,
+                "CAD",
+                &modes,
+                &account_types,
+                Some(date("2026-06-12")),
+                Some(date("2026-06-19")),
+                PerformanceSummaryProfile::Summary,
+            )
+            .await
+            .expect("mixed summary should bypass aggregate scoped history");
+
+        assert_eq!(result.scope.id, "mixed-scope");
+        assert!(result.is_mixed_tracking_mode);
+        assert_eq!(attribution_pnl(&result), dec!(150));
+        assert_eq!(result.returns.value_return.unwrap().round_dp(4), dec!(0.1));
+    }
+
+    #[tokio::test]
+    async fn mixed_scope_summary_enriches_transaction_component_attribution() {
+        let transaction = [
+            account_valuation(
+                "transaction",
+                "2026-06-12",
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+            ),
+            account_valuation(
+                "transaction",
+                "2026-06-19",
+                dec!(1050),
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+            ),
+        ];
+        let holdings = [
+            account_valuation(
+                "holdings",
+                "2026-06-12",
+                dec!(500),
+                dec!(500),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            account_valuation(
+                "holdings",
+                "2026-06-19",
+                dec!(550),
+                dec!(500),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+        let history = vec![
+            transaction[0].clone(),
+            transaction[1].clone(),
+            holdings[0].clone(),
+            holdings[1].clone(),
+        ];
+        let valuation_service = Arc::new(TestValuationService::new_with_aggregate_failure(history));
+        let mut dividend = income_activity_on(
+            "dividend-1",
+            "transaction",
+            "2026-06-19",
+            ActivityType::Dividend,
+            dec!(50),
+        );
+        dividend.currency = "CAD".to_string();
+        let activity_repo = Arc::new(TestActivityRepository::new(vec![dividend]));
+        let service = PerformanceService::new(valuation_service, Arc::new(TestQuoteService))
+            .with_activity_repository(activity_repo, Arc::new(TestFxService));
+        let account_ids = vec!["transaction".to_string(), "holdings".to_string()];
+        let mut modes = HashMap::new();
+        modes.insert("transaction".to_string(), TrackingMode::Transactions);
+        modes.insert("holdings".to_string(), TrackingMode::Holdings);
+        let account_types = HashMap::new();
+
+        let result = service
+            .calculate_performance_summary_for_accounts(
+                "mixed-scope",
+                &account_ids,
+                "CAD",
+                &modes,
+                &account_types,
+                Some(date("2026-06-12")),
+                Some(date("2026-06-19")),
+                PerformanceSummaryProfile::Summary,
+            )
+            .await
+            .expect("mixed summary should enrich transaction attribution");
+
+        assert_eq!(result.attribution.income, dec!(50));
+        assert_eq!(result.attribution.unrealized_pnl_change, dec!(50));
+        assert_eq!(result.attribution.residual, Decimal::ZERO);
+        assert_eq!(attribution_pnl(&result), dec!(100));
+        assert_eq!(
+            result.returns.value_return.unwrap().round_dp(4),
+            dec!(0.0667)
+        );
+    }
+
+    #[tokio::test]
+    async fn mixed_scope_dashboard_skips_transaction_component_attribution() {
+        let transaction = [
+            account_valuation(
+                "transaction",
+                "2026-06-12",
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+            ),
+            account_valuation(
+                "transaction",
+                "2026-06-19",
+                dec!(1050),
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+            ),
+        ];
+        let holdings = [
+            account_valuation(
+                "holdings",
+                "2026-06-12",
+                dec!(500),
+                dec!(500),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            account_valuation(
+                "holdings",
+                "2026-06-19",
+                dec!(550),
+                dec!(500),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+        let history = vec![
+            transaction[0].clone(),
+            transaction[1].clone(),
+            holdings[0].clone(),
+            holdings[1].clone(),
+        ];
+        let valuation_service = Arc::new(TestValuationService::new_with_aggregate_failure(history));
+        let mut dividend = income_activity_on(
+            "dividend-1",
+            "transaction",
+            "2026-06-19",
+            ActivityType::Dividend,
+            dec!(50),
+        );
+        dividend.currency = "CAD".to_string();
+        let activity_repo = Arc::new(TestActivityRepository::new(vec![dividend]));
+        let service = PerformanceService::new(valuation_service, Arc::new(TestQuoteService))
+            .with_activity_repository(activity_repo, Arc::new(TestFxService));
+        let account_ids = vec!["transaction".to_string(), "holdings".to_string()];
+        let mut modes = HashMap::new();
+        modes.insert("transaction".to_string(), TrackingMode::Transactions);
+        modes.insert("holdings".to_string(), TrackingMode::Holdings);
+        let account_types = HashMap::new();
+
+        let result = service
+            .calculate_performance_summary_for_accounts(
+                "mixed-scope",
+                &account_ids,
+                "CAD",
+                &modes,
+                &account_types,
+                Some(date("2026-06-12")),
+                Some(date("2026-06-19")),
+                PerformanceSummaryProfile::Dashboard,
+            )
+            .await
+            .expect("mixed dashboard summary should skip detailed attribution");
+
+        assert_eq!(result.attribution.income, Decimal::ZERO);
+        assert_eq!(result.attribution.unrealized_pnl_change, dec!(100));
+        assert_eq!(attribution_pnl(&result), dec!(100));
+        assert_eq!(
+            result.returns.value_return.unwrap().round_dp(4),
+            dec!(0.0667)
+        );
+    }
+
+    #[tokio::test]
+    async fn dashboard_scope_preserves_time_weighted_return_percent() {
+        let mut history = vec![
+            account_valuation(
+                "transaction",
+                "2026-06-12",
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+                dec!(1000),
+            ),
+            account_valuation(
+                "transaction",
+                "2026-06-19",
+                dec!(1200),
+                dec!(1100),
+                dec!(1200),
+                dec!(1100),
+            ),
+        ];
+        history[1].external_inflow_base = dec!(100);
+        history[1].external_flow_source = ValuationExternalFlowSource::StoredGross;
+        let valuation_service = Arc::new(TestValuationService::new(history));
+        let service = PerformanceService::new(valuation_service, Arc::new(TestQuoteService));
+        let account_ids = vec!["transaction".to_string()];
+        let mut modes = HashMap::new();
+        modes.insert("transaction".to_string(), TrackingMode::Transactions);
+        let account_types = HashMap::new();
+
+        let result = service
+            .calculate_performance_summary_for_accounts(
+                "dashboard-scope",
+                &account_ids,
+                "CAD",
+                &modes,
+                &account_types,
+                Some(date("2026-06-12")),
+                Some(date("2026-06-19")),
+                PerformanceSummaryProfile::Dashboard,
+            )
+            .await
+            .expect("dashboard summary should preserve return semantics");
+
+        assert_eq!(result.summary.amount, Some(dec!(100)));
+        assert_eq!(result.summary.method, ReturnMethod::TimeWeighted);
+        assert_eq!(result.returns.value_return.unwrap().round_dp(4), dec!(0.1));
+        assert_eq!(result.returns.twr.unwrap().round_dp(4), dec!(0.0909));
+        assert_eq!(
+            result.summary.percent.unwrap().round_dp(4),
+            result.returns.twr.unwrap().round_dp(4)
+        );
     }
 
     #[test]
@@ -6312,22 +10652,28 @@ mod tests {
     }
 
     #[test]
-    fn mixed_scope_rejects_negative_portfolio_value_without_series() {
+    fn mixed_scope_degrades_negative_portfolio_value_without_series() {
         let history = vec![
             valuation("2026-05-01", dec!(100), dec!(100), dec!(100), dec!(100)),
             valuation("2026-05-02", dec!(-50), dec!(100), dec!(-50), dec!(100)),
         ];
 
         for include_series in [true, false] {
-            let err = PerformanceService::compute_mixed_scope_performance(&history, include_series)
-                .expect_err("mixed scope should reject negative portfolio value");
+            let result =
+                PerformanceService::compute_mixed_scope_performance(&history, include_series)
+                    .expect("mixed scope should degrade negative portfolio value");
 
-            assert!(
-                format!("{}", err).contains("negative portfolio value"),
-                "expected 'negative portfolio value' in error (include_series={}), got: {}",
-                include_series,
-                err
-            );
+            assert_eq!(result.returns.value_return, None);
+            assert_eq!(result.summary.percent, None);
+            assert!(matches!(
+                result.data_quality.status,
+                DataQualityStatus::Partial
+            ));
+            assert!(result
+                .data_quality
+                .not_applicable_reasons
+                .iter()
+                .any(|reason| reason.contains("portfolio value is negative")));
         }
     }
 
@@ -6491,7 +10837,7 @@ mod tests {
             valuation("2026-05-03", dec!(100), dec!(100), dec!(100), dec!(100)),
         ];
         for point in &mut history {
-            point.external_flow_source = ExternalFlowSource::ActivityDerived;
+            point.external_flow_source = ExternalFlowSource::CashAmount;
         }
 
         let result = PerformanceService::compute_account_performance(

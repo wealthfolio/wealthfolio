@@ -1,4 +1,4 @@
-use super::holdings_calculator::HoldingsCalculator;
+use super::holdings_calculator::{HoldingsCalculator, ProjectionRun};
 use super::SnapshotRepositoryTrait;
 use crate::accounts::{
     Account, AccountAccountingSettings, AccountRepositoryTrait, CostBasisMethod, TrackingMode,
@@ -19,7 +19,7 @@ use crate::utils::time_utils::{
 };
 
 use async_trait::async_trait;
-use chrono::{Months, NaiveDate, Utc};
+use chrono::{NaiveDate, Utc};
 use log::{debug, error, info, warn};
 use rust_decimal::Decimal;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
@@ -98,9 +98,9 @@ pub trait SnapshotServiceTrait: Send + Sync {
     /// Returns the number of snapshots updated.
     async fn update_snapshots_source(&self, account_id: &str, new_source: &str) -> Result<usize>;
 
-    /// Ensures HOLDINGS mode accounts have at least 2 snapshots for proper history.
-    /// If only 1 non-calculated snapshot exists, creates a synthetic snapshot 3 months prior.
-    /// This enables history charting, valuation engines, and provides an inception boundary.
+    /// Legacy compatibility hook for holdings-history setup.
+    /// Synthetic backfill snapshots are no longer created because they make
+    /// charts and valuation history show holdings before they existed.
     async fn ensure_holdings_history(&self, account_id: &str) -> Result<()>;
 
     /// Delete snapshot(s) on the given dates.
@@ -447,8 +447,14 @@ impl SnapshotService {
                 .ensure_supported_for_calculation()?;
         }
 
+        // Per-run projection state (transfer-lot cache, disposals, cost-basis
+        // methods). Lives for the whole recalculation run — across accounts and
+        // days — then is drained per account when persisting lots below.
+        let mut projection_run = ProjectionRun::new();
+
         let (final_holdings_states, keyframes_to_save, calculation_warnings) = self
             .calculate_daily_holdings_snapshots(
+                &mut projection_run,
                 &accounts_needing_calculation,
                 &accounting_settings,
                 &activities_by_account_date,
@@ -523,12 +529,8 @@ impl SnapshotService {
                         .holdings_calculator
                         .extract_lot_records_with_base(snapshot, cost_basis_method);
                     let _ = check_lot_quantity_consistency(snapshot, &open_lots);
-                    let closures = self
-                        .holdings_calculator
-                        .take_disposed_lots(acc_id, cost_basis_method);
-                    let disposals = self
-                        .holdings_calculator
-                        .take_lot_disposals(acc_id, cost_basis_method);
+                    let closures = projection_run.take_disposed_lots(acc_id, cost_basis_method);
+                    let disposals = projection_run.take_lot_disposals(acc_id, cost_basis_method);
                     let is_full = matches!(mode, SnapshotRecalcMode::Full);
                     let affected_disposal_activity_ids = if is_full {
                         Vec::new()
@@ -659,7 +661,7 @@ impl SnapshotService {
                 }
             }
             None => {
-                for acc in self.account_repository.list(Some(true), None, None)? {
+                for acc in self.account_repository.list(None, Some(false), None)? {
                     // Skip HOLDINGS mode accounts - they don't participate in transaction-based recalculation
                     if acc.tracking_mode == TrackingMode::Holdings {
                         debug!(
@@ -772,7 +774,10 @@ impl SnapshotService {
             if !account_ids_with_activity.contains(acc_id)
                 && !matches!(mode, SnapshotRecalcMode::Full)
             {
-                debug!("Skipping account {} for range determination: no activities and not forcing full.", acc_id);
+                debug!(
+                    "Skipping account {} for range determination: no activities and not forcing full.",
+                    acc_id
+                );
                 continue;
             }
 
@@ -883,8 +888,10 @@ impl SnapshotService {
                     overall_min_calc_date = effective_start_date;
                 }
             } else {
-                debug!("Skipping account {} for calculation: effective_start_date {} is after calculation_end_date {}.",
-                       acc_id, effective_start_date, calculation_end_date);
+                debug!(
+                    "Skipping account {} for calculation: effective_start_date {} is after calculation_end_date {}.",
+                    acc_id, effective_start_date, calculation_end_date
+                );
             }
         }
 
@@ -938,6 +945,7 @@ impl SnapshotService {
     #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     fn calculate_daily_holdings_snapshots(
         &self,
+        run: &mut ProjectionRun,
         accounts_needing_calculation: &AccountsMap, // Actual accounts to process
         accounting_settings: &HashMap<String, AccountAccountingSettings>,
         activities_by_account_date: &ActivitiesByAccount,
@@ -955,11 +963,10 @@ impl SnapshotService {
         let mut all_warnings: Vec<HoldingsCalculationWarning> = Vec::new();
         let date_range = get_days_between(calculation_min_date, calculation_end_date);
 
-        // Clear lot-level caches from any previous run
-        self.holdings_calculator.clear_transfer_lots_cache();
-        self.holdings_calculator.clear_disposed_lots();
+        // Register each account's cost-basis method for this run. The run was
+        // created fresh by the caller, so there is no stale cache to clear.
         for account_id in accounts_needing_calculation.keys() {
-            self.holdings_calculator.set_cost_basis_method_for_account(
+            run.set_cost_basis_method(
                 account_id,
                 Self::accounting_method_for_account(accounting_settings, account_id),
             );
@@ -1025,6 +1032,7 @@ impl SnapshotService {
                     match self
                         .holdings_calculator
                         .calculate_next_holdings_for_account_type(
+                            run,
                             previous_holdings_snapshot,
                             &activities_today, // Pass the already fetched activities
                             current_date,
@@ -1107,6 +1115,42 @@ impl SnapshotService {
 
     // --- Helpers ---
 
+    fn get_non_synthetic_snapshots_by_account(
+        &self,
+        account_id: &str,
+        start_date_opt: Option<NaiveDate>,
+        end_date_opt: Option<NaiveDate>,
+    ) -> Result<Vec<AccountStateSnapshot>> {
+        Ok(self
+            .snapshot_repository
+            .get_snapshots_by_account(account_id, start_date_opt, end_date_opt)?
+            .into_iter()
+            .filter(|snapshot| snapshot.source != SnapshotSource::Synthetic)
+            .collect())
+    }
+
+    fn get_earliest_non_synthetic_snapshot_date(
+        &self,
+        account_id: &str,
+    ) -> Result<Option<NaiveDate>> {
+        Ok(self
+            .get_non_synthetic_snapshots_by_account(account_id, None, None)?
+            .into_iter()
+            .map(|snapshot| snapshot.snapshot_date)
+            .min())
+    }
+
+    fn get_latest_non_synthetic_snapshot_before_date(
+        &self,
+        account_id: &str,
+        target_date: NaiveDate,
+    ) -> Result<Option<AccountStateSnapshot>> {
+        Ok(self
+            .get_non_synthetic_snapshots_by_account(account_id, None, Some(target_date))?
+            .into_iter()
+            .max_by_key(|snapshot| snapshot.snapshot_date))
+    }
+
     // create_initial_snapshot creates a snapshot with default values
     fn create_initial_snapshot(account: &Account, date: NaiveDate) -> AccountStateSnapshot {
         AccountStateSnapshot {
@@ -1173,10 +1217,8 @@ impl SnapshotServiceTrait for SnapshotService {
             account_id, start_date_opt, end_date_opt
         );
 
-        // Determine start date: Use provided, else earliest snapshot date
-        let earliest_snapshot_date = self
-            .snapshot_repository
-            .get_earliest_snapshot_date(account_id)?;
+        // Determine start date: Use provided, else earliest non-synthetic snapshot date.
+        let earliest_snapshot_date = self.get_earliest_non_synthetic_snapshot_date(account_id)?;
 
         let start_date = match start_date_opt {
             Some(date) => date,
@@ -1200,10 +1242,7 @@ impl SnapshotServiceTrait for SnapshotService {
                 // Use a far future date to get the absolute latest snapshot
                 let today = self.user_today();
                 let far_future = today + chrono::Duration::days(365);
-                match self
-                    .snapshot_repository
-                    .get_latest_snapshot_before_date(account_id, far_future)?
-                {
+                match self.get_latest_non_synthetic_snapshot_before_date(account_id, far_future)? {
                     Some(latest_snapshot) => latest_snapshot.snapshot_date.max(today),
                     None => today,
                 }
@@ -1219,10 +1258,10 @@ impl SnapshotServiceTrait for SnapshotService {
         }
 
         // Fetch keyframes within the actual range first, as we might need them to determine the initial state.
-        let keyframes_in_range = self.snapshot_repository.get_snapshots_by_account(
+        let keyframes_in_range = self.get_non_synthetic_snapshots_by_account(
             account_id,
-            Some(start_date), // Fetch keyframes from start_date...
-            Some(end_date),   // ...to end_date inclusive
+            Some(start_date),
+            Some(end_date),
         )?;
         let keyframes_map: BTreeMap<NaiveDate, AccountStateSnapshot> = keyframes_in_range
             .into_iter()
@@ -1230,9 +1269,8 @@ impl SnapshotServiceTrait for SnapshotService {
             .collect();
 
         // Try to get the state from the day before the loop starts.
-        let initial_state_result = self
-            .snapshot_repository
-            .get_latest_snapshot_before_date(account_id, start_date);
+        let initial_state_result =
+            self.get_latest_non_synthetic_snapshot_before_date(account_id, start_date);
 
         let mut current_state = match initial_state_result? {
             Some(initial_snapshot) => initial_snapshot,
@@ -1240,7 +1278,10 @@ impl SnapshotServiceTrait for SnapshotService {
                 // No snapshot found before start date.
                 // If there are no keyframes at all in the requested range, we can't reconstruct.
                 if keyframes_map.is_empty() {
-                    debug!("No snapshot found before start date {} and no keyframes in range for account {}. Returning empty.", start_date, account_id);
+                    debug!(
+                        "No snapshot found before start date {} and no keyframes in range for account {}. Returning empty.",
+                        start_date, account_id
+                    );
                     return Ok(Vec::new());
                 }
 
@@ -1363,9 +1404,6 @@ impl SnapshotServiceTrait for SnapshotService {
             .collect();
         self.emit_holdings_changed(vec![account_id.to_string()], asset_ids);
 
-        // Ensure holdings history has at least 2 snapshots
-        self.ensure_holdings_history(account_id).await?;
-
         Ok(())
     }
 
@@ -1389,82 +1427,10 @@ impl SnapshotServiceTrait for SnapshotService {
     }
 
     async fn ensure_holdings_history(&self, account_id: &str) -> Result<()> {
-        // Get count of non-calculated snapshots
-        let count = self
-            .snapshot_repository
-            .get_non_calculated_snapshot_count(account_id)?;
-
-        if count >= 2 {
-            debug!(
-                "Account {} already has {} non-calculated snapshots, no synthetic needed",
-                account_id, count
-            );
-            return Ok(());
-        }
-
-        if count == 0 {
-            debug!(
-                "Account {} has no non-calculated snapshots, nothing to backfill from",
-                account_id
-            );
-            return Ok(());
-        }
-
-        // count == 1: Create synthetic snapshot 3 months before the earliest
-        let earliest = self
-            .snapshot_repository
-            .get_earliest_non_calculated_snapshot(account_id)?;
-
-        let earliest = match earliest {
-            Some(s) => s,
-            None => {
-                debug!("No earliest snapshot found for account {}", account_id);
-                return Ok(());
-            }
-        };
-
-        // Calculate synthetic date: 3 months before earliest
-        let synthetic_date = earliest
-            .snapshot_date
-            .checked_sub_months(Months::new(3))
-            .unwrap_or(earliest.snapshot_date);
-
-        // Don't create if synthetic date equals earliest (edge case)
-        if synthetic_date == earliest.snapshot_date {
-            debug!(
-                "Synthetic date equals earliest date for account {}, skipping",
-                account_id
-            );
-            return Ok(());
-        }
-
-        // Clone the earliest snapshot with new date and source
-        let synthetic = AccountStateSnapshot {
-            id: AccountStateSnapshot::stable_id(account_id, synthetic_date),
-            account_id: account_id.to_string(),
-            snapshot_date: synthetic_date,
-            source: SnapshotSource::Synthetic,
-            calculated_at: Utc::now().naive_utc(),
-            // Clone all holdings data from earliest
-            currency: earliest.currency,
-            positions: earliest.positions,
-            cash_balances: earliest.cash_balances,
-            cost_basis: earliest.cost_basis,
-            net_contribution: earliest.net_contribution,
-            net_contribution_base: earliest.net_contribution_base,
-            cash_total_account_currency: earliest.cash_total_account_currency,
-            cash_total_base_currency: earliest.cash_total_base_currency,
-        };
-
-        self.snapshot_repository
-            .save_or_update_snapshot(&synthetic)
-            .await?;
-
-        info!(
-            "Created synthetic snapshot for account {} at {} (3 months before {})",
-            account_id, synthetic_date, earliest.snapshot_date
+        debug!(
+            "Skipping synthetic holdings-history backfill for account {}",
+            account_id
         );
-
         Ok(())
     }
 

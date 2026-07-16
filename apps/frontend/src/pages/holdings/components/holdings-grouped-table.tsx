@@ -6,17 +6,38 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@wealthfolio/ui/components/ui/collapsible";
-import { AmountDisplay, GainPercent, QuantityDisplay } from "@wealthfolio/ui";
+import { AmountDisplay, QuantityDisplay } from "@wealthfolio/ui";
+import { HoldingPerformancePercent } from "@/components/holding-performance-percent";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { Holding, HOLDING_GROUP_ORDER } from "@/lib/types";
 import { AccountType, AssetKind, HoldingType } from "@/lib/constants";
+import { getBaseHoldingPerformancePercent } from "@/lib/holding-performance";
 import { cn, safeDivide } from "@/lib/utils";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
 
 type PerformanceMode = "daily" | "pnl" | "return";
+
+// Maps internal group keys to translation keys for display.
+const GROUP_LABEL_KEYS: Record<string, string> = {
+  Investments: "holdings:group_investments",
+  Cash: "holdings:group_cash",
+  Liabilities: "holdings:group_liabilities",
+  Properties: "holdings:group_properties",
+  Vehicles: "holdings:group_vehicles",
+  Collectibles: "holdings:group_collectibles",
+  "Precious Metals": "holdings:group_precious_metals",
+  "Other Assets": "holdings:group_other_assets",
+};
+
+function getGroupLabel(t: TFunction, groupName: string): string {
+  const key = GROUP_LABEL_KEYS[groupName];
+  return key ? t(key) : groupName;
+}
 
 interface HoldingsGroupedTableProps {
   holdings: Holding[];
@@ -52,6 +73,7 @@ export function HoldingsGroupedTable({
   showConvertedValues,
   isLoading,
 }: HoldingsGroupedTableProps) {
+  const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const { isBalanceHidden } = useBalancePrivacy();
@@ -137,7 +159,7 @@ export function HoldingsGroupedTable({
                     collapsedGroups.has(group.name) && "-rotate-90",
                   )}
                 />
-                <span className="font-medium">{group.name}</span>
+                <span className="font-medium">{getGroupLabel(t, group.name)}</span>
                 <span className="text-muted-foreground text-sm">({group.holdings.length})</span>
               </div>
               <AmountDisplay
@@ -186,6 +208,7 @@ function HoldingRow({
   navigate,
   isIndented = false,
 }: HoldingRowProps) {
+  const { t } = useTranslation();
   const symbol = holding.instrument?.symbol ?? holding.id;
   const avatarSymbol =
     holding.holdingType === HoldingType.CASH ? `CASH:${holding.localCurrency}` : symbol;
@@ -223,9 +246,14 @@ function HoldingRow({
           : (holding.dayChange?.local ?? 0);
   const gainPct =
     performanceMode === "return"
-      ? (holding.totalReturnPct ?? holding.totalGainPct)
+      ? showConvertedValues
+        ? (getBaseHoldingPerformancePercent(holding, "totalReturn") ??
+          getBaseHoldingPerformancePercent(holding, "totalGain"))
+        : (holding.totalReturnPct ?? holding.totalGainPct)
       : performanceMode === "pnl"
-        ? holding.totalGainPct
+        ? showConvertedValues
+          ? getBaseHoldingPerformancePercent(holding, "totalGain")
+          : holding.totalGainPct
         : holding.dayChangePct;
 
   return (
@@ -246,7 +274,7 @@ function HoldingRow({
               <span className="truncate font-medium">{symbol}</span>
               {holding.isLiability && (
                 <Badge variant="destructive" className="text-xs">
-                  Debt
+                  {t("holdings:debt")}
                 </Badge>
               )}
             </div>
@@ -282,7 +310,7 @@ function HoldingRow({
                 isHidden={isBalanceHidden}
                 colorFormat={true}
               />
-              <GainPercent className="text-xs" value={gainPct ?? 0} />
+              <HoldingPerformancePercent className="text-xs" value={gainPct} />
             </>
           )}
           {holding.isLiability && <span className="text-muted-foreground text-sm">--</span>}

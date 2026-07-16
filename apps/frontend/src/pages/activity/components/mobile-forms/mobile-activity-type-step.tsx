@@ -5,103 +5,105 @@ import { ScrollArea } from "@wealthfolio/ui/components/ui/scroll-area";
 import { ActivityType } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useFormContext } from "react-hook-form";
-
-const activityTypes = [
-  {
-    category: "Trade",
-    types: [
-      {
-        value: ActivityType.BUY,
-        label: "Buy",
-        icon: "ArrowDown" as const,
-        description: "Purchase an asset",
-      },
-      {
-        value: ActivityType.SELL,
-        label: "Sell",
-        icon: "ArrowUp" as const,
-        description: "Sell an asset",
-      },
-    ],
-  },
-  {
-    category: "Cash",
-    types: [
-      {
-        value: ActivityType.DEPOSIT,
-        label: "Deposit",
-        icon: "ArrowDown" as const,
-        description: "Add funds to account",
-      },
-      {
-        value: ActivityType.WITHDRAWAL,
-        label: "Withdrawal",
-        icon: "ArrowUp" as const,
-        description: "Remove funds from account",
-      },
-      {
-        value: ActivityType.TRANSFER_OUT,
-        label: "Transfer",
-        icon: "ArrowLeftRight" as const,
-        description: "Move cash or securities between accounts",
-      },
-    ],
-  },
-  {
-    category: "Income",
-    types: [
-      {
-        value: ActivityType.DIVIDEND,
-        label: "Dividend",
-        icon: "Income" as const,
-        description: "Dividend payment received",
-      },
-      {
-        value: ActivityType.INTEREST,
-        label: "Interest",
-        icon: "Percent" as const,
-        description: "Interest earned",
-      },
-    ],
-  },
-  {
-    category: "Other",
-    types: [
-      {
-        value: ActivityType.FEE,
-        label: "Fee",
-        icon: "DollarSign" as const,
-        description: "Account or transaction fee",
-      },
-      {
-        value: ActivityType.TAX,
-        label: "Tax",
-        icon: "Receipt" as const,
-        description: "Tax payment",
-      },
-      {
-        value: ActivityType.SPLIT,
-        label: "Stock Split",
-        icon: "Split" as const,
-        description: "Stock split adjustment",
-      },
-      {
-        value: ActivityType.ADJUSTMENT,
-        label: "Adjustment",
-        icon: "RefreshCw" as const,
-        description: "Non-trade correction or adjustment",
-      },
-    ],
-  },
-];
+import { useTranslation } from "react-i18next";
 
 export function MobileActivityTypeStep() {
   const { control } = useFormContext();
+  const { t } = useTranslation();
+
+  const activityTypes = [
+    {
+      category: t("activity:mobile_type_category.trade"),
+      types: [
+        {
+          value: ActivityType.BUY,
+          label: t("activity:type_buy"),
+          icon: "ArrowDown" as const,
+          description: t("activity:mobile_type_buy_desc"),
+        },
+        {
+          value: ActivityType.SELL,
+          label: t("activity:type_sell"),
+          icon: "ArrowUp" as const,
+          description: t("activity:mobile_type_sell_desc"),
+        },
+      ],
+    },
+    {
+      category: t("activity:mobile_type_category.cash"),
+      types: [
+        {
+          value: ActivityType.DEPOSIT,
+          label: t("activity:type_deposit"),
+          icon: "ArrowDown" as const,
+          description: t("activity:mobile_type_deposit_desc"),
+        },
+        {
+          value: ActivityType.WITHDRAWAL,
+          label: t("activity:type_withdrawal"),
+          icon: "ArrowUp" as const,
+          description: t("activity:mobile_type_withdrawal_desc"),
+        },
+        {
+          value: ActivityType.TRANSFER_OUT,
+          label: t("activity:form.button_transfer"),
+          icon: "ArrowLeftRight" as const,
+          description: t("activity:mobile_type_transfer_desc"),
+        },
+      ],
+    },
+    {
+      category: t("activity:mobile_type_category.income"),
+      types: [
+        {
+          value: ActivityType.DIVIDEND,
+          label: t("activity:type_dividend"),
+          icon: "Income" as const,
+          description: t("activity:mobile_type_dividend_desc"),
+        },
+        {
+          value: ActivityType.INTEREST,
+          label: t("activity:type_interest"),
+          icon: "Percent" as const,
+          description: t("activity:mobile_type_interest_desc"),
+        },
+      ],
+    },
+    {
+      category: t("activity:mobile_type_category.other"),
+      types: [
+        {
+          value: ActivityType.FEE,
+          label: t("activity:type_fee"),
+          icon: "DollarSign" as const,
+          description: t("activity:mobile_type_fee_desc"),
+        },
+        {
+          value: ActivityType.TAX,
+          label: t("activity:type_tax"),
+          icon: "Receipt" as const,
+          description: t("activity:mobile_type_tax_desc"),
+        },
+        {
+          value: ActivityType.SPLIT,
+          label: t("activity:type_split"),
+          icon: "Split" as const,
+          description: t("activity:mobile_type_split_desc"),
+        },
+        {
+          value: ActivityType.ADJUSTMENT,
+          label: t("activity:mobile_type_adjustment_label"),
+          icon: "RefreshCw" as const,
+          description: t("activity:mobile_type_adjustment_desc"),
+        },
+      ],
+    },
+  ];
 
   return (
     <div className="flex h-full flex-col">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold">Select Transaction Type</h3>
+        <h3 className="text-lg font-semibold">{t("activity:mobile_select_transaction_type")}</h3>
       </div>
 
       <ScrollArea>

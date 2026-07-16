@@ -1,6 +1,7 @@
 //! Storage adapter for spending::activity_assignments — Diesel impl over the
 //! `activity_taxonomy_assignments` table.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -9,9 +10,10 @@ use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::db::{get_connection, DbPool, WriteHandle};
+use crate::db::{get_connection, write_actor::DbWriteTx, DbPool, WriteHandle};
 use crate::errors::StorageError;
-use crate::schema::activity_taxonomy_assignments;
+use crate::schema::{activity_taxonomy_assignments, spending_activity_splits};
+use crate::spending::activity_splits::ActivitySplitDB;
 use crate::spending::activity_sync::should_sync_activity_local_id_outbox;
 use crate::spending::deterministic_ids::activity_taxonomy_assignment_id;
 use wealthfolio_core::sync::SyncEntity;
@@ -87,6 +89,56 @@ impl ActivityTaxonomyAssignmentRepository {
     pub fn new(pool: Arc<DbPool>, writer: WriteHandle) -> Self {
         Self { pool, writer }
     }
+}
+
+fn clear_splits_for_activities_tx(
+    tx: &mut DbWriteTx<'_>,
+    activity_ids: &[String],
+) -> wealthfolio_core::Result<()> {
+    if activity_ids.is_empty() {
+        return Ok(());
+    }
+
+    const CHUNK: usize = 500;
+    for chunk in activity_ids.chunks(CHUNK) {
+        let existing: Vec<(String, String)> = spending_activity_splits::table
+            .filter(spending_activity_splits::activity_id.eq_any(chunk))
+            .select((
+                spending_activity_splits::id,
+                spending_activity_splits::activity_id,
+            ))
+            .load(tx.conn())
+            .map_err(StorageError::from)?;
+        if existing.is_empty() {
+            continue;
+        }
+
+        let mut sync_activity_ids = HashSet::new();
+        for activity_id in existing
+            .iter()
+            .map(|(_, activity_id)| activity_id.as_str())
+            .collect::<HashSet<_>>()
+        {
+            if should_sync_activity_local_id_outbox(tx.conn(), activity_id)? {
+                sync_activity_ids.insert(activity_id.to_string());
+            }
+        }
+
+        diesel::delete(
+            spending_activity_splits::table
+                .filter(spending_activity_splits::activity_id.eq_any(chunk)),
+        )
+        .execute(tx.conn())
+        .map_err(StorageError::from)?;
+
+        for (split_id, activity_id) in existing {
+            if sync_activity_ids.contains(&activity_id) {
+                tx.delete::<ActivitySplitDB>(split_id);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[async_trait]
@@ -191,6 +243,101 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
         let inserted_dbs: Vec<ActivityTaxonomyAssignmentDB> = self
             .writer
             .exec_tx(move |tx| {
+                let mut out = Vec::with_capacity(items.len());
+                for item in items {
+                    let NewActivityTaxonomyAssignment {
+                        id,
+                        activity_id,
+                        taxonomy_id,
+                        category_id,
+                        weight,
+                        source,
+                    } = item;
+                    let existing_id = activity_taxonomy_assignments::table
+                        .filter(activity_taxonomy_assignments::activity_id.eq(&activity_id))
+                        .filter(activity_taxonomy_assignments::taxonomy_id.eq(&taxonomy_id))
+                        .select(activity_taxonomy_assignments::id)
+                        .first::<String>(tx.conn())
+                        .optional()
+                        .map_err(StorageError::from)?;
+
+                    let id = id.unwrap_or_else(|| {
+                        activity_taxonomy_assignment_id(&activity_id, &taxonomy_id)
+                    });
+                    let row = NewActivityTaxonomyAssignmentDB {
+                        id,
+                        activity_id,
+                        taxonomy_id,
+                        category_id,
+                        weight,
+                        source,
+                        created_at: now.clone(),
+                        updated_at: now.clone(),
+                    };
+
+                    let inserted = diesel::insert_into(activity_taxonomy_assignments::table)
+                        .values(&row)
+                        .on_conflict((
+                            activity_taxonomy_assignments::activity_id,
+                            activity_taxonomy_assignments::taxonomy_id,
+                        ))
+                        .do_update()
+                        .set((
+                            activity_taxonomy_assignments::category_id.eq(&row.category_id),
+                            activity_taxonomy_assignments::weight.eq(&row.weight),
+                            activity_taxonomy_assignments::source.eq(&row.source),
+                            activity_taxonomy_assignments::updated_at.eq(&row.updated_at),
+                        ))
+                        .returning(ActivityTaxonomyAssignmentDB::as_returning())
+                        .get_result::<ActivityTaxonomyAssignmentDB>(tx.conn())
+                        .map_err(StorageError::from)?;
+
+                    if should_sync_activity_local_id_outbox(tx.conn(), &inserted.activity_id)? {
+                        if existing_id.is_some() {
+                            tx.update(&inserted)?;
+                        } else {
+                            tx.insert(&inserted)?;
+                        }
+                    }
+                    out.push(inserted);
+                }
+                Ok(out)
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
+
+        Ok(inserted_dbs
+            .into_iter()
+            .map(ActivityTaxonomyAssignment::from)
+            .collect())
+    }
+
+    async fn assign_many_single_select_clearing_splits(
+        &self,
+        items: Vec<NewActivityTaxonomyAssignment>,
+    ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+        if items.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut seen_activity_ids = HashSet::new();
+        let activity_ids = items
+            .iter()
+            .filter_map(|item| {
+                if seen_activity_ids.insert(item.activity_id.clone()) {
+                    Some(item.activity_id.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let inserted_dbs: Vec<ActivityTaxonomyAssignmentDB> = self
+            .writer
+            .exec_tx(move |tx| {
+                clear_splits_for_activities_tx(tx, &activity_ids)?;
+
                 let mut out = Vec::with_capacity(items.len());
                 for item in items {
                     let NewActivityTaxonomyAssignment {
@@ -413,7 +560,9 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
 mod tests {
     use super::*;
     use crate::db::{create_pool, get_connection, init, run_migrations, write_actor::spawn_writer};
-    use crate::schema::{activities, activity_taxonomy_assignments, sync_outbox};
+    use crate::schema::{
+        activities, activity_taxonomy_assignments, spending_activity_splits, sync_outbox,
+    };
     use diesel::r2d2::{ConnectionManager, Pool};
     use std::sync::Arc;
     use tempfile::tempdir;
@@ -476,6 +625,56 @@ mod tests {
             .set(activities::is_user_modified.eq(1))
             .execute(conn)
             .expect("mark activity user modified");
+    }
+
+    fn insert_split(conn: &mut SqliteConnection, id: &str, activity_id: &str) {
+        diesel::sql_query(format!(
+            "INSERT INTO spending_activity_splits \
+             (id, activity_id, taxonomy_id, category_id, amount, note, sort_order, created_at, updated_at) \
+             VALUES ('{}', '{}', 'spending_categories', 'cat_food', '10', NULL, 0, \
+                     '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+            id, activity_id
+        ))
+        .execute(conn)
+        .expect("insert split");
+    }
+
+    #[tokio::test]
+    async fn assigning_category_clears_existing_splits_in_same_write() {
+        let (pool, writer) = setup_db();
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account_and_activity(&mut conn, "manual-activity", "MANUAL");
+            insert_split(&mut conn, "split-1", "manual-activity");
+        }
+
+        let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+        repo.assign_many_single_select_clearing_splits(vec![NewActivityTaxonomyAssignment {
+            id: None,
+            activity_id: "manual-activity".to_string(),
+            taxonomy_id: "spending_categories".to_string(),
+            category_id: "cat_groceries".to_string(),
+            weight: 10_000,
+            source: "manual".to_string(),
+        }])
+        .await
+        .expect("assign category");
+
+        let mut conn = get_connection(&pool).expect("conn");
+        assert_eq!(
+            spending_activity_splits::table
+                .count()
+                .get_result::<i64>(&mut conn)
+                .expect("count splits"),
+            0
+        );
+        assert_eq!(
+            activity_taxonomy_assignments::table
+                .count()
+                .get_result::<i64>(&mut conn)
+                .expect("count assignments"),
+            1
+        );
     }
 
     #[tokio::test]

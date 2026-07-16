@@ -1,0 +1,282 @@
+{
+  "page": {
+    "title": "同步与连接",
+    "subtitle": "您的所有设备,尽在一处。",
+    "subtitleWithBrokers": "您的券商和设备,尽在一处。",
+    "brokerages": "券商",
+    "devices": "设备",
+    "recentActivity": "近期活动",
+    "manage": "管理",
+    "timeAgo": "{{time}}前",
+    "noBrokeragesConnected": "尚未连接券商",
+    "noBrokeragesDescription": "关联一家券商以开始同步您的账户。",
+    "noDevicesSyncing": "尚无设备在同步",
+    "noDevicesDescription": "在设置中配置设备同步,以在各设备间保持数据同步。",
+    "noActivity": "暂无活动",
+    "noActivityDescription": "数据开始同步后,更新将显示在此处。"
+  },
+  "emptyState": {
+    "optional": "可选",
+    "subtitle": "在保护数据隐私的同时自动同步您的券商。",
+    "getStarted": "开始使用 Connect",
+    "loginToAccount": "登录您的账户",
+    "learnMore": "了解有关 Connect 的更多信息",
+    "features": {
+      "brokerageSync": {
+        "title": "券商同步",
+        "description": "每日自动同步账户和交易。"
+      },
+      "deviceSync": {
+        "title": "设备同步",
+        "description": "通过端到端加密在各设备间同步。"
+      },
+      "householdView": {
+        "title": "家庭视图",
+        "description": "与家庭成员共享账户。"
+      }
+    }
+  },
+  "flow": {
+    "yourDevice": "您的设备",
+    "localDatabase": "本地数据库",
+    "dataStaysHere": "数据保留在此",
+    "aggregators": "聚合服务商",
+    "brokerages": "券商",
+    "banks": "银行",
+    "crypto": "加密货币"
+  },
+  "account": {
+    "userAvatar": "用户头像",
+    "userFallback": "用户",
+    "active": "活跃",
+    "signOut": "退出登录",
+    "signOutTitle": "退出 Wealthfolio Connect?",
+    "signOutMessage": "您需要重新登录才能访问已同步的券商账户。您的本地数据不会受到影响。",
+    "signOutConfirm": "退出登录",
+    "signingOut": "正在退出登录..."
+  },
+  "accounts": {
+    "title": "账户",
+    "manage": "管理账户",
+    "accountFallback": "账户",
+    "platformFallback": "平台",
+    "brokerFallback": "券商",
+    "paper": "模拟",
+    "shared": "共享",
+    "sharedBy": "由 {{name}} 共享",
+    "syncEnabled": "已启用同步",
+    "excludedFromSync": "已排除同步",
+    "noDataYet": "暂无数据",
+    "dataAsOf": "数据截至 {{date}}",
+    "emptyTitle": "尚未同步任何账户",
+    "emptyDescription": "连接一家券商以开始同步您的账户。"
+  },
+  "connections": {
+    "title": "券商连接",
+    "manage": "管理连接",
+    "empty": "尚无券商连接",
+    "connectBroker": "连接券商",
+    "unknownBroker": "未知券商",
+    "unknown": "未知",
+    "connected": "已连接",
+    "disconnected": "已断开",
+    "reconnect": "重新连接",
+    "noAccountsFound": "未找到账户",
+    "allAccountsExcluded": "所有账户已排除",
+    "accountsSyncing_one": "{{count}} 个账户正在同步",
+    "accountsSyncing_other": "{{count}} 个账户正在同步",
+    "partialSyncing_one": "{{total}} 个账户中有 {{syncing}} 个正在同步 · {{excluded}} 个账户已排除",
+    "partialSyncing_other": "{{total}} 个账户中有 {{syncing}} 个正在同步 · {{excluded}} 个账户已排除"
+  },
+  "sync": {
+    "syncNow": "立即同步",
+    "sync": "同步",
+    "syncAll": "全部同步",
+    "syncingShort": "同步中...",
+    "statusTitle": "同步状态",
+    "syncingBrokerData": "正在同步券商数据...",
+    "startFailed": "启动同步失败:{{error}}",
+    "needAttention_one": "{{count}} 个账户需要关注",
+    "needAttention_other": "{{count}} 个账户需要关注"
+  },
+  "status": {
+    "upToDate": "已是最新",
+    "syncing": "同步中",
+    "syncingEllipsis": "同步中...",
+    "needsReview": "需要审核",
+    "failed": "失败",
+    "notConnected": "未连接",
+    "lastSynced": "上次同步 {{time}}",
+    "neverSynced": "从未同步"
+  },
+  "runStatus": {
+    "running": "运行中",
+    "applied": "已应用",
+    "needsReview": "需要审核",
+    "failed": "失败",
+    "cancelled": "已取消"
+  },
+  "syncRuns": {
+    "title": "近期同步任务",
+    "empty": "尚无同步任务。",
+    "warningsCount_one": "{{count}} 个警告",
+    "warningsCount_other": "{{count}} 个警告",
+    "fetched": "已获取",
+    "inserted": "已插入",
+    "updated": "已更新",
+    "skipped": "已跳过",
+    "warningsLabel": "警告:",
+    "andMore": "... 还有 {{count}} 个",
+    "reviewActivities": "审核活动",
+    "duration": "耗时:",
+    "inProgress": "进行中..."
+  },
+  "syncHistory": {
+    "title": "同步历史",
+    "success": "成功",
+    "review": "审核",
+    "emptyTitle": "尚无同步任务",
+    "emptyDescription": "首次同步后,您的同步历史将显示在此处",
+    "runCount_one": "{{count}} 次任务",
+    "runCount_other": "{{count}} 次任务",
+    "loadMore": "加载更多",
+    "lessThanOneSecond": "<1秒",
+    "new": "新增",
+    "updated": "已更新",
+    "skipped": "已跳过",
+    "warningsCount_one": "{{count}} 个警告",
+    "warningsCount_other": "{{count}} 个警告",
+    "andMore": "+{{count}} 个"
+  },
+  "activity": {
+    "syncingData": "正在同步您的数据...",
+    "somethingWentWrong": "出了点问题",
+    "upToDate": "一切都是最新的",
+    "itemsNeedReview_one": "{{count}} 项需要您审核",
+    "itemsNeedReview_other": "{{count}} 项需要您审核",
+    "newItems": {
+      "transaction_one": "{{count}} 笔新交易",
+      "transaction_other": "{{count}} 笔新交易",
+      "position_one": "{{count}} 个新持仓",
+      "position_other": "{{count}} 个新持仓"
+    },
+    "updatedItems": {
+      "transaction_one": "{{count}} 笔交易已更新",
+      "transaction_other": "{{count}} 笔交易已更新",
+      "position_one": "{{count}} 个持仓已更新",
+      "position_other": "{{count}} 个持仓已更新"
+    },
+    "removedItems": {
+      "transaction_one": "{{count}} 笔交易已移除",
+      "transaction_other": "{{count}} 笔交易已移除",
+      "position_one": "{{count}} 个持仓已移除",
+      "position_other": "{{count}} 个持仓已移除"
+    }
+  },
+  "attention": {
+    "title": "券商同步需要关注",
+    "description_one": "{{count}} 个账户需要重试或券商审核。",
+    "description_other": "{{count}} 个账户需要重试或券商审核。"
+  },
+  "setup": {
+    "newAccountsTitle": "新账户需要设置",
+    "newAccountsDescription_one": "{{count}} 个账户在开始同步前需要快速设置。",
+    "newAccountsDescription_other": "{{count}} 个账户在开始同步前需要快速设置。",
+    "reviewAccounts": "审核账户"
+  },
+  "devices": {
+    "thisDevice": "此设备",
+    "activeNow": "当前活跃",
+    "lastSeen": "上次活跃 {{time}}",
+    "online": "在线",
+    "never": "从未"
+  },
+  "deviceStatus": {
+    "syncError": "同步错误",
+    "syncPaused": "同步已暂停",
+    "upToDate": "已是最新",
+    "syncing": "同步中"
+  },
+  "serviceUnavailable": {
+    "title": "服务暂时不可用",
+    "description": "我们连接 Wealthfolio Connect 时遇到问题。这通常是暂时的,应该很快就会恢复。",
+    "retrying": "正在重试...",
+    "tryAgain": "重试"
+  },
+  "upgrade": {
+    "title": "升级以同步券商账户",
+    "description": "连接您的券商账户以自动同步投资组合。",
+    "button": "升级"
+  },
+  "privacy": {
+    "footnote": "Wealthfolio Connect 不会存储您的券商凭据或财务数据。所有内容均通过聚合服务商安全同步到您的本地数据库。设备同步采用端到端加密。<privacyLink>了解更多</privacyLink>"
+  },
+  "providers": {
+    "continueWithGoogle": "使用 Google 继续",
+    "continueWithApple": "使用 Apple 继续",
+    "continueWithEmail": "使用邮箱继续",
+    "lastUsed": "上次使用"
+  },
+  "subscription": {
+    "comingSoon": "敬请期待",
+    "getStarted": "开始使用",
+    "perMonthShort": "月",
+    "perYearShort": "年",
+    "savings": "相比按月节省 {{percent}}%",
+    "choosePlan": "选择您的方案",
+    "choosePlanDescription": "订阅以解锁券商同步和云功能。",
+    "monthly": "按月",
+    "yearly": "按年",
+    "monthlyBilling": "按月计费",
+    "yearlyBilling": "按年计费",
+    "alreadySubscribed": "已订阅?",
+    "connectionIssueTitle": "连接问题",
+    "connectionIssueDescription": "我们连接您的账户时遇到问题。如果您的会话已过期,可能会出现这种情况。",
+    "unableToLoadTitle": "无法加载方案",
+    "unableToLoadDescription": "我们暂时无法获取订阅方案。这通常是暂时性问题。",
+    "contactSupport": "联系支持",
+    "emailCopied": "邮箱已复制到剪贴板",
+    "reconnecting": "正在重新连接...",
+    "reconnect": "重新连接",
+    "refreshPage": "刷新页面"
+  },
+  "authCallback": {
+    "processing": "正在处理身份验证...",
+    "completing": "正在完成登录..."
+  },
+  "authErrors": {
+    "noSessionReturned": "完成登录后未返回会话。",
+    "completeSignInFailed": "完成登录失败",
+    "signInFailed": "登录失败",
+    "signUpFailed": "注册失败",
+    "confirmEmail": "请检查您的邮箱以确认您的账户。",
+    "oauthFailed": "OAuth 登录失败",
+    "magicLinkFailed": "发送魔法链接失败",
+    "invalidVerificationCode": "验证码无效",
+    "signOutFailed": "退出登录失败",
+    "fetchUserInfoFailed": "获取用户信息失败"
+  },
+  "newAccounts": {
+    "title": "发现新账户",
+    "description": "选择如何跟踪每个账户。您可以稍后更改。",
+    "trackingInfo": "<strong>交易</strong>模式跟踪每一笔交易,提供完整的表现分析。<strong>持仓</strong>模式仅导入快照,指标有限。<docsLink>了解更多</docsLink>",
+    "accountName": "账户名称",
+    "group": "分组(可选)",
+    "groupPlaceholder": "例如:退休",
+    "trackingMode": "跟踪模式",
+    "transactions": "交易",
+    "transactionsDescription": "完整表现分析",
+    "holdings": "持仓",
+    "holdingsDescription": "仅快照",
+    "holdingsWarning": "没有交易历史,表现指标将受到限制。",
+    "notNow": "暂不",
+    "saving": "正在保存...",
+    "saveAndSync": "保存并同步",
+    "configured": "账户已配置",
+    "configuredDescription": "正在使用您选择的设置开始同步...",
+    "saveFailed": "保存账户失败"
+  },
+  "errors": {
+    "unknown": "未知错误"
+  }
+}

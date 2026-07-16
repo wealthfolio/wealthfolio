@@ -56,6 +56,8 @@ export type CellOpts =
       max?: number;
       step?: number;
       valueType?: "number" | "string";
+      /** Custom renderer for the value while the cell is not being edited. */
+      valueRenderer?: (value: number | string | null, rowData: unknown) => React.ReactNode;
     }
   | {
       variant: "select";

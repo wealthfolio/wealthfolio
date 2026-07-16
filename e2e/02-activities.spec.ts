@@ -1,11 +1,15 @@
 import { expect, Page, test } from "@playwright/test";
-import { gotoActivities } from "./helpers";
+import {
+  completeOnboardingIfNeeded,
+  createAccount,
+  gotoActivities,
+  gotoAppPath,
+  selectAccountOption,
+} from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
 test.describe("Activity Creation Tests", () => {
-  const BASE_URL = process.env.WF_E2E_BASE_URL || "http://localhost:1420";
-  const TEST_PASSWORD = "password001";
   let page: Page;
 
   // Test data for activities
@@ -153,6 +157,19 @@ test.describe("Activity Creation Tests", () => {
   };
 
   // Helper functions
+  const activityTypeTestIds: Record<string, string> = {
+    Buy: "activity-type-buy",
+    Sell: "activity-type-sell",
+    Deposit: "activity-type-deposit",
+    Withdrawal: "activity-type-withdrawal",
+    Dividend: "activity-type-dividend",
+    Transfer: "activity-type-transfer",
+    Split: "activity-type-split",
+    Fee: "activity-type-fee",
+    Interest: "activity-type-interest",
+    Tax: "activity-type-tax",
+  };
+
   async function waitForOverlayClose() {
     await page
       .locator('[data-state="open"][aria-hidden="true"]')
@@ -162,13 +179,13 @@ test.describe("Activity Creation Tests", () => {
 
   async function openAddActivitySheet() {
     await waitForOverlayClose();
-    await page.getByRole("button", { name: "Add Activities" }).click();
-    await page.getByRole("button", { name: "Add Transaction" }).click();
-    await expect(page.getByRole("heading", { name: "Add Activity" })).toBeVisible();
+    await page.getByTestId("add-activities-button").click();
+    await page.getByTestId("add-transaction-action").click();
+    await expect(page.getByTestId("activity-form-dialog")).toBeVisible();
   }
 
   async function selectActivityType(type: string) {
-    const typeButton = page.getByRole("button", { name: type, exact: true });
+    const typeButton = page.getByTestId(activityTypeTestIds[type]);
     await expect(typeButton).toBeVisible();
     await typeButton.click();
     await page.waitForTimeout(200);
@@ -179,11 +196,7 @@ test.describe("Activity Creation Tests", () => {
     const accountSelect = label
       ? page.getByRole("combobox", { name: label })
       : page.getByTestId("account-select");
-    await accountSelect.click();
-    await page
-      .getByRole("option", { name: new RegExp(`${accountName}.*\\(${currency}\\)`) })
-      .first()
-      .click();
+    await selectAccountOption(page, accountName, currency, accountSelect);
   }
 
   // Counter to spread activities over different dates
@@ -293,7 +306,14 @@ test.describe("Activity Creation Tests", () => {
     const sentAmountInput = activityDialog.getByTestId("sent-amount-input");
     const simpleAmountInput = activityDialog.getByTestId("input-amount");
 
-    await expect(sentAmountInput.or(simpleAmountInput)).toBeVisible({ timeout: 5000 });
+    await expect
+      .poll(
+        async () =>
+          (await sentAmountInput.isVisible().catch(() => false)) ||
+          (await simpleAmountInput.isVisible().catch(() => false)),
+        { timeout: 5000 },
+      )
+      .toBe(true);
 
     if (await sentAmountInput.isVisible()) {
       await sentAmountInput.fill(String(value));
@@ -430,86 +450,16 @@ test.describe("Activity Creation Tests", () => {
   test("1. Setup: Login and navigate to app", async () => {
     test.setTimeout(180000);
 
-    await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
-
-    // Handle login if needed - check for login page or any authenticated page
-    const loginInput = page.getByPlaceholder("Enter your password");
-    const accountsHeading = page.getByRole("heading", { name: "Accounts" });
-    const dashboardHeading = page.getByRole("heading", { name: "Dashboard" });
-
-    // Wait for any of: login page, dashboard, or accounts page (where 01-happy-path ends)
-    await expect(loginInput.or(dashboardHeading).or(accountsHeading)).toBeVisible({
-      timeout: 120000,
-    });
-
-    if (await loginInput.isVisible()) {
-      await loginInput.fill(TEST_PASSWORD);
-      await page.getByRole("button", { name: "Sign In" }).click();
-      // After login, wait for either dashboard or accounts page
-      await expect(dashboardHeading.or(accountsHeading)).toBeVisible({ timeout: 15000 });
-    }
+    await completeOnboardingIfNeeded(page);
 
     // Navigate to dashboard to confirm app is ready
-    await page.goto(`${BASE_URL}/dashboard`, { waitUntil: "domcontentloaded" });
+    await gotoAppPath(page, "/dashboard");
     await expect(page.getByTestId("portfolio-balance-value")).toBeVisible({ timeout: 30000 });
   });
 
   test("2. Create test accounts", async () => {
-    await page.goto(`${BASE_URL}/settings/accounts`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Accounts", exact: true })).toBeVisible();
-
     for (const account of TEST_DATA.accounts) {
-      // Check if account already exists
-      const existingAccount = page.getByRole("link", { name: account.name });
-      if (await existingAccount.isVisible().catch(() => false)) {
-        continue; // Skip if account exists
-      }
-
-      const addAccountButton = page.getByRole("button", { name: /Add account/i });
-      await expect(addAccountButton).toBeVisible();
-      await addAccountButton.click();
-
-      await expect(page.getByRole("heading", { name: /Add Account/i })).toBeVisible();
-
-      const nameInput = page.getByLabel("Account Name");
-      await expect(nameInput).toBeVisible();
-      await nameInput.fill(account.name);
-
-      // Select currency if different from default
-      const currencyTrigger = page.getByLabel("Currency");
-      const currentCurrencyText = await currencyTrigger.textContent();
-      if (!currentCurrencyText?.includes(account.currency)) {
-        await currencyTrigger.click();
-        await page.waitForSelector('[role="listbox"], [role="option"]', {
-          state: "visible",
-          timeout: 5000,
-        });
-
-        const searchInput = page.getByPlaceholder("Search currency...");
-        if (await searchInput.isVisible()) {
-          await searchInput.fill(account.currency);
-          await page.waitForTimeout(200);
-        }
-
-        const option = page.getByRole("option", { name: new RegExp(account.currency) }).first();
-        await expect(option).toBeVisible({ timeout: 5000 });
-        await option.click();
-      }
-
-      // Select Transactions tracking mode
-      const transactionsRadio = page.getByRole("radio", { name: /Transactions/i });
-      await expect(transactionsRadio).toBeVisible();
-      await transactionsRadio.click();
-
-      const submitButton = page.getByRole("button", { name: /Add Account/i }).last();
-      await submitButton.click();
-
-      await expect(page.getByRole("heading", { name: /Add Account/i })).not.toBeVisible({
-        timeout: 10000,
-      });
-      await page.waitForTimeout(500);
-
-      await expect(page.getByRole("link", { name: account.name })).toBeVisible({ timeout: 10000 });
+      await createAccount(page, account.name, account.currency);
     }
   });
 
@@ -933,7 +883,7 @@ test.describe("Activity Creation Tests", () => {
   });
 
   test("19. Verify all created assets in Securities page", async () => {
-    await page.goto(`${BASE_URL}/settings/securities`, { waitUntil: "domcontentloaded" });
+    await gotoAppPath(page, "/settings/securities");
     await expect(page.getByRole("heading", { name: "Securities" })).toBeVisible({ timeout: 10000 });
 
     // Wait for table to load
@@ -958,7 +908,7 @@ test.describe("Activity Creation Tests", () => {
     const customSymbol = TEST_DATA.activities.customAssetBuy.customAsset.symbol;
 
     // Navigate to the custom asset's profile page
-    await page.goto(`${BASE_URL}/settings/securities`, { waitUntil: "domcontentloaded" });
+    await gotoAppPath(page, "/settings/securities");
     await expect(page.getByRole("heading", { name: "Securities" })).toBeVisible({ timeout: 10000 });
     await page.waitForTimeout(1000);
 
@@ -991,7 +941,8 @@ test.describe("Activity Creation Tests", () => {
     // Close the sheet
     const closeButton = page
       .getByRole("button", { name: /close/i })
-      .or(page.locator('[aria-label="Close"]'));
+      .or(page.locator('[aria-label="Close"]'))
+      .first();
     if (await closeButton.isVisible()) {
       await closeButton.click();
     } else {

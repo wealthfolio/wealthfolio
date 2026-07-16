@@ -14,7 +14,11 @@ export function useSettingsMutation(
     mutationFn: updateSettings,
     onSuccess: (updatedSettings, variables) => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.SETTINGS] });
-      if ("baseCurrency" in variables || "defaultReturnMetric" in variables) {
+      if (
+        "baseCurrency" in variables ||
+        "defaultReturnMetric" in variables ||
+        "timezone" in variables
+      ) {
         invalidatePerformanceCaches(queryClient);
       }
       setSettings(updatedSettings);

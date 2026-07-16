@@ -1,4 +1,5 @@
 import { useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useAccounts } from "@/hooks/use-accounts";
 import type { Account } from "@/lib/types";
@@ -21,6 +22,7 @@ import { AccountType } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 export function AccountsCard() {
+  const { t } = useTranslation();
   const { settings } = useSpendingSettings();
   const mutation = useSpendingSettingsMutation();
   const { accounts } = useAccounts({ filterActive: false });
@@ -69,25 +71,26 @@ export function AccountsCard() {
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 p-6 pb-4">
         <div className="min-w-0 space-y-1">
           <CardTitle className="text-base font-semibold tracking-tight">
-            Spending accounts
+            {t("settings:spending.accounts.title")}
           </CardTitle>
           <CardDescription className="text-xs">
-            Cash and credit card accounts that participate in spending. Investment accounts are
-            excluded automatically.
+            {t("settings:spending.accounts.description")}
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent className="p-6 pt-0">
         {spendingAccounts.length === 0 ? (
           <div className="text-muted-foreground rounded-md border border-dashed py-8 text-center text-xs">
-            No cash or credit card accounts found. Create one in Settings → Accounts.
+            {t("settings:spending.accounts.empty")}
           </div>
         ) : (
           <div className="flex flex-col gap-2">
             {spendingAccounts.map((account) => {
               const tracked = accountIds.includes(account.id);
               const isCredit = isCreditCardAccountType(account.accountType);
-              const typeLabel = isCredit ? "Credit card" : "Cash";
+              const typeLabel = isCredit
+                ? t("settings:spending.accounts.type_credit_card")
+                : t("settings:spending.accounts.type_cash");
               const TypeIcon = isCredit ? Icons.CreditCard : Icons.Wallet;
               return (
                 <div
@@ -114,14 +117,14 @@ export function AccountsCard() {
                       <span className="truncate text-sm font-medium">{account.name}</span>
                       {!account.isActive && (
                         <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider">
-                          Inactive
+                          {t("settings:spending.accounts.inactive_badge")}
                         </span>
                       )}
                     </div>
                     <div className="text-muted-foreground mt-0.5 text-xs">
                       {typeLabel} · {account.currency}
                       {account.group ? ` · ${account.group}` : ""}
-                      {!tracked && " · not tracked"}
+                      {!tracked && ` · ${t("settings:spending.accounts.not_tracked")}`}
                     </div>
                   </div>
                   <Switch
@@ -129,7 +132,11 @@ export function AccountsCard() {
                     checked={tracked}
                     onCheckedChange={(next) => handleToggle(account.id, next)}
                     disabled={mutation.isPending}
-                    aria-label={`${tracked ? "Stop tracking" : "Track"} ${account.name}`}
+                    aria-label={
+                      tracked
+                        ? t("settings:spending.accounts.stop_tracking_aria", { name: account.name })
+                        : t("settings:spending.accounts.track_aria", { name: account.name })
+                    }
                     className="data-[state=checked]:bg-success data-[state=unchecked]:bg-muted-foreground/40"
                   />
                 </div>
@@ -139,11 +146,7 @@ export function AccountsCard() {
             {hasMixedCashAndCredit && (
               <div className="text-warning border-warning/30 bg-warning/10 mt-3 flex gap-2 rounded-md border p-2.5 text-xs leading-relaxed">
                 <Icons.AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                <p>
-                  Credit card payments from tracked cash accounts should be linked as transfers.
-                  Unlinked payments can make both the card charge and cash payment count as
-                  spending.
-                </p>
+                <p>{t("settings:spending.accounts.mixed_warning")}</p>
               </div>
             )}
           </div>

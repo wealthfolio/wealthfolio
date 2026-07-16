@@ -65,6 +65,10 @@ pub struct LotClosure {
     pub fee_allocated: String,
     /// Transaction fees converted to base currency at acquisition date.
     pub fee_allocated_base: String,
+    /// Trade-level taxes allocated to this lot.
+    pub tax_allocated: String,
+    /// Trade-level taxes converted to base currency at acquisition date.
+    pub tax_allocated_base: String,
     /// Lot currency, normally the asset quote currency.
     pub currency: String,
     /// User base currency used by the base fields.
@@ -222,6 +226,15 @@ pub trait LotRepositoryTrait: Send + Sync {
         Ok(disposals)
     }
 
+    /// Synchronous variant for read paths that cannot become async without
+    /// changing the public valuation API.
+    fn get_lot_disposals_for_accounts_in_date_range_sync(
+        &self,
+        account_ids: &[String],
+        start_date_exclusive: NaiveDate,
+        end_date_inclusive: NaiveDate,
+    ) -> Result<Vec<LotDisposal>>;
+
     /// Returns total quantity per asset across all open lots (all accounts).
     /// Used for quote sync planning — determines which assets need price data.
     async fn get_open_position_quantities(&self) -> Result<HashMap<String, Decimal>>;
@@ -270,6 +283,10 @@ pub struct LotRecord {
     pub fee_allocated: String,
     /// Transaction fees converted to base currency at acquisition date.
     pub fee_allocated_base: String,
+    /// Trade-level taxes allocated to this lot. Immutable.
+    pub tax_allocated: String,
+    /// Trade-level taxes converted to base currency at acquisition date.
+    pub tax_allocated_base: String,
     /// Lot currency, normally the asset quote currency.
     pub currency: String,
     /// User base currency used by the base fields.
@@ -317,6 +334,12 @@ pub struct AssetLotView {
     pub account_name: String,
     pub asset_id: String,
     pub source: AssetLotSource,
+    /// Currency for native lot money fields such as cost_basis and unit_cost.
+    pub currency: String,
+    /// User base currency for *_base fields when available.
+    pub base_currency: Option<String>,
+    /// Currency used by valuation_* fields after minor-unit normalization.
+    pub valuation_currency: String,
     /// Effective current quantity. For transaction lots this is
     /// `remaining_quantity * split_ratio`; snapshot positions are already
     /// aggregate current quantities.
@@ -331,6 +354,10 @@ pub struct AssetLotView {
     pub cost_basis_base: Option<Decimal>,
     pub unit_cost: Decimal,
     pub fees: Decimal,
+    pub taxes: Decimal,
+    pub taxes_base: Option<Decimal>,
+    pub valuation_unit_cost: Decimal,
+    pub valuation_cost_basis: Decimal,
     pub fx_rate_to_base: Option<Decimal>,
     pub split_ratio: Decimal,
     pub contract_multiplier: Decimal,
@@ -343,6 +370,8 @@ pub struct AssetLotView {
     pub disposal_cost_basis_base: Option<Decimal>,
     pub realized_pnl: Option<Decimal>,
     pub realized_pnl_base: Option<Decimal>,
+    pub valuation_disposal_cost_basis: Option<Decimal>,
+    pub valuation_realized_pnl: Option<Decimal>,
 }
 
 // The cost_basis_method field is generation provenance for inventory rows.
@@ -390,12 +419,13 @@ pub fn extract_lot_records_with_cost_basis_method(
             // partially consumed yet). `lot.cost_basis` is mutated on partial
             // sells and represents the remaining open cost basis.
             let orig_fees = lot.original_fees();
-            let original_cost_basis = lot.acquisition_price * orig_qty + orig_fees;
+            let orig_taxes = lot.original_taxes();
+            let original_cost_basis = lot.acquisition_price * orig_qty + orig_fees + orig_taxes;
             records.push(LotRecord {
                 id: lot.id.clone(),
                 account_id: snapshot.account_id.clone(),
                 asset_id: position.asset_id.clone(),
-                open_date: lot.acquisition_date.format("%Y-%m-%d").to_string(),
+                open_date: lot.acquisition_date_key().to_string(),
                 open_activity_id: lot.source_activity_id.clone(),
                 original_quantity: orig_qty.to_string(),
                 remaining_quantity: lot.quantity.to_string(),
@@ -406,6 +436,8 @@ pub fn extract_lot_records_with_cost_basis_method(
                 remaining_cost_basis_base: lot.cost_basis.to_string(),
                 fee_allocated: orig_fees.to_string(),
                 fee_allocated_base: orig_fees.to_string(),
+                tax_allocated: orig_taxes.to_string(),
+                tax_allocated_base: orig_taxes.to_string(),
                 currency: position.currency.clone(),
                 base_currency: snapshot.currency.clone(),
                 fx_rate_to_base: Decimal::ONE.to_string(),
@@ -493,13 +525,20 @@ mod tests {
             acquisition_date: Utc
                 .with_ymd_and_hms(date_ymd.0, date_ymd.1, date_ymd.2, 0, 0, 0)
                 .unwrap(),
+            acquisition_local_date: None,
             quantity: qty,
             original_quantity: qty,
             cost_basis: qty * price + fee,
             acquisition_price: price,
             acquisition_fees: fee,
             original_acquisition_fees: fee,
+            acquisition_taxes: Decimal::ZERO,
+            original_acquisition_taxes: Decimal::ZERO,
             fx_rate_to_position: None,
+            fx_rate_to_account: None,
+            account_currency: None,
+            fx_rate_to_base: None,
+            base_currency: None,
             source_activity_id: None,
             split_ratio: Decimal::ONE,
         }
@@ -901,6 +940,8 @@ mod tests {
             remaining_cost_basis_base: "9250".to_string(),
             fee_allocated: "0".to_string(),
             fee_allocated_base: "0".to_string(),
+            tax_allocated: "0".to_string(),
+            tax_allocated_base: "0".to_string(),
             currency: "USD".to_string(),
             base_currency: "USD".to_string(),
             fx_rate_to_base: "1".to_string(),

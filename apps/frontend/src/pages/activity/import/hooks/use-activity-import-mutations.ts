@@ -1,4 +1,5 @@
 import { QueryKeys } from "@/lib/query-keys";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { logger, importActivities } from "@/adapters";
 import { invalidateSpendingCaches } from "@/features/spending/lib/invalidation";
@@ -14,6 +15,7 @@ export function useActivityImportMutations({
   onError?: (error: string) => void;
 } = {}) {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
 
   const confirmImportMutation = useMutation({
     mutationFn: importActivities,
@@ -40,12 +42,12 @@ export function useActivityImportMutations({
         const errMsg =
           error && typeof error === "object" && "message" in error
             ? String((error as { message?: unknown }).message)
-            : "An error occurred during import";
+            : t("activity:import.errors.importFailedFallback");
         onError(errMsg);
       } else {
         toast({
-          title: "Uh oh! Something went wrong.",
-          description: "Please try again or report an issue if the problem persists.",
+          title: t("activity:import.errors.importErrorTitle"),
+          description: t("activity:import.errors.importErrorDescription"),
           variant: "destructive",
         });
       }

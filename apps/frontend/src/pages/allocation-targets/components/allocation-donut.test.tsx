@@ -19,6 +19,7 @@ function row(
     currentValue: 0,
     targetValue: 0,
     valueDelta: 0,
+    effectiveBandBps: 0,
     status: "in_band",
     isRequired: true,
     isZeroCurrent: false,

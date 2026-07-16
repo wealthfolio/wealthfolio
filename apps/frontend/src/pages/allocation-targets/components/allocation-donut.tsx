@@ -1,5 +1,6 @@
 import type { DriftRow } from "@/lib/types";
 import { formatCompactAmount } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
 import { Sector } from "recharts";
 import {
   allocationTargetColorForRow,
@@ -28,6 +29,7 @@ export function AllocationDonut({
   hoveredId,
   onHoverChange,
 }: AllocationDonutProps) {
+  const { t } = useTranslation();
   const thickness = Math.round(size * 0.11);
   const outerR = size / 2 - 8;
   const innerR = outerR - thickness;
@@ -123,14 +125,16 @@ export function AllocationDonut({
                       : "#2563eb",
                 }}
               >
-                {hoveredRow.status === "underweight" ? "▼ Below target" : "▲ Above target"}
+                {hoveredRow.status === "underweight"
+                  ? t("allocation:donut.belowTarget")
+                  : t("allocation:donut.aboveTarget")}
               </div>
             )}
           </>
         ) : (
           <>
             <div className="text-muted-foreground text-[10px] uppercase tracking-wider">
-              Portfolio
+              {t("allocation:donut.portfolio")}
             </div>
             <div
               className="text-foreground mt-1 font-semibold tabular-nums"

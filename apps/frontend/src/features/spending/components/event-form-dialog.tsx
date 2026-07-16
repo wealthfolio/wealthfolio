@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import * as z from "zod";
@@ -48,20 +49,13 @@ import {
 import type { EventDialogPrefill } from "./event-dialog-provider";
 import type { NewSpendingEvent, SpendingEvent } from "../types/event";
 
-const eventSchema = z
-  .object({
-    name: z.string().min(1, "Name is required"),
-    description: z.string().optional(),
-    eventTypeId: z.string().min(1, "Event type is required"),
-    startDate: z.date({ required_error: "Start date is required" }),
-    endDate: z.date({ required_error: "End date is required" }),
-  })
-  .refine((data) => data.startDate <= data.endDate, {
-    message: "Start date must be before or equal to end date",
-    path: ["endDate"],
-  });
-
-type EventFormValues = z.infer<typeof eventSchema>;
+interface EventFormValues {
+  name: string;
+  description?: string;
+  eventTypeId: string;
+  startDate: Date;
+  endDate: Date;
+}
 
 const PRESET_COLORS = [
   "#ef4444",
@@ -95,6 +89,23 @@ export function EventFormDialog({
   onCreated,
   onUpdated,
 }: Props) {
+  const { t } = useTranslation();
+  const eventSchema = useMemo(
+    () =>
+      z
+        .object({
+          name: z.string().min(1, t("spending:eventForm.nameRequired")),
+          description: z.string().optional(),
+          eventTypeId: z.string().min(1, t("spending:eventForm.typeRequired")),
+          startDate: z.date({ required_error: t("spending:eventForm.startRequired") }),
+          endDate: z.date({ required_error: t("spending:eventForm.endRequired") }),
+        })
+        .refine((data) => data.startDate <= data.endDate, {
+          message: t("spending:eventForm.startBeforeEnd"),
+          path: ["endDate"],
+        }),
+    [t],
+  );
   const { data: eventTypes = [], isError: eventTypesErrored } = useEventTypes();
   const { create, update } = useSpendingEventMutations();
   const { create: createType } = useEventTypeMutations();
@@ -221,7 +232,7 @@ export function EventFormDialog({
   const handleCreateType = async () => {
     const name = newTypeName.trim();
     if (!name) {
-      setTypeError("Name is required");
+      setTypeError(t("spending:eventForm.nameRequired"));
       return;
     }
     setIsCreatingType(true);
@@ -233,7 +244,7 @@ export function EventFormDialog({
       setNewTypeName("");
       setNewTypeColor(PRESET_COLORS[0]);
     } catch {
-      setTypeError("Failed to create event type.");
+      setTypeError(t("spending:eventForm.createTypeFailed"));
     } finally {
       setIsCreatingType(false);
     }
@@ -302,11 +313,13 @@ export function EventFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Event" : "Create Event"}</DialogTitle>
+          <DialogTitle>
+            {isEditing ? t("spending:eventForm.editTitle") : t("spending:eventForm.createTitle")}
+          </DialogTitle>
           <DialogDescription>
             {isEditing
-              ? "Update the event details."
-              : "Create a new event to track and categorize cash account transactions."}
+              ? t("spending:eventForm.editDescription")
+              : t("spending:eventForm.createDescription")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -316,9 +329,9 @@ export function EventFormDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{t("common:name")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Summer Vacation 2024" {...field} />
+                    <Input placeholder={t("spending:eventForm.namePlaceholder")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -329,10 +342,10 @@ export function EventFormDialog({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description (Optional)</FormLabel>
+                  <FormLabel>{t("spending:eventForm.descriptionOptional")}</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Add details about this event..."
+                      placeholder={t("spending:eventForm.descriptionPlaceholder")}
                       className="resize-none"
                       {...field}
                     />
@@ -346,7 +359,7 @@ export function EventFormDialog({
               name="eventTypeId"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Event Type</FormLabel>
+                  <FormLabel>{t("spending:eventForm.eventType")}</FormLabel>
                   {!showCreateType ? (
                     <>
                       <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
@@ -356,8 +369,10 @@ export function EventFormDialog({
                               type="button"
                               aria-label={
                                 selectedType
-                                  ? `Change event type (${selectedType.name})`
-                                  : "Select event type"
+                                  ? t("spending:eventForm.changeEventType", {
+                                      name: selectedType.name,
+                                    })
+                                  : t("spending:eventForm.selectEventType")
                               }
                               className="border-input bg-input-bg dark:bg-input/30 hover:bg-accent/30 ring-offset-background focus:ring-ring h-input-height flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
                             >
@@ -373,7 +388,9 @@ export function EventFormDialog({
                                   <span className="truncate">{selectedType.name}</span>
                                 </span>
                               ) : (
-                                <span className="text-muted-foreground">Select event type</span>
+                                <span className="text-muted-foreground">
+                                  {t("spending:eventForm.selectEventType")}
+                                </span>
                               )}
                               <Icons.ChevronDown
                                 className="ml-2 h-4 w-4 shrink-0 opacity-50"
@@ -387,9 +404,9 @@ export function EventFormDialog({
                           align="start"
                         >
                           <Command>
-                            <CommandInput placeholder="Search event types..." />
+                            <CommandInput placeholder={t("spending:eventForm.searchTypes")} />
                             <CommandList>
-                              <CommandEmpty>No event types found.</CommandEmpty>
+                              <CommandEmpty>{t("spending:eventForm.noTypesFound")}</CommandEmpty>
                               {eventTypes.length > 0 && (
                                 <CommandGroup>
                                   {eventTypes.map((t) => {
@@ -431,7 +448,7 @@ export function EventFormDialog({
                                   className="text-primary flex items-center gap-2"
                                 >
                                   <Icons.Plus className="h-3.5 w-3.5" />
-                                  Create new type
+                                  {t("spending:eventForm.createNewType")}
                                 </CommandItem>
                               </CommandGroup>
                             </CommandList>
@@ -439,14 +456,16 @@ export function EventFormDialog({
                         </PopoverContent>
                       </Popover>
                       {eventTypesErrored && (
-                        <p className="text-destructive text-xs">Event types could not load.</p>
+                        <p className="text-destructive text-xs">
+                          {t("spending:eventForm.typesLoadError")}
+                        </p>
                       )}
                     </>
                   ) : (
                     <div className="border-input bg-muted/20 space-y-3 rounded-md border p-3">
                       <div className="flex items-center justify-between">
                         <span className="text-foreground text-xs font-semibold">
-                          New event type
+                          {t("spending:eventForm.newEventType")}
                         </span>
                         <button
                           type="button"
@@ -457,12 +476,12 @@ export function EventFormDialog({
                           }}
                           className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
                         >
-                          Cancel
+                          {t("common:cancel")}
                         </button>
                       </div>
                       <Input
                         autoFocus
-                        placeholder="e.g., Travel, Wedding, Move"
+                        placeholder={t("spending:eventForm.typeNamePlaceholder")}
                         value={newTypeName}
                         onChange={(e) => {
                           setNewTypeName(e.target.value);
@@ -480,7 +499,7 @@ export function EventFormDialog({
                           <button
                             key={color}
                             type="button"
-                            aria-label={`Pick color ${color}`}
+                            aria-label={t("spending:category.useColor", { color })}
                             className={`h-7 w-7 rounded-full border-2 transition-transform hover:scale-110 ${
                               newTypeColor === color
                                 ? "border-foreground ring-2 ring-offset-1"
@@ -499,7 +518,9 @@ export function EventFormDialog({
                           onClick={handleCreateType}
                           disabled={isCreatingType || !newTypeName.trim()}
                         >
-                          {isCreatingType ? "Creating..." : "Create type"}
+                          {isCreatingType
+                            ? t("spending:common.creating")
+                            : t("spending:eventForm.createType")}
                         </Button>
                       </div>
                     </div>
@@ -514,7 +535,7 @@ export function EventFormDialog({
                 name="startDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Event Start Date</FormLabel>
+                    <FormLabel>{t("spending:eventForm.startDate")}</FormLabel>
                     <DatePickerInput
                       onChange={(date: Date | undefined) => field.onChange(date)}
                       value={field.value}
@@ -529,7 +550,7 @@ export function EventFormDialog({
                 name="endDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Event End Date</FormLabel>
+                    <FormLabel>{t("spending:eventForm.endDate")}</FormLabel>
                     <DatePickerInput
                       onChange={(date: Date | undefined) => field.onChange(date)}
                       value={field.value}
@@ -555,9 +576,7 @@ export function EventFormDialog({
 
             {replacedTagCount > 0 && (
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-                <span className="font-semibold">{replacedTagCount}</span>{" "}
-                {replacedTagCount === 1 ? "transaction is" : "transactions are"} already tagged to
-                another event. Creating this event will replace those tags.
+                {t("spending:eventForm.replaceTagsWarning", { count: replacedTagCount })}
               </div>
             )}
 
@@ -568,16 +587,16 @@ export function EventFormDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={isSubmitting}
               >
-                Cancel
+                {t("common:cancel")}
               </Button>
               <Button type="submit" disabled={isSubmitting || showCreateType}>
                 {isSubmitting
                   ? isEditing
-                    ? "Updating..."
-                    : "Creating..."
+                    ? t("spending:common.updating")
+                    : t("spending:common.creating")
                   : isEditing
-                    ? "Update Event"
-                    : "Create Event"}
+                    ? t("spending:eventForm.updateEvent")
+                    : t("spending:eventForm.createEvent")}
               </Button>
             </DialogFooter>
           </form>
@@ -606,10 +625,11 @@ function SuggestedTransactions({
   onClearAll,
   selectedCount,
 }: SuggestedTransactionsProps) {
+  const { t } = useTranslation();
   if (isFetching && candidates.length === 0) {
     return (
       <div className="border-input bg-muted/10 rounded-md border p-3">
-        <p className="text-muted-foreground text-xs">Looking for transactions in range…</p>
+        <p className="text-muted-foreground text-xs">{t("spending:eventForm.lookingForTx")}</p>
       </div>
     );
   }
@@ -617,10 +637,8 @@ function SuggestedTransactions({
   if (candidates.length === 0) {
     return (
       <div className="border-input bg-muted/10 rounded-md border p-3">
-        <p className="text-foreground text-xs font-semibold">Tag transactions</p>
-        <p className="text-muted-foreground mt-1 text-xs">
-          No transactions found in this date range. You can tag them later from the activity list.
-        </p>
+        <p className="text-foreground text-xs font-semibold">{t("spending:eventForm.tagTx")}</p>
+        <p className="text-muted-foreground mt-1 text-xs">{t("spending:eventForm.noTxInRange")}</p>
       </div>
     );
   }
@@ -629,9 +647,14 @@ function SuggestedTransactions({
     <div className="border-input rounded-md border">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="min-w-0">
-          <p className="text-foreground text-xs font-semibold">Tag transactions in this range</p>
+          <p className="text-foreground text-xs font-semibold">
+            {t("spending:eventForm.tagTxInRange")}
+          </p>
           <p className="text-muted-foreground text-[11px]">
-            {selectedCount} of {candidates.length} selected
+            {t("spending:eventForm.selectedOfTotal", {
+              selected: selectedCount,
+              total: candidates.length,
+            })}
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
@@ -640,14 +663,14 @@ function SuggestedTransactions({
             onClick={onSelectAll}
             className="text-muted-foreground hover:text-foreground text-[11px] underline-offset-2 hover:underline"
           >
-            Select all
+            {t("common:select_all")}
           </button>
           <button
             type="button"
             onClick={onClearAll}
             className="text-muted-foreground hover:text-foreground text-[11px] underline-offset-2 hover:underline"
           >
-            Clear
+            {t("common:clear")}
           </button>
         </div>
       </div>
@@ -675,12 +698,12 @@ function SuggestedTransactions({
                     </span>
                     {c.eventId && checked && (
                       <span className="shrink-0 rounded border border-amber-500/30 bg-amber-500/15 px-1 py-px text-[9px] uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                        will replace tag
+                        {t("spending:eventForm.willReplaceTag")}
                       </span>
                     )}
                     {c.eventId && !checked && (
                       <span className="text-muted-foreground/80 border-muted-foreground/30 shrink-0 rounded border px-1 py-px text-[9px] uppercase tracking-wide">
-                        already tagged
+                        {t("spending:eventForm.alreadyTagged")}
                       </span>
                     )}
                   </div>

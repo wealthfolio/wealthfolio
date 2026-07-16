@@ -58,16 +58,24 @@ export function isCreditCardAccountType(accountType: string | undefined): boolea
 export function getActivityTypesForAccount(accountType: string | undefined): CashActivityType[] {
   return isCreditCardAccountType(accountType)
     ? CREDIT_CARD_ACTIVITY_TYPES
-    : CASH_ACTIVITY_TYPES.filter((type) => type !== "CREDIT");
+    : [...CASH_ACTIVITY_TYPES];
 }
 
-export function getCashActivityLabel(activityType: string, accountType?: string): string {
+export function getCashActivityLabel(
+  activityType: string,
+  accountType?: string,
+  subtype?: string | null,
+): string {
   if (isCreditCardAccountType(accountType)) {
     return (
       CREDIT_CARD_ACTIVITY_TYPE_LABELS[activityType as CashActivityType] ??
       CASH_ACTIVITY_TYPE_LABELS[activityType as CashActivityType] ??
       activityType
     );
+  }
+
+  if (activityType === "CREDIT" && subtype === "REIMBURSEMENT") {
+    return "Reimbursement / refund";
   }
 
   return CASH_ACTIVITY_TYPE_LABELS[activityType as CashActivityType] ?? activityType;
@@ -133,7 +141,11 @@ export function getActivitySpendingAmount(
   }
 
   if (activityType === "CREDIT") {
-    if (activity.subtype === "REFUND" || activity.subtype === "REBATE") {
+    if (
+      activity.subtype === "REFUND" ||
+      activity.subtype === "REBATE" ||
+      activity.subtype === "REIMBURSEMENT"
+    ) {
       return -absAmount;
     }
     return 0;

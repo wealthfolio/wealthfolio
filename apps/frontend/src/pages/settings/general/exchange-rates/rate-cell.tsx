@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ExchangeRate } from "@/lib/types";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Input } from "@wealthfolio/ui/components/ui/input";
@@ -11,6 +12,7 @@ interface RateCellProps {
 }
 
 export function RateCell({ rate, onUpdate }: RateCellProps) {
+  const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editedRate, setEditedRate] = useState(rate.rate.toString());
   const isManual = rate.source === "MANUAL";
@@ -18,8 +20,8 @@ export function RateCell({ rate, onUpdate }: RateCellProps) {
   const handleEdit = () => {
     if (!isManual) {
       toast({
-        title: "Cannot edit this rate",
-        description: "Only manual rates can be edited.",
+        title: t("settings:fx_cannot_edit_title"),
+        description: t("settings:fx_cannot_edit_desc"),
         variant: "destructive",
       });
       return;
@@ -37,8 +39,8 @@ export function RateCell({ rate, onUpdate }: RateCellProps) {
     const newRate = parseFloat(editedRate);
     if (isNaN(newRate) || newRate <= 0) {
       toast({
-        title: "Invalid rate",
-        description: "Please enter a valid positive number.",
+        title: t("settings:fx_invalid_title"),
+        description: t("settings:fx_invalid_desc"),
         variant: "destructive",
       });
       return;

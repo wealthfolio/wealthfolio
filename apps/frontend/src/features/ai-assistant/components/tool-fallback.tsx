@@ -1,5 +1,6 @@
 import type { ToolCallMessagePartComponent } from "@assistant-ui/react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
   result,
   status,
 }) => {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   const isRunning = status?.type === "running";
@@ -50,10 +52,10 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
         )}
         <span>
           {isRunning
-            ? `Calling ${toolName}...`
+            ? t("ai:tools.calling", { toolName })
             : isCancelled
-              ? `Cancelled ${toolName}`
-              : `Used tool: ${toolName}`}
+              ? t("ai:tools.cancelled", { toolName })
+              : t("ai:tools.used", { toolName })}
         </span>
         <Icons.ChevronDown
           className={cn("h-3 w-3 shrink-0 transition-transform", expanded && "rotate-180")}

@@ -17,11 +17,12 @@ use wealthfolio_core::sync::{
     SyncOutboxEvent, SyncOutboxStatus, APP_SYNC_TABLES,
 };
 
+use crate::addons::addon_storage_id;
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
 use crate::schema::{
-    spending_preset_rule_deletions, sync_applied_events, sync_cursor, sync_device_config,
-    sync_engine_state, sync_entity_metadata, sync_outbox, sync_table_state,
+    addon_storage, spending_preset_rule_deletions, sync_applied_events, sync_cursor,
+    sync_device_config, sync_engine_state, sync_entity_metadata, sync_outbox, sync_table_state,
 };
 use crate::spending::deterministic_ids::preset_rule_deletion_id;
 use crate::sync::broker_activity_patch::{
@@ -175,13 +176,13 @@ impl SyncRowFilter {
     fn sql(self) -> &'static str {
         match self {
             Self::UserSyncableHoldingsSnapshots => {
-                "account_id IN (SELECT id FROM accounts) AND source IN ('MANUAL_ENTRY', 'CSV_IMPORT', 'SYNTHETIC')"
+                "account_id IN (SELECT id FROM accounts) AND source IN ('MANUAL_ENTRY', 'CSV_IMPORT')"
             }
             Self::UserSyncableSnapshotPositions => {
                 "snapshot_id IN (
                     SELECT id FROM holdings_snapshots
                     WHERE account_id IN (SELECT id FROM accounts)
-                      AND source IN ('MANUAL_ENTRY', 'CSV_IMPORT', 'SYNTHETIC')
+                      AND source IN ('MANUAL_ENTRY', 'CSV_IMPORT')
                 )"
             }
             Self::ManualQuotes => "source = 'MANUAL'",
@@ -932,11 +933,13 @@ fn entity_storage_mapping(entity: &SyncEntity) -> Option<(&'static str, &'static
         SyncEntity::PortfolioAccount => Some(("portfolio_accounts", "id")),
         SyncEntity::AllocationTarget => Some(("allocation_targets", "id")),
         SyncEntity::AllocationTargetWeight => Some(("allocation_target_weights", "id")),
+        SyncEntity::AllocationTargetConstraint => Some(("allocation_target_constraints", "id")),
         SyncEntity::SpendingSetting => Some(("app_settings", "setting_key")),
         // CustomTaxonomy uses bundle replay — handled by custom branch in apply_remote_event_lww_tx
         SyncEntity::CustomTaxonomy => None,
         // Spending module entities
         SyncEntity::ActivityTaxonomyAssignment => Some(("activity_taxonomy_assignments", "id")),
+        SyncEntity::SpendingActivitySplit => Some(("spending_activity_splits", "id")),
         SyncEntity::SpendingActivityEvent => Some(("spending_activity_events", "activity_id")),
         SyncEntity::SpendingCategorizationRule => Some(("spending_categorization_rules", "id")),
         // Composite primary key; handled by custom branch in apply_remote_event_lww_tx.
@@ -947,6 +950,8 @@ fn entity_storage_mapping(entity: &SyncEntity) -> Option<(&'static str, &'static
         SyncEntity::BudgetGroupAssignment => Some(("budget_group_assignments", "id")),
         SyncEntity::BudgetTarget => Some(("budget_targets", "id")),
         SyncEntity::BudgetRolloverSetting => Some(("budget_rollover_settings", "id")),
+        // Composite primary key; handled by custom branch in apply_remote_event_lww_tx.
+        SyncEntity::AddonStorage => None,
     }
 }
 
@@ -1412,7 +1417,15 @@ fn should_apply_against_metadata(
     event_id: &str,
 ) -> Result<bool> {
     let previous_op = enum_from_db::<SyncOperation>(&meta.last_op)?;
-    if entity == SyncEntity::SpendingPresetRuleDeletion {
+    // Pure last-writer-wins entities: a delete is just another write to a key
+    // that can be legitimately re-used, NOT a permanent tombstone. Every op
+    // (create/update/delete) competes on timestamp+event_id. The delete-wins /
+    // tombstone branches below would otherwise let a stale delete clobber a newer
+    // value and permanently swallow any later re-create of a deleted key.
+    if matches!(
+        entity,
+        SyncEntity::SpendingPresetRuleDeletion | SyncEntity::AddonStorage
+    ) {
         Ok(should_apply_lww(
             &meta.last_client_timestamp,
             &meta.last_event_id,
@@ -1644,6 +1657,72 @@ fn apply_spending_preset_rule_deletion_event(
             let deleted_at = preset_rule_payload_str(payload_json, "deleted_at", "deletedAt")
                 .unwrap_or(client_timestamp);
             upsert_preset_rule_deletion_tx(conn, &preset_id, &rule_key, rule_id, deleted_at)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn addon_storage_identity_from_payload(
+    payload_json: &serde_json::Value,
+) -> Option<(String, String)> {
+    let addon_id = payload_json
+        .get("addon_id")
+        .or_else(|| payload_json.get("addonId"))
+        .and_then(serde_json::Value::as_str)?;
+    let key = payload_json
+        .get("key")
+        .and_then(serde_json::Value::as_str)?;
+    Some((addon_id.to_string(), key.to_string()))
+}
+
+fn apply_addon_storage_event(
+    conn: &mut SqliteConnection,
+    entity_id: &str,
+    op: SyncOperation,
+    payload_json: &serde_json::Value,
+    _client_timestamp: &str,
+) -> Result<()> {
+    let Some((addon_id, key)) = addon_storage_identity_from_payload(payload_json) else {
+        return Err(Error::Database(DatabaseError::Internal(
+            "addon_storage payload must include addon_id/key".to_string(),
+        )));
+    };
+    let expected_entity_id = addon_storage_id(&addon_id, &key);
+    if expected_entity_id != entity_id {
+        return Err(Error::Database(DatabaseError::Internal(format!(
+            "addon_storage entity_id '{}' does not match payload key '{}'",
+            entity_id, expected_entity_id
+        ))));
+    }
+
+    match op {
+        SyncOperation::Delete => {
+            diesel::delete(
+                addon_storage::table
+                    .filter(addon_storage::addon_id.eq(&addon_id))
+                    .filter(addon_storage::key.eq(&key)),
+            )
+            .execute(conn)
+            .map_err(StorageError::from)?;
+        }
+        SyncOperation::Create | SyncOperation::Update => {
+            let value = payload_json
+                .get("value")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| {
+                    Error::Database(DatabaseError::Internal(
+                        "addon_storage payload must include value".to_string(),
+                    ))
+                })?;
+            diesel::replace_into(addon_storage::table)
+                .values((
+                    addon_storage::addon_id.eq(&addon_id),
+                    addon_storage::key.eq(&key),
+                    addon_storage::value.eq(value),
+                ))
+                .execute(conn)
+                .map_err(StorageError::from)?;
         }
     }
 
@@ -1939,6 +2018,15 @@ fn apply_remote_event_lww_tx(
                 &client_timestamp_value,
             )?;
             mark_table_incremental_applied_tx(conn, "spending_preset_rule_deletions")?;
+        } else if entity == SyncEntity::AddonStorage {
+            apply_addon_storage_event(
+                conn,
+                &entity_id_value,
+                op,
+                &payload_json,
+                &client_timestamp_value,
+            )?;
+            mark_table_incremental_applied_tx(conn, "addon_storage")?;
         } else if let Some((table_name, pk_name)) = entity_storage_mapping(&entity) {
             match op {
                 SyncOperation::Delete => {
@@ -3700,6 +3788,7 @@ mod tests {
                 unit_price: Some(Decimal::new(5, 0)),
                 currency: "USD".to_string(),
                 fee: Some(Decimal::new(1, 0)),
+                tax: None,
                 amount: Some(Decimal::new(50, 0)),
                 status: None,
                 notes: Some("Broker note".to_string()),
@@ -6155,6 +6244,7 @@ mod tests {
             SyncEntity::Snapshot,
             SyncEntity::AllocationTarget,
             SyncEntity::AllocationTargetWeight,
+            SyncEntity::AllocationTargetConstraint,
         ];
 
         for entity in entities {
@@ -7810,6 +7900,206 @@ mod tests {
             .get_result(&mut conn)
             .expect("count preset deletion");
         assert_eq!(tombstone_count, 0);
+    }
+
+    #[tokio::test]
+    async fn replay_addon_storage_applies_and_deletes() {
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+        let entity_id = addon_storage_id("addon-a", "prefs");
+
+        let applied = repo
+            .apply_remote_event_lww(
+                SyncEntity::AddonStorage,
+                entity_id.clone(),
+                SyncOperation::Update,
+                "evt-addon-storage-upsert".to_string(),
+                "2026-02-15T00:00:00Z".to_string(),
+                1,
+                serde_json::json!({
+                    "addonId": "addon-a",
+                    "key": "prefs",
+                    "value": "v1"
+                }),
+            )
+            .await
+            .expect("apply addon storage upsert");
+        assert!(applied);
+
+        let mut conn = get_connection(&pool).expect("conn");
+        let value: Option<String> = addon_storage::table
+            .filter(addon_storage::addon_id.eq("addon-a"))
+            .filter(addon_storage::key.eq("prefs"))
+            .select(addon_storage::value)
+            .first::<String>(&mut conn)
+            .optional()
+            .expect("query addon storage");
+        assert_eq!(value.as_deref(), Some("v1"));
+        drop(conn);
+
+        let applied = repo
+            .apply_remote_event_lww(
+                SyncEntity::AddonStorage,
+                entity_id,
+                SyncOperation::Delete,
+                "evt-addon-storage-delete".to_string(),
+                "2026-02-15T00:00:01Z".to_string(),
+                2,
+                serde_json::json!({
+                    "addonId": "addon-a",
+                    "key": "prefs"
+                }),
+            )
+            .await
+            .expect("apply addon storage delete");
+        assert!(applied);
+
+        let mut conn = get_connection(&pool).expect("conn");
+        let count: i64 = addon_storage::table
+            .filter(addon_storage::addon_id.eq("addon-a"))
+            .filter(addon_storage::key.eq("prefs"))
+            .count()
+            .get_result(&mut conn)
+            .expect("count addon storage");
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn replay_addon_storage_stale_delete_does_not_clobber_newer_value() {
+        // A delete is just another write for a reusable key: an older delete must
+        // NOT wipe a newer value. (Under the old tombstone logic a delete always
+        // won over a prior non-delete regardless of timestamp.)
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+        let entity_id = addon_storage_id("addon-a", "prefs");
+
+        assert!(repo
+            .apply_remote_event_lww(
+                SyncEntity::AddonStorage,
+                entity_id.clone(),
+                SyncOperation::Update,
+                "evt-update-new".to_string(),
+                "2026-02-15T00:00:05Z".to_string(),
+                1,
+                serde_json::json!({ "addonId": "addon-a", "key": "prefs", "value": "v2" }),
+            )
+            .await
+            .expect("apply newer update"));
+
+        // Older delete arrives after the newer update — must be rejected by LWW.
+        let applied = repo
+            .apply_remote_event_lww(
+                SyncEntity::AddonStorage,
+                entity_id,
+                SyncOperation::Delete,
+                "evt-delete-stale".to_string(),
+                "2026-02-15T00:00:01Z".to_string(),
+                2,
+                serde_json::json!({ "addonId": "addon-a", "key": "prefs" }),
+            )
+            .await
+            .expect("apply stale delete");
+        assert!(!applied, "a stale delete must not be applied");
+
+        let mut conn = get_connection(&pool).expect("conn");
+        let value: Option<String> = addon_storage::table
+            .filter(addon_storage::addon_id.eq("addon-a"))
+            .filter(addon_storage::key.eq("prefs"))
+            .select(addon_storage::value)
+            .first::<String>(&mut conn)
+            .optional()
+            .expect("query addon storage");
+        assert_eq!(
+            value.as_deref(),
+            Some("v2"),
+            "newer value must survive a stale delete"
+        );
+    }
+
+    #[tokio::test]
+    async fn replay_addon_storage_newer_update_after_older_delete_reapplies() {
+        // A deleted key can be legitimately re-created: a newer update after an
+        // older delete must apply. (Under the old tombstone logic, once last_op
+        // was Delete, every later create/update was permanently swallowed.)
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+        let entity_id = addon_storage_id("addon-a", "prefs");
+
+        assert!(repo
+            .apply_remote_event_lww(
+                SyncEntity::AddonStorage,
+                entity_id.clone(),
+                SyncOperation::Delete,
+                "evt-delete-old".to_string(),
+                "2026-02-15T00:00:01Z".to_string(),
+                1,
+                serde_json::json!({ "addonId": "addon-a", "key": "prefs" }),
+            )
+            .await
+            .expect("apply older delete"));
+
+        let applied = repo
+            .apply_remote_event_lww(
+                SyncEntity::AddonStorage,
+                entity_id,
+                SyncOperation::Update,
+                "evt-update-newer".to_string(),
+                "2026-02-15T00:00:05Z".to_string(),
+                2,
+                serde_json::json!({ "addonId": "addon-a", "key": "prefs", "value": "v3" }),
+            )
+            .await
+            .expect("apply newer update");
+        assert!(
+            applied,
+            "a newer update after an older delete must be applied"
+        );
+
+        let mut conn = get_connection(&pool).expect("conn");
+        let value: Option<String> = addon_storage::table
+            .filter(addon_storage::addon_id.eq("addon-a"))
+            .filter(addon_storage::key.eq("prefs"))
+            .select(addon_storage::value)
+            .first::<String>(&mut conn)
+            .optional()
+            .expect("query addon storage");
+        assert_eq!(
+            value.as_deref(),
+            Some("v3"),
+            "re-created key must hold the newer value"
+        );
+    }
+
+    #[tokio::test]
+    async fn replay_addon_storage_rejects_mismatched_entity_id() {
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+
+        let err = repo
+            .apply_remote_event_lww(
+                SyncEntity::AddonStorage,
+                "wrong-entity-id".to_string(),
+                SyncOperation::Update,
+                "evt-addon-storage-mismatch".to_string(),
+                "2026-02-15T00:00:00Z".to_string(),
+                1,
+                serde_json::json!({
+                    "addonId": "addon-a",
+                    "key": "prefs",
+                    "value": "v1"
+                }),
+            )
+            .await
+            .expect_err("mismatched entity id should fail replay");
+
+        assert!(err.to_string().contains("does not match payload key"));
+
+        let mut conn = get_connection(&pool).expect("conn");
+        let count: i64 = addon_storage::table
+            .count()
+            .get_result(&mut conn)
+            .expect("count addon storage");
+        assert_eq!(count, 0);
     }
 
     #[tokio::test]

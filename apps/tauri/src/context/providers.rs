@@ -38,6 +38,8 @@ use wealthfolio_device_sync::{engine::DeviceSyncRuntimeState, DeviceEnrollServic
 use wealthfolio_storage_sqlite::{
     accounts::AccountRepository,
     activities::ActivityRepository,
+    addons::AddonStorageRepository,
+    agent::{McpAuditRepository, PatRepository},
     ai_chat::AiChatRepository,
     assets::{AlternativeAssetRepository, AssetRepository},
     db::{self, write_actor},
@@ -154,6 +156,14 @@ pub async fn initialize_context(
             writer.clone(),
         ),
     );
+    let activity_splits_repo: Arc<
+        dyn wealthfolio_spending::activity_splits::ActivitySplitRepositoryTrait,
+    > = Arc::new(
+        wealthfolio_storage_sqlite::spending::activity_splits::ActivitySplitRepository::new(
+            pool.clone(),
+            writer.clone(),
+        ),
+    );
     let activity_taxonomy_assignment_service = Arc::new(
         wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignmentService::new(
             activity_assignments_repo.clone(),
@@ -163,7 +173,11 @@ pub async fn initialize_context(
     let base_currency_string = settings.base_currency.clone();
     let base_currency = Arc::new(RwLock::new(base_currency_string.clone()));
     let timezone = Arc::new(RwLock::new(settings.timezone.clone()));
-    let instance_id = Arc::new(settings.instance_id.clone());
+    let rating_instance_id = Arc::new(
+        settings_service
+            .get_setting_value("instance_id")?
+            .ok_or_else(|| std::io::Error::other("Missing internal instance ID"))?,
+    );
 
     let secret_store = shared_secret_store();
 
@@ -210,7 +224,9 @@ pub async fn initialize_context(
 
     // Create taxonomy service before asset service (needed for auto-classification)
     let taxonomy_repository = Arc::new(TaxonomyRepository::new(pool.clone(), writer.clone()));
-    let taxonomy_service = Arc::new(TaxonomyService::new(taxonomy_repository));
+    let taxonomy_service = Arc::new(
+        TaxonomyService::new(taxonomy_repository).with_event_sink(domain_event_sink.clone()),
+    );
 
     let asset_service = Arc::new(
         AssetService::with_taxonomy_service(
@@ -260,6 +276,7 @@ pub async fn initialize_context(
             account_repository.clone(),
             spending_settings_service.clone(),
             activity_taxonomy_assignment_service.clone(),
+            activity_splits_repo.clone(),
             activity_events_repo.clone(),
             events_service.clone(),
         ),
@@ -294,6 +311,7 @@ pub async fn initialize_context(
         activity_repository.clone(),
         account_repository.clone(),
         activity_assignments_repo.clone(),
+        activity_splits_repo.clone(),
         spending_settings_service.clone(),
         taxonomy_service.clone(),
         fx_service.clone(),
@@ -314,6 +332,7 @@ pub async fn initialize_context(
             activity_repository.clone(),
             account_repository.clone(),
             analytics_assignment_repo.clone(),
+            activity_splits_repo.clone(),
             spending_settings_service.clone(),
             taxonomy_service.clone(),
             events_service.clone(),
@@ -334,6 +353,7 @@ pub async fn initialize_context(
         activity_repository.clone(),
         account_repository.clone(),
         analytics_assignment_repo,
+        activity_splits_repo,
         spending_settings_service.clone(),
         taxonomy_service.clone(),
         fx_service.clone(),
@@ -400,7 +420,8 @@ pub async fn initialize_context(
             quote_service.clone(),
             fx_service.clone(),
         )
-        .with_activity_repository(activity_repository.clone(), timezone.clone()),
+        .with_activity_repository(activity_repository.clone(), timezone.clone())
+        .with_lot_repository(lots_repository.clone()),
     );
 
     let performance_service = Arc::new(
@@ -427,10 +448,10 @@ pub async fn initialize_context(
         .with_lot_repository(lots_repository.clone()),
     );
 
-    let allocation_service = Arc::new(AllocationService::new(
-        holdings_service.clone(),
-        taxonomy_service.clone(),
-    ));
+    let allocation_service = Arc::new(
+        AllocationService::new(holdings_service.clone(), taxonomy_service.clone())
+            .with_account_service(account_service.clone()),
+    );
 
     let allocation_target_repository = Arc::new(AllocationTargetRepository::new(
         pool.clone(),
@@ -445,6 +466,7 @@ pub async fn initialize_context(
             allocation_target_service.clone(),
             allocation_service.clone(),
         )
+        .with_holdings_service(holdings_service.clone())
         .with_taxonomy_service(taxonomy_service.clone()),
     );
     let rebalance_service = Arc::new(RebalanceService::new(
@@ -530,11 +552,26 @@ pub async fn initialize_context(
         income_service.clone(),
         health_service.clone(),
         taxonomy_service.clone(),
+        portfolio_service.clone(),
+        net_worth_service.clone(),
+        limits_service.clone(),
         cash_activity_service.clone(),
         activity_taxonomy_assignment_service.clone(),
         categorization_rules_service.clone(),
     ));
+    let agent_environment: Arc<dyn wealthfolio_agent_tools::AgentEnvironment> =
+        ai_environment.clone();
     let ai_chat_service = Arc::new(ChatService::new(ai_environment, ChatConfig::default()));
+
+    // MCP audit log repository (agent access audit trail)
+    let mcp_audit_repository = Arc::new(McpAuditRepository::new(pool.clone(), writer.clone()));
+
+    // Personal Access Token repository (per-client scoped MCP auth)
+    let pat_repository = Arc::new(PatRepository::new(pool.clone(), writer.clone()));
+
+    // Durable per-addon key-value storage repository
+    let addon_storage_repository: Arc<dyn wealthfolio_core::addons::AddonStorageRepositoryTrait> =
+        Arc::new(AddonStorageRepository::new(pool.clone(), writer.clone()));
 
     // Device enroll service for E2EE sync
     let cloud_api_url = crate::services::cloud_api_base_url().unwrap_or_default();
@@ -547,6 +584,7 @@ pub async fn initialize_context(
         app_version,
     ));
     let device_sync_runtime = Arc::new(DeviceSyncRuntimeState::new());
+    let broker_sync_running = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let now = chrono::Utc::now();
     if let Err(err) = app_sync_repository
         .prune_sync_outbox(
@@ -562,7 +600,7 @@ pub async fn initialize_context(
         context: ServiceContext {
             base_currency,
             timezone,
-            instance_id,
+            rating_instance_id,
             domain_event_sink,
             settings_service,
             account_service,
@@ -591,8 +629,13 @@ pub async fn initialize_context(
             connect_service,
             ai_provider_service,
             ai_chat_service,
+            agent_environment,
+            mcp_audit_repository,
+            pat_repository,
+            addon_storage_repository,
             device_enroll_service,
             device_sync_runtime,
+            broker_sync_running,
             health_service,
             custom_provider_service,
             portfolio_service,

@@ -1,0 +1,124 @@
+{
+  "insights": {
+    "loading_dashboard": "Dashboard wird geladen...",
+    "tab_overview": "Übersicht",
+    "tab_performance": "Performance",
+    "tab_income": "Einkommen",
+    "back_to_allocation": "Zurück zur Aufteilung",
+    "target_allocation": "Zielaufteilung",
+    "back_to_overview": "Zurück zur Übersicht",
+    "rebalance": "Neu ausbalancieren",
+    "no_target_selected": "Kein Ziel ausgewählt",
+    "no_target_selected_description": "Erstellen Sie eine Zielaufteilung, um die aktuellen Gewichtungen mit den beabsichtigten zu vergleichen.",
+    "set_target_allocation": "Zielaufteilung festlegen",
+    "chart_classes": "Klassen",
+    "chart_regions": "Regionen",
+    "chart_sectors": "Sektoren",
+    "explorer": {
+      "lens_allocation": "Aufteilung",
+      "lens_accounts": "Konten",
+      "lens_sectors": "Sektoren",
+      "lens_regions": "Regionen",
+      "lens_risk": "Risiko",
+      "lens_security": "Wertpapierarten",
+      "lens_currency": "Währung",
+      "unit_categories": "Kategorien",
+      "unit_accounts": "Konten",
+      "unit_sectors": "Sektoren",
+      "unit_regions": "Regionen",
+      "unit_levels": "Stufen",
+      "unit_types": "Arten",
+      "unit_currencies": "Währungen",
+      "unit_groups": "Gruppen",
+      "other_units": "Weitere {{unit}}",
+      "breakdown": "Aufschlüsselung",
+      "top_units": "Top {{unit}}",
+      "show_less": "Weniger anzeigen",
+      "show_all": "Alle anzeigen"
+    },
+    "rails": {
+      "target_allocation": "Zielaufteilung",
+      "details": "Details",
+      "suggested_moves": "Vorgeschlagene Maßnahmen",
+      "all_in_range": "Alle Kategorien innerhalb des Zielbereichs — keine Neuausrichtung erforderlich",
+      "add": "Hinzufügen",
+      "trim": "Reduzieren",
+      "inside_target_range": "Innerhalb des Zielbereichs",
+      "outside_range": "{{count}} außerhalb des Bereichs · größte Abweichung {{gap}}",
+      "tolerance": "Toleranz {{tolerance}}",
+      "current": "Aktuell",
+      "target": "Ziel",
+      "no_target_yet": "Noch keine Zielaufteilung",
+      "compare_weights": "Vergleichen Sie die aktuellen Gewichtungen mit Ihrem gewünschten Portfolio.",
+      "set_target_allocation": "Zielaufteilung festlegen"
+    },
+    "value_strip": {
+      "portfolio_value": "Portfoliowert",
+      "cash_balance": "Barbestand",
+      "invested": "Investiert",
+      "book_cost": "Anschaffungskosten",
+      "no_cash_balance": "Kein Barbestand",
+      "of_portfolio": "{{percent}} des Portfolios",
+      "available_cash": "Verfügbares Bargeld",
+      "holdings_count_one": "{{count}} Position",
+      "holdings_count_other": "{{count}} Positionen",
+      "accounts_count_one": "{{count}} Konto",
+      "accounts_count_other": "{{count}} Konten"
+    }
+  },
+  "networth": {
+    "failed_to_load": "Nettovermögen konnte nicht geladen werden",
+    "stale_valuations_tooltip": "Veraltete Bewertungen (90+ Tage):",
+    "days_ago": "vor {{count}} T",
+    "no_history_data": "Keine Verlaufsdaten verfügbar",
+    "breakdown": "Aufschlüsselung",
+    "no_assets_found": "Keine Vermögenswerte gefunden.",
+    "add_first_asset": "Fügen Sie Ihren ersten Vermögenswert hinzu",
+    "update_valuations": "Aktualisieren Sie Ihre Bewertungen",
+    "assets_count_one": "{{count}} Vermögenswert",
+    "assets_count_other": "{{count}} Vermögenswerte",
+    "not_updated_over_90_days": "Seit über 90 Tagen nicht aktualisiert.",
+    "chart": {
+      "net_worth": "Nettovermögen",
+      "net_worth_label": "Nettovermögen:",
+      "assets_label": "Vermögenswerte:",
+      "liabilities_label": "Verbindlichkeiten:"
+    },
+    "breakdown_table": {
+      "change_over": "Veränderung über {{period}}",
+      "assets": "Vermögenswerte",
+      "category": "Kategorie",
+      "value": "Wert",
+      "delta_period": "Δ {{period}}",
+      "liabilities": "Verbindlichkeiten",
+      "net_worth": "Nettovermögen"
+    },
+    "category_sheet": {
+      "over_period": "über {{period}}",
+      "trend_period": "Trend · {{period}}",
+      "items": "Positionen"
+    },
+    "trend": {
+      "not_enough_history": "Nicht genügend Verlauf"
+    },
+    "momentum": {
+      "title": "Momentum",
+      "all_time": "gesamter Zeitraum",
+      "vs_prior": "vs. vorheriger {{period}}",
+      "beat_prior": "Übertrifft den vorherigen Zeitraum um ",
+      "behind_prior": "Hinter dem vorherigen Zeitraum um ",
+      "now": "Jetzt"
+    },
+    "velocity": {
+      "monthly_pace": "Monatliches Tempo",
+      "over_months_one": "über {{count}} Monat",
+      "over_months_other": "über {{count}} Monate",
+      "trailing_pace": " · {{multiple}}× Tempo der letzten 12 Monate",
+      "drivers_of_change": "Treiber der Veränderung über {{period}}",
+      "market_returns": "Marktrenditen",
+      "contributions": "Einzahlungen",
+      "equity_built": "Aufgebautes Eigenkapital",
+      "per_month": "/Mon."
+    }
+  }
+}

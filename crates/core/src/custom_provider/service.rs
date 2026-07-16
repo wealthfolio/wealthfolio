@@ -863,10 +863,7 @@ fn truncate_str(s: &str, max_bytes: usize) -> String {
         return s.to_string();
     }
     // Walk backward from max_bytes to find a char boundary
-    let end = s[..=max_bytes.min(s.len() - 1)]
-        .char_indices()
-        .next_back()
-        .map_or(0, |(i, _)| i);
+    let end = s.floor_char_boundary(max_bytes);
     format!("{}...", &s[..end])
 }
 
@@ -1272,6 +1269,20 @@ pub fn detect_html_locale(body: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extracts_json_values_from_unicode_keys() {
+        let body = r#"[{"净值日期":"2026-07-11","单位净值":1.4018}]"#;
+
+        assert_eq!(
+            extract_json_value(body, r#"$[*]["单位净值"]"#),
+            Some(1.4018)
+        );
+        assert_eq!(
+            extract_json_string(body, r#"$[*]["净值日期"]"#),
+            Some("2026-07-11".to_string())
+        );
+    }
 
     // Header row uses <td> (no <thead>/<th>) — like ariva.de's historical
     // prices table. The first <td> row is the headers, not data.

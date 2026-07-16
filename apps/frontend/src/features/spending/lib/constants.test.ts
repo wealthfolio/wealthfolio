@@ -30,8 +30,8 @@ describe("spending constants", () => {
       ]);
     });
 
-    it("does not offer generic cash credits on cash accounts", () => {
-      expect(getActivityTypesForAccount(AccountType.CASH)).not.toContain("CREDIT");
+    it("offers cash credits on cash accounts for reimbursements", () => {
+      expect(getActivityTypesForAccount(AccountType.CASH)).toContain("CREDIT");
     });
 
     it("offers tax for cash accounts", () => {
@@ -80,6 +80,12 @@ describe("spending constants", () => {
       expect(
         getActivitySpendingAmount(
           { activityType: "CREDIT", subtype: "REFUND", amount: "40" },
+          AccountType.CASH,
+        ),
+      ).toBe(-40);
+      expect(
+        getActivitySpendingAmount(
+          { activityType: "CREDIT", subtype: "REIMBURSEMENT", amount: "40" },
           AccountType.CASH,
         ),
       ).toBe(-40);
@@ -144,6 +150,7 @@ describe("spending constants", () => {
     it("uses cash credit subtypes to distinguish income from refunds", () => {
       expect(isCashActivityIncome("CREDIT", AccountType.CASH, "BONUS")).toBe(true);
       expect(isCashActivityIncome("CREDIT", AccountType.CASH, "REFUND")).toBe(false);
+      expect(isCashActivityIncome("CREDIT", AccountType.CASH, "REIMBURSEMENT")).toBe(false);
       expect(isCashActivityIncome("CREDIT", AccountType.CREDIT_CARD, "BONUS")).toBe(false);
     });
   });

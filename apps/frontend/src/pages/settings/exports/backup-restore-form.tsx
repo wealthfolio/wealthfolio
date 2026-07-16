@@ -10,28 +10,10 @@ import { DeleteConfirm } from "@wealthfolio/ui/components/common";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import type { DatabaseBackup } from "@/adapters";
+import { Trans, useTranslation } from "react-i18next";
 import { useBackupRestore } from "./use-backup-restore";
 
-const desktopNotes = [
-  "Backups are self-contained SQLite database files.",
-  "Restore will replace ALL current data with backup data.",
-  "A pre-restore backup is automatically created before restoration.",
-  "You will be prompted to restart the application after restoration.",
-] as const;
-
-const webNotes = [
-  "Backups are SQLite .db files saved in Wealthfolio's data directory.",
-  "Downloaded backups can be restored in the desktop or iOS app.",
-  "To restore in web mode, stop Wealthfolio, replace app.db with a backup file, then restart.",
-  "Create backups regularly, especially before bulk imports or migrations.",
-] as const;
-
-const mobileNotes = [
-  "Backups are self-contained SQLite database files.",
-  "When you tap backup, the native file picker opens so you can Save to Files.",
-  "Restore is available on iOS and desktop.",
-  "Create backups regularly, especially before bulk imports or migrations.",
-] as const;
+type TFunction = ReturnType<typeof useTranslation>["t"];
 
 export const BackupRestoreForm = () => {
   const {
@@ -93,17 +75,24 @@ const DesktopBackupPanel = ({
   isBackingUp,
   isRestoring,
 }: DesktopPanelProps) => {
+  const { t } = useTranslation();
+  const desktopNotes = [
+    t("settings:backup_desktop_note_1"),
+    t("settings:backup_desktop_note_2"),
+    t("settings:backup_desktop_note_3"),
+    t("settings:backup_desktop_note_4"),
+  ];
   return (
     <div className="space-y-6">
       <PanelIntro />
 
       <div className="grid gap-4 md:grid-cols-2">
         <BackupCard
-          title="Create Backup"
-          description="Create a self-contained backup of your database and save it to any folder you choose."
+          title={t("settings:backup_create_title")}
+          description={t("settings:backup_desktop_create_description")}
           isLoading={isBackingUp}
           disabled={isBackingUp || isRestoring}
-          actionLabel="Backup Database"
+          actionLabel={t("settings:backup_create_button")}
           onAction={performBackup}
         />
 
@@ -111,12 +100,9 @@ const DesktopBackupPanel = ({
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Icons.DatabaseBackup className="h-5 w-5" />
-              Restore Backup
+              {t("settings:backup_restore_title")}
             </CardTitle>
-            <CardDescription>
-              Restore your database from a previous backup file. This will replace all current data.
-              Then restart the application to apply changes.
-            </CardDescription>
+            <CardDescription>{t("settings:backup_restore_description")}</CardDescription>
           </CardHeader>
           <CardContent className="mt-auto">
             <Button
@@ -128,12 +114,12 @@ const DesktopBackupPanel = ({
               {isRestoring ? (
                 <>
                   <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                  Restoring...
+                  {t("settings:backup_restoring")}
                 </>
               ) : (
                 <>
                   <Icons.Import className="mr-2 h-4 w-4" />
-                  Restore Database
+                  {t("settings:backup_restore_button")}
                 </>
               )}
             </Button>
@@ -168,10 +154,10 @@ const formatBackupSize = (sizeBytes: number): string => {
   return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
 };
 
-const formatBackupDate = (modifiedAt: string): string => {
+const formatBackupDate = (modifiedAt: string, t: TFunction): string => {
   const date = new Date(modifiedAt);
   if (Number.isNaN(date.getTime())) {
-    return "Unknown date";
+    return t("settings:backup_unknown_date");
   }
 
   return date.toLocaleString(undefined, {
@@ -190,6 +176,13 @@ const WebBackupPanel = ({
   onDeleteBackup,
   getDownloadUrl,
 }: WebPanelProps) => {
+  const { t } = useTranslation();
+  const webNotes = [
+    t("settings:backup_web_note_1"),
+    t("settings:backup_web_note_2"),
+    t("settings:backup_web_note_3"),
+    t("settings:backup_web_note_4"),
+  ];
   return (
     <div className="space-y-4">
       <PanelIntro />
@@ -199,11 +192,9 @@ const WebBackupPanel = ({
           <div className="space-y-1.5">
             <CardTitle className="flex items-center gap-2 text-lg">
               <Icons.DatabaseBackup className="h-5 w-5" />
-              Database Backups
+              {t("settings:backup_web_list_title")}
             </CardTitle>
-            <CardDescription>
-              SQLite .db files saved in Wealthfolio's data directory.
-            </CardDescription>
+            <CardDescription>{t("settings:backup_web_list_description")}</CardDescription>
           </div>
           <Button
             onClick={performBackup}
@@ -214,12 +205,12 @@ const WebBackupPanel = ({
             {isBackingUp ? (
               <>
                 <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                Creating...
+                {t("settings:backup_creating_short")}
               </>
             ) : (
               <>
                 <Icons.Download className="mr-2 h-4 w-4" />
-                Create Backup
+                {t("settings:backup_create_title")}
               </>
             )}
           </Button>
@@ -228,22 +219,22 @@ const WebBackupPanel = ({
           {isLoadingBackups ? (
             <div className="text-muted-foreground flex items-center gap-2 rounded-md border border-dashed p-4 text-sm">
               <Icons.Spinner className="h-4 w-4 animate-spin" />
-              Loading backups...
+              {t("settings:backup_loading")}
             </div>
           ) : backupListError ? (
             <div className="border-destructive/30 bg-destructive/5 text-destructive flex items-start gap-2 rounded-md border p-4 text-sm">
               <Icons.AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
-                <p className="font-medium">Could not load backups</p>
+                <p className="font-medium">{t("settings:backup_load_error")}</p>
                 <p className="mt-1">{backupListError}</p>
               </div>
             </div>
           ) : backups.length === 0 ? (
             <div className="rounded-md border border-dashed p-6 text-center">
               <Icons.DatabaseBackup className="text-muted-foreground mx-auto h-6 w-6" />
-              <p className="mt-3 text-sm font-medium">No backups yet</p>
+              <p className="mt-3 text-sm font-medium">{t("settings:backup_empty_title")}</p>
               <p className="text-muted-foreground mt-1 text-sm">
-                Create a backup to keep a restorable database snapshot.
+                {t("settings:backup_empty_description")}
               </p>
             </div>
           ) : (
@@ -256,7 +247,8 @@ const WebBackupPanel = ({
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium leading-5">{backup.filename}</p>
                     <p className="text-muted-foreground text-xs">
-                      {formatBackupSize(backup.sizeBytes)} - {formatBackupDate(backup.modifiedAt)}
+                      {formatBackupSize(backup.sizeBytes)} -{" "}
+                      {formatBackupDate(backup.modifiedAt, t)}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
@@ -265,19 +257,22 @@ const WebBackupPanel = ({
                         <Button asChild size="icon" variant="ghost" className="h-8 w-8">
                           <a href={getDownloadUrl(backup.filename)} download={backup.filename}>
                             <Icons.Download className="h-4 w-4" />
-                            <span className="sr-only">Download {backup.filename}</span>
+                            <span className="sr-only">
+                              {t("settings:backup_download_item", { filename: backup.filename })}
+                            </span>
                           </a>
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Download</TooltipContent>
+                      <TooltipContent>{t("common:download")}</TooltipContent>
                     </Tooltip>
                     <DeleteConfirm
-                      deleteConfirmTitle="Delete Backup"
+                      deleteConfirmTitle={t("settings:backup_delete_title")}
                       deleteConfirmMessage={
-                        <>
-                          Delete <span className="break-all font-medium">{backup.filename}</span>?
-                          This action cannot be undone.
-                        </>
+                        <Trans
+                          i18nKey="settings:backup_delete_message"
+                          values={{ filename: backup.filename }}
+                          components={{ fn: <span className="break-all font-medium" /> }}
+                        />
                       }
                       handleDeleteConfirm={() => void onDeleteBackup(backup.filename)}
                       isPending={isDeletingBackup}
@@ -289,7 +284,9 @@ const WebBackupPanel = ({
                           className="text-muted-foreground hover:text-destructive h-8 w-8"
                         >
                           <Icons.Trash className="h-4 w-4" />
-                          <span className="sr-only">Delete {backup.filename}</span>
+                          <span className="sr-only">
+                            {t("settings:backup_delete_item", { filename: backup.filename })}
+                          </span>
                         </Button>
                       }
                     />
@@ -323,21 +320,28 @@ const MobileBackupPanel = ({
   canBackup,
   canRestore,
 }: MobilePanelProps) => {
+  const { t } = useTranslation();
+  const mobileNotes = [
+    t("settings:backup_mobile_note_1"),
+    t("settings:backup_mobile_note_2"),
+    t("settings:backup_mobile_note_3"),
+    t("settings:backup_mobile_note_4"),
+  ];
   return (
     <div className="space-y-6">
       <PanelIntro />
 
       <div className="grid gap-4 md:grid-cols-2">
         <BackupCard
-          title="Create Backup"
+          title={t("settings:backup_create_title")}
           description={
             canBackup
-              ? "Create a self-contained backup and choose a destination in the native file picker."
-              : "Backup export is currently available on iOS and desktop only."
+              ? t("settings:backup_mobile_create_description")
+              : t("settings:backup_mobile_create_unavailable")
           }
           isLoading={isBackingUp}
           disabled={!canBackup || isBackingUp}
-          actionLabel="Backup Database"
+          actionLabel={t("settings:backup_create_button")}
           onAction={performBackup}
         />
 
@@ -345,12 +349,12 @@ const MobileBackupPanel = ({
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Icons.DatabaseBackup className="h-5 w-5" />
-              Restore Backup
+              {t("settings:backup_restore_title")}
             </CardTitle>
             <CardDescription>
               {canRestore
-                ? "Restore your database from a previous backup file. This will replace all current data."
-                : "Restore is currently available on desktop and iOS only."}
+                ? t("settings:backup_restore_description")
+                : t("settings:backup_mobile_restore_unavailable")}
             </CardDescription>
           </CardHeader>
           <CardContent className="mt-auto">
@@ -363,12 +367,12 @@ const MobileBackupPanel = ({
               {isRestoring ? (
                 <>
                   <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                  Restoring...
+                  {t("settings:backup_restoring")}
                 </>
               ) : (
                 <>
                   <Icons.Import className="mr-2 h-4 w-4" />
-                  Restore Database
+                  {t("settings:backup_restore_button")}
                 </>
               )}
             </Button>
@@ -381,14 +385,15 @@ const MobileBackupPanel = ({
   );
 };
 
-const PanelIntro = () => (
-  <div>
-    <h3 className="text-lg font-semibold">Database Backup & Restore</h3>
-    <p className="text-muted-foreground text-sm">
-      Create complete database backups and restore from previous backups.
-    </p>
-  </div>
-);
+const PanelIntro = () => {
+  const { t } = useTranslation();
+  return (
+    <div>
+      <h3 className="text-lg font-semibold">{t("settings:backup_title")}</h3>
+      <p className="text-muted-foreground text-sm">{t("settings:backup_description")}</p>
+    </div>
+  );
+};
 
 interface BackupCardProps {
   title: string;
@@ -406,45 +411,51 @@ const BackupCard = ({
   isLoading,
   actionLabel,
   disabled,
-}: BackupCardProps) => (
-  <Card className="flex h-full flex-col">
-    <CardHeader>
-      <CardTitle className="flex items-center gap-2 text-lg">
-        <Icons.DatabaseZap className="h-5 w-5" />
-        {title}
-      </CardTitle>
-      <CardDescription>{description}</CardDescription>
-    </CardHeader>
-    <CardContent className="mt-auto">
-      <Button onClick={onAction} disabled={disabled ?? isLoading} className="w-full">
-        {isLoading ? (
-          <>
-            <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-            Creating Backup...
-          </>
-        ) : (
-          <>
-            <Icons.Download className="mr-2 h-4 w-4" />
-            {actionLabel}
-          </>
-        )}
-      </Button>
-    </CardContent>
-  </Card>
-);
+}: BackupCardProps) => {
+  const { t } = useTranslation();
+  return (
+    <Card className="flex h-full flex-col">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <Icons.DatabaseZap className="h-5 w-5" />
+          {title}
+        </CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="mt-auto">
+        <Button onClick={onAction} disabled={disabled ?? isLoading} className="w-full">
+          {isLoading ? (
+            <>
+              <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
+              {t("settings:backup_creating")}
+            </>
+          ) : (
+            <>
+              <Icons.Download className="mr-2 h-4 w-4" />
+              {actionLabel}
+            </>
+          )}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
 
-const ImportantNotes = ({ notes }: { notes: readonly string[] }) => (
-  <div className="bg-muted/30 rounded-md border p-4">
-    <div className="flex items-start gap-3">
-      <Icons.Info className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
-      <div className="min-w-0 text-sm">
-        <p className="font-medium">Backup notes</p>
-        <ul className="text-muted-foreground mt-2 list-inside list-disc space-y-1">
-          {notes.map((note) => (
-            <li key={note}>{note}</li>
-          ))}
-        </ul>
+const ImportantNotes = ({ notes }: { notes: readonly string[] }) => {
+  const { t } = useTranslation();
+  return (
+    <div className="bg-muted/30 rounded-md border p-4">
+      <div className="flex items-start gap-3">
+        <Icons.Info className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+        <div className="min-w-0 text-sm">
+          <p className="font-medium">{t("settings:backup_notes_heading")}</p>
+          <ul className="text-muted-foreground mt-2 list-inside list-disc space-y-1">
+            {notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};

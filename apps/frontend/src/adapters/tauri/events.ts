@@ -4,6 +4,7 @@ import type {
   UnlistenFn as TauriUnlistenFn,
 } from "@tauri-apps/api/event";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrent } from "@tauri-apps/plugin-deep-link";
 
 import type { EventCallback, UnlistenFn } from "../types";
 
@@ -84,6 +85,13 @@ export async function listenMarketSyncError<T>(handler: EventCallback<T>): Promi
   return adaptUnlisten(unlisten);
 }
 
+export async function listenAssetClassificationsChanged<T>(
+  handler: EventCallback<T>,
+): Promise<UnlistenFn> {
+  const unlisten = await listen<T>("asset:classifications-changed", adaptCallback(handler));
+  return adaptUnlisten(unlisten);
+}
+
 export async function listenBrokerSyncStart<T>(handler: EventCallback<T>): Promise<UnlistenFn> {
   const unlisten = await listen<T>("broker:sync-start", adaptCallback(handler));
   return adaptUnlisten(unlisten);
@@ -103,6 +111,10 @@ export async function listenNavigateToRoute<T>(handler: EventCallback<T>): Promi
   const unlisten = await listen<T>("navigate-to-route", adaptCallback(handler));
   return adaptUnlisten(unlisten);
 }
+
+export const getCurrentDeepLinks = async (): Promise<string[]> => {
+  return (await getCurrent()) ?? [];
+};
 
 export const listenDeepLink = async <T>(handler: EventCallback<T>): Promise<UnlistenFn> => {
   const unlisten = await listen<T>("deep-link-received", adaptCallback(handler));

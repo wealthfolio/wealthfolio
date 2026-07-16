@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Sheet,
   SheetContent,
@@ -36,6 +37,7 @@ export function ClassificationSheet({
   open,
   onOpenChange,
 }: ClassificationSheetProps) {
+  const { t } = useTranslation();
   // Asset classification sheet — restrict to asset-scoped taxonomies.
   const { data: taxonomies, isLoading } = useTaxonomies({ scope: "asset" });
 
@@ -71,7 +73,7 @@ export function ClassificationSheet({
             {assetSymbol && <TickerAvatar symbol={assetSymbol} className="size-10" />}
             <div className="min-w-0 flex-1">
               <SheetTitle className="truncate text-lg">
-                {assetSymbol || "Classify Asset"}
+                {assetSymbol || t("asset:classification.classifyAsset")}
               </SheetTitle>
               <SheetDescription className="truncate text-sm">{assetName}</SheetDescription>
             </div>
@@ -111,7 +113,7 @@ export function ClassificationSheet({
               multiSelectTaxonomies.length === 0 && (
                 <div className="py-8 text-center">
                   <p className="text-muted-foreground text-sm">
-                    No taxonomies configured. Create taxonomies in Settings to classify assets.
+                    {t("asset:classification.noTaxonomies")}
                   </p>
                 </div>
               )}

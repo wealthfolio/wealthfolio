@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataGrid, useDataGrid, type SymbolSearchResult } from "@wealthfolio/ui";
 import { searchTicker } from "@/adapters";
@@ -51,6 +52,7 @@ function useHoldingsColumns({
   onCreateCustomAsset,
   enableSymbolEditing,
 }: UseHoldingsColumnsOptions): ColumnDef<HoldingsRow>[] {
+  const { t } = useTranslation();
   return useMemo<ColumnDef<HoldingsRow>[]>(
     () => [
       // 1. Row number
@@ -72,7 +74,7 @@ function useHoldingsColumns({
       {
         id: "date",
         accessorKey: "date",
-        header: "Date",
+        header: t("activity:import.columns.date"),
         size: 120,
         meta: { cell: { variant: "short-text" } },
       },
@@ -80,7 +82,7 @@ function useHoldingsColumns({
       {
         id: "symbol",
         accessorKey: "symbol",
-        header: "Symbol",
+        header: t("activity:import.columns.symbol"),
         size: 160,
         meta: enableSymbolEditing
           ? {
@@ -98,7 +100,7 @@ function useHoldingsColumns({
       {
         id: "quantity",
         accessorKey: "quantity",
-        header: "Quantity",
+        header: t("activity:import.columns.quantity"),
         size: 120,
         enableSorting: false,
         meta: { cell: { variant: "number", step: 0.000001, valueType: "string" } },
@@ -107,7 +109,7 @@ function useHoldingsColumns({
       {
         id: "avgCost",
         accessorKey: "avgCost",
-        header: "Avg Cost",
+        header: t("activity:import.columns.avgCost"),
         size: 120,
         enableSorting: false,
         meta: { cell: { variant: "number", step: 0.000001, valueType: "string" } },
@@ -116,13 +118,13 @@ function useHoldingsColumns({
       {
         id: "currency",
         accessorKey: "currency",
-        header: "Currency",
+        header: t("activity:import.columns.currency"),
         size: 110,
         enableSorting: false,
         meta: { cell: { variant: "currency" } },
       },
     ],
-    [enableSymbolEditing, onSymbolSearch, onSymbolSelect, onCreateCustomAsset],
+    [enableSymbolEditing, onSymbolSearch, onSymbolSelect, onCreateCustomAsset, t],
   );
 }
 

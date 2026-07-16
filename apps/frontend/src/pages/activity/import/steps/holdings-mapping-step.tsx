@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import {
   Select,
@@ -41,20 +42,40 @@ const HOLDINGS_REQUIRED_FIELDS: HoldingsFormat[] = [
   HoldingsFormat.QUANTITY,
 ];
 
-const HOLDINGS_TARGET_FIELDS: { value: HoldingsFormat; label: string; required: boolean }[] = [
-  { value: HoldingsFormat.DATE, label: "Date", required: true },
-  { value: HoldingsFormat.SYMBOL, label: "Symbol", required: true },
-  { value: HoldingsFormat.QUANTITY, label: "Quantity", required: true },
-  { value: HoldingsFormat.AVG_COST, label: "Avg Cost", required: false },
-  { value: HoldingsFormat.CURRENCY, label: "Currency", required: false },
+const HOLDINGS_TARGET_FIELDS: {
+  value: HoldingsFormat;
+  labelKey: string;
+  required: boolean;
+}[] = [
+  { value: HoldingsFormat.DATE, labelKey: "activity:import.holdings.fieldDate", required: true },
+  {
+    value: HoldingsFormat.SYMBOL,
+    labelKey: "activity:import.holdings.fieldSymbol",
+    required: true,
+  },
+  {
+    value: HoldingsFormat.QUANTITY,
+    labelKey: "activity:import.holdings.fieldQuantity",
+    required: true,
+  },
+  {
+    value: HoldingsFormat.AVG_COST,
+    labelKey: "activity:import.holdings.fieldAvgCost",
+    required: false,
+  },
+  {
+    value: HoldingsFormat.CURRENCY,
+    labelKey: "activity:import.holdings.fieldCurrency",
+    required: false,
+  },
 ];
 
-const HOLDINGS_FIELD_LABELS: Record<HoldingsFormat, string> = {
-  [HoldingsFormat.DATE]: "Date",
-  [HoldingsFormat.SYMBOL]: "Symbol",
-  [HoldingsFormat.QUANTITY]: "Quantity",
-  [HoldingsFormat.AVG_COST]: "Avg Cost",
-  [HoldingsFormat.CURRENCY]: "Currency",
+const HOLDINGS_FIELD_LABEL_KEYS: Record<HoldingsFormat, string> = {
+  [HoldingsFormat.DATE]: "activity:import.holdings.fieldDate",
+  [HoldingsFormat.SYMBOL]: "activity:import.holdings.fieldSymbol",
+  [HoldingsFormat.QUANTITY]: "activity:import.holdings.fieldQuantity",
+  [HoldingsFormat.AVG_COST]: "activity:import.holdings.fieldAvgCost",
+  [HoldingsFormat.CURRENCY]: "activity:import.holdings.fieldCurrency",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -120,6 +141,7 @@ interface CsvPreviewProps {
 }
 
 function CsvPreviewTable({ headers, rows, mapping }: CsvPreviewProps) {
+  const { t } = useTranslation();
   const displayRows = rows.slice(0, 10);
 
   // Get reverse mapping (headerName -> field), only valid HoldingsFormat keys
@@ -141,7 +163,7 @@ function CsvPreviewTable({ headers, rows, mapping }: CsvPreviewProps) {
           <tr>
             {headers.map((header, idx) => {
               const mappedField = headerToField[header];
-              const fieldLabel = mappedField ? HOLDINGS_FIELD_LABELS[mappedField] : null;
+              const fieldLabel = mappedField ? t(HOLDINGS_FIELD_LABEL_KEYS[mappedField]) : null;
               const isDifferent = fieldLabel && fieldLabel.toLowerCase() !== header.toLowerCase();
               return (
                 <th key={idx} className="border-r px-3 py-2 text-left font-medium last:border-r-0">
@@ -181,6 +203,7 @@ function CsvPreviewTable({ headers, rows, mapping }: CsvPreviewProps) {
 
 export function HoldingsMappingStep() {
   const { state, dispatch } = useImportContext();
+  const { t } = useTranslation();
   const { headers, parsedRows, mapping, accountId } = state;
   const hasAutoInitialized = useRef(false);
   const shouldUseSavedMapping = shouldUseSavedHoldingsMapping(state.suppressLinkedTemplate);
@@ -404,8 +427,11 @@ export function HoldingsMappingStep() {
         <ImportAlert
           variant={requiredFieldsMapped ? "success" : "destructive"}
           size="sm"
-          title="Columns"
-          description={`${mappedFieldsCount} of ${HOLDINGS_TARGET_FIELDS.length} mapped`}
+          title={t("activity:import.holdings.columns")}
+          description={t("activity:import.holdings.columnsMapped", {
+            mapped: mappedFieldsCount,
+            total: HOLDINGS_TARGET_FIELDS.length,
+          })}
           icon={Icons.ListChecks}
           className="mb-0"
           rightIcon={requiredFieldsMapped ? Icons.CheckCircle : Icons.AlertCircle}
@@ -416,16 +442,22 @@ export function HoldingsMappingStep() {
             <ImportAlert
               variant="info"
               size="sm"
-              title="Rows"
-              description={`${parsedRows.length} total (${parsedRows.length - cashRowCount} holdings, ${cashRowCount} cash)`}
+              title={t("activity:import.holdings.rows")}
+              description={t("activity:import.holdings.rowsSummary", {
+                total: parsedRows.length,
+                holdings: parsedRows.length - cashRowCount,
+                cash: cashRowCount,
+              })}
               icon={Icons.FileText}
               className="mb-0"
             />
             <ImportAlert
               variant="info"
               size="sm"
-              title="Snapshots"
-              description={`${uniqueDates.size} date${uniqueDates.size !== 1 ? "s" : ""}`}
+              title={t("activity:import.holdings.snapshots")}
+              description={t("activity:import.holdings.snapshotsDates", {
+                count: uniqueDates.size,
+              })}
               icon={Icons.Calendar}
               className="mb-0"
             />
@@ -437,7 +469,9 @@ export function HoldingsMappingStep() {
       <div className="grid gap-4">
         <Card>
           <CardHeader className="px-4 py-3">
-            <CardTitle className="text-sm font-medium">Column Mapping</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {t("activity:import.holdings.columnMapping")}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1.5 px-4 pb-4">
             {columnMappingItems.map((column) => {
@@ -493,11 +527,13 @@ export function HoldingsMappingStep() {
                         !isMapped && "text-muted-foreground border-dashed",
                       )}
                     >
-                      <SelectValue placeholder="Select field..." />
+                      <SelectValue placeholder={t("activity:import.holdings.selectField")} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={SKIP_FIELD_VALUE}>
-                        <span className="text-muted-foreground">Skip</span>
+                        <span className="text-muted-foreground">
+                          {t("activity:import.holdings.skip")}
+                        </span>
                       </SelectItem>
                       <SelectSeparator />
                       {HOLDINGS_TARGET_FIELDS.map((field) => {
@@ -505,10 +541,12 @@ export function HoldingsMappingStep() {
                           usedFields.has(field.value) && column.mappedField !== field.value;
                         return (
                           <SelectItem key={field.value} value={field.value} disabled={isUsed}>
-                            {field.label}
+                            {t(field.labelKey)}
                             {field.required && <span className="ml-1 text-amber-600">*</span>}
                             {isUsed && (
-                              <span className="text-muted-foreground ml-1 text-xs">(used)</span>
+                              <span className="text-muted-foreground ml-1 text-xs">
+                                {t("activity:import.holdings.used")}
+                              </span>
                             )}
                           </SelectItem>
                         );
@@ -525,7 +563,9 @@ export function HoldingsMappingStep() {
       {/* CSV Preview */}
       <Card>
         <CardHeader className="px-4 py-3">
-          <CardTitle className="text-sm font-medium">Data Preview</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            {t("activity:import.holdings.dataPreview")}
+          </CardTitle>
         </CardHeader>
         <CardContent className="border-t p-0">
           <CsvPreviewTable headers={headers} rows={parsedRows} mapping={localFieldMappings} />

@@ -1,0 +1,13 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "achievedCount": 0,
+    "count": 0,
+    "goals": [],
+    "totalCurrent": -0.0,
+    "totalTarget": -0.0
+  }
+}

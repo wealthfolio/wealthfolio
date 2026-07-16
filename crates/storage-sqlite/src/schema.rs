@@ -37,6 +37,7 @@ diesel::table! {
         unit_price -> Nullable<Text>,
         amount -> Nullable<Text>,
         fee -> Nullable<Text>,
+        tax -> Nullable<Text>,
         currency -> Text,
         fx_rate -> Nullable<Text>,
         notes -> Nullable<Text>,
@@ -215,6 +216,8 @@ diesel::table! {
         external_outflow_base -> Text,
         external_flow_source -> Text,
         performance_eligible_value_base -> Text,
+        value_status -> Text,
+        basis_status -> Text,
         calculated_at -> Text,
     }
 }
@@ -354,6 +357,8 @@ diesel::table! {
         remaining_cost_basis_base -> Text,
         fee_allocated -> Text,
         fee_allocated_base -> Text,
+        tax_allocated -> Text,
+        tax_allocated_base -> Text,
         currency -> Text,
         base_currency -> Text,
         fx_rate_to_base -> Text,
@@ -584,6 +589,20 @@ diesel::table! {
 }
 
 diesel::table! {
+    spending_activity_splits (id) {
+        id -> Text,
+        activity_id -> Text,
+        taxonomy_id -> Text,
+        category_id -> Text,
+        amount -> Text,
+        note -> Nullable<Text>,
+        sort_order -> Integer,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
     spending_event_types (id) {
         id -> Text,
         key -> Nullable<Text>,
@@ -725,6 +744,8 @@ diesel::table! {
         taxonomy_id -> Text,
         trigger_type -> Text,
         drift_band_bps -> Integer,
+        band_type -> Text,
+        relative_factor_bps -> Integer,
         rebalance_goal -> Text,
         min_trade_amount -> Text,
         whole_shares_only -> Integer,
@@ -732,6 +753,7 @@ diesel::table! {
         created_at -> Text,
         updated_at -> Text,
         archived_at -> Nullable<Text>,
+        max_turnover_bps -> Nullable<Integer>,
     }
 }
 
@@ -749,7 +771,61 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    addon_storage (addon_id, key) {
+        addon_id -> Text,
+        key -> Text,
+        value -> Text,
+    }
+}
+
+diesel::table! {
+    personal_access_tokens (id) {
+        id -> Text,
+        name -> Text,
+        token_prefix -> Text,
+        token_hash -> Text,
+        scopes_json -> Text,
+        expires_at -> Nullable<Text>,
+        last_used_at -> Nullable<Text>,
+        revoked_at -> Nullable<Text>,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
+    mcp_audit_log (id) {
+        id -> Text,
+        session_id -> Text,
+        actor_kind -> Text,
+        actor_fingerprint -> Text,
+        tool -> Text,
+        scopes_json -> Text,
+        args_summary -> Nullable<Text>,
+        outcome -> Text,
+        error_message -> Nullable<Text>,
+        created_at -> Text,
+    }
+}
+
 diesel::joinable!(allocation_target_weights -> allocation_targets (target_id));
+
+diesel::table! {
+    allocation_target_constraints (id) {
+        id -> Text,
+        target_id -> Text,
+        subject_type -> Text,
+        subject_id -> Text,
+        action -> Text,
+        effect -> Text,
+        reason -> Nullable<Text>,
+        metadata_json -> Nullable<Text>,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::joinable!(allocation_target_constraints -> allocation_targets (target_id));
 
 diesel::joinable!(accounts -> platforms (platform_id));
 diesel::joinable!(activities -> accounts (account_id));
@@ -778,6 +854,8 @@ diesel::joinable!(activity_taxonomy_assignments -> activities (activity_id));
 diesel::joinable!(activity_taxonomy_assignments -> taxonomies (taxonomy_id));
 diesel::joinable!(spending_activity_events -> activities (activity_id));
 diesel::joinable!(spending_activity_events -> spending_events (event_id));
+diesel::joinable!(spending_activity_splits -> activities (activity_id));
+diesel::joinable!(spending_activity_splits -> taxonomies (taxonomy_id));
 diesel::joinable!(spending_events -> spending_event_types (event_type_id));
 diesel::joinable!(spending_categorization_rules -> accounts (account_id));
 diesel::joinable!(spending_categorization_rules -> taxonomies (taxonomy_id));
@@ -831,6 +909,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     taxonomy_categories,
     activity_taxonomy_assignments,
     spending_activity_events,
+    spending_activity_splits,
     spending_event_types,
     spending_events,
     spending_categorization_rules,
@@ -841,4 +920,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     budget_rollover_settings,
     allocation_targets,
     allocation_target_weights,
+    personal_access_tokens,
+    mcp_audit_log,
+    allocation_target_constraints,
 );

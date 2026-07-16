@@ -1,0 +1,13 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "accountScope": "acc-1",
+    "currency": "USD",
+    "holdings": [],
+    "totalValue": -0.0,
+    "viewMode": "table"
+  }
+}

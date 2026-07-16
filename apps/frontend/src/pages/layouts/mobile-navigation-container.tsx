@@ -4,9 +4,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Icons, PageScrollContainer } from "@wealthfolio/ui";
 import { AnimatePresence } from "motion/react";
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
 
 export function MobileNavigationContainer() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const onRefresh = useCallback(async () => {
     await updatePortfolio();
@@ -47,7 +49,7 @@ export function MobileNavigationContainer() {
           <div className="bg-background/80 text-muted-foreground flex items-center gap-2 rounded-full px-3 py-1 text-xs backdrop-blur-sm">
             <Icons.Loader className="size-4 animate-spin" />
 
-            <span>Refreshing…</span>
+            <span>{t("common:layout.refreshing")}</span>
           </div>
         </div>
       )}

@@ -1,6 +1,12 @@
-import React from 'react';
-import type { AddonContext } from '@wealthfolio/addon-sdk';
-import { Card, CardContent, Icons } from '@wealthfolio/ui';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { AddonContext, AddonEnableFunction } from '@wealthfolio/addon-sdk';
+import { Card, CardContent } from '@wealthfolio/ui';
+
+// The host owns a single React root per addon and mounts the route `component`
+// itself (`createElement(Component, { location })`) with no access to the addon
+// context. Capture it at enable time so the route wrapper can hand it down.
+// (Do NOT call createRoot yourself — the host manages the lifecycle.)
+let addonCtx: AddonContext | undefined;
 
 function AddonExample({ ctx }: { ctx: AddonContext }) {
   return (
@@ -17,29 +23,31 @@ function AddonExample({ ctx }: { ctx: AddonContext }) {
   );
 }
 
-export default function enable(ctx: AddonContext) {
-  // Add a sidebar item
-  const sidebarItem = ctx.sidebar.addItem({
-    id: '{{addonId}}',
-    label: '{{addonName}}',
-    icon: <Icons.Blocks className="h-5 w-5" />,
-    route: '/addon/{{addonId}}',
-    order: 100,
-  });
+// Route component. The sidebar entry + route are declared in manifest.json
+// (`contributes.routes` + `contributes.links`), so the host renders navigation
+// without booting the addon; this component only runs when the route is first
+// visited. The QueryClientProvider shares one cache across route navigations.
+const AddonRoute = () => (
+  <QueryClientProvider client={addonCtx!.api.query.getClient() as QueryClient}>
+    <AddonExample ctx={addonCtx!} />
+  </QueryClientProvider>
+);
 
-  // Add a route
-  const Wrapper = () => <AddonExample ctx={ctx} />;
+const enable: AddonEnableFunction = (ctx) => {
+  addonCtx = ctx;
+
+  // The route `id` MUST match `contributes.routes[].id` in manifest.json.
+  // The host derives this root path from the manifest addon id.
   ctx.router.add({
-    path: '/addon/{{addonId}}',
-    component: React.lazy(() => Promise.resolve({ default: Wrapper })),
+    id: '{{addonId}}',
+    path: '/addons/{{addonId}}',
+    component: AddonRoute,
   });
 
-  // Cleanup on disable
+  // The host owns the React root, so there is nothing to unmount here.
   ctx.onDisable(() => {
-    try {
-      sidebarItem.remove();
-    } catch (err) {
-      ctx.api.logger.error('Failed to remove sidebar item:', err);
-    }
+    addonCtx = undefined;
   });
-}
+};
+
+export default enable;

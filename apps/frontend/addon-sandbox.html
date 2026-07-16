@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'unsafe-inline' blob: http://localhost:* http://127.0.0.1:* http://tauri.localhost https://tauri.localhost tauri: asset:; style-src 'self' 'unsafe-inline' http://localhost:* http://127.0.0.1:* http://tauri.localhost https://tauri.localhost tauri: asset:; img-src 'self' data: blob: http://localhost:* http://127.0.0.1:* http://tauri.localhost https://tauri.localhost tauri: asset:; font-src 'self' data: blob: http://localhost:* http://127.0.0.1:* http://tauri.localhost https://tauri.localhost tauri: asset:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <script>
+      (function () {
+        try {
+          var params = new URLSearchParams(window.location.hash.slice(1));
+          var addonId = params.get("addonId");
+          var nonce = params.get("nonce");
+          if (addonId && nonce) {
+            parent.postMessage(
+              {
+                channel: "wealthfolio:addon-sandbox:v1",
+                addonId: addonId,
+                nonce: nonce,
+                type: "loadPhase",
+                phase: "sandbox document loaded",
+              },
+              "*",
+            );
+          }
+          var themeClass = params.get("themeClass") === "dark" ? "dark" : "light";
+          var backgroundColor = params.get("backgroundColor");
+          var foregroundColor = params.get("foregroundColor");
+          document.documentElement.classList.add(themeClass);
+          document.documentElement.style.colorScheme = params.get("colorScheme") || themeClass;
+          if (backgroundColor) {
+            document.documentElement.style.setProperty(
+              "--addon-initial-background",
+              backgroundColor,
+            );
+          }
+          if (foregroundColor) {
+            document.documentElement.style.setProperty(
+              "--addon-initial-foreground",
+              foregroundColor,
+            );
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <!-- Baseline styles live in an external file on purpose: an inline <style>
+         here makes Tauri nonce this document's CSP style-src at runtime, which
+         disables 'unsafe-inline' and blocks the runtime <style> elements that
+         install addon CSS in packaged builds. See public/addon-sandbox.css. -->
+    <link rel="stylesheet" href="/addon-sandbox.css" />
+  </head>
+  <body>
+    <script>
+      (function () {
+        try {
+          var fontClass = new URLSearchParams(window.location.hash.slice(1)).get("fontClass");
+          if (/^font-(mono|sans|serif)$/.test(fontClass)) {
+            document.body.classList.add(fontClass);
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <div id="addon-root"></div>
+    <script type="module" src="/src/addons/iframe/addon-sandbox-entry.tsx"></script>
+  </body>
+</html>

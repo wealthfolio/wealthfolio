@@ -30,10 +30,10 @@ export function serializeProviderConfig(
   const overridesMap: Record<string, unknown> = {};
   for (const override of overrides ?? []) {
     if (override.provider && override.symbol) {
-      overridesMap[override.provider] = {
-        type: overrideType,
-        symbol: override.symbol,
-      };
+      overridesMap[override.provider] =
+        overrideType === "bond_isin"
+          ? { type: overrideType, isin: override.symbol }
+          : { type: overrideType, symbol: override.symbol };
     }
   }
   const hasOverrides = Object.keys(overridesMap).length > 0;

@@ -1,8 +1,9 @@
 //! Transfer integrity health check.
 //!
 //! Detects transfer groups that don't resolve to a valid pair (e.g. a transfer
-//! with only one recorded leg). Such groups have their flows treated as external,
-//! which silently distorts performance — so we surface them as actionable issues.
+//! with only one recorded leg). These can make returns look wrong if the app
+//! cannot tell whether money moved between owned accounts or entered/left the
+//! portfolio, so we surface them as actionable issues.
 //!
 //! The internal `group_id` is used only for identity / change-detection and is
 //! never shown to the user; the UI sees friendly per-leg transaction details.
@@ -13,7 +14,10 @@ use rust_decimal::Decimal;
 use serde_json::json;
 
 use crate::errors::Result;
-use crate::health::model::{AffectedItem, HealthCategory, HealthIssue, NavigateAction, Severity};
+use crate::health::model::{
+    AffectedItem, DiagnosticDomain, Evidence, HealthCategory, HealthDiagnostic, HealthEntityRef,
+    HealthIssue, NavigateAction, Severity,
+};
 use crate::health::traits::{HealthCheck, HealthContext};
 
 /// One leg of an invalid transfer group, with human-readable detail.
@@ -84,7 +88,7 @@ impl TransferIntegrityCheck {
             .iter()
             .flat_map(|g| g.legs.iter().map(|l| l.date))
             .collect();
-        let mut query = json!({ "types": "TRANSFER_IN,TRANSFER_OUT" });
+        let mut query = json!({ "types": "TRANSFER_IN,TRANSFER_OUT", "healthContext": "activity" });
         if let (Some(from), Some(to)) = (all_dates.iter().min(), all_dates.iter().max()) {
             query["from"] = json!(from.format("%Y-%m-%d").to_string());
             query["to"] = json!(to.format("%Y-%m-%d").to_string());
@@ -92,25 +96,28 @@ impl TransferIntegrityCheck {
         let navigate = NavigateAction {
             route: "/activities".to_string(),
             query: Some(query),
-            label: "Review transfers".to_string(),
+            label: "Review Transactions".to_string(),
         };
 
         let title = if count == 1 {
-            "Incomplete transfer detected".to_string()
+            "Transfer needs matching or confirmation".to_string()
         } else {
-            format!("{} incomplete transfers detected", count)
+            format!("{} transfers need matching or confirmation", count)
         };
 
         let mut builder = HealthIssue::builder()
             .id(format!("invalid_transfer_group:{}", data_hash))
             .severity(Severity::Error)
             .category(HealthCategory::DataConsistency)
+            .code("transfer_incomplete")
+            .param("count", count as u32)
             .title(title)
             .message(
-                "A transfer is unpaired or missing its matching leg, so its flow was treated as external and may distort returns. Pair it with the matching transfer, or mark it external if that is intended.",
+                "Some transfers are missing the other side of the move. Match the two transactions if this was between your accounts, or mark the transfer as external if money entered or left your portfolio.",
             )
             .affected_count(count as u32)
-            .navigate_action(navigate)
+            .navigate_action(navigate.clone())
+            .diagnostics(vec![transfer_diagnostic(groups, navigate)])
             .data_hash(data_hash);
         if !affected_items.is_empty() {
             builder = builder.affected_items(affected_items);
@@ -121,6 +128,56 @@ impl TransferIntegrityCheck {
 
         vec![builder.build()]
     }
+}
+
+fn transfer_diagnostic(
+    groups: &[InvalidTransferGroupInfo],
+    navigate: NavigateAction,
+) -> HealthDiagnostic {
+    let mut diagnostic = HealthDiagnostic::new(
+        "INVALID_TRANSFER_GROUP",
+        "Transfer needs review",
+        "This transfer is missing the other side of the move. Match the two transactions if it moved between your accounts, or mark it external if money entered or left your portfolio.",
+    )
+    .domain(DiagnosticDomain::Ledger)
+    .navigate(true, navigate);
+
+    let all_dates: Vec<NaiveDate> = groups
+        .iter()
+        .flat_map(|group| group.legs.iter().map(|leg| leg.date))
+        .collect();
+    if let (Some(from), Some(to)) = (all_dates.iter().min(), all_dates.iter().max()) {
+        diagnostic = diagnostic.date_range(
+            from.format("%Y-%m-%d").to_string(),
+            to.format("%Y-%m-%d").to_string(),
+        );
+    }
+
+    for group in groups {
+        diagnostic = diagnostic.entity(HealthEntityRef::new(
+            "transferGroup",
+            group.group_id.clone(),
+        ));
+        for leg in &group.legs {
+            let item = affected_item_for_leg(leg);
+            if let Some(route) = item.route.clone() {
+                diagnostic = diagnostic.entity(
+                    HealthEntityRef::new(
+                        "account",
+                        format!("{}:{}", leg.account_id, leg.activity_type),
+                    )
+                    .label(leg.account_name.clone())
+                    .route(route.clone()),
+                );
+                diagnostic =
+                    diagnostic.evidence(Evidence::new("Transaction", item.name).with_route(route));
+            } else {
+                diagnostic = diagnostic.evidence(Evidence::new("Transaction", item.name));
+            }
+        }
+    }
+
+    diagnostic
 }
 
 impl Default for TransferIntegrityCheck {
@@ -180,7 +237,7 @@ fn affected_item_for_leg(leg: &TransferLegDetail) -> AffectedItem {
         name: describe_leg(leg),
         symbol: None,
         route: Some(format!(
-            "/activities?account={}&from={}&to={}&types={}",
+            "/activities?account={}&from={}&to={}&types={}&healthContext=activity",
             urlencoding::encode(&leg.account_id),
             urlencoding::encode(&date),
             urlencoding::encode(&date),
@@ -192,14 +249,14 @@ fn affected_item_for_leg(leg: &TransferLegDetail) -> AffectedItem {
 fn format_group_details(group: &InvalidTransferGroupInfo) -> String {
     let when = match group.date_range() {
         Some((from, to)) if from == to => {
-            format!("Incomplete transfer on {}", from.format("%b %-d, %Y"))
+            format!("Transfer on {} needs review", from.format("%b %-d, %Y"))
         }
         Some((from, to)) => format!(
-            "Incomplete transfer between {} and {}",
+            "Transfer between {} and {} needs review",
             from.format("%b %-d, %Y"),
             to.format("%b %-d, %Y")
         ),
-        None => "Incomplete transfer".to_string(),
+        None => "Transfer needs review".to_string(),
     };
     let legs = group
         .legs
@@ -208,7 +265,7 @@ fn format_group_details(group: &InvalidTransferGroupInfo) -> String {
         .collect::<Vec<_>>()
         .join("\n");
     format!(
-        "{}:\n{}\n  → This transfer was treated as external; pair it or mark it external if intended.",
+        "{}:\n{}\n  → Match this with the other side of the transfer, or mark it external if money entered or left your portfolio.",
         when, legs
     )
 }
@@ -284,7 +341,7 @@ mod tests {
         assert_eq!(
             item.route.as_deref(),
             Some(
-                "/activities?account=acc_checking&from=2026-06-02&to=2026-06-02&types=TRANSFER_OUT"
+                "/activities?account=acc_checking&from=2026-06-02&to=2026-06-02&types=TRANSFER_OUT&healthContext=activity"
             )
         );
         // ...but the issue id (internal) still ties to the data hash for dismissal.

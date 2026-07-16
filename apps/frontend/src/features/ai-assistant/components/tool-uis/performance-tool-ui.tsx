@@ -2,11 +2,17 @@ import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import { Badge, Card, CardContent, CardHeader, CardTitle, Skeleton } from "@wealthfolio/ui";
 import { memo, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { CompactToolCard } from "./shared";
+import {
+  normalizePerformanceToolResult,
+  performanceToolPeriodPnl,
+  type PerformanceToolResult as PerformanceResult,
+} from "./performance-tool-semantics";
 
 // ============================================================================
 // Types
@@ -19,196 +25,9 @@ interface GetPerformanceArgs {
   displayMode?: "compact" | "full";
 }
 
-interface PerformanceResult {
-  id: string;
-  periodStartDate?: string | null;
-  periodEndDate?: string | null;
-  currency: string;
-  mode?: string;
-  twr?: number | null;
-  annualizedTwr?: number | null;
-  irr?: number | null;
-  annualizedIrr?: number | null;
-  valueReturn?: number | null;
-  annualizedValueReturn?: number | null;
-  attribution?: PerformanceAttribution | null;
-  volatility?: number | null;
-  maxDrawdown?: number | null;
-  isMixedTrackingMode?: boolean;
-  warnings?: string[];
-  notApplicableReasons?: string[];
-  dataQualityStatus?: string;
-}
-
-interface PerformanceAttribution {
-  income: number;
-  realizedPnl: number;
-  unrealizedPnlChange: number;
-  fxEffect: number;
-  fees: number;
-  taxes: number;
-  residual: number;
-}
-
-// ============================================================================
-// Normalizer
-// ============================================================================
-
-/**
- * Safely converts an unknown value to a string.
- * Returns the fallback if the value is null, undefined, or not a primitive.
- */
-function safeString(value: unknown, fallback: string): string {
-  if (value == null) return fallback;
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return fallback;
-}
-
-/**
- * Normalizes the result to handle both wrapped and unwrapped formats,
- * as well as snake_case vs camelCase field names from the backend.
- */
-function normalizeResult(result: unknown, fallbackCurrency: string): PerformanceResult | null {
-  if (!result) {
-    return null;
-  }
-
-  if (typeof result === "string") {
-    try {
-      return normalizeResult(JSON.parse(result), fallbackCurrency);
-    } catch {
-      return null;
-    }
-  }
-
-  if (typeof result !== "object" || result === null) {
-    return null;
-  }
-
-  const candidate = result as Record<string, unknown>;
-
-  // Handle wrapped format: { data: ..., meta: ... }
-  if ("data" in candidate && typeof candidate.data === "object") {
-    return normalizeResult(candidate.data, fallbackCurrency);
-  }
-
-  const scope = (candidate.scope ?? candidate.Scope) as Record<string, unknown> | undefined;
-  const period = (candidate.period ?? candidate.Period) as Record<string, unknown> | undefined;
-  const returns = (candidate.returns ?? candidate.Returns) as Record<string, unknown> | undefined;
-  const attribution = (candidate.attribution ?? candidate.Attribution) as
-    | Record<string, unknown>
-    | undefined;
-  const risk = (candidate.risk ?? candidate.Risk) as Record<string, unknown> | undefined;
-  const dataQuality = (candidate.dataQuality ?? candidate.data_quality ?? candidate.DataQuality) as
-    | Record<string, unknown>
-    | undefined;
-  const warnings = Array.isArray(dataQuality?.warnings)
-    ? (dataQuality.warnings as string[])
-    : Array.isArray(candidate.warnings)
-      ? (candidate.warnings as string[])
-      : [];
-  const notApplicableReasons = Array.isArray(dataQuality?.notApplicableReasons)
-    ? (dataQuality.notApplicableReasons as string[])
-    : Array.isArray(dataQuality?.not_applicable_reasons)
-      ? (dataQuality.not_applicable_reasons as string[])
-      : [];
-
-  return {
-    id: safeString(candidate.id ?? candidate.Id ?? scope?.id, ""),
-    periodStartDate:
-      (candidate.periodStartDate as string | undefined) ??
-      (candidate.period_start_date as string | undefined) ??
-      (period?.startDate as string | undefined) ??
-      (period?.start_date as string | undefined) ??
-      null,
-    periodEndDate:
-      (candidate.periodEndDate as string | undefined) ??
-      (candidate.period_end_date as string | undefined) ??
-      (period?.endDate as string | undefined) ??
-      (period?.end_date as string | undefined) ??
-      null,
-    currency:
-      (candidate.currency as string | undefined) ??
-      (candidate.Currency as string | undefined) ??
-      (scope?.currency as string | undefined) ??
-      fallbackCurrency,
-    mode: (candidate.mode as string | undefined) ?? (candidate.Mode as string | undefined),
-    twr: returns?.twr != null || returns?.Twr != null ? Number(returns.twr ?? returns.Twr) : null,
-    annualizedTwr:
-      returns?.annualizedTwr != null || returns?.annualized_twr != null
-        ? Number(returns.annualizedTwr ?? returns.annualized_twr)
-        : null,
-    irr: returns?.irr != null || returns?.Irr != null ? Number(returns.irr ?? returns.Irr) : null,
-    annualizedIrr:
-      returns?.annualizedIrr != null || returns?.annualized_irr != null
-        ? Number(returns.annualizedIrr ?? returns.annualized_irr)
-        : null,
-    valueReturn:
-      returns?.valueReturn != null || returns?.value_return != null
-        ? Number(returns.valueReturn ?? returns.value_return)
-        : null,
-    annualizedValueReturn:
-      returns?.annualizedValueReturn != null || returns?.annualized_value_return != null
-        ? Number(returns.annualizedValueReturn ?? returns.annualized_value_return)
-        : null,
-    attribution: attribution
-      ? {
-          income: Number(attribution.income ?? attribution.Income ?? 0),
-          realizedPnl: Number(attribution.realizedPnl ?? attribution.realized_pnl ?? 0),
-          unrealizedPnlChange: Number(
-            attribution.unrealizedPnlChange ?? attribution.unrealized_pnl_change ?? 0,
-          ),
-          fxEffect: Number(attribution.fxEffect ?? attribution.fx_effect ?? 0),
-          fees: Number(attribution.fees ?? attribution.Fees ?? 0),
-          taxes: Number(attribution.taxes ?? attribution.Taxes ?? 0),
-          residual: Number(attribution.residual ?? attribution.Residual ?? 0),
-        }
-      : null,
-    volatility:
-      risk?.volatility != null || risk?.Volatility != null
-        ? Number(risk.volatility ?? risk.Volatility)
-        : null,
-    maxDrawdown:
-      risk?.maxDrawdown != null || risk?.max_drawdown != null
-        ? Number(risk.maxDrawdown ?? risk.max_drawdown)
-        : null,
-    isMixedTrackingMode: Boolean(
-      candidate.isMixedTrackingMode ?? candidate.is_mixed_tracking_mode ?? false,
-    ),
-    warnings,
-    notApplicableReasons,
-    dataQualityStatus:
-      (dataQuality?.status as string | undefined) ??
-      (dataQuality?.Status as string | undefined) ??
-      undefined,
-  };
-}
-
-function headlineReturn(result: PerformanceResult): number | null {
-  if (result.mode === "timeWeighted") return result.twr ?? null;
-  if (result.mode === "valueReturn" || result.mode === "symbolPriceBased") {
-    return result.valueReturn ?? null;
-  }
-  return result.twr ?? result.valueReturn ?? result.irr ?? null;
-}
-
-function periodPnl(result: PerformanceResult): number | null {
-  if (result.mode === "notApplicable" || result.dataQualityStatus === "noData") {
-    return null;
-  }
-  if (!result.attribution) return null;
-
-  const value =
-    result.attribution.income +
-    result.attribution.realizedPnl +
-    result.attribution.unrealizedPnlChange +
-    result.attribution.fxEffect -
-    result.attribution.fees -
-    result.attribution.taxes +
-    result.attribution.residual;
-
-  return Number.isFinite(value) ? value : null;
+function summaryReturn(result: PerformanceResult): number | null {
+  if (result.summaryPercentStatus !== "complete") return null;
+  return result.summaryPercent ?? null;
 }
 
 // ============================================================================
@@ -253,10 +72,11 @@ function EmptyState() {
 }
 
 function ErrorState({ message }: { message?: string }) {
+  const { t } = useTranslation();
   return (
     <Card className="border-destructive/30 bg-destructive/5">
       <CardContent className="py-4">
-        <p className="text-destructive text-sm font-medium">Failed to load performance data</p>
+        <p className="text-destructive text-sm font-medium">{t("ai:performance.error")}</p>
         {message && <p className="text-muted-foreground mt-1 text-xs">{message}</p>}
       </CardContent>
     </Card>
@@ -300,10 +120,14 @@ type PerformanceToolUIContentProps = ToolCallMessagePartProps<
 >;
 
 function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolUIContentProps) {
+  const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const { isBalanceHidden } = useBalancePrivacy();
-  const parsed = useMemo(() => normalizeResult(result, baseCurrency), [baseCurrency, result]);
+  const parsed = useMemo(
+    () => normalizePerformanceToolResult(result, baseCurrency),
+    [baseCurrency, result],
+  );
 
   const isLoading = status?.type === "running";
   const isIncomplete = status?.type === "incomplete";
@@ -346,20 +170,20 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
           day: "numeric",
           year: "numeric",
         })
-      : "Start";
+      : t("ai:performance.start");
     const end = parsed.periodEndDate
       ? new Date(parsed.periodEndDate).toLocaleDateString(undefined, {
           month: "short",
           day: "numeric",
           year: "numeric",
         })
-      : "Today";
+      : t("ai:performance.today");
     return `${start} - ${end}`;
-  }, [parsed?.periodStartDate, parsed?.periodEndDate]);
+  }, [parsed?.periodStartDate, parsed?.periodEndDate, t]);
 
   // Compact mode — just show a one-liner when used as a prerequisite
   if (args?.displayMode === "compact" && parsed && !isLoading) {
-    return <CompactToolCard label="Fetched performance metrics" />;
+    return <CompactToolCard label={t("ai:performance.fetched")} />;
   }
 
   // Show loading skeleton while running
@@ -369,7 +193,7 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
 
   // Show error state for incomplete/failed status
   if (isIncomplete) {
-    return <ErrorState message="The request was interrupted or failed." />;
+    return <ErrorState message={t("ai:performance.interrupted")} />;
   }
 
   // Show empty state if no valid data
@@ -383,11 +207,19 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
     accountLabel,
   );
-  const headlineReturnValue = headlineReturn(parsed);
-  const periodPnlAmount = periodPnl(parsed);
-  const annualizedReturn = parsed.annualizedTwr ?? parsed.annualizedValueReturn;
-  const annualizedLabel = parsed.annualizedTwr == null ? "Annualized Return" : "Annualized TWR";
-  const isPositiveReturn = headlineReturnValue == null ? null : headlineReturnValue >= 0;
+  const summaryReturnValue = summaryReturn(parsed);
+  const periodPnlAmount = performanceToolPeriodPnl(parsed);
+  const suppressReturnMetrics = parsed.summaryPercentStatus !== "complete";
+  const annualizedReturn = suppressReturnMetrics
+    ? null
+    : (parsed.annualizedTwr ?? parsed.annualizedValueReturn);
+  const irr = suppressReturnMetrics ? null : parsed.irr;
+  const annualizedIrr = suppressReturnMetrics ? null : parsed.annualizedIrr;
+  const annualizedLabel =
+    parsed.annualizedTwr == null
+      ? t("ai:performance.annualizedReturn")
+      : t("ai:performance.annualizedTwr");
+  const isPositiveReturn = summaryReturnValue == null ? null : summaryReturnValue >= 0;
   const TrendIcon = isPositiveReturn ? Icons.TrendingUp : Icons.TrendingDown;
 
   return (
@@ -395,7 +227,7 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-base">Performance</CardTitle>
+            <CardTitle className="text-base">{t("ai:performance.title")}</CardTitle>
             {accountLabel !== "Portfolio" && !isUuid && (
               <Badge variant="outline" className="text-xs uppercase">
                 {accountLabel}
@@ -414,7 +246,7 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
         {/* Primary Return Display */}
         <div className="flex flex-wrap items-baseline gap-3">
           <div className="flex items-center gap-2">
-            {headlineReturnValue != null && (
+            {summaryReturnValue != null && (
               <TrendIcon
                 className={cn("size-6", isPositiveReturn ? "text-success" : "text-destructive")}
               />
@@ -422,14 +254,16 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
             <span
               className={cn(
                 "text-3xl font-bold tabular-nums",
-                headlineReturnValue == null
+                summaryReturnValue == null
                   ? "text-muted-foreground"
                   : isPositiveReturn
                     ? "text-success"
                     : "text-destructive",
               )}
             >
-              {headlineReturnValue == null ? "N/A" : formatPercentSigned(headlineReturnValue)}
+              {summaryReturnValue == null
+                ? t("ai:performance.notAvailableUpper")
+                : formatPercentSigned(summaryReturnValue)}
             </span>
           </div>
           {periodPnlAmount != null && (
@@ -452,27 +286,39 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <MetricCard
             label={annualizedLabel}
-            value={annualizedReturn == null ? "n/a" : formatPercentSigned(annualizedReturn)}
+            value={
+              annualizedReturn == null
+                ? t("ai:performance.notAvailable")
+                : formatPercentSigned(annualizedReturn)
+            }
             isPositive={annualizedReturn == null ? null : annualizedReturn >= 0}
           />
           <MetricCard
-            label="IRR"
-            value={parsed.irr == null ? "n/a" : formatPercentSigned(parsed.irr)}
+            label={t("ai:performance.irr")}
+            value={irr == null ? t("ai:performance.notAvailable") : formatPercentSigned(irr)}
             subValue={
-              parsed.annualizedIrr == null
+              annualizedIrr == null
                 ? undefined
-                : `${formatPercentSigned(parsed.annualizedIrr)} ann.`
+                : t("ai:performance.irrAnn", { value: formatPercentSigned(annualizedIrr) })
             }
-            isPositive={parsed.irr == null ? null : parsed.irr >= 0}
+            isPositive={irr == null ? null : irr >= 0}
           />
           <MetricCard
-            label="Volatility"
-            value={parsed.volatility == null ? "n/a" : formatPercent(parsed.volatility)}
+            label={t("ai:performance.volatility")}
+            value={
+              parsed.volatility == null
+                ? t("ai:performance.notAvailable")
+                : formatPercent(parsed.volatility)
+            }
             isPositive={null}
           />
           <MetricCard
-            label="Max Drawdown"
-            value={parsed.maxDrawdown == null ? "n/a" : formatPercent(parsed.maxDrawdown)}
+            label={t("ai:performance.maxDrawdown")}
+            value={
+              parsed.maxDrawdown == null
+                ? t("ai:performance.notAvailable")
+                : formatPercent(parsed.maxDrawdown)
+            }
             isPositive={parsed.maxDrawdown == null ? null : false}
           />
         </div>

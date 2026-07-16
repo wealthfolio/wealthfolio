@@ -69,7 +69,9 @@ describe("activity import profiles", () => {
     expect(mappings[ActivityType.TRANSFER_IN]).toContain("PAYMENT");
     expect(mappings[ActivityType.CREDIT]).toContain("REFUND");
     expect(mappings[ActivityType.CREDIT]).toContain("CASHBACK");
+    expect(mappings[ActivityType.CREDIT]).toContain("REIMBURSEMENT");
     expect(cashMappings[ActivityType.CREDIT]).toContain("CASHBACK");
+    expect(cashMappings[ActivityType.CREDIT]).toContain("EXPENSE REIMBURSEMENT");
     expect(mappings[ActivityType.BUY]).toBeUndefined();
   });
 

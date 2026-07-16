@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { Icons } from "../ui/icons";
 import { cn } from "../../lib/utils";
 import { DataGridColumnHeader } from "./data-grid-column-header";
@@ -55,6 +56,7 @@ export function DataGrid<TData>({
   className,
   ...props
 }: DataGridProps<TData>) {
+  const { t } = useTranslation();
   const rows = table.getRowModel().rows;
   const readOnly = tableMeta?.readOnly ?? false;
   const columnVisibility = table.getState().columnVisibility;
@@ -83,7 +85,7 @@ export function DataGrid<TData>({
       <DataGridPasteDialog tableMeta={tableMeta} pasteDialog={pasteDialog} />
       <div
         role="grid"
-        aria-label="Data grid"
+        aria-label={t("ui:dataGrid.label", "Data grid")}
         aria-rowcount={rows.length + (onRowAdd ? 1 : 0)}
         aria-colcount={columns.length}
         data-slot="grid"
@@ -225,7 +227,7 @@ export function DataGrid<TData>({
               >
                 <div className="text-muted-foreground sticky start-0 flex items-center gap-2 px-3">
                   <Icons.Plus className="size-3.5" />
-                  <span className="text-sm">Add row</span>
+                  <span className="text-sm">{t("ui:dataGrid.addRow", "Add row")}</span>
                 </div>
               </div>
             </div>

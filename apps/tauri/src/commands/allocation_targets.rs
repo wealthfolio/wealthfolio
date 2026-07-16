@@ -6,9 +6,9 @@ use rust_decimal::Decimal;
 use wealthfolio_core::{
     accounts::AccountPurpose,
     portfolio::allocation_targets::{
-        AllocationTarget, AllocationTargetWeight, CalculateRebalancePlanInput, DriftReport,
-        NewAllocationTarget, NewAllocationTargetWeight, RebalancePlan, SaveAllocationTargetResult,
-        ScenarioMode, ScopeType,
+        AllocationTarget, AllocationTargetConstraint, AllocationTargetWeight,
+        CalculateRebalancePlanInput, DriftReport, NewAllocationTarget, NewAllocationTargetWeight,
+        RebalancePlan, SaveAllocationTargetResult, ScenarioMode, ScopeType,
     },
     portfolios::AccountScope,
 };
@@ -150,6 +150,32 @@ pub async fn save_allocation_target_with_weights(
     state
         .allocation_target_service()
         .save_target_with_weights(id, input, weights)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// ── Sell constraints ─────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn list_target_constraints(
+    state: State<'_, Arc<ServiceContext>>,
+    target_id: String,
+) -> Result<Vec<AllocationTargetConstraint>, String> {
+    state
+        .allocation_target_service()
+        .list_target_constraints(&target_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn save_target_constraints(
+    state: State<'_, Arc<ServiceContext>>,
+    target_id: String,
+    constraints: Vec<AllocationTargetConstraint>,
+) -> Result<Vec<AllocationTargetConstraint>, String> {
+    state
+        .allocation_target_service()
+        .save_target_constraints(&target_id, constraints)
         .await
         .map_err(|e| e.to_string())
 }

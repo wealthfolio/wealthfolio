@@ -4,7 +4,10 @@ use super::portfolios_model::{
     AccountScope, NewPortfolio, PortfolioUpdate, PortfolioWithAccounts, ResolvedAccountScope,
 };
 use super::portfolios_traits::{PortfolioRepositoryTrait, PortfolioServiceTrait};
-use crate::accounts::{account_supports_purpose, AccountPurpose, AccountRepositoryTrait};
+use crate::accounts::{
+    account_in_portfolio_scope, account_supports_portfolio_scope, AccountPurpose,
+    AccountRepositoryTrait,
+};
 use crate::errors::{DatabaseError, Result, ValidationError};
 use crate::Error;
 
@@ -65,6 +68,24 @@ impl PortfolioService {
         }
         Ok(())
     }
+
+    fn retain_portfolio_scope_accounts(&self, ids: &mut Vec<String>) -> Result<()> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+
+        let accounts = self
+            .account_repository
+            .list(None, None, Some(ids.as_slice()))?;
+        let eligible_ids: HashSet<String> = accounts
+            .into_iter()
+            .filter(account_in_portfolio_scope)
+            .map(|account| account.id)
+            .collect();
+
+        ids.retain(|account_id| eligible_ids.contains(account_id));
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
@@ -120,6 +141,7 @@ impl PortfolioServiceTrait for PortfolioService {
         ids.sort();
         ids.dedup();
         self.validate_resolved_account_ids_exist(&ids)?;
+        self.retain_portfolio_scope_accounts(&mut ids)?;
 
         let scope_id = match filter {
             AccountScope::All => "all".to_string(),
@@ -156,7 +178,7 @@ impl PortfolioServiceTrait for PortfolioService {
             .list(None, None, Some(&resolved.account_ids))?;
         let eligible_ids: HashSet<String> = accounts
             .into_iter()
-            .filter(|account| account_supports_purpose(&account.account_type, purpose))
+            .filter(|account| account_supports_portfolio_scope(account, purpose))
             .map(|account| account.id)
             .collect();
 

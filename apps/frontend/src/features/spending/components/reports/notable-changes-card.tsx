@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { PrivacyAmount, Skeleton } from "@wealthfolio/ui";
 import type { TaxonomyCategory } from "@/lib/types";
@@ -41,6 +42,7 @@ export function NotableChangesCard({
   currency,
   isLoading,
 }: NotableChangesCardProps) {
+  const { t } = useTranslation();
   const { climbed, saved } = useMemo(() => {
     if (!current || !prior) return { climbed: [] as ChangeRow[], saved: [] as ChangeRow[] };
     return computeChanges(current.spendingBreakdown, prior.spendingBreakdown, taxonomyCategories);
@@ -60,7 +62,7 @@ export function NotableChangesCard({
   if (!prior) {
     return (
       <div className="text-muted-foreground/70 py-6 text-center text-xs">
-        Comparison disabled — turn on Prior or YoY in the header to see notable changes.
+        {t("spending:notableChanges.comparisonDisabled")}
       </div>
     );
   }
@@ -68,7 +70,7 @@ export function NotableChangesCard({
   if (climbed.length === 0 && saved.length === 0) {
     return (
       <div className="text-muted-foreground/70 py-6 text-center text-xs">
-        No significant category changes vs comparison period.
+        {t("spending:notableChanges.noChanges")}
       </div>
     );
   }
@@ -76,12 +78,17 @@ export function NotableChangesCard({
   return (
     <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
       <ChangeColumn
-        heading="Where it climbed"
+        heading={t("spending:notableChanges.whereItClimbed")}
         rows={climbed}
         tone="destructive"
         currency={currency}
       />
-      <ChangeColumn heading="Where you saved" rows={saved} tone="success" currency={currency} />
+      <ChangeColumn
+        heading={t("spending:notableChanges.whereYouSaved")}
+        rows={saved}
+        tone="success"
+        currency={currency}
+      />
     </div>
   );
 }
@@ -97,13 +104,16 @@ function ChangeColumn({
   tone: "destructive" | "success";
   currency: string;
 }) {
+  const { t } = useTranslation();
   if (rows.length === 0) {
     return (
       <div>
         <h3 className="text-muted-foreground/80 mb-2 text-[11px] font-semibold uppercase tracking-wide">
           {heading}
         </h3>
-        <p className="text-muted-foreground/60 text-xs italic">No notable change.</p>
+        <p className="text-muted-foreground/60 text-xs italic">
+          {t("spending:notableChanges.noNotableChange")}
+        </p>
       </div>
     );
   }

@@ -3,8 +3,9 @@
 #[cfg(test)]
 mod tests {
     use crate::assets::{
-        canonicalize_market_identity, resolve_quote_ccy_precedence, Asset, AssetKind,
-        InstrumentType, OptionSpec, QuoteCcyResolutionSource, QuoteMode,
+        canonicalize_market_identity, resolve_import_quote_ccy_precedence,
+        resolve_quote_ccy_precedence, Asset, AssetKind, InstrumentType, OptionSpec,
+        QuoteCcyResolutionSource, QuoteMode,
     };
     use chrono::NaiveDateTime;
     use rust_decimal_macros::dec;
@@ -394,6 +395,74 @@ mod tests {
         assert_eq!(
             resolved,
             Some(("GBP".to_string(), QuoteCcyResolutionSource::ProviderQuote))
+        );
+    }
+
+    #[test]
+    fn test_resolve_import_quote_ccy_precedence_uses_activity_before_provider() {
+        let resolved = resolve_import_quote_ccy_precedence(
+            None,
+            None,
+            Some("USD"),
+            Some("GBp"),
+            Some("GBP"),
+            Some("CAD"),
+        );
+
+        assert_eq!(
+            resolved,
+            Some(("USD".to_string(), QuoteCcyResolutionSource::ExplicitInput))
+        );
+    }
+
+    #[test]
+    fn test_resolve_import_quote_ccy_precedence_keeps_provider_quote_unit_for_activity_major() {
+        let resolved = resolve_import_quote_ccy_precedence(
+            None,
+            None,
+            Some("GBP"),
+            Some("GBp"),
+            Some("GBP"),
+            Some("CAD"),
+        );
+
+        assert_eq!(
+            resolved,
+            Some(("GBp".to_string(), QuoteCcyResolutionSource::ProviderQuote))
+        );
+    }
+
+    #[test]
+    fn test_resolve_import_quote_ccy_precedence_uses_existing_before_activity() {
+        let resolved = resolve_import_quote_ccy_precedence(
+            None,
+            Some("EUR"),
+            Some("USD"),
+            Some("GBp"),
+            Some("GBP"),
+            Some("CAD"),
+        );
+
+        assert_eq!(
+            resolved,
+            Some(("EUR".to_string(), QuoteCcyResolutionSource::ExistingAsset))
+        );
+    }
+
+    #[test]
+    fn test_resolve_import_quote_ccy_precedence_uses_activity_before_mic_without_provider() {
+        let resolved = resolve_import_quote_ccy_precedence(
+            None,
+            None,
+            Some("CAD"),
+            None,
+            Some("GBp"),
+            Some("USD"),
+        );
+
+        assert_eq!(
+            resolved,
+            Some(("CAD".to_string(), QuoteCcyResolutionSource::ExplicitInput))
         );
     }
 

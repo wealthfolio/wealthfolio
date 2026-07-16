@@ -48,6 +48,24 @@ impl ActivityTaxonomyAssignmentService {
             .ok_or_else(|| anyhow::anyhow!("assignment write returned no row"))
     }
 
+    pub async fn assign_single_clearing_splits(
+        &self,
+        activity_id: &str,
+        taxonomy_id: &str,
+        category_id: &str,
+    ) -> Result<ActivityTaxonomyAssignment> {
+        let mut assigned = self
+            .assign_many_single_select_clearing_splits(&[BulkCategoryAssignment {
+                activity_id: activity_id.to_string(),
+                taxonomy_id: taxonomy_id.to_string(),
+                category_id: category_id.to_string(),
+            }])
+            .await?;
+        assigned
+            .pop()
+            .ok_or_else(|| anyhow::anyhow!("assignment write returned no row"))
+    }
+
     pub async fn unassign(&self, activity_id: &str, taxonomy_id: &str) -> Result<()> {
         self.repo.clear_for_taxonomy(activity_id, taxonomy_id).await
     }
@@ -84,6 +102,29 @@ impl ActivityTaxonomyAssignmentService {
             })
             .collect();
         self.repo.assign_many_single_select(news).await
+    }
+
+    pub async fn assign_many_single_select_clearing_splits(
+        &self,
+        items: &[BulkCategoryAssignment],
+    ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+        if items.is_empty() {
+            return Ok(Vec::new());
+        }
+        let news: Vec<NewActivityTaxonomyAssignment> = items
+            .iter()
+            .map(|item| NewActivityTaxonomyAssignment {
+                id: None,
+                activity_id: item.activity_id.clone(),
+                taxonomy_id: item.taxonomy_id.clone(),
+                category_id: item.category_id.clone(),
+                weight: 10_000,
+                source: "manual".to_string(),
+            })
+            .collect();
+        self.repo
+            .assign_many_single_select_clearing_splits(news)
+            .await
     }
 
     /// Bulk single-select with full control over `source` / `weight`. Used by

@@ -298,62 +298,25 @@ pub(super) async fn spawn_chat_stream<E: AiEnvironment + 'static>(
             };
 
             let mut allowed_tools: Vec<Box<dyn ToolDyn>> = Vec::new();
-            if is_allowed("get_holdings") {
-                allowed_tools.push(Box::new(tool_set.holdings));
+
+            // Migrated read tools come from the shared agent-tools catalog,
+            // wrapped for rig. Same names, same allowlist semantics.
+            let agent_env: Arc<dyn wealthfolio_agent_tools::AgentEnvironment> = env.clone();
+            for tool in crate::tools::agent_catalog().iter() {
+                if is_allowed(tool.name()) {
+                    allowed_tools.push(Box::new(crate::tools::RigAgentTool::new(
+                        tool.clone(),
+                        agent_env.clone(),
+                    )));
+                }
             }
-            if is_allowed("get_accounts") {
-                allowed_tools.push(Box::new(tool_set.accounts));
-            }
-            if is_allowed("get_cash_balances") {
-                allowed_tools.push(Box::new(tool_set.cash_balances));
-            }
-            if is_allowed("search_activities") {
-                allowed_tools.push(Box::new(tool_set.activities));
-            }
-            if is_allowed("get_goals") {
-                allowed_tools.push(Box::new(tool_set.goals));
-            }
-            if is_allowed("get_valuation_history") {
-                allowed_tools.push(Box::new(tool_set.valuation));
-            }
-            if is_allowed("get_income") {
-                allowed_tools.push(Box::new(tool_set.income));
-            }
-            if is_allowed("get_asset_allocation") {
-                allowed_tools.push(Box::new(tool_set.allocation));
-            }
-            if is_allowed("get_performance") {
-                allowed_tools.push(Box::new(tool_set.performance));
-            }
-            if is_allowed("record_activity") {
-                allowed_tools.push(Box::new(tool_set.record_activity));
-            }
-            if is_allowed("record_activities") {
-                allowed_tools.push(Box::new(tool_set.record_activities));
-            }
+
+            // record_activity, record_activities, propose_transaction_categories,
+            // create_categorization_rule, and prepare_asset_classification now
+            // come from the shared agent-tools catalog above (via RigAgentTool).
+            // Only import_csv still implements rig's Tool trait directly.
             if is_allowed("import_csv") {
                 allowed_tools.push(Box::new(tool_set.import_csv));
-            }
-            if is_allowed("get_health_status") {
-                allowed_tools.push(Box::new(tool_set.health_status));
-            }
-            if is_allowed("propose_transaction_categories") {
-                allowed_tools.push(Box::new(tool_set.propose_categories));
-            }
-            if is_allowed("list_categorization_context") {
-                allowed_tools.push(Box::new(tool_set.list_categorization_context));
-            }
-            if is_allowed("create_categorization_rule") {
-                allowed_tools.push(Box::new(tool_set.create_categorization_rule));
-            }
-            if is_allowed("list_asset_taxonomies") {
-                allowed_tools.push(Box::new(tool_set.list_asset_taxonomies));
-            }
-            if is_allowed("get_asset_taxonomy_assignments") {
-                allowed_tools.push(Box::new(tool_set.get_asset_taxonomy_assignments));
-            }
-            if is_allowed("prepare_asset_classification") {
-                allowed_tools.push(Box::new(tool_set.prepare_asset_classification));
             }
 
             let mut builder = $client

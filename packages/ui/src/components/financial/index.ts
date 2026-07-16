@@ -1,5 +1,6 @@
 // Export all financial components
 export { AmountDisplay } from "./amount-display";
+export { PriceDisplay } from "./price-display";
 export { GainAmount } from "./gain-amount";
 export { GainPercent } from "./gain-percent";
 export { PrivacyAmount } from "./privacy-amount";

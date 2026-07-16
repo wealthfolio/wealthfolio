@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { RadioGroup, RadioGroupItem, Label, Skeleton, Icons } from "@wealthfolio/ui";
 import {
   Command,
@@ -109,6 +110,7 @@ export function SingleSelectTaxonomy({
   label,
   disabled = false,
 }: SingleSelectTaxonomyProps) {
+  const { t } = useTranslation();
   const [moreOpen, setMoreOpen] = useState(false);
   const { data: taxonomyData, isLoading: isLoadingTaxonomy } = useTaxonomy(taxonomyId);
   const { data: assignments, isLoading: isLoadingAssignments } =
@@ -294,7 +296,7 @@ export function SingleSelectTaxonomy({
                 ) : (
                   <>
                     <Icons.Ellipsis className="h-3.5 w-3.5" />
-                    <span className="whitespace-nowrap">More</span>
+                    <span className="whitespace-nowrap">{t("asset:classification.more")}</span>
                   </>
                 )}
                 <Icons.ChevronDown className="h-3 w-3 opacity-50" />
@@ -302,9 +304,9 @@ export function SingleSelectTaxonomy({
             </PopoverTrigger>
             <PopoverContent className="w-[350px] p-0" align="start" sideOffset={4}>
               <Command>
-                <CommandInput placeholder="Search types..." className="h-9" />
+                <CommandInput placeholder={t("asset:classification.searchTypes")} className="h-9" />
                 <CommandList className="max-h-72 overflow-y-auto">
-                  <CommandEmpty>No types found.</CommandEmpty>
+                  <CommandEmpty>{t("asset:classification.noTypesFound")}</CommandEmpty>
                   <CommandGroup className="[&_[cmdk-group-items]]:!overflow-visible">
                     {flatCategories.map((category, index) => {
                       const isSelected = selectedCategoryId === category.id;

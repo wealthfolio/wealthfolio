@@ -3,6 +3,7 @@
  */
 
 import type { AddonManifest, AddonValidationResult } from './manifest';
+import { HOST_DEPENDENCIES } from './host-dependencies';
 import { SDK_VERSION } from './version';
 
 /**
@@ -40,6 +41,19 @@ export function validateManifest(manifest: AddonManifest): AddonValidationResult
 
   if (!manifest.main) {
     warnings.push('Main entry point not specified, defaulting to "addon.js"');
+  }
+
+  if (manifest.hostDependencies) {
+    Object.entries(manifest.hostDependencies).forEach(([name, version]) => {
+      if (!version) {
+        errors.push(`Host dependency ${name}: version range is required`);
+      }
+      if (!Object.prototype.hasOwnProperty.call(HOST_DEPENDENCIES, name)) {
+        warnings.push(
+          `Host dependency ${name} is not provided by Wealthfolio and should be bundled`,
+        );
+      }
+    });
   }
 
   // Validate permissions if present

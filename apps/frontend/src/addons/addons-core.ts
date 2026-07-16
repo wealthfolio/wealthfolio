@@ -1,12 +1,23 @@
 import { logger, getInstalledAddons, loadAddon as loadAddonRuntime } from "@/adapters";
 import {
-  createAddonContext,
   getDynamicNavItems,
   getDynamicRoutes,
-  triggerAllDisableCallbacks,
+  setInstalledAddonIds,
 } from "@/addons/addons-runtime-context";
-import type { AddonContext, AddonManifest } from "@wealthfolio/addon-sdk";
-import { ReactVersion, SDK_VERSION } from "@wealthfolio/addon-sdk";
+import { clearAllContributions, ingestAddonContributions } from "@/addons/contribution-registry";
+import {
+  getActivationEpoch,
+  invalidateActivations,
+  isActivationEpochCurrent,
+  isPinned,
+  publishActivationEpoch,
+  registerActivatable,
+  resetActivations,
+} from "@/addons/activation-coordinator";
+import { addonIframeManager, type AddonRuntimeHandle } from "@/addons/iframe/addon-iframe-manager";
+import { toast } from "sonner";
+import type { AddonManifest } from "@wealthfolio/addon-sdk";
+import { HOST_DEPENDENCIES, SDK_VERSION } from "@wealthfolio/addon-sdk";
 
 interface AddonFile {
   path: string;
@@ -15,8 +26,24 @@ interface AddonFile {
 }
 
 // Store loaded addons for cleanup
-const loadedAddons = new Map<string, { disable?: () => void }>();
+const loadedAddons = new Map<string, AddonRuntimeHandle>();
 const loadedAddonIds = new Set<string>(); // Prevent re-loading already processed addons
+
+function formatAddonError(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function notifyAddonLoadError(addonFile: AddonFile, error: unknown) {
+  // Deliberate cancellations (addon stopped/reloaded mid-load) are not
+  // failures the user needs to see.
+  if (error instanceof Error && error.name === "AddonLoadCancelled") {
+    return;
+  }
+  toast.error("Add-on failed to load", {
+    description: `${addonFile.manifest.name || addonFile.manifest.id}: ${formatAddonError(error)}`,
+    duration: 15000,
+  });
+}
 
 /**
  * Discovers all available addons using Tauri commands
@@ -54,22 +81,41 @@ function validateAddonCompatibility(manifest: AddonManifest): boolean {
       `Addon ${manifest.id} declares SDK ${manifest.sdkVersion}; host is ${SDK_VERSION}. Proceeding with caution.`,
     );
   }
+  for (const dependencyName of Object.keys(manifest.hostDependencies ?? {})) {
+    if (!Object.prototype.hasOwnProperty.call(HOST_DEPENDENCIES, dependencyName)) {
+      logger.warn(
+        `Addon ${manifest.id} declares unsupported host dependency '${dependencyName}'. It may need to bundle that package.`,
+      );
+    }
+  }
   return true;
 }
 
 /**
  * Loads a single addon using Tauri commands
  */
-async function loadAddon(addonFile: AddonFile, _context: AddonContext): Promise<boolean> {
-  let blobUrl: string | null = null;
+async function loadAddon(addonFile: AddonFile, activationEpoch: number): Promise<boolean> {
   try {
-    // Check if this addon ID has already been loaded in the current session
+    if (!isActivationEpochCurrent(activationEpoch)) {
+      return false;
+    }
+
+    // Dedup guard: skip only when the addon is loaded AND its runtime actually
+    // exists. Some stop paths (e.g. a late loadError after a sandbox
+    // self-reload) tear the runtime down without clearing loadedAddonIds —
+    // treating that as "already loaded" would make every re-activation
+    // (self-heal, Retry) a silent no-op with no runtime behind it.
     if (loadedAddonIds.has(addonFile.manifest.id)) {
+      if (addonIframeManager.hasRuntime(addonFile.manifest.id)) {
+        logger.warn(
+          `Addon "${addonFile.manifest.name}" (ID: ${addonFile.manifest.id}) already loaded in this session. Skipping duplicate load.`,
+        );
+        return true;
+      }
       logger.warn(
-        `Addon "${addonFile.manifest.name}" (ID: ${addonFile.manifest.id}) already loaded in this session. Skipping duplicate load.`,
+        `Addon "${addonFile.manifest.id}" is marked loaded but has no runtime — rebooting.`,
       );
-      // Optionally, you might want to return true if already loaded implies success for the caller
-      return true;
+      loadedAddonIds.delete(addonFile.manifest.id);
     }
 
     // Validate compatibility
@@ -81,6 +127,9 @@ async function loadAddon(addonFile: AddonFile, _context: AddonContext): Promise<
     // Load addon using Tauri command instead of direct file access
     // Load addon for runtime execution using Tauri command
     const extractedAddon = await loadAddonRuntime(addonFile.manifest.id);
+    if (!isActivationEpochCurrent(activationEpoch)) {
+      return false;
+    }
 
     // Find the main file from the extracted addon files
     const mainFile = extractedAddon.files.find((file) => file.isMain);
@@ -102,89 +151,40 @@ async function loadAddon(addonFile: AddonFile, _context: AddonContext): Promise<
     const detectedFunctions = permissions.flatMap((p) =>
       p.functions.filter((f) => f.isDetected).map((f) => f.name),
     );
-    const detectedCategories = [...new Set(permissions.map((p) => p.category))];
+    const detectedCategories = [
+      ...new Set(
+        permissions
+          .filter((p) => p.functions.some((f) => f.isDeclared || f.isDetected))
+          .map((p) => p.category),
+      ),
+    ];
 
     logger.info(
       `Permissions for addon ${extractedAddon.metadata.id}: functions=[${detectedFunctions.join(",")}], categories=[${detectedCategories.join(",")}]`,
     );
 
-    // Runtime guards: Verify React singletons are available before addon execution
-    const g = globalThis as unknown as {
-      React?: { version?: string };
-      ReactDOM?: { createPortal?: unknown };
-    };
-    if (g.React?.version && g.React.version !== ReactVersion) {
-      logger.warn(`⚠️ React version mismatch: host=${g.React.version} sdk=${ReactVersion}`);
-    }
+    const handle = await addonIframeManager.startAddon({
+      addonId: extractedAddon.metadata.id,
+      code: addonCode,
+      files: extractedAddon.files,
+      manifest: extractedAddon.metadata,
+      permissions,
+      isCurrent: () => isActivationEpochCurrent(activationEpoch),
+    });
 
-    if (typeof g.ReactDOM?.createPortal !== "function") {
-      throw new Error(
-        "Host did not expose ReactDOM.createPortal. Portal-based UI components will not work.",
-      );
-    }
-
-    // Create a Blob and an object URL
-    const blob = new Blob([addonCode], { type: "text/javascript" });
-    blobUrl = URL.createObjectURL(blob);
-
-    // Dynamic import using the Blob URL
-    // The /* @vite-ignore */ comment might not be strictly necessary for blob URLs
-    // but can be kept if vite shows warnings during build.
-    const mod = await import(/* @vite-ignore */ blobUrl);
-
-    // Robustly resolve the addon's enable() regardless of bundle style
-    type EnableFn = ((ctx: AddonContext) => unknown) | null;
-    const asRecord = mod as unknown as Record<string, unknown> & {
-      default?: unknown;
-    };
-    const defaultObj = asRecord.default as
-      | ((ctx: AddonContext) => unknown)
-      | { enable?: (ctx: AddonContext) => unknown }
-      | undefined;
-    const enableFunction: EnableFn =
-      (typeof defaultObj === "function" ? defaultObj : null) ??
-      (defaultObj &&
-      typeof (defaultObj as { enable?: (ctx: AddonContext) => unknown }).enable === "function"
-        ? (defaultObj as { enable: (ctx: AddonContext) => unknown }).enable
-        : null) ??
-      (typeof asRecord.enable === "function"
-        ? (asRecord.enable as (ctx: AddonContext) => unknown)
-        : null) ??
-      (typeof (asRecord as Record<string, unknown>).PortfolioTrackerAddon === "function"
-        ? (asRecord as { PortfolioTrackerAddon: (ctx: AddonContext) => unknown })
-            .PortfolioTrackerAddon
-        : null) ??
-      (typeof (mod as unknown) === "function"
-        ? (mod as unknown as (ctx: AddonContext) => unknown)
-        : null);
-
-    if (!enableFunction) {
-      logger.error(
-        `❌ Addon ${extractedAddon.metadata.id} does not export a valid enable function. Available exports: ${Object.keys(mod).join(", ")}`,
-      );
+    if (!isActivationEpochCurrent(activationEpoch)) {
+      await handle.disable();
       return false;
     }
 
-    // Create addon-specific context with scoped secrets
-    const addonSpecificContext = createAddonContext(extractedAddon.metadata.id);
-    const result = await enableFunction(addonSpecificContext);
-
-    // Store addon reference for potential cleanup
-    const typedResult = result as { disable?: () => void } | undefined;
-    loadedAddons.set(extractedAddon.metadata.id, {
-      disable: typeof typedResult?.disable === "function" ? typedResult.disable : undefined,
-    });
+    loadedAddons.set(extractedAddon.metadata.id, handle);
     loadedAddonIds.add(extractedAddon.metadata.id); // Add to set after successful load and enablement
 
     return true;
   } catch (error) {
     logger.error(`Failed to load addon ${addonFile.manifest.id}: ${String(error)}`);
+    notifyAddonLoadError(addonFile, error);
     return false;
-  } finally {
-    // Clean up the Blob URL
-    if (blobUrl) {
-      URL.revokeObjectURL(blobUrl);
-    }
   }
 }
 
@@ -194,7 +194,16 @@ async function loadAddon(addonFile: AddonFile, _context: AddonContext): Promise<
 export async function loadInstalledAddons(): Promise<void> {
   const addonFiles = await discoverAddons();
 
+  // Reserve every installed add-on's route namespace up front (before any load)
+  // so load order can't let one add-on squat a peer's namespace. Note: in dev
+  // mode, dev-server add-ons load before this runs (see loadAllAddons), so the
+  // reservation doesn't cover them — acceptable, as dev add-ons are trusted.
+  setInstalledAddonIds(addonFiles.map((addonFile) => addonFile.manifest.id));
+
   if (addonFiles.length === 0) {
+    clearAllContributions();
+    resetActivations();
+    publishActivationEpoch();
     logger.info("⚠️  No addons found to load - check AppData/addons directory");
     return;
   }
@@ -202,15 +211,52 @@ export async function loadInstalledAddons(): Promise<void> {
   // Filter only enabled addons
   const enabledAddonFiles = addonFiles.filter((addonFile) => addonFile.manifest.enabled !== false);
 
+  // Rebuild the durable contribution layer from scratch on every (re)load so a
+  // disabled/uninstalled addon (no longer in enabledAddonFiles) leaves no stale
+  // nav. Ingest reads `contributes` (routes + links) from the manifest WITHOUT
+  // executing addon code or booting an iframe — it only populates the durable
+  // nav/route layer. A disabled addon shows no nav, so ingest only the enabled
+  // ones.
+  clearAllContributions();
+  // Reset lazy-activation state so a (re)load re-registers every addon cleanly.
+  resetActivations();
+
+  // Register every enabled addon with the activation coordinator BEFORE
+  // ingesting contributions: ingest fires navigation updates that re-render
+  // mounted addon routes, and a route self-healing from a reload (its runtime
+  // was stopped) immediately calls activateView — its bootFn must already be
+  // registered or that activation would fail spuriously. Addons that contribute
+  // routes boot lazily on first visit to a contributed route; addons WITHOUT
+  // contributed routes must eager-boot ("pinned") so their runtime's
+  // sidebar.addItem/router.add still registers navigation at startup. (Dev-mode
+  // addons take the separate dev path and are always pinned there; this function
+  // only sees installed addons.)
+  for (const addonFile of enabledAddonFiles) {
+    const pinned = !addonFile.manifest.contributes?.routes?.length;
+    registerActivatable(addonFile.manifest.id, (epoch) => loadAddon(addonFile, epoch), { pinned });
+  }
+  for (const addonFile of enabledAddonFiles) {
+    ingestAddonContributions(addonFile.manifest.id, addonFile.manifest);
+  }
+  // Wake mounted addon routes only after their new-generation boot functions
+  // are registered; publishing earlier can make a route observe an empty gap.
+  publishActivationEpoch();
+
   if (enabledAddonFiles.length === 0) {
     logger.info("📦 No enabled addons found to load");
     return;
   }
 
+  // Eager-boot ONLY pinned addons at startup. Lazy addons boot later, on first
+  // visit to a contributed route (see AddonIframeRoute).
+  const pinnedAddonFiles = enabledAddonFiles.filter((addonFile) => isPinned(addonFile.manifest.id));
+  const lazyCount = enabledAddonFiles.length - pinnedAddonFiles.length;
+
   let loadedCount = 0;
-  const loadPromises = enabledAddonFiles.map(async (addonFile) => {
+  const activationEpoch = getActivationEpoch();
+  const loadPromises = pinnedAddonFiles.map(async (addonFile) => {
     // Each addon gets its own context, but loadAddon creates its own internally
-    const success = await loadAddon(addonFile, {} as AddonContext);
+    const success = await loadAddon(addonFile, activationEpoch);
     if (success) {
       loadedCount++;
     } else {
@@ -218,11 +264,12 @@ export async function loadInstalledAddons(): Promise<void> {
     }
   });
 
-  // Load all enabled addons concurrently
+  // Boot all pinned addons concurrently
   await Promise.all(loadPromises);
 
   logger.info(
-    `🎉 Successfully loaded ${loadedCount} out of ${enabledAddonFiles.length} enabled addons`,
+    `🎉 Eager-loaded ${loadedCount} out of ${pinnedAddonFiles.length} pinned addons ` +
+      `(${lazyCount} lazy addon(s) will boot on first visit)`,
   );
 
   // Debug: Show current navigation state
@@ -235,9 +282,7 @@ export function unloadAddon(addonId: string): void {
   const addon = loadedAddons.get(addonId);
   if (addon) {
     try {
-      if (addon.disable) {
-        addon.disable();
-      }
+      void addon.disable();
       loadedAddons.delete(addonId);
       loadedAddonIds.delete(addonId);
       logger.info(`🗑️ Unloaded addon: ${addonId}`);
@@ -251,11 +296,13 @@ export function unloadAddon(addonId: string): void {
  * Unloads all addons and cleans up resources
  */
 export function unloadAllAddons(): void {
+  // Invalidate async loads before teardown. A load still awaiting backend I/O
+  // cannot publish a runtime after this reload generation has ended.
+  invalidateActivations();
+
   loadedAddons.forEach((addon, id) => {
     try {
-      if (addon.disable) {
-        addon.disable();
-      }
+      void addon.disable();
     } catch (error) {
       logger.error(`Error unloading addon ${id}: ${String(error)}`);
     }
@@ -263,9 +310,9 @@ export function unloadAllAddons(): void {
 
   loadedAddons.clear();
   loadedAddonIds.clear(); // Clear the set when unloading all
-
-  // Clear navigation items and routes from runtime context
-  triggerAllDisableCallbacks();
+  // `loadedAddons` contains only fully booted handles. Also stop manager-owned
+  // runtimes that are still in their loading phase and therefore have no handle.
+  void addonIframeManager.stopAllAddons();
 }
 
 /**

@@ -25,6 +25,8 @@ use wealthfolio_core::{
         self, DecisionSensitivityMap, DecisionSensitivityMatrix, MonteCarloResult,
         RetirementOverview, ScenarioResult, SorrScenario, StressTestResult,
     },
+    portfolio::valuation::CurrentAccountValuationService,
+    utils::time_utils::{parse_user_timezone_or_default, user_today},
 };
 
 async fn get_goals(State(state): State<Arc<AppState>>) -> ApiResult<Json<Vec<Goal>>> {
@@ -183,12 +185,28 @@ async fn refresh_all_goal_summaries(
 async fn build_valuation_map(state: &AppState) -> ApiResult<HashMap<String, f64>> {
     let accounts = state.account_service.get_active_non_archived_accounts()?;
     let account_ids: Vec<String> = accounts.into_iter().map(|a| a.id).collect();
-    let valuations = state
-        .valuation_service
-        .get_latest_valuations(&account_ids)?;
+    let base_currency = state.base_currency.read().unwrap().clone();
+    let timezone = state.timezone.read().unwrap().clone();
+    let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
+    let service = CurrentAccountValuationService::new(
+        state.account_service.as_ref(),
+        state.snapshot_repository.as_ref(),
+        state.asset_service.as_ref(),
+        state.quote_service.as_ref(),
+        state.fx_service.as_ref(),
+    );
+    let response = service
+        .get_current_valuation_for_scope(
+            "all",
+            &account_ids,
+            &base_currency,
+            latest_snapshot_cutoff,
+            true,
+        )
+        .await?;
 
     let mut map = HashMap::new();
-    for v in &valuations {
+    for v in &response.accounts {
         let value_in_base = v.total_value_base.to_f64().ok_or_else(|| {
             ApiError::Internal(format!(
                 "Invalid base valuation total for account {}",

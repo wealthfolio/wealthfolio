@@ -12,6 +12,57 @@ use wealthfolio_core::utils::time_utils::activity_date_in_user_timezone;
 
 use crate::events::PortfolioRequestPayload;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AssetClassificationChangePlan {
+    pub asset_ids: Vec<String>,
+    pub taxonomy_ids: Vec<String>,
+}
+
+/// Plans a UI cache refresh for asset classification changes.
+pub fn plan_asset_classification_change(
+    events: &[DomainEvent],
+) -> Option<AssetClassificationChangePlan> {
+    let mut asset_ids: HashSet<String> = HashSet::new();
+    let mut taxonomy_ids: HashSet<String> = HashSet::new();
+    let mut has_event = false;
+
+    for event in events {
+        if let DomainEvent::AssetClassificationsChanged {
+            asset_ids: changed_asset_ids,
+            taxonomy_ids: changed_taxonomy_ids,
+        } = event
+        {
+            has_event = true;
+            asset_ids.extend(
+                changed_asset_ids
+                    .iter()
+                    .filter(|id| !id.is_empty())
+                    .cloned(),
+            );
+            taxonomy_ids.extend(
+                changed_taxonomy_ids
+                    .iter()
+                    .filter(|id| !id.is_empty())
+                    .cloned(),
+            );
+        }
+    }
+
+    if !has_event {
+        return None;
+    }
+
+    let mut asset_ids = asset_ids.into_iter().collect::<Vec<_>>();
+    asset_ids.sort();
+    let mut taxonomy_ids = taxonomy_ids.into_iter().collect::<Vec<_>>();
+    taxonomy_ids.sort();
+
+    Some(AssetClassificationChangePlan {
+        asset_ids,
+        taxonomy_ids,
+    })
+}
+
 /// Plans a portfolio recalculation job from a batch of domain events.
 ///
 /// Merges account_ids and asset_ids from:
@@ -31,6 +82,7 @@ pub fn plan_portfolio_job(
     let mut account_ids: HashSet<String> = HashSet::new();
     let mut asset_ids: HashSet<String> = HashSet::new();
     let mut has_recalc_events = false;
+    let mut recalculate_all_accounts = false;
     let mut min_activity_at_utc: Option<DateTime<Utc>> = None;
 
     for event in events {
@@ -44,6 +96,19 @@ pub fn plan_portfolio_job(
                 has_recalc_events = true;
                 account_ids.extend(acc_ids.iter().cloned());
                 asset_ids.extend(a_ids.iter().cloned());
+                min_activity_at_utc = match (min_activity_at_utc, earliest_activity_at_utc) {
+                    (Some(current), Some(new)) => Some(current.min(*new)),
+                    (None, Some(new)) => Some(*new),
+                    (current, None) => current,
+                };
+            }
+            DomainEvent::AssetSplitActivitiesChanged {
+                asset_ids: ids,
+                earliest_activity_at_utc,
+            } => {
+                has_recalc_events = true;
+                recalculate_all_accounts = true;
+                asset_ids.extend(ids.iter().filter(|id| !id.is_empty()).cloned());
                 min_activity_at_utc = match (min_activity_at_utc, earliest_activity_at_utc) {
                     (Some(current), Some(new)) => Some(current.min(*new)),
                     (None, Some(new)) => Some(*new),
@@ -71,6 +136,7 @@ pub fn plan_portfolio_job(
             }
             DomainEvent::DeviceSyncPullComplete => {
                 has_recalc_events = true;
+                recalculate_all_accounts = true;
             }
             DomainEvent::AssetsUpdated { asset_ids: ids } => {
                 has_recalc_events = true;
@@ -88,6 +154,7 @@ pub fn plan_portfolio_job(
                     }
                 }
             }
+            DomainEvent::AssetClassificationsChanged { .. } => {}
             DomainEvent::AssetsMerged { .. } => {}
             DomainEvent::TrackingModeChanged {
                 account_id,
@@ -111,7 +178,7 @@ pub fn plan_portfolio_job(
     let mut builder = PortfolioRequestPayload::builder();
 
     // Set account IDs if we have specific ones, otherwise None means all
-    if !account_ids.is_empty() {
+    if !recalculate_all_accounts && !account_ids.is_empty() {
         builder = builder.account_ids(Some(account_ids.into_iter().collect()));
     }
 
@@ -124,9 +191,11 @@ pub fn plan_portfolio_job(
         }
     };
     builder = builder.market_sync_mode(sync_mode);
-    builder = builder.since_date(
-        min_activity_at_utc.map(|instant| activity_date_in_user_timezone(instant, timezone)),
-    );
+    builder = builder.since_date(if recalculate_all_accounts {
+        None
+    } else {
+        min_activity_at_utc.map(|instant| activity_date_in_user_timezone(instant, timezone))
+    });
 
     Some(builder.build())
 }
@@ -251,6 +320,24 @@ mod tests {
     }
 
     #[test]
+    fn test_split_activity_change_recalculates_all_accounts() {
+        let events = vec![
+            DomainEvent::ActivitiesChanged {
+                account_ids: vec!["edited-account".to_string()],
+                asset_ids: vec!["VGT".to_string()],
+                currencies: vec!["USD".to_string()],
+                earliest_activity_at_utc: None,
+            },
+            DomainEvent::asset_split_activities_changed(vec!["VGT".to_string()], None),
+        ];
+
+        let payload = plan_portfolio_job(&events, "UTC").unwrap();
+
+        assert!(payload.account_ids.is_none());
+        assert!(payload.since_date.is_none());
+    }
+
+    #[test]
     fn test_plan_portfolio_job_converts_utc_timestamp_using_timezone() {
         let events = vec![DomainEvent::ActivitiesChanged {
             account_ids: vec!["acc1".to_string()],
@@ -370,6 +457,40 @@ mod tests {
         } else {
             panic!("Expected Incremental sync mode");
         }
+    }
+
+    #[test]
+    fn test_plan_portfolio_job_asset_classifications_changed_does_not_trigger_recalc() {
+        let events = vec![DomainEvent::asset_classifications_changed(
+            vec!["asset-1".to_string()],
+            vec!["asset_classes".to_string()],
+        )];
+
+        assert!(plan_portfolio_job(&events, "UTC").is_none());
+    }
+
+    #[test]
+    fn test_plan_asset_classification_change_deduplicates_ids() {
+        let events = vec![
+            DomainEvent::asset_classifications_changed(
+                vec!["asset-2".to_string(), "asset-1".to_string()],
+                vec!["regions".to_string()],
+            ),
+            DomainEvent::asset_classifications_changed(
+                vec!["asset-1".to_string(), "".to_string()],
+                vec!["regions".to_string(), "asset_classes".to_string()],
+            ),
+        ];
+
+        let plan = plan_asset_classification_change(&events).unwrap();
+        assert_eq!(
+            plan.asset_ids,
+            vec!["asset-1".to_string(), "asset-2".to_string()]
+        );
+        assert_eq!(
+            plan.taxonomy_ids,
+            vec!["asset_classes".to_string(), "regions".to_string()]
+        );
     }
 
     #[test]

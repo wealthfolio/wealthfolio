@@ -533,6 +533,13 @@ mod tests {
             }
             Ok(rows)
         }
+
+        async fn assign_many_single_select_clearing_splits(
+            &self,
+            items: Vec<NewActivityTaxonomyAssignment>,
+        ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+            self.assign_many_single_select(items).await
+        }
         async fn assign_rule_many_single_select(
             &self,
             items: Vec<NewActivityTaxonomyAssignment>,
@@ -604,6 +611,7 @@ mod tests {
             unit_price: None,
             amount: None,
             fee: None,
+            tax: None,
             currency: "USD".to_string(),
             fx_rate: None,
             notes: Some(notes.to_string()),
@@ -675,6 +683,7 @@ mod tests {
             _: Option<bool>,
             _: Option<NaiveDate>,
             _: Option<NaiveDate>,
+            _: Option<Vec<String>>,
             _: Option<Vec<String>>,
         ) -> wealthfolio_core::Result<ActivitySearchResponse> {
             unimplemented!()

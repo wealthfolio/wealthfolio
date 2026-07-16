@@ -6,6 +6,7 @@ mod context;
 mod domain_events;
 mod events;
 mod listeners;
+mod mcp;
 mod scheduler;
 mod secret_store;
 mod services;
@@ -115,7 +116,7 @@ mod desktop {
     use super::*;
 
     /// Sets up the application menu and its event handler.
-    pub fn setup_menu(handle: &AppHandle, instance_id: &Arc<String>) {
+    pub fn setup_menu(handle: &AppHandle) {
         match menu::create_menu(handle) {
             Ok(menu) => {
                 if let Err(e) = handle.set_menu(menu) {
@@ -127,9 +128,8 @@ mod desktop {
             }
         }
 
-        let instance_id = Arc::clone(instance_id);
         handle.on_menu_event(move |app, event| {
-            menu::handle_menu_event(app, &instance_id, event.id().as_ref());
+            menu::handle_menu_event(app, event.id().as_ref());
         });
     }
 
@@ -151,6 +151,17 @@ mod desktop {
         // Make context available to all commands
         handle.manage(Arc::clone(&context));
 
+        // Embedded MCP server: clear any stale lock file from an unclean
+        // shutdown, then auto-start when enabled + auto-start are both set.
+        mcp::remove_stale_lock(&handle);
+        {
+            let mcp_handle = handle.clone();
+            let mcp_context = Arc::clone(&context);
+            tauri::async_runtime::spawn(async move {
+                mcp::start_if_enabled(&mcp_handle, &mcp_context).await;
+            });
+        }
+
         #[cfg(feature = "device-sync")]
         start_sync_outbox_wake_worker(sync_outbox_wake_receiver, Arc::clone(&context));
 
@@ -167,7 +178,7 @@ mod desktop {
         });
 
         // Menu setup is synchronous (no I/O)
-        setup_menu(&handle, &context.instance_id);
+        setup_menu(&handle);
 
         // Notify frontend that app is ready
         // The frontend will trigger the initial portfolio update and update check after it's mounted
@@ -316,6 +327,43 @@ fn get_app_data_dir(handle: &AppHandle) -> Result<String, Box<dyn std::error::Er
     Ok(handle.path().app_data_dir()?.to_string_lossy().into_owned())
 }
 
+// The main window is built here in code (rather than auto-created by Tauri)
+// solely so we can attach `on_web_resource_request` and rewrite the
+// Access-Control-Allow-Origin header — the only mechanism Tauri exposes for
+// customizing asset-protocol response headers. This is REQUIRED for add-ons to
+// load on WebKit webviews (iOS, and macOS/Linux release builds), where add-on
+// assets are served over `tauri://` instead of the dev server. It is paired
+// with `"create": false` on the "main" window in tauri.conf.json — if that flag
+// is removed, Tauri auto-creates the window WITHOUT this handler and add-ons
+// silently break on iOS while still working in `tauri dev`. Keep them together.
+fn create_main_window<R: tauri::Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
+    let window_config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == "main")
+        .expect("main window config is missing");
+
+    tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?
+        .on_web_resource_request(|_request, response| {
+            // The addon sandbox iframe (sandbox="allow-scripts") has an opaque
+            // origin, so its module-script loads are CORS requests that Tauri's
+            // reflected `Access-Control-Allow-Origin: tauri://localhost` can never
+            // satisfy (and the mobile dev proxy appends a second ACAO header).
+            // WKWebView does not reliably forward the `Origin` header to scheme
+            // handlers, so reply `*` unconditionally: this protocol only serves
+            // the public app bundle — IPC does not go through it.
+            response.headers_mut().insert(
+                "access-control-allow-origin",
+                tauri::http::HeaderValue::from_static("*"),
+            );
+        })
+        .build()?;
+
+    Ok(())
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Application entry point
 // ─────────────────────────────────────────────────────────────────────────────
@@ -363,7 +411,12 @@ pub fn run() {
 
     builder
         .setup(|app| {
+            create_main_window(app)?;
+
             let handle = app.handle().clone();
+
+            // Embedded MCP server state (commands need it managed up front)
+            handle.manage(mcp::McpServerState::default());
 
             // Platform-specific plugin initialization
             #[cfg(desktop)]
@@ -446,6 +499,9 @@ pub fn run() {
             commands::spending::get_activity_assignments,
             commands::spending::assign_activity_category,
             commands::spending::unassign_activity_category,
+            commands::spending::get_activity_splits,
+            commands::spending::replace_activity_splits,
+            commands::spending::clear_activity_splits,
             commands::spending::bulk_assign_categories,
             commands::spending::list_categorization_rules,
             commands::spending::create_categorization_rule,
@@ -501,6 +557,7 @@ pub fn run() {
             commands::portfolios::delete_portfolio_entry,
             // Portfolio commands
             commands::portfolio::get_holdings,
+            commands::portfolio::get_holdings_list,
             commands::portfolio::get_holding,
             commands::portfolio::get_asset_holdings,
             commands::portfolio::get_asset_lots,
@@ -509,6 +566,7 @@ pub fn run() {
             commands::portfolio::get_income_summary,
             commands::portfolio::get_historical_valuations,
             commands::portfolio::get_latest_valuations,
+            commands::portfolio::get_current_valuation,
             commands::portfolio::calculate_accounts_simple_performance,
             commands::portfolio::update_portfolio,
             commands::portfolio::recalculate_portfolio,
@@ -599,6 +657,10 @@ pub fn run() {
             commands::secrets::set_secret,
             commands::secrets::get_secret,
             commands::secrets::delete_secret,
+            commands::secrets::set_addon_secret,
+            commands::secrets::get_addon_secret,
+            commands::secrets::delete_addon_secret,
+            commands::addon_network::addon_network_request,
             // Provider settings commands
             commands::providers_settings::get_market_data_providers_settings,
             commands::providers_settings::update_market_data_provider_settings,
@@ -618,6 +680,18 @@ pub fn run() {
             commands::ai_chat::remove_ai_thread_tag,
             commands::ai_chat::get_ai_thread_tags,
             commands::ai_chat::update_tool_result,
+            // MCP server (Agent Access) commands
+            commands::mcp::mcp_get_status,
+            commands::mcp::mcp_set_enabled,
+            commands::mcp::mcp_set_audit_enabled,
+            commands::mcp::mcp_set_auto_start,
+            commands::mcp::mcp_start,
+            commands::mcp::mcp_stop,
+            commands::mcp::mcp_list_audit_log,
+            commands::mcp::mcp_purge_audit_log,
+            commands::mcp::mcp_list_tokens,
+            commands::mcp::mcp_create_token,
+            commands::mcp::mcp_delete_token,
             // Addon commands
             commands::addon::extract_addon_zip,
             commands::addon::install_addon_zip,
@@ -632,11 +706,17 @@ pub fn run() {
             commands::addon::fetch_addon_store_listings,
             commands::addon::download_addon_to_staging,
             commands::addon::install_addon_from_staging,
+            commands::addon::update_addon_network_approvals,
             commands::addon::clear_addon_staging,
             commands::addon::submit_addon_rating,
+            commands::addon::get_addon_storage_item,
+            commands::addon::set_addon_storage_item,
+            commands::addon::delete_addon_storage_item,
             // Sync commands
             #[cfg(any(feature = "connect-sync", feature = "device-sync"))]
             commands::wealthfolio_connect::store_sync_session,
+            #[cfg(any(feature = "connect-sync", feature = "device-sync"))]
+            commands::wealthfolio_connect::post_login_bootstrap,
             #[cfg(any(feature = "connect-sync", feature = "device-sync"))]
             commands::wealthfolio_connect::clear_sync_session,
             #[cfg(any(feature = "connect-sync", feature = "device-sync"))]
@@ -806,6 +886,8 @@ pub fn run() {
             commands::allocation_targets::list_allocation_target_weights,
             commands::allocation_targets::save_allocation_target_weights,
             commands::allocation_targets::save_allocation_target_with_weights,
+            commands::allocation_targets::list_target_constraints,
+            commands::allocation_targets::save_target_constraints,
             commands::allocation_targets::get_allocation_target_drift,
             commands::allocation_targets::calculate_rebalance_plan,
             // RetirementPlan-based FIRE commands
@@ -824,6 +906,14 @@ pub fn run() {
                 event,
                 tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
             ) {
+                // Stop the embedded MCP server and delete mcp.lock.
+                if _handle.try_state::<mcp::McpServerState>().is_some() {
+                    let mcp_handle = _handle.clone();
+                    tauri::async_runtime::block_on(async move {
+                        mcp::stop_server(&mcp_handle).await;
+                    });
+                }
+
                 #[cfg(feature = "device-sync")]
                 if let Some(context) = _handle.try_state::<Arc<context::ServiceContext>>() {
                     let context = Arc::clone(context.inner());

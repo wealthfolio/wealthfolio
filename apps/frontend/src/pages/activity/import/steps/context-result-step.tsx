@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -95,6 +96,7 @@ function StatItem({ label, value, variant = "default" }: StatItemProps) {
 export function ContextResultStep() {
   const { state, dispatch } = useImportContext();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const { importResult, accountId } = state;
 
@@ -122,7 +124,7 @@ export function ContextResultStep() {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Icons.Spinner className="text-primary h-8 w-8 animate-spin" />
-        <p className="text-muted-foreground mt-4">Loading import results...</p>
+        <p className="text-muted-foreground mt-4">{t("activity:import.result.loading")}</p>
       </div>
     );
   }
@@ -139,17 +141,14 @@ export function ContextResultStep() {
       >
         <ImportAlert
           variant="destructive"
-          title="Import Failed"
-          description={
-            errorMessage ??
-            "An error occurred during import. Please review your data and try again."
-          }
+          title={t("activity:import.result.failedTitle")}
+          description={errorMessage ?? t("activity:import.result.failedDescription")}
         />
 
         <motion.div className="flex justify-center gap-3" variants={itemVariants}>
           <Button variant="outline" onClick={() => dispatch(setStep("confirm"))}>
             <Icons.ArrowLeft className="mr-2 h-4 w-4" />
-            Try Again
+            {t("activity:import.result.tryAgain")}
           </Button>
         </motion.div>
       </motion.div>
@@ -186,43 +185,59 @@ export function ContextResultStep() {
 
       {/* Title and description */}
       <motion.div className="mb-10 text-center" variants={itemVariants}>
-        <h2 className="text-2xl font-semibold tracking-tight">Import Complete</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">
+          {t("activity:import.result.completeTitle")}
+        </h2>
         <p className="text-muted-foreground mt-2 max-w-sm">
           {isHoldingsMode
-            ? "Your holdings have been successfully imported."
-            : "Your activities have been successfully added to your portfolio."}
+            ? t("activity:import.result.holdingsSuccess")
+            : t("activity:import.result.activitiesSuccess")}
         </p>
       </motion.div>
 
       {/* Stats row */}
       <motion.div className="mb-10 flex items-center justify-center gap-12" variants={itemVariants}>
-        <StatItem label="Imported" value={stats.imported} variant="success" />
+        <StatItem
+          label={t("activity:import.result.imported")}
+          value={stats.imported}
+          variant="success"
+        />
 
         {stats.duplicates > 0 && (
           <>
             <div className="bg-border h-12 w-px" />
-            <StatItem label="Duplicates" value={stats.duplicates} variant="muted" />
+            <StatItem
+              label={t("activity:import.result.duplicates")}
+              value={stats.duplicates}
+              variant="muted"
+            />
           </>
         )}
 
         <div className="bg-border h-12 w-px" />
 
-        <StatItem label="Skipped" value={stats.skipped} variant="muted" />
+        <StatItem
+          label={t("activity:import.result.skipped")}
+          value={stats.skipped}
+          variant="muted"
+        />
 
         <div className="bg-border h-12 w-px" />
 
-        <StatItem label="Total" value={stats.total} />
+        <StatItem label={t("activity:import.result.total")} value={stats.total} />
       </motion.div>
 
       {/* Action buttons */}
       <motion.div className="flex gap-3" variants={itemVariants}>
         <Button variant="outline" size="lg" onClick={handleImportAnother}>
           <Icons.Import className="mr-2 h-4 w-4" />
-          Import Another
+          {t("activity:import.result.importAnother")}
         </Button>
 
         <Button size="lg" onClick={handleViewResult}>
-          {isHoldingsMode ? "View Holdings" : "View Activities"}
+          {isHoldingsMode
+            ? t("activity:import.result.viewHoldings")
+            : t("activity:import.result.viewActivities")}
           <Icons.ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </motion.div>

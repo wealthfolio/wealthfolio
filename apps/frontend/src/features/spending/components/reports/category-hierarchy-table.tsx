@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Icons, PrivacyAmount, Skeleton } from "@wealthfolio/ui";
 import { useIsMobileViewport } from "@/hooks/use-platform";
@@ -63,6 +64,7 @@ export function CategoryHierarchyTable({
   sort = "spent",
   onCategoryClick,
 }: CategoryHierarchyTableProps) {
+  const { t: tr } = useTranslation();
   const isMobile = useIsMobileViewport();
   const tree = useMemo(
     () => buildTree({ breakdown, priorBreakdown, budgetRows, taxonomyCategories, sort }),
@@ -151,7 +153,7 @@ export function CategoryHierarchyTable({
   if (tree.length === 0) {
     return (
       <div className="text-muted-foreground py-8 text-center text-sm">
-        No categorized spending in this period.
+        {tr("spending:hierarchy.noCategorizedSpending")}
       </div>
     );
   }
@@ -188,7 +190,7 @@ export function CategoryHierarchyTable({
         <div className="mt-4">
           <div className="border-border/30 flex items-baseline justify-between gap-3 border-t pt-4">
             <span className="text-muted-foreground/80 text-[10px] font-semibold uppercase tracking-[0.14em]">
-              Total spent
+              {tr("spending:hierarchy.totalSpent")}
             </span>
             <span className="text-foreground text-xl font-semibold tabular-nums tracking-tight">
               <PrivacyAmount value={totals.spent} currency={currency} />
@@ -196,7 +198,9 @@ export function CategoryHierarchyTable({
           </div>
           {totals.budgeted > 0 && (
             <div className="text-muted-foreground/60 mt-0.5 text-right text-[11px] tabular-nums">
-              of <PrivacyAmount value={totals.budgeted} currency={currency} /> budgeted
+              {tr("spending:hierarchy.of")}{" "}
+              <PrivacyAmount value={totals.budgeted} currency={currency} />{" "}
+              {tr("spending:hierarchy.budgeted")}
             </div>
           )}
         </div>
@@ -211,27 +215,37 @@ export function CategoryHierarchyTable({
           <tr className="border-border/60 text-muted-foreground/80 border-b text-[11px] uppercase tracking-wide">
             <th className="px-3 py-2 text-left font-medium">
               <div className="flex items-center gap-3">
-                <span>Category</span>
+                <span>{tr("spending:filters.category")}</span>
                 {hasExpandable && (
                   <button
                     type="button"
                     onClick={toggleAll}
                     aria-pressed={allExpanded}
                     className="text-muted-foreground hover:text-foreground hover:bg-muted/60 -my-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal transition-colors"
-                    title={allExpanded ? "Collapse all rows" : "Expand all rows"}
+                    title={
+                      allExpanded
+                        ? tr("spending:hierarchy.collapseAllRows")
+                        : tr("spending:hierarchy.expandAllRows")
+                    }
                   >
                     <Icons.ChevronsUpDown
                       className={cn("h-3 w-3 transition-transform", allExpanded && "rotate-180")}
                       aria-hidden
                     />
-                    {allExpanded ? "Collapse all" : "Expand all"}
+                    {allExpanded
+                      ? tr("spending:hierarchy.collapseAll")
+                      : tr("spending:hierarchy.expandAll")}
                   </button>
                 )}
               </div>
             </th>
-            <th className="px-3 py-2 text-right font-medium">Spent / Budget</th>
-            <th className="px-3 py-2 text-left font-medium">Progress</th>
-            <th className="px-3 py-2 text-right font-medium">Δ vs prior</th>
+            <th className="px-3 py-2 text-right font-medium">
+              {tr("spending:hierarchy.spentBudget")}
+            </th>
+            <th className="px-3 py-2 text-left font-medium">{tr("spending:hierarchy.progress")}</th>
+            <th className="px-3 py-2 text-right font-medium">
+              {tr("spending:hierarchy.deltaVsPrior")}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -262,7 +276,7 @@ export function CategoryHierarchyTable({
         </tbody>
         <tfoot>
           <tr className="border-border/60 border-t text-sm font-medium">
-            <td className="px-3 py-2.5">Total</td>
+            <td className="px-3 py-2.5">{tr("spending:hierarchy.total")}</td>
             <td className="px-3 py-2.5 text-right text-xs tabular-nums">
               <span className="text-foreground font-medium">
                 <PrivacyAmount value={totals.spent} currency={currency} />
@@ -277,7 +291,9 @@ export function CategoryHierarchyTable({
               {totals.budgeted > 0 ? (
                 <ProgressBar spent={totals.spent} budget={totals.budgeted} />
               ) : (
-                <span className="text-muted-foreground/50 text-xs">No budget set</span>
+                <span className="text-muted-foreground/50 text-xs">
+                  {tr("spending:hierarchy.noBudgetSet")}
+                </span>
               )}
             </td>
             <td
@@ -443,6 +459,7 @@ const ParentRow = memo(function ParentRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useTranslation();
   const hasChildren = node.children.length > 0;
   const delta = node.spent - node.priorSpent;
   const accent = node.color ?? "var(--muted-foreground)";
@@ -468,7 +485,7 @@ const ParentRow = memo(function ParentRow({
               }}
               className="text-muted-foreground/70 hover:text-foreground -m-1 flex h-5 w-5 items-center justify-center rounded p-1"
               aria-expanded={expanded}
-              aria-label={hasChildren ? "Toggle subcategories" : undefined}
+              aria-label={hasChildren ? t("spending:hierarchy.toggleSubcategories") : undefined}
               disabled={!hasChildren}
             >
               <Icons.ChevronRight
@@ -502,7 +519,9 @@ const ParentRow = memo(function ParentRow({
           {node.budgeted > 0 ? (
             <ProgressBar spent={node.spent} budget={node.budgeted} />
           ) : (
-            <span className="text-muted-foreground/50 text-xs">No budget set</span>
+            <span className="text-muted-foreground/50 text-xs">
+              {t("spending:hierarchy.noBudgetSet")}
+            </span>
           )}
         </td>
         <td
@@ -625,6 +644,7 @@ const MobileGroupRow = memo(function MobileGroupRow({
   expandedById: Record<string, boolean>;
   onChildToggle: (id: string, value: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const hasChildren = group.children.length > 0;
   const hasBudget = group.budgeted > 0;
   const delta = group.spent - group.priorSpent;
@@ -678,7 +698,8 @@ const MobileGroupRow = memo(function MobileGroupRow({
           </span>
           {hasBudget && (
             <span className="text-muted-foreground/60 shrink-0 text-[11px] tabular-nums">
-              of <PrivacyAmount value={group.budgeted} currency={currency} />
+              {t("spending:hierarchy.of")}{" "}
+              <PrivacyAmount value={group.budgeted} currency={currency} />
             </span>
           )}
         </div>
@@ -722,6 +743,7 @@ const MobileCategoryRow = memo(function MobileCategoryRow({
   /** Render as a standalone card (no enclosing group). */
   standalone?: boolean;
 }) {
+  const { t } = useTranslation();
   const hasChildren = node.children.length > 0;
   const hasBudget = node.budgeted > 0;
   const delta = node.spent - node.priorSpent;
@@ -735,7 +757,7 @@ const MobileCategoryRow = memo(function MobileCategoryRow({
       <span className={cn("tabular-nums", pct > 100 ? "text-destructive" : undefined)}>
         {pct.toFixed(0)}%
       </span>
-      <span className="text-muted-foreground/50"> · of </span>
+      <span className="text-muted-foreground/50"> · {t("spending:hierarchy.of")} </span>
       <PrivacyAmount value={node.budgeted} currency={currency} />
     </>
   ) : null;
@@ -780,7 +802,7 @@ const MobileCategoryRow = memo(function MobileCategoryRow({
             }}
             className="text-muted-foreground/40 hover:text-foreground -m-1 flex h-6 w-6 shrink-0 items-center justify-center rounded p-1"
             aria-expanded={expanded}
-            aria-label="Toggle subcategories"
+            aria-label={t("spending:hierarchy.toggleSubcategories")}
           >
             <Icons.ChevronDown
               className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")}

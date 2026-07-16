@@ -1,0 +1,13 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "currency": "USD",
+    "groupBy": "region",
+    "taxonomyId": "regions",
+    "taxonomyName": "Regions",
+    "totalValue": 0.0
+  }
+}

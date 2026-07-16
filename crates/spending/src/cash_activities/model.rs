@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::activity_assignments::ActivityTaxonomyAssignment;
+use crate::activity_splits::ActivitySplit;
 use wealthfolio_core::activities::Activity;
 
 /// Filter for listing cash activities. All fields optional.
@@ -128,6 +129,10 @@ pub struct CashActivity {
     pub cash_flow_bucket: CashFlowBucket,
     /// Activity-scope assignments for this row. Typically 0 or 1 (single-select).
     pub assignments: Vec<ActivityTaxonomyAssignment>,
+    /// Exact category allocations. When present, these replace the single
+    /// assignment for budget/report actuals.
+    #[serde(default)]
+    pub splits: Vec<ActivitySplit>,
     /// Spending event tag from the `activity_events` join. `None` when untagged.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]

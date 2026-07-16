@@ -150,8 +150,8 @@ impl<'a> DbWriteTx<'a> {
         self.projection.capture_model(model, SyncOperation::Update)
     }
 
-    pub fn delete<T: SyncOutboxModel>(&mut self, entity_id: impl Into<String>) {
-        self.projection.capture_delete::<T>(entity_id);
+    pub fn delete<T: SyncOutboxModel>(&mut self, subject_id: impl Into<String>) {
+        self.projection.capture_delete::<T>(subject_id);
     }
 
     pub fn delete_model<T: SyncOutboxModel>(&mut self, model: &T) {
@@ -193,11 +193,11 @@ impl WriteProjection {
         self.capture_model(model, SyncOperation::Update)
     }
 
-    pub fn capture_delete<T: SyncOutboxModel>(&mut self, entity_id: impl Into<String>) {
-        let entity_id = entity_id.into();
-        if T::should_sync_outbox_delete(&entity_id) {
+    pub fn capture_delete<T: SyncOutboxModel>(&mut self, subject_id: impl Into<String>) {
+        let subject_id = subject_id.into();
+        if T::should_sync_outbox_delete(&subject_id) {
             self.projected_changes
-                .push(ProjectedChange::delete_for_model::<T>(entity_id));
+                .push(ProjectedChange::delete_for_model::<T>(subject_id));
         }
     }
 

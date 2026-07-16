@@ -132,8 +132,7 @@ Standard Vite-based build setup:
 {
   "devDependencies": {
     "@vitejs/plugin-react": "^4.4.1",
-    "vite": "^6.2.7",
-    "rollup-plugin-external-globals": "^0.13.0"
+    "vite": "^6.2.7"
   }
 }
 ```
@@ -349,7 +348,6 @@ Template for addon package.json:
     "@types/react": "^19.1.11",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.4.1",
-    "rollup-plugin-external-globals": "^0.13.0",
     "typescript": "^5.8.3",
     "vite": "^6.2.7"
   }
@@ -363,7 +361,19 @@ Standard vite.config.ts:
 ```typescript
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import externalGlobals from "rollup-plugin-external-globals";
+
+const hostProvidedDependencies = [
+  "@tanstack/react-query",
+  "@wealthfolio/addon-sdk",
+  "@wealthfolio/ui",
+  "date-fns",
+  "lucide-react",
+  "react",
+  "react-dom",
+  "react-dom/client",
+  "react/jsx-runtime",
+  "recharts",
+];
 
 export default defineConfig({
   plugins: [react()],
@@ -377,13 +387,7 @@ export default defineConfig({
       formats: ["es"],
     },
     rollupOptions: {
-      external: ["react", "react-dom"],
-      plugins: [
-        externalGlobals({
-          react: "React",
-          "react-dom": "ReactDOM",
-        }),
-      ],
+      external: hostProvidedDependencies,
     },
     outDir: "dist",
     minify: false,

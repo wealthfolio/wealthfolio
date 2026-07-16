@@ -72,6 +72,26 @@ packages/addon-sdk/package-lock.json
 
 # Tauri generated
 apps/tauri/gen/schemas/
+apps/tauri/gen/android/.gradle/
+apps/tauri/gen/android/build/
+apps/tauri/gen/android/buildSrc/.gradle/
+apps/tauri/gen/android/buildSrc/.kotlin/
+apps/tauri/gen/android/buildSrc/build/
+apps/tauri/gen/android/app/build/
+apps/tauri/gen/android/tauri.settings.gradle
+apps/tauri/gen/android/app/tauri.build.gradle.kts
+apps/tauri/gen/android/app/tauri.properties
+apps/tauri/gen/android/app/proguard-tauri.pro
+apps/tauri/gen/android/app/src/main/assets/tauri.conf.json
+apps/tauri/gen/android/app/src/main/**/generated/
+apps/tauri/gen/android/app/src/main/jniLibs/**/*.so
+apps/tauri/gen/android/local.properties
+apps/tauri/gen/android/key.properties
+apps/tauri/gen/android/keystore.properties
+apps/tauri/gen/android/.tauri/
+apps/tauri/gen/android/.cxx/
+apps/tauri/gen/android/.externalNativeBuild/
+apps/tauri/gen/android/captures/
 
 # OS generated files
 .DS_Store

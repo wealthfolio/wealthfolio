@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { DateRange } from "react-day-picker";
 
 import { DateRangeFilter } from "@/features/spending/components/date-range-filter";
+import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityType, ActivityTypeNames, INSTRUMENT_TYPE_OPTIONS } from "@/lib/constants";
 import { debounce } from "@/lib/debounce";
 import type { Account, AccountScope, PortfolioWithAccounts } from "@/lib/types";
@@ -31,6 +33,7 @@ interface ActivityViewControlsProps {
   onStatusFilterChange: (status: ActivityStatusFilter) => void;
   dateRange: DateRange | undefined;
   onDateRangeChange: (range: DateRange | undefined) => void;
+  onResetFilters: () => void;
   viewMode: ActivityViewMode;
   onViewModeChange: (mode: ActivityViewMode) => void;
   /** Shown only in table view - number of activities fetched so far */
@@ -70,12 +73,14 @@ export function ActivityViewControls({
   onStatusFilterChange,
   dateRange,
   onDateRangeChange,
+  onResetFilters,
   viewMode,
   onViewModeChange,
   totalFetched,
   totalRowCount,
   isFetching,
 }: ActivityViewControlsProps) {
+  const { t } = useTranslation();
   const [localSearch, setLocalSearch] = useState(searchQuery);
 
   // Create a stable debounced search function
@@ -122,11 +127,11 @@ export function ActivityViewControls({
 
   const activityOptions = useMemo(
     () =>
-      (Object.entries(ActivityTypeNames) as [ActivityType, string][]).map(([value, label]) => ({
+      (Object.keys(ActivityTypeNames) as ActivityType[]).map((value) => ({
         value,
-        label,
+        label: localizeActivityTypeName(t, value),
       })),
-    [],
+    [t],
   );
 
   const instrumentTypeOptions = useMemo(
@@ -136,11 +141,11 @@ export function ActivityViewControls({
 
   const statusOptions = useMemo(
     () => [
-      { value: "all", label: "All Activities" },
-      { value: "pending", label: "Pending Review" },
-      { value: "validated", label: "Validated" },
+      { value: "all", label: t("activity:view_controls.status_all") },
+      { value: "pending", label: t("activity:view_controls.status_pending") },
+      { value: "validated", label: t("activity:view_controls.status_validated") },
     ],
-    [],
+    [t],
   );
 
   const hasActiveFilters =
@@ -165,7 +170,7 @@ export function ActivityViewControls({
         />
 
         <FacetedFilter
-          title="Status"
+          title={t("activity:view_controls.status")}
           options={statusOptions}
           selectedValues={new Set(statusFilter === "all" ? [] : [statusFilter])}
           onFilterChange={(values: Set<string>) => {
@@ -179,7 +184,7 @@ export function ActivityViewControls({
         <DateRangeFilter value={dateRange} onChange={onDateRangeChange} />
 
         <FacetedFilter
-          title="Account"
+          title={t("activity:filter_account")}
           contentClassName="w-72"
           options={accountOptions}
           selectedValues={selectedAccountIds}
@@ -189,7 +194,7 @@ export function ActivityViewControls({
         />
 
         <FacetedFilter
-          title="Type"
+          title={t("activity:filter_type")}
           options={activityOptions}
           selectedValues={new Set(selectedActivityTypes)}
           onFilterChange={(values: Set<string>) =>
@@ -198,7 +203,7 @@ export function ActivityViewControls({
         />
 
         <FacetedFilter
-          title="Instrument"
+          title={t("activity:view_controls.instrument")}
           options={instrumentTypeOptions}
           selectedValues={new Set(selectedInstrumentTypes)}
           onFilterChange={(values: Set<string>) => onInstrumentTypesChange(Array.from(values))}
@@ -210,16 +215,12 @@ export function ActivityViewControls({
             size="sm"
             className="h-8 px-2 text-xs"
             onClick={() => {
+              debouncedSearch.cancel();
               setLocalSearch("");
-              onSearchQueryChange("");
-              onAccountScopeChange({ type: "all" });
-              onActivityTypesChange([]);
-              onInstrumentTypesChange([]);
-              onStatusFilterChange("all");
-              onDateRangeChange(undefined);
+              onResetFilters();
             }}
           >
-            Reset
+            {t("activity:reset_filters")}
             <Icons.Close className="ml-2 h-4 w-4" />
           </Button>
         ) : null}
@@ -232,10 +233,10 @@ export function ActivityViewControls({
             {isFetching ? (
               <span className="inline-flex items-center gap-1">
                 <Icons.Spinner className="h-4 w-4 animate-spin" />
-                Loading…
+                {t("activity:loading")}
               </span>
             ) : (
-              `${totalFetched} / ${totalRowCount} activities`
+              t("activity:pagination_count", { fetched: totalFetched, total: totalRowCount })
             )}
           </span>
         )}
@@ -255,20 +256,20 @@ export function ActivityViewControls({
               label: (
                 <>
                   <Icons.Rows3 className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">View mode</span>
+                  <span className="sr-only">{t("activity:view_mode")}</span>
                 </>
               ),
-              title: "View mode",
+              title: t("activity:view_mode"),
             },
             {
               value: "datagrid",
               label: (
                 <>
                   <Icons.Grid3x3 className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">Edit mode</span>
+                  <span className="sr-only">{t("activity:edit_mode")}</span>
                 </>
               ),
-              title: "Edit mode",
+              title: t("activity:edit_mode"),
               "data-testid": "edit-mode-toggle",
             },
           ]}

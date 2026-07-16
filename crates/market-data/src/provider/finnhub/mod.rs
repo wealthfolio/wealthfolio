@@ -532,6 +532,7 @@ impl FinnhubProvider {
             quote_type: Some("EQUITY".to_string()), // Finnhub only supports equities
             sector: response.finnhub_industry.clone(),
             sectors: None, // Finnhub doesn't provide weighted sectors
+            asset_allocation: None,
             industry: response.finnhub_industry,
             website: response.weburl,
             description: response.description,
@@ -738,6 +739,7 @@ mod tests {
                 base: Cow::Borrowed("EUR"),
                 quote: Cow::Borrowed(quote),
             },
+            identifiers: Default::default(),
             overrides: None,
             currency_hint: currency_hint.map(Cow::Borrowed),
             preferred_provider: None,

@@ -8,6 +8,7 @@ import { Icons } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface EnterCodeProps {
   onSubmit: (code: string) => void;
@@ -17,6 +18,7 @@ interface EnterCodeProps {
 }
 
 export function EnterCode({ onSubmit, onCancel, isLoading, error }: EnterCodeProps) {
+  const { t } = useTranslation();
   const [code, setCode] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const { isMobile } = usePlatform();
@@ -154,8 +156,10 @@ export function EnterCode({ onSubmit, onCancel, isLoading, error }: EnterCodePro
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-semibold">{isScanning ? "Opening camera..." : "Scan QR Code"}</p>
-            <p className="text-muted-foreground text-sm">Quick and easy</p>
+            <p className="font-semibold">
+              {isScanning ? t("sync:enterCode.openingCamera") : t("sync:enterCode.scanQrCode")}
+            </p>
+            <p className="text-muted-foreground text-sm">{t("sync:enterCode.quickAndEasy")}</p>
           </div>
           <Icons.ChevronRight className="text-muted-foreground h-5 w-5 shrink-0" />
         </button>
@@ -166,7 +170,7 @@ export function EnterCode({ onSubmit, onCancel, isLoading, error }: EnterCodePro
         <div className="flex items-center gap-4">
           <div className="bg-border h-px flex-1" />
           <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-            Or
+            {t("sync:enterCode.or")}
           </span>
           <div className="bg-border h-px flex-1" />
         </div>
@@ -179,7 +183,7 @@ export function EnterCode({ onSubmit, onCancel, isLoading, error }: EnterCodePro
           <Input
             value={displayCode}
             onChange={handleChange}
-            placeholder="ABC 123"
+            placeholder={t("sync:enterCode.codePlaceholder")}
             className="h-16 pr-20 text-center font-mono text-2xl tracking-[0.2em]"
             autoFocus={!canScan}
             disabled={isDisabled}
@@ -190,7 +194,7 @@ export function EnterCode({ onSubmit, onCancel, isLoading, error }: EnterCodePro
             disabled={isDisabled}
             className="text-primary hover:text-primary/80 absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-sm font-medium transition-colors disabled:opacity-50"
           >
-            Paste
+            {t("sync:enterCode.paste")}
           </button>
         </div>
 
@@ -205,10 +209,10 @@ export function EnterCode({ onSubmit, onCancel, isLoading, error }: EnterCodePro
           {isLoading ? (
             <>
               <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-              Connecting...
+              {t("sync:enterCode.connecting")}
             </>
           ) : (
-            "Connect"
+            t("sync:enterCode.connect")
           )}
         </Button>
 
@@ -219,7 +223,7 @@ export function EnterCode({ onSubmit, onCancel, isLoading, error }: EnterCodePro
           disabled={isDisabled}
           className="text-muted-foreground hover:text-foreground py-2 text-sm transition-colors disabled:opacity-50"
         >
-          Cancel
+          {t("common:cancel")}
         </button>
       </form>
     </div>

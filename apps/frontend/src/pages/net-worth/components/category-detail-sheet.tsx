@@ -1,5 +1,6 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { useTranslation } from "react-i18next";
 import { CategoryTrendChart } from "./category-trend-chart";
 import { CompactAmount } from "./compact-amount";
 import {
@@ -77,6 +78,7 @@ export function CategoryDetailSheet({
   currency,
   periodLabel,
 }: CategoryDetailSheetProps) {
+  const { t } = useTranslation();
   const trend = selected
     ? history.map((point) => ({ date: point.date, value: point.breakdown[selected.key] ?? 0 }))
     : [];
@@ -116,20 +118,26 @@ export function CategoryDetailSheet({
                     {sign}
                     {formatChangePercent(change.percent)}
                   </span>
-                  <span className="text-muted-foreground font-normal">over {periodLabel}</span>
+                  <span className="text-muted-foreground font-normal">
+                    {t("insights:networth.category_sheet.over_period", { period: periodLabel })}
+                  </span>
                 </div>
               </div>
 
               {/* Trend */}
               <div>
-                <p className={`${CARD_LABEL} pb-2`}>Trend · {periodLabel}</p>
+                <p className={`${CARD_LABEL} pb-2`}>
+                  {t("insights:networth.category_sheet.trend_period", { period: periodLabel })}
+                </p>
                 <CategoryTrendChart data={trend} color={toneColor(change.amount)} />
               </div>
 
               {/* Items rolled into this category */}
               {selected.children.length > 0 && (
                 <div>
-                  <p className={`${CARD_LABEL} pb-1`}>Items</p>
+                  <p className={`${CARD_LABEL} pb-1`}>
+                    {t("insights:networth.category_sheet.items")}
+                  </p>
                   <div className="divide-border/40 divide-y">
                     {selected.children.map((child, index) => (
                       <div

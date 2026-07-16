@@ -8,6 +8,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
 
 interface UnsavedTargetChangesDialogProps {
   open: boolean;
@@ -20,22 +21,21 @@ export function UnsavedTargetChangesDialog({
   onOpenChange,
   onDiscard,
 }: UnsavedTargetChangesDialogProps) {
+  const { t } = useTranslation();
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Discard target changes?</AlertDialogTitle>
-          <AlertDialogDescription>
-            You have unsaved target changes. Discard them and leave the editor?
-          </AlertDialogDescription>
+          <AlertDialogTitle>{t("allocation:unsaved.title")}</AlertDialogTitle>
+          <AlertDialogDescription>{t("allocation:unsaved.description")}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={onDiscard}
           >
-            Discard
+            {t("allocation:unsaved.discard")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

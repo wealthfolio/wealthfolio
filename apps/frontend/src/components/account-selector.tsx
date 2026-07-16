@@ -12,6 +12,8 @@ import { Account, TrackingMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Icons, type Icon } from "@wealthfolio/ui";
 import { Fragment, forwardRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -69,10 +71,10 @@ interface UIAccount extends Omit<Account, "accountType"> {
 }
 
 // Create a portfolio account for UI purposes
-function createPortfolioAccount(baseCurrency: string): UIAccount {
+function createPortfolioAccount(baseCurrency: string, t: TFunction): UIAccount {
   return {
     id: PORTFOLIO_SCOPE_ID,
-    name: "All Portfolio",
+    name: t("common:component.all_portfolio"),
     accountType: PORTFOLIO_ACCOUNT_TYPE as UIAccountType,
     balance: 0,
     currency: baseCurrency,
@@ -131,7 +133,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
       selectedAccount,
       setSelectedAccount,
       variant = "card",
-      buttonText = "Select Account",
+      buttonText,
       filterActive = true,
       includePortfolio = false,
       className,
@@ -144,6 +146,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
     },
     ref,
   ) => {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const { accounts, isLoading: isLoadingAccounts } = useAccounts({
       filterActive,
@@ -173,7 +176,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
 
     if (includePortfolio) {
       const baseCurrency = settings?.baseCurrency ?? "USD"; // Default to USD if settings not loaded
-      const portfolioAccount = createPortfolioAccount(baseCurrency);
+      const portfolioAccount = createPortfolioAccount(baseCurrency, t);
       // Check if portfolio account already exists to avoid duplication
       const portfolioExists = accounts.some((account) => account.id === PORTFOLIO_SCOPE_ID);
 
@@ -249,7 +252,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              aria-label="Select an account"
+              aria-label={t("common:component.select_an_account")}
               className={cn(
                 "h-full w-full justify-center rounded-lg border p-2 transition-colors",
                 !selectedAccount && "border-dashed",
@@ -321,8 +324,12 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                         exit={{ opacity: 0, y: -5 }}
                         transition={{ duration: 0.2 }}
                       >
-                        <p className="text-xs font-medium">Click to select an account</p>
-                        <p className="text-muted-foreground text-xs">Required for import</p>
+                        <p className="text-xs font-medium">
+                          {t("common:component.click_to_select_account")}
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                          {t("common:component.required_for_import")}
+                        </p>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -337,7 +344,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              aria-label={iconOnly ? "Select account" : undefined}
+              aria-label={iconOnly ? t("common:component.select_account") : undefined}
               size={iconOnly ? "icon" : "sm"}
               className={cn(
                 "bg-secondary/30 hover:bg-muted/80 flex items-center rounded-full border-none",
@@ -367,7 +374,9 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                         <span>{selectedAccount.name}</span>
                       </>
                     ) : (
-                      <span className="text-muted-foreground">Select an account</span>
+                      <span className="text-muted-foreground">
+                        {t("common:component.select_an_account")}
+                      </span>
                     )}
                   </div>
                   <Icons.ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -399,7 +408,9 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                     <span className="truncate">{selectedAccount.name}</span>
                   </>
                 ) : (
-                  <span className="text-muted-foreground">Select an account</span>
+                  <span className="text-muted-foreground">
+                    {t("common:component.select_an_account")}
+                  </span>
                 )}
               </div>
               <Icons.ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
@@ -412,7 +423,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              aria-label={iconOnly ? "Add account" : undefined}
+              aria-label={iconOnly ? t("common:component.add_account") : undefined}
               className={cn(
                 "bg-secondary/30 hover:bg-muted/80 flex items-center gap-1.5 rounded-md border-dashed text-sm font-medium",
                 iconOnly ? "h-9 w-9 p-0" : "h-8 px-3 py-1",
@@ -421,7 +432,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
               size={iconOnly ? "icon" : "sm"}
             >
               <Icons.Briefcase className="h-4 w-4" />
-              {!iconOnly && buttonText}
+              {!iconOnly && (buttonText ?? t("common:component.select_account"))}
             </Button>
           );
 
@@ -442,7 +453,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
           }}
         >
           <Command className="w-full">
-            <CommandInput placeholder="Search accounts..." />
+            <CommandInput placeholder={t("common:search_accounts")} />
             <CommandList>
               {isLoading ? (
                 <div className="px-2 py-6 text-center">
@@ -455,7 +466,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                 </div>
               ) : (
                 <>
-                  <CommandEmpty>No accounts found.</CommandEmpty>
+                  <CommandEmpty>{t("common:component.no_accounts_found")}</CommandEmpty>
                   {(() => {
                     // Insert the Portfolios group after the synthetic "PORTFOLIO" entry
                     // so user-created portfolios sit next to "All Portfolio" rather than
@@ -465,7 +476,7 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
                       ([t]) => t === PORTFOLIO_ACCOUNT_TYPE,
                     );
                     const portfoliosGroup = showPortfolios ? (
-                      <CommandGroup key="__portfolios__" heading="Portfolios">
+                      <CommandGroup key="__portfolios__" heading={t("common:component.portfolios")}>
                         {portfolios.map((p) => (
                           <CommandItem
                             key={p.id}

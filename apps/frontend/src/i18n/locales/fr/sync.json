@@ -1,0 +1,209 @@
+{
+  "section": {
+    "deviceSync": "Synchronisation des appareils",
+    "connectedDevices": "Appareils connectés",
+    "otherConnectedDevices": "Autres appareils connectés",
+    "manageDevices": "Gérer les appareils",
+    "options": "Options",
+    "deviceActions": "Actions de l'appareil"
+  },
+  "setup": {
+    "cardDescription": "Synchronisez vos données en toute sécurité sur tous vos appareils.",
+    "connectToSync": "Connectez cet appareil pour synchroniser",
+    "keepInSync": "Gardez vos appareils synchronisés",
+    "foundOtherDevices": "D'autres appareils connectés ont été trouvés sur votre compte. Continuez pour connecter cet appareil.",
+    "encryptedInfo": "Vos données sont chiffrées de bout en bout. Seuls vos appareils peuvent les lire.",
+    "morePreview": "+{{count}} de plus",
+    "settingUp": "Configuration...",
+    "connectThisDevice": "Connecter cet appareil",
+    "enableDeviceSync": "Activer la synchronisation"
+  },
+  "status": {
+    "syncError": "Erreur de synchronisation",
+    "syncPaused": "Synchronisation en pause",
+    "synced": "Synchronisé",
+    "syncing": "Synchronisation",
+    "connected": "Connecté",
+    "needsSetup": "Configuration requise",
+    "revoked": "Révoqué",
+    "notConnected": "Non connecté",
+    "online": "En ligne",
+    "never": "Jamais",
+    "minutesAgo": "il y a {{count}} min",
+    "hoursAgo": "il y a {{count}} h",
+    "daysAgo": "il y a {{count}} j",
+    "thisDevice": "Cet appareil",
+    "thisDeviceSuffix": "· Cet appareil"
+  },
+  "engine": {
+    "pauseSync": "Suspendre la synchronisation",
+    "resumeSync": "Reprendre la synchronisation",
+    "updating": "Mise à jour...",
+    "backgroundPaused": "Synchronisation en arrière-plan suspendue",
+    "backgroundResumed": "Synchronisation en arrière-plan reprise",
+    "updateFailed": "Échec de la mise à jour de la synchronisation en arrière-plan"
+  },
+  "errorState": {
+    "failedToInitialize": "Échec de l'initialisation de la synchronisation des appareils.",
+    "initializationFailed": "Échec de l'initialisation",
+    "failedToLoadDevices": "Échec du chargement des appareils",
+    "tryRefreshing": "Veuillez actualiser."
+  },
+  "stale": {
+    "keysNeedUpdating": "Les clés doivent être mises à jour",
+    "keysNeedUpdatingDescription": "Les paramètres de sécurité ont changé sur un autre appareil. Reconnectez cet appareil pour continuer la synchronisation.",
+    "updateThisDevice": "Mettre à jour cet appareil"
+  },
+  "orphaned": {
+    "restoreTitle": "Utiliser cet appareil pour restaurer la synchronisation",
+    "restoreDescription": "Aucun autre appareil connecté n'est disponible. Nous redémarrerons la synchronisation à partir des données déjà présentes sur cet appareil.",
+    "confirmDescription": "Nous redémarrerons la synchronisation à partir des données déjà présentes sur cet appareil.",
+    "restarting": "Redémarrage..."
+  },
+  "untrusted": {
+    "notConnectedYet": "Cet appareil n'est pas encore connecté",
+    "enterCodeFromDevices_one": "Saisissez le code de votre {{count}} autre appareil connecté.",
+    "enterCodeFromDevices_other": "Saisissez le code de l'un de vos {{count}} autres appareils connectés.",
+    "enterCodeGeneric": "Saisissez le code de votre autre appareil connecté pour synchroniser vos données.",
+    "connectThisDevice": "Connecter cet appareil",
+    "connectToStartSyncing": "Connectez cet appareil pour commencer la synchronisation."
+  },
+  "connect": {
+    "connectAnotherDevice": "Connecter un autre appareil",
+    "connectThisDevice": "Connecter cet appareil",
+    "pair": "Jumeler",
+    "unpair": "Dissocier",
+    "revoke": "Révoquer",
+    "rename": "Renommer",
+    "disconnect": "Déconnecter"
+  },
+  "waitingSnapshot": {
+    "otherDeviceFinishing": "Votre autre appareil termine encore sa configuration.",
+    "setupAlmostDone": "Votre configuration est presque terminée.",
+    "trustedHint": "Vous pouvez accélérer les choses maintenant, ou attendre et nous continuerons automatiquement en arrière-plan.",
+    "untrustedHint": "Veuillez d'abord terminer la configuration sur votre autre appareil connecté. Cette page se mettra à jour automatiquement.",
+    "checking": "Vérification...",
+    "checkAgain": "Vérifier à nouveau",
+    "preparing": "Préparation...",
+    "speedUpSetup": "Accélérer la configuration"
+  },
+  "bootstrap": {
+    "inProgress": "Initialisation de la synchronisation en cours...",
+    "hasDataTitle": "Cet appareil contient déjà des données",
+    "hasDataDescription": "Pour terminer la synchronisation, les données de cet appareil seront remplacées par celles de votre autre appareil.",
+    "continue": "Continuer",
+    "waitingOtherDeviceTitle": "En attente de votre autre appareil",
+    "waitingOtherDeviceDescription": "Nous terminerons la synchronisation dès qu'un nouvel instantané sera disponible.",
+    "retryStartedTitle": "Nouvelle tentative de synchronisation lancée",
+    "retryStartedDescription": "Recherche d'un instantané mis à jour et application des modifications de synchronisation en attente.",
+    "couldNotRetryTitle": "Impossible de relancer la synchronisation",
+    "unableToContinueTitle": "Impossible de poursuivre la synchronisation"
+  },
+  "snapshot": {
+    "uploadedTitle": "Instantané téléversé",
+    "uploadedDescription": "Les appareils nouvellement connectés peuvent maintenant terminer la synchronisation à partir de cet instantané.",
+    "skippedTitle": "Téléversement de l'instantané ignoré",
+    "cancelledTitle": "Téléversement de l'instantané annulé",
+    "resultTitle": "Résultat du téléversement de l'instantané",
+    "failedTitle": "Échec du téléversement de l'instantané"
+  },
+  "backup": {
+    "savedTitle": "Sauvegarde enregistrée",
+    "savedDescription": "Une sauvegarde a été enregistrée sous {{location}}.",
+    "failedTitle": "Échec de la sauvegarde",
+    "backingUp": "Sauvegarde...",
+    "backUpFirst": "Sauvegarder d'abord"
+  },
+  "overwrite": {
+    "replaceDataTitle": "Remplacer les données de cet appareil ?",
+    "replaceDataDescription": "Vos données locales seront remplacées par celles de votre autre appareil connecté.",
+    "localRowsReplaced_one": "{{count}} ligne locale sera remplacée.",
+    "localRowsReplaced_other": "{{count}} lignes locales seront remplacées.",
+    "notNow": "Pas maintenant",
+    "syncing": "Synchronisation...",
+    "replaceAndSync": "Remplacer et synchroniser"
+  },
+  "reinit": {
+    "title": "Reconfigurer la synchronisation depuis cet appareil ?",
+    "description": "Nous conserverons les données de cet appareil et les utiliserons pour redémarrer la synchronisation. D'autres appareils connectés devront peut-être être reconnectés.",
+    "notNow": "Pas maintenant",
+    "continue": "Continuer"
+  },
+  "recovery": {
+    "title": "Reconfigurer cet appareil",
+    "description": "La synchronisation a été désactivée pour cet appareil. Reconfigurez-la pour garder vos données à jour sur tous vos appareils.",
+    "notNow": "Pas maintenant",
+    "settingUp": "Configuration...",
+    "setUpAgain": "Reconfigurer cet appareil"
+  },
+  "disconnectDialog": {
+    "title": "Déconnecter cet appareil ?",
+    "description": "Cela supprimera la synchronisation de cet appareil. Vous pourrez la reconfigurer plus tard.",
+    "disconnecting": "Déconnexion...",
+    "disconnect": "Déconnecter"
+  },
+  "unpairDialog": {
+    "titleLast": "Dissocier votre dernier appareil ?",
+    "title": "Dissocier l'appareil ?",
+    "descriptionLast": "C'est votre seul appareil connecté. Vous devrez reconnecter un appareil pour continuer à synchroniser vos données.",
+    "description": "Cela supprimera « {{name}} » de votre compte. L'appareil devra être reconnecté pour synchroniser les données.",
+    "unpairing": "Dissociation...",
+    "unpair": "Dissocier"
+  },
+  "toasts": {
+    "reinitFailed": "Échec de la réinitialisation de la synchronisation",
+    "disconnectFailed": "Échec de la déconnexion",
+    "unpairFailed": "Échec de la dissociation de l'appareil"
+  },
+  "pairing": {
+    "connectThisDeviceTitle": "Connecter cet appareil",
+    "enterCodeDescription": "Saisissez le code de votre autre appareil connecté",
+    "connectAnotherTitle": "Connecter un autre appareil",
+    "scanOrEnterDescription": "Scannez ou saisissez ce code sur votre autre appareil",
+    "gettingReadyTitle": "Préparation de cet appareil...",
+    "gettingReadyDescription": "Cela ne prendra qu'un instant.",
+    "prepareFailed": "Nous n'avons pas pu terminer la préparation de cet appareil.",
+    "tryAgain": "Réessayer",
+    "starting": "Démarrage...",
+    "generatingCode": "Génération du code...",
+    "computingSecurityCode": "Calcul du code de sécurité...",
+    "finishingSetup": "Finalisation de la configuration...",
+    "finishingSetupDescription": "Préparation de vos données pour le nouvel appareil",
+    "sessionExpired": "Session expirée",
+    "connecting": "Connexion...",
+    "verifySecurityCode": "Vérifier le code de sécurité",
+    "syncingData": "Synchronisation de vos données...",
+    "syncingDataDescription": "Cela peut prendre quelques secondes"
+  },
+  "displayCode": {
+    "expired": "Expiré"
+  },
+  "enterCode": {
+    "openingCamera": "Ouverture de la caméra...",
+    "scanQrCode": "Scanner le code QR",
+    "quickAndEasy": "Rapide et simple",
+    "or": "Ou",
+    "codePlaceholder": "ABC 123",
+    "paste": "Coller",
+    "connecting": "Connexion...",
+    "connect": "Connecter"
+  },
+  "sas": {
+    "sameCodeQuestion": "Le même code sur les deux appareils ?"
+  },
+  "waiting": {
+    "waitingForConfirmation": "En attente de confirmation...",
+    "confirmCodeMatches": "Confirmez que ce code correspond sur votre autre appareil",
+    "securelyConnecting": "Veuillez patienter pendant que nous connectons votre appareil en toute sécurité"
+  },
+  "result": {
+    "allSet": "Tout est prêt !",
+    "connectedSuccessfully": "Appareil connecté avec succès",
+    "done": "Terminé",
+    "connectionFailed": "Échec de la connexion",
+    "tryAgain": "Réessayer"
+  },
+  "errors": {
+    "backupPlatformUnsupported": "La sauvegarde avant la synchronisation des appareils est actuellement prise en charge uniquement sur ordinateur, web et iOS"
+  }
+}

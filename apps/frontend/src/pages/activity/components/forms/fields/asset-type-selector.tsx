@@ -1,4 +1,5 @@
 import { useController, type Control, type FieldValues, type FieldPath } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
@@ -8,14 +9,14 @@ export type AssetType = "stock" | "option" | "bond";
 
 interface AssetTypeOption {
   value: AssetType;
-  label: string;
+  labelKey: string;
   icon: keyof typeof Icons;
 }
 
 const assetTypes: AssetTypeOption[] = [
-  { value: "stock", label: "Stock", icon: "TrendingUp" },
-  { value: "option", label: "Option", icon: "BarChart" },
-  { value: "bond", label: "Bond", icon: "FileText" },
+  { value: "stock", labelKey: "activity:form.asset_type_stock", icon: "TrendingUp" },
+  { value: "option", labelKey: "activity:form.asset_type_option", icon: "BarChart" },
+  { value: "bond", labelKey: "activity:form.asset_type_bond", icon: "FileText" },
 ];
 
 interface AssetTypeSelectorProps<TFieldValues extends FieldValues = FieldValues> {
@@ -33,6 +34,7 @@ export function AssetTypeSelector<TFieldValues extends FieldValues = FieldValues
   onValueChange,
   className,
 }: AssetTypeSelectorProps<TFieldValues>) {
+  const { t } = useTranslation(["activity"]);
   const uniqueId = useId();
 
   const { field } = useController({
@@ -77,7 +79,7 @@ export function AssetTypeSelector<TFieldValues extends FieldValues = FieldValues
               />
             )}
             <Icon className="h-4 w-4" />
-            <span>{type.label}</span>
+            <span>{t(type.labelKey)}</span>
           </button>
         );
       })}

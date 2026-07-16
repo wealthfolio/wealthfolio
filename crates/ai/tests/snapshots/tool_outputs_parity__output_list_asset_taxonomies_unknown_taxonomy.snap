@@ -1,0 +1,7 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "err": "No asset-scoped taxonomy matched the requested taxonomy filter"
+}

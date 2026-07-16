@@ -3,30 +3,23 @@ import { SyncStatusIcon } from "@/features/wealthfolio-connect/components/sync-s
 import { useAggregatedSyncStatus } from "@/features/wealthfolio-connect/hooks";
 import { useHapticFeedback } from "@/hooks/use-haptic-feedback";
 import { cn } from "@/lib/utils";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-  Icons,
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@wealthfolio/ui";
+import { Icons, Sheet, SheetContent, SheetTitle } from "@wealthfolio/ui";
 import { motion } from "motion/react";
-import React, { useCallback, useId, useState } from "react";
+import { useCallback, useId, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { type NavigationProps, isPathActive } from "./app-navigation";
+import { type NavLink, type NavigationProps, isPathActive } from "./app-navigation";
+import { resolveNavigationIcon } from "./navigation-icons";
 
 interface MobileNavBarProps {
   navigation: NavigationProps;
 }
 
 export function MobileNavBar({ navigation }: MobileNavBarProps) {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [addonsSheetOpen, setAddonsSheetOpen] = useState(false);
   const { triggerHaptic } = useHapticFeedback();
   const uniqueId = useId();
   const { status: syncStatus } = useAggregatedSyncStatus();
@@ -42,39 +35,40 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
     [triggerHaptic, navigate],
   );
 
-  const renderIcon = useCallback((icon?: React.ReactNode) => {
-    if (!icon) {
-      return <Icons.ArrowRight className="size-6" />;
-    }
-
-    if (React.isValidElement<{ className?: string }>(icon)) {
-      return icon.props.className ? icon : React.cloneElement(icon, { className: "size-6" });
-    }
-
-    if (typeof icon === "function") {
-      const IconComponent = icon as React.ComponentType<{ className?: string }>;
-      return <IconComponent className="size-6" />;
-    }
-
-    return <span className="size-6">{icon}</span>;
-  }, []);
+  const renderIcon = useCallback((icon?: ReactNode) => resolveNavigationIcon(icon, "size-6"), []);
 
   const primaryItems = navigation?.primary ?? [];
   const secondaryItems = navigation?.secondary ?? [];
-  const addonItems = navigation?.addons ?? [];
+  const pinnedAddonItems = navigation?.pinnedAddons ?? [];
+  const addonMenuItems = navigation?.addonMenuItems ?? navigation?.addons ?? [];
+  const directPinnedAddonItems = pinnedAddonItems.slice(0, 1);
+  const overflowPinnedAddonItems = pinnedAddonItems.slice(1);
 
   const searchItem = {
-    title: "Search",
+    title: t("common:search"),
     href: "#search",
     icon: <Icons.Search2 className="size-6" />,
   };
 
-  const visibleItems = [primaryItems[0], primaryItems[1], searchItem].filter(Boolean);
+  const visibleItems = [
+    primaryItems[0],
+    primaryItems[1],
+    ...directPinnedAddonItems,
+    searchItem,
+  ].filter(Boolean);
 
-  const menuItems = [...primaryItems.slice(2), ...secondaryItems];
-
-  const hasMenu = menuItems.length > 0 || addonItems.length > 0;
-  const hasAddons = addonItems.length > 0;
+  const addonItems = [...overflowPinnedAddonItems, ...addonMenuItems];
+  const standardMenuItems: NavLink[] = [
+    ...primaryItems.slice(2),
+    ...secondaryItems,
+    {
+      title: t("common:connect"),
+      href: "/connect",
+      icon: <SyncStatusIcon status={syncStatus} className="size-6" />,
+    },
+  ];
+  const moreItems = [...standardMenuItems, ...addonItems];
+  const hasMenu = moreItems.length > 0;
   const columnCount = visibleItems.length + (hasMenu ? 1 : 0);
 
   return (
@@ -87,7 +81,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
           className={cn("pointer-events-auto w-full px-1 py-1", "h-[var(--mobile-nav-ui-height)]")}
         >
           <nav
-            aria-label="Primary navigation"
+            aria-label={t("common:layout.primary_navigation")}
             className={cn("grid place-items-center gap-2")}
             style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}
           >
@@ -145,137 +139,124 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
             })}
 
             {hasMenu && (
-              <DropdownMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    onClick={triggerHaptic}
-                    aria-label="More options"
-                    className="text-foreground relative z-10 flex h-14 w-full items-center justify-center rounded-full transition-colors"
-                  >
-                    {(menuItems.some((item) => isPathActive(location.pathname, item.href)) ||
-                      addonItems.some((item) => isPathActive(location.pathname, item.href))) && (
-                      <motion.div
-                        layoutId={`mobile-nav-indicator-${uniqueId}`}
-                        className="absolute inset-0 -z-10 rounded-full border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/10"
-                        initial={false}
-                        transition={{
-                          type: "spring",
-                          stiffness: 400,
-                          damping: 30,
-                        }}
-                      />
-                    )}
-                    <span
-                      className="relative flex size-7 shrink-0 items-center justify-center outline-none"
-                      aria-hidden="true"
-                    >
-                      <Icons.CirclesFour className="size-6" />
-                    </span>
-                  </button>
-                </DropdownMenuTrigger>
-
-                <DropdownMenuContent
-                  side="top"
-                  align="end"
-                  sideOffset={16}
-                  className="w-42 mb-0 mr-0 flex flex-col gap-1 border-0 bg-transparent p-0 shadow-none ring-0 ring-offset-0"
+              <button
+                onClick={() => {
+                  triggerHaptic();
+                  setMobileMenuOpen(true);
+                }}
+                aria-label={t("common:layout.more_options")}
+                className="text-foreground relative z-10 flex h-14 w-full items-center justify-center rounded-full transition-colors"
+              >
+                {moreItems.some((item) => isPathActive(location.pathname, item.href)) && (
+                  <motion.div
+                    layoutId={`mobile-nav-indicator-${uniqueId}`}
+                    className="absolute inset-0 -z-10 rounded-full border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/10"
+                    initial={false}
+                    transition={{
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 30,
+                    }}
+                  />
+                )}
+                <span
+                  className="relative flex size-7 shrink-0 items-center justify-center outline-none"
+                  aria-hidden="true"
                 >
-                  {menuItems.map((item) => {
-                    const isActive = isPathActive(location.pathname, item.href);
-                    return (
-                      <LiquidGlass key={item.href} variant="floating" intensity="subtle">
-                        <Link
-                          to={item.href}
-                          onClick={() => {
-                            handleNavigation(item.href, isActive);
-                            setMobileMenuOpen(false);
-                          }}
-                          aria-current={isActive ? "page" : undefined}
-                          className="relative z-10 flex w-full items-center gap-3 rounded-full px-3 py-2 text-sm"
-                        >
-                          <span className="flex size-6 shrink-0 items-center justify-center">
-                            {renderIcon(item.icon)}
-                          </span>
-                          <span className="truncate text-left">{item.title}</span>
-                        </Link>
-                      </LiquidGlass>
-                    );
-                  })}
-
-                  {/* Connect with status icon */}
-                  <LiquidGlass variant="floating" intensity="subtle">
-                    <Link
-                      to="/connect"
-                      onClick={() => {
-                        const isActive = isPathActive(location.pathname, "/connect");
-                        handleNavigation("/connect", isActive);
-                        setMobileMenuOpen(false);
-                      }}
-                      aria-current={
-                        isPathActive(location.pathname, "/connect") ? "page" : undefined
-                      }
-                      className="relative z-10 flex w-full items-center gap-3 rounded-full px-3 py-2 text-sm"
-                    >
-                      <span className="flex size-6 shrink-0 items-center justify-center">
-                        <SyncStatusIcon status={syncStatus} className="size-5" />
-                      </span>
-                      <span className="truncate text-left">Connect</span>
-                    </Link>
-                  </LiquidGlass>
-
-                  {hasAddons && (
-                    <LiquidGlass variant="floating" intensity="subtle">
-                      <button
-                        onClick={() => {
-                          triggerHaptic();
-                          setMobileMenuOpen(false);
-                          setAddonsSheetOpen(true);
-                        }}
-                        className="relative z-10 flex w-full items-center gap-3 rounded-full px-3 py-2 text-sm"
-                      >
-                        <span className="flex size-6 shrink-0 items-center justify-center">
-                          <Icons.Addons className="size-5" />
-                        </span>
-                        <span className="truncate text-left">Add-ons</span>
-                      </button>
-                    </LiquidGlass>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  <Icons.CirclesFour className="size-6" />
+                </span>
+              </button>
             )}
           </nav>
         </LiquidGlass>
       </div>
 
-      {/* Add-ons Sheet */}
-      <Sheet open={addonsSheetOpen} onOpenChange={setAddonsSheetOpen}>
-        <SheetContent side="bottom" className="px-4 pb-8">
-          <SheetHeader>
-            <SheetTitle>Add-ons</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 flex flex-col gap-2">
-            {addonItems.map((item) => {
-              const isActive = isPathActive(location.pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  onClick={() => {
-                    handleNavigation(item.href, isActive);
-                    setAddonsSheetOpen(false);
-                  }}
-                  className={cn(
-                    "flex h-12 items-center gap-3 rounded-lg px-4 transition-colors",
-                    isActive ? "bg-secondary" : "hover:bg-secondary/50",
-                  )}
-                >
-                  <span className="flex size-5 shrink-0 items-center justify-center">
-                    {renderIcon(item.icon)}
-                  </span>
-                  <span className="text-base font-medium">{item.title}</span>
-                </Link>
-              );
-            })}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent
+          side="bottom"
+          showCloseButton={false}
+          className="bg-background inset-x-4 bottom-4 max-h-[min(82vh,720px)] overflow-hidden rounded-[2rem] border-0 px-0 pb-[calc(env(safe-area-inset-bottom,0px)+1.25rem)] pt-0 shadow-2xl"
+        >
+          <div className="bg-muted mx-auto mt-4 h-1.5 w-14 rounded-full" />
+          <div className="flex items-center justify-between px-8 pb-4 pt-7">
+            <SheetTitle className="text-2xl font-semibold">{t("common:layout.more")}</SheetTitle>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              className="bg-muted text-foreground hover:bg-muted/80 flex size-11 items-center justify-center rounded-full transition-colors"
+              aria-label={t("common:layout.close_more_menu")}
+            >
+              <Icons.Close className="size-5" />
+            </button>
+          </div>
+
+          <div className="scrollbar-hide max-h-[calc(min(82vh,720px)-7rem)] overflow-y-auto px-8">
+            <div className="divide-border/70 divide-y">
+              {standardMenuItems.map((item) => {
+                const isActive = isPathActive(location.pathname, item.href);
+
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    onClick={() => {
+                      handleNavigation(item.href, isActive);
+                      setMobileMenuOpen(false);
+                    }}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      "group flex h-16 items-center gap-4 transition-colors",
+                      isActive ? "text-primary" : "text-foreground",
+                    )}
+                  >
+                    <span className="flex size-7 shrink-0 items-center justify-center">
+                      {renderIcon(item.icon)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-lg font-semibold">
+                      {item.title}
+                    </span>
+                    <Icons.ChevronRight className="text-muted-foreground/50 size-5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                );
+              })}
+            </div>
+
+            {addonItems.length > 0 && (
+              <div className="pt-6">
+                <div className="text-muted-foreground pb-3 text-xs font-semibold uppercase tracking-[0.35em]">
+                  {t("common:addons")}
+                </div>
+                <div className="divide-border/70 divide-y">
+                  {addonItems.map((item) => {
+                    const isActive = isPathActive(location.pathname, item.href);
+
+                    return (
+                      <Link
+                        key={item.href}
+                        to={item.href}
+                        onClick={() => {
+                          handleNavigation(item.href, isActive);
+                          setMobileMenuOpen(false);
+                        }}
+                        aria-current={isActive ? "page" : undefined}
+                        className={cn(
+                          "group flex h-16 items-center gap-4 transition-colors",
+                          isActive ? "text-primary" : "text-foreground",
+                        )}
+                      >
+                        <span className="flex size-7 shrink-0 items-center justify-center">
+                          {renderIcon(item.icon)}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-lg font-semibold">
+                          {item.title}
+                        </span>
+                        <Icons.ChevronRight className="text-muted-foreground/50 size-5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>

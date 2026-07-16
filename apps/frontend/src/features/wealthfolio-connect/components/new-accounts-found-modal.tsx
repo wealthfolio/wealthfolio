@@ -18,6 +18,7 @@ import { ScrollArea } from "@wealthfolio/ui/components/ui/scroll-area";
 import { updateAccount } from "@/adapters";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Trans, useTranslation } from "react-i18next";
 import type { Account, TrackingMode } from "@/lib/types";
 import { syncBrokerData } from "../services/broker-service";
 
@@ -49,6 +50,7 @@ export function NewAccountsFoundModal({
   accounts,
   onComplete,
 }: NewAccountsFoundModalProps) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -100,8 +102,8 @@ export function NewAccountsFoundModal({
       // Invalidate queries and trigger sync
       await queryClient.invalidateQueries();
 
-      toast.success("Accounts configured", {
-        description: "Starting sync with your selected settings...",
+      toast.success(t("connect:newAccounts.configured"), {
+        description: t("connect:newAccounts.configuredDescription"),
       });
 
       onOpenChange(false);
@@ -110,7 +112,7 @@ export function NewAccountsFoundModal({
       // Trigger broker sync to import data for the now-configured accounts
       syncBrokerData();
     } catch (error) {
-      toast.error("Failed to save accounts", {
+      toast.error(t("connect:newAccounts.saveFailed"), {
         description: String(error),
       });
     } finally {
@@ -128,11 +130,9 @@ export function NewAccountsFoundModal({
         <SheetHeader className="border-b px-6 py-4">
           <SheetTitle className="flex items-center gap-2">
             <Icons.Users className="h-5 w-5" />
-            New accounts found
+            {t("connect:newAccounts.title")}
           </SheetTitle>
-          <SheetDescription>
-            Choose how to track each account. You can change this later.
-          </SheetDescription>
+          <SheetDescription>{t("connect:newAccounts.description")}</SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 overflow-hidden">
@@ -144,15 +144,18 @@ export function NewAccountsFoundModal({
               >
                 <Icons.AlertTriangle className="h-4 w-4" />
                 <AlertDescription className="text-sm">
-                  <strong>Transactions</strong> mode tracks every trade for full performance
-                  analytics. <strong>Holdings</strong> mode imports snapshots only with limited
-                  metrics.{" "}
-                  <ExternalLink
-                    href="https://wealthfolio.app/docs/concepts/activity-types"
-                    className="hover:text-foreground underline"
-                  >
-                    Learn more
-                  </ExternalLink>
+                  <Trans
+                    i18nKey="connect:newAccounts.trackingInfo"
+                    components={{
+                      strong: <strong />,
+                      docsLink: (
+                        <ExternalLink
+                          href="https://wealthfolio.app/docs/concepts/activity-types"
+                          className="hover:text-foreground underline"
+                        />
+                      ),
+                    }}
+                  />
                 </AlertDescription>
               </Alert>
 
@@ -169,7 +172,9 @@ export function NewAccountsFoundModal({
 
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor={`name-${acc.id}`}>Account name</Label>
+                        <Label htmlFor={`name-${acc.id}`}>
+                          {t("connect:newAccounts.accountName")}
+                        </Label>
                         <Input
                           id={`name-${acc.id}`}
                           value={setup?.name ?? ""}
@@ -177,18 +182,18 @@ export function NewAccountsFoundModal({
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor={`group-${acc.id}`}>Group (optional)</Label>
+                        <Label htmlFor={`group-${acc.id}`}>{t("connect:newAccounts.group")}</Label>
                         <Input
                           id={`group-${acc.id}`}
                           value={setup?.group ?? ""}
-                          placeholder="e.g., Retirement"
+                          placeholder={t("connect:newAccounts.groupPlaceholder")}
                           onChange={(e) => updateSetup(acc.id, "group", e.target.value)}
                         />
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Tracking mode</Label>
+                      <Label>{t("connect:newAccounts.trackingMode")}</Label>
                       <RadioGroup
                         value={setup?.trackingMode}
                         onValueChange={(value) =>
@@ -205,9 +210,11 @@ export function NewAccountsFoundModal({
                         >
                           <RadioGroupItem value="TRANSACTIONS" className="mt-0.5" />
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium">Transactions</span>
+                            <span className="text-sm font-medium">
+                              {t("connect:newAccounts.transactions")}
+                            </span>
                             <span className="text-muted-foreground text-xs">
-                              Full performance analytics
+                              {t("connect:newAccounts.transactionsDescription")}
                             </span>
                           </div>
                         </label>
@@ -220,8 +227,12 @@ export function NewAccountsFoundModal({
                         >
                           <RadioGroupItem value="HOLDINGS" className="mt-0.5" />
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium">Holdings</span>
-                            <span className="text-muted-foreground text-xs">Snapshots only</span>
+                            <span className="text-sm font-medium">
+                              {t("connect:newAccounts.holdings")}
+                            </span>
+                            <span className="text-muted-foreground text-xs">
+                              {t("connect:newAccounts.holdingsDescription")}
+                            </span>
                           </div>
                         </label>
                       </RadioGroup>
@@ -231,7 +242,7 @@ export function NewAccountsFoundModal({
                       <Alert variant="warning">
                         <Icons.AlertTriangle className="h-4 w-4" />
                         <AlertDescription>
-                          Performance metrics will be limited without transaction history.
+                          {t("connect:newAccounts.holdingsWarning")}
                         </AlertDescription>
                       </Alert>
                     )}
@@ -244,18 +255,18 @@ export function NewAccountsFoundModal({
 
         <SheetFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={handleNotNow} disabled={isSaving}>
-            Not now
+            {t("connect:newAccounts.notNow")}
           </Button>
           <Button onClick={handleSaveAndSync} disabled={isSaving}>
             {isSaving ? (
               <>
                 <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
+                {t("connect:newAccounts.saving")}
               </>
             ) : (
               <>
                 <Icons.Check className="mr-2 h-4 w-4" />
-                Save and sync
+                {t("connect:newAccounts.saveAndSync")}
               </>
             )}
           </Button>

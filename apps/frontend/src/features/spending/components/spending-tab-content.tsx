@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FC } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Bar,
@@ -33,7 +34,7 @@ import { useCategorizationRules } from "../hooks/use-categorization-rules";
 import { useCashActivities, useUncategorizedCount } from "../hooks/use-cash-activities";
 import { useSpendingReport } from "../hooks/use-spending-report";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
-import { topCategoryId } from "../lib/category-rollup";
+import { SAVINGS_ROW_COLOR, SAVINGS_ROW_ID, buildWhereItWentRows } from "../lib/category-rollup";
 import {
   SPENDING_MONTH_PARAM,
   SPENDING_MONTH_STORAGE_KEY,
@@ -91,12 +92,12 @@ const SPENDING_DASHBOARD_PERIODS: SpendingDashboardPeriod[] = [
 const DEFAULT_INTERVAL: SpendingDashboardPeriod = "MTD";
 const INTERVAL_STORAGE_KEY = "spending-interval";
 const INTERVAL_DESCRIPTIONS: Record<SpendingDashboardPeriod, string> = {
-  MTD: "this month",
-  LAST_MONTH: "last month",
-  "3M": "past 3 months",
-  "6M": "past 6 months",
-  YTD: "year to date",
-  "1Y": "past year",
+  MTD: "spending:tabContent.intervalMtd",
+  LAST_MONTH: "spending:tabContent.intervalLastMonth",
+  "3M": "spending:tabContent.interval3M",
+  "6M": "spending:tabContent.interval6M",
+  YTD: "spending:tabContent.intervalYtd",
+  "1Y": "spending:tabContent.interval1Y",
 };
 
 // The three insights stages, surfaced as a "Dig deeper" strip under Recent
@@ -104,20 +105,20 @@ const INTERVAL_DESCRIPTIONS: Record<SpendingDashboardPeriod, string> = {
 const INSIGHT_STAGES = [
   {
     stage: "where",
-    label: "Where I am",
-    sub: "Pace, budget & category breakdown",
+    labelKey: "spending:tabContent.stageWhereLabel",
+    subKey: "spending:tabContent.stageWhereSub",
     Icon: Icons.PieChart,
   },
   {
     stage: "changed",
-    label: "What changed",
-    sub: "Period-over-period trends",
+    labelKey: "spending:tabContent.stageChangedLabel",
+    subKey: "spending:tabContent.stageChangedSub",
     Icon: Icons.TrendingUp,
   },
   {
     stage: "when",
-    label: "When & where",
-    sub: "When you spend & spending events",
+    labelKey: "spending:tabContent.stageWhenLabel",
+    subKey: "spending:tabContent.stageWhenSub",
     Icon: Icons.Calendar,
   },
 ] as const;
@@ -292,6 +293,7 @@ function barKeyToRange(
 }
 
 export default function SpendingTabContent() {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -518,6 +520,7 @@ export default function SpendingTabContent() {
   );
 
   const totalSpending = report?.current.outflow ?? 0;
+  const totalSaved = report?.current.saved ?? 0;
   const priorSpending = priorReport?.current.outflow ?? 0;
   const delta = totalSpending - priorSpending;
   // `deltaPct` is a RATIO (0.2 == 20%) used for thresholds; convert to
@@ -598,7 +601,8 @@ export default function SpendingTabContent() {
 
   const { barData, avgValue, avgLabel } = useMemo(() => {
     const buckets = report?.byDay ?? [];
-    if (buckets.length === 0) return { barData: [], avgValue: 0, avgLabel: "avg" };
+    if (buckets.length === 0)
+      return { barData: [], avgValue: 0, avgLabel: t("spending:tabContent.avg") };
     const sorted = buckets.slice().sort((a, b) => a.date.localeCompare(b.date));
     const todayParts = getZonedDateParts(new Date(), appTimezone);
     const todayKey = formatZonedDateKey(new Date(), appTimezone);
@@ -701,9 +705,13 @@ export default function SpendingTabContent() {
     const avg =
       observed.length > 0 ? observed.reduce((s, d) => s + d.value, 0) / observed.length : 0;
     const labelByGranularity =
-      granularity === "day" ? "daily avg" : granularity === "week" ? "weekly avg" : "monthly avg";
+      granularity === "day"
+        ? t("spending:tabContent.dailyAvg")
+        : granularity === "week"
+          ? t("spending:tabContent.weeklyAvg")
+          : t("spending:tabContent.monthlyAvg");
     return { barData: data, avgValue: avg, avgLabel: labelByGranularity };
-  }, [report?.byDay, granularity, dateRange, appTimezone]);
+  }, [report?.byDay, granularity, dateRange, appTimezone, t]);
 
   const categoriesMeta = useMemo(() => {
     const meta = new Map<
@@ -723,42 +731,16 @@ export default function SpendingTabContent() {
 
   const categoryRows = useMemo(() => {
     if (!report) return [];
-    const topAmounts = new Map<string, { amount: number; subCount: number; txCount: number }>();
-    for (const row of report.spendingBreakdown) {
-      const meta = categoriesMeta.get(row.categoryId);
-      const topId = topCategoryId(row.categoryId, categoriesMeta);
-      const e = topAmounts.get(topId) ?? { amount: 0, subCount: 0, txCount: 0 };
-      e.amount += row.amount;
-      e.txCount += row.count;
-      if (meta?.parentId) e.subCount += 1;
-      topAmounts.set(topId, e);
-    }
-    const priorAmounts = new Map<string, number>();
-    for (const row of priorReport?.spendingBreakdown ?? []) {
-      const topId = topCategoryId(row.categoryId, categoriesMeta);
-      priorAmounts.set(topId, (priorAmounts.get(topId) ?? 0) + row.amount);
-    }
-    return Array.from(topAmounts.entries())
-      .sort(([, a], [, b]) => b.amount - a.amount)
-      .map(([id, e]) => {
-        const meta = categoriesMeta.get(id);
-        const priorAmt = priorAmounts.get(id) ?? 0;
-        const d = e.amount - priorAmt;
-        const dPct = priorAmt > 0 ? (d / priorAmt) * 100 : null;
-        return {
-          id,
-          name: id === "__uncategorized__" ? "Uncategorized" : (meta?.name ?? id),
-          color: meta?.color ?? null,
-          icon: meta?.icon ?? null,
-          amount: e.amount,
-          subCount: e.subCount,
-          txCount: e.txCount,
-          delta: d,
-          deltaPct: dPct,
-        };
-      })
-      .filter((row) => row.amount > 0);
-  }, [report, priorReport, categoriesMeta]);
+    return buildWhereItWentRows({
+      spendingBreakdown: report.spendingBreakdown,
+      priorSpendingBreakdown: priorReport?.spendingBreakdown ?? [],
+      categoriesMeta,
+      totalSaved,
+      priorSaved: priorReport?.current.saved ?? 0,
+      uncategorizedLabel: t("spending:insightsPage.uncategorized"),
+      savingsLabel: t("spending:cashFlow.saving"),
+    });
+  }, [report, priorReport, categoriesMeta, t, totalSaved]);
 
   const insights = useMemo(() => {
     const items: {
@@ -772,13 +754,17 @@ export default function SpendingTabContent() {
         icon: "!",
         title: (
           <>
-            Spending is <span className="font-semibold">{(deltaPct * 100).toFixed(0)}% above</span>{" "}
-            the prior period.
+            {t("spending:tabContent.spendingAbovePrefix")}{" "}
+            <span className="font-semibold">
+              {t("spending:tabContent.pctAbove", { pct: (deltaPct * 100).toFixed(0) })}
+            </span>{" "}
+            {t("spending:tabContent.thePriorPeriod")}
           </>
         ),
-        sub: `${isBalanceHidden ? "••••" : formatAmount(delta, currency)} more than ${
-          isBalanceHidden ? "••••" : formatAmount(priorSpending, currency)
-        }`,
+        sub: t("spending:tabContent.moreThan", {
+          more: isBalanceHidden ? "••••" : formatAmount(delta, currency),
+          prior: isBalanceHidden ? "••••" : formatAmount(priorSpending, currency),
+        }),
       });
     }
     const uncategorized = categoryRows.find((c) => c.id === "__uncategorized__");
@@ -789,23 +775,25 @@ export default function SpendingTabContent() {
         icon: "+",
         title: (
           <>
-            <span className="font-semibold">{uncategorized.txCount} uncategorized</span>{" "}
-            {uncategorized.txCount === 1 ? "transaction" : "transactions"} totaling{" "}
+            <span className="font-semibold">
+              {t("spending:tabContent.uncategorizedCount", { count: uncategorized.txCount })}
+            </span>{" "}
+            {t("spending:tabContent.totaling")}{" "}
             <PrivacyAmount value={uncategorized.amount} currency={currency} />.
           </>
         ),
-        sub: "Categorize them to improve breakdowns",
+        sub: t("spending:tabContent.categorizeToImprove"),
         action: (
           <Link
             to="/assistant"
             state={{
-              aiPrompt: "Help me categorize all my uncategorized transactions.",
+              aiPrompt: t("spending:tabContent.aiCategorizePrompt"),
             }}
             className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium underline-offset-4 hover:underline"
             style={{ color: theme.deep }}
           >
             <Icons.Sparkles className="h-3 w-3" />
-            Ask AI to categorize
+            {t("spending:tabContent.askAiCategorize")}
           </Link>
         ),
       });
@@ -814,16 +802,16 @@ export default function SpendingTabContent() {
           icon: "!",
           title: (
             <>
-              No categorization rules set.{" "}
+              {t("spending:tabContent.noRulesSet")}{" "}
               <Link
                 to="/settings/spending/rules"
                 className="font-semibold underline-offset-4 hover:underline"
               >
-                Create rules →
+                {t("spending:tabContent.createRules")}
               </Link>
             </>
           ),
-          sub: "Automate matching for recurring merchants",
+          sub: t("spending:tabContent.automateMatching"),
         });
       }
     }
@@ -838,6 +826,7 @@ export default function SpendingTabContent() {
     categorizationRules,
     categorizationRulesLoading,
     theme.deep,
+    t,
   ]);
 
   return (
@@ -845,14 +834,15 @@ export default function SpendingTabContent() {
       {dataErrored && (
         <div className="mx-4 mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-700 md:mx-6 lg:mx-8 dark:text-amber-300">
           <span>
-            <span className="font-semibold">Couldn't load spending data.</span> Showing zeros below.
+            <span className="font-semibold">{t("spending:tabContent.loadError")}</span>{" "}
+            {t("spending:insightsPage.showingZeros")}
           </span>
           <button
             type="button"
             onClick={() => void refetchReport()}
             className="text-foreground hover:underline"
           >
-            Retry
+            {t("common:retry")}
           </button>
         </div>
       )}
@@ -860,7 +850,10 @@ export default function SpendingTabContent() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
           <div>
             <div className="text-muted-foreground/80 text-[11px] font-semibold uppercase tracking-[0.12em]">
-              Spent{selectedIntervalDescription ? ` · ${selectedIntervalDescription}` : ""}
+              {t("spending:tabContent.spentLabel")}
+              {selectedIntervalDescription
+                ? ` · ${selectedIntervalDescription.startsWith("spending:") ? t(selectedIntervalDescription) : selectedIntervalDescription}`
+                : ""}
             </div>
             <Balance
               isLoading={isLoading}
@@ -911,7 +904,9 @@ export default function SpendingTabContent() {
           ) : barData.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center">
               <Icons.CreditCard className="text-muted-foreground/30 mb-3 h-12 w-12" />
-              <p className="text-muted-foreground text-sm">No spending in this period</p>
+              <p className="text-muted-foreground text-sm">
+                {t("spending:tabContent.noSpendingInPeriod")}
+              </p>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -1011,15 +1006,15 @@ export default function SpendingTabContent() {
           <div className="flex flex-col gap-6 lg:grid lg:grid-cols-3 lg:gap-20">
             <div className="contents lg:col-span-2 lg:block lg:space-y-6">
               <DashboardCard
-                title="Where it went"
+                title={t("spending:tabContent.whereItWent")}
                 className="order-1 overflow-hidden lg:order-none"
                 action={
                   <div className="flex items-center gap-3">
                     <SegmentedToggle
-                      ariaLabel="Where it went view"
+                      ariaLabel={t("spending:tabContent.whereItWentView")}
                       items={[
-                        { value: "list", label: "List" },
-                        { value: "map", label: "Map" },
+                        { value: "list", label: t("spending:tabContent.listView") },
+                        { value: "map", label: t("spending:tabContent.mapView") },
                       ]}
                       value={whereItWentView}
                       onChange={(v) => setWhereItWentView(v as "list" | "map")}
@@ -1028,7 +1023,7 @@ export default function SpendingTabContent() {
                       to={dashboardInsightHref.where}
                       className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
                     >
-                      View all →
+                      {t("spending:tabContent.viewAll")}
                     </Link>
                   </div>
                 }
@@ -1038,19 +1033,21 @@ export default function SpendingTabContent() {
                 ) : whereItWentView === "map" ? (
                   <CategoryTreemapMono
                     rows={categoryRows}
-                    total={totalSpending}
+                    total={totalSpending + totalSaved}
                     currency={currency}
                     themeColor={theme.deep}
                     hasNoIncludedAccounts={hasNoIncludedAccounts}
+                    savingsHref={dashboardInsightHref.cashflow}
                   />
                 ) : (
                   <CategoryRankedBar
                     rows={categoryRows}
-                    total={totalSpending}
+                    total={totalSpending + totalSaved}
                     currency={currency}
                     themeColor={theme.deep}
                     groupRows={budget?.computed.groupRows ?? []}
                     hasNoIncludedAccounts={hasNoIncludedAccounts}
+                    savingsHref={dashboardInsightHref.cashflow}
                   />
                 )}
               </DashboardCard>
@@ -1066,7 +1063,9 @@ export default function SpendingTabContent() {
               </div>
 
               <div className="order-6 lg:order-none">
-                <h2 className="pb-2 text-sm font-semibold tracking-tight">Dig deeper</h2>
+                <h2 className="pb-2 text-sm font-semibold tracking-tight">
+                  {t("spending:tabContent.digDeeper")}
+                </h2>
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                   {INSIGHT_STAGES.map((s) => (
                     <Link
@@ -1079,9 +1078,9 @@ export default function SpendingTabContent() {
                         <Icons.ArrowRight className="text-muted-foreground/40 group-hover:text-foreground h-3.5 w-3.5 transition-colors" />
                       </div>
                       <div>
-                        <div className="text-foreground text-sm font-medium">{s.label}</div>
+                        <div className="text-foreground text-sm font-medium">{t(s.labelKey)}</div>
                         <div className="text-muted-foreground/80 mt-0.5 text-xs leading-snug">
-                          {s.sub}
+                          {t(s.subKey)}
                         </div>
                       </div>
                     </Link>
@@ -1118,9 +1117,11 @@ export default function SpendingTabContent() {
                 <div className="border-border/40 bg-card/70 order-4 rounded-xl border p-4 backdrop-blur-xl md:p-5 lg:order-none">
                   <div className="mb-2 flex items-center gap-2">
                     <Icons.AlertCircle className="h-4 w-4 shrink-0" style={{ color: theme.deep }} />
-                    <h3 className="text-foreground text-sm font-semibold">Worth a look</h3>
+                    <h3 className="text-foreground text-sm font-semibold">
+                      {t("spending:tabContent.worthALook")}
+                    </h3>
                     <span className="text-muted-foreground/70 ml-auto text-xs">
-                      {insights.length} {insights.length === 1 ? "signal" : "signals"}
+                      {t("spending:tabContent.signalCount", { count: insights.length })}
                     </span>
                   </div>
                   <div className="space-y-2.5">
@@ -1146,7 +1147,7 @@ export default function SpendingTabContent() {
                     to={dashboardInsightHref.changed}
                     className="text-muted-foreground hover:text-foreground ml-6 mt-3 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
                   >
-                    See trends
+                    {t("spending:tabContent.seeTrends")}
                     <Icons.ChevronRight className="h-3 w-3" />
                   </Link>
                 </div>
@@ -1220,40 +1221,46 @@ function SegmentedToggle({
 
 // ─── Where it went — Map (treemap) and List variants ──────────────────────
 
-type CategoryRow = {
+interface CategoryRow {
   id: string;
   name: string;
   color: string | null;
   icon: string | null;
   amount: number;
-};
+}
 
 /**
  * Deep-link for a "Where it went" node. The synthetic uncategorized bucket has
  * no real category id, so it routes to the status filter — the category filter
  * would match nothing and render an empty list.
  */
-function spendingActivityHref(id: string): string {
+function spendingActivityHref(id: string, savingsHref?: string): string {
+  if (id === SAVINGS_ROW_ID) return savingsHref ?? "/activities?tab=spending";
   return id === "__uncategorized__"
     ? "/activities?tab=spending&status=uncategorized"
     : `/activities?tab=spending&category=${id}`;
 }
 
 function WhereItWentEmptyState({ hasNoIncludedAccounts }: { hasNoIncludedAccounts: boolean }) {
+  const { t } = useTranslation();
   return (
     <div className="py-6 text-center">
       {hasNoIncludedAccounts ? (
         <div className="space-y-2">
-          <p className="text-muted-foreground text-sm">No spending accounts selected.</p>
+          <p className="text-muted-foreground text-sm">
+            {t("spending:tabContent.noAccountsSelected")}
+          </p>
           <Link
             to="/settings/spending"
             className="text-foreground inline-flex text-xs underline-offset-4 hover:underline"
           >
-            Open spending settings →
+            {t("spending:tabContent.openSpendingSettings")}
           </Link>
         </div>
       ) : (
-        <p className="text-muted-foreground text-sm">No categorized spending in this period.</p>
+        <p className="text-muted-foreground text-sm">
+          {t("spending:hierarchy.noCategorizedSpending")}
+        </p>
       )}
     </div>
   );
@@ -1284,13 +1291,16 @@ function CategoryTreemapMono({
   currency,
   themeColor,
   hasNoIncludedAccounts,
+  savingsHref,
 }: {
   rows: CategoryRow[];
   total: number;
   currency: string;
   themeColor: string;
   hasNoIncludedAccounts: boolean;
+  savingsHref?: string;
 }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   if (rows.length === 0 || total <= 0) {
@@ -1316,7 +1326,7 @@ function CategoryTreemapMono({
   }));
   if (restAmount > 0) {
     data.push({
-      name: "Other",
+      name: t("spending:hero.other"),
       amount: restAmount,
       fill: themeColor,
       accent: null,
@@ -1340,7 +1350,7 @@ function CategoryTreemapMono({
                   currency={currency}
                   onActivate={(id) => {
                     if (id && id !== "__other__") {
-                      navigate(spendingActivityHref(id));
+                      navigate(spendingActivityHref(id, savingsHref));
                     }
                   }}
                 />
@@ -1350,7 +1360,7 @@ function CategoryTreemapMono({
             onClick={(node: unknown) => {
               const id = (node as { id?: string } | null)?.id;
               if (id && id !== "__other__") {
-                navigate(spendingActivityHref(id));
+                navigate(spendingActivityHref(id, savingsHref));
               }
             }}
           >
@@ -1391,6 +1401,7 @@ const CategoryTreemapNodeMono: FC<CategoryTreemapNodeMonoProps> = ({
   id,
   onActivate,
 }) => {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   if (depth === 0) return null;
 
@@ -1419,11 +1430,11 @@ const CategoryTreemapNodeMono: FC<CategoryTreemapNodeMonoProps> = ({
     ? {
         role: "button" as const,
         tabIndex: 0,
-        "aria-label": `${name ?? "Category"}: ${amountText}, ${pctText}`,
+        "aria-label": `${name ?? t("spending:filters.category")}: ${amountText}, ${pctText}`,
         onKeyDown: (e: React.KeyboardEvent<SVGGElement>) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            onActivate?.(id!);
+            onActivate?.(id);
           }
         },
       }
@@ -1503,6 +1514,7 @@ function CategoryRankedBar({
   themeColor,
   groupRows = [],
   hasNoIncludedAccounts,
+  savingsHref,
 }: {
   rows: CategoryRow[];
   total: number;
@@ -1514,7 +1526,9 @@ function CategoryRankedBar({
    * group, the list switches to a grouped layout with collapsible group rows.
    */
   groupRows?: import("../types/budget").BudgetGroupRow[];
+  savingsHref?: string;
 }) {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   // Memoize derivations so we don't rebuild the Map + reduce + slices on every
   // parent re-render — this card lives inside a chart-heavy page.
@@ -1539,14 +1553,14 @@ function CategoryRankedBar({
     if (restAmount > 0) {
       barSegments.push({
         id: "__other__",
-        name: "Other",
+        name: t("spending:hero.other"),
         amount: restAmount,
         color: null,
         icon: null,
       });
     }
     return { categoryGroup, hasAnyGroup, uncategorizedAmount, top, restAmount, barSegments };
-  }, [rows, total, groupRows]);
+  }, [rows, total, groupRows, t]);
 
   if (rows.length === 0 || total <= 0) {
     return <WhereItWentEmptyState hasNoIncludedAccounts={hasNoIncludedAccounts} />;
@@ -1581,13 +1595,13 @@ function CategoryRankedBar({
   if (hasAnyGroup) {
     // Group rows by their group assignment; unassigned categories + the
     // uncategorized bucket fall into a synthetic "Other" group.
-    type Bucket = {
+    interface Bucket {
       id: string;
       name: string;
       color: string | null;
       categories: CategoryRow[];
       total: number;
-    };
+    }
     const buckets = new Map<string, Bucket>();
     const ensureBucket = (id: string, name: string, color: string | null) => {
       let b = buckets.get(id);
@@ -1608,11 +1622,16 @@ function CategoryRankedBar({
     const ensureOther = () =>
       fallbackGroup
         ? ensureBucket(fallbackGroup.group.id, fallbackGroup.group.name, fallbackGroup.group.color)
-        : ensureBucket("__other__", "Other", null);
+        : ensureBucket("__other__", t("spending:hero.other"), null);
 
     for (const row of rows) {
-      const g = categoryGroup.get(row.id);
-      const b = g ? ensureBucket(g.id, g.name, g.color) : ensureOther();
+      let b: Bucket;
+      if (row.id === SAVINGS_ROW_ID) {
+        b = ensureBucket(SAVINGS_ROW_ID, t("spending:cashFlow.saving"), SAVINGS_ROW_COLOR);
+      } else {
+        const g = categoryGroup.get(row.id);
+        b = g ? ensureBucket(g.id, g.name, g.color) : ensureOther();
+      }
       b.categories.push(row);
       b.total += row.amount;
     }
@@ -1620,7 +1639,7 @@ function CategoryRankedBar({
       const b = ensureOther();
       b.categories.push({
         id: "__uncategorized__",
-        name: "Uncategorized — review",
+        name: t("spending:tabContent.uncategorizedReview"),
         color: null,
         icon: null,
         amount: uncategorizedAmount,
@@ -1644,6 +1663,7 @@ function CategoryRankedBar({
               total={total}
               currency={currency}
               themeColor={themeColor}
+              savingsHref={savingsHref}
             />
           ))}
         </div>
@@ -1664,7 +1684,7 @@ function CategoryRankedBar({
           return (
             <Link
               key={r.id}
-              to={spendingActivityHref(r.id)}
+              to={spendingActivityHref(r.id, savingsHref)}
               className="hover:bg-muted/40 group flex items-center gap-2.5 rounded-md px-1 py-1 transition-colors"
             >
               <span
@@ -1690,7 +1710,7 @@ function CategoryRankedBar({
           >
             <Icons.AlertCircle className="text-muted-foreground h-3 w-3 shrink-0" />
             <span className="text-foreground/80 min-w-0 flex-1 text-xs font-medium">
-              Uncategorized — review to improve breakdown
+              {t("spending:tabContent.uncategorizedImprove")}
             </span>
             <span className="text-muted-foreground/70 w-12 text-right text-[11px] tabular-nums">
               {uncategorizedShare.toFixed(1)}%
@@ -1702,7 +1722,8 @@ function CategoryRankedBar({
         )}
         {restAmount > 0 && (
           <div className="text-muted-foreground/60 px-1 pt-1 text-[10px]">
-            + {rows.length - 7} more · <PrivacyAmount value={restAmount} currency={currency} />
+            {t("spending:tabContent.plusMore", { count: rows.length - 7 })} ·{" "}
+            <PrivacyAmount value={restAmount} currency={currency} />
           </div>
         )}
       </div>
@@ -1715,6 +1736,7 @@ function GroupedCategoryBlock({
   total,
   currency,
   themeColor,
+  savingsHref,
 }: {
   bucket: {
     id: string;
@@ -1726,6 +1748,7 @@ function GroupedCategoryBlock({
   total: number;
   currency: string;
   themeColor: string;
+  savingsHref?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const share = total > 0 ? (bucket.total / total) * 100 : 0;
@@ -1775,9 +1798,7 @@ function GroupedCategoryBlock({
           {sortedCats.map((cat) => {
             const catShare = total > 0 ? (cat.amount / total) * 100 : 0;
             const isUncategorized = cat.id === "__uncategorized__";
-            const to = isUncategorized
-              ? "/activities?tab=spending&status=uncategorized"
-              : `/activities?tab=spending&category=${cat.id}`;
+            const to = spendingActivityHref(cat.id, savingsHref);
             const dotColor = cat.color ?? accent;
             return (
               <Link
@@ -1828,14 +1849,15 @@ function SpendingDeltaLine({
   currency: string;
   deltaPct: number | null;
 }) {
+  const { t } = useTranslation();
   const isFlat = Math.abs(delta) < 1;
-  const direction = delta < 0 ? "Down" : "Up";
+  const direction = delta < 0 ? t("spending:tabContent.down") : t("spending:tabContent.up");
   const tone = isFlat ? "text-muted-foreground" : delta < 0 ? "text-success" : "text-destructive";
 
   if (isFlat) {
     return (
       <span className="text-muted-foreground lg:text-md text-sm font-light">
-        About the same as prior period
+        {t("spending:tabContent.aboutSame")}
       </span>
     );
   }
@@ -1848,7 +1870,7 @@ function SpendingDeltaLine({
         {direction} <PrivacyAmount value={Math.abs(delta)} currency={currency} />
         {pctSuffix}
       </span>{" "}
-      <span className="text-muted-foreground">from prior period</span>
+      <span className="text-muted-foreground">{t("spending:tabContent.fromPriorPeriod")}</span>
     </span>
   );
 }

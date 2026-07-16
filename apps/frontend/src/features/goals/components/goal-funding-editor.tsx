@@ -19,12 +19,8 @@ import { useGoalPlanMutations } from "../hooks/use-goal-detail";
 import { useGoalDetail } from "../hooks/use-goal-detail";
 import { useGoals } from "../hooks/use-goals";
 import { useCallback, useEffect, useMemo, useState } from "react";
-
-const TAX_BUCKET_LABELS: Record<string, string> = {
-  taxable: "Taxable",
-  tax_deferred: "Tax-deferred",
-  tax_free: "Tax-free",
-};
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 const TAX_BUCKET_COLORS: Record<string, string> = {
   taxable: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
@@ -155,9 +151,10 @@ function sumShares(rules: { sharePercent: number }[]): number {
   return rules.reduce((sum, rule) => sum + rule.sharePercent, 0);
 }
 
-function allocationLabel(row: AccountAllocationRow): string {
-  if (row.overBy > SHARE_EPSILON) return `${formatShare(row.overBy)}% over`;
-  return `${formatShare(row.left)}% left`;
+function allocationLabel(row: AccountAllocationRow, t: TFunction): string {
+  if (row.overBy > SHARE_EPSILON)
+    return t("goals:funding.over", { percent: formatShare(row.overBy) });
+  return t("goals:funding.left", { percent: formatShare(row.left) });
 }
 
 function allocationLabelClass(row: AccountAllocationRow): string {
@@ -173,6 +170,7 @@ export function GoalFundingEditor({
   editing,
   onEditingChange,
 }: Props) {
+  const { t } = useTranslation();
   const { accounts } = useAccounts({ accountPurpose: AccountPurpose.GOAL_FUNDING });
   const { goals } = useGoals();
   const { fundingRules } = useGoalDetail(goalId);
@@ -236,7 +234,7 @@ export function GoalFundingEditor({
     const goal = otherGoals[index];
     return (query.data ?? []).map((rule) => ({
       ...rule,
-      goalTitle: goal?.title ?? "Goal",
+      goalTitle: goal?.title ?? t("goals:detail.goal_fallback"),
     }));
   });
 
@@ -374,17 +372,19 @@ export function GoalFundingEditor({
       .map((goal) => ({ id: goal.id, title: goal.title }));
 
     if (sharePercents.size > 0 && !columns.some((goal) => goal.id === goalId)) {
-      columns.unshift({ id: goalId, title: currentGoal?.title ?? "This goal" });
+      columns.unshift({ id: goalId, title: currentGoal?.title ?? t("goals:funding.this_goal") });
     }
 
     return columns;
-  }, [currentGoal?.title, goalId, otherFundingRules, participatingGoals, sharePercents.size]);
+  }, [currentGoal?.title, goalId, otherFundingRules, participatingGoals, sharePercents.size, t]);
 
   return (
     <>
       <Card>
         <CardHeader className="flex-row items-start justify-between pb-4">
-          <CardTitle className="text-md leading-none tracking-tight">Account Shares</CardTitle>
+          <CardTitle className="text-md leading-none tracking-tight">
+            {t("goals:funding.account_shares")}
+          </CardTitle>
           {isEditing ? (
             <div className="flex gap-1.5">
               <Button
@@ -393,10 +393,10 @@ export function GoalFundingEditor({
                 className="h-7 text-xs"
                 onClick={() => setDetailsOpen(true)}
               >
-                Details
+                {t("common:details")}
               </Button>
               <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleCancel}>
-                Cancel
+                {t("common:cancel")}
               </Button>
               <Button
                 size="sm"
@@ -404,7 +404,7 @@ export function GoalFundingEditor({
                 onClick={handleSave}
                 disabled={saveFundingMutation.isPending || !dirty || hasInvalidAllocations}
               >
-                {saveFundingMutation.isPending ? "Saving..." : "Save"}
+                {saveFundingMutation.isPending ? t("goals:funding.saving") : t("common:save")}
               </Button>
             </div>
           ) : (
@@ -414,16 +414,16 @@ export function GoalFundingEditor({
                 onClick={() => setDetailsOpen(true)}
                 className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4 transition-colors"
               >
-                Details
+                {t("common:details")}
               </button>
               <button
                 type="button"
                 onClick={() => setEditing(true)}
-                aria-label="Edit Account Shares"
+                aria-label={t("goals:funding.edit_account_shares")}
                 className="text-muted-foreground hover:text-foreground inline-flex shrink-0 items-center gap-1.5 text-sm transition-colors"
               >
                 <Icons.Pencil className="h-3.5 w-3.5" />
-                Edit
+                {t("common:edit")}
               </button>
             </div>
           )}
@@ -434,8 +434,7 @@ export function GoalFundingEditor({
             <div className="space-y-3">
               {!isRetirement && (
                 <p className="text-muted-foreground text-[10px]">
-                  This share stays reserved while the goal is active. It is released when the goal
-                  is achieved or archived.
+                  {t("goals:funding.reserved_share_note")}
                 </p>
               )}
 
@@ -472,9 +471,11 @@ export function GoalFundingEditor({
                                   ? (TAX_BUCKET_COLORS[tb] ?? "")
                                   : "bg-muted text-muted-foreground"
                               }`}
-                              title="Click to change tax bucket"
+                              title={t("goals:funding.change_tax_bucket")}
                             >
-                              {tb ? TAX_BUCKET_LABELS[tb] : "Set type"}
+                              {tb
+                                ? t(`goals:funding.tax_bucket.${tb}`)
+                                : t("goals:funding.set_type")}
                             </button>
                           )}
 
@@ -482,7 +483,7 @@ export function GoalFundingEditor({
                             <span
                               className={`w-16 shrink-0 text-right text-[11px] font-medium tabular-nums ${allocationLabelClass(allocation)}`}
                             >
-                              {allocationLabel(allocation)}
+                              {allocationLabel(allocation, t)}
                             </span>
                           )}
 
@@ -499,11 +500,12 @@ export function GoalFundingEditor({
                             <Tooltip>
                               <TooltipTrigger>
                                 <span className="text-muted-foreground flex items-center gap-0.5 text-[10px]">
-                                  <Icons.ShieldCheck className="h-3 w-3" /> Pension
+                                  <Icons.ShieldCheck className="h-3 w-3" />{" "}
+                                  {t("goals:funding.pension")}
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent className="text-xs">
-                                Linked to pension income stream
+                                {t("goals:funding.pension_tooltip")}
                               </TooltipContent>
                             </Tooltip>
                           )}
@@ -513,7 +515,7 @@ export function GoalFundingEditor({
                             <button
                               onClick={() => removeAccount(a.id)}
                               className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1 transition-colors"
-                              aria-label={`Remove ${a.name}`}
+                              aria-label={t("goals:funding.remove_account", { name: a.name })}
                             >
                               <Icons.X className="h-3.5 w-3.5" />
                             </button>
@@ -526,8 +528,12 @@ export function GoalFundingEditor({
                               <div className="text-muted-foreground flex items-center justify-between gap-3 text-[10px]">
                                 <span className="truncate">
                                   {otherTotal > SHARE_EPSILON
-                                    ? `${formatShare(otherTotal)}% used by other active goals`
-                                    : `${formatShare(allocation.left)}% still unassigned`}
+                                    ? t("goals:funding.used_by_other_goals", {
+                                        percent: formatShare(otherTotal),
+                                      })
+                                    : t("goals:funding.still_unassigned", {
+                                        percent: formatShare(allocation.left),
+                                      })}
                                 </span>
                                 {hasOverage && (
                                   <button
@@ -535,14 +541,18 @@ export function GoalFundingEditor({
                                     className="text-destructive shrink-0 font-medium underline underline-offset-2"
                                     onClick={() => updateSharePercent(a.id, maxForThisGoal)}
                                   >
-                                    Use max {formatShare(maxForThisGoal)}%
+                                    {t("goals:funding.use_max", {
+                                      percent: formatShare(maxForThisGoal),
+                                    })}
                                   </button>
                                 )}
                               </div>
                             )}
                             {hasOverage && (
                               <p className="text-destructive mt-1 text-[10px]">
-                                This account is overallocated by {formatShare(overBy)}%.
+                                {t("goals:funding.overallocated", {
+                                  percent: formatShare(overBy),
+                                })}
                               </p>
                             )}
                           </div>
@@ -557,7 +567,7 @@ export function GoalFundingEditor({
               {availableAccounts.length > 0 && (
                 <div className="space-y-1">
                   <p className="text-muted-foreground px-1 text-[10px] uppercase tracking-wider">
-                    Add accounts
+                    {t("goals:funding.add_accounts")}
                   </p>
                   {availableAccounts.map((a) => (
                     <button
@@ -574,14 +584,16 @@ export function GoalFundingEditor({
               )}
 
               {activeAccounts.length === 0 && (
-                <p className="text-muted-foreground text-xs">No active accounts found.</p>
+                <p className="text-muted-foreground text-xs">
+                  {t("goals:funding.no_active_accounts")}
+                </p>
               )}
 
               {hasInvalidAllocations && (
                 <div className="text-destructive bg-destructive/5 rounded-lg px-3 py-2 text-[11px]">
-                  {invalidAllocationRows.length} account
-                  {invalidAllocationRows.length === 1 ? "" : "s"} exceed available share. Use the
-                  highlighted max value before saving.
+                  {t("goals:funding.accounts_exceed_share", {
+                    count: invalidAllocationRows.length,
+                  })}
                 </div>
               )}
             </div>
@@ -590,12 +602,12 @@ export function GoalFundingEditor({
             <div>
               {includedAccounts.length === 0 ? (
                 <p className="text-muted-foreground py-2 text-xs">
-                  No accounts assigned.{" "}
+                  {t("goals:funding.no_accounts_assigned")}{" "}
                   <button
                     className="text-foreground underline underline-offset-2"
                     onClick={() => setEditing(true)}
                   >
-                    Add accounts
+                    {t("goals:funding.add_accounts_action")}
                   </button>
                 </p>
               ) : (
@@ -603,7 +615,7 @@ export function GoalFundingEditor({
                   {includedAccounts.map((a, i) => {
                     const percent = sharePercents.get(a.id) ?? 0;
                     const tb = taxBuckets.get(a.id);
-                    const tbLabel = tb ? TAX_BUCKET_LABELS[tb] : null;
+                    const tbLabel = tb ? t(`goals:funding.tax_bucket.${tb}`) : null;
                     return (
                       <div
                         key={a.id}
@@ -657,38 +669,39 @@ function AllocationDetailsSheet({
   goalColumns: { id: string; title: string }[];
   currentGoalId: string;
 }) {
+  const { t } = useTranslation();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex h-full w-full flex-col p-0 sm:max-w-3xl">
         <SheetHeader className="border-border border-b px-6 py-5">
-          <SheetTitle>Allocation details</SheetTitle>
-          <SheetDescription>
-            Active goal shares by account. Each account can be allocated up to 100%.
-          </SheetDescription>
+          <SheetTitle>{t("goals:funding.allocation_details")}</SheetTitle>
+          <SheetDescription>{t("goals:funding.allocation_details_description")}</SheetDescription>
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {rows.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No active account shares yet.</p>
+            <p className="text-muted-foreground text-sm">{t("goals:funding.no_active_shares")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
                 <thead>
                   <tr className="text-muted-foreground text-left text-[10px] uppercase tracking-[0.18em]">
-                    <th className="border-border border-b py-2 pr-4 font-medium">Account</th>
+                    <th className="border-border border-b py-2 pr-4 font-medium">
+                      {t("common:account")}
+                    </th>
                     {goalColumns.map((goal) => (
                       <th
                         key={goal.id}
                         className="border-border border-b px-3 py-2 text-right font-medium"
                       >
-                        {goal.id === currentGoalId ? "This goal" : goal.title}
+                        {goal.id === currentGoalId ? t("goals:funding.this_goal") : goal.title}
                       </th>
                     ))}
                     <th className="border-border border-b px-3 py-2 text-right font-medium">
-                      Free
+                      {t("goals:funding.free")}
                     </th>
                     <th className="border-border border-b py-2 pl-3 text-right font-medium">
-                      Total
+                      {t("common:total")}
                     </th>
                   </tr>
                 </thead>

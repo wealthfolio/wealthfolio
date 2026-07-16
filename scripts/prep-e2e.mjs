@@ -21,10 +21,33 @@ const replaceDbPath = (content, timestamp) => {
   return content.replace(/^WF_DB_PATH=.*$/m, `WF_DB_PATH=./db/app-testing-${timestamp}.db`);
 };
 
+const setEnvValue = (content, key, value) => {
+  const line = `${key}=${value}`;
+  const pattern = new RegExp(`^${key}=.*$`, "m");
+
+  if (pattern.test(content)) {
+    return content.replace(pattern, line);
+  }
+
+  return `${content.trimEnd()}\n${line}\n`;
+};
+
+const prepareE2eEnvContent = (content, timestamp) => {
+  let updated = replaceDbPath(content, timestamp);
+
+  updated = setEnvValue(updated, "WF_AUTH_PASSWORD_HASH", "");
+  updated = setEnvValue(updated, "WF_AUTH_REQUIRED", "false");
+  updated = setEnvValue(updated, "WF_OIDC_ISSUER_URL", "");
+  updated = setEnvValue(updated, "WF_OIDC_CLIENT_ID", "");
+  updated = setEnvValue(updated, "WF_OIDC_CLIENT_SECRET", "");
+
+  return updated;
+};
+
 export const prepE2eEnv = async () => {
   const content = await readFile(ENV_PATH, "utf8");
   const timestamp = getTimestamp();
-  const updated = replaceDbPath(content, timestamp);
+  const updated = prepareE2eEnvContent(content, timestamp);
 
   if (content === updated) {
     console.log("WF_DB_PATH already set for this run, no update required.");

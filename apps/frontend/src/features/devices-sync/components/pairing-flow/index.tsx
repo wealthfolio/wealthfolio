@@ -15,6 +15,7 @@ import { getPlatform as getRuntimePlatform } from "@/hooks/use-platform";
 import { Icons } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { useEffect, useRef, useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { usePairingIssuer, usePairingClaimer, useSyncStatus } from "../../hooks";
 import type { PairingBootstrapState } from "../../hooks";
 import { logSyncError, userFacingSyncErrorMessage } from "../../utils/error-messages";
@@ -92,6 +93,7 @@ export function PairingFlow({
 
 // Issuer Flow (trusted device - displays QR code)
 function IssuerFlow({ onComplete, onCancel, title, description }: PairingFlowProps) {
+  const { t } = useTranslation();
   const {
     step,
     error,
@@ -132,7 +134,7 @@ function IssuerFlow({ onComplete, onCancel, title, description }: PairingFlowPro
 
   switch (step) {
     case "idle":
-      return <WaitingState title="Starting..." onCancel={onCancel} />;
+      return <WaitingState title={t("sync:pairing.starting")} onCancel={onCancel} />;
 
     case "display_code":
       if (pairingCode && expiresAt) {
@@ -143,19 +145,27 @@ function IssuerFlow({ onComplete, onCancel, title, description }: PairingFlowPro
           </>
         );
       }
-      return <WaitingState title="Generating code..." onCancel={handleCancel} showQRSkeleton />;
+      return (
+        <WaitingState
+          title={t("sync:pairing.generatingCode")}
+          onCancel={handleCancel}
+          showQRSkeleton
+        />
+      );
 
     case "verify_sas":
       if (sas) {
         return <SASVerification sas={sas} onConfirm={confirmSAS} onReject={rejectSAS} />;
       }
-      return <WaitingState title="Computing security code..." onCancel={handleCancel} />;
+      return (
+        <WaitingState title={t("sync:pairing.computingSecurityCode")} onCancel={handleCancel} />
+      );
 
     case "transferring":
       return (
         <WaitingState
-          title="Finishing setup..."
-          description="Preparing your data for the new device"
+          title={t("sync:pairing.finishingSetup")}
+          description={t("sync:pairing.finishingSetupDescription")}
         />
       );
 
@@ -171,7 +181,7 @@ function IssuerFlow({ onComplete, onCancel, title, description }: PairingFlowPro
       return (
         <PairingResult
           success={false}
-          error="Session expired"
+          error={t("sync:pairing.sessionExpired")}
           onRetry={handleRetry}
           onDone={handleCancel}
         />
@@ -190,6 +200,7 @@ function ClaimerFlow({
   title,
   description,
 }: PairingFlowProps) {
+  const { t } = useTranslation();
   const {
     step,
     error,
@@ -233,9 +244,7 @@ function ClaimerFlow({
           await backupDatabaseToPath(selectedDir);
         } else {
           if (runtimePlatform.os !== "ios") {
-            throw new Error(
-              "Backup before device sync is currently supported on desktop, web, and iOS only",
-            );
+            throw new Error(t("sync:errors.backupPlatformUnsupported"));
           }
           const { relativePath, filename } = await backupDatabaseToPendingExport();
           const saved = await saveAppDataFileViaPicker(relativePath, filename);
@@ -245,11 +254,11 @@ function ClaimerFlow({
       await approveOverwrite();
     } catch (err) {
       logSyncError("Pairing overwrite backup failed", err);
-      setBackupError(userFacingSyncErrorMessage(err, "Backup failed"));
+      setBackupError(userFacingSyncErrorMessage(err, t("sync:backup.failedTitle")));
     } finally {
       setIsBackingUp(false);
     }
-  }, [approveOverwrite]);
+  }, [approveOverwrite, t]);
 
   switch (step) {
     case "enter_code":
@@ -261,16 +270,23 @@ function ClaimerFlow({
       );
 
     case "connecting":
-      return <WaitingState title="Connecting..." onCancel={handleCancel} />;
+      return <WaitingState title={t("sync:pairing.connecting")} onCancel={handleCancel} />;
 
     case "waiting_keys":
       return (
-        <WaitingState title="Verify Security Code" securityCode={sas} onCancel={handleCancel} />
+        <WaitingState
+          title={t("sync:pairing.verifySecurityCode")}
+          securityCode={sas}
+          onCancel={handleCancel}
+        />
       );
 
     case "syncing":
       return (
-        <WaitingState title="Syncing your data..." description="This may take a few seconds" />
+        <WaitingState
+          title={t("sync:pairing.syncingData")}
+          description={t("sync:pairing.syncingDataDescription")}
+        />
       );
 
     case "overwrite_required":
@@ -314,8 +330,8 @@ function PairingOverwriteConsent({
   onBackupThenApprove: () => void;
   onApprove: () => void;
 }) {
+  const { t } = useTranslation();
   const isBusy = isBackingUp || isApproving;
-  const rowLabel = localRows === 1 ? "row" : "rows";
 
   return (
     <div className="flex flex-col items-center gap-6 px-4 py-2 text-center">
@@ -323,39 +339,39 @@ function PairingOverwriteConsent({
         <Icons.AlertTriangle className="h-6 w-6 text-amber-500" />
       </div>
       <div className="space-y-2">
-        <h2 className="text-xl font-semibold">Replace data on this device?</h2>
+        <h2 className="text-xl font-semibold">{t("sync:overwrite.replaceDataTitle")}</h2>
         <p className="text-muted-foreground text-sm">
-          Your local data will be replaced with data from your other connected device.
+          {t("sync:overwrite.replaceDataDescription")}
         </p>
         {localRows > 0 && (
           <p className="text-muted-foreground text-xs">
-            {localRows} local {rowLabel} will be replaced.
+            {t("sync:overwrite.localRowsReplaced", { count: localRows })}
           </p>
         )}
         {error && <p className="text-destructive text-sm">{error}</p>}
       </div>
       <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
         <Button variant="ghost" onClick={onCancel} disabled={isBusy}>
-          Not now
+          {t("sync:overwrite.notNow")}
         </Button>
         <Button variant="outline" onClick={onBackupThenApprove} disabled={isBusy}>
           {isBackingUp ? (
             <>
               <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-              Backing up...
+              {t("sync:backup.backingUp")}
             </>
           ) : (
-            "Back up first"
+            t("sync:backup.backUpFirst")
           )}
         </Button>
         <Button onClick={onApprove} disabled={isBusy}>
           {isApproving ? (
             <>
               <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-              Syncing...
+              {t("sync:overwrite.syncing")}
             </>
           ) : (
-            "Replace & Sync"
+            t("sync:overwrite.replaceAndSync")
           )}
         </Button>
       </div>

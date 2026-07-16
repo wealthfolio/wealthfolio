@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Button, Card, CardContent, Icons, Skeleton } from "@wealthfolio/ui";
+import { Button, Card, CardContent, formatPrice, Icons, Skeleton } from "@wealthfolio/ui";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { cn, formatAmount } from "@/lib/utils";
 import { toast } from "sonner";
 import type {
@@ -88,10 +90,53 @@ function parseCashValue(value: string): number {
   return parseFloat(value.replace(/,/g, "")) || 0;
 }
 
-/** Round drift-bar scale up to a clean ceiling (nearest 5pp), always covering the band. */
-function driftScaleMaxBps(maxDriftBps: number, bandBps: number): number {
-  const ceiling = Math.ceil(Math.max(maxDriftBps, bandBps * 1.4, 100) / 500) * 500;
+/** Round drift-bar scale up to a clean ceiling, always covering the tolerance range. */
+function driftScaleMaxBps(maxDriftBps: number, toleranceMaxBps: number): number {
+  const ceiling = Math.ceil(Math.max(maxDriftBps, toleranceMaxBps * 1.4, 100) / 500) * 500;
   return Math.max(ceiling, 500);
+}
+
+interface DriftToleranceRange {
+  minBps: number;
+  maxBps: number;
+  label: string;
+}
+
+function formatTolerancePct(bps: number): string {
+  const pct = bps / 100;
+  return Number.isInteger(pct) ? pct.toFixed(0) : pct.toFixed(1);
+}
+
+function driftToleranceRange(
+  profile: AllocationTarget,
+  driftReport: DriftReport | null,
+  t: TFunction,
+): DriftToleranceRange {
+  const bands =
+    driftReport?.rows
+      .filter((row) => row.isRequired && row.targetBps > 0)
+      .map((row) => row.effectiveBandBps) ?? [];
+
+  if (bands.length === 0) {
+    const bps = profile.driftBandBps;
+    return {
+      minBps: bps,
+      maxBps: bps,
+      label: t("allocation:tolerance.single", { value: formatTolerancePct(bps) }),
+    };
+  }
+
+  const minBps = Math.min(...bands);
+  const maxBps = Math.max(...bands);
+  const label =
+    minBps === maxBps
+      ? t("allocation:tolerance.single", { value: formatTolerancePct(maxBps) })
+      : t("allocation:tolerance.range", {
+          min: formatTolerancePct(minBps),
+          max: formatTolerancePct(maxBps),
+        });
+
+  return { minBps, maxBps, label };
 }
 
 interface SleeveSummaryRow {
@@ -123,7 +168,7 @@ function computeSleeveSummary(driftReport: DriftReport, plan: RebalancePlan): Sl
 }
 
 /** "Cash sits 42% over a 0% target." — describes the largest current drift driver. */
-function driftDriverSentence(driftReport: DriftReport): string | null {
+function driftDriverSentence(driftReport: DriftReport, t: TFunction): string | null {
   let top: { name: string; drift: number; cur: number; tgt: number } | null = null;
   for (const r of driftReport.rows) {
     if (r.status === "not_targeted" && r.currentBps === 0) continue;
@@ -133,17 +178,26 @@ function driftDriverSentence(driftReport: DriftReport): string | null {
     }
   }
   if (!top) return null;
-  return `${top.name} sits ${(top.cur / 100).toFixed(0)}% ${top.drift >= 0 ? "over" : "under"} a ${(top.tgt / 100).toFixed(0)}% target.`;
+  return t(
+    top.drift >= 0
+      ? "allocation:planner.driverSentenceOver"
+      : "allocation:planner.driverSentenceUnder",
+    {
+      name: top.name,
+      current: (top.cur / 100).toFixed(0),
+      target: (top.tgt / 100).toFixed(0),
+    },
+  );
 }
 
-function modeVerb(mode: ScenarioMode): string {
-  if (mode === "sell_to_rebalance") return "Sells and buys";
-  if (mode === "hybrid") return "Cash and sells";
-  return "Cash-flow buys";
+function modeVerb(mode: ScenarioMode, t: TFunction): string {
+  if (mode === "sell_to_rebalance") return t("allocation:planner.modeVerbSells");
+  if (mode === "hybrid") return t("allocation:planner.modeVerbHybrid");
+  return t("allocation:planner.modeVerbCashFlow");
 }
 
-/** Narrative for the Before · Target · After card. */
-function reshapeNarrative(sleeves: SleeveSummaryRow[], mode: ScenarioMode): string {
+/** Narrative for the Now · After · Target card. */
+function reshapeNarrative(sleeves: SleeveSummaryRow[], mode: ScenarioMode, t: TFunction): string {
   const movers = sleeves.map((s) => ({
     name: s.categoryName,
     before: s.currentBps - s.targetBps,
@@ -157,22 +211,31 @@ function reshapeNarrative(sleeves: SleeveSummaryRow[], mode: ScenarioMode): stri
   const under = movers.filter((m) => m.after < -50).sort((a, b) => a.after - b.after)[0];
 
   const parts: string[] = [];
-  const verb = modeVerb(mode);
+  const verb = modeVerb(mode, t);
   if (lifted && shrank) {
     parts.push(
-      `${verb} lift ${lifted.name} toward target and shrink the ${shrank.name} overweight from ${ppSigned(shrank.before)} to ${ppSigned(shrank.after)}.`,
+      t("allocation:narrative.liftAndShrink", {
+        verb,
+        lifted: lifted.name,
+        shrank: shrank.name,
+        before: ppSigned(shrank.before),
+        after: ppSigned(shrank.after),
+      }),
     );
   } else if (lifted) {
-    parts.push(`${verb} lift ${lifted.name} toward target.`);
+    parts.push(t("allocation:narrative.lift", { verb, lifted: lifted.name }));
   } else if (shrank) {
     parts.push(
-      `${verb} shrink the ${shrank.name} overweight from ${ppSigned(shrank.before)} to ${ppSigned(shrank.after)}.`,
+      t("allocation:narrative.shrink", {
+        verb,
+        shrank: shrank.name,
+        before: ppSigned(shrank.before),
+        after: ppSigned(shrank.after),
+      }),
     );
   }
   if (under && under.name !== shrank?.name) {
-    parts.push(
-      `${under.name} stays underweight — closing it needs a sell or a buy above the minimum lot.`,
-    );
+    parts.push(t("allocation:narrative.staysUnderweight", { name: under.name }));
   }
   return parts.join(" ");
 }
@@ -195,44 +258,46 @@ function csvCell(value: string): string {
   return `"${escaped}"`;
 }
 
-function exportCsv(plan: RebalancePlan, currency: string, profileName: string) {
+function exportCsv(plan: RebalancePlan, currency: string, profileName: string, t: TFunction) {
   const generated = new Date().toISOString().slice(0, 10);
   const fractionDigits = currencyFractionDigits(currency);
   const cashTotals = planCashTotals(plan);
   const cashRows = cashTotals.hasSells
     ? [
-        ["Buy total", cashTotals.buyTotal.toFixed(fractionDigits)],
-        ["Sell proceeds", cashTotals.sellProceeds.toFixed(fractionDigits)],
-        ["New cash used", cashTotals.newCashUsed.toFixed(fractionDigits)],
-        ["Cash remaining", plan.cashRemaining.toFixed(fractionDigits)],
-        ["Cash available", plan.availableCash.toFixed(fractionDigits)],
+        [t("allocation:csv.buyTotal"), cashTotals.buyTotal.toFixed(fractionDigits)],
+        [t("allocation:csv.sellProceeds"), cashTotals.sellProceeds.toFixed(fractionDigits)],
+        [t("allocation:csv.newCashUsed"), cashTotals.newCashUsed.toFixed(fractionDigits)],
+        [t("allocation:csv.cashRemaining"), plan.cashRemaining.toFixed(fractionDigits)],
+        [t("allocation:csv.cashAvailable"), plan.availableCash.toFixed(fractionDigits)],
       ]
     : [
-        ["Cash deployed", plan.cashUsed.toFixed(fractionDigits)],
-        ["Cash remaining", plan.cashRemaining.toFixed(fractionDigits)],
-        ["Cash available", plan.availableCash.toFixed(fractionDigits)],
+        [t("allocation:csv.cashDeployed"), plan.cashUsed.toFixed(fractionDigits)],
+        [t("allocation:csv.cashRemaining"), plan.cashRemaining.toFixed(fractionDigits)],
+        [t("allocation:csv.cashAvailable"), plan.availableCash.toFixed(fractionDigits)],
       ];
 
   const meta = [
-    ["Generated", generated],
-    ["Profile", profileName],
-    ["Currency", currency],
+    [t("allocation:csv.generated"), generated],
+    [t("allocation:csv.profile"), profileName],
+    [t("allocation:csv.currency"), currency],
     ...cashRows,
-    ["Max drift before", fmtBps(plan.maxDriftBpsBefore)],
-    ["Max drift after", fmtBps(plan.maxDriftBpsAfter)],
+    [t("allocation:csv.maxDriftBefore"), fmtBps(plan.maxDriftBpsBefore)],
+    [t("allocation:csv.maxDriftAfter"), fmtBps(plan.maxDriftBpsAfter)],
   ]
     .map((row) => row.map(csvCell).join(","))
     .join("\n");
 
   const header = [
-    "Action",
-    "Symbol",
-    "Name",
-    "Category",
-    `Amount (${currency})`,
-    "Shares",
-    `Last Price (${currency})`,
-    "Reason",
+    t("allocation:csv.action"),
+    t("allocation:csv.symbol"),
+    t("allocation:csv.name"),
+    t("allocation:csv.category"),
+    t("allocation:csv.account"),
+    t("allocation:csv.holdingId"),
+    t("allocation:csv.amount", { currency }),
+    t("allocation:csv.shares"),
+    t("allocation:csv.lastPrice", { currency }),
+    t("allocation:csv.reason"),
   ]
     .map(csvCell)
     .join(",");
@@ -243,9 +308,11 @@ function exportCsv(plan: RebalancePlan, currency: string, profileName: string) {
       t.symbol ?? "",
       t.name ?? "",
       t.categoryName,
+      t.accountId ?? "",
+      t.holdingId ?? "",
       t.estimatedAmount.toFixed(fractionDigits),
       t.quantity != null ? t.quantity.toFixed(t.quantity % 1 === 0 ? 0 : 4) : "",
-      t.estimatedPrice != null ? t.estimatedPrice.toFixed(fractionDigits) : "",
+      t.estimatedPrice != null ? String(t.estimatedPrice) : "",
       t.reason,
     ]
       .map(csvCell)
@@ -262,25 +329,41 @@ function exportCsv(plan: RebalancePlan, currency: string, profileName: string) {
   URL.revokeObjectURL(url);
 }
 
-function copyToText(plan: RebalancePlan, currency: string) {
+function copyToText(plan: RebalancePlan, currency: string, t: TFunction) {
   const cashTotals = planCashTotals(plan);
   const lines = [
-    `Rebalance plan · ${new Date().toLocaleDateString()}`,
+    t("allocation:copyText.header", { date: new Date().toLocaleDateString() }),
     cashTotals.hasSells
-      ? `New cash used: ${formatAmount(cashTotals.newCashUsed, currency)} (buy total ${formatAmount(cashTotals.buyTotal, currency)}, sell proceeds ${formatAmount(cashTotals.sellProceeds, currency)}, cash remaining ${formatAmount(plan.cashRemaining, currency)})`
-      : `Cash deployed: ${formatAmount(plan.cashUsed, currency)} of ${formatAmount(plan.availableCash, currency)}`,
-    `Max drift: ${fmtBps(plan.maxDriftBpsBefore)} → ${fmtBps(plan.maxDriftBpsAfter)}`,
+      ? t("allocation:copyText.newCashUsed", {
+          used: formatAmount(cashTotals.newCashUsed, currency),
+          buyTotal: formatAmount(cashTotals.buyTotal, currency),
+          sellProceeds: formatAmount(cashTotals.sellProceeds, currency),
+          cashRemaining: formatAmount(plan.cashRemaining, currency),
+        })
+      : t("allocation:copyText.cashDeployed", {
+          used: formatAmount(plan.cashUsed, currency),
+          available: formatAmount(plan.availableCash, currency),
+        }),
+    t("allocation:copyText.maxDrift", {
+      before: fmtBps(plan.maxDriftBpsBefore),
+      after: fmtBps(plan.maxDriftBpsAfter),
+    }),
     "",
-    "PROPOSED TRADES",
+    t("allocation:copyText.proposedTrades"),
     ...plan.trades.map(
-      (t) =>
-        `${t.action.toUpperCase()}  ${t.symbol ?? t.categoryName}  ${formatAmount(t.estimatedAmount, currency)}` +
-        (t.quantity != null ? `  ${t.quantity.toFixed(t.quantity % 1 === 0 ? 0 : 4)} sh` : "") +
-        (t.estimatedPrice != null ? ` @ ${formatAmount(t.estimatedPrice, currency)}` : ""),
+      (trade) =>
+        `${trade.action.toUpperCase()}  ${trade.symbol ?? trade.categoryName}  ${formatAmount(trade.estimatedAmount, currency)}` +
+        (trade.accountId
+          ? `  ${t("allocation:copyText.account", { account: trade.accountId })}`
+          : "") +
+        (trade.quantity != null
+          ? `  ${t("allocation:copyText.shares", { qty: trade.quantity.toFixed(trade.quantity % 1 === 0 ? 0 : 4) })}`
+          : "") +
+        (trade.estimatedPrice != null ? ` @ ${formatPrice(trade.estimatedPrice, currency)}` : ""),
     ),
   ];
   if (plan.warnings.length) {
-    lines.push("", `${plan.warnings.length} warning(s):`);
+    lines.push("", t("allocation:copyText.warnings", { count: plan.warnings.length }));
     plan.warnings.forEach((w) => lines.push(`  · ${w.message}`));
   }
   void navigator.clipboard.writeText(lines.join("\n"));
@@ -314,20 +397,26 @@ function ModeSwitch({
   value: ScenarioMode;
   onChange: (mode: ScenarioMode) => void;
 }) {
+  const { t } = useTranslation();
   const modes: { id: ScenarioMode; label: string; shortLabel: string; hint: string }[] = [
     {
       id: "cash_flow_only",
-      label: "Cash-flow only",
-      shortLabel: "Cash-flow",
-      hint: `deploy new ${currencySymbol(currency)}`,
+      label: t("allocation:mode.cashFlowOnly"),
+      shortLabel: t("allocation:mode.cashFlowShort"),
+      hint: t("allocation:mode.cashFlowHint", { symbol: currencySymbol(currency) }),
     },
     {
       id: "sell_to_rebalance",
-      label: "Sell to rebalance",
-      shortLabel: "Sell",
-      hint: "sells fund buys",
+      label: t("allocation:mode.sellToRebalance"),
+      shortLabel: t("allocation:mode.sellShort"),
+      hint: t("allocation:mode.sellHint"),
     },
-    { id: "hybrid", label: "Hybrid", shortLabel: "Hybrid", hint: "cash + sells" },
+    {
+      id: "hybrid",
+      label: t("allocation:mode.hybrid"),
+      shortLabel: t("allocation:mode.hybridShort"),
+      hint: t("allocation:mode.hybridHint"),
+    },
   ];
 
   return (
@@ -365,7 +454,7 @@ function ModeSwitch({
               <span className="flex min-w-0 cursor-not-allowed">{button}</span>
             </TooltipTrigger>
             <TooltipContent className="text-xs">
-              Enable &apos;Allow sells&apos; on this target to use this mode
+              {t("allocation:mode.enableSellsTip")}
             </TooltipContent>
           </Tooltip>
         );
@@ -397,6 +486,7 @@ function PlannerInput({
   isCalculating: boolean;
   isSourceLoading: boolean;
 }) {
+  const { t } = useTranslation();
   const limit = cashInputLimit(availableCash, currency);
   const deploy = parseCashValue(cashValue);
   const overBudget = deploy > limit;
@@ -407,7 +497,7 @@ function PlannerInput({
     { id: "25", label: "25%", value: limit * 0.25 },
     { id: "50", label: "50%", value: limit * 0.5 },
     { id: "75", label: "75%", value: limit * 0.75 },
-    { id: "all", label: "All", value: limit },
+    { id: "all", label: t("allocation:planner.all"), value: limit },
   ];
   const activePreset = presets.find((p) => Math.abs(p.value - deploy) <= 0.5 + limit * 0.001)?.id;
 
@@ -416,9 +506,9 @@ function PlannerInput({
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
-        <Eyebrow>Cash to deploy</Eyebrow>
+        <Eyebrow>{t("allocation:planner.cashToDeploy")}</Eyebrow>
         <span className="text-muted-foreground font-mono text-[11px] sm:text-xs">
-          of {roundedCurrency(availableCash, currency)} in scope
+          {t("allocation:planner.ofInScope", { amount: roundedCurrency(availableCash, currency) })}
         </span>
       </div>
 
@@ -478,7 +568,9 @@ function PlannerInput({
       </p>
 
       {overBudget && (
-        <p className="text-destructive mt-2 font-mono text-xs">Exceeds available cash</p>
+        <p className="text-destructive mt-2 font-mono text-xs">
+          {t("allocation:planner.exceedsAvailableCash")}
+        </p>
       )}
 
       <div className="mt-auto pt-4 sm:pt-5">
@@ -495,12 +587,12 @@ function PlannerInput({
             <Icons.BarChart className="mr-1.5 h-3.5 w-3.5" />
           )}
           {isCalculating
-            ? "Calculating…"
+            ? t("allocation:planner.calculating")
             : isSourceLoading
-              ? "Loading…"
+              ? t("allocation:planner.loading")
               : hasPlan
-                ? "Recalculate"
-                : "Calculate plan"}
+                ? t("allocation:planner.recalculate")
+                : t("allocation:planner.calculatePlan")}
         </Button>
       </div>
     </div>
@@ -512,18 +604,20 @@ function PlannerInput({
 function DriftBar({
   beforeBps,
   afterBps,
-  bandBps,
+  tolerance,
   scaleMaxBps,
 }: {
   beforeBps: number;
   afterBps: number | null;
-  bandBps: number;
+  tolerance: DriftToleranceRange;
   scaleMaxBps: number;
 }) {
+  const { t } = useTranslation();
   const clamp = (bps: number) => Math.min(100, Math.max(0, (bps / scaleMaxBps) * 100));
   const beforePos = clamp(beforeBps);
   const afterPos = afterBps != null ? clamp(afterBps) : 0;
-  const bandPos = clamp(bandBps);
+  const toleranceMinPos = clamp(tolerance.minBps);
+  const toleranceMaxPos = clamp(tolerance.maxBps);
   const isAfter = afterBps != null;
   const primaryLabel = driftLabelPlacement(isAfter ? afterPos : beforePos);
   const beforeLabel = driftLabelPlacement(beforePos);
@@ -551,11 +645,21 @@ function DriftBar({
           </>
         ) : (
           <>
-            {/* tolerance band: 0 → band */}
+            {/* tolerance band: solid to the tightest sleeve, soft to the widest sleeve */}
             <div
               className="absolute inset-y-0 left-0 rounded-full"
-              style={{ width: `${bandPos}%`, background: "#9db8a8" }}
+              style={{ width: `${toleranceMinPos}%`, background: "#9db8a8" }}
             />
+            {toleranceMaxPos > toleranceMinPos && (
+              <div
+                className="absolute inset-y-0 rounded-full opacity-45"
+                style={{
+                  left: `${toleranceMinPos}%`,
+                  width: `${toleranceMaxPos - toleranceMinPos}%`,
+                  background: "#9db8a8",
+                }}
+              />
+            )}
           </>
         )}
         {/* NOW / AFTER marker */}
@@ -575,7 +679,7 @@ function DriftBar({
             {isAfter ? pp1(afterBps) : fmtBps(beforeBps)}
           </span>
           <span className="text-muted-foreground font-mono text-xs uppercase tracking-wider">
-            {isAfter ? "After" : "Now"}
+            {isAfter ? t("allocation:driftBar.after") : t("allocation:driftBar.now")}
           </span>
         </div>
         {isAfter && (
@@ -587,7 +691,7 @@ function DriftBar({
               {pp1(beforeBps)}
             </span>
             <span className="text-muted-foreground font-mono text-xs uppercase tracking-wider">
-              Before
+              {t("allocation:driftBar.before")}
             </span>
           </div>
         )}
@@ -596,7 +700,7 @@ function DriftBar({
       {/* scale */}
       <div className="text-muted-foreground mt-1 flex justify-between font-mono text-xs tabular-nums">
         <span>0%</span>
-        <span>tolerance ±{(bandBps / 100).toFixed(0)}%</span>
+        <span>{tolerance.label}</span>
         <span>{(scaleMaxBps / 100).toFixed(0)}%</span>
       </div>
     </div>
@@ -618,25 +722,24 @@ function PlannerResult({
   driftReport,
   plan,
   currency,
-  bandBps,
+  tolerance,
   scaleMaxBps,
-  mode,
   onReview,
 }: {
   driftReport: DriftReport;
   plan: RebalancePlan | null;
   currency: string;
-  bandBps: number;
+  tolerance: DriftToleranceRange;
   scaleMaxBps: number;
-  mode: ScenarioMode;
   onReview: () => void;
 }) {
+  const { t } = useTranslation();
   if (!plan) {
     // ── Before Calculate ──
-    const driver = driftDriverSentence(driftReport);
+    const driver = driftDriverSentence(driftReport, t);
     return (
       <div className="flex h-full flex-col">
-        <Eyebrow>Current max drift</Eyebrow>
+        <Eyebrow>{t("allocation:result.currentMaxDrift")}</Eyebrow>
         <div className="text-muted-foreground mt-0.5 font-mono text-2xl font-semibold tabular-nums leading-none">
           {fmtBps(driftReport.maxDriftBps)}
         </div>
@@ -646,14 +749,18 @@ function PlannerResult({
           <DriftBar
             beforeBps={driftReport.maxDriftBps}
             afterBps={null}
-            bandBps={bandBps}
+            tolerance={tolerance}
             scaleMaxBps={scaleMaxBps}
           />
         </div>
 
         <div className="border-border/70 mt-4 grid grid-cols-3 gap-4 border-t pt-3">
-          {["Trades", "Impact", "Drift after"].map((label) => (
-            <div key={label}>
+          {[
+            { key: "trades", label: t("allocation:result.trades") },
+            { key: "impact", label: t("allocation:result.impact") },
+            { key: "driftAfter", label: t("allocation:result.driftAfter") },
+          ].map(({ key, label }) => (
+            <div key={key}>
               <Eyebrow>{label}</Eyebrow>
               <div className="text-muted-foreground mt-1 font-mono text-sm">—</div>
             </div>
@@ -661,7 +768,7 @@ function PlannerResult({
         </div>
 
         <p className="text-muted-foreground mt-auto pt-4 font-mono text-xs">
-          Set your inputs, then Calculate to project the plan →
+          {t("allocation:result.setInputsHint")}
         </p>
       </div>
     );
@@ -669,28 +776,27 @@ function PlannerResult({
 
   // ── After Calculate ──
   const cashTotals = planCashTotals(plan);
-  const buys = plan.trades.filter((t) => t.action === "buy").length;
-  const sells = plan.trades.filter((t) => t.action === "sell").length;
-  const tradeSub =
-    sells > 0
-      ? `${buys} buy${buys !== 1 ? "s" : ""} · ${sells} sell${sells !== 1 ? "s" : ""}`
-      : `${buys} buy${buys !== 1 ? "s" : ""} · 0 sells`;
+  const buys = plan.trades.filter((trade) => trade.action === "buy").length;
+  const sells = plan.trades.filter((trade) => trade.action === "sell").length;
+  const buysWord = t("allocation:result.buysCount", { count: buys });
+  const sellsWord = t("allocation:result.sellsCount", { count: sells });
+  const tradeSub = `${buysWord} · ${sellsWord}`;
   const deployed = sells > 0 ? cashTotals.newCashUsed : plan.cashUsed;
   const scopePct =
     plan.availableCash > 0 ? Math.round((plan.cashUsed / plan.availableCash) * 100) : 0;
   const improvedBps = plan.maxDriftBpsBefore - plan.maxDriftBpsAfter;
   const improved = improvedBps > 0;
 
-  const tradesWord = `${plan.trades.length} trade${plan.trades.length !== 1 ? "s" : ""}`;
+  const tradesWord = t("allocation:result.tradesCount", { count: plan.trades.length });
   const tradesActionSummary =
     sells > 0
-      ? `${buys} buy${buys !== 1 ? "s" : ""}${sells ? ` and ${sells} sell${sells !== 1 ? "s" : ""}` : ""}`
-      : `${buys} buy${buys !== 1 ? "s" : ""}`;
+      ? t("allocation:result.buysAndSells", { buys: buysWord, sells: sellsWord })
+      : buysWord;
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-start justify-between gap-3">
-        <Eyebrow>Projected max drift</Eyebrow>
+        <Eyebrow>{t("allocation:result.projectedMaxDrift")}</Eyebrow>
         {improvedBps !== 0 && (
           <span
             className={cn(
@@ -700,7 +806,7 @@ function PlannerResult({
                 : "bg-[#f0e0da] text-[#b4664a] dark:bg-red-950/40 dark:text-red-400",
             )}
           >
-            {improved ? "↓" : "↑"} {Math.abs(improvedBps / 100).toFixed(1)} pts
+            {improved ? "↓" : "↑"} {Math.abs(improvedBps / 100).toFixed(1)}%
           </span>
         )}
       </div>
@@ -717,14 +823,14 @@ function PlannerResult({
         <DriftBar
           beforeBps={plan.maxDriftBpsBefore}
           afterBps={plan.maxDriftBpsAfter}
-          bandBps={bandBps}
+          tolerance={tolerance}
           scaleMaxBps={scaleMaxBps}
         />
       </div>
 
       <div className="border-border/70 mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t pt-3 sm:grid-cols-3 sm:gap-4">
         <div>
-          <Eyebrow>Trades</Eyebrow>
+          <Eyebrow>{t("allocation:result.trades")}</Eyebrow>
           <div className="text-foreground mt-1 font-mono text-sm font-semibold tabular-nums leading-none sm:text-base">
             {plan.trades.length}
           </div>
@@ -732,34 +838,39 @@ function PlannerResult({
         </div>
         <div>
           <Eyebrow>
-            <span className="sm:hidden">Deployed</span>
-            <span className="hidden sm:inline">Cash deployed</span>
+            <span className="sm:hidden">{t("allocation:result.deployedShort")}</span>
+            <span className="hidden sm:inline">{t("allocation:result.cashDeployed")}</span>
           </Eyebrow>
           <div className="text-foreground mt-1 font-mono text-sm font-semibold tabular-nums leading-none sm:text-base">
             {roundedCurrency(deployed, currency)}
           </div>
-          <div className="text-muted-foreground mt-1 font-mono text-xs">{scopePct}% of scope</div>
+          <div className="text-muted-foreground mt-1 font-mono text-xs">
+            {t("allocation:result.percentOfScope", { pct: scopePct })}
+          </div>
         </div>
         <div>
           <Eyebrow>
-            <span className="sm:hidden">Remaining</span>
-            <span className="hidden sm:inline">Cash remaining</span>
+            <span className="sm:hidden">{t("allocation:result.remainingShort")}</span>
+            <span className="hidden sm:inline">{t("allocation:result.cashRemaining")}</span>
           </Eyebrow>
           <div className="text-foreground mt-1 font-mono text-sm font-semibold tabular-nums leading-none sm:text-base">
             {roundedCurrency(plan.cashRemaining, currency)}
           </div>
           <div className="text-muted-foreground mt-1 font-mono text-xs">
-            {sells > 0 ? "cash + proceeds" : "below min lot"}
+            {sells > 0
+              ? t("allocation:result.cashPlusProceeds")
+              : t("allocation:result.belowMinLot")}
           </div>
         </div>
       </div>
 
       <p className="text-foreground/80 mt-4 hidden font-mono text-xs leading-relaxed sm:block">
-        {modeVerb(mode) === "Cash-flow buys" ? "Deploying" : "This plan deploys"}{" "}
-        <span className="text-foreground font-semibold">{roundedCurrency(deployed, currency)}</span>{" "}
-        across {tradesActionSummary} — cutting max drift{" "}
-        <span className="text-foreground font-semibold">{fmtBps(plan.maxDriftBpsBefore)}</span> to{" "}
-        <span className="text-foreground font-semibold">{fmtBps(plan.maxDriftBpsAfter)}</span>.
+        {t("allocation:result.deployNarrative", {
+          amount: roundedCurrency(deployed, currency),
+          actions: tradesActionSummary,
+          before: fmtBps(plan.maxDriftBpsBefore),
+          after: fmtBps(plan.maxDriftBpsAfter),
+        })}
       </p>
 
       {plan.trades.length > 0 && (
@@ -768,14 +879,15 @@ function PlannerResult({
           onClick={onReview}
           className="mt-4 inline-flex w-fit items-center gap-1 font-mono text-xs font-medium text-[#2f6b46] underline-offset-4 hover:underline sm:mt-3 dark:text-emerald-400"
         >
-          Review {tradesWord} <Icons.ArrowRight className="h-3.5 w-3.5" />
+          {t("allocation:result.reviewTrades", { trades: tradesWord })}{" "}
+          <Icons.ArrowRight className="h-3.5 w-3.5" />
         </button>
       )}
     </div>
   );
 }
 
-// ── Before · Target · After ───────────────────────────────────────────────────
+// ── Now · After · Target ─────────────────────────────────────────────────────
 
 function StackedBar({
   label,
@@ -819,6 +931,7 @@ function StackedBar({
 }
 
 function SleeveTable({ sleeves }: { sleeves: SleeveSummaryRow[] }) {
+  const { t } = useTranslation();
   let maxIdx = -1;
   let maxAbs = -1;
   sleeves.forEach((s, i) => {
@@ -832,11 +945,11 @@ function SleeveTable({ sleeves }: { sleeves: SleeveSummaryRow[] }) {
     <table className="w-full font-mono text-xs">
       <thead>
         <tr className="text-muted-foreground border-border border-b text-xs uppercase tracking-wider">
-          <th className="pb-2 text-left font-medium">Sleeve</th>
-          <th className="pb-2 pr-2 text-right font-medium">Now</th>
-          <th className="pb-2 pr-2 text-right font-medium">After</th>
-          <th className="pb-2 pr-2 text-right font-medium">Tgt</th>
-          <th className="pb-2 text-right font-medium">Drift</th>
+          <th className="pb-2 text-left font-medium">{t("allocation:sleeve.sleeve")}</th>
+          <th className="pb-2 pr-2 text-right font-medium">{t("allocation:sleeve.now")}</th>
+          <th className="pb-2 pr-2 text-right font-medium">{t("allocation:sleeve.after")}</th>
+          <th className="pb-2 pr-2 text-right font-medium">{t("allocation:sleeve.tgt")}</th>
+          <th className="pb-2 text-right font-medium">{t("allocation:sleeve.drift")}</th>
         </tr>
       </thead>
       <tbody>
@@ -854,7 +967,7 @@ function SleeveTable({ sleeves }: { sleeves: SleeveSummaryRow[] }) {
                   <span className="text-foreground">{s.categoryName}</span>
                   {i === maxIdx && maxAbs >= 5 && (
                     <span className="text-muted-foreground border-border rounded border px-1 py-px text-xs font-medium uppercase tracking-wide">
-                      Max
+                      {t("allocation:sleeve.max")}
                     </span>
                   )}
                 </div>
@@ -880,17 +993,17 @@ function SleeveTable({ sleeves }: { sleeves: SleeveSummaryRow[] }) {
 }
 
 function SleeveReshapeCard({ sleeves, mode }: { sleeves: SleeveSummaryRow[]; mode: ScenarioMode }) {
-  const narrative = reshapeNarrative(sleeves, mode);
+  const { t } = useTranslation();
+  const narrative = reshapeNarrative(sleeves, mode, t);
   return (
     <Card>
       <CardContent className="p-0">
         <div className="px-5 pt-4">
           <h3 className="text-foreground font-mono text-sm font-semibold">
-            Before · Target · After
+            {t("allocation:sleeve.nowAfterTarget")}
           </h3>
           <p className="text-muted-foreground mt-1 font-mono text-xs leading-relaxed">
-            How deploying this cash reshapes the portfolio by sleeve. Sleeves are stacked in the
-            same order across all three bars.
+            {t("allocation:sleeve.reshapeDescription")}
           </p>
         </div>
 
@@ -898,9 +1011,18 @@ function SleeveReshapeCard({ sleeves, mode }: { sleeves: SleeveSummaryRow[]; mod
           {/* Bars */}
           <div className="border-border/60 px-5 py-5 lg:border-r">
             <div className="space-y-3">
-              <StackedBar label="Now" field="currentBps" sleeves={sleeves} />
-              <StackedBar label="Target" field="targetBps" sleeves={sleeves} />
-              <StackedBar label="After" field="afterBps" sleeves={sleeves} bold />
+              <StackedBar label={t("allocation:sleeve.now")} field="currentBps" sleeves={sleeves} />
+              <StackedBar
+                label={t("allocation:sleeve.after")}
+                field="afterBps"
+                sleeves={sleeves}
+                bold
+              />
+              <StackedBar
+                label={t("allocation:sleeve.target")}
+                field="targetBps"
+                sleeves={sleeves}
+              />
             </div>
             <div className="border-border/60 mt-5 flex flex-wrap gap-x-5 gap-y-2 border-t pt-4">
               {sleeves
@@ -934,14 +1056,18 @@ function SleeveReshapeCard({ sleeves, mode }: { sleeves: SleeveSummaryRow[]; mod
 
 // ── Warnings ──────────────────────────────────────────────────────────────────
 
-const WARN_LABEL: Record<string, string> = {
-  missing_quote: "Missing quote",
-  no_buy_candidate: "No buy candidate",
-  unclassified_asset: "Unclassified",
-  partial_classification: "Partial classification",
+const WARN_LABEL_KEYS: Record<string, string> = {
+  missing_quote: "allocation:warnings.missingQuote",
+  no_buy_candidate: "allocation:warnings.noBuyCandidate",
+  tagged_cash: "allocation:warnings.taggedCash",
+  unclassified_asset: "allocation:warnings.unclassified",
+  partial_classification: "allocation:warnings.partialClassification",
+  constraint_skipped_sell: "allocation:warnings.sellConstraint",
+  turnover_cap_reached: "allocation:warnings.turnoverCap",
 };
 
 function Warnings({ items }: { items: RebalanceWarning[] }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   if (!items.length) return null;
   return (
@@ -952,7 +1078,7 @@ function Warnings({ items }: { items: RebalanceWarning[] }) {
       >
         <Icons.AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
         <span className="flex-1 font-mono text-xs font-semibold text-amber-800 dark:text-amber-300">
-          {items.length} thing{items.length > 1 ? "s" : ""} to know about this plan
+          {t("allocation:warnings.thingsToKnow", { count: items.length })}
         </span>
         <Icons.ChevronDown
           className={cn(
@@ -966,7 +1092,7 @@ function Warnings({ items }: { items: RebalanceWarning[] }) {
           {items.map((w, i) => (
             <li key={i} className="flex items-start gap-3 px-4 py-2.5">
               <span className="mt-px shrink-0 whitespace-nowrap rounded border border-amber-300 px-1.5 py-0.5 font-mono text-xs font-medium uppercase tracking-wide text-amber-700 dark:border-amber-700 dark:text-amber-400">
-                {WARN_LABEL[w.kind] ?? w.kind}
+                {WARN_LABEL_KEYS[w.kind] ? t(WARN_LABEL_KEYS[w.kind]) : w.kind}
               </span>
               <span className="text-foreground/80 text-xs leading-snug">{w.message}</span>
             </li>
@@ -985,6 +1111,7 @@ function tradeQuantityLabel(quantity: number | null | undefined): string {
 }
 
 function TradeActionBadge({ action }: { action: string }) {
+  const { t } = useTranslation();
   const isSell = action === "sell";
   return (
     <span
@@ -995,65 +1122,78 @@ function TradeActionBadge({ action }: { action: string }) {
           : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
       )}
     >
-      {isSell ? "Sell" : "Buy"}
+      {isSell ? t("allocation:trades.sell") : t("allocation:trades.buy")}
     </span>
   );
 }
 
 function TradesTable({ trades, currency }: { trades: SuggestedManualTrade[]; currency: string }) {
-  const buys = trades.filter((t) => t.action === "buy");
-  const sells = trades.filter((t) => t.action === "sell");
-  const buyTotal = buys.reduce((s, t) => s + t.estimatedAmount, 0);
+  const { t } = useTranslation();
+  const buys = trades.filter((trade) => trade.action === "buy");
+  const sells = trades.filter((trade) => trade.action === "sell");
+  const buyTotal = buys.reduce((sum, trade) => sum + trade.estimatedAmount, 0);
+  const countSummary =
+    sells.length > 0
+      ? `${t("allocation:result.buysCount", { count: buys.length })} · ${t("allocation:result.sellsCount", { count: sells.length })}`
+      : t("allocation:result.buysCount", { count: buys.length });
 
   return (
     <>
       <div className="divide-border divide-y md:hidden">
-        {trades.map((t, i) => (
+        {trades.map((trade, i) => (
           <div key={i} className="px-4 py-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
-                  <TradeActionBadge action={t.action} />
+                  <TradeActionBadge action={trade.action} />
                   <span className="text-foreground truncate font-mono text-sm font-semibold">
-                    {t.symbol ?? "Trade"}
+                    {trade.symbol ?? t("allocation:trades.trade")}
                   </span>
                 </div>
-                {t.name && (
-                  <div className="text-muted-foreground mt-1 truncate text-xs">{t.name}</div>
+                {trade.name && (
+                  <div className="text-muted-foreground mt-1 truncate text-xs">{trade.name}</div>
                 )}
-                <div className="text-muted-foreground mt-1 font-mono text-xs">{t.categoryName}</div>
+                <div className="text-muted-foreground mt-1 font-mono text-xs">
+                  {trade.categoryName}
+                </div>
+                {trade.accountId && (
+                  <div className="text-muted-foreground mt-1 truncate font-mono text-xs">
+                    {t("allocation:trades.acct", { account: trade.accountId })}
+                  </div>
+                )}
               </div>
               <div className="shrink-0 text-right">
                 <div className="text-foreground font-mono text-sm font-semibold tabular-nums">
-                  {formatAmount(t.estimatedAmount, currency)}
+                  {formatAmount(trade.estimatedAmount, currency)}
                 </div>
                 <div className="text-muted-foreground mt-1 font-mono text-xs tabular-nums">
-                  {tradeQuantityLabel(t.quantity)} shares
+                  {t("allocation:trades.sharesLabel", { qty: tradeQuantityLabel(trade.quantity) })}
                 </div>
               </div>
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-3 font-mono text-xs">
               <div>
-                <div className="text-muted-foreground uppercase tracking-[0.14em]">Price</div>
+                <div className="text-muted-foreground uppercase tracking-[0.14em]">
+                  {t("allocation:trades.price")}
+                </div>
                 <div className="text-foreground mt-1 tabular-nums">
-                  {t.estimatedPrice != null ? formatAmount(t.estimatedPrice, currency) : "—"}
+                  {trade.estimatedPrice != null ? formatPrice(trade.estimatedPrice, currency) : "—"}
                 </div>
               </div>
               <div className="min-w-0">
-                <div className="text-muted-foreground uppercase tracking-[0.14em]">Reason</div>
-                <div className="text-foreground mt-1 truncate" title={t.reason}>
-                  {t.reason}
+                <div className="text-muted-foreground uppercase tracking-[0.14em]">
+                  {t("allocation:trades.reason")}
+                </div>
+                <div className="text-foreground mt-1 truncate" title={trade.reason}>
+                  {trade.reason}
                 </div>
               </div>
             </div>
           </div>
         ))}
         <div className="bg-muted/20 flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs">
-          <span className="text-muted-foreground">
-            {buys.length} buy{buys.length !== 1 ? "s" : ""}
-            {sells.length > 0 && ` · ${sells.length} sell${sells.length !== 1 ? "s" : ""}`}
-          </span>
+          <span className="text-muted-foreground">{countSummary}</span>
           <span className="text-foreground font-semibold tabular-nums">
             {formatAmount(buyTotal, currency)}
           </span>
@@ -1073,50 +1213,71 @@ function TradesTable({ trades, currency }: { trades: SuggestedManualTrade[]; cur
           </colgroup>
           <thead>
             <tr className="border-border text-muted-foreground border-b font-mono text-xs uppercase tracking-wider">
-              <th className="py-2.5 pl-5 pr-2 text-left font-medium">Action</th>
-              <th className="py-2.5 pr-3 text-left font-medium">Ticker</th>
-              <th className="py-2.5 pl-14 pr-3 text-left font-medium">Category</th>
-              <th className="py-2.5 pr-3 text-right font-medium">Amount</th>
-              <th className="py-2.5 pr-3 text-right font-medium">Shares</th>
-              <th className="py-2.5 pr-7 text-right font-medium">Last price</th>
-              <th className="py-2.5 pl-10 pr-5 text-left font-medium">Reason</th>
+              <th className="py-2.5 pl-5 pr-2 text-left font-medium">
+                {t("allocation:trades.colAction")}
+              </th>
+              <th className="py-2.5 pr-3 text-left font-medium">
+                {t("allocation:trades.colTicker")}
+              </th>
+              <th className="py-2.5 pl-14 pr-3 text-left font-medium">
+                {t("allocation:trades.colCategoryAccount")}
+              </th>
+              <th className="py-2.5 pr-3 text-right font-medium">
+                {t("allocation:trades.colAmount")}
+              </th>
+              <th className="py-2.5 pr-3 text-right font-medium">
+                {t("allocation:trades.colShares")}
+              </th>
+              <th className="py-2.5 pr-7 text-right font-medium">
+                {t("allocation:trades.colLastPrice")}
+              </th>
+              <th className="py-2.5 pl-10 pr-5 text-left font-medium">
+                {t("allocation:trades.colReason")}
+              </th>
             </tr>
           </thead>
           <tbody>
-            {trades.map((t, i) => (
+            {trades.map((trade, i) => (
               <tr key={i} className="border-border hover:bg-muted/30 h-12 border-b last:border-b-0">
                 <td className="pl-5 pr-2">
-                  <TradeActionBadge action={t.action} />
+                  <TradeActionBadge action={trade.action} />
                 </td>
                 <td className="pr-3">
-                  {t.symbol ? (
+                  {trade.symbol ? (
                     <>
                       <div className="text-foreground font-mono text-xs font-medium">
-                        {t.symbol}
+                        {trade.symbol}
                       </div>
-                      {t.name && (
-                        <div className="text-muted-foreground truncate text-xs">{t.name}</div>
+                      {trade.name && (
+                        <div className="text-muted-foreground truncate text-xs">{trade.name}</div>
                       )}
                     </>
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}
                 </td>
-                <td className="text-muted-foreground pl-14 pr-3 text-xs">{t.categoryName}</td>
+                <td className="text-muted-foreground pl-14 pr-3 text-xs">
+                  <div>{trade.categoryName}</div>
+                  {trade.accountId && (
+                    <div className="truncate font-mono">
+                      {t("allocation:trades.acct", { account: trade.accountId })}
+                    </div>
+                  )}
+                </td>
                 <td className="text-foreground pr-3 text-right font-semibold tabular-nums">
-                  {formatAmount(t.estimatedAmount, currency)}
+                  {formatAmount(trade.estimatedAmount, currency)}
                 </td>
                 <td className="text-muted-foreground pr-3 text-right tabular-nums">
-                  {tradeQuantityLabel(t.quantity)}
+                  {tradeQuantityLabel(trade.quantity)}
                 </td>
                 <td className="text-muted-foreground pr-7 text-right tabular-nums">
-                  {t.estimatedPrice != null ? formatAmount(t.estimatedPrice, currency) : "—"}
+                  {trade.estimatedPrice != null ? formatPrice(trade.estimatedPrice, currency) : "—"}
                 </td>
                 <td
                   className="text-muted-foreground max-w-0 truncate pl-10 pr-5 text-xs"
-                  title={t.reason}
+                  title={trade.reason}
                 >
-                  {t.reason}
+                  {trade.reason}
                 </td>
               </tr>
             ))}
@@ -1124,8 +1285,7 @@ function TradesTable({ trades, currency }: { trades: SuggestedManualTrade[]; cur
           <tfoot>
             <tr className="text-xs">
               <td colSpan={3} className="text-muted-foreground py-3 pl-5 font-mono">
-                {buys.length} buy{buys.length !== 1 ? "s" : ""}
-                {sells.length > 0 && ` · ${sells.length} sell${sells.length !== 1 ? "s" : ""}`}
+                {countSummary}
               </td>
               <td className="text-foreground py-3 pr-3 text-right font-semibold tabular-nums">
                 {formatAmount(buyTotal, currency)}
@@ -1158,10 +1318,10 @@ export function RebalanceTab({
   sourceVersion,
   isSourceLoading,
 }: RebalanceTabProps) {
+  const { t } = useTranslation();
   const [cashDraft, setCashDraft] = useState<{ key: string; value: string } | null>(null);
   const [scenarioMode, setScenarioMode] = useState<ScenarioMode>("cash_flow_only");
   const tradesRef = useRef<HTMLDivElement>(null);
-
   const currency = driftReport?.baseCurrency ?? "USD";
   const inputContextKey = `${profile?.id ?? "no-profile"}:${accountScopeKey(accountScope)}:${currency}`;
   const cashValue =
@@ -1198,23 +1358,24 @@ export function RebalanceTab({
   function handleCalculate() {
     if (!profile) return;
     if (!sourceReady) {
-      toast.error("Portfolio data is still loading");
+      toast.error(t("allocation:toast.dataLoading"));
       return;
     }
     if (availableCashLimit <= 0 && !isSellMode) {
-      toast.error("No cash available in scope");
+      toast.error(t("allocation:toast.noCashAvailable"));
       return;
     }
     if (cash <= 0 && !isSellMode) {
-      toast.error("Enter a valid cash amount");
+      toast.error(t("allocation:toast.enterValidCash"));
       return;
     }
     if (cash > availableCashLimit) {
-      toast.error("Cash to deploy exceeds available cash");
+      toast.error(t("allocation:toast.cashExceeds"));
       return;
     }
     void planQuery.refetch().then((res) => {
-      if (res.error) toast.error(`Failed to calculate plan: ${res.error.message}`);
+      if (res.error)
+        toast.error(t("allocation:toast.calculateFailed", { message: res.error.message }));
     });
   }
 
@@ -1222,9 +1383,11 @@ export function RebalanceTab({
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-20 text-center">
         <Icons.Target className="text-muted-foreground h-10 w-10" />
-        <div className="text-foreground text-sm font-semibold">No profile selected</div>
+        <div className="text-foreground text-sm font-semibold">
+          {t("allocation:rebalance.noProfileSelected")}
+        </div>
         <div className="text-muted-foreground max-w-sm text-sm">
-          Select a target profile to calculate a rebalance plan.
+          {t("allocation:rebalance.selectProfileHint")}
         </div>
       </div>
     );
@@ -1232,15 +1395,15 @@ export function RebalanceTab({
 
   const description =
     scenarioMode === "sell_to_rebalance"
-      ? "Sell what you're overweight to buy what you're underweight. Your cash stays put. Tax impact is not estimated."
+      ? t("allocation:rebalance.descriptionSell")
       : scenarioMode === "hybrid"
-        ? "Invest your cash first, then sell overweight sleeves only if cash alone can't close the gap. Cash can add to a holding but can't shrink one you already own too much of. Tax impact is not estimated."
-        : "Put your new cash to work in the sleeves you're light on. Buys only — nothing is sold.";
+        ? t("allocation:rebalance.descriptionHybrid")
+        : t("allocation:rebalance.descriptionCashFlow");
 
-  const bandBps = profile.driftBandBps;
+  const tolerance = driftToleranceRange(profile, driftReport, t);
   const baseDrift = driftReport?.maxDriftBps ?? 0;
   const beforeDrift = plan?.maxDriftBpsBefore ?? baseDrift;
-  const scaleMaxBps = driftScaleMaxBps(Math.max(beforeDrift, baseDrift), bandBps);
+  const scaleMaxBps = driftScaleMaxBps(Math.max(beforeDrift, baseDrift), tolerance.maxBps);
 
   const sleeveSummary = plan && driftReport ? computeSleeveSummary(driftReport, plan) : [];
   const isCalculating = planQuery.isFetching;
@@ -1294,9 +1457,8 @@ export function RebalanceTab({
                   driftReport={driftReport}
                   plan={plan}
                   currency={currency}
-                  bandBps={bandBps}
+                  tolerance={tolerance}
                   scaleMaxBps={scaleMaxBps}
-                  mode={scenarioMode}
                   onReview={reviewTrades}
                 />
               )}
@@ -1307,7 +1469,7 @@ export function RebalanceTab({
 
       {hasStalePlan && sourceReady && !isCalculating && (
         <div className="border-border bg-muted/40 text-muted-foreground rounded-lg border px-4 py-3 font-mono text-xs">
-          Portfolio data changed. Recalculate to refresh this plan.
+          {t("allocation:rebalance.stalePlan")}
         </div>
       )}
 
@@ -1323,15 +1485,25 @@ export function RebalanceTab({
           <Card ref={tradesRef}>
             <CardContent className="p-0">
               <div className="px-5 pb-2 pt-4">
-                <h3 className="text-foreground font-mono text-sm font-semibold">Proposed trades</h3>
+                <h3 className="text-foreground font-mono text-sm font-semibold">
+                  {t("allocation:rebalance.proposedTrades")}
+                </h3>
                 <p className="text-muted-foreground mt-1 font-mono text-xs">
                   {(() => {
-                    const buys = plan.trades.filter((t) => t.action === "buy").length;
-                    const sells = plan.trades.filter((t) => t.action === "sell").length;
+                    const buys = plan.trades.filter((trade) => trade.action === "buy").length;
+                    const sells = plan.trades.filter((trade) => trade.action === "sell").length;
                     const cashTotals = planCashTotals(plan);
+                    const buysWord = t("allocation:result.buysCount", { count: buys });
                     return sells > 0
-                      ? `${buys} buy${buys !== 1 ? "s" : ""} · ${sells} sell${sells !== 1 ? "s" : ""} · ${formatAmount(cashTotals.newCashUsed, currency)} new cash`
-                      : `${buys} buy${buys !== 1 ? "s" : ""} · ${formatAmount(plan.cashUsed, currency)} deployed`;
+                      ? t("allocation:rebalance.tradesSummarySells", {
+                          buys: buysWord,
+                          sells: t("allocation:result.sellsCount", { count: sells }),
+                          cash: formatAmount(cashTotals.newCashUsed, currency),
+                        })
+                      : t("allocation:rebalance.tradesSummaryDeployed", {
+                          buys: buysWord,
+                          cash: formatAmount(plan.cashUsed, currency),
+                        });
                   })()}
                 </p>
               </div>
@@ -1341,7 +1513,7 @@ export function RebalanceTab({
                 </div>
               ) : (
                 <p className="text-muted-foreground px-6 py-4 font-mono text-xs">
-                  No trades — all sleeves are already within band or no holdings found.
+                  {t("allocation:rebalance.noTrades")}
                 </p>
               )}
             </CardContent>
@@ -1350,11 +1522,13 @@ export function RebalanceTab({
           {/* Footer */}
           <div className="border-border flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-muted-foreground font-mono text-xs leading-relaxed">
-              {profile.name} · Calculated{" "}
-              {new Date().toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
+              {t("allocation:rebalance.calculatedFooter", {
+                name: profile.name,
+                date: new Date().toLocaleDateString(undefined, {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                }),
               })}
             </span>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
@@ -1363,23 +1537,23 @@ export function RebalanceTab({
                 size="sm"
                 className="min-w-0 justify-center"
                 onClick={() => {
-                  copyToText(plan, currency);
-                  toast.success("Copied to clipboard");
+                  copyToText(plan, currency, t);
+                  toast.success(t("allocation:toast.copiedToClipboard"));
                 }}
               >
                 <Icons.Copy className="mr-1.5 h-4 w-4" />
-                Copy as text
+                {t("allocation:rebalance.copyAsText")}
               </Button>
               <Button
                 size="sm"
                 className="min-w-0 justify-center"
                 onClick={() => {
-                  exportCsv(plan, currency, profile.name);
-                  toast.success("CSV downloaded");
+                  exportCsv(plan, currency, profile.name, t);
+                  toast.success(t("allocation:toast.csvDownloaded"));
                 }}
               >
                 <Icons.Download className="mr-1.5 h-4 w-4" />
-                Export CSV
+                {t("allocation:rebalance.exportCsv")}
               </Button>
             </div>
           </div>

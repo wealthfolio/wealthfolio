@@ -23,15 +23,16 @@ use wealthfolio_core::quotes::{
 use wealthfolio_core::Result;
 
 // Source priority for tie-breaking latest-quote lookups on the same `day`.
-// MANUAL wins (explicit user override), then BROKER (connect-synced broker
-// data, authoritative for that broker's positions), then providers / others.
+// MANUAL wins (explicit user override), then providers / others, then
+// BROKER. Broker trade prices are useful fallbacks, but should not shadow a
+// provider quote for the same day.
 // Unqualified column form — for use inside diesel typed queries.
 const SOURCE_PRIORITY_CASE: &str =
-    "CASE source WHEN 'MANUAL' THEN 1 WHEN 'BROKER' THEN 2 ELSE 3 END";
+    "CASE source WHEN 'MANUAL' THEN 1 WHEN 'BROKER' THEN 3 ELSE 2 END";
 // Same expression qualified with table alias `q` — for use inside raw window
 // function SQL (`ROW_NUMBER() OVER (... ORDER BY ...)`).
 const SOURCE_PRIORITY_CASE_Q: &str =
-    "CASE q.source WHEN 'MANUAL' THEN 1 WHEN 'BROKER' THEN 2 ELSE 3 END";
+    "CASE q.source WHEN 'MANUAL' THEN 1 WHEN 'BROKER' THEN 3 ELSE 2 END";
 
 pub struct MarketDataRepository {
     pool: Arc<Pool<ConnectionManager<SqliteConnection>>>,
@@ -289,16 +290,41 @@ impl QuoteStore for MarketDataRepository {
         let start_str = start.date().format("%Y-%m-%d").to_string();
         let end_str = end.date().format("%Y-%m-%d").to_string();
 
-        let mut query = quotes_dsl::quotes
+        if source.is_none() {
+            let sql = format!(
+                "WITH RankedQuotes AS ( \
+                    SELECT \
+                        q.*, \
+                        ROW_NUMBER() OVER (PARTITION BY q.asset_id, q.day ORDER BY {priority} ASC, q.timestamp DESC) as rn \
+                    FROM quotes q \
+                    WHERE q.asset_id = ? AND q.day >= ? AND q.day <= ? \
+                ) \
+                SELECT * FROM RankedQuotes WHERE rn = 1 \
+                ORDER BY day ASC",
+                priority = SOURCE_PRIORITY_CASE_Q
+            );
+
+            let results: Vec<QuoteDB> = sql_query(sql)
+                .bind::<Text, _>(asset_id.as_str())
+                .bind::<Text, _>(start_str)
+                .bind::<Text, _>(end_str)
+                .load::<QuoteDB>(&mut conn)
+                .into_core()?;
+
+            return Ok(results.into_iter().map(Quote::from).collect());
+        }
+
+        let src = match source {
+            Some(src) => src,
+            None => unreachable!("source=None returns from ranked query above"),
+        };
+
+        let query = quotes_dsl::quotes
             .filter(quotes_dsl::asset_id.eq(asset_id.as_str()))
             .filter(quotes_dsl::day.ge(&start_str))
             .filter(quotes_dsl::day.le(&end_str))
-            .order(quotes_dsl::day.asc())
-            .into_boxed();
-
-        if let Some(src) = source {
-            query = query.filter(quotes_dsl::source.eq(src.to_storage_string()));
-        }
+            .filter(quotes_dsl::source.eq(src.to_storage_string()))
+            .order(quotes_dsl::day.asc());
 
         let results = query.load::<QuoteDB>(&mut conn).into_core()?;
 
@@ -391,11 +417,17 @@ impl QuoteStore for MarketDataRepository {
             let symbols: Vec<&str> = chunk.iter().map(|id| id.as_str()).collect();
             let placeholders = symbols.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
             let sql = format!(
-                "WITH RankedQuotes AS ( \
+                "WITH DayQuotes AS ( \
                     SELECT \
                         q.*, \
-                        ROW_NUMBER() OVER (PARTITION BY q.asset_id ORDER BY q.day DESC, {priority} ASC) as rn \
+                        ROW_NUMBER() OVER (PARTITION BY q.asset_id, q.day ORDER BY {priority} ASC, q.timestamp DESC) as day_rn \
                     FROM quotes q WHERE q.asset_id IN ({placeholders}) \
+                ), \
+                RankedQuotes AS ( \
+                    SELECT \
+                        *, \
+                        ROW_NUMBER() OVER (PARTITION BY asset_id ORDER BY day DESC) as rn \
+                    FROM DayQuotes WHERE day_rn = 1 \
                 ) \
                 SELECT * \
                 FROM RankedQuotes \
@@ -598,11 +630,17 @@ impl QuoteStore for MarketDataRepository {
         for chunk in chunk_for_sqlite(symbols) {
             let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
             let sql = format!(
-                "WITH RankedQuotes AS ( \
+                "WITH DayQuotes AS ( \
                     SELECT \
                         q.*, \
-                        ROW_NUMBER() OVER (PARTITION BY q.asset_id ORDER BY q.day DESC, {priority} ASC) as rn \
+                        ROW_NUMBER() OVER (PARTITION BY q.asset_id, q.day ORDER BY {priority} ASC, q.timestamp DESC) as day_rn \
                     FROM quotes q WHERE q.asset_id IN ({placeholders}) \
+                ), \
+                RankedQuotes AS ( \
+                    SELECT \
+                        *, \
+                        ROW_NUMBER() OVER (PARTITION BY asset_id ORDER BY day DESC) as rn \
+                    FROM DayQuotes WHERE day_rn = 1 \
                 ) \
                 SELECT * \
                 FROM RankedQuotes \
@@ -696,9 +734,20 @@ impl QuoteStore for MarketDataRepository {
 
         // Order by day descending (newest first) - most callers need latest quote first
         // Frontend charts should sort ascending if needed for chronological display
-        let results = quotes_dsl::quotes
-            .filter(quotes_dsl::asset_id.eq(symbol))
-            .order(quotes_dsl::day.desc())
+        let sql = format!(
+            "WITH RankedQuotes AS ( \
+                SELECT \
+                    q.*, \
+                    ROW_NUMBER() OVER (PARTITION BY q.asset_id, q.day ORDER BY {priority} ASC, q.timestamp DESC) as rn \
+                FROM quotes q WHERE q.asset_id = ? \
+            ) \
+            SELECT * FROM RankedQuotes WHERE rn = 1 \
+            ORDER BY day DESC",
+            priority = SOURCE_PRIORITY_CASE_Q
+        );
+
+        let results: Vec<QuoteDB> = sql_query(sql)
+            .bind::<Text, _>(symbol)
             .load::<QuoteDB>(&mut conn)
             .into_core()?;
 
@@ -708,10 +757,19 @@ impl QuoteStore for MarketDataRepository {
     fn get_all_historical_quotes(&self) -> Result<Vec<Quote>> {
         let mut conn = get_connection(&self.pool)?;
 
-        let results = quotes_dsl::quotes
-            .order(quotes_dsl::day.desc())
-            .load::<QuoteDB>(&mut conn)
-            .into_core()?;
+        let sql = format!(
+            "WITH RankedQuotes AS ( \
+                SELECT \
+                    q.*, \
+                    ROW_NUMBER() OVER (PARTITION BY q.asset_id, q.day ORDER BY {priority} ASC, q.timestamp DESC) as rn \
+                FROM quotes q \
+            ) \
+            SELECT * FROM RankedQuotes WHERE rn = 1 \
+            ORDER BY day DESC",
+            priority = SOURCE_PRIORITY_CASE_Q
+        );
+
+        let results: Vec<QuoteDB> = sql_query(sql).load::<QuoteDB>(&mut conn).into_core()?;
 
         Ok(results.into_iter().map(Quote::from).collect())
     }
@@ -727,11 +785,23 @@ impl QuoteStore for MarketDataRepository {
         let start_str = start.format("%Y-%m-%d").to_string();
         let end_str = end.format("%Y-%m-%d").to_string();
 
-        let results = quotes_dsl::quotes
-            .filter(quotes_dsl::asset_id.eq(symbol))
-            .filter(quotes_dsl::day.ge(&start_str))
-            .filter(quotes_dsl::day.le(&end_str))
-            .order(quotes_dsl::day.asc())
+        let sql = format!(
+            "WITH RankedQuotes AS ( \
+                SELECT \
+                    q.*, \
+                    ROW_NUMBER() OVER (PARTITION BY q.asset_id, q.day ORDER BY {priority} ASC, q.timestamp DESC) as rn \
+                FROM quotes q \
+                WHERE q.asset_id = ? AND q.day >= ? AND q.day <= ? \
+            ) \
+            SELECT * FROM RankedQuotes WHERE rn = 1 \
+            ORDER BY day ASC",
+            priority = SOURCE_PRIORITY_CASE_Q
+        );
+
+        let results: Vec<QuoteDB> = sql_query(sql)
+            .bind::<Text, _>(symbol)
+            .bind::<Text, _>(start_str)
+            .bind::<Text, _>(end_str)
             .load::<QuoteDB>(&mut conn)
             .into_core()?;
 
@@ -924,9 +994,9 @@ mod tests {
 
     /// With multiple quotes for the same (asset, day) but different sources,
     /// latest-quote lookups should resolve deterministically to MANUAL over
-    /// BROKER over provider quotes (option 1 source priority).
+    /// provider quotes over BROKER fallback quotes.
     #[tokio::test]
-    async fn latest_quote_prefers_manual_over_broker_over_provider() {
+    async fn latest_quote_prefers_manual_over_provider_over_broker() {
         let (repo, _temp) = create_test_repository().await;
         let asset_id = "AAPL";
         insert_test_asset(&repo, asset_id);
@@ -983,10 +1053,10 @@ mod tests {
         assert_eq!(latest_typed.data_source, "MANUAL");
     }
 
-    /// When no MANUAL quote exists, BROKER should win over provider quotes
-    /// on the same day.
+    /// When no MANUAL quote exists, provider quotes should win over BROKER
+    /// fallback quotes on the same day.
     #[tokio::test]
-    async fn latest_quote_prefers_broker_when_no_manual() {
+    async fn latest_quote_prefers_provider_when_no_manual() {
         let (repo, _temp) = create_test_repository().await;
         let asset_id = "MSFT";
         insert_test_asset(&repo, asset_id);
@@ -1012,8 +1082,8 @@ mod tests {
         let latest = repo
             .get_latest_quote(asset_id)
             .expect("get_latest_quote should succeed");
-        assert_eq!(latest.data_source, "BROKER");
-        assert_eq!(latest.close, Decimal::from(305));
+        assert_eq!(latest.data_source, "YAHOO");
+        assert_eq!(latest.close, Decimal::from(300));
     }
 
     /// Priority is a tiebreaker within a day; a later day always wins even
@@ -1048,6 +1118,240 @@ mod tests {
             .expect("get_latest_quote should succeed");
         assert_eq!(latest.data_source, "YAHOO");
         assert_eq!(latest.close, Decimal::from(180));
+    }
+
+    #[tokio::test]
+    async fn latest_quote_pair_uses_distinct_days_after_source_priority() {
+        let (repo, _temp) = create_test_repository().await;
+        let asset_id = "QQQ";
+        insert_test_asset(&repo, asset_id);
+
+        let previous_day = NaiveDate::from_ymd_opt(2024, 6, 2).unwrap();
+        let latest_day = NaiveDate::from_ymd_opt(2024, 6, 3).unwrap();
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            previous_day,
+            "YAHOO",
+            Decimal::from(90),
+        ))
+        .await
+        .expect("save previous");
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            latest_day,
+            "BROKER",
+            Decimal::from(99),
+        ))
+        .await
+        .expect("save broker latest");
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            latest_day,
+            "YAHOO",
+            Decimal::from(100),
+        ))
+        .await
+        .expect("save provider latest");
+
+        let pair = repo
+            .get_latest_quotes_pair(&[asset_id.to_string()])
+            .expect("get pair")
+            .remove(asset_id)
+            .expect("pair exists");
+
+        assert_eq!(pair.latest.data_source, "YAHOO");
+        assert_eq!(pair.latest.close, Decimal::from(100));
+        let previous = pair.previous.expect("previous quote");
+        assert_eq!(previous.timestamp.date_naive(), previous_day);
+        assert_eq!(previous.close, Decimal::from(90));
+    }
+
+    #[tokio::test]
+    async fn typed_latest_with_previous_uses_distinct_days_after_source_priority() {
+        let (repo, _temp) = create_test_repository().await;
+        let asset_id = "BND";
+        insert_test_asset(&repo, asset_id);
+
+        let previous_day = NaiveDate::from_ymd_opt(2024, 6, 2).unwrap();
+        let latest_day = NaiveDate::from_ymd_opt(2024, 6, 3).unwrap();
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            previous_day,
+            "YAHOO",
+            Decimal::from(70),
+        ))
+        .await
+        .expect("save previous");
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            latest_day,
+            "BROKER",
+            Decimal::from(74),
+        ))
+        .await
+        .expect("save broker latest");
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            latest_day,
+            "YAHOO",
+            Decimal::from(75),
+        ))
+        .await
+        .expect("save provider latest");
+
+        let pair = repo
+            .latest_with_previous(&[AssetId::new(asset_id.to_string())])
+            .expect("get pair")
+            .remove(&AssetId::new(asset_id.to_string()))
+            .expect("pair exists");
+
+        assert_eq!(pair.latest.data_source, "YAHOO");
+        assert_eq!(pair.latest.close, Decimal::from(75));
+        let previous = pair.previous.expect("previous quote");
+        assert_eq!(previous.timestamp.date_naive(), previous_day);
+        assert_eq!(previous.close, Decimal::from(70));
+    }
+
+    #[tokio::test]
+    async fn historical_and_range_queries_apply_source_priority_per_day() {
+        let (repo, _temp) = create_test_repository().await;
+        let asset_id = "VTI";
+        insert_test_asset(&repo, asset_id);
+
+        let previous_day = NaiveDate::from_ymd_opt(2024, 6, 2).unwrap();
+        let duplicate_day = NaiveDate::from_ymd_opt(2024, 6, 3).unwrap();
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            previous_day,
+            "YAHOO",
+            Decimal::from(99),
+        ))
+        .await
+        .expect("save previous");
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            duplicate_day,
+            "BROKER",
+            Decimal::from(101),
+        ))
+        .await
+        .expect("save broker");
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            duplicate_day,
+            "YAHOO",
+            Decimal::from(100),
+        ))
+        .await
+        .expect("save provider");
+
+        let history = repo
+            .get_historical_quotes(asset_id)
+            .expect("get historical");
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].timestamp.date_naive(), duplicate_day);
+        assert_eq!(history[0].data_source, "YAHOO");
+        assert_eq!(history[0].close, Decimal::from(100));
+
+        let range = repo
+            .get_quotes_in_range(asset_id, previous_day, duplicate_day)
+            .expect("get range");
+        assert_eq!(range.len(), 2);
+        assert_eq!(range[1].timestamp.date_naive(), duplicate_day);
+        assert_eq!(range[1].data_source, "YAHOO");
+        assert_eq!(range[1].close, Decimal::from(100));
+
+        let all_history = repo.get_all_historical_quotes().expect("get all history");
+        let asset_quotes: Vec<_> = all_history
+            .iter()
+            .filter(|quote| quote.asset_id == asset_id)
+            .collect();
+        assert_eq!(asset_quotes.len(), 2);
+        assert!(asset_quotes
+            .iter()
+            .any(|quote| quote.timestamp.date_naive() == duplicate_day
+                && quote.data_source == "YAHOO"
+                && quote.close == Decimal::from(100)));
+    }
+
+    #[tokio::test]
+    async fn typed_range_without_source_applies_source_priority_per_day() {
+        let (repo, _temp) = create_test_repository().await;
+        let asset_id = "VXUS";
+        insert_test_asset(&repo, asset_id);
+
+        let previous_day = NaiveDate::from_ymd_opt(2024, 6, 2).unwrap();
+        let duplicate_day = NaiveDate::from_ymd_opt(2024, 6, 3).unwrap();
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            previous_day,
+            "YAHOO",
+            Decimal::from(60),
+        ))
+        .await
+        .expect("save previous");
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            duplicate_day,
+            "BROKER",
+            Decimal::from(62),
+        ))
+        .await
+        .expect("save broker");
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            duplicate_day,
+            "YAHOO",
+            Decimal::from(61),
+        ))
+        .await
+        .expect("save provider");
+
+        let range = repo
+            .range(
+                &AssetId::new(asset_id.to_string()),
+                Day::new(previous_day),
+                Day::new(duplicate_day),
+                None,
+            )
+            .expect("get typed range");
+
+        assert_eq!(range.len(), 2);
+        assert_eq!(range[1].timestamp.date_naive(), duplicate_day);
+        assert_eq!(range[1].data_source, "YAHOO");
+        assert_eq!(range[1].close, Decimal::from(61));
+    }
+
+    #[tokio::test]
+    async fn latest_quotes_as_of_applies_source_priority_on_cutoff_day() {
+        let (repo, _temp) = create_test_repository().await;
+        let asset_id = "IEMG";
+        insert_test_asset(&repo, asset_id);
+
+        let day = NaiveDate::from_ymd_opt(2024, 6, 3).unwrap();
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            day,
+            "BROKER",
+            Decimal::from(52),
+        ))
+        .await
+        .expect("save broker");
+        repo.save_quote(&quote_with_source(
+            asset_id,
+            day,
+            "YAHOO",
+            Decimal::from(51),
+        ))
+        .await
+        .expect("save provider");
+
+        let quotes = repo
+            .get_latest_quotes_as_of(&[asset_id.to_string()], day)
+            .expect("get latest quotes as of");
+        let quote = quotes.get(asset_id).expect("quote exists");
+        assert_eq!(quote.data_source, "YAHOO");
+        assert_eq!(quote.close, Decimal::from(51));
     }
 
     /// `get_latest_quotes_as_of` must exclude quotes whose `day` is after the

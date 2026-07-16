@@ -16,18 +16,23 @@ use wealthfolio_core::health::HealthServiceTrait;
 use wealthfolio_core::portfolio::snapshot::{
     reconcile_quote_sync_from_latest_account_snapshots, SnapshotRecalcMode,
 };
-use wealthfolio_core::portfolio::valuation::ValuationRecalcMode;
+use wealthfolio_core::portfolio::valuation::{CurrentAccountValuationService, ValuationRecalcMode};
+use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 #[cfg(feature = "connect-sync")]
 use super::planner::plan_broker_sync;
-use super::planner::{plan_asset_enrichment, plan_categorization_job, plan_portfolio_job};
+use super::planner::{
+    plan_asset_classification_change, plan_asset_enrichment, plan_categorization_job,
+    plan_portfolio_job,
+};
 #[cfg(feature = "connect-sync")]
 use crate::commands::brokers_sync::perform_broker_sync;
 use crate::context::ServiceContext;
 use crate::events::{
-    MarketSyncResult, PortfolioRequestPayload, ASSET_ENRICHMENT_COMPLETE,
-    ASSET_ENRICHMENT_PROGRESS, ASSET_ENRICHMENT_START, MARKET_SYNC_COMPLETE, MARKET_SYNC_ERROR,
-    MARKET_SYNC_START, PORTFOLIO_UPDATE_COMPLETE, PORTFOLIO_UPDATE_ERROR, PORTFOLIO_UPDATE_START,
+    MarketSyncResult, PortfolioRequestPayload, ASSET_CLASSIFICATIONS_CHANGED,
+    ASSET_ENRICHMENT_COMPLETE, ASSET_ENRICHMENT_PROGRESS, ASSET_ENRICHMENT_START,
+    MARKET_SYNC_COMPLETE, MARKET_SYNC_ERROR, MARKET_SYNC_START, PORTFOLIO_UPDATE_COMPLETE,
+    PORTFOLIO_UPDATE_ERROR, PORTFOLIO_UPDATE_START,
 };
 
 /// Debounce window duration in milliseconds.
@@ -114,6 +119,16 @@ async fn process_event_batch(
     }
 
     info!("Processing batch of {} domain events", events.len());
+
+    if let Some(plan) = plan_asset_classification_change(events) {
+        let _ = app_handle.emit(
+            ASSET_CLASSIFICATIONS_CHANGED,
+            serde_json::json!({
+                "assetIds": plan.asset_ids,
+                "taxonomyIds": plan.taxonomy_ids,
+            }),
+        );
+    }
 
     // 1. Plan and run asset enrichment FIRST so that bond metadata (coupon rate,
     //    maturity date, etc.) is available before the portfolio job tries to
@@ -367,6 +382,7 @@ async fn run_portfolio_job(
                 let result_payload = MarketSyncResult {
                     failed_syncs,
                     skipped_reasons,
+                    show_skipped_reasons: false,
                 };
                 if let Err(e) = app_handle.emit(MARKET_SYNC_COMPLETE, &result_payload) {
                     error!("Failed to emit market:sync-complete event: {}", e);
@@ -540,7 +556,6 @@ async fn refresh_all_goal_summaries(context: &Arc<ServiceContext>) {
         return;
     }
 
-    // Fetch valuations once for all accounts
     let accounts = match context.account_service().get_active_non_archived_accounts() {
         Ok(a) => a,
         Err(e) => {
@@ -549,19 +564,43 @@ async fn refresh_all_goal_summaries(context: &Arc<ServiceContext>) {
         }
     };
     let account_ids: Vec<String> = accounts.into_iter().map(|a| a.id).collect();
-    let valuations = match context
-        .valuation_service()
-        .get_latest_valuations(&account_ids)
+    let base_currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
+    let account_service = context.account_service();
+    let snapshot_repository = context.snapshot_repository();
+    let asset_service = context.asset_service();
+    let quote_service = context.quote_service();
+    let fx_service = context.fx_service();
+    let service = CurrentAccountValuationService::new(
+        account_service.as_ref(),
+        snapshot_repository.as_ref(),
+        asset_service.as_ref(),
+        quote_service.as_ref(),
+        fx_service.as_ref(),
+    );
+    let response = match service
+        .get_current_valuation_for_scope(
+            "all",
+            &account_ids,
+            &base_currency,
+            latest_snapshot_cutoff,
+            true,
+        )
+        .await
     {
-        Ok(v) => v,
+        Ok(response) => response,
         Err(e) => {
-            warn!("Failed to load valuations for goal summary refresh: {}", e);
+            warn!(
+                "Failed to load current valuations for goal summary refresh: {}",
+                e
+            );
             return;
         }
     };
 
     let mut valuation_map = std::collections::HashMap::new();
-    for v in &valuations {
+    for v in &response.accounts {
         let Some(value_in_base) = v.total_value_base.to_f64() else {
             warn!(
                 "Skipping goal summary refresh: invalid base valuation total for account {}",

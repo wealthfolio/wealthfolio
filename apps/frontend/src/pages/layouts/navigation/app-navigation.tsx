@@ -1,11 +1,14 @@
 import { getDynamicNavItems, subscribeToNavigationUpdates } from "@/addons/addons-runtime-context";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { getAddonNavPinKey, useAddonNavigationPins } from "./addon-navigation-pins";
 
 export interface NavLink {
+  id?: string;
   title: string;
   href: string;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   keywords?: string[];
   label?: string; // Optional descriptive label for launcher/search
 }
@@ -14,65 +17,76 @@ export interface NavigationProps {
   primary: NavLink[];
   secondary?: NavLink[];
   addons?: NavLink[];
+  addonMenuItems?: NavLink[];
+  pinnedAddons?: NavLink[];
+  setAddonPinned?: (item: NavLink, pinned: boolean) => void;
 }
 
-const staticNavigation: NavigationProps = {
-  primary: [
-    {
-      icon: <Icons.Dashboard className="size-6" />,
-      title: "Dashboard",
-      href: "/dashboard",
-      keywords: ["home", "overview", "summary"],
-      label: "View Dashboard",
-    },
-    {
-      icon: <Icons.Insight className="size-6" />,
-      title: "Insights",
-      href: "/insights",
-      keywords: ["insights", "Analytics"],
-      label: "View Insights",
-    },
-    {
-      icon: <Icons.Holdings className="size-6" />,
-      title: "Holdings",
-      href: "/holdings",
-      keywords: ["Holdings", "portfolio", "assets", "positions", "stocks"],
-      label: "View Holdings",
-    },
-    {
-      icon: <Icons.Activity className="size-6" />,
-      title: "Activities",
-      href: "/activities",
-      keywords: ["transactions", "trades", "history"],
-      label: "View Activities",
-    },
-    {
-      icon: <Icons.Goals className="size-6" />,
-      title: "Goals",
-      href: "/goals",
-      keywords: ["goals", "fire", "retire", "retirement", "savings", "planner"],
-      label: "Goals",
-    },
-    {
-      icon: <Icons.Sparkles className="size-6" />,
-      title: "Assistant",
-      href: "/assistant",
-      keywords: ["ai", "assistant", "chat", "help", "ask"],
-      label: "AI Assistant",
-    },
-  ],
-  secondary: [
-    {
-      icon: <Icons.Settings className="size-6" />,
-      title: "Settings",
-      href: "/settings",
-      keywords: ["preferences", "config", "configuration"],
-    },
-  ],
-};
+type TFunction = ReturnType<typeof useTranslation>["t"];
+
+function buildStaticNavigation(t: TFunction): NavigationProps {
+  return {
+    primary: [
+      {
+        icon: <Icons.Dashboard className="size-6" />,
+        title: t("common:dashboard"),
+        href: "/dashboard",
+        keywords: ["home", "overview", "summary"],
+        label: t("common:nav.label_dashboard"),
+      },
+      {
+        icon: <Icons.Insight className="size-6" />,
+        title: t("common:insights"),
+        href: "/insights",
+        keywords: ["insights", "Analytics"],
+        label: t("common:nav.label_insights"),
+      },
+      {
+        icon: <Icons.Holdings className="size-6" />,
+        title: t("common:holdings"),
+        href: "/holdings",
+        keywords: ["Holdings", "portfolio", "assets", "positions", "stocks"],
+        label: t("common:nav.label_holdings"),
+      },
+      {
+        icon: <Icons.Activity className="size-6" />,
+        title: t("common:activities"),
+        href: "/activities",
+        keywords: ["transactions", "trades", "history"],
+        label: t("common:nav.label_activities"),
+      },
+      {
+        icon: <Icons.Goals className="size-6" />,
+        title: t("common:goals"),
+        href: "/goals",
+        keywords: ["goals", "fire", "retire", "retirement", "savings", "planner"],
+        label: t("common:nav.label_goals"),
+      },
+      {
+        icon: <Icons.Sparkles className="size-6" />,
+        title: t("common:assistant"),
+        href: "/assistant",
+        keywords: ["ai", "assistant", "chat", "help", "ask"],
+        label: t("common:nav.label_assistant"),
+      },
+    ],
+    secondary: [
+      {
+        icon: <Icons.Settings className="size-6" />,
+        title: t("common:settings"),
+        href: "/settings",
+        keywords: ["preferences", "config", "configuration"],
+      },
+    ],
+  };
+}
 
 export function useNavigation() {
+  const { t } = useTranslation();
+  const staticNavigation = useMemo(() => buildStaticNavigation(t), [t]);
   const [dynamicItems, setDynamicItems] = useState<NavigationProps["addons"]>([]);
+  const { hasConfiguredAddonPins, pinnedAddonIdSet, setAddonPinned, setPinnedAddonIds } =
+    useAddonNavigationPins();
 
   // Subscribe to navigation updates from addons
   useEffect(() => {
@@ -95,11 +109,34 @@ export function useNavigation() {
   // Spending lives entirely on the dashboard tab (and its deep-linked pages);
   // no top-level nav entry. Combine static navigation items with addons.
   const primary = [...staticNavigation.primary];
+  const addons = useMemo(() => dynamicItems ?? [], [dynamicItems]);
 
+  useEffect(() => {
+    if (hasConfiguredAddonPins || addons.length !== 1) {
+      return;
+    }
+
+    const onlyAddonId = getAddonNavPinKey(addons[0]);
+    setPinnedAddonIds((currentIds) =>
+      currentIds.includes(onlyAddonId) ? currentIds : [...currentIds, onlyAddonId],
+    );
+  }, [addons, hasConfiguredAddonPins, setPinnedAddonIds]);
+
+  const pinnedAddons = useMemo(
+    () => addons.filter((item) => pinnedAddonIdSet.has(getAddonNavPinKey(item))),
+    [addons, pinnedAddonIdSet],
+  );
+  const addonMenuItems = useMemo(
+    () => addons.filter((item) => !pinnedAddonIdSet.has(getAddonNavPinKey(item))),
+    [addons, pinnedAddonIdSet],
+  );
   const navigation: NavigationProps = {
     primary,
     secondary: staticNavigation.secondary,
-    addons: dynamicItems,
+    addons,
+    addonMenuItems,
+    pinnedAddons,
+    setAddonPinned,
   };
 
   return navigation;

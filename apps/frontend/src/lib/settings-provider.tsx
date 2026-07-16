@@ -1,6 +1,8 @@
 import { isDesktop, logger } from "@/adapters";
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
 
+import i18n from "@/i18n/i18n";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
 import { useSettings } from "@/hooks/use-settings";
 import { useSettingsMutation } from "@/hooks/use-settings-mutation";
 import { Settings, SettingsContextType } from "@/lib/types";
@@ -12,6 +14,7 @@ interface ExtendedSettingsContextType extends SettingsContextType {
         Settings,
         | "theme"
         | "font"
+        | "language"
         | "baseCurrency"
         | "defaultReturnMetric"
         | "timezone"
@@ -45,6 +48,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         Settings,
         | "theme"
         | "font"
+        | "language"
         | "baseCurrency"
         | "defaultReturnMetric"
         | "timezone"
@@ -134,6 +138,16 @@ function cleanupSystemThemeListeners() {
 
 // Helper function to apply settings to the document
 const applySettingsToDocument = (newSettings: Settings) => {
+  // Apply the stored language. This is the single source of truth for the UI
+  // language — on initial load and on every change (including device-synced ones).
+  const language = newSettings.language || DEFAULT_LOCALE;
+  if (i18n.language !== language) {
+    i18n.changeLanguage(language).catch(() => {
+      // noop – falls back to the default locale
+    });
+  }
+  document.documentElement.setAttribute("lang", language);
+
   // Font classes
   document.body.classList.remove("font-mono", "font-sans", "font-serif");
   document.body.classList.add(newSettings.font);

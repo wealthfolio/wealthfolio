@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { PrivacyAmount, Skeleton } from "@wealthfolio/ui";
 import type { TaxonomyCategory } from "@/lib/types";
@@ -31,11 +32,11 @@ interface BudgetRow {
 const APPROACH_THRESHOLD = 0.85;
 const UNDERUSE_THRESHOLD = 0.4;
 
-const STATUS_LABELS: Record<Status, string> = {
-  over: "Over",
-  approaching: "Close",
-  comfortable: "On track",
-  underused: "Under",
+const STATUS_LABEL_KEYS: Record<Status, string> = {
+  over: "spending:budgetBars.statusOver",
+  approaching: "spending:budgetBars.statusClose",
+  comfortable: "spending:budgetBars.statusOnTrack",
+  underused: "spending:budgetBars.statusUnder",
 };
 
 const STATUS_TONE: Record<Status, string> = {
@@ -69,6 +70,7 @@ export function BudgetVsActualBars({
   currency,
   isLoading,
 }: BudgetVsActualBarsProps) {
+  const { t } = useTranslation();
   const rows = useMemo(
     () => buildRows(breakdown, budgetRows, taxonomyCategories),
     [breakdown, budgetRows, taxonomyCategories],
@@ -104,12 +106,12 @@ export function BudgetVsActualBars({
   if (rows.length === 0) {
     return (
       <div className="text-muted-foreground py-8 text-center text-sm">
-        No category budgets set yet.{" "}
+        {t("spending:budgetBars.noBudgets")}{" "}
         <Link
           to="/settings/spending/setup"
           className="hover:text-foreground underline-offset-4 hover:underline"
         >
-          Set one
+          {t("spending:budgetBars.setOne")}
         </Link>
       </div>
     );
@@ -119,14 +121,31 @@ export function BudgetVsActualBars({
     <div>
       {/* Aggregate status header */}
       <div className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <SummaryStat count={summary.counts.over} label="over" tone="destructive" />
-        <SummaryStat count={summary.counts.approaching} label="close" tone="warning" />
-        <SummaryStat count={summary.counts.comfortable} label="on track" tone="success" />
+        <SummaryStat
+          count={summary.counts.over}
+          label={t("spending:budgetBars.over")}
+          tone="destructive"
+        />
+        <SummaryStat
+          count={summary.counts.approaching}
+          label={t("spending:budgetBars.close")}
+          tone="warning"
+        />
+        <SummaryStat
+          count={summary.counts.comfortable}
+          label={t("spending:budgetBars.onTrack")}
+          tone="success"
+        />
         {summary.counts.underused > 0 && (
-          <SummaryStat count={summary.counts.underused} label="under-used" tone="muted" />
+          <SummaryStat
+            count={summary.counts.underused}
+            label={t("spending:budgetBars.underUsed")}
+            tone="muted"
+          />
         )}
         <span className="text-muted-foreground/60 ml-auto text-[11px] tabular-nums">
-          <PrivacyAmount value={summary.totalSpent} currency={currency} /> of{" "}
+          <PrivacyAmount value={summary.totalSpent} currency={currency} />{" "}
+          {t("spending:budgetBars.of")}{" "}
           <PrivacyAmount value={summary.totalBudget} currency={currency} />
         </span>
       </div>
@@ -142,6 +161,7 @@ export function BudgetVsActualBars({
 }
 
 function BudgetRow({ row, currency }: { row: BudgetRow; currency: string }) {
+  const { t } = useTranslation();
   const fillPct = Math.min(100, row.pct * 100);
   const overflowPct = row.pct > 1 ? Math.min(100, (row.pct - 1) * 100) : 0;
   const remaining = Math.max(0, row.budgeted - row.spent);
@@ -166,7 +186,7 @@ function BudgetRow({ row, currency }: { row: BudgetRow; currency: string }) {
             STATUS_TONE[row.status],
           )}
         >
-          {STATUS_LABELS[row.status]}
+          {t(STATUS_LABEL_KEYS[row.status])}
         </span>
       </div>
 
@@ -213,11 +233,13 @@ function BudgetRow({ row, currency }: { row: BudgetRow; currency: string }) {
         <span className="text-muted-foreground/40">·</span>
         {row.status === "over" ? (
           <span className="text-destructive font-medium">
-            <PrivacyAmount value={overage} currency={currency} /> over
+            <PrivacyAmount value={overage} currency={currency} />{" "}
+            {t("spending:budgetBars.overSuffix")}
           </span>
         ) : (
           <span>
-            <PrivacyAmount value={remaining} currency={currency} /> left
+            <PrivacyAmount value={remaining} currency={currency} />{" "}
+            {t("spending:budgetBars.leftSuffix")}
           </span>
         )}
       </div>

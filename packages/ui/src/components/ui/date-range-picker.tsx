@@ -5,6 +5,8 @@ import { cn } from "../../lib/utils";
 import { format } from "date-fns";
 import { Icons } from "./icons";
 import { DateRange } from "react-day-picker";
+import { useTranslation } from "react-i18next";
+import { useDateFnsLocale } from "../../hooks/use-date-fns-locale";
 
 interface DatePickerWithRangeProps {
   date: DateRange | undefined;
@@ -13,6 +15,8 @@ interface DatePickerWithRangeProps {
 }
 
 export function DatePickerWithRange({ date, onDateChange, className }: DatePickerWithRangeProps) {
+  const { t } = useTranslation();
+  const locale = useDateFnsLocale();
   return (
     <div className={cn("grid gap-2", className)}>
       <Popover>
@@ -29,13 +33,13 @@ export function DatePickerWithRange({ date, onDateChange, className }: DatePicke
             {date?.from ? (
               date.to ? (
                 <>
-                  {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")}
+                  {format(date.from, "LLL dd, y", { locale })} - {format(date.to, "LLL dd, y", { locale })}
                 </>
               ) : (
-                format(date.from, "LLL dd, y")
+                format(date.from, "LLL dd, y", { locale })
               )
             ) : (
-              <span>Pick a date range</span>
+              <span>{t("ui:dateRange.pick", "Pick a date range")}</span>
             )}
           </Button>
         </PopoverTrigger>

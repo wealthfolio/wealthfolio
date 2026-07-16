@@ -54,9 +54,13 @@ export function DataTable<TData, TValue>({
   toolbarActions,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({});
-  const [columnVisibility, setColumnVisibility] = storageKey
+  const [storedColumnVisibility, setColumnVisibility] = storageKey
     ? usePersistentState<VisibilityState>(`${storageKey}:column-visibility`, defaultColumnVisibility || {})
     : React.useState<VisibilityState>(defaultColumnVisibility || {});
+  const columnVisibility = {
+    ...(defaultColumnVisibility || {}),
+    ...storedColumnVisibility,
+  };
   const [columnFilters, setColumnFilters] = storageKey
     ? usePersistentState<ColumnFiltersState>(`${storageKey}:column-filters`, defaultColumnFilters || [])
     : React.useState<ColumnFiltersState>(defaultColumnFilters || []);

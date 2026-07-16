@@ -167,7 +167,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
     id: 'secrets',
     name: 'Secrets Management',
     description: 'Access to secure storage for addon secrets',
-    functions: ['set', 'get', 'delete'],
+    functions: ['set', 'get', 'use', 'delete'],
     riskLevel: 'high',
   },
   {
@@ -201,13 +201,35 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
     riskLevel: 'low',
   },
   {
-    id: 'ui',
-    name: 'User Interface',
-    description: 'Access to modify navigation and add UI components',
-    functions: ['sidebar.addItem', 'router.add'],
-    riskLevel: 'low',
+    id: 'network',
+    name: 'Network Access',
+    description:
+      'Access to declared external HTTPS hosts through the host network broker',
+    functions: ['request'],
+    riskLevel: 'high',
   },
 ];
+
+/**
+ * Baseline capabilities that every addon may use without declaring a permission
+ * or obtaining user consent. These are treated as an ignore-filter: legacy manifests
+ * that still declare them keep parsing, but they are never surfaced in consent UI,
+ * never guarded at runtime, and never count as a permission escalation on update.
+ */
+export const BASELINE_PERMISSION_CATEGORIES = [
+  'ui',
+  'query',
+  'toast',
+  'logger',
+  'storage',
+] as const;
+
+/**
+ * Check whether a permission category is an implicit baseline capability.
+ */
+export function isBaselineCategory(id: string): boolean {
+  return (BASELINE_PERMISSION_CATEGORIES as readonly string[]).includes(id);
+}
 
 /**
  * Helper functions for permission management

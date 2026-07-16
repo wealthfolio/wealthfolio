@@ -9,6 +9,7 @@ import {
 } from "@/lib/asset-utils";
 import type { SymbolSearchResult } from "@/lib/types";
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useFormContext, type FieldPath, type FieldValues } from "react-hook-form";
 import { resolveSymbolQuote } from "@/adapters";
 
@@ -47,7 +48,7 @@ interface SymbolSearchProps<TFieldValues extends FieldValues = FieldValues> {
 export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
   name,
   isManualAsset = false,
-  label = "Symbol",
+  label,
   defaultCurrency,
   exchangeMicName,
   quoteModeName,
@@ -57,6 +58,8 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
   existingAssetIdName,
   assetMetadataName,
 }: SymbolSearchProps<TFieldValues>) {
+  const { t } = useTranslation(["activity"]);
+  const resolvedLabel = label ?? t("activity:form.label_symbol");
   const { control, setValue, watch, getValues } = useFormContext<TFieldValues>();
   const [quoteDisplay, setQuoteDisplay] = useState<{
     price: number | null;
@@ -250,15 +253,15 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
       name={name}
       render={({ field }) => (
         <FormItem className="-mt-2">
-          <FormLabel>{label}</FormLabel>
+          <FormLabel>{resolvedLabel}</FormLabel>
           <FormControl>
             {isManualAsset ? (
               <Input
-                placeholder="Enter symbol"
+                placeholder={t("activity:symbol_placeholder")}
                 className="h-10"
                 {...field}
                 onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                aria-label={label}
+                aria-label={resolvedLabel}
                 data-testid="symbol-input"
               />
             ) : (
@@ -271,7 +274,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
                   quoteDisplay ? { ...quoteDisplay, currency: displayCurrency } : undefined
                 }
                 onClear={handleClear}
-                aria-label={label}
+                aria-label={resolvedLabel}
                 data-testid="symbol-search"
               />
             )}

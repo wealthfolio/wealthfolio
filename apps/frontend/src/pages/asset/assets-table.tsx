@@ -1,5 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { TickerAvatar } from "@/components/ticker-avatar";
@@ -28,7 +29,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/compone
 
 import { ASSET_KIND_DISPLAY_NAMES, LatestQuoteSnapshot } from "@/lib/types";
 import { parseOccSymbol } from "@/lib/occ-symbol";
-import { formatAmount, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
+import { formatPrice } from "@wealthfolio/ui";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { getNoQuoteReasonText, isStaleQuote, ParsedAsset } from "./asset-utils";
 
@@ -45,16 +47,6 @@ interface AssetsTableProps {
   isRefetchingQuotes?: boolean;
 }
 
-const PRICE_STALE_OPTIONS = [
-  { label: "Up to Date", value: "false" },
-  { label: "Stale", value: "true" },
-];
-
-const HOLDING_STATUS_OPTIONS = [
-  { label: "Current", value: "true" },
-  { label: "Past", value: "false" },
-];
-
 export function AssetsTable({
   assets,
   latestQuotes = {},
@@ -67,16 +59,35 @@ export function AssetsTable({
   isUpdatingQuotes,
   isRefetchingQuotes,
 }: AssetsTableProps) {
+  const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const navigate = useNavigate();
+
+  const PRICE_STALE_OPTIONS = useMemo(
+    () => [
+      { label: t("asset:table.filters.up_to_date"), value: "false" },
+      { label: t("asset:table.filters.stale"), value: "true" },
+    ],
+    [t],
+  );
+
+  const HOLDING_STATUS_OPTIONS = useMemo(
+    () => [
+      { label: t("asset:table.filters.current"), value: "true" },
+      { label: t("asset:table.filters.past"), value: "false" },
+    ],
+    [t],
+  );
 
   const columns: ColumnDef<ParsedAsset>[] = useMemo(
     () => [
       {
         id: "symbol",
         accessorFn: (row) => row.displayCode ?? "",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Security" />,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("asset:table.security")} />
+        ),
         size: 220,
         maxSize: 260,
         cell: ({ row }) => {
@@ -85,7 +96,7 @@ export function AssetsTable({
           const parsedOption = parseOccSymbol(rawSymbol);
           const displaySymbol = parsedOption
             ? parsedOption.underlying
-            : (asset.displayCode ?? asset.name ?? "Unknown");
+            : (asset.displayCode ?? asset.name ?? t("asset:table.unknown"));
           const subtitle = parsedOption
             ? `${new Date(parsedOption.expiration + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} $${parsedOption.strikePrice} ${parsedOption.optionType}`
             : (asset.name ?? "—");
@@ -102,7 +113,7 @@ export function AssetsTable({
                   {displaySymbol}
                   {parsedOption ? (
                     <Badge variant="secondary" className="text-[10px]">
-                      Option
+                      {t("asset:table.option")}
                     </Badge>
                   ) : null}
                 </div>
@@ -116,7 +127,9 @@ export function AssetsTable({
       },
       {
         id: "market",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Market" />,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("asset:table.market")} />
+        ),
         size: 120,
         cell: ({ row }) => {
           const asset = row.original;
@@ -135,7 +148,7 @@ export function AssetsTable({
               {isManual ? (
                 <div>
                   <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
-                    Manual
+                    {t("asset:table.manual")}
                   </Badge>
                 </div>
               ) : null}
@@ -197,7 +210,11 @@ export function AssetsTable({
       {
         id: "latestQuote",
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Quote" className="text-right" />
+          <DataTableColumnHeader
+            column={column}
+            title={t("asset:table.quote")}
+            className="text-right"
+          />
         ),
         size: 130,
         cell: ({ row }) => {
@@ -220,7 +237,9 @@ export function AssetsTable({
                     </TooltipTrigger>
                     <TooltipContent>{noQuoteReason}</TooltipContent>
                   </Tooltip>
-                  <span className="text-muted-foreground text-sm">No quotes</span>
+                  <span className="text-muted-foreground text-sm">
+                    {t("asset:table.no_quotes")}
+                  </span>
                 </div>
               </div>
             );
@@ -234,14 +253,14 @@ export function AssetsTable({
                     <TooltipTrigger asChild>
                       <Icons.AlertTriangle
                         className="h-3.5 w-3.5 text-amber-500"
-                        aria-label="Quote is behind market day"
+                        aria-label={t("asset:table.quote_behind_aria")}
                       />
                     </TooltipTrigger>
-                    <TooltipContent>Latest quote is behind the current market day</TooltipContent>
+                    <TooltipContent>{t("asset:table.quote_behind_tooltip")}</TooltipContent>
                   </Tooltip>
                 ) : null}
                 <span className="font-semibold tabular-nums">
-                  {formatAmount(quote.close, quote.currency ?? asset.quoteCcy ?? baseCurrency)}
+                  {formatPrice(quote.close, quote.currency ?? asset.quoteCcy ?? baseCurrency)}
                 </span>
               </div>
               <div className="text-muted-foreground text-[11px]">{formatDate(quote.timestamp)}</div>
@@ -263,32 +282,34 @@ export function AssetsTable({
                   <button
                     type="button"
                     className="hover:bg-muted text-muted-foreground inline-flex h-9 w-9 items-center justify-center rounded-md border transition"
-                    aria-label="Open actions"
+                    aria-label={t("asset:table.open_actions")}
                   >
                     <Icons.MoreVertical className="h-4 w-4" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => onEdit(asset)}>Edit</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onEdit(asset)}>
+                    {t("asset:table.edit")}
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => onUpdateQuotes(asset)}
                     disabled={isUpdatingQuotes}
                   >
-                    Update quotes
+                    {t("asset:table.update_quotes")}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => onRefetchQuotes(asset)}
                     disabled={isRefetchingQuotes}
                   >
-                    Refetch price history
+                    {t("asset:table.refetch_price_history")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive"
                     onSelect={() => onDelete(asset)}
                   >
-                    Delete
+                    {t("asset:table.delete")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -306,6 +327,7 @@ export function AssetsTable({
       isRefetchingQuotes,
       isUpdatingQuotes,
       navigate,
+      t,
     ],
   );
 
@@ -313,10 +335,10 @@ export function AssetsTable({
   const quoteModeOptions = useMemo(() => {
     const modes = new Set(assets.map((asset) => asset.quoteMode).filter(Boolean));
     return Array.from(modes).map((mode) => ({
-      label: mode === "MARKET" ? "Auto" : mode,
+      label: mode === "MARKET" ? t("asset:table.filters.auto") : mode,
       value: mode,
     }));
-  }, [assets]);
+  }, [assets, t]);
 
   // Build filter options from assets (kind)
   const kindOptions = useMemo(() => {
@@ -331,26 +353,26 @@ export function AssetsTable({
     () => [
       {
         id: "holdingStatus",
-        title: "Portfolio",
+        title: t("asset:table.filters.portfolio"),
         options: HOLDING_STATUS_OPTIONS,
       },
       {
         id: "kind",
-        title: "Kind",
+        title: t("asset:table.filters.kind"),
         options: kindOptions,
       },
       {
         id: "quoteMode",
-        title: "Mode",
+        title: t("asset:table.filters.mode"),
         options: quoteModeOptions,
       },
       {
         id: "isStale",
-        title: "Market Data",
+        title: t("asset:table.filters.market_data"),
         options: PRICE_STALE_OPTIONS,
       },
     ],
-    [kindOptions, quoteModeOptions],
+    [kindOptions, quoteModeOptions, HOLDING_STATUS_OPTIONS, PRICE_STALE_OPTIONS, t],
   );
 
   // Add computed field for stale status to enable filtering
@@ -374,9 +396,9 @@ export function AssetsTable({
           <Table>
             <TableHeader className="bg-muted/50 sticky top-0 z-10">
               <TableRow>
-                <TableHead>Security</TableHead>
-                <TableHead>Market</TableHead>
-                <TableHead className="text-right">Quote</TableHead>
+                <TableHead>{t("asset:table.security")}</TableHead>
+                <TableHead>{t("asset:table.market")}</TableHead>
+                <TableHead className="text-right">{t("asset:table.quote")}</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>

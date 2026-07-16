@@ -653,10 +653,10 @@ mod tests {
         repo.delete("rule-ca-groceries").await.expect("delete rule");
 
         let rows = outbox_rows(&repo);
-        assert!(rows.iter().any(|(entity, _entity_id, op)| {
+        assert!(rows.iter().any(|(entity, _subject_id, op)| {
             entity == "spending_preset_rule_deletion" && op == "update"
         }));
-        assert!(rows.iter().any(|(entity, _entity_id, op)| {
+        assert!(rows.iter().any(|(entity, _subject_id, op)| {
             entity == "spending_categorization_rule" && op == "delete"
         }));
 
@@ -671,7 +671,7 @@ mod tests {
 
         repo.remove_preset("ca").await.expect("remove preset");
         let rows = outbox_rows(&repo);
-        assert!(rows.iter().any(|(entity, _entity_id, op)| {
+        assert!(rows.iter().any(|(entity, _subject_id, op)| {
             entity == "spending_preset_rule_deletion" && op == "delete"
         }));
 
@@ -686,7 +686,7 @@ mod tests {
     }
 
     #[test]
-    fn preset_rule_deletion_outbox_helper_uses_composite_entity_id() {
+    fn preset_rule_deletion_outbox_helper_uses_composite_subject_id() {
         let deletion = PresetRuleDeletionDB {
             preset_id: "ca".to_string(),
             preset_rule_key: "groceries".to_string(),

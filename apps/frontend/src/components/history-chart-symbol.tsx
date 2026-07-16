@@ -1,7 +1,9 @@
 import { TimePeriod } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
-import { formatAmount } from "@wealthfolio/ui";
+import { formatPrice } from "@wealthfolio/ui";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   Area,
   AreaChart,
@@ -184,6 +186,7 @@ export default function HistoryChart({
 }
 
 function SymbolToolTip({ active, payload }: SymbolTooltipProps) {
+  const { t } = useTranslation();
   if (!active || !payload?.length) {
     return null;
   }
@@ -192,7 +195,7 @@ function SymbolToolTip({ active, payload }: SymbolTooltipProps) {
     <div className="bg-popover pointer-events-none grid grid-cols-1 gap-1.5 rounded-md border p-2 shadow-md">
       <p className="text-muted-foreground text-xs">{formatDate(data.timestamp)}</p>
 
-      <p className="text-base font-bold">{formatAmount(payload[0].value, data.currency, false)}</p>
+      <p className="text-base font-bold">{formatPrice(payload[0].value, data.currency, false)}</p>
 
       {data.activities && data.activities.length > 0 && (
         <>
@@ -203,10 +206,10 @@ function SymbolToolTip({ active, payload }: SymbolTooltipProps) {
             const dotClass = markerDotClass(tone);
             const label =
               act.variant === "buy"
-                ? "Bought"
+                ? t("common:component.activity_bought")
                 : act.variant === "sell"
-                  ? "Sold"
-                  : formatActivityType(act.activityType);
+                  ? t("common:component.activity_sold")
+                  : formatActivityType(act.activityType, t);
             const hasPriceDetails = Boolean(act.quantity && act.unitPrice);
             return (
               <div key={act.id} className="flex items-center justify-between space-x-2">
@@ -217,7 +220,7 @@ function SymbolToolTip({ active, payload }: SymbolTooltipProps) {
                 {hasPriceDetails && (
                   <span className="text-muted-foreground text-sm tabular-nums">
                     {parseFloat(act.quantity || "0")} at{" "}
-                    {formatAmount(parseFloat(act.unitPrice || "0"), data.currency, false)}
+                    {formatPrice(parseFloat(act.unitPrice || "0"), data.currency, false)}
                   </span>
                 )}
               </div>
@@ -266,8 +269,8 @@ function markerDotClass(tone: HistoryChartMarkerTone) {
   }
 }
 
-function formatActivityType(activityType?: string) {
-  if (!activityType) return "Activity";
+function formatActivityType(activityType: string | undefined, t: TFunction) {
+  if (!activityType) return t("common:component.activity_generic");
   return activityType
     .toLowerCase()
     .split("_")

@@ -1,0 +1,13 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "currency": "USD",
+    "groupBy": "risk",
+    "taxonomyId": "risk_category",
+    "taxonomyName": "Risk Category",
+    "totalValue": 0.0
+  }
+}

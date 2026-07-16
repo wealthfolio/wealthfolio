@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useForm, type Resolver } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Dialog,
@@ -60,6 +61,7 @@ export function UpdateValuationModal({
   lastUpdatedDate,
   currency,
 }: UpdateValuationModalProps) {
+  const { t } = useTranslation();
   const { updateValuationMutation } = useAlternativeAssetMutations({
     onUpdateSuccess: () => {
       handleClose();
@@ -108,19 +110,19 @@ export function UpdateValuationModal({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <DialogHeader>
-              <DialogTitle>Update Value: {assetName}</DialogTitle>
-              <DialogDescription>
-                Record a new valuation for this asset. Historical valuations are preserved.
-              </DialogDescription>
+              <DialogTitle>{t("asset:updateValuation.title", { name: assetName })}</DialogTitle>
+              <DialogDescription>{t("asset:updateValuation.description")}</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
               {/* Current Value Display */}
               <div className="bg-muted rounded-md p-4">
-                <div className="text-muted-foreground text-sm">Current Recorded Value</div>
+                <div className="text-muted-foreground text-sm">
+                  {t("asset:updateValuation.current_recorded_value")}
+                </div>
                 <div className="text-xl font-semibold">{formattedCurrentValue}</div>
                 <div className="text-muted-foreground mt-1 text-xs">
-                  Last updated: {formattedLastUpdatedDate}
+                  {t("asset:updateValuation.last_updated", { date: formattedLastUpdatedDate })}
                 </div>
               </div>
 
@@ -130,7 +132,7 @@ export function UpdateValuationModal({
                 name="value"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>New Value</FormLabel>
+                    <FormLabel>{t("asset:updateValuation.new_value")}</FormLabel>
                     <FormControl>
                       <MoneyInput
                         ref={field.ref}
@@ -151,7 +153,7 @@ export function UpdateValuationModal({
                 name="date"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>As of Date</FormLabel>
+                    <FormLabel>{t("asset:updateValuation.as_of_date")}</FormLabel>
                     <FormControl>
                       <DatePickerInput value={field.value} onChange={field.onChange} />
                     </FormControl>
@@ -167,12 +169,15 @@ export function UpdateValuationModal({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      Notes <span className="text-muted-foreground">(optional)</span>
+                      {t("asset:updateValuation.notes")}{" "}
+                      <span className="text-muted-foreground">
+                        {t("asset:updateValuation.optional")}
+                      </span>
                     </FormLabel>
                     <FormControl>
                       <Textarea
                         rows={3}
-                        placeholder="Add any context about this valuation (e.g., appraisal source, market conditions)"
+                        placeholder={t("asset:updateValuation.notes_placeholder")}
                         {...field}
                       />
                     </FormControl>
@@ -184,7 +189,7 @@ export function UpdateValuationModal({
 
             <DialogFooter className="gap-2">
               <Button type="button" variant="outline" onClick={handleClose} disabled={isLoading}>
-                Cancel
+                {t("common:cancel")}
               </Button>
               <Button type="submit" disabled={isLoading}>
                 {isLoading ? (
@@ -192,7 +197,7 @@ export function UpdateValuationModal({
                 ) : (
                   <Icons.Check className="mr-2 h-4 w-4" />
                 )}
-                Update Value
+                {t("asset:updateValuation.update_value")}
               </Button>
             </DialogFooter>
           </form>

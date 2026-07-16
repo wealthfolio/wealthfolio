@@ -19,6 +19,8 @@ import {
 import { useIsMobileViewport } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { forwardRef, useState, type ComponentPropsWithoutRef } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useAccounts } from "@/hooks/use-accounts";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import type { AccountScope } from "@/lib/types";
@@ -35,15 +37,16 @@ function filterLabel(
   filter: AccountScope,
   accounts: { id: string; name: string }[],
   portfolios: { id: string; name: string }[],
+  t: TFunction,
 ): string {
-  if (filter.type === "all") return "All Accounts";
+  if (filter.type === "all") return t("common:component.all_accounts");
   if (filter.type === "account") {
-    return accounts.find((a) => a.id === filter.accountId)?.name ?? "Account";
+    return accounts.find((a) => a.id === filter.accountId)?.name ?? t("common:account");
   }
   if (filter.type === "portfolio") {
-    return portfolios.find((p) => p.id === filter.portfolioId)?.name ?? "Portfolio";
+    return portfolios.find((p) => p.id === filter.portfolioId)?.name ?? t("common:portfolio");
   }
-  return `${filter.accountIds.length} Accounts`;
+  return t("common:component.accounts_count", { count: filter.accountIds.length });
 }
 
 function isAccountChecked(value: AccountScope, accountId: string): boolean {
@@ -121,6 +124,7 @@ function AccountScopeCommand({
   listClassName,
   itemClassName,
   groupClassName,
+  t,
 }: {
   value: AccountScope;
   accounts: { id: string; name: string; currency: string }[];
@@ -131,17 +135,18 @@ function AccountScopeCommand({
   listClassName?: string;
   itemClassName?: string;
   groupClassName?: string;
+  t: TFunction;
 }) {
   return (
     <Command className={commandClassName}>
-      <CommandInput placeholder="Search accounts..." />
+      <CommandInput placeholder={t("common:search_accounts")} />
       <CommandList className={listClassName}>
-        <CommandEmpty>No results.</CommandEmpty>
+        <CommandEmpty>{t("common:component.no_results")}</CommandEmpty>
 
         <CommandGroup className={groupClassName}>
           <CommandItem className={itemClassName} onSelect={() => onSelect({ type: "all" })}>
             <Icons.Wallet className="mr-1 h-4 w-4" />
-            <span className="min-w-0 flex-1 truncate">All Accounts</span>
+            <span className="min-w-0 flex-1 truncate">{t("common:component.all_accounts")}</span>
             <Icons.Check
               className={cn("ml-auto h-4 w-4", value.type === "all" ? "opacity-100" : "opacity-0")}
             />
@@ -149,7 +154,7 @@ function AccountScopeCommand({
         </CommandGroup>
 
         {portfolios.length > 0 && (
-          <CommandGroup heading="Portfolios" className={groupClassName}>
+          <CommandGroup heading={t("common:component.portfolios")} className={groupClassName}>
             {portfolios.map((p) => (
               <CommandItem
                 key={p.id}
@@ -174,7 +179,7 @@ function AccountScopeCommand({
         )}
 
         {accounts.length > 0 && (
-          <CommandGroup heading="Accounts" className={groupClassName}>
+          <CommandGroup heading={t("common:component.accounts")} className={groupClassName}>
             {accounts.map((a) => {
               const checked = isAccountChecked(value, a.id);
               return (
@@ -208,12 +213,13 @@ export function AccountScopeSelector({
   triggerVariant = "default",
   allowMultiAccount = true,
 }: AccountScopeSelectorProps) {
+  const { t } = useTranslation();
   const isMobile = useIsMobileViewport();
   const [open, setOpen] = useState(false);
   const { accounts } = useAccounts({ filterActive: false, includeArchived: false });
   const { data: portfolios = [] } = usePortfolios();
 
-  const label = filterLabel(value, accounts, portfolios);
+  const label = filterLabel(value, accounts, portfolios, t);
 
   const select = (filter: AccountScope) => {
     onChange(filter);
@@ -260,7 +266,7 @@ export function AccountScopeSelector({
         </SheetTrigger>
         <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[80vh] p-0">
           <SheetHeader className="border-border border-b px-6 py-4">
-            <SheetTitle>Select account scope</SheetTitle>
+            <SheetTitle>{t("common:component.select_account_scope")}</SheetTitle>
           </SheetHeader>
           <AccountScopeCommand
             value={value}
@@ -268,6 +274,7 @@ export function AccountScopeSelector({
             portfolios={portfolios}
             onSelect={select}
             onToggleAccount={toggleAccount}
+            t={t}
             commandClassName="h-[calc(80vh-4.5rem)] rounded-none"
             listClassName="max-h-none flex-1 px-2 py-2"
             groupClassName="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
@@ -297,6 +304,7 @@ export function AccountScopeSelector({
           portfolios={portfolios}
           onSelect={select}
           onToggleAccount={toggleAccount}
+          t={t}
           itemClassName="py-2"
         />
       </PopoverContent>

@@ -8,6 +8,7 @@ use wealthfolio_core::activities::Activity;
 use wealthfolio_spending::activity_assignments::{
     ActivityTaxonomyAssignment, BulkCategoryAssignment,
 };
+use wealthfolio_spending::activity_splits::{ActivitySplit, NewActivitySplit};
 use wealthfolio_spending::analytics::{
     EventSpendingSummary, EventSummariesRequest, MonthlyReport, ReportRequest,
 };
@@ -212,6 +213,43 @@ pub async fn unassign_activity_category(
         .unassign_category(&activity_id, &taxonomy_id)
         .await
         .map_err(|e| format!("Failed to clear activity category: {}", e))
+}
+
+#[tauri::command]
+pub async fn get_activity_splits(
+    activity_id: String,
+    state: State<'_, Arc<ServiceContext>>,
+) -> Result<Vec<ActivitySplit>, String> {
+    state
+        .cash_activity_service()
+        .list_splits(&activity_id)
+        .await
+        .map_err(|e| format!("Failed to load activity splits: {}", e))
+}
+
+#[tauri::command]
+pub async fn replace_activity_splits(
+    activity_id: String,
+    splits: Vec<NewActivitySplit>,
+    state: State<'_, Arc<ServiceContext>>,
+) -> Result<Vec<ActivitySplit>, String> {
+    state
+        .cash_activity_service()
+        .replace_splits(&activity_id, splits)
+        .await
+        .map_err(|e| format!("Failed to replace activity splits: {}", e))
+}
+
+#[tauri::command]
+pub async fn clear_activity_splits(
+    activity_id: String,
+    state: State<'_, Arc<ServiceContext>>,
+) -> Result<(), String> {
+    state
+        .cash_activity_service()
+        .clear_splits(&activity_id)
+        .await
+        .map_err(|e| format!("Failed to clear activity splits: {}", e))
 }
 
 /// Atomic batch assign — used by bulk-categorize on the transactions page and

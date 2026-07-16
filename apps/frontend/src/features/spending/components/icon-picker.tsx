@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Icons, Input, Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui";
 
@@ -16,6 +17,7 @@ interface IconPickerProps {
 }
 
 export function IconPicker({ value, onChange, accent, compact = false }: IconPickerProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -33,7 +35,11 @@ export function IconPicker({ value, onChange, accent, compact = false }: IconPic
             type="button"
             className="border-input bg-background hover:bg-muted/40 ring-offset-background focus-visible:ring-ring flex h-8 w-9 items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
             style={accent ? { color: accent } : undefined}
-            aria-label={value ? `Icon: ${value}` : "Choose an icon"}
+            aria-label={
+              value
+                ? t("spending:category.iconLabel", { name: value })
+                : t("spending:category.chooseIcon")
+            }
           >
             <CategoryIcon icon={value ?? null} className="h-4 w-4" />
           </button>
@@ -49,7 +55,7 @@ export function IconPicker({ value, onChange, accent, compact = false }: IconPic
                 value ? "text-foreground" : "text-muted-foreground/70",
               )}
             >
-              {value ?? "Choose an icon"}
+              {value ?? t("spending:category.chooseIcon")}
             </span>
             <Icons.ChevronDown className="text-muted-foreground/60 h-3.5 w-3.5 shrink-0" />
           </button>
@@ -60,7 +66,7 @@ export function IconPicker({ value, onChange, accent, compact = false }: IconPic
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search icons..."
+            placeholder={t("spending:category.searchIcons")}
             className="h-8 text-xs"
             autoFocus
           />
@@ -88,7 +94,7 @@ export function IconPicker({ value, onChange, accent, compact = false }: IconPic
             })}
             {filtered.length === 0 && (
               <div className="text-muted-foreground col-span-8 py-4 text-center text-xs">
-                No icons match &quot;{query}&quot;
+                {t("spending:category.noIconsMatch", { query })}
               </div>
             )}
           </div>
@@ -101,7 +107,7 @@ export function IconPicker({ value, onChange, accent, compact = false }: IconPic
               }}
               className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
             >
-              Clear icon
+              {t("spending:category.clearIcon")}
             </button>
           )}
         </div>

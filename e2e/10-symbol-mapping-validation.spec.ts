@@ -1,5 +1,5 @@
 import { expect, Page, test } from "@playwright/test";
-import { BASE_URL, TEST_PASSWORD, completeOnboardingIfNeeded, waitForSyncToast } from "./helpers";
+import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath, waitForSyncToast } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -24,9 +24,7 @@ test.describe("Symbol Mapping Validation", () => {
   // ── helpers ──────────────────────────────────────────────────────────────
 
   async function ensureAssetExists() {
-    await page.goto(`${BASE_URL}/settings/securities`, {
-      waitUntil: "domcontentloaded",
-    });
+    await gotoAppPath(page, "/settings/securities");
     await expect(page.getByRole("heading", { name: "Securities" })).toBeVisible({ timeout: 10000 });
 
     // Reset portfolio filter so all assets are visible
@@ -63,9 +61,7 @@ test.describe("Symbol Mapping Validation", () => {
   }
 
   async function openMarketDataTab() {
-    await page.goto(`${BASE_URL}/settings/securities`, {
-      waitUntil: "domcontentloaded",
-    });
+    await gotoAppPath(page, "/settings/securities");
     await expect(page.getByRole("heading", { name: "Securities" })).toBeVisible({ timeout: 10000 });
 
     // Reset filter
@@ -272,25 +268,6 @@ test.describe("Symbol Mapping Validation", () => {
 
   test("0. Setup: login and create test asset", async () => {
     test.setTimeout(180000);
-
-    await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
-
-    const loginInput = page.getByPlaceholder("Enter your password");
-    const continueButton = page.getByRole("button", { name: "Continue" });
-    const dashboardHeading = page.getByRole("heading", { name: "Dashboard" });
-    const accountsHeading = page.getByRole("heading", { name: "Accounts" });
-
-    await expect(
-      loginInput.or(continueButton).or(dashboardHeading).or(accountsHeading),
-    ).toBeVisible({ timeout: 120000 });
-
-    if (await loginInput.isVisible()) {
-      await loginInput.fill(TEST_PASSWORD);
-      await page.getByRole("button", { name: "Sign In" }).click();
-      await expect(continueButton.or(dashboardHeading).or(accountsHeading)).toBeVisible({
-        timeout: 30000,
-      });
-    }
 
     await completeOnboardingIfNeeded(page);
     await ensureAssetExists();

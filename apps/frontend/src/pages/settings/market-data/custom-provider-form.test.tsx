@@ -80,7 +80,8 @@ describe("CustomProviderForm", () => {
     expect(urlInput()).toHaveValue("https://history.example.com/prices/{SYMBOL}");
     expect(pricePathInput()).toHaveValue("$[*].adj_close");
 
-    await user.click(screen.getByRole("button", { name: /create provider/i }));
+    const createButton = screen.getByRole("button", { name: /create provider/i });
+    fireEvent.submit(createButton.closest("form")!);
 
     await waitFor(() => expect(createProvider).toHaveBeenCalledTimes(1));
     const payload = createProvider.mock.calls[0][0] as NewCustomProvider;

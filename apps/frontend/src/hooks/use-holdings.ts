@@ -1,10 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
 import { AccountScope, Holding } from "@/lib/types";
-import { getHoldings } from "@/adapters";
+import { getHoldingsList } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
 
 export function useHoldings(accountFilter: AccountScope) {
-  const isEnabled = accountFilter.type !== "account" || accountFilter.accountId.trim().length > 0;
+  const isEnabled = (() => {
+    switch (accountFilter.type) {
+      case "account":
+        return accountFilter.accountId.trim().length > 0;
+      case "accounts":
+        return accountFilter.accountIds.length > 0;
+      case "portfolio":
+        return accountFilter.portfolioId.trim().length > 0;
+      case "all":
+        return true;
+      default:
+        return false;
+    }
+  })();
 
   const {
     data: holdings = [],
@@ -14,7 +27,7 @@ export function useHoldings(accountFilter: AccountScope) {
     error,
   } = useQuery<Holding[], Error>({
     queryKey: [QueryKeys.HOLDINGS, accountFilter],
-    queryFn: () => getHoldings(accountFilter),
+    queryFn: () => getHoldingsList(accountFilter),
     enabled: isEnabled,
   });
 

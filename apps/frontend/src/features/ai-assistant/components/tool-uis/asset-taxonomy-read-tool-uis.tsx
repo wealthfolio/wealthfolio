@@ -2,6 +2,8 @@ import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import type {
   GetAssetTaxonomyAssignmentsArgs,
   GetAssetTaxonomyAssignmentsOutput,
@@ -24,7 +26,7 @@ function cleanErrorMessage(raw: string): string {
     .trim();
 }
 
-function friendlyErrorMessage(raw: string): string {
+function friendlyErrorMessage(raw: string, t: TFunction): string {
   const cleaned = cleanErrorMessage(raw);
   const lower = cleaned.toLowerCase();
 
@@ -33,47 +35,47 @@ function friendlyErrorMessage(raw: string): string {
     lower.includes("asset-scoped taxonomy") ||
     lower.includes("taxonomy filter")
   ) {
-    return "Could not match that taxonomy. I’ll use the available asset taxonomies.";
+    return t("ai:assetTaxonomy.matchTaxonomyError");
   }
 
   if (lower.includes("unknown") && lower.includes("category")) {
-    return "Unknown is not a category here. I’ll leave it unallocated.";
+    return t("ai:assetTaxonomy.unknownError");
   }
 
   if (lower.includes("ambiguous")) {
-    return "More than one asset matched. Ask again with the exchange, currency, or asset ID.";
+    return t("ai:assetTaxonomy.ambiguousError");
   }
 
   if (lower.includes("not found among active assets")) {
-    return "Could not find that asset among active assets.";
+    return t("ai:assetTaxonomy.notFoundError");
   }
 
-  return "Could not complete that lookup. I’ll continue with the available information.";
+  return t("ai:assetTaxonomy.genericError");
 }
 
-function extractToolErrorMessage(value: unknown): string | null {
+function extractToolErrorMessage(value: unknown, t: TFunction): string | null {
   if (!value) return null;
 
   if (typeof value === "string") {
     try {
-      return extractToolErrorMessage(JSON.parse(value));
+      return extractToolErrorMessage(JSON.parse(value), t);
     } catch {
-      return friendlyErrorMessage(value);
+      return friendlyErrorMessage(value, t);
     }
   }
 
   if (!isRecord(value)) {
     return typeof value === "number" || typeof value === "boolean"
-      ? friendlyErrorMessage(String(value))
+      ? friendlyErrorMessage(String(value), t)
       : null;
   }
 
-  if (typeof value.error === "string") return friendlyErrorMessage(value.error);
-  if (typeof value.message === "string") return friendlyErrorMessage(value.message);
-  if (typeof value.content === "string") return friendlyErrorMessage(value.content);
+  if (typeof value.error === "string") return friendlyErrorMessage(value.error, t);
+  if (typeof value.message === "string") return friendlyErrorMessage(value.message, t);
+  if (typeof value.content === "string") return friendlyErrorMessage(value.content, t);
 
   if ("data" in value) {
-    return extractToolErrorMessage(value.data);
+    return extractToolErrorMessage(value.data, t);
   }
 
   return null;
@@ -153,14 +155,16 @@ function ListAssetTaxonomiesContentImpl({
   result,
   status,
 }: ToolCallMessagePartProps<ListAssetTaxonomiesArgs, ListAssetTaxonomiesOutput>) {
-  if (status?.type === "running") return <InlineLoading label="Loading asset taxonomies..." />;
+  const { t } = useTranslation();
+  if (status?.type === "running")
+    return <InlineLoading label={t("ai:assetTaxonomy.loadingTaxonomies")} />;
   if (!result) return null;
 
   const parsedResult = normalizeListAssetTaxonomiesResult(result);
   if (!parsedResult) {
     return (
       <InlineToolError
-        label={extractToolErrorMessage(result) ?? "Could not load asset taxonomies."}
+        label={extractToolErrorMessage(result, t) ?? t("ai:assetTaxonomy.couldNotLoadTaxonomies")}
       />
     );
   }
@@ -180,11 +184,21 @@ function ListAssetTaxonomiesContentImpl({
       <Icons.ListChecks className="h-3 w-3" />
       {returnedCategoryCount > 0 && focusedTaxonomy ? (
         <span>
-          Loaded {returnedCategoryCount} categories for {focusedTaxonomy.name}
-          {totalCategoryCount > returnedCategoryCount ? ` · ${totalCategoryCount} total` : ""}
+          {totalCategoryCount > returnedCategoryCount
+            ? t("ai:assetTaxonomy.loadedCategoriesTotal", {
+                count: returnedCategoryCount,
+                taxonomy: focusedTaxonomy.name,
+                total: totalCategoryCount,
+              })
+            : t("ai:assetTaxonomy.loadedCategories", {
+                count: returnedCategoryCount,
+                taxonomy: focusedTaxonomy.name,
+              })}
         </span>
       ) : (
-        <span>Loaded {parsedResult.taxonomies.length} asset taxonomies</span>
+        <span>
+          {t("ai:assetTaxonomy.loadedTaxonomies", { count: parsedResult.taxonomies.length })}
+        </span>
       )}
     </div>
   );
@@ -194,14 +208,18 @@ function GetAssetTaxonomyAssignmentsContentImpl({
   result,
   status,
 }: ToolCallMessagePartProps<GetAssetTaxonomyAssignmentsArgs, GetAssetTaxonomyAssignmentsOutput>) {
-  if (status?.type === "running") return <InlineLoading label="Loading classifications..." />;
+  const { t } = useTranslation();
+  if (status?.type === "running")
+    return <InlineLoading label={t("ai:assetTaxonomy.loadingClassifications")} />;
   if (!result) return null;
 
   const parsedResult = normalizeGetAssetTaxonomyAssignmentsResult(result);
   if (!parsedResult) {
     return (
       <InlineToolError
-        label={extractToolErrorMessage(result) ?? "Could not load classifications."}
+        label={
+          extractToolErrorMessage(result, t) ?? t("ai:assetTaxonomy.couldNotLoadClassifications")
+        }
       />
     );
   }
@@ -210,8 +228,10 @@ function GetAssetTaxonomyAssignmentsContentImpl({
     <div className="text-muted-foreground flex items-center gap-2 px-1 text-xs">
       <Icons.ListChecks className="h-3 w-3" />
       <span>
-        Loaded {parsedResult.assignments.length} classifications for{" "}
-        {parsedResult.resolvedAsset?.label ?? parsedResult.assetQuery}
+        {t("ai:assetTaxonomy.loadedClassifications", {
+          count: parsedResult.assignments.length,
+          asset: parsedResult.resolvedAsset?.label ?? parsedResult.assetQuery,
+        })}
       </span>
     </div>
   );

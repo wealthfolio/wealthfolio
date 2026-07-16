@@ -13,11 +13,16 @@ use tauri_plugin_shell::ShellExt;
 use uuid::Uuid;
 use wealthfolio_core::{
     activities::Sort,
-    exports::{export_file_name, format_records, ExportDataType, ExportFileFormat},
+    exports::{
+        export_file_name, format_holding_list_records, format_records, ExportDataType,
+        ExportFileFormat,
+    },
+    portfolio::holdings::HoldingListItem,
     portfolios::AccountScope,
 };
 use wealthfolio_storage_sqlite::db;
 
+use crate::commands::portfolio::holdings_account_ids;
 use crate::context::ServiceContext;
 #[cfg(desktop)]
 use crate::updater::{check_for_update, install_update};
@@ -248,7 +253,7 @@ fn write_pending_export_content(
     })
 }
 
-fn build_data_export_content(
+async fn build_data_export_content(
     state: &ServiceContext,
     data_type: ExportDataType,
     format: ExportFileFormat,
@@ -278,10 +283,41 @@ fn build_data_export_content(
                     None,
                     None,
                     None,
+                    None,
                 )
                 .map_err(|e| format!("Failed to load activities for export: {}", e))?
                 .data;
             format_records(&records, format).map_err(|e| e.to_string())
+        }
+        ExportDataType::Holdings => {
+            let base_currency = state.get_base_currency();
+            let resolved = state
+                .portfolio_service()
+                .resolve_account_scope(&AccountScope::All, &base_currency)
+                .map_err(|e| format!("Failed to resolve portfolio scope: {}", e))?;
+            let account_ids = holdings_account_ids(state, &resolved.account_ids)?;
+            if account_ids.is_empty() {
+                return Ok(None);
+            }
+
+            let holdings = if account_ids.len() == 1 {
+                state
+                    .holdings_service()
+                    .get_holdings(&account_ids[0], &base_currency)
+                    .await
+                    .map_err(|e| format!("Failed to load holdings for export: {}", e))?
+            } else {
+                state
+                    .holdings_service()
+                    .get_holdings_for_accounts(&account_ids, &base_currency, &resolved.scope_id)
+                    .await
+                    .map_err(|e| format!("Failed to load holdings for export: {}", e))?
+            };
+            let records = holdings
+                .into_iter()
+                .map(HoldingListItem::from)
+                .collect::<Vec<_>>();
+            format_holding_list_records(&records, format).map_err(|e| e.to_string())
         }
         ExportDataType::Goals => {
             let records = state
@@ -380,7 +416,8 @@ pub async fn export_data_file(
 ) -> Result<DataExportResult, String> {
     let data_type = ExportDataType::parse(&data_type).map_err(|e| e.to_string())?;
     let format = ExportFileFormat::parse(&format).map_err(|e| e.to_string())?;
-    let Some(content) = build_data_export_content(state.inner().as_ref(), data_type, format)?
+    let Some(content) =
+        build_data_export_content(state.inner().as_ref(), data_type, format).await?
     else {
         return Ok(DataExportResult::empty());
     };
@@ -457,12 +494,7 @@ pub async fn get_app_info(app_handle: AppHandle) -> Result<AppInfo, String> {
 pub async fn check_for_updates(app_handle: AppHandle) -> Result<Option<serde_json::Value>, String> {
     #[cfg(desktop)]
     {
-        let instance_id = app_handle
-            .try_state::<std::sync::Arc<ServiceContext>>()
-            .map(|state| state.instance_id.clone())
-            .ok_or_else(|| "Failed to access service context".to_string())?;
-
-        let result = check_for_update(app_handle, &instance_id).await?;
+        let result = check_for_update(app_handle).await?;
         Ok(result.map(|info| serde_json::to_value(info).unwrap()))
     }
     #[cfg(not(desktop))]

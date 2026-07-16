@@ -1,3 +1,6 @@
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
+
 import type { ImportValidationStatus, QuoteImport } from "@/lib/types/quote-import";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import {
@@ -23,14 +26,14 @@ import {
   TooltipTrigger,
 } from "@wealthfolio/ui/components/ui/tooltip";
 
-function formatValidationStatus(status: ImportValidationStatus): string {
+function formatValidationStatus(status: ImportValidationStatus, t: TFunction): string {
   switch (status) {
     case "valid":
-      return "Valid";
+      return t("settings:market_data_page.status_valid");
     case "warning":
-      return "Warning";
+      return t("settings:market_data_page.status_warning");
     case "error":
-      return "Error";
+      return t("settings:market_data_page.status_error_label");
     default:
       return status;
   }
@@ -55,6 +58,7 @@ interface QuotePreviewTableProps {
 }
 
 export function QuotePreviewTable({ quotes, maxRows = 10 }: QuotePreviewTableProps) {
+  const { t } = useTranslation();
   const displayQuotes = quotes.slice(0, maxRows);
 
   return (
@@ -62,24 +66,26 @@ export function QuotePreviewTable({ quotes, maxRows = 10 }: QuotePreviewTablePro
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Icons.FileText className="h-5 w-5" />
-          Preview Data ({quotes.length} rows)
+          {t("settings:market_data_page.preview_data_rows", { count: quotes.length })}
         </CardTitle>
-        <CardDescription>Review the first {maxRows} rows of your CSV data</CardDescription>
+        <CardDescription>
+          {t("settings:market_data_page.review_first_rows", { count: maxRows })}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Symbol</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Open</TableHead>
-                <TableHead>High</TableHead>
-                <TableHead>Low</TableHead>
-                <TableHead>Close</TableHead>
-                <TableHead>Volume</TableHead>
-                <TableHead>Currency</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>{t("settings:market_data_page.field_symbol")}</TableHead>
+                <TableHead>{t("common:date")}</TableHead>
+                <TableHead>{t("settings:market_data_page.field_open")}</TableHead>
+                <TableHead>{t("settings:market_data_page.field_high")}</TableHead>
+                <TableHead>{t("settings:market_data_page.field_low")}</TableHead>
+                <TableHead>{t("settings:market_data_page.field_close")}</TableHead>
+                <TableHead>{t("settings:market_data_page.field_volume")}</TableHead>
+                <TableHead>{t("common:currency")}</TableHead>
+                <TableHead>{t("settings:market_data_page.field_status")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -130,7 +136,7 @@ export function QuotePreviewTable({ quotes, maxRows = 10 }: QuotePreviewTablePro
                           variant={getStatusVariant(quote.validationStatus)}
                           className="whitespace-nowrap"
                         >
-                          {formatValidationStatus(quote.validationStatus)}
+                          {formatValidationStatus(quote.validationStatus, t)}
                         </Badge>
                       </TableCell>
                     </TableRow>
@@ -142,7 +148,10 @@ export function QuotePreviewTable({ quotes, maxRows = 10 }: QuotePreviewTablePro
         </div>
         {quotes.length > maxRows && (
           <p className="text-muted-foreground mt-2 text-sm">
-            Showing first {maxRows} of {quotes.length} rows
+            {t("settings:market_data_page.showing_first_rows", {
+              max: maxRows,
+              total: quotes.length,
+            })}
           </p>
         )}
       </CardContent>

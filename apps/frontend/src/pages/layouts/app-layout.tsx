@@ -1,11 +1,10 @@
 import AppLauncher from "@/components/app-launcher";
 import { MobileLoadingIndicator } from "@/components/mobile-loading-indicator";
-import { Toaster } from "@/components/sonner";
 import { StartupError } from "@/components/startup-error";
 import { UpdateDialog } from "@/components/update-dialog";
 import { PortfolioSyncProvider } from "@/context/portfolio-sync-context";
 import { useActiveAppSyncTrigger } from "@/features/devices-sync/hooks/use-active-app-sync-trigger";
-import useNavigationEventListener from "@/hooks/use-navigation-event-listener";
+import { usePostLoginConnectSync } from "@/features/wealthfolio-connect/hooks";
 import { useIsMobileViewport, usePlatform } from "@/hooks/use-platform";
 import { useSettings } from "@/hooks/use-settings";
 import { cn } from "@/lib/utils";
@@ -42,10 +41,15 @@ const AppLayoutContent = () => {
   const isDesktopFocusMode = !shouldUseMobileNavigation && isFocusMode;
   const launchBarHeight =
     !shouldUseMobileNavigation && isLaunchBar && !isFocusMode ? "56px" : undefined;
+  const isAppShellReady = isSettingsReady && !!settings?.onboardingCompleted;
+  const pageScrollKey =
+    location.pathname.startsWith("/addon/") || location.pathname.startsWith("/addons/")
+      ? "/addons"
+      : location.pathname;
 
-  useGlobalEventListener();
-  useNavigationEventListener();
+  const areGlobalEventsReady = useGlobalEventListener();
   useActiveAppSyncTrigger({ enabled: isTauri, requireWindowFocusForInterval: !isMobile });
+  usePostLoginConnectSync({ enabled: areGlobalEventsReady && isAppShellReady });
 
   if (isSettingsError) {
     return (
@@ -60,7 +64,7 @@ const AppLayoutContent = () => {
   if (!isSettingsReady) {
     return (
       <div
-        className="flex h-screen items-center justify-center supports-[height:100dvh]:h-dvh"
+        className="flex h-screen items-center justify-center"
         style={{ backgroundColor: "#09090b" }}
       >
         <img src="/logo-gold.png" alt="Wealthfolio" className="h-[100px] w-auto" />
@@ -75,7 +79,7 @@ const AppLayoutContent = () => {
   return (
     <ErrorBoundary>
       <ApplicationShell
-        className="app-shell h-screen overflow-x-hidden supports-[height:100dvh]:h-dvh"
+        className="app-shell h-screen overflow-x-hidden"
         style={
           launchBarHeight ? { ["--mobile-nav-ui-height" as string]: launchBarHeight } : undefined
         }
@@ -101,10 +105,10 @@ const AppLayoutContent = () => {
               className="draggable pointer-events-auto absolute inset-x-0 top-0 z-50 h-6 cursor-grab opacity-0"
             ></div>
             {shouldUseMobileNavigation ? (
-              <MobileNavigationContainer key={location.pathname} />
+              <MobileNavigationContainer key={pageScrollKey} />
             ) : (
               <PageScrollContainer
-                key={location.pathname}
+                key={pageScrollKey}
                 withMobileNavOffset={shouldUseBottomNavigation}
               >
                 <Outlet />
@@ -118,7 +122,6 @@ const AppLayoutContent = () => {
           <FloatingNavigationBar navigation={navigation} />
         )}
 
-        <Toaster mobileOffset={{ top: "68px" }} closeButton expand={false} />
         <AppLauncher />
         <UpdateDialog />
       </ApplicationShell>

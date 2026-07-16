@@ -70,9 +70,13 @@ mkdir src && touch src/index.ts
 
 ```typescript
 // src/index.ts
+import { createRoot, type Root } from 'react-dom/client';
 import { getAddonContext, type AddonContext } from '@wealthfolio/addon-sdk';
+import { MyComponent } from './MyComponent';
 
 export default function enable(context: AddonContext) {
+  let root: Root | null = null;
+
   // Add navigation item
   const navItem = context.sidebar.addItem({
     id: 'my-addon',
@@ -84,7 +88,10 @@ export default function enable(context: AddonContext) {
   // Register route
   context.router.add({
     path: '/addons/my-addon',
-    component: () => import('./MyComponent'),
+    render: ({ root: routeRoot }) => {
+      root ??= createRoot(routeRoot);
+      root.render(<MyComponent ctx={context} />);
+    },
   });
 
   // Log activation
@@ -92,6 +99,8 @@ export default function enable(context: AddonContext) {
 
   // Cleanup on disable
   context.onDisable(() => {
+    root?.unmount();
+    root = null;
     navItem.remove();
     context.api.logger.info('My addon deactivated');
   });
@@ -235,10 +244,9 @@ example:
 
 ```typescript
 // src/addon.tsx
-import React from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { AddonContext, AddonEnableFunction } from '@wealthfolio/addon-sdk';
-import { Icons } from '@wealthfolio/ui';
 import FeesPage from './pages/fees-page';
 
 // Main addon component
@@ -256,13 +264,14 @@ const enable: AddonEnableFunction = (context) => {
 
   // Store references to items for cleanup
   const addedItems: Array<{ remove: () => void }> = [];
+  let root: Root | null = null;
 
   try {
-    // Add sidebar navigation item with icon from UI library
+    // Add sidebar navigation item with a host-supported icon token
     const sidebarItem = context.sidebar.addItem({
       id: 'investment-fees-tracker',
       label: 'Fee Tracker',
-      icon: <Icons.Invoice className="h-5 w-5" />,
+      icon: 'receipt',
       route: '/addons/investment-fees-tracker',
       order: 200
     });
@@ -280,12 +289,13 @@ const enable: AddonEnableFunction = (context) => {
       );
     };
 
-    // Register route with lazy loading
+    // Register route
     context.router.add({
       path: '/addons/investment-fees-tracker',
-      component: React.lazy(() => Promise.resolve({
-        default: InvestmentFeesTrackerWrapper
-      }))
+      render: ({ root: routeRoot }) => {
+        root ??= createRoot(routeRoot);
+        root.render(<InvestmentFeesTrackerWrapper />);
+      },
     });
 
     context.api.logger.debug('Route registered successfully');
@@ -299,6 +309,10 @@ const enable: AddonEnableFunction = (context) => {
   // Register cleanup callback
   context.onDisable(() => {
     context.api.logger.info('🛑 Investment Fees Tracker addon is being disabled');
+
+    // Unmount the addon's React root
+    root?.unmount();
+    root = null;
 
     // Remove all sidebar items
     addedItems.forEach(item => {
@@ -325,7 +339,8 @@ export default enable;
 3. **Error Handling**: Comprehensive error handling with logging
 4. **Resource Management**: Proper cleanup of sidebar items and event listeners
 5. **TypeScript**: Full type safety with proper imports
-6. **Lazy Loading**: Efficient component loading with React.lazy
+6. **Sandbox Rendering**: Mounts into the route root with `createRoot` and
+   unmounts on disable
 
 ````
 
@@ -608,13 +623,18 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: ['react', 'react-dom'],
-      output: {
-        globals: {
-          react: 'React',
-          'react-dom': 'ReactDOM',
-        },
-      },
+      external: [
+        '@tanstack/react-query',
+        '@wealthfolio/addon-sdk',
+        '@wealthfolio/ui',
+        'date-fns',
+        'lucide-react',
+        'react',
+        'react-dom',
+        'react-dom/client',
+        'react/jsx-runtime',
+        'recharts',
+      ],
     },
     outDir: 'dist',
     minify: 'terser',
@@ -726,7 +746,8 @@ Add an item to the application sidebar.
 
 - `config.id` (string): Unique identifier
 - `config.label` (string): Display text
-- `config.icon` (string | ReactNode): Icon name or component
+- `config.icon` (string): Host-supported icon token, such as `receipt`,
+  `chart-bar`, or `calendar-dots`
 - `config.route` (string): Navigation route
 - `config.order` (number): Display order (optional)
 - `config.onClick` (function): Click handler (optional)
@@ -740,7 +761,8 @@ Register a new route in the application.
 **Parameters:**
 
 - `route.path` (string): Route path pattern
-- `route.component` (LazyExoticComponent): Lazy-loaded component
+- `route.render` (function): `({ root, location }) => void` — mount your React
+  root into the provided `root` element
 
 #### `onDisable(callback)`
 
@@ -993,13 +1015,18 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: ['react', 'react-dom'],
-      output: {
-        globals: {
-          react: 'React',
-          'react-dom': 'ReactDOM',
-        },
-      },
+      external: [
+        '@tanstack/react-query',
+        '@wealthfolio/addon-sdk',
+        '@wealthfolio/ui',
+        'date-fns',
+        'lucide-react',
+        'react',
+        'react-dom',
+        'react-dom/client',
+        'react/jsx-runtime',
+        'recharts',
+      ],
     },
     outDir: 'dist',
     minify: 'terser',

@@ -1,8 +1,10 @@
 import { isCashSymbol, needsImportAssetResolution } from "@/lib/activity-utils";
 import { quoteModeFromSearchResult } from "@/lib/asset-utils";
 import { ActivityType } from "@/lib/constants";
+import { getQuoteUnitCurrency } from "@wealthfolio/ui/lib/currencies";
 import type {
   ImportAssetCandidate,
+  ImportAssetPreviewItem,
   ImportMappingData,
   NewAsset,
   SymbolSearchResult,
@@ -20,12 +22,16 @@ export function applyAssetResolution(
     if (row.assetCandidateKey !== key && buildImportAssetCandidateKeyFromDraft(row) !== key) {
       return row;
     }
+    const resolvedDefaultCurrency = resolvedActivityCurrencyFromAssetQuote(row, draft.quoteCcy);
+    const resolvedCurrency = resolvedDefaultCurrency ?? row.currency;
     return {
       ...row,
       symbol: draft.instrumentSymbol || draft.displayCode || row.symbol,
       symbolName: draft.name || row.symbolName,
       exchangeMic: draft.instrumentExchangeMic || undefined,
       quoteCcy: draft.quoteCcy || row.quoteCcy,
+      currency: resolvedCurrency,
+      currencySource: resolvedDefaultCurrency ? "resolved" : row.currencySource,
       instrumentType: draft.instrumentType || row.instrumentType,
       quoteMode: draft.quoteMode || row.quoteMode,
       providerId: draft.providerId,
@@ -35,6 +41,23 @@ export function applyAssetResolution(
       importAssetKey: options.importAssetKey,
     };
   });
+}
+
+function resolvedActivityCurrencyFromAssetQuote(
+  row: DraftActivity,
+  quoteCcy: string | undefined,
+): string | undefined {
+  if (row.currencySource !== "default") {
+    return undefined;
+  }
+  const currency = quoteCcy?.trim();
+  if (!currency || getQuoteUnitCurrency(currency)) {
+    return undefined;
+  }
+  if (currency.toUpperCase() === row.currency?.trim().toUpperCase()) {
+    return undefined;
+  }
+  return currency.toUpperCase();
 }
 
 export function mapQuoteTypeToInstrumentType(quoteType?: string): string | undefined {
@@ -102,17 +125,26 @@ function hasProviderIdentity(input: { providerId?: string; providerSymbol?: stri
   return Boolean(input.providerId?.trim() || input.providerSymbol?.trim());
 }
 
+function draftAssetResolutionCurrency(draft: DraftActivity): string | undefined {
+  const currency = draft.currency?.trim();
+  if (!currency || draft.currencySource === "default") {
+    return undefined;
+  }
+  return currency;
+}
+
 function buildImportAssetCandidateKeyFromDraft(draft: DraftActivity): string | undefined {
   if (!draft.symbol || !draft.accountId) {
     return undefined;
   }
 
+  const currency = draftAssetResolutionCurrency(draft);
   return buildImportAssetCandidateKey({
     accountId: draft.accountId,
     symbol: draft.symbol,
     instrumentType: draft.instrumentType,
     quoteMode: draft.quoteMode,
-    quoteCcy: draft.quoteCcy || draft.currency,
+    quoteCcy: draft.quoteCcy || currency,
     exchangeMic: draft.exchangeMic,
     isin: draft.isin,
     providerId: draft.providerId,
@@ -149,7 +181,7 @@ export function buildImportAssetCandidateFromDraft(
     key: shouldUseStoredKey && storedKey ? storedKey : computedKey,
     accountId: draft.accountId,
     symbol: draft.symbol,
-    currency: draft.currency,
+    currency: draftAssetResolutionCurrency(draft),
     instrumentType: draft.instrumentType,
     quoteCcy: draft.quoteCcy,
     quoteMode: draft.quoteMode,
@@ -279,4 +311,70 @@ export function buildSyntheticDraftsFromHoldings(
   }
 
   return drafts;
+}
+
+/**
+ * Whether a holdings import contains any non-cash securities that need asset
+ * resolution. Cash-only imports (every row `$CASH`) produce no synthetic drafts,
+ * so the "Review Assets" step has nothing to review and can be skipped.
+ */
+export function holdingsImportHasAssets(
+  headers: string[],
+  parsedRows: string[][],
+  mapping: ImportMappingData,
+  accountId: string,
+  defaultCurrency: string,
+): boolean {
+  return (
+    buildSyntheticDraftsFromHoldings(headers, parsedRows, mapping, accountId, defaultCurrency)
+      .length > 0
+  );
+}
+
+export interface AssetReviewProceedInput {
+  isHoldingsMode: boolean;
+  parsedRowCount: number;
+  draftActivities: DraftActivity[];
+  isPreviewingAssets: boolean;
+  assetPreviewError: string | null;
+  assetPreviewItems: ImportAssetPreviewItem[];
+}
+
+/**
+ * Whether the Review Assets step can advance.
+ *
+ * Holdings imports gate on parsed rows rather than synthetic drafts: a cash-only
+ * holdings CSV yields zero drafts (cash needs no asset resolution) yet is still a
+ * valid import, so blocking on `draftActivities.length` would strand the user.
+ * When there are no asset candidates to resolve the step passes through;
+ * otherwise every previewed asset must be resolved (none left NEEDS_FIXING).
+ */
+export function canProceedFromAssetReviewStep({
+  isHoldingsMode,
+  parsedRowCount,
+  draftActivities,
+  isPreviewingAssets,
+  assetPreviewError,
+  assetPreviewItems,
+}: AssetReviewProceedInput): boolean {
+  const hasImportableRows = isHoldingsMode ? parsedRowCount > 0 : draftActivities.length > 0;
+
+  if (!hasImportableRows || isPreviewingAssets || assetPreviewError) {
+    return false;
+  }
+
+  const assetCandidateCount = new Set(
+    draftActivities
+      .map((draft) => buildImportAssetCandidateFromDraft(draft)?.key)
+      .filter((key): key is string => Boolean(key)),
+  ).size;
+
+  if (assetCandidateCount === 0) {
+    return true;
+  }
+
+  return (
+    assetPreviewItems.length > 0 &&
+    assetPreviewItems.every((item) => item.status !== "NEEDS_FIXING")
+  );
 }

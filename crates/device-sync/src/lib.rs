@@ -12,7 +12,7 @@
 //! let result = client.enroll_device(
 //!     "access_token",
 //!     RegisterDeviceRequest {
-//!         instance_id: "uuid".to_string(),
+//!         device_nonce: "random-device-nonce".to_string(),
 //!         display_name: "My Device".to_string(),
 //!         platform: "mac".to_string(),
 //!         os_version: Some("15.2".to_string()),

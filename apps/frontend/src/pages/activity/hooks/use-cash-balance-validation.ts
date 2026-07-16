@@ -34,6 +34,7 @@ export function useCashBalanceValidation(): CashBalanceValidationResult {
   const quantity = watch("quantity");
   const unitPrice = watch("unitPrice");
   const fee = watch("fee") || 0;
+  const tax = watch("tax") || 0;
 
   // Get account cash balance
   const { latestValuations, isLoading } = useLatestValuations(accountId ? [accountId] : []);
@@ -110,7 +111,8 @@ export function useCashBalanceValidation(): CashBalanceValidationResult {
     const numQuantity = Number(quantity) || 0;
     const numUnitPrice = Number(unitPrice) || 0;
     const numFee = Number(fee) || 0;
-    const requiredAmount = numQuantity * numUnitPrice + numFee;
+    const numTax = Number(tax) || 0;
+    const requiredAmount = numQuantity * numUnitPrice + numFee + numTax;
     const shortfall = Math.max(0, requiredAmount - currentBalance);
     const isValid = shortfall === 0;
 
@@ -137,7 +139,7 @@ export function useCashBalanceValidation(): CashBalanceValidationResult {
       hasAccount,
       hasValues,
     });
-  }, [activityType, accountId, quantity, unitPrice, fee, latestValuations, isLoading]);
+  }, [activityType, accountId, quantity, unitPrice, fee, tax, latestValuations, isLoading]);
 
   return validationResult;
 }

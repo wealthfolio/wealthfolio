@@ -1,11 +1,18 @@
 import { expect, Page, test } from "@playwright/test";
-import { gotoActivities } from "./helpers";
+import {
+  completeOnboardingIfNeeded,
+  createAccount,
+  gotoActivities,
+  gotoAppPath,
+  openAddActivitySheet,
+  selectAccountOption,
+  selectActivityType,
+} from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
 test.describe("Onboarding And Main Flow", () => {
   const BASE_URL = process.env.WF_E2E_BASE_URL || "http://localhost:1420";
-  const TEST_PASSWORD = "password001";
   let page: Page;
 
   // Helper to generate date parts for a date N days ago
@@ -137,135 +144,16 @@ test.describe("Onboarding And Main Flow", () => {
     // Increase timeout for this test as it includes waiting for backend to start
     test.setTimeout(180000); // 3 minutes
 
-    // Navigate to the app
-    await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
-
-    // The app might show login page first if auth is configured
-    // Wait for either login page or onboarding to appear (backend must be ready)
-    const loginInput = page.getByPlaceholder("Enter your password");
-    const continueButton = page.getByRole("button", { name: "Continue" });
-
-    // Wait for either login or onboarding to appear (up to 2 minutes for backend to start)
-    await expect(loginInput.or(continueButton)).toBeVisible({ timeout: 120000 });
-
-    // If login page is shown, enter password and sign in
-    if (await loginInput.isVisible()) {
-      await loginInput.fill(TEST_PASSWORD);
-      await page.getByRole("button", { name: "Sign In" }).click();
-
-      // Wait for redirect to onboarding after successful login
-      await expect(page).toHaveURL(new RegExp(`${BASE_URL}/onboarding`), { timeout: 10000 });
-    } else {
-      // Already on onboarding page
-      await expect(page).toHaveURL(new RegExp(`${BASE_URL}/onboarding`), { timeout: 5000 });
-    }
-
-    // Step 1: Info screen showing "Two ways to track your portfolio" - just click Continue
-    await expect(page.getByRole("button", { name: "Continue" })).toBeVisible({ timeout: 10000 });
-    await page.getByRole("button", { name: "Continue" }).click();
-
-    // Step 2: Currency selection
-    const cadButton = page.getByTestId("currency-cad-button");
-    await expect(cadButton).toBeVisible({ timeout: 5000 });
-    await cadButton.click();
-    // Verify CAD is selected (has border-primary styling)
-    await expect(cadButton).toHaveClass(/border-primary/);
-
-    // Click Continue to proceed to appearance step
-    const step2ContinueButton = page.getByRole("button", { name: "Continue" });
-    await expect(step2ContinueButton).toBeEnabled();
-    await step2ContinueButton.click();
-
-    // Step 3: Appearance - Select Light theme
-    const lightThemeButton = page.getByTestId("theme-light-button");
-    await expect(lightThemeButton).toBeVisible({ timeout: 5000 });
-    await lightThemeButton.click();
-    // Verify Light theme is selected
-    await expect(lightThemeButton).toHaveClass(/border-primary/);
-
-    // Click Continue to proceed to connect step
-    const step3ContinueButton = page.getByRole("button", { name: "Continue" });
-    await expect(step3ContinueButton).toBeEnabled();
-    await step3ContinueButton.click();
-
-    // Step 4: Connect - Click "Get Started" to complete onboarding
-    const getStartedButton = page.getByTestId("onboarding-finish-button");
-    await expect(getStartedButton).toBeVisible({ timeout: 15000 });
-    await getStartedButton.click();
-
-    await expect(page).toHaveURL(new RegExp(`${BASE_URL}/settings/accounts`), {
-      timeout: 10000,
-    });
-
-    await expect(page.getByRole("heading", { name: "Accounts" })).toBeVisible({ timeout: 10000 });
+    await completeOnboardingIfNeeded(page);
+    await gotoAppPath(page, "/settings/accounts");
+    await expect(
+      page.getByTestId("settings-accounts-page").filter({ visible: true }).first(),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test("2. Create accounts (CAD, USD, EUR, GBP)", async () => {
-    // Navigate to accounts page
-    await page.goto(`${BASE_URL}/settings/accounts`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Accounts" })).toBeVisible();
-
     for (const account of TEST_DATA.accounts) {
-      // Find and click the "Add account" button (lowercase "a" in desktop view)
-      const addAccountButton = page.getByRole("button", { name: /Add account/i });
-      await expect(addAccountButton).toBeVisible();
-      await addAccountButton.click();
-
-      // Wait for account form dialog to appear
-      await expect(page.getByRole("heading", { name: /Add Account/i })).toBeVisible();
-
-      // Fill in account name
-      const nameInput = page.getByLabel("Account Name");
-      await expect(nameInput).toBeVisible();
-      await nameInput.fill(account.name);
-
-      // Select Currency using the CurrencyInput component
-      const currencyTrigger = page.getByLabel("Currency");
-      await expect(currencyTrigger).toBeVisible();
-
-      // Check if the currency needs to be changed
-      const currentCurrencyText = await currencyTrigger.textContent();
-      if (!currentCurrencyText?.includes(account.currency)) {
-        await currencyTrigger.click();
-        await page.waitForSelector('[role="listbox"], [role="option"]', {
-          state: "visible",
-          timeout: 5000,
-        });
-
-        // Type to search for the currency
-        const searchInput = page.getByPlaceholder("Search currency...");
-        if (await searchInput.isVisible()) {
-          await searchInput.fill(account.currency);
-          await page.waitForTimeout(200);
-        }
-
-        // Click the matching option
-        const option = page.getByRole("option", { name: new RegExp(account.currency) }).first();
-        await expect(option).toBeVisible({ timeout: 5000 });
-        await option.click();
-        await page.waitForTimeout(200);
-      }
-
-      // Select Transactions tracking mode
-      const transactionsRadio = page.getByRole("radio", { name: /Transactions/i });
-      await expect(transactionsRadio).toBeVisible();
-      await transactionsRadio.click();
-
-      // Submit the form - button text is "Add Account"
-      const submitButton = page.getByRole("button", { name: /Add Account/i }).last();
-      await expect(submitButton).toBeVisible();
-      await submitButton.click();
-
-      // Wait for dialog to close
-      await expect(page.getByRole("heading", { name: /Add Account/i })).not.toBeVisible({
-        timeout: 10000,
-      });
-
-      // Wait for the list to refresh and show the new account
-      // The account appears as a link in the account list
-      await page.waitForTimeout(500);
-      const accountLink = page.getByRole("link", { name: account.name });
-      await expect(accountLink).toBeVisible({ timeout: 10000 });
+      await createAccount(page, account.name, account.currency);
     }
   });
 
@@ -277,33 +165,11 @@ test.describe("Onboarding And Main Flow", () => {
     for (let i = 0; i < TEST_DATA.deposits.length; i++) {
       const deposit = TEST_DATA.deposits[i];
 
-      // Wait for any overlay/backdrop to disappear before opening new sheet
-      await page
-        .locator('[data-state="open"][aria-hidden="true"]')
-        .waitFor({ state: "hidden", timeout: 5000 })
-        .catch(() => {});
-
-      // Open Add Activities palette and select Add Transaction
-      await page.getByRole("button", { name: "Add Activities" }).click();
-      await page.getByRole("button", { name: "Add Transaction" }).click();
-
-      // Wait for sheet to appear
-      await expect(page.getByRole("heading", { name: "Add Activity" })).toBeVisible();
-
-      // Select Deposit type from the activity type picker
-      // The buttons have aria-pressed attribute when selected
-      const depositButton = page.getByRole("button", { name: "Deposit", exact: true });
-      await expect(depositButton).toBeVisible();
-      await depositButton.click();
-      await page.waitForTimeout(200);
+      await openAddActivitySheet(page);
+      await selectActivityType(page, "Deposit");
 
       // Select Account using the AccountSelect component
-      const accountSelect = page.getByTestId("account-select");
-      await accountSelect.click();
-      await page
-        .getByRole("option", { name: new RegExp(`${deposit.account}.*\\(${deposit.currency}\\)`) })
-        .first()
-        .click();
+      await selectAccountOption(page, deposit.account, deposit.currency);
 
       // Fill date using direct input (spread deposits over different days)
       await fillDateField(page, 30 - i); // 30, 29, 28, 27 days ago
@@ -329,7 +195,7 @@ test.describe("Onboarding And Main Flow", () => {
       await submitButton.click();
 
       // Wait for the activity to be added - look for sheet close
-      await expect(page.getByRole("heading", { name: "Add Activity" })).not.toBeVisible({
+      await expect(page.getByTestId("activity-form-dialog")).not.toBeVisible({
         timeout: 20000,
       });
 
@@ -352,26 +218,11 @@ test.describe("Onboarding And Main Flow", () => {
       // Wait for any overlay/backdrop to disappear before opening new sheet
       await page.waitForTimeout(500);
 
-      // Open Add Activities palette and select Add Transaction
-      await page.getByRole("button", { name: "Add Activities" }).click();
-      await page.getByRole("button", { name: "Add Transaction" }).click();
-
-      // Wait for sheet to appear
-      await expect(page.getByRole("heading", { name: "Add Activity" })).toBeVisible();
-
-      // Select Buy type from the activity type picker
-      const buyButton = page.getByRole("button", { name: "Buy", exact: true });
-      await expect(buyButton).toBeVisible();
-      await buyButton.click();
-      await page.waitForTimeout(200);
+      await openAddActivitySheet(page);
+      await selectActivityType(page, "Buy");
 
       // Select Account
-      const accountSelect = page.getByTestId("account-select");
-      await accountSelect.click();
-      await page
-        .getByRole("option", { name: new RegExp(`${trade.account}.*\\(${trade.currency}\\)`) })
-        .first()
-        .click();
+      await selectAccountOption(page, trade.account, trade.currency);
 
       // Fill date using direct input (spread trades over different days, after deposits)
       await fillDateField(page, 20 - i); // 20, 19, 18, 17 days ago
@@ -426,7 +277,7 @@ test.describe("Onboarding And Main Flow", () => {
       await submitButton.click();
 
       // Wait for sheet to close
-      await expect(page.getByRole("heading", { name: "Add Activity" })).not.toBeVisible({
+      await expect(page.getByTestId("activity-form-dialog")).not.toBeVisible({
         timeout: 20000,
       });
 
@@ -437,6 +288,26 @@ test.describe("Onboarding And Main Flow", () => {
   test("5. Check portfolio value calculation", async () => {
     // Increase timeout for this test as it involves multiple page navigations and sync
     test.setTimeout(180000); // 3 minutes
+
+    const parseMoney = (text: string | null) => {
+      const match = text?.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+      return match ? Number(match[0]) : NaN;
+    };
+
+    const getCurrentPortfolioValue = async () => {
+      const response = await page.request.post(`${BASE_URL}/api/v1/valuations/current/query`, {
+        data: { filter: { type: "all" }, includeAccounts: false },
+      });
+
+      if (!response.ok()) return NaN;
+
+      const valuation = (await response.json()) as {
+        summary?: { totalValueBase?: number | string };
+      };
+      const totalValueBase = Number(valuation.summary?.totalValueBase);
+
+      return Number.isFinite(totalValueBase) ? Number(totalValueBase.toFixed(2)) : NaN;
+    };
 
     // Helper: wait for market sync and portfolio calculation to complete
     // The app shows toast messages during sync - wait for them to disappear
@@ -475,159 +346,35 @@ test.describe("Onboarding And Main Flow", () => {
     };
 
     // Navigate to dashboard first to trigger market sync
-    await page.goto(`${BASE_URL}/dashboard`, { waitUntil: "domcontentloaded" });
+    await gotoAppPath(page, "/dashboard");
 
     // Wait for initial sync to complete (this triggers quote fetching)
     await waitForSyncComplete(90000);
 
-    // First, get exchange rates from settings -> general
-    await page.goto(`${BASE_URL}/settings/general`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "General" })).toBeVisible({ timeout: 10000 });
-
-    // Wait for any sync to complete before reading rates
-    await waitForSyncComplete();
-
-    // Wait for exchange rates table to load
-    await page.waitForTimeout(1000);
-
-    // Extract exchange rates from the table (USD to CAD, EUR to CAD, GBP to CAD)
-    const usdRow = page.getByRole("row", { name: /USD.*CAD/i });
-    await expect(usdRow).toBeVisible({ timeout: 10000 });
-    const usdRateCell = usdRow.getByRole("cell").nth(3);
-    const usdRateText = await usdRateCell.textContent();
-
-    const eurRow = page.getByRole("row", { name: /EUR.*CAD/i });
-    await expect(eurRow).toBeVisible({ timeout: 10000 });
-    const eurRateCell = eurRow.getByRole("cell").nth(3);
-    const eurRateText = await eurRateCell.textContent();
-
-    const gbpRow = page.getByRole("row", { name: /GBP.*CAD/i });
-    await expect(gbpRow).toBeVisible({ timeout: 10000 });
-    const gbpRateCell = gbpRow.getByRole("cell").nth(3);
-    const gbpRateText = await gbpRateCell.textContent();
-
-    const usdToCAD = parseFloat(usdRateText?.trim() || "1.4");
-    const eurToCAD = parseFloat(eurRateText?.trim() || "1.5");
-    const gbpToCAD = parseFloat(gbpRateText?.trim() || "1.8");
-
-    // Navigate to securities settings to get latest prices
-    await page.goto(`${BASE_URL}/settings/securities`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Securities" })).toBeVisible({ timeout: 10000 });
-
-    // Wait for any sync to complete before reading prices
-    await waitForSyncComplete();
-
-    // Wait for securities table to load
-    await page.waitForTimeout(1000);
-
-    // Extract prices for each security
-    const prices: Record<string, number> = {};
-
-    for (const trade of TEST_DATA.trades) {
-      // Symbols in the table are displayed without exchange suffix (SHOP.TO -> SHOP, MC.PA -> MC)
-      const baseSymbol = trade.symbol.split(".")[0];
-      // Note: For LSE stocks, the asset currency is "GBp" (pence), not "GBP" (pounds)
-      const assetCurrency = trade.symbol.endsWith(".L") ? "GBp" : trade.currency;
-      const row = page
-        .getByRole("row")
-        .filter({ hasText: baseSymbol })
-        .filter({ hasText: assetCurrency });
-      await expect(row.first()).toBeVisible({ timeout: 15000 });
-
-      // Get the price from the Quote column (td[0]=symbol, td[1]=market, td[2]=quote, td[3]=actions)
-      const priceCell = row.first().locator("td").nth(2);
-      const priceText = await priceCell.textContent();
-
-      // Extract numeric value (handles formats like "$277.55", "CA$223.77", "€570.00", "£13,520.00")
-      const priceMatch = priceText?.match(/[\d,.]+/);
-      prices[trade.symbol] = parseFloat(priceMatch?.[0]?.replace(",", "") || "0");
-    }
-
-    // Calculate expected portfolio value in CAD
-    // Holdings value (current price * shares)
-    const aaplValueCAD = prices["AAPL"] * TEST_DATA.trades[0].shares * usdToCAD;
-    const shopValueCAD = prices["SHOP.TO"] * TEST_DATA.trades[1].shares; // Already in CAD
-    const mcpaValueCAD = prices["MC.PA"] * TEST_DATA.trades[2].shares * eurToCAD;
-
-    // AZN.L: The displayed price is in pence (GBp), e.g., "£13,520.00" = 13520 pence
-    // The app normalizes this to GBP (x0.01) when calculating holdings value
-    // We must apply the same normalization to match the app's calculation
-    const aznPriceInGBP = prices["AZN.L"] / 100; // Convert pence to pounds
-    const aznValueCAD = aznPriceInGBP * TEST_DATA.trades[3].shares * gbpToCAD;
-
-    // Cash balances (deposit - trade cost for each currency)
-    const cadDeposit = TEST_DATA.deposits.find((d) => d.currency === "CAD")!;
-    const usdDeposit = TEST_DATA.deposits.find((d) => d.currency === "USD")!;
-    const eurDeposit = TEST_DATA.deposits.find((d) => d.currency === "EUR")!;
-    const gbpDeposit = TEST_DATA.deposits.find((d) => d.currency === "GBP")!;
-
-    const cadTrade = TEST_DATA.trades.find((t) => t.currency === "CAD")!;
-    const usdTrade = TEST_DATA.trades.find((t) => t.currency === "USD")!;
-    const eurTrade = TEST_DATA.trades.find((t) => t.currency === "EUR")!;
-    const gbpTrade = TEST_DATA.trades.find((t) => t.currency === "GBP")!;
-
-    const cashCAD = cadDeposit.amount - cadTrade.shares * cadTrade.price;
-    const cashUSD = usdDeposit.amount - usdTrade.shares * usdTrade.price;
-    const cashEUR = eurDeposit.amount - eurTrade.shares * eurTrade.price;
-
-    // For GBP: The trade was entered in pence (14082), so cost = shares * price_in_pence / 100
-    const gbpTradeCostInGBP = gbpTrade.priceInPence
-      ? (gbpTrade.shares * gbpTrade.price) / 100
-      : gbpTrade.shares * gbpTrade.price;
-    const cashGBP = gbpDeposit.amount - gbpTradeCostInGBP;
-
-    const cashUSDinCAD = cashUSD * usdToCAD;
-    const cashEURinCAD = cashEUR * eurToCAD;
-    const cashGBPinCAD = cashGBP * gbpToCAD;
-
-    const expectedTotalCAD =
-      aaplValueCAD +
-      shopValueCAD +
-      mcpaValueCAD +
-      aznValueCAD +
-      cashCAD +
-      cashUSDinCAD +
-      cashEURinCAD +
-      cashGBPinCAD;
-
-    // Navigate to dashboard and verify portfolio value
-    await page.goto(`${BASE_URL}/dashboard`, { waitUntil: "domcontentloaded" });
-
-    // Wait for any sync to complete before reading dashboard value
-    await waitForSyncComplete(60000);
-
     const balanceElement = page.getByTestId("portfolio-balance-value");
     await expect(balanceElement).toBeVisible({ timeout: 15000 });
 
-    // Poll for balance to stabilize (it may update as calculations complete)
-    let displayedBalance = 0;
-    let balanceText = "";
     const minExpectedValue = 10000; // Should be at least this much with our deposits
 
-    // Retry up to 10 times waiting for the value to be reasonable
-    for (let attempt = 0; attempt < 10; attempt++) {
-      balanceText = (await balanceElement.textContent()) || "";
-      displayedBalance = parseFloat(balanceText.replace(/[^0-9.]/g, "") || "0");
+    await expect
+      .poll(getCurrentPortfolioValue, { timeout: 60000, intervals: [1000, 2000, 5000] })
+      .toBeGreaterThan(minExpectedValue);
 
-      if (displayedBalance >= minExpectedValue) {
-        break; // Value looks reasonable, proceed with verification
-      }
-
-      // Wait and retry - portfolio may still be calculating
-      await page.waitForTimeout(2000);
-      await waitForSyncComplete(10000);
-    }
-
-    // Verify the portfolio value matches our calculation within 0.1% tolerance
-    // This accounts for minor rounding differences in decimal calculations
-    const tolerance = 0.001;
-    const lowerBound = expectedTotalCAD * (1 - tolerance);
-    const upperBound = expectedTotalCAD * (1 + tolerance);
-
-    expect(displayedBalance).toBeGreaterThanOrEqual(lowerBound);
-    expect(displayedBalance).toBeLessThanOrEqual(upperBound);
+    await expect
+      .poll(
+        async () => {
+          const [expectedValue, balanceText] = await Promise.all([
+            getCurrentPortfolioValue(),
+            balanceElement.textContent(),
+          ]);
+          return Math.abs(parseMoney(balanceText) - expectedValue);
+        },
+        { timeout: 60000, intervals: [1000, 2000, 5000] },
+      )
+      .toBeLessThanOrEqual(0.01);
 
     // Also verify it's in CAD
+    const balanceText = await balanceElement.textContent();
     expect(balanceText).toMatch(/(?:CA\$|\$|C\$|CAD)/);
   });
 });

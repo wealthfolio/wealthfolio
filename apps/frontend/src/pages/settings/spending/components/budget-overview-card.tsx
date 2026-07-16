@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { Button, Icons } from "@wealthfolio/ui";
@@ -10,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { formatAmountWhole } from "./format";
 
 export function BudgetOverviewCard() {
+  const { t } = useTranslation();
   const { data: budget, isLoading } = useBudget();
   const { isBalanceHidden } = useBalancePrivacy();
   const fmt = (amount: number, currency: string) =>
@@ -47,15 +49,17 @@ export function BudgetOverviewCard() {
       <div className="bg-card rounded-lg border p-6">
         <div className="space-y-3">
           <div>
-            <h3 className="text-base font-semibold">Default monthly plan</h3>
+            <h3 className="text-base font-semibold">
+              {t("settings:spending.budget_overview.title")}
+            </h3>
             <p className="text-muted-foreground mt-1 text-xs">
-              Define groups and default targets to use as the baseline each month.
+              {t("settings:spending.budget_overview.empty_description")}
             </p>
           </div>
           <Button asChild size="sm">
             <Link to="/settings/spending/setup">
               <Icons.Plus className="mr-1.5 h-3.5 w-3.5" />
-              Set up budget
+              {t("settings:spending.budget_overview.setup_cta")}
             </Link>
           </Button>
         </div>
@@ -66,14 +70,16 @@ export function BudgetOverviewCard() {
   return (
     <Link
       to="/settings/spending/setup"
-      aria-label="Open budget setup"
+      aria-label={t("settings:spending.budget_overview.open_aria")}
       className="bg-card hover:border-foreground/20 group flex flex-col items-stretch overflow-hidden rounded-lg border transition-all hover:shadow-md sm:flex-row"
     >
       <div className="min-w-0 flex-1 p-6">
         <div className="mb-4">
-          <h3 className="text-base font-semibold tracking-tight">Default monthly plan</h3>
+          <h3 className="text-base font-semibold tracking-tight">
+            {t("settings:spending.budget_overview.title")}
+          </h3>
           <p className="text-muted-foreground mt-1 text-xs">
-            Baseline group targets used every month until you change them.
+            {t("settings:spending.budget_overview.description")}
           </p>
         </div>
 
@@ -90,7 +96,9 @@ export function BudgetOverviewCard() {
               )}
             </div>
             <div className="text-muted-foreground mt-1.5 text-[10px] font-medium uppercase tracking-widest">
-              Planned spending {incomePlanned > 0 && "/ Monthly income"}
+              {incomePlanned > 0
+                ? t("settings:spending.budget_overview.planned_vs_income")
+                : t("settings:spending.budget_overview.planned_spending")}
             </div>
           </div>
           {pctOfIncome !== null && (
@@ -101,7 +109,7 @@ export function BudgetOverviewCard() {
               )}
             >
               <Icons.AlertCircle className="h-3 w-3" />
-              {pctOfIncome}% of income
+              {t("settings:spending.budget_overview.pct_of_income", { pct: pctOfIncome })}
             </span>
           )}
         </div>
@@ -150,7 +158,7 @@ export function BudgetOverviewCard() {
 
       {/* CTA — bottom bar on mobile, right rail on desktop */}
       <div className="bg-muted/30 group-hover:bg-foreground group-hover:text-background text-muted-foreground flex shrink-0 items-center justify-center gap-1.5 border-t px-4 py-3 text-xs font-medium uppercase tracking-widest transition-colors sm:w-24 sm:flex-col sm:gap-2 sm:border-l sm:border-t-0 sm:px-0 sm:py-0">
-        <span>Open plan</span>
+        <span>{t("settings:spending.budget_overview.open")}</span>
         <Icons.ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
       </div>
     </Link>

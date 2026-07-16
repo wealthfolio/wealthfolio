@@ -84,7 +84,7 @@ pub const SYSTEM_PROMPT: &str = include_str!("system_prompt.txt");
 
 // Re-export main types for convenience
 pub use chat::{ChatConfig, ChatService};
-pub use env::AiEnvironment;
+pub use env::{AgentEnvironment, AiEnvironment};
 pub use error::AiError;
 pub use providers::ProviderService;
 pub use title_generator::{
@@ -92,9 +92,8 @@ pub use title_generator::{
     TitleGeneratorTrait,
 };
 pub use tools::{
-    GetAccountsTool, GetGoalsTool, GetHoldingsTool, SearchActivitiesTool, ToolSet,
-    DEFAULT_PAGE_SIZE, DEFAULT_VALUATIONS_DAYS, MAX_ACCOUNTS, MAX_ACTIVITIES_ROWS, MAX_GOALS,
-    MAX_HOLDINGS, MAX_INCOME_RECORDS, MAX_VALUATIONS_POINTS,
+    ToolSet, DEFAULT_PAGE_SIZE, DEFAULT_VALUATIONS_DAYS, MAX_ACCOUNTS, MAX_ACTIVITIES_ROWS,
+    MAX_GOALS, MAX_HOLDINGS, MAX_INCOME_RECORDS, MAX_VALUATIONS_POINTS,
 };
 pub use types::{
     // Streaming and request types

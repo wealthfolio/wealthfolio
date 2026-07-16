@@ -1,0 +1,7 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "err": "Tool execution failed: Invalid groupBy value 'invalid'. Must be 'class', 'sector', 'region', 'risk', or 'security_type'."
+}

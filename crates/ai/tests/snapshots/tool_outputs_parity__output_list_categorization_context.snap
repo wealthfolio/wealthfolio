@@ -1,0 +1,17 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "examples": [],
+    "nextStep": "No matching transactions were found; there is no categorization widget to render.",
+    "summary": {
+      "deterministicallyProposed": 0,
+      "needsAiJudgement": 0,
+      "total": 0
+    },
+    "taxonomies": [],
+    "unproposed": []
+  }
+}

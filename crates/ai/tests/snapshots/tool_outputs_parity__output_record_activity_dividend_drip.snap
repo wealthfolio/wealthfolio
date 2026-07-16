@@ -1,0 +1,56 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+assertion_line: 681
+expression: result
+---
+{
+  "ok": {
+    "availableAccounts": [
+      {
+        "accountType": "SECURITIES",
+        "currency": "USD",
+        "id": "acc-1",
+        "name": "Main Broker"
+      }
+    ],
+    "availableSubtypes": [
+      {
+        "label": "Dividend Reinvested (DRIP)",
+        "value": "DRIP"
+      },
+      {
+        "label": "Dividend in Kind",
+        "value": "DIVIDEND_IN_KIND"
+      }
+    ],
+    "draft": {
+      "accountId": "acc-1",
+      "accountName": "Main Broker",
+      "activityDate": "2026-01-17",
+      "activityType": "DIVIDEND",
+      "amount": null,
+      "assetId": null,
+      "assetKind": null,
+      "assetName": "VTI",
+      "currency": "USD",
+      "fee": null,
+      "isCustomAsset": true,
+      "notes": null,
+      "priceSource": "none",
+      "pricingMode": "MARKET",
+      "quantity": 2.0,
+      "subtype": "DRIP",
+      "symbol": "VTI",
+      "unitPrice": null
+    },
+    "resolvedAsset": null,
+    "validation": {
+      "errors": [],
+      "isValid": false,
+      "missingFields": [
+        "unit_price",
+        "asset_kind"
+      ]
+    }
+  }
+}

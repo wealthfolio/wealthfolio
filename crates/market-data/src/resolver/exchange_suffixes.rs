@@ -141,18 +141,22 @@ pub fn yahoo_suffix_to_mic(suffix: &str) -> Option<&'static str> {
         .copied()
 }
 
+fn strip_ascii_suffix_ignore_case<'a>(value: &'a str, suffix: &str) -> Option<&'a str> {
+    let start = value.len().checked_sub(suffix.len())?;
+    let candidate = value.get(start..)?;
+    if candidate.eq_ignore_ascii_case(suffix) {
+        value.get(..start)
+    } else {
+        None
+    }
+}
+
 fn split_known_yahoo_suffix(symbol: &str) -> (&str, Option<&'static str>, Option<&'static str>) {
     let trimmed = symbol.trim();
     for suffix in yahoo_exchange_suffixes() {
-        if trimmed.len() >= suffix.len()
-            && trimmed[trimmed.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
-        {
+        if let Some(base) = strip_ascii_suffix_ignore_case(trimmed, suffix) {
             let suffix_code = suffix.strip_prefix('.').unwrap_or(suffix);
-            return (
-                &trimmed[..trimmed.len() - suffix.len()],
-                yahoo_suffix_to_mic(suffix_code),
-                Some(*suffix),
-            );
+            return (base, yahoo_suffix_to_mic(suffix_code), Some(*suffix));
         }
     }
     (trimmed, None, None)
@@ -176,7 +180,7 @@ pub fn yahoo_equity_provider_symbol_to_canonical(symbol: &str) -> String {
     let trimmed = symbol.trim();
     let (base, _suffix_mic, known_suffix) = split_known_yahoo_suffix(trimmed);
     if known_suffix.is_some() {
-        let suffix = &trimmed[base.len()..];
+        let suffix = trimmed.get(base.len()..).unwrap_or_default();
         return format!(
             "{}{}",
             yahoo_equity_provider_base_to_canonical(base),
@@ -212,7 +216,7 @@ pub fn yahoo_equity_search_queries(query: &str) -> Vec<String> {
     let (base, _suffix_mic, known_suffix) = split_known_yahoo_suffix(trimmed);
     let provider_base = yahoo_equity_base_to_provider(base);
     let provider_query = if known_suffix.is_some() {
-        let suffix = &trimmed[base.len()..];
+        let suffix = trimmed.get(base.len()..).unwrap_or_default();
         format!("{provider_base}{suffix}")
     } else {
         provider_base
@@ -231,21 +235,19 @@ pub fn yahoo_equity_search_queries(query: &str) -> Vec<String> {
 /// share classes like BRK.B or RDS.A (since .B and .A are not in the whitelist).
 pub fn strip_yahoo_suffix(symbol: &str) -> &str {
     // Handle special suffixes first
-    if symbol.len() >= 2 && symbol[symbol.len() - 2..].eq_ignore_ascii_case("=X") {
+    if let Some(base) = strip_ascii_suffix_ignore_case(symbol, "=X") {
         // FX pairs like EURUSD=X
-        return &symbol[..symbol.len() - 2];
+        return base;
     }
-    if symbol.len() >= 2 && symbol[symbol.len() - 2..].eq_ignore_ascii_case("=F") {
+    if let Some(base) = strip_ascii_suffix_ignore_case(symbol, "=F") {
         // Futures like GC=F
-        return &symbol[..symbol.len() - 2];
+        return base;
     }
 
     // Only strip if suffix is in our known exchange whitelist
     for suffix in yahoo_exchange_suffixes() {
-        if symbol.len() >= suffix.len()
-            && symbol[symbol.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
-        {
-            return &symbol[..symbol.len() - suffix.len()];
+        if let Some(base) = strip_ascii_suffix_ignore_case(symbol, suffix) {
+            return base;
         }
     }
 
@@ -398,6 +400,26 @@ mod tests {
         assert_eq!(strip_yahoo_suffix("eurusd=x"), "eurusd");
         assert_eq!(strip_yahoo_suffix("GC=F"), "GC");
         assert_eq!(strip_yahoo_suffix("gc=f"), "gc");
+    }
+
+    #[test]
+    fn test_yahoo_suffix_helpers_handle_non_ascii_symbols() {
+        for symbol in ["ÅÄÖ", "سهم", "東京", "😀"] {
+            assert_eq!(strip_yahoo_suffix(symbol), symbol);
+            assert_eq!(yahoo_equity_search_queries(symbol), vec![symbol]);
+            assert_eq!(yahoo_equity_provider_symbol_to_canonical(symbol), symbol);
+
+            let suffixed = format!("{symbol}.TO");
+            assert_eq!(strip_yahoo_suffix(&suffixed), symbol);
+            assert_eq!(
+                yahoo_equity_search_queries(&suffixed),
+                vec![suffixed.clone()]
+            );
+            assert_eq!(
+                yahoo_equity_provider_symbol_to_canonical(&suffixed),
+                suffixed
+            );
+        }
     }
 
     #[test]

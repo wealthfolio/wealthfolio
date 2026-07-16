@@ -2,8 +2,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
+import { ImportFormat } from "@/lib/constants";
 import { ActivityType, ImportType } from "@/lib/types";
-import { useImportMapping } from "./use-import-mapping";
+import { initializeColumnMapping, useImportMapping } from "./use-import-mapping";
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -16,6 +17,26 @@ function createWrapper() {
 }
 
 describe("useImportMapping activity type mappings", () => {
+  it("does not auto-map market value into generic amount", () => {
+    const mapping = initializeColumnMapping(["Date", "Market Value", "Amount"]);
+
+    expect(mapping[ImportFormat.AMOUNT]).toBe("Amount");
+  });
+
+  it("leaves standalone market value unmapped without explicit field semantics", () => {
+    const mapping = initializeColumnMapping(["Date", "Market Value"]);
+
+    expect(mapping[ImportFormat.AMOUNT]).toBeUndefined();
+  });
+
+  it("auto-maps tax and withholding aliases", () => {
+    const tradeMapping = initializeColumnMapping(["Date", "Stamp Duty", "Amount"]);
+    const incomeMapping = initializeColumnMapping(["Date", "Withholding Tax", "Amount"]);
+
+    expect(tradeMapping[ImportFormat.TAX]).toBe("Stamp Duty");
+    expect(incomeMapping[ImportFormat.TAX]).toBe("Withholding Tax");
+  });
+
   it("starts with exact identity mappings for canonical activity types", () => {
     const { result } = renderHook(() => useImportMapping(), {
       wrapper: createWrapper(),

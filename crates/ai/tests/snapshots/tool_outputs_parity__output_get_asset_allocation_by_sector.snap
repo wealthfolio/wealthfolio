@@ -1,0 +1,13 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "currency": "USD",
+    "groupBy": "sector",
+    "taxonomyId": "industries_gics",
+    "taxonomyName": "Sectors",
+    "totalValue": 0.0
+  }
+}

@@ -98,7 +98,8 @@ pub struct RegisterDeviceBody {
     pub platform: String,
     pub os_version: Option<String>,
     pub app_version: Option<String>,
-    pub instance_id: String,
+    #[serde(alias = "instanceId")]
+    pub device_nonce: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -206,7 +207,7 @@ async fn register_device(
     let client = create_client();
 
     let request = RegisterDeviceRequest {
-        device_nonce: body.instance_id, // Map instance_id to device_nonce
+        device_nonce: body.device_nonce,
         display_name: body.display_name,
         platform: body.platform,
         os_version: body.os_version,

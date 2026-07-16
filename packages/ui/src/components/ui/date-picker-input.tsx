@@ -1,5 +1,6 @@
 import { CalendarDate, CalendarDateTime, getLocalTimeZone, parseDate, parseDateTime } from "@internationalized/date";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { Icons } from "./icons";
 import {
   Button,
@@ -93,6 +94,7 @@ export function DatePickerInput({
   "data-testid": testId,
   ...props
 }: DatePickerInputProps) {
+  const { t } = useTranslation();
   const actualGranularity = React.useMemo(() => {
     if (enableTime) {
       return timeGranularity || "minute";
@@ -115,7 +117,7 @@ export function DatePickerInput({
       onChange={handleRacChange}
       isDisabled={disabled}
       granularity={actualGranularity}
-      aria-label="Date"
+      aria-label={t("ui:datePicker.dateLabel", "Date")}
       className={cn(`*:not-first:mt-2`, className)}
       {...props}
     >
@@ -137,7 +139,7 @@ export function DatePickerInput({
             "flex h-6 w-6 items-center justify-center rounded-sm transition-[color]",
             disabled && "pointer-events-none",
           )}
-          aria-label="Pick a date"
+          aria-label={t("ui:datePicker.pick", "Pick a date")}
         >
           <Icons.CalendarIcon size={16} />
         </Button>

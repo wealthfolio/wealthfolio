@@ -1,4 +1,11 @@
-import { ACTIVITY_SUBTYPES, AccountType, ActivityType, ImportFormat } from "@/lib/constants";
+import {
+  ACTIVITY_SUBTYPES,
+  AccountType,
+  ActivityType,
+  ImportFormat,
+  POSITION_INTENT_ALIASES,
+} from "@/lib/constants";
+import { canonicalizeActivitySubtype } from "@/lib/activity-utils";
 import type { ActivityImport } from "@/lib/types";
 import { tryParseDate } from "@/lib/utils";
 import { isValid, parse, parseISO } from "date-fns";
@@ -8,6 +15,7 @@ import { normalizeInstrumentType, splitInstrumentPrefixedSymbol } from "./instru
 import { buildImportAssetCandidateKey } from "./asset-review-utils";
 import {
   parseNumericValue,
+  parseSignedNumericValue,
   hasPositiveValue,
   hasNonZeroValue,
   resolveCashActivityFields,
@@ -119,6 +127,139 @@ export function mapActivityType(
 ): string | undefined {
   if (!csvValue) return undefined;
   return findMappedActivityType(csvValue, activityMappings) ?? undefined;
+}
+
+const SIGNED_FX_TRANSFER_LABELS = new Set([
+  "FXEXCHANGE",
+  "FXCONVERSION",
+  "CURRENCYEXCHANGE",
+  "CURRENCYCONVERSION",
+  "FOREIGNEXCHANGE",
+  "FOREIGNEXCHANGECONVERSION",
+]);
+
+const SIGNED_CASH_MOVEMENT_LABELS = new Set(["TRANSFER", "TRANSFERTF", "MONEYMOVEMENT"]);
+
+const SIGNED_SECURITY_TRANSFER_LABELS = new Set(["INTERNALSECURITYTRANSFER"]);
+
+const REIMBURSEMENT_LABELS = new Set([
+  "REIMBURSEMENT",
+  "REIMBURSED",
+  "REIMBURSE",
+  "EXPENSEREIMBURSEMENT",
+]);
+
+function normalizeSignAwareActivityLabel(value: string | undefined): string {
+  return (
+    value
+      ?.trim()
+      .toUpperCase()
+      .replace(/[\s_-]+/g, "") ?? ""
+  );
+}
+
+function inferSignedFxTransferType(
+  csvValue: string | undefined,
+  signedAmount: string | undefined,
+): typeof ActivityType.TRANSFER_IN | typeof ActivityType.TRANSFER_OUT | undefined {
+  if (!SIGNED_FX_TRANSFER_LABELS.has(normalizeSignAwareActivityLabel(csvValue))) {
+    return undefined;
+  }
+
+  if (signedAmount == null) return undefined;
+  const amount = Number(signedAmount);
+  if (!Number.isFinite(amount) || amount === 0) return undefined;
+
+  return amount < 0 ? ActivityType.TRANSFER_OUT : ActivityType.TRANSFER_IN;
+}
+
+function signedDirection(value: string | undefined): "positive" | "negative" | undefined {
+  if (value == null) return undefined;
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount === 0) return undefined;
+  return amount < 0 ? "negative" : "positive";
+}
+
+const BUY_POSITION_INTENT_ALIASES = [
+  ...POSITION_INTENT_ALIASES[ActivityType.BUY][ACTIVITY_SUBTYPES.POSITION_OPEN],
+  ...POSITION_INTENT_ALIASES[ActivityType.BUY][ACTIVITY_SUBTYPES.POSITION_CLOSE],
+] as readonly string[];
+const SELL_POSITION_INTENT_ALIASES = [
+  ...POSITION_INTENT_ALIASES[ActivityType.SELL][ACTIVITY_SUBTYPES.POSITION_OPEN],
+  ...POSITION_INTENT_ALIASES[ActivityType.SELL][ACTIVITY_SUBTYPES.POSITION_CLOSE],
+] as readonly string[];
+
+function inferTradeTypeFromPositionIntentSubtype(
+  subtypeValue: string | undefined,
+): typeof ActivityType.BUY | typeof ActivityType.SELL | undefined {
+  const subtype = normalizeSignAwareActivityLabel(subtypeValue);
+  if (BUY_POSITION_INTENT_ALIASES.includes(subtype)) {
+    return ActivityType.BUY;
+  }
+  if (SELL_POSITION_INTENT_ALIASES.includes(subtype)) {
+    return ActivityType.SELL;
+  }
+  return undefined;
+}
+
+function inferSignedTradeType(
+  csvValue: string | undefined,
+  subtypeValue: string | undefined,
+  signedQuantity: string | undefined,
+  signedAmount: string | undefined,
+): typeof ActivityType.BUY | typeof ActivityType.SELL | undefined {
+  if (normalizeSignAwareActivityLabel(csvValue) !== "TRADE") {
+    return undefined;
+  }
+
+  const subtype = normalizeSignAwareActivityLabel(subtypeValue);
+  if (subtype === "BUY" || subtype === "DRIP") return ActivityType.BUY;
+  if (subtype === "SELL") return ActivityType.SELL;
+  const positionIntentType = inferTradeTypeFromPositionIntentSubtype(subtypeValue);
+  if (positionIntentType) return positionIntentType;
+
+  const quantityDirection = signedDirection(signedQuantity);
+  if (quantityDirection) {
+    return quantityDirection === "negative" ? ActivityType.SELL : ActivityType.BUY;
+  }
+
+  const amountDirection = signedDirection(signedAmount);
+  if (!amountDirection) return undefined;
+  return amountDirection === "positive" ? ActivityType.SELL : ActivityType.BUY;
+}
+
+function inferSignedCashMovementType(
+  csvValue: string | undefined,
+  signedAmount: string | undefined,
+  mappedActivityType: string | undefined,
+): typeof ActivityType.DEPOSIT | typeof ActivityType.WITHDRAWAL | undefined {
+  if (!SIGNED_CASH_MOVEMENT_LABELS.has(normalizeSignAwareActivityLabel(csvValue))) {
+    return undefined;
+  }
+  if (
+    mappedActivityType !== ActivityType.DEPOSIT &&
+    mappedActivityType !== ActivityType.WITHDRAWAL
+  ) {
+    return undefined;
+  }
+
+  const direction = signedDirection(signedAmount);
+  if (!direction) return undefined;
+  return direction === "negative" ? ActivityType.WITHDRAWAL : ActivityType.DEPOSIT;
+}
+
+function inferSignedSecurityTransferType(
+  csvValue: string | undefined,
+  signedQuantity: string | undefined,
+  signedAmount: string | undefined,
+): typeof ActivityType.TRANSFER_IN | typeof ActivityType.TRANSFER_OUT | undefined {
+  if (!SIGNED_SECURITY_TRANSFER_LABELS.has(normalizeSignAwareActivityLabel(csvValue))) {
+    return undefined;
+  }
+
+  const direction = signedDirection(signedQuantity) ?? signedDirection(signedAmount);
+  if (!direction) return undefined;
+  return direction === "negative" ? ActivityType.TRANSFER_OUT : ActivityType.TRANSFER_IN;
 }
 
 /**
@@ -433,6 +574,7 @@ export function createDraftActivities(
     const rawAmount = getColumnValue(row, ImportFormat.AMOUNT);
     const rawCurrency = getColumnValue(row, ImportFormat.CURRENCY);
     const rawFee = getColumnValue(row, ImportFormat.FEE);
+    const rawTax = getColumnValue(row, ImportFormat.TAX);
     const rawComment = getColumnValue(row, ImportFormat.COMMENT);
     const rawAccount = getColumnValue(row, ImportFormat.ACCOUNT);
     const rawFxRate = getColumnValue(row, ImportFormat.FX_RATE);
@@ -443,7 +585,33 @@ export function createDraftActivities(
 
     // Parse and normalize values
     const activityDate = parseDateValue(rawDate, dateFormat);
-    const activityType = mapActivityType(rawType, activityMappings);
+    const signedAmount = parseSignedNumericValue(rawAmount, decimalSeparator, thousandsSeparator);
+    const signedQuantity = parseSignedNumericValue(
+      rawQuantity,
+      decimalSeparator,
+      thousandsSeparator,
+    );
+    const mappedActivityType = mapActivityType(rawType, activityMappings);
+    const signedTradeType = inferSignedTradeType(rawType, rawSubtype, signedQuantity, signedAmount);
+    const rawTypePositionIntentType = inferTradeTypeFromPositionIntentSubtype(rawType);
+    const signedFxTransferType = inferSignedFxTransferType(rawType, signedAmount);
+    const signedCashMovementType = inferSignedCashMovementType(
+      rawType,
+      signedAmount,
+      mappedActivityType,
+    );
+    const signedSecurityTransferType = inferSignedSecurityTransferType(
+      rawType,
+      signedQuantity,
+      signedAmount,
+    );
+    const activityType =
+      signedTradeType ??
+      rawTypePositionIntentType ??
+      signedFxTransferType ??
+      signedCashMovementType ??
+      signedSecurityTransferType ??
+      mappedActivityType;
     const {
       symbol: mappedSymbol,
       exchangeMic: mappedExchangeMic,
@@ -466,14 +634,32 @@ export function createDraftActivities(
       normalizedCsvInstrumentType || prefixInstrumentType || mappedInstrumentType;
     const quantity = parseNumericValue(rawQuantity, decimalSeparator, thousandsSeparator);
     const unitPrice = parseNumericValue(rawUnitPrice, decimalSeparator, thousandsSeparator);
-    const amount = parseNumericValue(rawAmount, decimalSeparator, thousandsSeparator);
-    const currency = rawCurrency?.trim() || defaultCurrency;
+    let amount = parseNumericValue(rawAmount, decimalSeparator, thousandsSeparator);
+    const rawCurrencyValue = rawCurrency?.trim();
+    const currency = rawCurrencyValue || defaultCurrency;
+    const currencySource = rawCurrencyValue ? "csv" : "default";
+    const assetResolutionCurrency = rawCurrencyValue || undefined;
     const fee = parseNumericValue(rawFee, decimalSeparator, thousandsSeparator);
+    let tax = parseNumericValue(rawTax, decimalSeparator, thousandsSeparator);
     const comment = rawComment?.trim();
     const fxRate = parseNumericValue(rawFxRate, decimalSeparator, thousandsSeparator);
-    const normalizedSubtype = rawSubtype?.trim().toUpperCase();
-    const subtype =
-      normalizedSubtype && normalizedSubtype !== activityType ? normalizedSubtype : undefined;
+    const signedFxSubtype = signedFxTransferType
+      ? normalizeSignAwareActivityLabel(rawType)
+      : undefined;
+    const rawTypePositionIntentSubtype = rawTypePositionIntentType ? rawType : undefined;
+    const trimmedRawSubtype = rawSubtype?.trim();
+    const normalizedSubtype = trimmedRawSubtype || rawTypePositionIntentSubtype || signedFxSubtype;
+    const inferredCreditSubtype =
+      activityType === ActivityType.CREDIT &&
+      (REIMBURSEMENT_LABELS.has(normalizeSignAwareActivityLabel(rawType)) ||
+        REIMBURSEMENT_LABELS.has(normalizeSignAwareActivityLabel(rawSubtype)))
+        ? ACTIVITY_SUBTYPES.REIMBURSEMENT
+        : undefined;
+    const canonicalSubtype =
+      normalizedSubtype && normalizedSubtype.toUpperCase() !== activityType
+        ? canonicalizeActivitySubtype(activityType ?? "", normalizedSubtype)
+        : undefined;
+    const subtype = inferredCreditSubtype ?? canonicalSubtype;
 
     // Resolve account ID: use CSV account mapping, or fall back to default
     let accountId = accountMappings[""] || defaultAccountId;
@@ -490,12 +676,25 @@ export function createDraftActivities(
 
     // For cash-like activities, some brokers (e.g. Schwab) put the dollar value
     // in the Quantity column instead of Amount.
+    if (
+      activityType === ActivityType.TAX &&
+      !hasPositiveValue(amount) &&
+      !hasPositiveValue(fee) &&
+      hasPositiveValue(tax)
+    ) {
+      amount = tax;
+      tax = undefined;
+    }
     const resolved = resolveCashActivityFields(activityType, quantity, amount, unitPrice, subtype);
 
     // Infer isExternal for transfers: external unless the raw CSV label says "INTERNAL"
     const isTransfer =
       activityType === ActivityType.TRANSFER_IN || activityType === ActivityType.TRANSFER_OUT;
-    const isExternal = isTransfer ? !rawType?.trim().toUpperCase().includes("INTERNAL") : undefined;
+    const isExternal = isTransfer
+      ? signedFxTransferType
+        ? false
+        : !rawType?.trim().toUpperCase().includes("INTERNAL")
+      : undefined;
 
     // Create draft object
     const draft: Partial<DraftActivity> = {
@@ -519,7 +718,7 @@ export function createDraftActivities(
               symbol,
               instrumentType: resolvedInstrumentType,
               quoteMode: mappedQuoteMode,
-              quoteCcy: mappedQuoteCcy || currency,
+              quoteCcy: mappedQuoteCcy || assetResolutionCurrency,
               exchangeMic: mappedExchangeMic,
               isin: rawIsin?.trim() || undefined,
             })
@@ -528,7 +727,9 @@ export function createDraftActivities(
       unitPrice,
       amount: resolved.amount,
       currency,
+      currencySource,
       fee,
+      tax,
       fxRate,
       subtype,
       isExternal,
@@ -553,7 +754,7 @@ export function createDraftActivities(
 
 export function draftToActivityImport(draft: DraftActivity): ActivityImport {
   const activityType = draft.activityType?.trim().toUpperCase();
-  const subtype = draft.subtype?.trim().toUpperCase();
+  const subtype = canonicalizeActivitySubtype(draft.activityType ?? "", draft.subtype?.trim());
   const isTransfer =
     activityType === ActivityType.TRANSFER_IN || activityType === ActivityType.TRANSFER_OUT;
 
@@ -561,7 +762,7 @@ export function draftToActivityImport(draft: DraftActivity): ActivityImport {
     id: undefined,
     accountId: draft.accountId,
     assetId: draft.assetId,
-    currency: draft.currency ?? "",
+    currency: draft.currencySource === "default" ? "" : (draft.currency ?? ""),
     activityType: draft.activityType as ActivityImport["activityType"],
     date: draft.activityDate,
     symbol: draft.symbol ?? "",
@@ -570,8 +771,9 @@ export function draftToActivityImport(draft: DraftActivity): ActivityImport {
     quantity: draft.quantity,
     unitPrice: draft.unitPrice,
     fee: draft.fee,
+    tax: draft.tax,
     fxRate: draft.fxRate,
-    subtype: subtype && subtype !== activityType ? subtype : undefined,
+    subtype: subtype && subtype.toUpperCase() !== activityType ? subtype : undefined,
     exchangeMic: draft.exchangeMic,
     quoteCcy: draft.quoteCcy,
     instrumentType: draft.instrumentType,

@@ -8,6 +8,8 @@ pub const APP_SYNC_TABLES: &[&str] = &[
     // Base tables (no FK deps)
     "platforms",
     "assets",
+    // Per-addon key-value storage. Composite PK (addon_id, key), no FK deps.
+    "addon_storage",
     // No FK deps
     "market_data_custom_providers",
     // Depends on: assets
@@ -40,6 +42,8 @@ pub const APP_SYNC_TABLES: &[&str] = &[
     "asset_taxonomy_assignments",
     // Spending activity↔category join. Depends on: activities, taxonomies, taxonomy_categories
     "activity_taxonomy_assignments",
+    // Spending activity split lines. Depends on: activities, taxonomies, taxonomy_categories
+    "spending_activity_splits",
     // Spending categorization rules. Depends on: accounts (optional FK), taxonomies, taxonomy_categories
     "spending_categorization_rules",
     // Preset rule deletion memory. Depends logically on spending_categorization_rules payloads.
@@ -70,6 +74,8 @@ pub const APP_SYNC_TABLES: &[&str] = &[
     "allocation_targets",
     // Depends on: allocation_targets, taxonomy_categories.
     "allocation_target_weights",
+    // Depends on: allocation_targets.
+    "allocation_target_constraints",
 ];
 
 /// Entity names used by incremental sync events.
@@ -100,12 +106,14 @@ pub enum SyncEntity {
     PortfolioAccount,
     AllocationTarget,
     AllocationTargetWeight,
+    AllocationTargetConstraint,
     // Spending module (wealthfolio-spending crate). Prefixed with `Spending*`
     // because the bare names (`Event`, `EventType`, `CategorizationRule`)
     // would clash with the codebase's existing event-system vocabulary
     // (DomainEvent, EventBus, sync_applied_events, etc.).
     SpendingSetting,
     ActivityTaxonomyAssignment,
+    SpendingActivitySplit,
     SpendingActivityEvent,
     SpendingCategorizationRule,
     SpendingPresetRuleDeletion,
@@ -115,6 +123,8 @@ pub enum SyncEntity {
     BudgetGroupAssignment,
     BudgetTarget,
     BudgetRolloverSetting,
+    // Per-addon key-value storage (composite PK). Custom apply branch.
+    AddonStorage,
 }
 
 /// Supported sync operations.
@@ -342,8 +352,10 @@ mod tests {
             SyncEntity::PortfolioAccount,
             SyncEntity::AllocationTarget,
             SyncEntity::AllocationTargetWeight,
+            SyncEntity::AllocationTargetConstraint,
             SyncEntity::SpendingSetting,
             SyncEntity::ActivityTaxonomyAssignment,
+            SyncEntity::SpendingActivitySplit,
             SyncEntity::SpendingActivityEvent,
             SyncEntity::SpendingCategorizationRule,
             SyncEntity::SpendingPresetRuleDeletion,
@@ -353,6 +365,7 @@ mod tests {
             SyncEntity::BudgetGroupAssignment,
             SyncEntity::BudgetTarget,
             SyncEntity::BudgetRolloverSetting,
+            SyncEntity::AddonStorage,
         ]
         .iter()
         .map(|entity| serde_json::to_string(entity).expect("serialize sync entity"))
@@ -382,8 +395,10 @@ mod tests {
             "\"portfolio_account\"",
             "\"allocation_target\"",
             "\"allocation_target_weight\"",
+            "\"allocation_target_constraint\"",
             "\"spending_setting\"",
             "\"activity_taxonomy_assignment\"",
+            "\"spending_activity_split\"",
             "\"spending_activity_event\"",
             "\"spending_categorization_rule\"",
             "\"spending_preset_rule_deletion\"",
@@ -393,6 +408,7 @@ mod tests {
             "\"budget_group_assignment\"",
             "\"budget_target\"",
             "\"budget_rollover_setting\"",
+            "\"addon_storage\"",
         ];
 
         assert_eq!(actual, expected);

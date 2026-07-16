@@ -3,28 +3,8 @@ import { WEALTHFOLIO_CONNECT_PORTAL_URL } from "@/lib/constants";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ConnectFlowDiagram } from "./connect-flow-diagram";
-
-const features = [
-  {
-    icon: Icons.CloudSync2,
-    title: "Brokerage Sync",
-    description: "Auto-sync accounts and transactions daily.",
-    color: "orange",
-  },
-  {
-    icon: Icons.Devices,
-    title: "Device Sync",
-    description: "Sync across devices with E2E encryption.",
-    color: "green",
-  },
-  {
-    icon: Icons.UserSwitch,
-    title: "Household View",
-    description: "Share accounts with family members.",
-    color: "blue",
-  },
-];
 
 const colorClasses = {
   orange: {
@@ -42,6 +22,29 @@ const colorClasses = {
 };
 
 export function ConnectEmptyState() {
+  const { t } = useTranslation();
+
+  const features = [
+    {
+      icon: Icons.CloudSync2,
+      title: t("connect:emptyState.features.brokerageSync.title"),
+      description: t("connect:emptyState.features.brokerageSync.description"),
+      color: "orange",
+    },
+    {
+      icon: Icons.Devices,
+      title: t("connect:emptyState.features.deviceSync.title"),
+      description: t("connect:emptyState.features.deviceSync.description"),
+      color: "green",
+    },
+    {
+      icon: Icons.UserSwitch,
+      title: t("connect:emptyState.features.householdView.title"),
+      description: t("connect:emptyState.features.householdView.description"),
+      color: "blue",
+    },
+  ];
+
   return (
     <div className="flex min-h-[calc(100vh-12rem)] flex-col items-center justify-center px-4 py-6">
       <div className="w-full max-w-3xl space-y-8 sm:space-y-12">
@@ -50,12 +53,10 @@ export function ConnectEmptyState() {
           <img alt="Wealthfolio" className="mx-auto mb-4 h-16 w-16" src="/logo-vantage.png" />
           <div className="bg-secondary text-secondary-foreground mb-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium">
             <Icons.Sparkles className="h-3 w-3" />
-            Optional
+            {t("connect:emptyState.optional")}
           </div>
           <h1 className="mb-2 text-xl font-semibold tracking-tight">Wealthfolio Connect</h1>
-          <p className="text-muted-foreground text-sm">
-            Automatically sync your brokers while keeping your data private.
-          </p>
+          <p className="text-muted-foreground text-sm">{t("connect:emptyState.subtitle")}</p>
         </header>
 
         {/* Hero Diagram - constrained width */}
@@ -86,14 +87,14 @@ export function ConnectEmptyState() {
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:justify-center">
             <Button asChild className="from-primary to-primary/90 bg-linear-to-r w-full sm:w-auto">
               <ExternalLink href={WEALTHFOLIO_CONNECT_PORTAL_URL}>
-                Get Started with Connect
+                {t("connect:emptyState.getStarted")}
                 <Icons.ExternalLink className="ml-1.5 h-4 w-4" />
               </ExternalLink>
             </Button>
             <Button variant="outline" asChild className="w-full sm:w-auto">
               <Link to="/settings/connect">
                 <Icons.User className="mr-1.5 h-4 w-4" />
-                Login to your account
+                {t("connect:emptyState.loginToAccount")}
               </Link>
             </Button>
           </div>
@@ -101,7 +102,7 @@ export function ConnectEmptyState() {
             href="https://wealthfolio.app/connect/"
             className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs transition-colors"
           >
-            Learn more about Connect
+            {t("connect:emptyState.learnMore")}
             <Icons.ExternalLink className="h-3 w-3" />
           </ExternalLink>
         </footer>

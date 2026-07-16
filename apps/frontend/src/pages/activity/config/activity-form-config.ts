@@ -116,6 +116,8 @@ export const ACTIVITY_FORM_CONFIG: Record<
         unitPrice: absNum(activity?.unitPrice),
         amount: absNum(activity?.amount),
         fee: absNum(activity?.fee) ?? 0,
+        tax: absNum(activity?.tax) ?? 0,
+        subtype: activity?.subtype ?? null,
         quoteMode:
           activity?.assetQuoteMode === QuoteMode.MANUAL ? QuoteMode.MANUAL : QuoteMode.MARKET,
         // Advanced options
@@ -138,6 +140,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
           expirationDate: parsed?.expiration,
           optionType: parsed?.optionType,
           contractMultiplier: 100,
+          subtype: activity?.subtype ?? ACTIVITY_SUBTYPES.POSITION_OPEN,
         };
       }
 
@@ -164,6 +167,8 @@ export const ACTIVITY_FORM_CONFIG: Record<
         quantity: d.quantity,
         unitPrice: d.unitPrice,
         fee: d.fee,
+        tax: d.tax,
+        subtype: d.subtype ?? undefined,
         comment: d.comment,
         quoteMode: d.quoteMode,
         exchangeMic: d.exchangeMic ?? undefined,
@@ -201,6 +206,8 @@ export const ACTIVITY_FORM_CONFIG: Record<
         unitPrice: absNum(activity?.unitPrice),
         amount: absNum(activity?.amount),
         fee: absNum(activity?.fee) ?? 0,
+        tax: absNum(activity?.tax) ?? 0,
+        subtype: activity?.subtype ?? null,
         quoteMode:
           activity?.assetQuoteMode === QuoteMode.MANUAL ? QuoteMode.MANUAL : QuoteMode.MARKET,
         // Advanced options
@@ -223,6 +230,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
           expirationDate: parsed?.expiration,
           optionType: parsed?.optionType,
           contractMultiplier: 100,
+          subtype: activity?.subtype ?? ACTIVITY_SUBTYPES.POSITION_CLOSE,
         };
       }
 
@@ -249,6 +257,8 @@ export const ACTIVITY_FORM_CONFIG: Record<
         quantity: d.quantity,
         unitPrice: d.unitPrice,
         fee: d.fee,
+        tax: d.tax,
+        subtype: d.subtype ?? undefined,
         comment: d.comment,
         quoteMode: d.quoteMode,
         exchangeMic: d.exchangeMic ?? undefined,
@@ -328,6 +338,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
       ...getBaseDefaults(activity, accounts),
       symbol: activity?.assetSymbol ?? activity?.assetId ?? "",
       amount: absNum(activity?.amount),
+      tax: absNum(activity?.tax) ?? 0,
       unitPrice: absNum(activity?.unitPrice),
       quantity: absNum(activity?.quantity),
       // Advanced options
@@ -346,6 +357,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
         assetId: d.symbol,
         ...selectedExistingAsset(d.symbol, d.existingAssetId, d.symbolInstrumentType),
         amount: d.amount,
+        tax: d.tax,
         unitPrice: isAssetBackedDividend ? d.unitPrice : null,
         quantity: isAssetBackedDividend ? d.quantity : null,
         comment: d.comment,
@@ -495,7 +507,10 @@ export const ACTIVITY_FORM_CONFIG: Record<
     activityType: ActivityType.FEE,
     getDefaults: (activity, accounts) => ({
       ...getBaseDefaults(activity, accounts),
-      amount: absNum(activity?.amount),
+      // The charge may be stored in `fee` (imported rows) or `amount`. Surface it
+      // with the backend's charge precedence (fee → amount) so editing shows the
+      // value that is actually displayed and booked.
+      amount: absNum(activity?.fee) || absNum(activity?.amount),
       // Advanced options
       currency: activity?.currency,
       subtype: activity?.subtype ?? null,
@@ -506,6 +521,9 @@ export const ACTIVITY_FORM_CONFIG: Record<
         accountId: d.accountId,
         activityDate: d.activityDate,
         amount: d.amount,
+        // Normalize the charge into `amount` and reset any legacy `fee` to zero so
+        // the backend's charge precedence (fee → amount) books the edited amount.
+        fee: 0,
         comment: d.comment,
         subtype: d.subtype,
         currency: d.currency,
@@ -520,6 +538,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
       ...getBaseDefaults(activity, accounts),
       symbol: activity?.assetSymbol ?? activity?.assetId ?? null,
       amount: absNum(activity?.amount),
+      tax: absNum(activity?.tax) ?? 0,
       unitPrice: absNum(activity?.unitPrice),
       quantity: absNum(activity?.quantity),
       // Advanced options
@@ -537,6 +556,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
         assetId: d.symbol?.trim() || undefined,
         ...selectedExistingAsset(d.symbol, d.existingAssetId, d.symbolInstrumentType),
         amount: d.amount,
+        tax: d.tax,
         unitPrice: isStakingReward ? d.unitPrice : null,
         quantity: isStakingReward ? d.quantity : null,
         comment: d.comment,
@@ -555,7 +575,10 @@ export const ACTIVITY_FORM_CONFIG: Record<
     activityType: ActivityType.TAX,
     getDefaults: (activity, accounts) => ({
       ...getBaseDefaults(activity, accounts),
-      amount: absNum(activity?.amount),
+      // The charge may be stored in `tax`/`fee` (imported rows) or `amount`. Surface
+      // it with the backend's charge precedence (tax → fee → amount) so editing shows
+      // the value that is actually displayed and booked.
+      amount: absNum(activity?.tax) || absNum(activity?.fee) || absNum(activity?.amount),
       // Advanced options
       currency: activity?.currency,
       subtype: activity?.subtype ?? null,
@@ -566,6 +589,10 @@ export const ACTIVITY_FORM_CONFIG: Record<
         accountId: d.accountId,
         activityDate: d.activityDate,
         amount: d.amount,
+        // Normalize the charge into `amount` and reset any legacy `tax`/`fee` to zero
+        // so the backend's charge precedence (tax → fee → amount) books the edited amount.
+        fee: 0,
+        tax: 0,
         comment: d.comment,
         subtype: d.subtype,
         currency: d.currency,

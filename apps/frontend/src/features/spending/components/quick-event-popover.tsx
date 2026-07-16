@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   Command,
@@ -42,6 +43,7 @@ export function QuickEventPopover({
   activityId,
   defaultDate,
 }: QuickEventPopoverProps) {
+  const { t: tr } = useTranslation();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const { openEventDialog } = useEventDialog();
@@ -94,27 +96,33 @@ export function QuickEventPopover({
         <Command>
           {loadErrored && (
             <div className="flex items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
-              <span>Couldn't load events.</span>
+              <span>{tr("spending:events.loadError")}</span>
               <button type="button" onClick={retryLoad} className="text-foreground hover:underline">
-                Retry
+                {tr("common:retry")}
               </button>
             </div>
           )}
-          <CommandInput placeholder="Search events..." value={search} onValueChange={setSearch} />
+          <CommandInput
+            placeholder={tr("spending:events.searchEvents")}
+            value={search}
+            onValueChange={setSearch}
+          />
           <CommandList>
             {events.length === 0 ? (
               <CommandEmpty>
                 <div className="text-muted-foreground p-3 text-center text-xs">
-                  {loadErrored ? "No events available." : "No events yet."}
+                  {loadErrored
+                    ? tr("spending:events.noEventsAvailable")
+                    : tr("spending:events.noEventsYet")}
                 </div>
               </CommandEmpty>
             ) : (
-              <CommandEmpty>No events found.</CommandEmpty>
+              <CommandEmpty>{tr("spending:events.noEventsFound")}</CommandEmpty>
             )}
             {Array.from(groups.entries()).map(([typeId, items]) => {
               const t = typeById.get(typeId);
               return (
-                <CommandGroup key={typeId} heading={t?.name ?? "Other"}>
+                <CommandGroup key={typeId} heading={t?.name ?? tr("spending:events.otherType")}>
                   {items.map((ev) => {
                     const isSelected = selectedEventId === ev.id;
                     return (
@@ -149,7 +157,9 @@ export function QuickEventPopover({
                 className="text-primary flex items-center gap-2"
               >
                 <Icons.Plus className="h-3.5 w-3.5" />
-                {search.trim() ? `Create event "${search.trim()}"` : "Create event"}
+                {search.trim()
+                  ? tr("spending:events.createEventNamed", { name: search.trim() })
+                  : tr("spending:events.createEvent")}
               </CommandItem>
               {selectedEventId && onClear && (
                 <CommandItem
@@ -158,7 +168,7 @@ export function QuickEventPopover({
                   className="text-destructive hover:bg-destructive/10"
                 >
                   <Icons.X className="mr-2 h-3.5 w-3.5" />
-                  Clear event
+                  {tr("spending:events.clearEvent")}
                 </CommandItem>
               )}
             </CommandGroup>

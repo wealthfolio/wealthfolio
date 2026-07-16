@@ -23,6 +23,8 @@ import { Account } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Icons, type Icon } from "@wealthfolio/ui";
 import { forwardRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 // Custom type for UI purposes that extends the standard AccountType
 type UIAccountType = AccountType | typeof PORTFOLIO_ACCOUNT_TYPE;
@@ -58,10 +60,10 @@ interface UIAccount extends Omit<Account, "accountType"> {
 }
 
 // Create a portfolio account for UI purposes
-function createPortfolioAccount(baseCurrency: string): UIAccount {
+function createPortfolioAccount(baseCurrency: string, t: TFunction): UIAccount {
   return {
     id: PORTFOLIO_SCOPE_ID,
-    name: "All Portfolio",
+    name: t("common:component.all_portfolio"),
     accountType: PORTFOLIO_ACCOUNT_TYPE,
     currency: baseCurrency,
     group: undefined,
@@ -90,6 +92,7 @@ export const AccountSelectorMobile = forwardRef<HTMLButtonElement, AccountSelect
     },
     ref,
   ) => {
+    const { t } = useTranslation();
     const [internalOpen, setInternalOpen] = useState(false);
     const open = controlledOpen ?? internalOpen;
     const setOpen = onOpenChange ?? setInternalOpen;
@@ -116,7 +119,7 @@ export const AccountSelectorMobile = forwardRef<HTMLButtonElement, AccountSelect
 
     // Add portfolio account if requested
     const allAccounts: UIAccount[] = includePortfolio
-      ? [createPortfolioAccount(settings?.baseCurrency || "USD"), ...(filteredAccounts || [])]
+      ? [createPortfolioAccount(settings?.baseCurrency || "USD", t), ...(filteredAccounts || [])]
       : filteredAccounts;
 
     // Group accounts by type
@@ -140,17 +143,17 @@ export const AccountSelectorMobile = forwardRef<HTMLButtonElement, AccountSelect
     const getAccountTypeLabel = (type: string): string => {
       switch (type) {
         case PORTFOLIO_ACCOUNT_TYPE:
-          return "Portfolio";
+          return t("common:component.account_type_portfolio");
         case "SECURITIES":
-          return "Securities Accounts";
+          return t("common:component.account_type_securities");
         case "CASH":
-          return "Cash Accounts";
+          return t("common:component.account_type_cash");
         case "CREDIT_CARD":
-          return "Credit Card Accounts";
+          return t("common:component.account_type_credit_card");
         case "CRYPTOCURRENCY":
-          return "Cryptocurrency Accounts";
+          return t("common:component.account_type_cryptocurrency");
         default:
-          return "Other Accounts";
+          return t("common:component.account_type_other");
       }
     };
 
@@ -168,7 +171,7 @@ export const AccountSelectorMobile = forwardRef<HTMLButtonElement, AccountSelect
           <Button
             ref={ref}
             variant="outline"
-            aria-label={iconOnly ? "Add account" : undefined}
+            aria-label={iconOnly ? t("common:component.add_account") : undefined}
             className={cn(
               "bg-secondary/30 hover:bg-muted/80 flex items-center gap-1.5 rounded-md border-[1.5px] border-none text-sm font-medium",
               iconOnly ? "h-9 w-9 p-0" : "h-8 px-3 py-1",
@@ -177,19 +180,21 @@ export const AccountSelectorMobile = forwardRef<HTMLButtonElement, AccountSelect
             size={iconOnly ? "icon" : "sm"}
           >
             <Icons.Briefcase className="h-4 w-4" />
-            {!iconOnly && "Add account"}
+            {!iconOnly && t("common:component.add_account")}
           </Button>
         </SheetTrigger>
         <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[80vh] p-0">
           <SheetHeader className="border-border border-b px-6 py-4">
-            <SheetTitle>Select Account</SheetTitle>
-            <SheetDescription>Choose an account to add to the comparison</SheetDescription>
+            <SheetTitle>{t("common:component.select_account")}</SheetTitle>
+            <SheetDescription>{t("common:component.choose_account_comparison")}</SheetDescription>
           </SheetHeader>
           <ScrollArea className="h-[calc(80vh-5rem)] px-6 py-4">
             <div className="space-y-6">
               {showPortfolios && (
                 <div>
-                  <h3 className="text-muted-foreground mb-3 text-sm font-medium">Portfolios</h3>
+                  <h3 className="text-muted-foreground mb-3 text-sm font-medium">
+                    {t("common:component.portfolios")}
+                  </h3>
                   <div className="space-y-2">
                     {portfolios.map((p) => (
                       <button

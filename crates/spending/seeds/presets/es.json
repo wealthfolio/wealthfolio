@@ -1,0 +1,313 @@
+{
+  "presetId": "es",
+  "presetVersion": "2026-07.1",
+  "name": "Spain",
+  "description": "~38 expense rules covering common Spanish household transactions. Includes major supermarkets, restaurants and food delivery, fuel brands, public transit, telecom and utilities, housing, health, personal care, pets, education, giving, travel, and fees.",
+  "language": "es-ES",
+  "rules": [
+    {
+      "key": "es.groceries.major_chains",
+      "name": "Groceries — major chains",
+      "pattern": "(?i)mercadona|carrefour|\\beroski\\b|\\balcampo\\b|supermercados? d[ií]a\\b|\\bdia s\\.?a\\.?\\b|\\blidl\\b|\\baldi\\b|\\bconsum\\b|hipercor|caprabo|\\bcondis\\b|ahorramas|\\bgadis\\b|bm supermercados|covir[aá]n|\\bspar\\b|\\bfroiz\\b|superc[oó]r|simply market|supersol|family cash|bonpreu|\\besclat\\b|alimerka|\\bmasymas\\b|e\\.?leclerc|bon [aà]rea",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 80
+    },
+    {
+      "key": "es.department_stores",
+      "name": "Department stores",
+      "pattern": "(?i)el corte ingl[eé]s|\\beci\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping",
+      "priority": 75
+    },
+    {
+      "key": "es.coffee",
+      "name": "Coffee shops",
+      "pattern": "(?i)starbucks|cafeter[ií]a|\\bcaf[eé]\\b|\\bespresso\\b",
+      "matchType": "regex",
+      "categoryKey": "food_coffee",
+      "priority": 78
+    },
+    {
+      "key": "es.fastfood_restaurants",
+      "name": "Fast food & casual dining",
+      "pattern": "(?i)telepizza|domino'?s|mcdonald|burger king|\\bkfc\\b|\\bsubway\\b|tagliatella|100 montaditos|\\bvips\\b|foster'?s hollywood|\\bginos\\b|\\bgoiko\\b|\\bnostrum\\b|pans ?& ?company|\\bbocatta\\b|\\brodilla\\b|five guys|taco bell",
+      "matchType": "regex",
+      "categoryKey": "food_restaurants",
+      "priority": 75
+    },
+    {
+      "key": "es.food_delivery",
+      "name": "Food delivery",
+      "pattern": "(?i)\\bglovo\\b|uber ?eats|just ?eat|deliveroo|\\bstuart\\b",
+      "matchType": "regex",
+      "categoryKey": "food_delivery",
+      "priority": 85
+    },
+    {
+      "key": "es.bars_alcohol",
+      "name": "Bars & taverns",
+      "pattern": "(?i)\\bbar\\b|cervecer[ií]a|\\btaberna\\b|\\bbodega\\b|vinoteca|\\bpub\\b",
+      "matchType": "regex",
+      "categoryKey": "food_alcohol",
+      "priority": 70
+    },
+    {
+      "key": "es.fuel",
+      "name": "Fuel stations",
+      "pattern": "(?i)\\brepsol\\b|\\bcepsa\\b|\\bgalp\\b|\\bbp\\b|\\bshell\\b|petronor|\\bcampsa\\b|\\bq8\\b|\\bmeroil\\b|\\bavia\\b|gasolinera",
+      "matchType": "regex",
+      "categoryKey": "transport_gas",
+      "priority": 80
+    },
+    {
+      "key": "es.transit",
+      "name": "Public transit & rail",
+      "pattern": "(?i)\\brenfe\\b|cercan[ií]as|rodalies|metro madrid|metro barcelona|metro bilbao|metrovalencia|euskotren|tranv[ií]a|\\bemt\\b|\\btmb\\b|\\balsa\\b|\\bfgc\\b|abono transporte",
+      "matchType": "regex",
+      "categoryKey": "transport_public",
+      "priority": 80
+    },
+    {
+      "key": "es.rideshare",
+      "name": "Rideshare & taxi",
+      "pattern": "(?i)\\buber\\b|\\bcabify\\b|\\bbolt\\b|free ?now|\\bmytaxi\\b|\\btaxi\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_rideshare",
+      "priority": 80
+    },
+    {
+      "key": "es.parking_tolls",
+      "name": "Parking & tolls",
+      "pattern": "(?i)aparcamiento|\\bparking\\b|\\btelpark\\b|\\beasypark\\b|zona azul|\\bpeaje\\b|autopista|via-?t",
+      "matchType": "regex",
+      "categoryKey": "transport_parking",
+      "priority": 82
+    },
+    {
+      "key": "es.car_maintenance",
+      "name": "Car maintenance",
+      "pattern": "(?i)\\bitv\\b|taller mec[aá]nico|neum[aá]ticos|\\bnorauto\\b|feu vert|\\bmidas\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_maintenance",
+      "priority": 85
+    },
+    {
+      "key": "es.insurance_auto",
+      "name": "Auto insurance",
+      "pattern": "(?i)\\bmapfre\\b|mutua madrile[ñn]a|l[ií]nea directa|\\bgenerali\\b|\\bcaser\\b|\\bpelayo\\b|\\breale\\b|seguro (coche|auto|veh[ií]culo)",
+      "matchType": "regex",
+      "categoryKey": "transport_insurance",
+      "priority": 84
+    },
+    {
+      "key": "es.insurance_health",
+      "name": "Health insurance",
+      "pattern": "(?i)\\bsanitas\\b|\\badeslas\\b|\\bdkv\\b|\\basisa\\b|\\bcigna\\b|seguro (salud|m[eé]dico)",
+      "matchType": "regex",
+      "categoryKey": "health_insurance",
+      "priority": 85
+    },
+    {
+      "key": "es.insurance_home",
+      "name": "Home insurance",
+      "pattern": "(?i)seguro (hogar|vivienda)",
+      "matchType": "regex",
+      "categoryKey": "housing_insurance",
+      "priority": 85
+    },
+    {
+      "key": "es.airlines",
+      "name": "Airlines",
+      "pattern": "(?i)\\biberia\\b|\\bvueling\\b|air europa|\\bryanair\\b|\\beasyjet\\b|\\bvolotea\\b",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 90
+    },
+    {
+      "key": "es.travel_booking",
+      "name": "Travel booking & hotels",
+      "pattern": "(?i)booking\\.com|\\bairbnb\\b|nh hotels|meli[aá] hotels|\\bparadores\\b|logitravel|\\bedreams\\b|\\brumbo\\b",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 88
+    },
+    {
+      "key": "es.streaming",
+      "name": "Streaming services",
+      "pattern": "(?i)\\bnetflix\\b|\\bspotify\\b|hbo max|disney ?\\+|movistar ?\\+|amazon prime video|\\bdazn\\b|\\bfilmin\\b|atresplayer|apple tv ?\\+|paramount ?\\+",
+      "matchType": "regex",
+      "categoryKey": "entertainment_streaming",
+      "priority": 85
+    },
+    {
+      "key": "es.software_subs",
+      "name": "Software & cloud",
+      "pattern": "(?i)\\badobe\\b|microsoft ?365|\\bicloud\\b|\\bdropbox\\b|\\bchatgpt\\b|\\bopenai\\b|\\bcanva\\b|\\bnotion\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_software",
+      "priority": 80
+    },
+    {
+      "key": "es.telecom",
+      "name": "Phone & internet",
+      "pattern": "(?i)movistar|vodafone|\\borange\\b|m[aá]smovil|pepephone|\\byoigo\\b|\\blowi\\b|\\bdigi\\b|\\bo2\\b|jazztel|\\bsimyo\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_phone",
+      "priority": 80
+    },
+    {
+      "key": "es.utilities",
+      "name": "Utilities (electric/gas/water)",
+      "pattern": "(?i)iberdrola|\\bendesa\\b|\\bnaturgy\\b|holaluz|repsol (luz|energ[ií]a)|canal de isabel|aig[uü]es de barcelona|\\bemasesa\\b|aguas de valencia|gas natural",
+      "matchType": "regex",
+      "categoryKey": "housing_utilities",
+      "priority": 80
+    },
+    {
+      "key": "es.rent_mortgage",
+      "name": "Rent & mortgage",
+      "pattern": "(?i)\\balquiler\\b|\\bhipoteca\\b|comunidad de propietarios|\\bidealista\\b|\\bfotocasa\\b",
+      "matchType": "regex",
+      "categoryKey": "housing_rent",
+      "priority": 88
+    },
+    {
+      "key": "es.pharmacy",
+      "name": "Pharmacy",
+      "pattern": "(?i)farmacia",
+      "matchType": "regex",
+      "categoryKey": "health_pharmacy",
+      "priority": 85
+    },
+    {
+      "key": "es.medical",
+      "name": "Medical & clinics",
+      "pattern": "(?i)cl[ií]nica|\\bhospital\\b|ambulatorio|centro m[eé]dico|quir[oó]nsalud|hm hospitales|\\bruber\\b",
+      "matchType": "regex",
+      "categoryKey": "health_medical",
+      "priority": 84
+    },
+    {
+      "key": "es.dental",
+      "name": "Dental",
+      "pattern": "(?i)dentista|cl[ií]nica dental|vitaldent",
+      "matchType": "regex",
+      "categoryKey": "health_dental",
+      "priority": 86
+    },
+    {
+      "key": "es.vision",
+      "name": "Vision",
+      "pattern": "(?i)[oó]ptica|alain afflelou|general [oó]ptica|multi[oó]pticas",
+      "matchType": "regex",
+      "categoryKey": "health_vision",
+      "priority": 86
+    },
+    {
+      "key": "es.fitness",
+      "name": "Gyms & fitness",
+      "pattern": "(?i)gimnasio|basic-?fit|\\bdir\\b|vivagym|\\bmcfit\\b|metropolitan|synergym",
+      "matchType": "regex",
+      "categoryKey": "health_fitness",
+      "priority": 85
+    },
+    {
+      "key": "es.movies_events",
+      "name": "Cinemas & events",
+      "pattern": "(?i)\\bcinesa\\b|yelmo cines|ticketmaster|entradas\\.com|\\bcine\\b",
+      "matchType": "regex",
+      "categoryKey": "entertainment_movies",
+      "priority": 85
+    },
+    {
+      "key": "es.gaming",
+      "name": "Gaming platforms",
+      "pattern": "(?i)\\bsteam\\b|playstation|\\bxbox\\b|\\bnintendo\\b|epic games",
+      "matchType": "regex",
+      "categoryKey": "entertainment_games",
+      "priority": 85
+    },
+    {
+      "key": "es.clothing",
+      "name": "Clothing retailers",
+      "pattern": "(?i)\\bzara\\b|\\bmango\\b|\\bbershka\\b|pull ?& ?bear|stradivarius|massimo dutti|springfield|desigual|women'?secret|\\boysho\\b|\\bprimark\\b|\\bh&m\\b|\\bdecathlon\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_clothing",
+      "priority": 80
+    },
+    {
+      "key": "es.electronics",
+      "name": "Electronics",
+      "pattern": "(?i)mediamarkt|\\bfnac\\b|pccomponentes|\\bworten\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_electronics",
+      "priority": 85
+    },
+    {
+      "key": "es.home_goods",
+      "name": "Home improvement & home goods",
+      "pattern": "(?i)\\bikea\\b|leroy merlin|bricomart|conforama|merkamueble|bricodepot",
+      "matchType": "regex",
+      "categoryKey": "shopping_home",
+      "priority": 80
+    },
+    {
+      "key": "es.online_marketplaces",
+      "name": "Online marketplaces",
+      "pattern": "(?i)amazon\\.es|aliexpress|\\bwallapop\\b|\\bshein\\b|\\btemu\\b|\\bebay\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_online",
+      "priority": 70
+    },
+    {
+      "key": "es.personal_care",
+      "name": "Personal care",
+      "pattern": "(?i)peluquer[ií]a|esteticista|centro de est[eé]tica|\\bspa\\b",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 82
+    },
+    {
+      "key": "es.pets",
+      "name": "Pets",
+      "pattern": "(?i)veterinari[oa]|\\bkiwoko\\b|tiendanimal",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 82
+    },
+    {
+      "key": "es.education",
+      "name": "Education & childcare",
+      "pattern": "(?i)universidad|\\bcolegio\\b|escuela infantil|guarder[ií]a|\\bacademia\\b|matr[ií]cula|autoescuela|\\buned\\b",
+      "matchType": "regex",
+      "categoryKey": "education",
+      "priority": 82
+    },
+    {
+      "key": "es.donations",
+      "name": "Donations & charities",
+      "pattern": "(?i)cruz roja|c[aá]ritas|\\bunicef\\b|donaci[oó]n|oxfam intermon",
+      "matchType": "regex",
+      "categoryKey": "gifts",
+      "priority": 82
+    },
+    {
+      "key": "es.bank_fees",
+      "name": "Bank fees",
+      "pattern": "(?i)comisi[oó]n de mantenimiento|cuota de tarjeta|comisi[oó]n banc[aá]ria",
+      "matchType": "regex",
+      "categoryKey": "fees_bank",
+      "priority": 90
+    },
+    {
+      "key": "es.gov_taxes",
+      "name": "Government & taxes",
+      "pattern": "(?i)agencia tributaria|\\bhacienda\\b|seguridad social|\\bdgt\\b|ayuntamiento|\\biae\\b|\\bibi\\b",
+      "matchType": "regex",
+      "categoryKey": "fees",
+      "priority": 90
+    }
+  ]
+}

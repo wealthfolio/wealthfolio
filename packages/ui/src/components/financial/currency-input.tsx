@@ -1,4 +1,5 @@
 import { forwardRef, useCallback, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useIsMobile as defaultUseIsMobile } from "../../hooks/use-mobile";
 import { worldCurrencies } from "../../lib/currencies";
 import { cn } from "../../lib/utils";
@@ -51,6 +52,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
     },
     ref,
   ) => {
+    const { t } = useTranslation();
     const isControlled = openProp !== undefined;
     const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
     const open = isControlled ? openProp : uncontrolledOpen;
@@ -147,8 +149,10 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
               onOpenAutoFocus={handleOpenAutoFocus}
             >
               <SheetHeader className="border-border border-b px-6 pb-4 pt-6">
-                <SheetTitle>Select Currency</SheetTitle>
-                <SheetDescription>Choose your activity currency</SheetDescription>
+                <SheetTitle>{t("ui:currency.selectTitle", "Select Currency")}</SheetTitle>
+                <SheetDescription>
+                  {t("ui:currency.selectDescription", "Choose your activity currency")}
+                </SheetDescription>
               </SheetHeader>
 
               <div className="flex h-[calc(85vh-7rem)] flex-col">
@@ -176,7 +180,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
                       className="card-mobile hover:bg-accent active:bg-accent/80 flex items-center justify-center border py-3 font-semibold transition-colors"
                     >
                       <Icons.Search className="mr-1 h-4 w-4" />
-                      More
+                      {t("ui:currency.more", "More")}
                     </button>
                   </div>
                 </div>
@@ -186,7 +190,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
                     <Input
                       ref={searchInputRef}
                       type="text"
-                      placeholder="Search all currencies..."
+                      placeholder={t("ui:currency.searchAll", "Search all currencies...")}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-12"
@@ -197,7 +201,9 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
                   {searchQuery.length === 0 ? (
                     <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-center text-sm">
                       <Icons.DollarSign className="h-12 w-12 opacity-20" />
-                      <span>Search for any currency or select from popular options above.</span>
+                      <span>
+                        {t("ui:currency.searchPrompt", "Search for any currency or select from popular options above.")}
+                      </span>
                     </div>
                   ) : filteredCurrencies.length > 0 ? (
                     <div className="space-y-2">
@@ -229,20 +235,26 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
                           onClick={() => handleSelect(customCurrencyValue)}
                           className="text-primary w-full py-2 text-center text-sm font-medium hover:underline"
                         >
-                          Use &quot;{customCurrencyValue}&quot; as custom currency
+                          {t("ui:currency.useCustom", 'Use "{{value}}" as custom currency', {
+                            value: customCurrencyValue,
+                          })}
                         </button>
                       )}
                     </div>
                   ) : (
                     <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-center text-sm">
                       <Icons.Search className="h-12 w-12 opacity-20" />
-                      <span>No currencies found for &quot;{searchQuery}&quot;.</span>
+                      <span>
+                        {t("ui:currency.noneFound", 'No currencies found for "{{query}}".', { query: searchQuery })}
+                      </span>
                       {customCurrencyValue && (
                         <button
                           onClick={() => handleSelect(customCurrencyValue)}
                           className="text-primary mt-2 text-sm font-medium hover:underline"
                         >
-                          Use &quot;{customCurrencyValue}&quot; as custom currency
+                          {t("ui:currency.useCustom", 'Use "{{value}}" as custom currency', {
+                            value: customCurrencyValue,
+                          })}
                         </button>
                       )}
                     </div>
@@ -281,7 +293,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
           <Command>
             <CommandInput
               ref={desktopCommandInputRef}
-              placeholder="Search currency..."
+              placeholder={t("ui:currency.search", "Search currency...")}
               className="h-9"
               value={desktopSearchQuery}
               onValueChange={setDesktopSearchQuery}
@@ -293,10 +305,12 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
                     className="text-primary w-full py-1 text-sm font-medium hover:underline"
                     onClick={() => handleSelect(desktopCustomCurrencyValue)}
                   >
-                    Use &quot;{desktopCustomCurrencyValue}&quot; as custom currency
+                    {t("ui:currency.useCustom", 'Use "{{value}}" as custom currency', {
+                      value: desktopCustomCurrencyValue,
+                    })}
                   </button>
                 ) : (
-                  "No currency found."
+                  t("ui:currency.noneFoundShort", "No currency found.")
                 )}
               </CommandEmpty>
               <CommandGroup>
@@ -306,7 +320,9 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
                       value={desktopCustomCurrencyValue}
                       onSelect={() => handleSelect(desktopCustomCurrencyValue)}
                     >
-                      Use &quot;{desktopCustomCurrencyValue}&quot; as custom currency
+                      {t("ui:currency.useCustom", 'Use "{{value}}" as custom currency', {
+                        value: desktopCustomCurrencyValue,
+                      })}
                     </CommandItem>
                   )}
                   {worldCurrencies.map((currency) => (

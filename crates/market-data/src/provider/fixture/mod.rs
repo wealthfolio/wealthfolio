@@ -70,6 +70,8 @@ struct FixtureInstrument {
     website: Option<String>,
     #[serde(default)]
     country: Option<String>,
+    #[serde(default)]
+    asset_allocation: Vec<FixtureWeight>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -78,6 +80,13 @@ struct FixtureSplit {
     symbol: String,
     date: NaiveDate,
     ratio: Decimal,
+}
+
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FixtureWeight {
+    name: String,
+    weight: f64,
 }
 
 impl FixtureProvider {
@@ -163,6 +172,7 @@ impl FixtureProvider {
             industry: None,
             website: None,
             country: None,
+            asset_allocation: Vec::new(),
         })
     }
 
@@ -306,6 +316,9 @@ impl FixtureInstrument {
                 .sector
                 .as_ref()
                 .map(|sector| format!("[{{\"name\":\"{}\",\"weight\":1}}]", sector)),
+            asset_allocation: (!self.asset_allocation.is_empty())
+                .then(|| serde_json::to_string(&self.asset_allocation).ok())
+                .flatten(),
             industry: self.industry.clone(),
             website: self.website.clone(),
             country: self.country.clone(),
@@ -721,6 +734,26 @@ mod tests {
                   "seed": 102
                 },
                 {
+                  "symbol": "BALTEST",
+                  "name": "Balanced Allocation Test ETF",
+                  "provider": "YAHOO",
+                  "assetType": "ETF",
+                  "currency": "USD",
+                  "exchange": "PCX",
+                  "exchangeMic": "ARCX",
+                  "exchangeName": "NYSE Arca",
+                  "basePrice": 100,
+                  "baseVolume": 100000,
+                  "seed": 106,
+                  "sector": "Global",
+                  "industry": "Exchange Traded Fund",
+                  "country": "United States",
+                  "assetAllocation": [
+                    { "name": "stock", "weight": 0.6 },
+                    { "name": "bond", "weight": 0.4 }
+                  ]
+                },
+                {
                   "symbol": "BTC-USD",
                   "aliases": ["BTC"],
                   "name": "Bitcoin USD",
@@ -768,6 +801,7 @@ mod tests {
                 ticker: Arc::from("AAPL"),
                 mic: Some(Cow::Borrowed("XNAS")),
             },
+            identifiers: Default::default(),
             overrides: None,
             currency_hint: Some(Cow::Borrowed("USD")),
             preferred_provider: None,
@@ -822,6 +856,7 @@ mod tests {
                 ticker: Arc::from("DE0007164600"),
                 mic: Some(Cow::Borrowed("XETR")),
             },
+            identifiers: Default::default(),
             overrides: None,
             currency_hint: Some(Cow::Borrowed("EUR")),
             preferred_provider: Some(Cow::Borrowed("BOERSE_FRANKFURT")),
@@ -855,6 +890,7 @@ mod tests {
                 base: Cow::Borrowed("USD"),
                 quote: Cow::Borrowed("EUR"),
             },
+            identifiers: Default::default(),
             overrides: None,
             currency_hint: Some(Cow::Borrowed("EUR")),
             preferred_provider: None,
@@ -888,6 +924,7 @@ mod tests {
                 base: Cow::Borrowed("USD"),
                 quote: Cow::Borrowed("CAD"),
             },
+            identifiers: Default::default(),
             overrides: None,
             currency_hint: Some(Cow::Borrowed("CAD")),
             preferred_provider: None,
@@ -941,6 +978,23 @@ mod tests {
         let profile = provider.get_profile("BRK.B").await.unwrap();
         assert_eq!(profile.name.as_deref(), Some("Berkshire Hathaway Inc."));
         assert_eq!(profile.quote_type.as_deref(), Some("EQUITY"));
+
+        remove_dir_all(dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn profile_includes_asset_allocation_fixture() {
+        let dir = temp_fixture_dir();
+        write_catalog(&dir);
+        let provider = FixtureProvider::new(&dir);
+
+        let profile = provider.get_profile("BALTEST").await.unwrap();
+
+        assert_eq!(profile.quote_type.as_deref(), Some("ETF"));
+        assert_eq!(
+            profile.asset_allocation.as_deref(),
+            Some(r#"[{"name":"stock","weight":0.6},{"name":"bond","weight":0.4}]"#)
+        );
 
         remove_dir_all(dir).unwrap();
     }

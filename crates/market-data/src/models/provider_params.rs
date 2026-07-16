@@ -78,7 +78,7 @@ impl ProviderOverrides {
     /// }
     /// ```
     pub fn from_json(json: &serde_json::Value) -> Result<Self, serde_json::Error> {
-        serde_json::from_value(json.clone())
+        serde_json::from_value(normalize_provider_overrides_json(json.clone()))
     }
 
     /// Get the override for a specific provider
@@ -105,6 +105,27 @@ impl ProviderOverrides {
     pub fn len(&self) -> usize {
         self.overrides.len()
     }
+}
+
+fn normalize_provider_overrides_json(mut json: serde_json::Value) -> serde_json::Value {
+    let Some(overrides) = json.as_object_mut() else {
+        return json;
+    };
+
+    for value in overrides.values_mut() {
+        let Some(obj) = value.as_object_mut() else {
+            continue;
+        };
+        if obj.get("type").and_then(serde_json::Value::as_str) == Some("bond_isin")
+            && obj.get("isin").is_none()
+        {
+            if let Some(symbol) = obj.get("symbol").cloned() {
+                obj.insert("isin".to_string(), symbol);
+            }
+        }
+    }
+
+    json
 }
 
 #[cfg(test)]
@@ -148,5 +169,25 @@ mod tests {
         let json = serde_json::to_string(&overrides).unwrap();
         assert!(json.contains("YAHOO"));
         assert!(json.contains("SHOP.TO"));
+    }
+
+    #[test]
+    fn test_provider_overrides_accept_legacy_bond_symbol_field() {
+        let json = serde_json::json!({
+            "CUSTOM:single-point": {
+                "type": "bond_isin",
+                "symbol": "SWB:US744330AA93"
+            }
+        });
+
+        let overrides = ProviderOverrides::from_json(&json).unwrap();
+
+        assert_eq!(
+            overrides
+                .get("CUSTOM:single-point")
+                .map(ProviderInstrument::to_symbol_string)
+                .as_deref(),
+            Some("SWB:US744330AA93")
+        );
     }
 }

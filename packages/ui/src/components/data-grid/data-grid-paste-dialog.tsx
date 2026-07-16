@@ -4,6 +4,7 @@ import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 import type { TableMeta } from "@tanstack/react-table";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
 import type { PasteDialogState } from "./data-grid-types";
 
@@ -48,6 +49,7 @@ function PasteDialogImpl({
   onPasteWithExpansion,
   onPasteWithoutExpansion,
 }: PasteDialogProps) {
+  const { t } = useTranslation();
   const expandRadioRef = React.useRef<HTMLInputElement | null>(null);
 
   const onCancel = React.useCallback(() => {
@@ -66,36 +68,46 @@ function PasteDialogImpl({
     <Dialog open={pasteDialog.open} onOpenChange={onPasteDialogOpenChange}>
       <DialogContent data-grid-popover="">
         <DialogHeader>
-          <DialogTitle>Do you want to add more rows?</DialogTitle>
+          <DialogTitle>{t("ui:dialog.addRowsTitle", "Do you want to add more rows?")}</DialogTitle>
           <DialogDescription>
-            We need <strong>{pasteDialog.rowsNeeded}</strong> additional row
-            {pasteDialog.rowsNeeded !== 1 ? "s" : ""} to paste everything from your clipboard.
+            {t(
+              "ui:dialog.addRowsDescription",
+              "We need {{count}} additional row to paste everything from your clipboard.",
+              { count: pasteDialog.rowsNeeded },
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3 py-1">
           <label className="flex cursor-pointer items-start gap-3">
             <RadioItem ref={expandRadioRef} name="expand-option" value="expand" defaultChecked />
             <div className="flex flex-col gap-1">
-              <span className="text-sm font-medium leading-none">Create new rows</span>
+              <span className="text-sm font-medium leading-none">
+                {t("ui:dialog.createNewRows", "Create new rows")}
+              </span>
               <span className="text-muted-foreground text-sm">
-                Add {pasteDialog.rowsNeeded} new row
-                {pasteDialog.rowsNeeded !== 1 ? "s" : ""} to the table and paste all data
+                {t("ui:dialog.createNewRowsDescription", "Add {{count}} new row to the table and paste all data", {
+                  count: pasteDialog.rowsNeeded,
+                })}
               </span>
             </div>
           </label>
           <label className="flex cursor-pointer items-start gap-3">
             <RadioItem name="expand-option" value="no-expand" />
             <div className="flex flex-col gap-1">
-              <span className="text-sm font-medium leading-none">Keep current rows</span>
-              <span className="text-muted-foreground text-sm">Paste only what fits in the existing rows</span>
+              <span className="text-sm font-medium leading-none">
+                {t("ui:dialog.keepCurrentRows", "Keep current rows")}
+              </span>
+              <span className="text-muted-foreground text-sm">
+                {t("ui:dialog.keepCurrentRowsDescription", "Paste only what fits in the existing rows")}
+              </span>
             </div>
           </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>
-            Cancel
+            {t("ui:dialog.cancel", "Cancel")}
           </Button>
-          <Button onClick={onContinue}>Continue</Button>
+          <Button onClick={onContinue}>{t("ui:dialog.continue", "Continue")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

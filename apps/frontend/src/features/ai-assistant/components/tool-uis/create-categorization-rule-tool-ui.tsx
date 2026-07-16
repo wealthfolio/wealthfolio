@@ -5,6 +5,7 @@ import { makeAssistantToolUI } from "@assistant-ui/react";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { memo, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useRuntimeContext } from "../../hooks/use-runtime-context";
 import type { CreateCategorizationRuleArgs, CreateCategorizationRuleOutput } from "../../types";
 
@@ -22,6 +23,7 @@ function nextClientRuleId(): string | null {
 }
 
 function CreateCategorizationRuleLoadingState() {
+  const { t } = useTranslation();
   return (
     <Card className="bg-muted/40 border-primary/10 w-full overflow-hidden">
       <CardContent className="flex items-center gap-3 py-5">
@@ -29,7 +31,7 @@ function CreateCategorizationRuleLoadingState() {
           <Icons.Sparkles className="text-primary h-4 w-4 animate-pulse" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">Drafting rule...</p>
+          <p className="text-sm font-medium">{t("ai:createRule.drafting")}</p>
         </div>
         <Icons.Spinner className="text-muted-foreground h-4 w-4 shrink-0 animate-spin" />
       </CardContent>
@@ -42,8 +44,9 @@ function CreateCategorizationRuleLegacyState({
 }: {
   result: CreateCategorizationRuleOutput;
 }) {
-  const title = result.ruleName ?? "Categorization rule";
-  const message = result.message ?? "Rule created.";
+  const { t } = useTranslation();
+  const title = result.ruleName ?? t("ai:createRule.categorizationRule");
+  const message = result.message ?? t("ai:createRule.ruleCreated");
 
   return (
     <Card className="bg-card w-full overflow-hidden">
@@ -54,26 +57,26 @@ function CreateCategorizationRuleLegacyState({
             <p className="text-muted-foreground mt-1 text-xs">{message}</p>
           </div>
           <Badge variant="default" className="shrink-0">
-            Created
+            {t("ai:createRule.created")}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
         {result.pattern ? (
           <div>
-            <div className="text-muted-foreground text-xs">Pattern</div>
+            <div className="text-muted-foreground text-xs">{t("ai:createRule.pattern")}</div>
             <div className="truncate font-medium">{result.pattern}</div>
           </div>
         ) : null}
         {result.matchType ? (
           <div>
-            <div className="text-muted-foreground text-xs">Match</div>
+            <div className="text-muted-foreground text-xs">{t("ai:createRule.match")}</div>
             <div className="truncate font-medium">{formatMatchType(result.matchType)}</div>
           </div>
         ) : null}
         {result.categoryPath ? (
           <div>
-            <div className="text-muted-foreground text-xs">Category</div>
+            <div className="text-muted-foreground text-xs">{t("ai:createRule.category")}</div>
             <div className="truncate font-medium">{result.categoryPath}</div>
           </div>
         ) : null}
@@ -87,6 +90,7 @@ function CreateCategorizationRuleToolUIContentImpl({
   status,
   toolCallId,
 }: CreateCategorizationRuleToolUIContentProps) {
+  const { t } = useTranslation();
   const runtime = useRuntimeContext();
   const threadId = runtime.currentThreadId;
   const { create } = useCategorizationRuleMutations();
@@ -108,10 +112,13 @@ function CreateCategorizationRuleToolUIContentImpl({
 
   const isSubmitted =
     localSubmitted || result.submitted === true || result.draftStatus === "created";
-  const accountLabel = result.accountName ?? (rule.accountId ? "Scoped account" : "All accounts");
-  const categoryPath = result.categoryPath ?? "Selected category";
+  const accountLabel =
+    result.accountName ??
+    (rule.accountId ? t("ai:createRule.scopedAccount") : t("ai:createRule.allAccounts"));
+  const categoryPath = result.categoryPath ?? t("ai:createRule.selectedCategory");
   const message =
-    result.message ?? `Drafted rule: anything matching "${rule.pattern}" will be ${categoryPath}.`;
+    result.message ??
+    t("ai:createRule.draftedRule", { pattern: rule.pattern, category: categoryPath });
 
   const handleCreate = async () => {
     setPersistError(false);
@@ -161,26 +168,26 @@ function CreateCategorizationRuleToolUIContentImpl({
             <p className="text-muted-foreground mt-1 text-xs">{message}</p>
           </div>
           <Badge variant={isSubmitted ? "default" : "secondary"} className="shrink-0">
-            {isSubmitted ? "Created" : "Draft"}
+            {isSubmitted ? t("ai:createRule.created") : t("ai:createRule.draft")}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-2 text-sm sm:grid-cols-2">
           <div>
-            <div className="text-muted-foreground text-xs">Pattern</div>
+            <div className="text-muted-foreground text-xs">{t("ai:createRule.pattern")}</div>
             <div className="truncate font-medium">{rule.pattern}</div>
           </div>
           <div>
-            <div className="text-muted-foreground text-xs">Match</div>
+            <div className="text-muted-foreground text-xs">{t("ai:createRule.match")}</div>
             <div className="truncate font-medium">{formatMatchType(rule.matchType)}</div>
           </div>
           <div>
-            <div className="text-muted-foreground text-xs">Category</div>
+            <div className="text-muted-foreground text-xs">{t("ai:createRule.category")}</div>
             <div className="truncate font-medium">{categoryPath}</div>
           </div>
           <div>
-            <div className="text-muted-foreground text-xs">Scope</div>
+            <div className="text-muted-foreground text-xs">{t("ai:createRule.scope")}</div>
             <div className="truncate font-medium">{accountLabel}</div>
           </div>
         </div>
@@ -192,19 +199,18 @@ function CreateCategorizationRuleToolUIContentImpl({
             ) : isSubmitted ? (
               <Icons.Check className="mr-2 h-4 w-4" />
             ) : null}
-            {isSubmitted ? "Rule created" : createError ? "Retry create" : "Create rule"}
+            {isSubmitted
+              ? t("ai:createRule.ruleCreatedButton")
+              : createError
+                ? t("ai:createRule.retryCreate")
+                : t("ai:createRule.createRule")}
           </Button>
         </div>
         {createError ? (
-          <p className="text-destructive text-xs">
-            Rule was not created. Retry will use a fresh draft id.
-          </p>
+          <p className="text-destructive text-xs">{t("ai:createRule.notCreated")}</p>
         ) : null}
         {persistError ? (
-          <p className="text-destructive text-xs">
-            Rule created, but this chat could not be updated. Refresh rules before retrying from
-            this draft.
-          </p>
+          <p className="text-destructive text-xs">{t("ai:createRule.chatNotUpdated")}</p>
         ) : null}
       </CardContent>
     </Card>

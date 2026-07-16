@@ -4,6 +4,7 @@ import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@wealthfolio/ui";
 import type { Account, AccountType, Platform } from "@/lib/types";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { AccountOperations } from "./account-operations";
 
 // Map account types to icons and colors for visual distinction
@@ -47,6 +48,7 @@ export function AccountItem({
   onArchive,
   onHide,
 }: AccountItemProps) {
+  const { t } = useTranslation();
   // Check if account is synced from broker (has provider_account_id set)
   const isSynced = !!account.providerAccountId;
   const typeConfig = accountTypeConfig[account.accountType] ?? {
@@ -64,7 +66,7 @@ export function AccountItem({
           {isSynced && platform?.logoUrl ? (
             <AvatarImage
               src={platform.logoUrl}
-              alt={platform.name || "Platform"}
+              alt={platform.name || t("settings:accounts.platform_alt")}
               className="bg-white object-contain p-1"
             />
           ) : null}
@@ -100,27 +102,27 @@ export function AccountItem({
                   {account.trackingMode === "HOLDINGS" ? (
                     <span className="text-success flex cursor-help items-center gap-1">
                       <Icons.Holdings className="h-3 w-3" />
-                      Holdings
+                      {t("settings:accounts.tracking_holdings")}
                     </span>
                   ) : account.trackingMode === "NOT_SET" ? (
                     <span className="text-warning flex cursor-help items-center gap-1">
                       <Icons.AlertTriangle className="h-3 w-3" />
-                      Needs setup
+                      {t("settings:accounts.tracking_needs_setup")}
                     </span>
                   ) : (
                     <span className="flex cursor-help items-center gap-1">
                       <Icons.Receipt className="h-3 w-3" />
-                      Transactions
+                      {t("settings:accounts.tracking_transactions")}
                     </span>
                   )}
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   <p className="text-xs">
                     {account.trackingMode === "HOLDINGS"
-                      ? "Add holdings directly as snapshots"
+                      ? t("settings:accounts.tracking_tooltip_holdings")
                       : account.trackingMode === "NOT_SET"
-                        ? "Choose how to track this account"
-                        : "Track every trade for performance analytics"}
+                        ? t("settings:accounts.tracking_tooltip_needs_setup")
+                        : t("settings:accounts.tracking_tooltip_transactions")}
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -132,13 +134,13 @@ export function AccountItem({
         {account.isArchived && (
           <span className="inline-flex items-center gap-1 rounded-md border border-red-200/40 bg-red-100/30 px-2 py-1 text-xs font-medium text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400">
             <Icons.FileArchive className="h-3 w-3" />
-            Archived
+            {t("settings:accounts.badge_archived")}
           </span>
         )}
         {!account.isActive && !account.isArchived && (
           <span className="inline-flex items-center gap-1 rounded-md border border-orange-200/40 bg-orange-100/30 px-2 py-1 text-xs font-medium text-orange-600 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-400">
             <Icons.EyeOff className="h-3 w-3" />
-            Hidden
+            {t("settings:accounts.badge_hidden")}
           </span>
         )}
         <AccountOperations

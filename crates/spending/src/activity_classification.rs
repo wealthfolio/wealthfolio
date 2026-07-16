@@ -109,7 +109,12 @@ pub(crate) fn classify_activity(activity: &Activity, account_type: &str) -> Spen
             "CREDIT" if activity.subtype.as_deref() == Some("BONUS") => {
                 SpendingClassification::Income
             }
-            "CREDIT" if matches!(activity.subtype.as_deref(), Some("REFUND") | Some("REBATE")) => {
+            "CREDIT"
+                if matches!(
+                    activity.subtype.as_deref(),
+                    Some("REFUND") | Some("REBATE") | Some("REIMBURSEMENT")
+                ) =>
+            {
                 SpendingClassification::ExpenseRefund
             }
             "CREDIT" => SpendingClassification::Ignored,
@@ -165,6 +170,7 @@ mod tests {
             unit_price: None,
             amount: Some(Decimal::new(100, 0)),
             fee: None,
+            tax: None,
             currency: "USD".to_string(),
             fx_rate: None,
             notes: None,
@@ -228,6 +234,14 @@ mod tests {
         assert_eq!(
             classify_activity(
                 &activity_with_subtype("CREDIT", Some("REBATE"), None),
+                account_types::CASH
+            )
+            .spending_amount(Decimal::new(100, 0)),
+            Decimal::new(-100, 0)
+        );
+        assert_eq!(
+            classify_activity(
+                &activity_with_subtype("CREDIT", Some("REIMBURSEMENT"), None),
                 account_types::CASH
             )
             .spending_amount(Decimal::new(100, 0)),

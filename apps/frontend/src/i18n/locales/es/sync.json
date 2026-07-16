@@ -1,0 +1,209 @@
+{
+  "section": {
+    "deviceSync": "Sincronización de dispositivos",
+    "connectedDevices": "Dispositivos conectados",
+    "otherConnectedDevices": "Otros dispositivos conectados",
+    "manageDevices": "Gestionar dispositivos",
+    "options": "Opciones",
+    "deviceActions": "Acciones del dispositivo"
+  },
+  "setup": {
+    "cardDescription": "Sincroniza tus datos de forma segura en todos tus dispositivos.",
+    "connectToSync": "Conecta este dispositivo para sincronizar",
+    "keepInSync": "Mantén tus dispositivos sincronizados",
+    "foundOtherDevices": "Se encontraron otros dispositivos conectados en tu cuenta. Continúa para conectar este dispositivo.",
+    "encryptedInfo": "Tus datos están cifrados de extremo a extremo. Solo tus dispositivos pueden leerlos.",
+    "morePreview": "+{{count}} más",
+    "settingUp": "Configurando...",
+    "connectThisDevice": "Conectar este dispositivo",
+    "enableDeviceSync": "Activar la sincronización de dispositivos"
+  },
+  "status": {
+    "syncError": "Error de sincronización",
+    "syncPaused": "Sincronización en pausa",
+    "synced": "Sincronizado",
+    "syncing": "Sincronizando",
+    "connected": "Conectado",
+    "needsSetup": "Requiere configuración",
+    "revoked": "Revocado",
+    "notConnected": "No conectado",
+    "online": "En línea",
+    "never": "Nunca",
+    "minutesAgo": "hace {{count}} min",
+    "hoursAgo": "hace {{count}} h",
+    "daysAgo": "hace {{count}} d",
+    "thisDevice": "Este dispositivo",
+    "thisDeviceSuffix": "· Este dispositivo"
+  },
+  "engine": {
+    "pauseSync": "Pausar sincronización",
+    "resumeSync": "Reanudar sincronización",
+    "updating": "Actualizando...",
+    "backgroundPaused": "Sincronización en segundo plano en pausa",
+    "backgroundResumed": "Sincronización en segundo plano reanudada",
+    "updateFailed": "Error al actualizar la sincronización en segundo plano"
+  },
+  "errorState": {
+    "failedToInitialize": "Error al inicializar la sincronización de dispositivos.",
+    "initializationFailed": "Error de inicialización",
+    "failedToLoadDevices": "Error al cargar los dispositivos",
+    "tryRefreshing": "Intenta actualizar."
+  },
+  "stale": {
+    "keysNeedUpdating": "Las claves necesitan actualizarse",
+    "keysNeedUpdatingDescription": "Los ajustes de seguridad cambiaron en otro dispositivo. Conecta este dispositivo de nuevo para seguir sincronizando.",
+    "updateThisDevice": "Actualizar este dispositivo"
+  },
+  "orphaned": {
+    "restoreTitle": "Usa este dispositivo para restaurar la sincronización",
+    "restoreDescription": "No hay ningún otro dispositivo conectado disponible. Reiniciaremos la sincronización utilizando los datos que ya están en este dispositivo.",
+    "confirmDescription": "Reiniciaremos la sincronización utilizando los datos que ya están en este dispositivo.",
+    "restarting": "Reiniciando..."
+  },
+  "untrusted": {
+    "notConnectedYet": "Este dispositivo aún no está conectado",
+    "enterCodeFromDevices_one": "Introduce el código de uno de tus {{count}} otros dispositivos conectados.",
+    "enterCodeFromDevices_other": "Introduce el código de uno de tus {{count}} otros dispositivos conectados.",
+    "enterCodeGeneric": "Introduce el código de tu otro dispositivo conectado para sincronizar tus datos.",
+    "connectThisDevice": "Conectar este dispositivo",
+    "connectToStartSyncing": "Conecta este dispositivo para empezar a sincronizar."
+  },
+  "connect": {
+    "connectAnotherDevice": "Conectar otro dispositivo",
+    "connectThisDevice": "Conectar este dispositivo",
+    "pair": "Emparejar",
+    "unpair": "Desemparejar",
+    "revoke": "Revocar",
+    "rename": "Renombrar",
+    "disconnect": "Desconectar"
+  },
+  "waitingSnapshot": {
+    "otherDeviceFinishing": "Tu otro dispositivo aún está terminando la configuración.",
+    "setupAlmostDone": "Tu configuración está casi lista.",
+    "trustedHint": "Puedes acelerar el proceso ahora, o esperar y continuaremos automáticamente en segundo plano.",
+    "untrustedHint": "Termina primero la configuración en tu otro dispositivo conectado. Esta página se actualizará automáticamente.",
+    "checking": "Comprobando...",
+    "checkAgain": "Comprobar de nuevo",
+    "preparing": "Preparando...",
+    "speedUpSetup": "Acelerar la configuración"
+  },
+  "bootstrap": {
+    "inProgress": "Inicialización de la sincronización en curso...",
+    "hasDataTitle": "Este dispositivo ya tiene datos",
+    "hasDataDescription": "Para terminar la sincronización, los datos de este dispositivo se reemplazarán con los datos de tu otro dispositivo.",
+    "continue": "Continuar",
+    "waitingOtherDeviceTitle": "Esperando a tu otro dispositivo",
+    "waitingOtherDeviceDescription": "Terminaremos de sincronizar en cuanto haya una instantánea reciente disponible.",
+    "retryStartedTitle": "Reintento de sincronización iniciado",
+    "retryStartedDescription": "Comprobando si hay una instantánea actualizada y aplicando los cambios de sincronización pendientes.",
+    "couldNotRetryTitle": "No se pudo reintentar la sincronización",
+    "unableToContinueTitle": "No se puede continuar la sincronización"
+  },
+  "snapshot": {
+    "uploadedTitle": "Instantánea subida",
+    "uploadedDescription": "Los dispositivos recién conectados ya pueden terminar de sincronizar desde esta instantánea.",
+    "skippedTitle": "Subida de instantánea omitida",
+    "cancelledTitle": "Subida de instantánea cancelada",
+    "resultTitle": "Resultado de la subida de la instantánea",
+    "failedTitle": "Error al subir la instantánea"
+  },
+  "backup": {
+    "savedTitle": "Copia de seguridad guardada",
+    "savedDescription": "Se guardó una copia de seguridad como {{location}}.",
+    "failedTitle": "Error en la copia de seguridad",
+    "backingUp": "Realizando copia de seguridad...",
+    "backUpFirst": "Hacer copia de seguridad primero"
+  },
+  "overwrite": {
+    "replaceDataTitle": "¿Reemplazar los datos de este dispositivo?",
+    "replaceDataDescription": "Tus datos locales se reemplazarán con los datos de tu otro dispositivo conectado.",
+    "localRowsReplaced_one": "Se reemplazará {{count}} fila local.",
+    "localRowsReplaced_other": "Se reemplazarán {{count}} filas locales.",
+    "notNow": "Ahora no",
+    "syncing": "Sincronizando...",
+    "replaceAndSync": "Reemplazar y sincronizar"
+  },
+  "reinit": {
+    "title": "¿Configurar la sincronización de nuevo desde este dispositivo?",
+    "description": "Conservaremos los datos de este dispositivo y los usaremos para reiniciar la sincronización. Es posible que otros dispositivos conectados deban conectarse de nuevo.",
+    "notNow": "Ahora no",
+    "continue": "Continuar"
+  },
+  "recovery": {
+    "title": "Configurar este dispositivo de nuevo",
+    "description": "La sincronización se desactivó para este dispositivo. Configúralo de nuevo para mantener tus datos actualizados en todos tus dispositivos.",
+    "notNow": "Ahora no",
+    "settingUp": "Configurando...",
+    "setUpAgain": "Configurar este dispositivo de nuevo"
+  },
+  "disconnectDialog": {
+    "title": "¿Desconectar este dispositivo?",
+    "description": "Esto eliminará la sincronización de este dispositivo. Puedes configurarlo de nuevo más adelante.",
+    "disconnecting": "Desconectando...",
+    "disconnect": "Desconectar"
+  },
+  "unpairDialog": {
+    "titleLast": "¿Desemparejar tu último dispositivo?",
+    "title": "¿Desemparejar dispositivo?",
+    "descriptionLast": "Este es tu único dispositivo conectado. Deberás conectar un dispositivo de nuevo para seguir sincronizando tus datos.",
+    "description": "Esto eliminará \"{{name}}\" de tu cuenta. El dispositivo deberá conectarse de nuevo para sincronizar datos.",
+    "unpairing": "Desemparejando...",
+    "unpair": "Desemparejar"
+  },
+  "toasts": {
+    "reinitFailed": "Error al reinicializar la sincronización",
+    "disconnectFailed": "Error al desconectar",
+    "unpairFailed": "Error al desemparejar el dispositivo"
+  },
+  "pairing": {
+    "connectThisDeviceTitle": "Conectar este dispositivo",
+    "enterCodeDescription": "Introduce el código de tu otro dispositivo conectado",
+    "connectAnotherTitle": "Conectar otro dispositivo",
+    "scanOrEnterDescription": "Escanea o introduce este código en tu otro dispositivo",
+    "gettingReadyTitle": "Preparando este dispositivo...",
+    "gettingReadyDescription": "Esto solo tomará un momento.",
+    "prepareFailed": "No pudimos terminar de preparar este dispositivo.",
+    "tryAgain": "Intentar de nuevo",
+    "starting": "Iniciando...",
+    "generatingCode": "Generando código...",
+    "computingSecurityCode": "Calculando el código de seguridad...",
+    "finishingSetup": "Finalizando la configuración...",
+    "finishingSetupDescription": "Preparando tus datos para el nuevo dispositivo",
+    "sessionExpired": "Sesión caducada",
+    "connecting": "Conectando...",
+    "verifySecurityCode": "Verificar código de seguridad",
+    "syncingData": "Sincronizando tus datos...",
+    "syncingDataDescription": "Esto puede tardar unos segundos"
+  },
+  "displayCode": {
+    "expired": "Caducado"
+  },
+  "enterCode": {
+    "openingCamera": "Abriendo la cámara...",
+    "scanQrCode": "Escanear código QR",
+    "quickAndEasy": "Rápido y fácil",
+    "or": "O",
+    "codePlaceholder": "ABC 123",
+    "paste": "Pegar",
+    "connecting": "Conectando...",
+    "connect": "Conectar"
+  },
+  "sas": {
+    "sameCodeQuestion": "¿El mismo código en ambos dispositivos?"
+  },
+  "waiting": {
+    "waitingForConfirmation": "Esperando confirmación...",
+    "confirmCodeMatches": "Confirma que este código coincide en tu otro dispositivo",
+    "securelyConnecting": "Espera mientras conectamos tu dispositivo de forma segura"
+  },
+  "result": {
+    "allSet": "¡Todo listo!",
+    "connectedSuccessfully": "Dispositivo conectado correctamente",
+    "done": "Listo",
+    "connectionFailed": "Error de conexión",
+    "tryAgain": "Intentar de nuevo"
+  },
+  "errors": {
+    "backupPlatformUnsupported": "La copia de seguridad antes de la sincronización de dispositivos solo se admite actualmente en escritorio, web e iOS"
+  }
+}

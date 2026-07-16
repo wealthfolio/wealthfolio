@@ -15,6 +15,7 @@ function driftRow(overrides: Partial<DriftRow> & Pick<DriftRow, "categoryId">): 
     currentValue: 50_000,
     targetValue: 50_000,
     valueDelta: 0,
+    effectiveBandBps: 0,
     status: "in_band",
     isRequired: true,
     isZeroCurrent: false,
@@ -64,6 +65,7 @@ describe("resolveDriftReportCategories", () => {
         baseCurrency: "USD",
         rows: [holdingRow({ categoryId: "region-a" })],
       },
+      deployableCash: 5000,
     };
     const categories: TaxonomyCategory[] = [
       {

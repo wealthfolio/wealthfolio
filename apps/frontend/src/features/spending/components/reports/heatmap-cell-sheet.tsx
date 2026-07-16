@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 import {
   Button,
@@ -48,6 +50,7 @@ export function HeatmapCellSheet({
   timezone,
   currency,
 }: HeatmapCellSheetProps) {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const { accounts = [] } = useAccounts({ filterActive: false });
   const accountById = useMemo(() => {
@@ -86,7 +89,7 @@ export function HeatmapCellSheet({
   }, [activities, accountById]);
 
   // Group by ISO week (Mon-start) so the dense list breaks into legible chunks.
-  const grouped = useMemo(() => groupByWeek(activities, timezone), [activities, timezone]);
+  const grouped = useMemo(() => groupByWeek(activities, timezone, t), [activities, timezone, t]);
 
   const hourLabel = hour == null ? "" : formatHourRange(hour, endHour);
 
@@ -125,7 +128,7 @@ export function HeatmapCellSheet({
             className="text-[10px] font-semibold uppercase tracking-[0.14em]"
             style={{ color: "var(--heatmap-accent)" }}
           >
-            When you spend
+            {t("spending:heatmapSheet.eyebrow")}
           </div>
           <div className="mt-2 flex items-start gap-3">
             <span
@@ -139,32 +142,32 @@ export function HeatmapCellSheet({
             </span>
             <div className="min-w-0 flex-1">
               <SheetTitle className="text-foreground text-lg font-semibold tracking-tight">
-                {dayLabel ? `${dayLabel} · ${hourLabel}` : "Activity"}
+                {dayLabel ? `${dayLabel} · ${hourLabel}` : t("spending:heatmapSheet.activity")}
               </SheetTitle>
               <p className="text-muted-foreground mt-0.5 text-xs">
-                Last 12 weeks · spending in this weekday + hour
+                {t("spending:heatmapSheet.subtitle")}
               </p>
             </div>
           </div>
 
           <div className="mt-5 grid grid-cols-4 gap-3">
             <Stat
-              label="Total"
+              label={t("spending:heatmapSheet.total")}
               value={isBalanceHidden ? "••••" : formatCompactAmount(stats.total, currency)}
               hint={null}
             />
             <Stat
-              label="Tx"
+              label={t("spending:heatmapSheet.tx")}
               value={stats.count.toLocaleString()}
-              hint={stats.count === 0 ? "none" : null}
+              hint={stats.count === 0 ? t("spending:heatmapSheet.none") : null}
             />
             <Stat
-              label="Avg / tx"
+              label={t("spending:heatmapSheet.avgPerTx")}
               value={isBalanceHidden ? "••••" : formatCompactAmount(stats.avg, currency)}
               hint={null}
             />
             <Stat
-              label="Largest"
+              label={t("spending:heatmapSheet.largest")}
               value={isBalanceHidden ? "••••" : formatCompactAmount(stats.largest, currency)}
               hint={null}
             />
@@ -176,7 +179,7 @@ export function HeatmapCellSheet({
           {activities.length === 0 ? (
             <div className="text-muted-foreground border-border/60 flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed py-12 text-center text-sm">
               <Icons.Activity className="h-6 w-6 opacity-50" aria-hidden />
-              <div>No spending in this slot.</div>
+              <div>{t("spending:heatmapSheet.noSpending")}</div>
             </div>
           ) : (
             <div className="space-y-6">
@@ -218,7 +221,7 @@ export function HeatmapCellSheet({
                               </span>
                               {isOutlier && (
                                 <span className="rounded-full bg-amber-100/80 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
-                                  Outlier
+                                  {t("spending:heatmapSheet.outlier")}
                                 </span>
                               )}
                             </div>
@@ -260,7 +263,7 @@ export function HeatmapCellSheet({
         <div className="border-border/60 bg-background/70 border-t px-6 py-3 backdrop-blur">
           <Button asChild size="sm" className="w-full">
             <Link to={transactionsLink} onClick={() => onOpenChange(false)}>
-              Open in Transactions
+              {t("spending:categorySheet.openInTransactions")}
               <Icons.ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
             </Link>
           </Button>
@@ -304,7 +307,11 @@ interface WeekGroup {
 }
 
 /** Bucket activities into Monday-anchored ISO weeks, newest first. */
-function groupByWeek(activities: Activity[], timezone?: string | null): WeekGroup[] {
+function groupByWeek(
+  activities: Activity[],
+  timezone: string | null | undefined,
+  t: TFunction,
+): WeekGroup[] {
   const byKey = new Map<string, { label: string; items: Activity[] }>();
   const getZonedDayHour = createZonedDayHourFormatter(timezone);
   for (const it of activities) {
@@ -313,7 +320,10 @@ function groupByWeek(activities: Activity[], timezone?: string | null): WeekGrou
     const zoned = getZonedDayHour(d);
     if (!zoned) continue;
     const key = mondayKeyForDayKey(zoned.dayKey);
-    const entry = byKey.get(key) ?? { label: `Week of ${formatDateKeyLabel(key)}`, items: [] };
+    const entry = byKey.get(key) ?? {
+      label: t("spending:heatmapSheet.weekOf", { date: formatDateKeyLabel(key) }),
+      items: [],
+    };
     entry.items.push(it);
     byKey.set(key, entry);
   }

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { DriftReport, DriftRow } from "@/lib/types";
 import { AllocationDonut } from "./allocation-donut";
@@ -32,6 +33,7 @@ export function CurrentVsTargetCard({
   taxonomyLabel,
   targetLabel,
 }: CurrentVsTargetCardProps) {
+  const { t } = useTranslation();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const visibleRows = report.rows.filter(hasVisibleAllocation);
   const colorByCategory = useMemo(() => buildAllocationTargetColorMap(report.rows), [report.rows]);
@@ -41,9 +43,9 @@ export function CurrentVsTargetCard({
   return (
     <Card className="h-full">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Allocation vs target</CardTitle>
+        <CardTitle className="text-base">{t("allocation:vsTarget.title")}</CardTitle>
         <CardDescription>
-          {taxonomyLabel} · current allocation vs {targetLabel}
+          {t("allocation:vsTarget.description", { taxonomyLabel, targetLabel })}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -63,11 +65,11 @@ export function CurrentVsTargetCard({
           <div className="min-w-0">
             {/* Column headers */}
             <div className="text-muted-foreground hidden grid-cols-[minmax(7.5rem,1fr)_minmax(10rem,1.25fr)_3.5rem_3.5rem_5rem] gap-x-3 px-2 pb-2 text-[10px] font-medium uppercase tracking-wider md:grid">
-              <span>Category</span>
-              <span>Current allocation</span>
-              <span className="text-right">Current</span>
-              <span className="text-right">Target</span>
-              <span className="text-right">Drift</span>
+              <span>{t("allocation:vsTarget.category")}</span>
+              <span>{t("allocation:vsTarget.currentAllocation")}</span>
+              <span className="text-right">{t("allocation:vsTarget.current")}</span>
+              <span className="text-right">{t("allocation:vsTarget.target")}</span>
+              <span className="text-right">{t("allocation:vsTarget.drift")}</span>
             </div>
 
             {/* Asset class rows */}
@@ -128,10 +130,11 @@ export function CurrentVsTargetCard({
 
                     <div className="text-muted-foreground col-span-2 flex justify-between text-[11px] tabular-nums md:hidden">
                       <span>
-                        Current <span className="text-foreground">{current.toFixed(1)}%</span>
+                        {t("allocation:vsTarget.current")}{" "}
+                        <span className="text-foreground">{current.toFixed(1)}%</span>
                       </span>
                       <span>
-                        Target{" "}
+                        {t("allocation:vsTarget.target")}{" "}
                         <span className="text-foreground">{formatTargetBps(row.targetBps)}%</span>
                       </span>
                     </div>

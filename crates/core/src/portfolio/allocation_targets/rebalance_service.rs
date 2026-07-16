@@ -1,14 +1,18 @@
 use async_trait::async_trait;
 use log::debug;
 use rust_decimal::Decimal;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::errors::{Error as CoreError, Result as CoreResult};
 use crate::portfolio::allocation::{AllocationServiceTrait, HoldingAllocationContribution};
-use crate::portfolio::holdings::{HoldingType, HoldingsServiceTrait};
+use crate::portfolio::holdings::{Holding, HoldingType, HoldingsServiceTrait};
 
+use super::cash::{
+    deployable_cash_from_contributions, has_deployable_cash_categories,
+    is_deployable_cash_category, tracked_cash,
+};
 use super::drift_service::DriftServiceTrait;
 use super::model::{
     CalculateRebalancePlanInput, RebalancePlan, RebalanceWarning, RebalanceWarningKind,
@@ -65,6 +69,14 @@ impl RebalanceService {
         Decimal::ONE / Decimal::from(10_i64.pow(Self::currency_fraction_digits(currency)))
     }
 
+    fn asset_key(holding: &crate::portfolio::holdings::Holding) -> String {
+        holding
+            .instrument
+            .as_ref()
+            .map(|i| i.id.clone())
+            .unwrap_or_else(|| holding.id.clone())
+    }
+
     fn base_price_per_unit(holding: &crate::portfolio::holdings::Holding) -> Option<Decimal> {
         if holding.quantity > Decimal::ZERO && holding.market_value.base > Decimal::ZERO {
             return Some(holding.market_value.base / holding.quantity);
@@ -78,6 +90,44 @@ impl RebalanceService {
             };
             price * fx_rate
         })
+    }
+
+    fn tagged_cash_warnings(
+        taxonomy_id: &str,
+        contributions: &[HoldingAllocationContribution],
+    ) -> Vec<RebalanceWarning> {
+        if !has_deployable_cash_categories(taxonomy_id) {
+            return vec![];
+        }
+
+        let mut value_by_category: HashMap<String, (String, Decimal)> = HashMap::new();
+        for contribution in contributions {
+            if contribution.holding_type != HoldingType::Cash
+                || is_deployable_cash_category(taxonomy_id, &contribution.category_id)
+            {
+                continue;
+            }
+
+            let entry = value_by_category
+                .entry(contribution.category_id.clone())
+                .or_insert_with(|| (contribution.category_name.clone(), Decimal::ZERO));
+            entry.1 += contribution.value;
+        }
+
+        let mut categories: Vec<_> = value_by_category.into_iter().collect();
+        categories.sort_by(|a, b| a.0.cmp(&b.0));
+
+        categories
+            .into_iter()
+            .map(|(category_id, (category_name, value))| RebalanceWarning {
+                kind: RebalanceWarningKind::TaggedCash,
+                category_id,
+                message: format!(
+                    "{} contains {:.2} of tagged cash. It is excluded from cash to deploy; move or reclassify that cash before the plan can rebalance this sleeve.",
+                    category_name, value
+                ),
+            })
+            .collect()
     }
 
     /// Build `AssetCandidate` list from holdings + contributions.
@@ -94,25 +144,24 @@ impl RebalanceService {
     /// - Holdings with no usable price: skip (warn `MissingQuote` if whole_shares_only).
     fn build_candidates(
         contributions: &[HoldingAllocationContribution],
-        price_by_holding: &HashMap<String, Decimal>,
+        price_by_asset: &HashMap<String, Decimal>,
+        quantity_by_asset: &HashMap<String, Decimal>,
         whole_shares_only: bool,
     ) -> (Vec<AssetCandidate>, Vec<RebalanceWarning>) {
-        // Group contributions by holding_id.
-        let mut by_holding: HashMap<&str, Vec<&HoldingAllocationContribution>> = HashMap::new();
+        // Group contributions by asset_id (instrument ID).
+        let mut by_asset: HashMap<&str, Vec<&HoldingAllocationContribution>> = HashMap::new();
         for c in contributions {
-            by_holding.entry(c.holding_id.as_str()).or_default().push(c);
+            by_asset.entry(c.asset_id.as_str()).or_default().push(c);
         }
 
         let mut candidates: Vec<AssetCandidate> = Vec::new();
         let mut warnings: Vec<RebalanceWarning> = Vec::new();
 
-        // Iterate holdings in a stable order so emitted warnings are reproducible
-        // run-to-run (HashMap iteration order is otherwise non-deterministic).
-        let mut holding_ids: Vec<&str> = by_holding.keys().copied().collect();
-        holding_ids.sort_unstable();
+        let mut asset_ids: Vec<&str> = by_asset.keys().copied().collect();
+        asset_ids.sort_unstable();
 
-        for holding_id in holding_ids {
-            let contribs = &by_holding[holding_id];
+        for asset_id in asset_ids {
+            let contribs = &by_asset[asset_id];
             // Skip cash holdings.
             if contribs.iter().all(|c| c.holding_type == HoldingType::Cash) {
                 continue;
@@ -149,7 +198,7 @@ impl RebalanceService {
             }
 
             // Derive price.
-            let price = match price_by_holding.get(holding_id) {
+            let price = match price_by_asset.get(asset_id) {
                 Some(&p) if p > Decimal::ZERO => p,
                 _ => {
                     if whole_shares_only {
@@ -166,11 +215,12 @@ impl RebalanceService {
                 }
             };
 
-            // Build exposure per share: contribution.value / quantity, excluding __UNKNOWN__.
-            let qty = repr.quantity;
-            if qty <= Decimal::ZERO {
-                continue;
-            }
+            // Build exposure per share: contribution.value / owned quantity,
+            // excluding __UNKNOWN__.
+            let qty = match quantity_by_asset.get(asset_id) {
+                Some(&q) if q > Decimal::ZERO => q,
+                _ => continue,
+            };
             let mut exposure_per_share: HashMap<String, Decimal> = HashMap::new();
             for c in contribs.iter() {
                 if c.category_id == "__UNKNOWN__" {
@@ -184,7 +234,7 @@ impl RebalanceService {
             }
 
             candidates.push(AssetCandidate {
-                holding_id: holding_id.to_string(),
+                holding_id: asset_id.to_string(),
                 asset_id: repr.asset_id.clone(),
                 symbol: symbol.clone(),
                 name: Some(repr.name.clone()),
@@ -200,20 +250,39 @@ impl RebalanceService {
     /// taxonomy classifications. All holdings with quantity > 0 are eligible.
     fn build_sell_candidates(
         contributions: &[HoldingAllocationContribution],
-        price_by_holding: &HashMap<String, Decimal>,
-        quantity_by_holding: &HashMap<String, Decimal>,
+        price_by_asset: &HashMap<String, Decimal>,
+        quantity_by_asset: &HashMap<String, Decimal>,
+        source_holdings: &[Holding],
     ) -> Vec<SellCandidate> {
-        let mut by_holding: HashMap<&str, Vec<&HoldingAllocationContribution>> = HashMap::new();
+        let mut by_asset: HashMap<&str, Vec<&HoldingAllocationContribution>> = HashMap::new();
         for c in contributions {
-            by_holding.entry(c.holding_id.as_str()).or_default().push(c);
+            by_asset.entry(c.asset_id.as_str()).or_default().push(c);
+        }
+
+        let mut holdings_by_asset: HashMap<String, Vec<&Holding>> = HashMap::new();
+        for holding in source_holdings
+            .iter()
+            .filter(|h| h.holding_type != HoldingType::Cash && h.quantity > Decimal::ZERO)
+        {
+            holdings_by_asset
+                .entry(Self::asset_key(holding))
+                .or_default()
+                .push(holding);
+        }
+        for holdings in holdings_by_asset.values_mut() {
+            holdings.sort_by(|a, b| {
+                a.account_id
+                    .cmp(&b.account_id)
+                    .then_with(|| a.id.cmp(&b.id))
+            });
         }
 
         let mut sell_candidates: Vec<SellCandidate> = Vec::new();
-        let mut holding_ids: Vec<&str> = by_holding.keys().copied().collect();
-        holding_ids.sort_unstable();
+        let mut asset_ids: Vec<&str> = by_asset.keys().copied().collect();
+        asset_ids.sort_unstable();
 
-        for holding_id in holding_ids {
-            let contribs = &by_holding[holding_id];
+        for asset_id in asset_ids {
+            let contribs = &by_asset[asset_id];
             if contribs.iter().all(|c| c.holding_type == HoldingType::Cash) {
                 continue;
             }
@@ -222,41 +291,60 @@ impl RebalanceService {
                 continue;
             }
 
-            let price = match price_by_holding.get(holding_id) {
+            let price = match price_by_asset.get(asset_id) {
                 Some(&p) if p > Decimal::ZERO => p,
                 _ => continue,
             };
-            let qty_owned = match quantity_by_holding.get(holding_id) {
+            let qty_owned = match quantity_by_asset.get(asset_id) {
                 Some(&q) if q > Decimal::ZERO => q,
                 _ => continue,
             };
-
-            let repr = contribs[0];
-            let qty = repr.quantity;
-            if qty <= Decimal::ZERO {
-                continue;
-            }
 
             let mut exposure_per_share: HashMap<String, Decimal> = HashMap::new();
             for c in contribs.iter() {
                 if c.category_id == "__UNKNOWN__" {
                     continue;
                 }
-                *exposure_per_share.entry(c.category_id.clone()).or_default() += c.value / qty;
+                *exposure_per_share.entry(c.category_id.clone()).or_default() +=
+                    c.value / qty_owned;
             }
             if exposure_per_share.is_empty() {
                 continue;
             }
 
-            sell_candidates.push(SellCandidate {
-                holding_id: holding_id.to_string(),
-                asset_id: repr.asset_id.clone(),
-                symbol: repr.symbol.clone(),
-                name: Some(repr.name.clone()),
-                price,
-                quantity_owned: qty_owned,
-                exposure_per_share,
-            });
+            let repr = contribs[0];
+            let Some(source_holdings) = holdings_by_asset.get(asset_id) else {
+                continue;
+            };
+
+            for holding in source_holdings {
+                let holding_price = Self::base_price_per_unit(holding).unwrap_or(price);
+                if holding_price <= Decimal::ZERO {
+                    continue;
+                }
+                let mut source_account_ids = if holding.source_account_ids.is_empty() {
+                    vec![holding.account_id.clone()]
+                } else {
+                    holding.source_account_ids.clone()
+                };
+                source_account_ids.sort_unstable();
+                source_account_ids.dedup();
+                let account_id = source_account_ids
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| holding.account_id.clone());
+                sell_candidates.push(SellCandidate {
+                    holding_id: holding.id.clone(),
+                    asset_id: repr.asset_id.clone(),
+                    account_id,
+                    source_account_ids,
+                    symbol: repr.symbol.clone(),
+                    name: Some(repr.name.clone()),
+                    price: holding_price,
+                    quantity_owned: holding.quantity,
+                    exposure_per_share: exposure_per_share.clone(),
+                });
+            }
         }
 
         sell_candidates
@@ -279,6 +367,17 @@ impl RebalanceServiceTrait for RebalanceService {
             ));
         }
 
+        // Load profile early — needed for taxonomy_id before cash calculation.
+        let profile = self
+            .allocation_target_service
+            .get_target(&input.target_id)?
+            .ok_or_else(|| {
+                CoreError::Database(crate::errors::DatabaseError::NotFound(format!(
+                    "AllocationTarget {} not found",
+                    input.target_id
+                )))
+            })?;
+
         // Fetch holdings once — used for both cash check and price extraction.
         let all_holdings = self
             .holdings_service
@@ -289,12 +388,38 @@ impl RebalanceServiceTrait for RebalanceService {
             )
             .await?;
 
-        // Authoritative tracked cash in scope.
-        let cash_in_scope: Decimal = all_holdings
-            .iter()
-            .filter(|h| h.holding_type == HoldingType::Cash)
-            .map(|h| h.market_value.base)
-            .sum();
+        let sell_source_holdings = if profile.allow_sells
+            && !matches!(
+                input.scenario_mode,
+                crate::portfolio::allocation_targets::ScenarioMode::CashFlowOnly
+            ) {
+            let mut holdings = Vec::new();
+            for account_id in &input.account_ids {
+                holdings.extend(
+                    self.holdings_service
+                        .get_holdings(account_id, &input.base_currency)
+                        .await?,
+                );
+            }
+            holdings
+        } else {
+            Vec::new()
+        };
+
+        // Holding contributions for exposure vectors.
+        let taxonomy_contributions = self
+            .allocation_service
+            .get_holding_contributions_for_taxonomy_for_accounts(
+                &input.account_ids,
+                &input.base_currency,
+                &profile.taxonomy_id,
+                &input.aggregated_account_id,
+            )
+            .await?;
+
+        let cash_in_scope =
+            deployable_cash_from_contributions(&profile.taxonomy_id, &taxonomy_contributions)
+                .unwrap_or_else(|| tracked_cash(&all_holdings));
 
         let available_cash = if input.available_cash > cash_in_scope {
             let overage = input.available_cash - cash_in_scope;
@@ -303,7 +428,7 @@ impl RebalanceServiceTrait for RebalanceService {
             } else {
                 return Err(CoreError::Validation(
                     crate::errors::ValidationError::InvalidInput(
-                        "cash to deploy exceeds tracked cash in scope".to_string(),
+                        "cash to deploy exceeds deployable cash in scope".to_string(),
                     ),
                 ));
             }
@@ -311,16 +436,36 @@ impl RebalanceServiceTrait for RebalanceService {
             input.available_cash
         };
 
-        // Load profile.
-        let profile = self
+        // Load persisted constraints from DB.
+        let constraints = self
             .allocation_target_service
-            .get_target(&input.target_id)?
-            .ok_or_else(|| {
-                CoreError::Database(crate::errors::DatabaseError::NotFound(format!(
-                    "AllocationTarget {} not found",
-                    input.target_id
-                )))
-            })?;
+            .list_target_constraints(&input.target_id)?;
+        let do_not_sell_asset_ids: Vec<String> = constraints
+            .iter()
+            .filter(|c| {
+                matches!(c.subject_type, super::model::ConstraintSubjectType::Asset)
+                    && matches!(
+                        c.action,
+                        super::model::ConstraintAction::Sell
+                            | super::model::ConstraintAction::Trade
+                    )
+                    && matches!(c.effect, super::model::ConstraintEffect::Block)
+            })
+            .map(|c| c.subject_id.clone())
+            .collect();
+        let avoid_selling_account_ids: Vec<String> = constraints
+            .iter()
+            .filter(|c| {
+                matches!(c.subject_type, super::model::ConstraintSubjectType::Account)
+                    && matches!(
+                        c.action,
+                        super::model::ConstraintAction::Sell
+                            | super::model::ConstraintAction::Trade
+                    )
+                    && matches!(c.effect, super::model::ConstraintEffect::Block)
+            })
+            .map(|c| c.subject_id.clone())
+            .collect();
 
         // Drift report — provides total_value and per-category target/current data.
         let drift = self
@@ -349,45 +494,82 @@ impl RebalanceServiceTrait for RebalanceService {
             });
         }
 
-        // Holding contributions for exposure vectors.
-        let taxonomy_contributions = self
-            .allocation_service
-            .get_holding_contributions_for_taxonomy_for_accounts(
-                &input.account_ids,
-                &input.base_currency,
-                &profile.taxonomy_id,
-                &input.aggregated_account_id,
-            )
-            .await?;
-
-        // Price map and quantity map: holding_id → value in base currency.
-        let price_by_holding: HashMap<String, Decimal> = all_holdings
+        // Price map and quantity map keyed by asset (instrument) ID so the keys
+        // match contribution.asset_id regardless of holding aggregation.
+        let price_by_asset: HashMap<String, Decimal> = all_holdings
             .iter()
             .filter(|h| h.holding_type != HoldingType::Cash)
-            .filter_map(|h| Some((h.id.clone(), Self::base_price_per_unit(h)?)))
+            .filter_map(|h| Some((Self::asset_key(h), Self::base_price_per_unit(h)?)))
             .collect();
-        let quantity_by_holding: HashMap<String, Decimal> = all_holdings
+        let quantity_by_asset: HashMap<String, Decimal> = all_holdings
             .iter()
             .filter(|h| h.holding_type != HoldingType::Cash)
-            .map(|h| (h.id.clone(), h.quantity))
+            .map(|h| (Self::asset_key(h), h.quantity))
             .collect();
 
-        let (candidates, classification_warnings) = Self::build_candidates(
+        let (candidates, mut classification_warnings) = Self::build_candidates(
             &taxonomy_contributions.contributions,
-            &price_by_holding,
+            &price_by_asset,
+            &quantity_by_asset,
             profile.whole_shares_only,
         );
+        classification_warnings.extend(Self::tagged_cash_warnings(
+            &profile.taxonomy_id,
+            &taxonomy_contributions.contributions,
+        ));
 
         let sell_candidates = if profile.allow_sells
             && !matches!(
                 input.scenario_mode,
                 crate::portfolio::allocation_targets::ScenarioMode::CashFlowOnly
             ) {
-            Self::build_sell_candidates(
+            let all_sell = Self::build_sell_candidates(
                 &taxonomy_contributions.contributions,
-                &price_by_holding,
-                &quantity_by_holding,
-            )
+                &price_by_asset,
+                &quantity_by_asset,
+                &sell_source_holdings,
+            );
+
+            let do_not_sell = &do_not_sell_asset_ids;
+            let avoid_selling = &avoid_selling_account_ids;
+            let mut warned_do_not_sell_assets: HashSet<String> = HashSet::new();
+            let mut warned_avoid_selling_accounts: HashSet<String> = HashSet::new();
+
+            all_sell
+                .into_iter()
+                .filter(|c| {
+                    if do_not_sell.contains(&c.asset_id) {
+                        if warned_do_not_sell_assets.insert(c.asset_id.clone()) {
+                            classification_warnings.push(super::model::RebalanceWarning {
+                                kind: super::model::RebalanceWarningKind::ConstraintSkippedSell,
+                                category_id: String::new(),
+                                message: format!(
+                                    "Skipped selling {}: do-not-sell constraint.",
+                                    c.symbol
+                                ),
+                            });
+                        }
+                        return false;
+                    }
+                    if let Some(account_id) = avoid_selling
+                        .iter()
+                        .find(|a| c.source_account_ids.contains(a) || *a == &c.account_id)
+                    {
+                        if warned_avoid_selling_accounts.insert(account_id.to_string()) {
+                            classification_warnings.push(super::model::RebalanceWarning {
+                                kind: super::model::RebalanceWarningKind::ConstraintSkippedSell,
+                                category_id: String::new(),
+                                message: format!(
+                                    "Skipped selling {} from account: avoid-selling constraint.",
+                                    c.symbol
+                                ),
+                            });
+                        }
+                        return false;
+                    }
+                    true
+                })
+                .collect()
         } else {
             vec![]
         };
@@ -406,10 +588,14 @@ impl RebalanceServiceTrait for RebalanceService {
             })
             .collect();
 
+        let max_turnover_bps = profile.max_turnover_bps.map(Decimal::from);
+
         let optimizer_input = RebalanceInput {
             profile: RebalanceProfile {
                 target_id: input.target_id.clone(),
                 drift_band_bps: profile.drift_band_bps,
+                band_type: profile.band_type.clone(),
+                relative_factor_bps: profile.relative_factor_bps,
                 rebalance_goal: profile.rebalance_goal.clone(),
                 min_trade_amount: Decimal::from_str(&profile.min_trade_amount)
                     .unwrap_or(Decimal::ZERO),
@@ -422,6 +608,7 @@ impl RebalanceServiceTrait for RebalanceService {
             candidates,
             sell_candidates,
             warnings: classification_warnings,
+            max_turnover_bps,
         };
 
         DriftPriorityOptimizer.plan(optimizer_input)
@@ -433,14 +620,16 @@ impl RebalanceServiceTrait for RebalanceService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::DatabaseError;
     use crate::portfolio::allocation::{
         AllocationHoldings, HoldingAllocationContribution, PortfolioAllocations,
         TaxonomyHoldingContributions,
     };
     use crate::portfolio::allocation_targets::{
-        AllocationTarget, AllocationTargetWeight, DriftReport, DriftRow, DriftStatus,
-        NewAllocationTarget, NewAllocationTargetWeight, RebalanceGoal, ScenarioMode, ScopeType,
-        TriggerType,
+        AllocationTarget, AllocationTargetConstraint, AllocationTargetWeight, BandType,
+        ConstraintAction, ConstraintEffect, ConstraintSubjectType, DriftReport, DriftRow,
+        DriftStatus, NewAllocationTarget, NewAllocationTargetWeight, RebalanceGoal, ScenarioMode,
+        ScopeType, TriggerType,
     };
     use crate::portfolio::holdings::{Holding, HoldingType, Instrument, MonetaryValue};
     use rust_decimal_macros::dec;
@@ -456,10 +645,13 @@ mod tests {
             taxonomy_id: "asset_classes".to_string(),
             trigger_type: TriggerType::Threshold,
             drift_band_bps: 500,
+            band_type: BandType::Absolute,
+            relative_factor_bps: 2000,
             rebalance_goal,
             min_trade_amount: "0".to_string(),
             whole_shares_only,
             allow_sells: false,
+            max_turnover_bps: None,
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
             archived_at: None,
@@ -493,6 +685,7 @@ mod tests {
             current_value,
             target_value,
             value_delta,
+            effective_band_bps: 500,
             status,
             is_required: true,
             is_zero_current: current_bps == 0,
@@ -665,6 +858,7 @@ mod tests {
             out_of_band_count: out,
             rows,
             holdings: None,
+            deployable_cash: Decimal::ZERO,
         }
     }
 
@@ -672,6 +866,8 @@ mod tests {
 
     struct MockTargetService {
         profile: AllocationTarget,
+        constraints: Vec<AllocationTargetConstraint>,
+        constraint_load_error: bool,
     }
 
     #[async_trait]
@@ -714,6 +910,22 @@ mod tests {
             _: NewAllocationTarget,
             _: Vec<NewAllocationTargetWeight>,
         ) -> CoreResult<crate::portfolio::allocation_targets::SaveAllocationTargetResult> {
+            unimplemented!()
+        }
+        fn list_target_constraints(&self, _: &str) -> CoreResult<Vec<AllocationTargetConstraint>> {
+            if self.constraint_load_error {
+                return Err(CoreError::Database(DatabaseError::QueryFailed(
+                    "constraint load failed".to_string(),
+                )));
+            }
+            Ok(self.constraints.clone())
+        }
+        async fn save_target_constraints(
+            &self,
+            _: &str,
+            _: Vec<crate::portfolio::allocation_targets::AllocationTargetConstraint>,
+        ) -> CoreResult<Vec<crate::portfolio::allocation_targets::AllocationTargetConstraint>>
+        {
             unimplemented!()
         }
     }
@@ -801,8 +1013,13 @@ mod tests {
 
     #[async_trait]
     impl crate::portfolio::holdings::HoldingsServiceTrait for MockHoldingsService {
-        async fn get_holdings(&self, _: &str, _: &str) -> CoreResult<Vec<Holding>> {
-            unimplemented!()
+        async fn get_holdings(&self, account_id: &str, _: &str) -> CoreResult<Vec<Holding>> {
+            Ok(self
+                .holdings
+                .iter()
+                .filter(|h| h.account_id == account_id)
+                .cloned()
+                .collect())
         }
         async fn get_holdings_for_accounts(
             &self,
@@ -829,15 +1046,93 @@ mod tests {
     fn make_service(
         profile: AllocationTarget,
         report: DriftReport,
-        contributions: TaxonomyHoldingContributions,
+        mut contributions: TaxonomyHoldingContributions,
         holdings: Vec<Holding>,
     ) -> RebalanceService {
+        // Auto-inject cash contributions so cash_in_scope (now derived from
+        // contributions) matches the cash holdings the test provides.
+        for h in &holdings {
+            if h.holding_type == HoldingType::Cash {
+                contributions
+                    .contributions
+                    .push(make_contribution(h, "CASH", h.market_value.base));
+                contributions.total_value += h.market_value.base;
+            }
+        }
         RebalanceService::new(
-            Arc::new(MockTargetService { profile }),
+            Arc::new(MockTargetService {
+                profile,
+                constraints: vec![],
+                constraint_load_error: false,
+            }),
             Arc::new(MockDriftService { report }),
             Arc::new(MockAllocationService { contributions }),
             Arc::new(MockHoldingsService { holdings }),
         )
+    }
+
+    fn make_service_with_constraint_load_error(
+        profile: AllocationTarget,
+        report: DriftReport,
+        contributions: TaxonomyHoldingContributions,
+        holdings: Vec<Holding>,
+    ) -> RebalanceService {
+        RebalanceService::new(
+            Arc::new(MockTargetService {
+                profile,
+                constraints: vec![],
+                constraint_load_error: true,
+            }),
+            Arc::new(MockDriftService { report }),
+            Arc::new(MockAllocationService { contributions }),
+            Arc::new(MockHoldingsService { holdings }),
+        )
+    }
+
+    fn make_service_with_constraints(
+        profile: AllocationTarget,
+        report: DriftReport,
+        mut contributions: TaxonomyHoldingContributions,
+        holdings: Vec<Holding>,
+        constraints: Vec<AllocationTargetConstraint>,
+    ) -> RebalanceService {
+        for h in &holdings {
+            if h.holding_type == HoldingType::Cash {
+                contributions
+                    .contributions
+                    .push(make_contribution(h, "CASH", h.market_value.base));
+                contributions.total_value += h.market_value.base;
+            }
+        }
+        RebalanceService::new(
+            Arc::new(MockTargetService {
+                profile,
+                constraints,
+                constraint_load_error: false,
+            }),
+            Arc::new(MockDriftService { report }),
+            Arc::new(MockAllocationService { contributions }),
+            Arc::new(MockHoldingsService { holdings }),
+        )
+    }
+
+    fn sell_block_constraint(
+        id: &str,
+        subject_type: ConstraintSubjectType,
+        subject_id: &str,
+    ) -> AllocationTargetConstraint {
+        AllocationTargetConstraint {
+            id: id.to_string(),
+            target_id: "profile-1".to_string(),
+            subject_type,
+            subject_id: subject_id.to_string(),
+            action: ConstraintAction::Sell,
+            effect: ConstraintEffect::Block,
+            reason: None,
+            metadata_json: None,
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            updated_at: "2026-01-01T00:00:00Z".to_string(),
+        }
     }
 
     fn make_input(available_cash: Decimal) -> CalculateRebalancePlanInput {
@@ -849,6 +1144,141 @@ mod tests {
             aggregated_account_id: "agg".to_string(),
             scenario_mode: ScenarioMode::CashFlowOnly,
         }
+    }
+
+    #[tokio::test]
+    async fn calculate_plan_propagates_constraint_load_errors() {
+        let total = dec!(10000);
+        let h = make_holding("h1", "VTI", dec!(100), total);
+        let c = make_contribution(&h, "equity", total);
+        let svc = make_service_with_constraint_load_error(
+            make_profile(RebalanceGoal::ExactTarget, false),
+            make_report(vec![make_drift_row("equity", 10000, 10000, total)], total),
+            make_contributions(vec![c]),
+            vec![h],
+        );
+
+        let err = svc.calculate_plan(make_input(dec!(0))).await.unwrap_err();
+
+        assert!(err.to_string().contains("constraint load failed"));
+    }
+
+    #[test]
+    fn split_classification_single_holding_keeps_weighted_exposure_per_share() {
+        let h = make_holding("asset-a", "AAA", dec!(10), dec!(1000));
+        let c_equity = make_contribution(&h, "equity", dec!(600));
+        let c_bond = make_contribution(&h, "bond", dec!(400));
+        let price_by_asset = HashMap::from([("asset-a".to_string(), dec!(100))]);
+        let quantity_by_asset = HashMap::from([("asset-a".to_string(), dec!(10))]);
+
+        let (candidates, warnings) = RebalanceService::build_candidates(
+            &[c_equity, c_bond],
+            &price_by_asset,
+            &quantity_by_asset,
+            false,
+        );
+
+        assert!(warnings.is_empty());
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(
+            candidates[0].exposure_per_share.get("equity").copied(),
+            Some(dec!(60))
+        );
+        assert_eq!(
+            candidates[0].exposure_per_share.get("bond").copied(),
+            Some(dec!(40))
+        );
+    }
+
+    #[test]
+    fn same_asset_account_rows_use_combined_quantity_for_buy_exposure() {
+        let mut h1 = make_holding("SEC-acc-1-asset-a", "AAA", dec!(5), dec!(500));
+        let mut h2 = make_holding("SEC-acc-2-asset-a", "AAA", dec!(5), dec!(500));
+        h1.account_id = "acc-1".to_string();
+        h2.account_id = "acc-2".to_string();
+        h1.instrument.as_mut().unwrap().id = "asset-a".to_string();
+        h2.instrument.as_mut().unwrap().id = "asset-a".to_string();
+        let c1 = make_contribution(&h1, "equity", dec!(500));
+        let c2 = make_contribution(&h2, "equity", dec!(500));
+        let price_by_asset = HashMap::from([("asset-a".to_string(), dec!(100))]);
+        let quantity_by_asset = HashMap::from([("asset-a".to_string(), dec!(10))]);
+
+        let (candidates, warnings) = RebalanceService::build_candidates(
+            &[c1, c2],
+            &price_by_asset,
+            &quantity_by_asset,
+            false,
+        );
+
+        assert!(warnings.is_empty());
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(
+            candidates[0].exposure_per_share.get("equity").copied(),
+            Some(dec!(100))
+        );
+    }
+
+    #[test]
+    fn same_asset_account_rows_build_account_level_sell_candidates() {
+        let mut h1 = make_holding("SEC-acc-1-asset-a", "AAA", dec!(5), dec!(500));
+        let mut h2 = make_holding("SEC-acc-2-asset-a", "AAA", dec!(5), dec!(500));
+        h1.account_id = "acc-1".to_string();
+        h2.account_id = "acc-2".to_string();
+        h1.instrument.as_mut().unwrap().id = "asset-a".to_string();
+        h2.instrument.as_mut().unwrap().id = "asset-a".to_string();
+        let c1 = make_contribution(&h1, "equity", dec!(500));
+        let c2 = make_contribution(&h2, "equity", dec!(500));
+        let price_by_asset = HashMap::from([("asset-a".to_string(), dec!(100))]);
+        let quantity_by_asset = HashMap::from([("asset-a".to_string(), dec!(10))]);
+
+        let sell_candidates = RebalanceService::build_sell_candidates(
+            &[c1, c2],
+            &price_by_asset,
+            &quantity_by_asset,
+            &[h1, h2],
+        );
+
+        assert_eq!(sell_candidates.len(), 2);
+        assert_eq!(sell_candidates[0].account_id, "acc-1");
+        assert_eq!(sell_candidates[0].quantity_owned, dec!(5));
+        assert_eq!(sell_candidates[1].account_id, "acc-2");
+        assert_eq!(sell_candidates[1].quantity_owned, dec!(5));
+        assert!(sell_candidates.iter().all(|candidate| candidate
+            .exposure_per_share
+            .get("equity")
+            .copied()
+            == Some(dec!(100))));
+    }
+
+    #[test]
+    fn account_sell_constraint_keeps_unprotected_same_asset_quantity() {
+        let mut h1 = make_holding("SEC-acc-1-asset-a", "AAA", dec!(5), dec!(500));
+        let mut h2 = make_holding("SEC-acc-2-asset-a", "AAA", dec!(5), dec!(500));
+        h1.account_id = "acc-1".to_string();
+        h2.account_id = "acc-2".to_string();
+        h1.instrument.as_mut().unwrap().id = "asset-a".to_string();
+        h2.instrument.as_mut().unwrap().id = "asset-a".to_string();
+        let c1 = make_contribution(&h1, "equity", dec!(500));
+        let c2 = make_contribution(&h2, "equity", dec!(500));
+        let price_by_asset = HashMap::from([("asset-a".to_string(), dec!(100))]);
+        let quantity_by_asset = HashMap::from([("asset-a".to_string(), dec!(10))]);
+
+        let mut sell_candidates = RebalanceService::build_sell_candidates(
+            &[c1, c2],
+            &price_by_asset,
+            &quantity_by_asset,
+            &[h1, h2],
+        );
+        let avoid_selling = ["acc-1".to_string()];
+        sell_candidates.retain(|c| {
+            !avoid_selling
+                .iter()
+                .any(|a| c.source_account_ids.contains(a) || a == &c.account_id)
+        });
+
+        assert_eq!(sell_candidates.len(), 1);
+        assert_eq!(sell_candidates[0].account_id, "acc-2");
+        assert_eq!(sell_candidates[0].quantity_owned, dec!(5));
     }
 
     // ── Cash enforcement tests (unchanged behaviour from PR-A) ────────────────
@@ -887,9 +1317,114 @@ mod tests {
             .await
             .unwrap_err();
         assert!(
-            err.to_string().contains("exceeds tracked cash in scope"),
+            err.to_string().contains("exceeds deployable cash in scope"),
             "{err}"
         );
+    }
+
+    #[tokio::test]
+    async fn asset_class_tagged_cash_is_not_deployable() {
+        let cash = make_cash_holding(dec!(1000), "USD");
+        let tagged_cash = make_contribution(&cash, "FIXED_INCOME", dec!(1000));
+        let svc = RebalanceService::new(
+            Arc::new(MockTargetService {
+                profile: make_profile(RebalanceGoal::ExactTarget, false),
+                constraints: vec![],
+                constraint_load_error: false,
+            }),
+            Arc::new(MockDriftService {
+                report: make_report(
+                    vec![make_drift_row("FIXED_INCOME", 10000, 0, dec!(1000))],
+                    dec!(1000),
+                ),
+            }),
+            Arc::new(MockAllocationService {
+                contributions: make_contributions(vec![tagged_cash]),
+            }),
+            Arc::new(MockHoldingsService {
+                holdings: vec![cash],
+            }),
+        );
+
+        let err = svc
+            .calculate_plan(make_input(dec!(1000)))
+            .await
+            .unwrap_err();
+
+        assert!(
+            err.to_string().contains("exceeds deployable cash in scope"),
+            "{err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn tagged_cash_in_non_cash_sleeve_emits_warning() {
+        let cash = make_cash_holding(dec!(1000), "USD");
+        let tagged_cash = make_contribution(&cash, "FIXED_INCOME", dec!(1000));
+        let svc = RebalanceService::new(
+            Arc::new(MockTargetService {
+                profile: make_sell_profile(RebalanceGoal::ExactTarget),
+                constraints: vec![],
+                constraint_load_error: false,
+            }),
+            Arc::new(MockDriftService {
+                report: make_report(
+                    vec![make_drift_row("FIXED_INCOME", 10000, 0, dec!(1000))],
+                    dec!(1000),
+                ),
+            }),
+            Arc::new(MockAllocationService {
+                contributions: make_contributions(vec![tagged_cash]),
+            }),
+            Arc::new(MockHoldingsService {
+                holdings: vec![cash],
+            }),
+        );
+
+        let plan = svc
+            .calculate_plan(make_input_with_mode(
+                Decimal::ZERO,
+                ScenarioMode::SellToRebalance,
+            ))
+            .await
+            .unwrap();
+
+        let warning = plan
+            .warnings
+            .iter()
+            .find(|warning| warning.kind == RebalanceWarningKind::TaggedCash)
+            .expect("tagged cash warning expected");
+        assert_eq!(warning.category_id, "FIXED_INCOME");
+        assert!(warning.message.contains("move or reclassify"));
+    }
+
+    #[tokio::test]
+    async fn non_cash_taxonomy_uses_tracked_cash_for_deployment() {
+        let total = dec!(10000);
+        let h = make_holding("h1", "XLK", dec!(10), dec!(6000));
+        let c = make_contribution(&h, "45", dec!(6000));
+        let mut profile = make_profile(RebalanceGoal::ExactTarget, false);
+        profile.taxonomy_id = "industries_gics".to_string();
+        let mut contributions = make_contributions(vec![c]);
+        contributions.taxonomy_id = "industries_gics".to_string();
+        let svc = RebalanceService::new(
+            Arc::new(MockTargetService {
+                profile,
+                constraints: vec![],
+                constraint_load_error: false,
+            }),
+            Arc::new(MockDriftService {
+                report: make_report(vec![make_drift_row("45", 6000, 7000, total)], total),
+            }),
+            Arc::new(MockAllocationService { contributions }),
+            Arc::new(MockHoldingsService {
+                holdings: vec![make_cash_holding(dec!(1000), "USD"), h],
+            }),
+        );
+
+        let plan = svc.calculate_plan(make_input(dec!(1000))).await.unwrap();
+
+        assert_eq!(plan.available_cash, dec!(1000));
     }
 
     #[tokio::test]
@@ -1684,6 +2219,120 @@ mod tests {
             "drift must improve: before={} after={}",
             plan.max_drift_bps_before,
             plan.max_drift_bps_after
+        );
+    }
+
+    #[tokio::test]
+    async fn do_not_sell_constraint_filters_asset_and_dedupes_warning() {
+        let total = dec!(10000);
+        let h_vti = make_holding("h-vti", "VTI", dec!(30), dec!(3000));
+        let mut h_bnd_1 = make_holding("h-bnd-1", "BND", dec!(35), dec!(3500));
+        let mut h_bnd_2 = make_holding("h-bnd-2", "BND", dec!(35), dec!(3500));
+        h_bnd_1.account_id = "acc-1".to_string();
+        h_bnd_2.account_id = "acc-2".to_string();
+        h_bnd_1.instrument.as_mut().unwrap().id = "asset-bnd".to_string();
+        h_bnd_2.instrument.as_mut().unwrap().id = "asset-bnd".to_string();
+
+        let svc = make_service_with_constraints(
+            make_sell_profile(RebalanceGoal::ExactTarget),
+            make_report(
+                vec![
+                    make_drift_row("equity", 3000, 7000, total),
+                    make_drift_row("bond", 7000, 3000, total),
+                ],
+                total,
+            ),
+            make_contributions(vec![
+                make_contribution(&h_vti, "equity", dec!(3000)),
+                make_contribution(&h_bnd_1, "bond", dec!(3500)),
+                make_contribution(&h_bnd_2, "bond", dec!(3500)),
+            ]),
+            vec![make_cash_holding(dec!(0), "USD"), h_vti, h_bnd_1, h_bnd_2],
+            vec![sell_block_constraint(
+                "c-bnd",
+                ConstraintSubjectType::Asset,
+                "asset-bnd",
+            )],
+        );
+        let plan = svc
+            .calculate_plan(CalculateRebalancePlanInput {
+                account_ids: vec!["acc-1".to_string(), "acc-2".to_string()],
+                ..make_input_with_mode(dec!(0), ScenarioMode::SellToRebalance)
+            })
+            .await
+            .unwrap();
+
+        assert!(
+            plan.trades.iter().all(|trade| trade.action != "sell"),
+            "do-not-sell asset must be filtered before optimizer"
+        );
+        let skipped: Vec<_> = plan
+            .warnings
+            .iter()
+            .filter(|warning| warning.kind == RebalanceWarningKind::ConstraintSkippedSell)
+            .collect();
+        assert_eq!(
+            skipped.len(),
+            1,
+            "one blocked asset held in multiple accounts should emit one warning"
+        );
+    }
+
+    #[tokio::test]
+    async fn account_sell_constraint_filters_only_protected_account() {
+        let total = dec!(10000);
+        let h_vti = make_holding("h-vti", "VTI", dec!(30), dec!(3000));
+        let mut h_bnd_1 = make_holding("h-bnd-1", "BND", dec!(35), dec!(3500));
+        let mut h_bnd_2 = make_holding("h-bnd-2", "BND", dec!(35), dec!(3500));
+        h_bnd_1.account_id = "acc-1".to_string();
+        h_bnd_2.account_id = "acc-2".to_string();
+        h_bnd_1.instrument.as_mut().unwrap().id = "asset-bnd".to_string();
+        h_bnd_2.instrument.as_mut().unwrap().id = "asset-bnd".to_string();
+
+        let svc = make_service_with_constraints(
+            make_sell_profile(RebalanceGoal::ExactTarget),
+            make_report(
+                vec![
+                    make_drift_row("equity", 3000, 7000, total),
+                    make_drift_row("bond", 7000, 3000, total),
+                ],
+                total,
+            ),
+            make_contributions(vec![
+                make_contribution(&h_vti, "equity", dec!(3000)),
+                make_contribution(&h_bnd_1, "bond", dec!(3500)),
+                make_contribution(&h_bnd_2, "bond", dec!(3500)),
+            ]),
+            vec![make_cash_holding(dec!(0), "USD"), h_vti, h_bnd_1, h_bnd_2],
+            vec![sell_block_constraint(
+                "c-acc-1",
+                ConstraintSubjectType::Account,
+                "acc-1",
+            )],
+        );
+        let plan = svc
+            .calculate_plan(CalculateRebalancePlanInput {
+                account_ids: vec!["acc-1".to_string(), "acc-2".to_string()],
+                ..make_input_with_mode(dec!(0), ScenarioMode::SellToRebalance)
+            })
+            .await
+            .unwrap();
+
+        let sell_accounts: Vec<_> = plan
+            .trades
+            .iter()
+            .filter(|trade| trade.action == "sell")
+            .filter_map(|trade| trade.account_id.as_deref())
+            .collect();
+        assert!(
+            sell_accounts
+                .iter()
+                .all(|account_id| *account_id != "acc-1"),
+            "protected account must not produce sell trades: {sell_accounts:?}"
+        );
+        assert!(
+            sell_accounts.contains(&"acc-2"),
+            "unprotected same-asset holding should remain sellable"
         );
     }
 

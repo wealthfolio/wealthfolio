@@ -1,4 +1,6 @@
 import { useMemo, type FC } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 import { PrivacyAmount, Skeleton, formatCompactAmount } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -56,13 +58,17 @@ export const PeriodSummaryHero: FC<PeriodSummaryHeroProps> = ({
   currency,
   isLoading,
 }) => {
+  const { t } = useTranslation();
   const segments = useMemo<ShareSegment[]>(
-    () => buildShareSegments(breakdown, taxonomyCategories, spent),
-    [breakdown, taxonomyCategories, spent],
+    () => buildShareSegments(breakdown, taxonomyCategories, spent, t),
+    [breakdown, taxonomyCategories, spent, t],
   );
 
   const { isBalanceHidden } = useBalancePrivacy();
-  const periodSubtitle = months >= 2 ? `${months} months · ${days} days` : `${days} days`;
+  const periodSubtitle =
+    months >= 2
+      ? t("spending:hero.periodMonthsDays", { months, days })
+      : t("spending:hero.periodDays", { count: days });
   const dailyAvg = days > 0 ? spent / days : 0;
 
   if (isLoading) {
@@ -77,16 +83,16 @@ export const PeriodSummaryHero: FC<PeriodSummaryHeroProps> = ({
   }
 
   return (
-    <HeroSection label={`Period summary · ${periodSubtitle}`}>
+    <HeroSection label={t("spending:hero.periodSummary", { subtitle: periodSubtitle })}>
       <div className="text-foreground text-3xl font-bold tabular-nums tracking-tight">
         <PrivacyAmount value={spent} currency={currency} />
       </div>
       <div className="text-muted-foreground/80 text-xs">
-        Total spent ·{" "}
+        {t("spending:hero.totalSpent")} ·{" "}
         <span className="text-foreground/90 font-semibold">
           {isBalanceHidden ? "••••" : formatCompactAmount(dailyAvg, currency)}
         </span>{" "}
-        / day avg
+        {t("spending:hero.perDayAvg")}
       </div>
 
       {/* Stacked share bar */}
@@ -126,7 +132,7 @@ export const PeriodSummaryHero: FC<PeriodSummaryHeroProps> = ({
         </>
       ) : (
         <div className="text-muted-foreground/70 mt-4 text-xs">
-          No categorized spending in this period.
+          {t("spending:hero.noCategorizedSpending")}
         </div>
       )}
     </HeroSection>
@@ -137,6 +143,7 @@ function buildShareSegments(
   breakdown: CategoryBreakdownRow[],
   taxonomyCategories: TaxonomyCategory[],
   total: number,
+  t: TFunction,
 ): ShareSegment[] {
   if (total <= 0) return [];
   const meta = new Map(taxonomyCategories.map((c) => [c.id, c]));
@@ -169,7 +176,7 @@ function buildShareSegments(
   if (restAmount > 0) {
     top.push({
       id: "__other__",
-      name: "Other",
+      name: t("spending:hero.other"),
       color: "#9CA3AF",
       amount: restAmount,
       share: (restAmount / total) * 100,
@@ -201,6 +208,7 @@ export const BudgetStatusHero: FC<BudgetStatusHeroProps> = ({
   currency,
   isLoading,
 }) => {
+  const { t } = useTranslation();
   const monthlyTarget = budget?.computed.totals.spendingPlanned ?? 0;
   const target = monthlyTarget * Math.max(1, monthsInRange);
   const pct = target > 0 ? spent / target : 0;
@@ -240,8 +248,8 @@ export const BudgetStatusHero: FC<BudgetStatusHeroProps> = ({
 
   if (monthlyTarget <= 0) {
     return (
-      <HeroSection label="Budget status">
-        <p className="text-muted-foreground text-sm">No monthly budget target set.</p>
+      <HeroSection label={t("spending:hero.budgetStatus")}>
+        <p className="text-muted-foreground text-sm">{t("spending:overallBudget.noTarget")}</p>
       </HeroSection>
     );
   }
@@ -253,17 +261,24 @@ export const BudgetStatusHero: FC<BudgetStatusHeroProps> = ({
       : status === "approach"
         ? "var(--status-warn)"
         : "var(--success)";
-  const statusLabel = isOver ? "Over budget" : pct >= 0.85 ? "Trending high" : "On track";
+  const statusLabel = isOver
+    ? t("spending:hero.overBudget")
+    : pct >= 0.85
+      ? t("spending:hero.trendingHigh")
+      : t("spending:hero.onTrack");
 
   // Pace marker position (clamped 0–100% of bar width).
   const pacePct = Math.min(1, Math.max(0, paceTarget));
   // Visible bar fill — capped at 100% so it never overshoots the track visually.
   const fillPct = Math.min(1, pct);
 
-  const monthsLabel = monthsInRange === 1 ? "this month" : `${monthsInRange} months`;
+  const monthsLabel =
+    monthsInRange === 1
+      ? t("spending:hero.thisMonth")
+      : t("spending:hero.monthsCount", { count: monthsInRange });
 
   return (
-    <HeroSection label={`Budget status · ${monthsLabel}`}>
+    <HeroSection label={t("spending:hero.budgetStatusWith", { label: monthsLabel })}>
       <div className="flex items-baseline justify-between gap-2">
         <div className="text-foreground text-3xl font-bold tabular-nums tracking-tight">
           {Math.round(pct * 100)}%
@@ -276,7 +291,7 @@ export const BudgetStatusHero: FC<BudgetStatusHeroProps> = ({
         </span>
       </div>
       <div className="text-muted-foreground/80 mt-1 text-xs tabular-nums">
-        {isBalanceHidden ? "••••" : formatCompactAmount(spent, currency)} of{" "}
+        {isBalanceHidden ? "••••" : formatCompactAmount(spent, currency)} {t("spending:hero.of")}{" "}
         {isBalanceHidden ? "••••" : formatCompactAmount(target, currency)}
       </div>
 
@@ -294,14 +309,14 @@ export const BudgetStatusHero: FC<BudgetStatusHeroProps> = ({
         <div
           className="bg-foreground/60 absolute top-0 h-full w-px"
           style={{ left: `${pacePct * 100}%` }}
-          title={`Pace target ${Math.round(paceTarget * 100)}%`}
+          title={t("spending:hero.paceTarget", { pct: Math.round(paceTarget * 100) })}
         />
       </div>
 
       {/* Compact stat row: remaining/over + forecast vs target */}
       <div className="text-muted-foreground/80 mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-[11px]">
         <span className={cn("tabular-nums", isOver ? "text-destructive" : "text-success")}>
-          {isOver ? "Over by " : "Remaining "}
+          {isOver ? t("spending:hero.overBy") : t("spending:hero.remaining")}{" "}
           <span className="font-semibold">
             {isBalanceHidden
               ? "••••"
@@ -311,7 +326,7 @@ export const BudgetStatusHero: FC<BudgetStatusHeroProps> = ({
         <span
           className={cn("tabular-nums", forecast > target ? "text-destructive" : "text-success")}
         >
-          Forecast{" "}
+          {t("spending:hero.forecast")}{" "}
           <span className="font-semibold">
             {isBalanceHidden ? "••••" : formatCompactAmount(forecast, currency)}
           </span>
@@ -343,6 +358,7 @@ interface CashflowHeroProps {
 }
 
 export const CashflowHero: FC<CashflowHeroProps> = ({ months, currency, isLoading }) => {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const totals = useMemo(() => {
     let income = 0;
@@ -366,7 +382,7 @@ export const CashflowHero: FC<CashflowHeroProps> = ({ months, currency, isLoadin
     );
   }
 
-  const periodLabel = months.length === 1 ? "1 month" : `${months.length} months`;
+  const periodLabel = t("spending:hero.monthsCount", { count: months.length });
   const monthlyAvgNet = months.length > 0 ? totals.net / months.length : 0;
 
   // Width proportions for the income/spent bar — relative to the larger of the
@@ -374,11 +390,11 @@ export const CashflowHero: FC<CashflowHeroProps> = ({ months, currency, isLoadin
   const denom = Math.max(totals.income, totals.spent, 1);
   const incomePct = (totals.income / denom) * 100;
   const spentPct = (totals.spent / denom) * 100;
-  const netLabel = totals.net >= 0 ? "Saved" : "Overspent";
+  const netLabel = totals.net >= 0 ? t("spending:hero.saved") : t("spending:hero.overspent");
   const netToneClass = totals.net >= 0 ? "text-success" : "text-destructive";
 
   return (
-    <HeroSection label={`Cashflow · ${periodLabel}`}>
+    <HeroSection label={t("spending:hero.cashflowWith", { label: periodLabel })}>
       <div className="flex items-baseline justify-between gap-2">
         <div className={cn("text-3xl font-bold tabular-nums tracking-tight", netToneClass)}>
           {totals.net >= 0 ? "+" : "−"}
@@ -395,7 +411,9 @@ export const CashflowHero: FC<CashflowHeroProps> = ({ months, currency, isLoadin
           </span>
         )}
       </div>
-      <div className="text-muted-foreground/80 mt-1 text-xs">Net {periodLabel.toLowerCase()}</div>
+      <div className="text-muted-foreground/80 mt-1 text-xs">
+        {t("spending:hero.netPeriod", { label: periodLabel.toLowerCase() })}
+      </div>
 
       {/* Income / Spent proportion bars */}
       <div className="mt-4 space-y-1.5">
@@ -424,7 +442,7 @@ export const CashflowHero: FC<CashflowHeroProps> = ({ months, currency, isLoadin
       </div>
 
       <div className="text-muted-foreground/80 mt-3 text-[11px]">
-        Avg net ·{" "}
+        {t("spending:hero.avgNet")} ·{" "}
         <span
           className={cn(
             "font-semibold tabular-nums",
@@ -434,7 +452,7 @@ export const CashflowHero: FC<CashflowHeroProps> = ({ months, currency, isLoadin
           {monthlyAvgNet >= 0 ? "+" : "−"}
           {isBalanceHidden ? "••••" : formatCompactAmount(Math.abs(monthlyAvgNet), currency)}
         </span>{" "}
-        / month
+        {t("spending:hero.perMonth")}
       </div>
     </HeroSection>
   );

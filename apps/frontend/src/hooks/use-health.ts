@@ -102,23 +102,39 @@ export function useExecuteHealthFix() {
     mutationFn: async (action: FixAction) => {
       // Execute the fix
       await executeHealthFix(action);
+      if (action.id === "rebuild_account_history") {
+        return { status: undefined, actionId: action.id };
+      }
       // Run health checks to get fresh status
       const status = await runHealthChecks();
       return { status, actionId: action.id };
     },
     onSuccess: ({ status, actionId }) => {
       // Update health status with fresh data from health checks
-      queryClient.setQueryData([QueryKeys.HEALTH_STATUS], status);
+      if (status) {
+        queryClient.setQueryData([QueryKeys.HEALTH_STATUS], status);
+      }
       // Invalidate holdings so related pages refresh
       queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS] });
       queryClient.invalidateQueries({ queryKey: [QueryKeys.PORTFOLIO_ALLOCATIONS] });
       // Skip toast for sync actions — global event listeners handle feedback
-      if (actionId !== "sync_prices" && actionId !== "retry_sync") {
+      if (actionId === "rebuild_account_history") {
+        toast.success("History rebuild started", {
+          description: "Health will refresh after recalculation finishes.",
+        });
+      } else if (actionId !== "sync_prices" && actionId !== "retry_sync") {
         toast.success("Fix applied successfully");
       }
     },
-    onError: (error: Error) => {
-      toast.error("Fix failed", { description: error.message });
+    onError: (error: Error, action) => {
+      if (action.id === "sync_prices" || action.id === "retry_sync") {
+        toast.error("Market Data Sync Failed", {
+          id: "market-sync-error",
+          description: `${error.message}. Please try again later.`,
+        });
+      } else {
+        toast.error("Fix failed", { description: error.message });
+      }
     },
   });
 }

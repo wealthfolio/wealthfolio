@@ -1,4 +1,5 @@
 import { DashboardCard } from "@/components/dashboard-card";
+import { useTranslation } from "react-i18next";
 import { CompactAmount } from "./compact-amount";
 import { toneClass, toneFill, type Momentum } from "./utils";
 
@@ -17,6 +18,7 @@ interface MomentumCardProps {
 }
 
 export function MomentumCard({ momentum, currency, periodLabel }: MomentumCardProps) {
+  const { t } = useTranslation();
   const { currentChange, beatBy, bars } = momentum;
   const changeSign = Math.abs(currentChange) < 0.005 ? "" : currentChange > 0 ? "+" : "-";
 
@@ -31,14 +33,23 @@ export function MomentumCard({ momentum, currency, periodLabel }: MomentumCardPr
     current ? toneFill(value) : PRIOR_BAR_COLOR;
 
   return (
-    <DashboardCard title="Momentum" meta={beatBy == null ? "all time" : `vs prior ${periodLabel}`}>
+    <DashboardCard
+      title={t("insights:networth.momentum.title")}
+      meta={
+        beatBy == null
+          ? t("insights:networth.momentum.all_time")
+          : t("insights:networth.momentum.vs_prior", { period: periodLabel })
+      }
+    >
       <div className={`text-lg font-bold tabular-nums ${toneClass(currentChange)}`}>
         {changeSign}
         <CompactAmount value={Math.abs(currentChange)} currency={currency} />
       </div>
       {beatBy != null && (
         <p className="text-muted-foreground mt-0.5 text-xs">
-          {beatBy >= 0 ? "Beat prior period by " : "Behind prior period by "}
+          {beatBy >= 0
+            ? t("insights:networth.momentum.beat_prior")
+            : t("insights:networth.momentum.behind_prior")}
           <span className={`font-semibold ${toneClass(beatBy)}`}>
             <CompactAmount value={Math.abs(beatBy)} currency={currency} />
           </span>
@@ -91,7 +102,7 @@ export function MomentumCard({ momentum, currency, periodLabel }: MomentumCardPr
           </div>
           <div className="text-muted-foreground/60 mt-1.5 flex justify-between text-xs">
             <span>{monthLabel(bars[0].month)}</span>
-            <span>Now</span>
+            <span>{t("insights:networth.momentum.now")}</span>
           </div>
         </>
       )}

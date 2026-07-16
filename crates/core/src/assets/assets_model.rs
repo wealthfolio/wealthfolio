@@ -12,6 +12,7 @@ use serde_json::Value;
 use super::asset_id::{parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix};
 use crate::errors::Result;
 use crate::errors::ValidationError;
+use crate::fx::currency::normalize_currency_code;
 use crate::Error;
 use wealthfolio_market_data::mic_to_currency;
 
@@ -60,6 +61,31 @@ pub enum QuoteMode {
     #[default]
     Market, // Priced via market data providers
     Manual, // User-entered quotes only
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetProfile {
+    #[serde(flatten)]
+    pub asset: Asset,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub valuation_market_price: Option<Decimal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub valuation_market_currency: Option<String>,
+}
+
+impl AssetProfile {
+    pub fn new(
+        asset: Asset,
+        valuation_market_price: Option<Decimal>,
+        valuation_market_currency: Option<String>,
+    ) -> Self {
+        Self {
+            asset,
+            valuation_market_price,
+            valuation_market_currency,
+        }
+    }
 }
 
 impl QuoteMode {
@@ -360,6 +386,15 @@ impl Asset {
     /// Returns true if this asset is an options contract.
     pub fn is_option(&self) -> bool {
         self.instrument_type == Some(InstrumentType::Option)
+    }
+
+    /// Returns true for stock/ETF/fund-style investment assets.
+    ///
+    /// Legacy assets may not have `instrument_type` populated, so untyped
+    /// investment assets are treated as equity-like for lot accounting.
+    pub fn is_equity_like(&self) -> bool {
+        matches!(self.kind, AssetKind::Investment)
+            && matches!(self.instrument_type, None | Some(InstrumentType::Equity))
     }
 
     /// Returns true if this asset is a bond / fixed-income instrument.
@@ -901,6 +936,55 @@ pub fn resolve_quote_ccy_precedence(
     }
     normalize_quote_ccy(terminal_fallback_quote_ccy)
         .map(|ccy| (ccy, QuoteCcyResolutionSource::TerminalFallback))
+}
+
+pub fn resolve_import_quote_ccy_precedence(
+    explicit_quote_ccy: Option<&str>,
+    existing_asset_quote_ccy: Option<&str>,
+    activity_quote_ccy: Option<&str>,
+    provider_quote_ccy: Option<&str>,
+    mic_fallback_quote_ccy: Option<&str>,
+    terminal_fallback_quote_ccy: Option<&str>,
+) -> Option<(String, QuoteCcyResolutionSource)> {
+    if let Some(ccy) = normalize_quote_ccy(explicit_quote_ccy) {
+        return Some((ccy, QuoteCcyResolutionSource::ExplicitInput));
+    }
+    if let Some(ccy) = normalize_quote_ccy(existing_asset_quote_ccy) {
+        return Some((ccy, QuoteCcyResolutionSource::ExistingAsset));
+    }
+    let activity_ccy = normalize_quote_ccy(activity_quote_ccy);
+    let provider_ccy = normalize_quote_ccy(provider_quote_ccy);
+    if let Some(provider) = provider_ccy.as_deref() {
+        if activity_ccy
+            .as_deref()
+            .is_some_and(|activity| provider_quote_unit_matches_activity_major(provider, activity))
+        {
+            return Some((
+                provider.to_string(),
+                QuoteCcyResolutionSource::ProviderQuote,
+            ));
+        }
+        if let Some(activity) = activity_ccy {
+            return Some((activity, QuoteCcyResolutionSource::ExplicitInput));
+        }
+        return Some((
+            provider.to_string(),
+            QuoteCcyResolutionSource::ProviderQuote,
+        ));
+    }
+    if let Some(ccy) = activity_ccy {
+        return Some((ccy, QuoteCcyResolutionSource::ExplicitInput));
+    }
+    if let Some(ccy) = normalize_quote_ccy(mic_fallback_quote_ccy) {
+        return Some((ccy, QuoteCcyResolutionSource::MicFallback));
+    }
+    normalize_quote_ccy(terminal_fallback_quote_ccy)
+        .map(|ccy| (ccy, QuoteCcyResolutionSource::TerminalFallback))
+}
+
+fn provider_quote_unit_matches_activity_major(provider_quote: &str, activity_quote: &str) -> bool {
+    let provider_major = normalize_currency_code(provider_quote);
+    provider_major != provider_quote && provider_major.eq_ignore_ascii_case(activity_quote)
 }
 
 fn parse_fx_symbol_parts(symbol: &str) -> Option<(String, String)> {

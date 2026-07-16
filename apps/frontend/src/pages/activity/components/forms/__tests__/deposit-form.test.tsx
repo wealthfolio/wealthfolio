@@ -40,7 +40,15 @@ vi.mock("../fields", () => ({
       <textarea data-testid={`textarea-${name}`} name={name} id={name} />
     </div>
   ),
-  AdvancedOptionsSection: () => <div data-testid="advanced-options-section" />,
+  AdvancedOptionsSection: ({ children }: { children?: React.ReactNode }) => (
+    <div data-testid="advanced-options-section">{children}</div>
+  ),
+  FormSection: ({ action, children }: { action?: React.ReactNode; children?: React.ReactNode }) => (
+    <div data-testid="form-section">
+      {action}
+      {children}
+    </div>
+  ),
   createValidatedSubmit: vi.fn((_form, handler) => handler),
 }));
 
@@ -194,8 +202,7 @@ describe("DepositForm", () => {
     it("wraps content in a Card component", () => {
       render(<DepositForm accounts={mockAccounts} onSubmit={mockOnSubmit} />);
 
-      expect(screen.getByTestId("card")).toBeInTheDocument();
-      expect(screen.getByTestId("card-content")).toBeInTheDocument();
+      expect(screen.getAllByTestId("form-section").length).toBeGreaterThan(0);
     });
 
     it("renders form with proper structure", () => {

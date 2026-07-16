@@ -7,17 +7,21 @@ use axum::{
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use wealthfolio_core::portfolios::{AccountScope, ResolvedAccountScope};
+use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 use wealthfolio_core::{
     accounts::{account_supports_purpose, AccountPurpose, AccountServiceTrait},
     lots::AssetLotView,
     portfolio::{
         allocation::{AllocationHoldings, PortfolioAllocations},
-        holdings::Holding,
+        holdings::{Holding, HoldingListItem},
         snapshot::{
             reconcile_quote_sync_from_latest_account_snapshots, CashBalanceInput,
             ManualHoldingInput, ManualSnapshotRequest, ManualSnapshotService, SnapshotSource,
         },
-        valuation::{DailyAccountValuation, ValuationRecalcMode},
+        valuation::{
+            CurrentAccountValuationService, CurrentValuationResponse, DailyAccountValuation,
+            ValuationRecalcMode,
+        },
     },
 };
 
@@ -25,10 +29,10 @@ use crate::{api::shared::holdings_account_ids, error::ApiResult, main_lib::AppSt
 
 use super::dto::{
     AccountIdQuery, AllocationFilterBody, AllocationHoldingsQuery, AssetHoldingsQuery,
-    AssetLotsQuery, CheckHoldingsImportRequest, CheckHoldingsImportResult, DeleteSnapshotQuery,
-    FilterBody, HistoryFilterBody, HistoryQuery, HoldingItemQuery, HoldingsSnapshotInput,
-    ImportHoldingsCsvRequest, ImportHoldingsCsvResult, SaveManualHoldingsRequest,
-    SnapshotDateQuery, SnapshotInfo, SnapshotsQuery, SymbolCheckResult,
+    AssetLotsQuery, CheckHoldingsImportRequest, CheckHoldingsImportResult, CurrentValuationBody,
+    DeleteSnapshotQuery, FilterBody, HistoryFilterBody, HistoryQuery, HoldingItemQuery,
+    HoldingsSnapshotInput, ImportHoldingsCsvRequest, ImportHoldingsCsvResult,
+    SaveManualHoldingsRequest, SnapshotDateQuery, SnapshotInfo, SnapshotsQuery, SymbolCheckResult,
 };
 use super::mappers::{parse_date, parse_date_optional, snapshot_source_to_string};
 
@@ -43,13 +47,68 @@ fn resolve_scope(
         .map_err(crate::error::ApiError::from)
 }
 
+fn unique_preserving_order(account_ids: impl IntoIterator<Item = String>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    account_ids
+        .into_iter()
+        .filter(|account_id| seen.insert(account_id.clone()))
+        .collect()
+}
+
+fn resolve_current_valuation_scope(
+    filter: &AccountScope,
+    state: &AppState,
+) -> Result<ResolvedAccountScope, crate::error::ApiError> {
+    let base = state.base_currency.read().unwrap().clone();
+    let resolved = state
+        .portfolio_service
+        .resolve_account_scope(filter, &base)
+        .map_err(crate::error::ApiError::from)?;
+
+    let account_ids = match filter {
+        AccountScope::Account { account_id } => vec![account_id.clone()],
+        AccountScope::Accounts { account_ids } => unique_preserving_order(account_ids.clone()),
+        AccountScope::Portfolio { portfolio_id } => {
+            state
+                .portfolio_service
+                .get_portfolio(portfolio_id)
+                .map_err(crate::error::ApiError::from)?
+                .account_ids
+        }
+        AccountScope::All => resolved.account_ids.clone(),
+    };
+
+    Ok(ResolvedAccountScope {
+        account_ids,
+        ..resolved
+    })
+}
+
 pub async fn get_holdings(
     State(state): State<Arc<AppState>>,
     Json(body): Json<FilterBody>,
 ) -> ApiResult<Json<Vec<Holding>>> {
+    let holdings = load_holdings_for_filter(state.as_ref(), &body.filter).await?;
+    Ok(Json(holdings))
+}
+
+pub async fn get_holdings_list(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<FilterBody>,
+) -> ApiResult<Json<Vec<HoldingListItem>>> {
+    let holdings = load_holdings_for_filter(state.as_ref(), &body.filter).await?;
+    Ok(Json(
+        holdings.into_iter().map(HoldingListItem::from).collect(),
+    ))
+}
+
+async fn load_holdings_for_filter(
+    state: &AppState,
+    filter: &AccountScope,
+) -> ApiResult<Vec<Holding>> {
     let base = state.base_currency.read().unwrap().clone();
-    let resolved = resolve_scope(&body.filter, &state)?;
-    let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
+    let resolved = resolve_scope(filter, state)?;
+    let account_ids = holdings_account_ids(state, &resolved.account_ids)?;
     let holdings = if account_ids.is_empty() {
         Vec::new()
     } else if account_ids.len() == 1 {
@@ -63,7 +122,7 @@ pub async fn get_holdings(
             .get_holdings_for_accounts(&account_ids, &base, &resolved.scope_id)
             .await?
     };
-    Ok(Json(holdings))
+    Ok(holdings)
 }
 
 /// GET /holdings?accountId=... — simple single-account scope
@@ -81,6 +140,25 @@ pub async fn get_holdings_for_account(
         .get_holdings(&account_ids[0], &base)
         .await?;
     Ok(Json(holdings))
+}
+
+/// GET /holdings/list?accountId=... — single-account lightweight list scope
+pub async fn get_holdings_list_for_account(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<AccountIdQuery>,
+) -> ApiResult<Json<Vec<HoldingListItem>>> {
+    let base = state.base_currency.read().unwrap().clone();
+    let account_ids = holdings_account_ids(&state, std::slice::from_ref(&q.account_id))?;
+    if account_ids.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
+    let holdings = state
+        .holdings_service
+        .get_holdings(&account_ids[0], &base)
+        .await?;
+    Ok(Json(
+        holdings.into_iter().map(HoldingListItem::from).collect(),
+    ))
 }
 
 /// GET /allocations?accountId=... — simple single-account scope
@@ -231,7 +309,7 @@ pub async fn get_historical_valuations_for_scope(
     } else {
         state
             .valuation_service
-            .get_historical_valuations_for_accounts(
+            .get_historical_valuation_totals_for_accounts(
                 &resolved.scope_id,
                 &account_ids,
                 &resolved.base_currency,
@@ -274,6 +352,33 @@ pub async fn get_latest_valuations(
     }
     let vals = state.valuation_service.get_latest_valuations(&ids)?;
     Ok(Json(vals))
+}
+
+pub async fn get_current_valuation(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<CurrentValuationBody>,
+) -> ApiResult<Json<CurrentValuationResponse>> {
+    let base_currency = state.base_currency.read().unwrap().clone();
+    let timezone = state.timezone.read().unwrap().clone();
+    let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
+    let resolved = resolve_current_valuation_scope(&body.filter, &state)?;
+    let service = CurrentAccountValuationService::new(
+        state.account_service.as_ref(),
+        state.snapshot_repository.as_ref(),
+        state.asset_service.as_ref(),
+        state.quote_service.as_ref(),
+        state.fx_service.as_ref(),
+    );
+    let valuation = service
+        .get_current_valuation_for_scope(
+            &resolved.scope_id,
+            &resolved.account_ids,
+            &base_currency,
+            latest_snapshot_cutoff,
+            body.include_accounts,
+        )
+        .await?;
+    Ok(Json(valuation))
 }
 
 pub async fn get_portfolio_allocations(

@@ -204,7 +204,16 @@ impl FxServiceTrait for FxService {
             timestamp: Utc::now(),
         };
 
-        self.repository.save_exchange_rate(rate).await
+        // Only MANUAL rates carry a user-supplied value worth persisting. For
+        // provider-backed sources the rate is fetched by the market-data sync;
+        // persisting the request's placeholder here would write a fake quote
+        // (e.g. "1") stamped on a non-trading day that the sync can never
+        // overwrite, since providers only return quotes for trading days (#1143).
+        if rate.source == DATA_SOURCE_MANUAL {
+            self.repository.save_exchange_rate(rate).await
+        } else {
+            Ok(rate)
+        }
     }
 
     fn get_historical_rates(&self, from: &str, to: &str, days: i64) -> Result<Vec<ExchangeRate>> {
@@ -446,6 +455,7 @@ mod tests {
     #[derive(Default)]
     struct MockFxRepository {
         created_pairs: Mutex<Vec<(String, String, String)>>,
+        saved_rates: Mutex<Vec<ExchangeRate>>,
     }
 
     #[async_trait]
@@ -489,6 +499,7 @@ mod tests {
         }
 
         async fn save_exchange_rate(&self, rate: ExchangeRate) -> Result<ExchangeRate> {
+            self.saved_rates.lock().unwrap().push(rate.clone());
             Ok(rate)
         }
 
@@ -555,5 +566,53 @@ mod tests {
         assert_eq!(created.len(), 1);
         assert_eq!(created[0].0, "USD");
         assert_eq!(created[0].1, "CAD");
+    }
+
+    #[tokio::test]
+    async fn add_exchange_rate_manual_persists_quote() {
+        let repo = Arc::new(MockFxRepository::default());
+        let service = FxService::new(repo.clone());
+
+        service
+            .add_exchange_rate(NewExchangeRate {
+                from_currency: "EUR".to_string(),
+                to_currency: "USD".to_string(),
+                rate: Decimal::new(11, 1), // 1.1
+                source: DATA_SOURCE_MANUAL.to_string(),
+            })
+            .await
+            .unwrap();
+
+        let saved = repo.saved_rates.lock().unwrap();
+        assert_eq!(saved.len(), 1, "manual rate should be persisted as a quote");
+        assert_eq!(saved[0].rate, Decimal::new(11, 1));
+    }
+
+    #[tokio::test]
+    async fn add_exchange_rate_provider_does_not_persist_placeholder_quote() {
+        let repo = Arc::new(MockFxRepository::default());
+        let service = FxService::new(repo.clone());
+
+        // Provider-backed add with the frontend placeholder rate. The real rate
+        // is fetched by the market-data sync, so no quote should be stored (#1143).
+        service
+            .add_exchange_rate(NewExchangeRate {
+                from_currency: "EUR".to_string(),
+                to_currency: "USD".to_string(),
+                rate: Decimal::ONE,
+                source: DATA_SOURCE_YAHOO.to_string(),
+            })
+            .await
+            .unwrap();
+
+        assert!(
+            repo.saved_rates.lock().unwrap().is_empty(),
+            "provider-backed add must not persist a placeholder quote"
+        );
+        assert_eq!(
+            repo.created_pairs.lock().unwrap().len(),
+            1,
+            "provider-backed add should still register the FX asset for syncing"
+        );
     }
 }

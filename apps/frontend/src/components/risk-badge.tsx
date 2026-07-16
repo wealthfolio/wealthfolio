@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
+import { useTranslation } from "react-i18next";
 
 type RiskLevel = "UNKNOWN" | "LOW" | "MEDIUM" | "HIGH";
 
@@ -10,24 +11,24 @@ interface RiskBadgeProps {
   className?: string;
 }
 
-const RISK_CONFIG: Record<RiskLevel, { label: string; dotClass: string; textClass: string }> = {
+const RISK_CONFIG: Record<RiskLevel, { labelKey: string; dotClass: string; textClass: string }> = {
   UNKNOWN: {
-    label: "Unknown",
+    labelKey: "component.risk_unknown",
     dotClass: "bg-muted-foreground",
     textClass: "text-muted-foreground",
   },
   LOW: {
-    label: "Low",
+    labelKey: "component.risk_low",
     dotClass: "bg-success",
     textClass: "text-success",
   },
   MEDIUM: {
-    label: "Medium",
+    labelKey: "component.risk_medium",
     dotClass: "bg-warning",
     textClass: "text-warning",
   },
   HIGH: {
-    label: "High",
+    labelKey: "component.risk_high",
     dotClass: "bg-destructive",
     textClass: "text-destructive",
   },
@@ -43,8 +44,10 @@ function normalizeLevel(level: RiskLevel | null | undefined): RiskLevel {
 }
 
 export function RiskBadge({ level, size = "md", showLabel = true, className }: RiskBadgeProps) {
+  const { t } = useTranslation();
   const normalizedLevel = normalizeLevel(level);
   const config = RISK_CONFIG[normalizedLevel];
+  const label = t(`common:${config.labelKey}`);
 
   const dotSizeClass = size === "sm" ? "size-2" : "size-2.5";
   const textSizeClass = size === "sm" ? "text-xs" : "text-sm";
@@ -61,7 +64,7 @@ export function RiskBadge({ level, size = "md", showLabel = true, className }: R
       className={cn("inline-flex items-center gap-1.5", textSizeClass, config.textClass, className)}
     >
       {dot}
-      {showLabel && <span className="font-medium">{config.label}</span>}
+      {showLabel && <span className="font-medium">{label}</span>}
     </span>
   );
 
@@ -72,7 +75,7 @@ export function RiskBadge({ level, size = "md", showLabel = true, className }: R
           <span className={cn("inline-flex cursor-default", className)}>{dot}</span>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{config.label}</p>
+          <p>{label}</p>
         </TooltipContent>
       </Tooltip>
     );

@@ -40,13 +40,10 @@ pub fn parse_symbol_with_exchange_suffix(symbol: &str) -> (&str, Option<&'static
     let trimmed = symbol.trim();
     let base_symbol = strip_yahoo_suffix(trimmed);
 
-    let mic = yahoo_exchange_suffixes()
-        .iter()
-        .find(|suffix| {
-            trimmed.len() >= suffix.len()
-                && trimmed[trimmed.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
-        })
-        .and_then(|suffix| yahoo_suffix_to_mic(&suffix[1..]));
+    let mic = trimmed
+        .get(base_symbol.len()..)
+        .and_then(|suffix| suffix.strip_prefix('.'))
+        .and_then(yahoo_suffix_to_mic);
 
     (base_symbol, mic)
 }
@@ -164,6 +161,19 @@ mod tests {
         let (symbol, mic) = parse_symbol_with_exchange_suffix("BRK.B");
         assert_eq!(symbol, "BRK.B");
         assert_eq!(mic, None);
+    }
+
+    #[test]
+    fn test_parse_symbol_with_exchange_suffix_handles_non_ascii_symbols() {
+        for symbol in ["ÅÄÖ", "سهم", "東京", "😀"] {
+            assert_eq!(parse_symbol_with_exchange_suffix(symbol), (symbol, None));
+
+            let suffixed = format!("{symbol}.TO");
+            assert_eq!(
+                parse_symbol_with_exchange_suffix(&suffixed),
+                (symbol, Some("XTSE"))
+            );
+        }
     }
 
     #[test]

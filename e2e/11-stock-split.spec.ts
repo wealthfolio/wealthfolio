@@ -1,13 +1,14 @@
 import { expect, Page, test } from "@playwright/test";
 import {
   BASE_URL,
-  TEST_PASSWORD,
   completeOnboardingIfNeeded,
   createAccount,
   fillDateField,
   gotoActivities,
+  gotoAppPath,
   openAddActivitySheet,
   searchAndSelectSymbol,
+  selectAccountOption,
   selectActivityType,
   waitForSyncToast,
 } from "./helpers";
@@ -42,12 +43,7 @@ test.describe("Stock split adjusts holdings shares", () => {
   });
 
   async function selectAccount(name: string, currency: string) {
-    const accountSelect = page.getByTestId("account-select");
-    await accountSelect.click();
-    await page
-      .getByRole("option", { name: new RegExp(`${name}.*\\(${currency}\\)`) })
-      .first()
-      .click();
+    await selectAccountOption(page, name, currency);
   }
 
   async function fillTestId(testId: string, value: number) {
@@ -68,7 +64,7 @@ test.describe("Stock split adjusts holdings shares", () => {
   }
 
   async function gotoAccountPage() {
-    await page.goto(`${BASE_URL}/settings/accounts`, { waitUntil: "domcontentloaded" });
+    await gotoAppPath(page, "/settings/accounts");
     const link = page.getByRole("link", { name: ACCOUNT_NAME });
     await expect(link).toBeVisible({ timeout: 10000 });
     await link.click();
@@ -135,39 +131,13 @@ test.describe("Stock split adjusts holdings shares", () => {
         },
         { timeout: 90_000, intervals: [2000, 3000, 5000] },
       )
-      // Holdings table renders the cell as `<qty>shares` (no whitespace).
       // Anchor with non-digit lookarounds so `30` doesn't match `130` etc.
-      .toMatch(new RegExp(`(?<!\\d)${expected}(?!\\d)\\s*shares`));
+      .toMatch(new RegExp(`(?<!\\d)${expected}(?!\\d)`));
   }
 
   test("1. Setup: ensure onboarding/login complete", async () => {
     test.setTimeout(180_000);
 
-    // On a fresh DB the password-set screen appears first and signing in
-    // redirects to /onboarding; on a returning DB we may already be past
-    // onboarding. Handle both inline so the spec can run standalone.
-    await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
-
-    const loginInput = page.getByPlaceholder("Enter your password");
-    const continueButton = page.getByRole("button", { name: "Continue" });
-    const dashboardHeading = page.getByRole("heading", { name: "Dashboard" });
-    const accountsHeading = page.getByRole("heading", { name: "Accounts" });
-
-    await expect(
-      loginInput.or(continueButton).or(dashboardHeading).or(accountsHeading),
-    ).toBeVisible({ timeout: 120_000 });
-
-    if (await loginInput.isVisible()) {
-      await loginInput.fill(TEST_PASSWORD);
-      await page.getByRole("button", { name: "Sign In" }).click();
-      // After login we land on onboarding (fresh DB) or accounts/dashboard.
-      await expect(continueButton.or(dashboardHeading).or(accountsHeading)).toBeVisible({
-        timeout: 30_000,
-      });
-    }
-
-    // Idempotent — runs the onboarding wizard only if the Continue button
-    // (info screen) is still showing.
     await completeOnboardingIfNeeded(page);
   });
 

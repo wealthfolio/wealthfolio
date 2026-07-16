@@ -49,7 +49,15 @@ vi.mock("../fields", () => ({
       <textarea data-testid={`textarea-${name}`} name={name} id={name} />
     </div>
   ),
-  AdvancedOptionsSection: () => <div data-testid="advanced-options-section" />,
+  AdvancedOptionsSection: ({ children }: { children?: React.ReactNode }) => (
+    <div data-testid="advanced-options-section">{children}</div>
+  ),
+  FormSection: ({ action, children }: { action?: React.ReactNode; children?: React.ReactNode }) => (
+    <div data-testid="form-section">
+      {action}
+      {children}
+    </div>
+  ),
   SymbolSearch: ({ name, label }: { name: string; label: string }) => (
     <div data-testid={`symbol-search-${name}`}>{label}</div>
   ),
@@ -256,6 +264,7 @@ describe("InterestForm", () => {
       expect(screen.getByTestId("select-accountId")).toBeInTheDocument();
       expect(screen.getByTestId("date-picker-activityDate")).toBeInTheDocument();
       expect(screen.getByTestId("input-amount")).toBeInTheDocument();
+      expect(screen.getByTestId("input-tax")).toBeInTheDocument();
       expect(screen.getByTestId("textarea-comment")).toBeInTheDocument();
     });
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Toggle } from "@wealthfolio/ui/components/ui/toggle";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -15,6 +16,7 @@ interface AccountSelectionProps {
 }
 
 export function AccountSelection({ limit, accounts, deposits, isLoading }: AccountSelectionProps) {
+  const { t } = useTranslation();
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>(
     limit.accountIds ? limit.accountIds.split(",") : [],
   );
@@ -38,7 +40,7 @@ export function AccountSelection({ limit, accounts, deposits, isLoading }: Accou
 
   return (
     <div className="space-y-4">
-      <h3 className="font-semibold">Select Accounts</h3>
+      <h3 className="font-semibold">{t("settings:limits_select_accounts")}</h3>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
         {accounts
           ?.filter(
@@ -67,11 +69,13 @@ export function AccountSelection({ limit, accounts, deposits, isLoading }: Accou
                   <div className="flex flex-col items-start">
                     <span className="font-medium">{account.name}</span>
                     {isLoading ? (
-                      <span className="text-muted-foreground text-xs">Loading...</span>
+                      <span className="text-muted-foreground text-xs">
+                        {t("settings:limits_loading")}
+                      </span>
                     ) : accountDeposit ? (
                       <span className="text-muted-foreground text-xs font-light">
                         {formatAmount(accountDeposit.convertedAmount, deposits.baseCurrency)}{" "}
-                        Contributed
+                        {t("settings:limits_contributed")}
                       </span>
                     ) : null}
                   </div>
@@ -85,7 +89,9 @@ export function AccountSelection({ limit, accounts, deposits, isLoading }: Accou
         className="mt-4"
         disabled={updateContributionLimitMutation.isPending}
       >
-        {updateContributionLimitMutation.isPending ? "Saving..." : "Save Selected Accounts"}
+        {updateContributionLimitMutation.isPending
+          ? t("settings:limits_saving")
+          : t("settings:limits_save_selected_accounts")}
       </Button>
     </div>
   );

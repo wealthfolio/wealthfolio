@@ -35,21 +35,9 @@ import {
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { z } from "zod";
-
-const INSTRUMENT_TYPE_OPTIONS = [
-  { value: "EQUITY", label: "Equity (Stock, ETF, Fund)" },
-  { value: "CRYPTO", label: "Cryptocurrency" },
-  { value: "BOND", label: "Bond" },
-  { value: "OPTION", label: "Option" },
-  { value: "FX", label: "Foreign Exchange" },
-  { value: "METAL", label: "Metal (Commodity)" },
-] as const;
-
-const QUOTE_MODE_OPTIONS = [
-  { value: "MANUAL", label: "Manual" },
-  { value: "MARKET", label: "Market (auto-sync)" },
-] as const;
 
 /** Map search result quoteType to our InstrumentType form values.
  *  Returns null for unrecognized types so the caller can fall back to manual mode. */
@@ -73,21 +61,25 @@ function mapQuoteTypeToInstrumentType(quoteType: string): string | null {
   }
 }
 
-const createSecuritySchema = z.object({
-  symbol: z
-    .string()
-    .min(1, "Symbol is required")
-    .max(20, "Symbol must be 20 characters or less")
-    .transform((val) => val.toUpperCase().trim()),
-  name: z.string().min(1, "Name is required").max(100, "Name must be 100 characters or less"),
-  instrumentType: z.string().min(1, "Instrument type is required"),
-  quoteCcy: z.string().min(1, "Currency is required"),
-  quoteMode: z.enum(["MANUAL", "MARKET"]),
-  instrumentExchangeMic: z.string().optional(),
-  notes: z.string().optional(),
-});
+const createSecuritySchema = (t: TFunction) =>
+  z.object({
+    symbol: z
+      .string()
+      .min(1, t("asset:createSecurity.errors.symbol_required"))
+      .max(100, t("asset:createSecurity.errors.symbol_max"))
+      .transform((val) => val.toUpperCase().trim()),
+    name: z
+      .string()
+      .min(1, t("asset:createSecurity.errors.name_required"))
+      .max(100, t("asset:createSecurity.errors.name_max")),
+    instrumentType: z.string().min(1, t("asset:createSecurity.errors.instrument_type_required")),
+    quoteCcy: z.string().min(1, t("asset:createSecurity.errors.currency_required")),
+    quoteMode: z.enum(["MANUAL", "MARKET"]),
+    instrumentExchangeMic: z.string().optional(),
+    notes: z.string().optional(),
+  });
 
-type CreateSecurityFormValues = z.infer<typeof createSecuritySchema>;
+type CreateSecurityFormValues = z.infer<ReturnType<typeof createSecuritySchema>>;
 
 const normalizeMic = (mic?: string | null): string => mic?.trim().toUpperCase() ?? "";
 
@@ -108,12 +100,38 @@ export function CreateSecurityDialog({
   onSubmit,
   isPending = false,
   initialAsset,
-  title = "Add Security",
-  description = "Search for a security to auto-fill details, or enter them manually.",
-  submitLabel = "Create Security",
+  title,
+  description,
+  submitLabel,
 }: CreateSecurityDialogProps) {
+  const { t } = useTranslation();
+  const resolvedTitle = title ?? t("asset:createSecurity.title");
+  const resolvedDescription = description ?? t("asset:createSecurity.description");
+  const resolvedSubmitLabel = submitLabel ?? t("asset:createSecurity.submit_label");
   const { settings } = useSettingsContext();
   const defaultCurrency = settings?.baseCurrency || "USD";
+
+  const INSTRUMENT_TYPE_OPTIONS = useMemo(
+    () =>
+      [
+        { value: "EQUITY", label: t("asset:createSecurity.instrumentType.equity") },
+        { value: "CRYPTO", label: t("asset:createSecurity.instrumentType.crypto") },
+        { value: "BOND", label: t("asset:createSecurity.instrumentType.bond") },
+        { value: "OPTION", label: t("asset:createSecurity.instrumentType.option") },
+        { value: "FX", label: t("asset:createSecurity.instrumentType.fx") },
+        { value: "METAL", label: t("asset:createSecurity.instrumentType.metal") },
+      ] as const,
+    [t],
+  );
+
+  const QUOTE_MODE_OPTIONS = useMemo(
+    () =>
+      [
+        { value: "MANUAL", label: t("asset:createSecurity.quoteModeOptions.manual") },
+        { value: "MARKET", label: t("asset:createSecurity.quoteModeOptions.market") },
+      ] as const,
+    [t],
+  );
   const [selectedResult, setSelectedResult] = useState<SymbolSearchResult | undefined>();
   const [isResolvingSubmit, setIsResolvingSubmit] = useState(false);
   const resolveRequestSeq = useRef(0);
@@ -149,7 +167,7 @@ export function CreateSecurityDialog({
   );
 
   const form = useForm<CreateSecurityFormValues>({
-    resolver: zodResolver(createSecuritySchema),
+    resolver: zodResolver(createSecuritySchema(t)),
     defaultValues,
   });
 
@@ -329,8 +347,8 @@ export function CreateSecurityDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogTitle>{resolvedTitle}</DialogTitle>
+          <DialogDescription>{resolvedDescription}</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
@@ -338,10 +356,12 @@ export function CreateSecurityDialog({
             {/* Ticker search - auto-populates form fields on selection */}
             {open && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Search</label>
+                <label className="text-sm font-medium">
+                  {t("asset:createSecurity.search_label")}
+                </label>
                 <TickerSearchInput
                   onSelectResult={handleTickerSelect}
-                  placeholder="Search by ticker, name or ISIN…"
+                  placeholder={t("asset:createSecurity.search_placeholder")}
                   defaultCurrency={defaultCurrency}
                   autoFocusSearch
                   hideCustomCreate
@@ -355,10 +375,10 @@ export function CreateSecurityDialog({
                 name="symbol"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Symbol</FormLabel>
+                    <FormLabel>{t("asset:createSecurity.symbol")}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="e.g., AAPL"
+                        placeholder={t("asset:createSecurity.symbol_placeholder")}
                         {...field}
                         onChange={(e) => {
                           const next = e.target.value.toUpperCase();
@@ -388,11 +408,11 @@ export function CreateSecurityDialog({
                 name="instrumentType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Type</FormLabel>
+                    <FormLabel>{t("asset:createSecurity.type")}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
+                          <SelectValue placeholder={t("asset:createSecurity.select_type")} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -414,9 +434,9 @@ export function CreateSecurityDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{t("asset:createSecurity.name")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Apple Inc." {...field} />
+                    <Input placeholder={t("asset:createSecurity.name_placeholder")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -429,7 +449,7 @@ export function CreateSecurityDialog({
                 name="quoteCcy"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Currency</FormLabel>
+                    <FormLabel>{t("asset:createSecurity.currency")}</FormLabel>
                     <FormControl>
                       <CurrencyInput
                         value={field.value}
@@ -439,7 +459,7 @@ export function CreateSecurityDialog({
                           }
                           field.onChange(nextCurrency);
                         }}
-                        placeholder="Select currency"
+                        placeholder={t("asset:createSecurity.select_currency")}
                         valueDisplay="code"
                         allowCustom
                       />
@@ -454,7 +474,7 @@ export function CreateSecurityDialog({
                 name="quoteMode"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Quote Mode</FormLabel>
+                    <FormLabel>{t("asset:createSecurity.quote_mode")}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -481,15 +501,18 @@ export function CreateSecurityDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Exchange <span className="text-muted-foreground text-xs">(optional)</span>
+                    {t("asset:createSecurity.exchange")}{" "}
+                    <span className="text-muted-foreground text-xs">
+                      {t("asset:createSecurity.optional")}
+                    </span>
                   </FormLabel>
                   <FormControl>
                     <SearchableSelect
                       options={exchangeOptions}
                       value={field.value ?? ""}
                       onValueChange={field.onChange}
-                      placeholder="Select exchange"
-                      searchPlaceholder="Search exchanges..."
+                      placeholder={t("asset:createSecurity.select_exchange")}
+                      searchPlaceholder={t("asset:createSecurity.search_exchanges")}
                     />
                   </FormControl>
                   <FormMessage />
@@ -503,10 +526,17 @@ export function CreateSecurityDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Notes <span className="text-muted-foreground text-xs">(optional)</span>
+                    {t("asset:createSecurity.notes")}{" "}
+                    <span className="text-muted-foreground text-xs">
+                      {t("asset:createSecurity.optional")}
+                    </span>
                   </FormLabel>
                   <FormControl>
-                    <Textarea rows={2} placeholder="Any additional notes..." {...field} />
+                    <Textarea
+                      rows={2}
+                      placeholder={t("asset:createSecurity.notes_placeholder")}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -520,7 +550,7 @@ export function CreateSecurityDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={isPending || isResolvingSubmit}
               >
-                Cancel
+                {t("common:cancel")}
               </Button>
               <Button
                 type="button"
@@ -529,10 +559,11 @@ export function CreateSecurityDialog({
               >
                 {isPending || isResolvingSubmit ? (
                   <span className="flex items-center gap-2">
-                    <Icons.Spinner className="h-4 w-4 animate-spin" /> Creating...
+                    <Icons.Spinner className="h-4 w-4 animate-spin" />{" "}
+                    {t("asset:createSecurity.creating")}
                   </span>
                 ) : (
-                  submitLabel
+                  resolvedSubmitLabel
                 )}
               </Button>
             </DialogFooter>

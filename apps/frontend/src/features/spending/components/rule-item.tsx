@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   AlertDialog,
@@ -40,26 +41,31 @@ interface RuleItemProps {
   onDelete: (rule: CategorizationRule) => void;
 }
 
-const MATCH_TYPE_LABELS: Record<string, string> = {
-  contains: "contains",
-  starts_with: "starts with",
-  exact: "exact",
-  regex: "regex",
-};
-
-const ACTIVITY_TYPE_LABELS: Record<string, string> = {
-  DEPOSIT: "Deposit",
-  WITHDRAWAL: "Withdrawal",
-  CREDIT: "Credit / Refund",
-  INTEREST: "Interest",
-  DIVIDEND: "Dividend",
-  FEE: "Fee",
-  TAX: "Tax",
-  TRANSFER_IN: "Transfer In",
-  TRANSFER_OUT: "Transfer Out",
-};
-
 export function RuleItem({ rule, categoryMeta, presetMeta, onEdit, onDelete }: RuleItemProps) {
+  const { t } = useTranslation();
+  const MATCH_TYPE_LABELS = useMemo<Record<string, string>>(
+    () => ({
+      contains: t("spending:rules.matchContains"),
+      starts_with: t("spending:rules.matchStartsWith"),
+      exact: t("spending:rules.matchExact"),
+      regex: t("spending:rules.matchRegex"),
+    }),
+    [t],
+  );
+  const ACTIVITY_TYPE_LABELS = useMemo<Record<string, string>>(
+    () => ({
+      DEPOSIT: t("spending:rules.activityDeposit"),
+      WITHDRAWAL: t("spending:rules.activityWithdrawal"),
+      CREDIT: t("spending:rules.activityCredit"),
+      INTEREST: t("spending:rules.activityInterest"),
+      DIVIDEND: t("spending:rules.activityDividend"),
+      FEE: t("spending:rules.activityFee"),
+      TAX: t("spending:rules.activityTax"),
+      TRANSFER_IN: t("spending:rules.activityTransferIn"),
+      TRANSFER_OUT: t("spending:rules.activityTransferOut"),
+    }),
+    [t],
+  );
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [patternExpanded, setPatternExpanded] = useState(false);
 
@@ -88,10 +94,10 @@ export function RuleItem({ rule, categoryMeta, presetMeta, onEdit, onDelete }: R
   const preset = rule.presetId ? (presetMeta?.[rule.presetId] ?? null) : null;
   const presetBadgeTitle = preset
     ? rule.presetModified
-      ? `From ${preset.name} preset (edited)`
-      : `From ${preset.name} preset`
+      ? t("spending:rules.fromPresetEdited", { name: preset.name })
+      : t("spending:rules.fromPreset", { name: preset.name })
     : rule.presetId
-      ? `From ${rule.presetId.toUpperCase()} preset`
+      ? t("spending:rules.fromPreset", { name: rule.presetId.toUpperCase() })
       : null;
 
   return (
@@ -117,14 +123,16 @@ export function RuleItem({ rule, categoryMeta, presetMeta, onEdit, onDelete }: R
                 </span>
                 {rule.presetModified && (
                   <span className="text-muted-foreground/60" aria-hidden="true">
-                    ·edited
+                    ·{t("spending:rules.edited")}
                   </span>
                 )}
               </span>
             ) : null}
             <span className="text-muted-foreground shrink-0 text-[11px]">
               {matchLabel}
-              {rule.priority > 0 && <> · priority {rule.priority}</>}
+              {rule.priority > 0 && (
+                <> · {t("spending:rules.priority", { value: rule.priority })}</>
+              )}
             </span>
           </div>
 
@@ -133,7 +141,11 @@ export function RuleItem({ rule, categoryMeta, presetMeta, onEdit, onDelete }: R
             type="button"
             onClick={() => setPatternExpanded((v) => !v)}
             className="text-muted-foreground/80 hover:text-muted-foreground block w-full text-left transition-colors"
-            aria-label={patternExpanded ? "Collapse pattern" : "Expand pattern"}
+            aria-label={
+              patternExpanded
+                ? t("spending:rules.collapsePattern")
+                : t("spending:rules.expandPattern")
+            }
             title={rule.pattern}
           >
             <code
@@ -167,7 +179,9 @@ export function RuleItem({ rule, categoryMeta, presetMeta, onEdit, onDelete }: R
               {activityTypeLabel}
             </span>
           ) : (
-            <span className="text-muted-foreground/60 text-xs italic">no target</span>
+            <span className="text-muted-foreground/60 text-xs italic">
+              {t("spending:rules.noTarget")}
+            </span>
           )}
 
           <DropdownMenu>
@@ -176,7 +190,7 @@ export function RuleItem({ rule, categoryMeta, presetMeta, onEdit, onDelete }: R
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
-                aria-label="Rule actions"
+                aria-label={t("spending:rules.ruleActions")}
               >
                 <Icons.MoreVertical className="h-4 w-4" aria-hidden="true" />
               </Button>
@@ -184,14 +198,14 @@ export function RuleItem({ rule, categoryMeta, presetMeta, onEdit, onDelete }: R
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => onEdit(rule)}>
                 <Icons.Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
-                Edit
+                {t("common:edit")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive"
                 onClick={() => setShowDeleteDialog(true)}
               >
                 <Icons.Trash className="mr-2 h-4 w-4" aria-hidden="true" />
-                Delete
+                {t("common:delete")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -201,19 +215,18 @@ export function RuleItem({ rule, categoryMeta, presetMeta, onEdit, onDelete }: R
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete rule</AlertDialogTitle>
+            <AlertDialogTitle>{t("spending:rules.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the rule &quot;{rule.name}&quot;? This action cannot
-              be undone.
+              {t("spending:rules.deleteConfirm", { name: rule.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {t("common:delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

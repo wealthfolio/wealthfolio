@@ -6,6 +6,7 @@ import {
   useAssistantState,
 } from "@assistant-ui/react";
 import { PropsWithChildren, useEffect, useState, type FC } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Icons, type Icon } from "@wealthfolio/ui/components/ui/icons";
 import { useShallow } from "zustand/shallow";
@@ -59,11 +60,12 @@ interface AttachmentPreviewProps {
 }
 
 const AttachmentPreview: FC<AttachmentPreviewProps> = ({ src }) => {
+  const { t } = useTranslation();
   const [isLoaded, setIsLoaded] = useState(false);
   return (
     <img
       src={src}
-      alt="Image Preview"
+      alt={t("ai:attachment.imagePreview")}
       className={
         isLoaded
           ? "aui-attachment-preview-image-loaded block h-auto max-h-[80vh] w-auto max-w-full object-contain"
@@ -75,6 +77,7 @@ const AttachmentPreview: FC<AttachmentPreviewProps> = ({ src }) => {
 };
 
 const AttachmentPreviewDialog: FC<PropsWithChildren> = ({ children }) => {
+  const { t } = useTranslation();
   const src = useAttachmentSrc();
 
   if (!src) return children;
@@ -88,7 +91,9 @@ const AttachmentPreviewDialog: FC<PropsWithChildren> = ({ children }) => {
         {children}
       </DialogTrigger>
       <DialogContent className="aui-attachment-preview-dialog-content [&>button]:bg-foreground/60 [&_svg]:text-background [&>button]:hover:[&_svg]:text-destructive [&>button]:ring-0! p-2 sm:max-w-3xl [&>button]:rounded-full [&>button]:p-1 [&>button]:opacity-100">
-        <DialogTitle className="aui-sr-only sr-only">Image Attachment Preview</DialogTitle>
+        <DialogTitle className="aui-sr-only sr-only">
+          {t("ai:attachment.imageAttachmentPreview")}
+        </DialogTitle>
         <div className="aui-attachment-preview bg-background relative mx-auto flex max-h-[80dvh] w-full items-center justify-center overflow-hidden">
           <AttachmentPreview src={src} />
         </div>
@@ -98,6 +103,7 @@ const AttachmentPreviewDialog: FC<PropsWithChildren> = ({ children }) => {
 };
 
 const AttachmentThumb: FC = () => {
+  const { t } = useTranslation();
   const isImage = useAssistantState(({ attachment }) => attachment.type === "image");
   const src = useAttachmentSrc();
 
@@ -105,7 +111,7 @@ const AttachmentThumb: FC = () => {
     <Avatar className="aui-attachment-tile-avatar h-full w-full rounded-none">
       <AvatarImage
         src={src}
-        alt="Attachment preview"
+        alt={t("ai:attachment.attachmentPreview")}
         className="aui-attachment-tile-image object-cover"
       />
       <AvatarFallback delayMs={isImage ? 200 : 0}>
@@ -163,6 +169,7 @@ const getAttachmentIcon = (name: string, contentType: string): Icon => {
 };
 
 const ComposerFileAttachment: FC = () => {
+  const { t } = useTranslation();
   const name = useAssistantState(({ attachment }) => attachment.name);
   const contentType = useAssistantState(({ attachment }) => attachment.contentType);
   const FileIcon = getAttachmentIcon(name, contentType);
@@ -173,7 +180,7 @@ const ComposerFileAttachment: FC = () => {
       className="aui-attachment-file-chip bg-muted/60 border-border/70 hover:bg-muted flex h-11 max-w-[18rem] cursor-pointer items-center gap-2 rounded-xl border py-1.5 pl-2.5 pr-8 text-left transition-colors"
       role="button"
       id="attachment-tile"
-      aria-label={`File attachment: ${name}`}
+      aria-label={t("ai:attachment.fileAttachment", { name })}
     >
       <span className="aui-attachment-file-chip-icon bg-background/80 text-foreground/75 flex size-7 shrink-0 items-center justify-center rounded-lg border">
         <FileIcon className="size-4" />
@@ -189,6 +196,7 @@ const ComposerFileAttachment: FC = () => {
 };
 
 const AttachmentUI: FC = () => {
+  const { t } = useTranslation();
   const api = useAssistantApi();
   const isComposer = api.attachment.source === "composer";
 
@@ -197,11 +205,11 @@ const AttachmentUI: FC = () => {
     const type = attachment.type;
     switch (type) {
       case "image":
-        return "Image";
+        return t("ai:attachment.type.image");
       case "document":
-        return "Document";
+        return t("ai:attachment.type.document");
       case "file":
-        return "File";
+        return t("ai:attachment.type.file");
       default:
         const _exhaustiveCheck: never = type;
         throw new Error(`Unknown attachment type: ${_exhaustiveCheck}`);
@@ -228,7 +236,7 @@ const AttachmentUI: FC = () => {
                 )}
                 role="button"
                 id="attachment-tile"
-                aria-label={`${typeLabel} attachment`}
+                aria-label={t("ai:attachment.typedAttachment", { type: typeLabel })}
               >
                 <AttachmentThumb />
               </div>
@@ -249,10 +257,11 @@ interface AttachmentRemoveProps {
 }
 
 const AttachmentRemove: FC<AttachmentRemoveProps> = ({ variant = "tile" }) => {
+  const { t } = useTranslation();
   return (
     <AttachmentPrimitive.Remove asChild>
       <TooltipIconButton
-        tooltip="Remove file"
+        tooltip={t("ai:attachment.removeFile")}
         className={cn(
           "aui-attachment-tile-remove text-muted-foreground hover:[&_svg]:text-destructive hover:bg-white! absolute rounded-full bg-white opacity-100 shadow-sm [&_svg]:text-black",
           variant === "chip"
@@ -289,15 +298,16 @@ export const ComposerAttachments: FC = () => {
 };
 
 export const ComposerAddAttachment: FC = () => {
+  const { t } = useTranslation();
   return (
     <ComposerPrimitive.AddAttachment asChild>
       <TooltipIconButton
-        tooltip="Add Attachment"
+        tooltip={t("ai:attachment.addAttachment")}
         side="bottom"
         variant="ghost"
         size="icon"
         className="aui-composer-add-attachment hover:bg-muted-foreground/15 dark:border-muted-foreground/15 dark:hover:bg-muted-foreground/30 size-[34px] rounded-full p-1 text-xs font-semibold"
-        aria-label="Add Attachment"
+        aria-label={t("ai:attachment.addAttachment")}
       >
         <Icons.Plus className="aui-attachment-add-icon size-5 stroke-[1.5px]" />
       </TooltipIconButton>

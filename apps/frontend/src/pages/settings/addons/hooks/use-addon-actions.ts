@@ -10,6 +10,7 @@ import {
   uninstallAddon,
   extractAddon,
   clearAddonStaging,
+  updateAddonNetworkApprovals,
 } from "@/adapters";
 import type { InstalledAddon, Permission, ExtractedAddon } from "@/adapters";
 
@@ -23,7 +24,7 @@ interface PermissionDialogState {
   permissions?: Permission[];
   riskLevel?: RiskLevel;
   fileData?: Uint8Array;
-  onApprove?: () => void;
+  onApprove?: (approvedNetworkHosts: string[]) => void | Promise<void>;
   onCancel?: () => void;
 }
 
@@ -106,7 +107,7 @@ export function useAddonActions() {
 
       const filePromise = new Promise<File | null>((resolve) => {
         input.onchange = () => {
-          const file = input.files && input.files[0] ? input.files[0] : null;
+          const file = input.files?.[0] ?? null;
           resolve(file);
           // Cleanup
           if (input.parentNode) {
@@ -163,28 +164,25 @@ export function useAddonActions() {
         permissions,
         riskLevel,
         fileData,
-        onApprove: async () => {
+        onApprove: async (approvedNetworkHosts) => {
           setPermissionDialog({ open: false });
-          await performAddonInstallation(fileData);
+          await performAddonInstallation(fileData, approvedNetworkHosts);
         },
       });
     } catch (error) {
       console.error("Error analyzing addon permissions:", error);
-      // If permission analysis fails, show warning and allow user to proceed
       toast({
         title: "Permission analysis failed",
-        description: "Could not analyze addon permissions. Install at your own risk.",
+        description:
+          error instanceof Error ? error.message : "Could not analyze addon permissions.",
         variant: "destructive",
       });
-
-      // Still allow installation but with warning
-      await performAddonInstallation(fileData);
     }
   };
 
   const handleShowPermissionDialog = (
     extractedAddon: ExtractedAddon,
-    onApprove: () => Promise<void>,
+    onApprove: (approvedNetworkHosts: string[]) => Promise<void>,
   ) => {
     // Calculate risk level based on permissions
     const permissions = extractedAddon.metadata.permissions || [];
@@ -196,10 +194,10 @@ export function useAddonActions() {
       manifest: extractedAddon.metadata,
       permissions,
       riskLevel,
-      onApprove: async () => {
+      onApprove: async (approvedNetworkHosts) => {
         setPermissionDialog({ open: false });
         try {
-          await onApprove();
+          await onApprove(approvedNetworkHosts);
           // Invalidate and refetch installed addons query
           queryClient.invalidateQueries({ queryKey: [QueryKeys.INSTALLED_ADDONS] });
           await reloadAllAddons();
@@ -229,10 +227,10 @@ export function useAddonActions() {
     });
   };
 
-  const performAddonInstallation = async (fileData: Uint8Array) => {
+  const performAddonInstallation = async (fileData: Uint8Array, approvedNetworkHosts: string[]) => {
     try {
       // Install the ZIP addon persistently
-      const metadata = await installAddon(fileData, true);
+      const metadata = await installAddon(fileData, true, approvedNetworkHosts);
 
       // Invalidate and refetch installed addons query
       queryClient.invalidateQueries({ queryKey: [QueryKeys.INSTALLED_ADDONS] });
@@ -332,6 +330,32 @@ export function useAddonActions() {
     }
   };
 
+  const handleUpdateNetworkApprovals = async (
+    addon: InstalledAddon,
+    approvedNetworkHosts: string[],
+  ) => {
+    try {
+      const metadata = await updateAddonNetworkApprovals(addon.metadata.id, approvedNetworkHosts);
+
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.INSTALLED_ADDONS] });
+      setViewPermissionDialog({ open: false });
+      await reloadAllAddons();
+
+      toast({
+        title: "Network permissions updated",
+        description: `${metadata.name} network host approvals have been saved.`,
+      });
+    } catch (error) {
+      console.error("Error updating network approvals:", error);
+      toast({
+        title: "Error updating network permissions",
+        description:
+          error instanceof Error ? error.message : "Failed to update network host approvals",
+        variant: "destructive",
+      });
+    }
+  };
+
   return {
     // State
     installedAddons,
@@ -349,6 +373,7 @@ export function useAddonActions() {
     handleToggleAddon,
     handleUninstallAddon,
     handleViewPermissions,
+    handleUpdateNetworkApprovals,
 
     // Dialog setters
     setPermissionDialog,

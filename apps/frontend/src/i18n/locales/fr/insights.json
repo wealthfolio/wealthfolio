@@ -1,0 +1,124 @@
+{
+  "insights": {
+    "loading_dashboard": "Chargement du tableau de bord...",
+    "tab_overview": "Aperçu",
+    "tab_performance": "Performance",
+    "tab_income": "Revenus",
+    "back_to_allocation": "Retour à la répartition",
+    "target_allocation": "Répartition cible",
+    "back_to_overview": "Retour à l'aperçu",
+    "rebalance": "Rééquilibrer",
+    "no_target_selected": "Aucune cible sélectionnée",
+    "no_target_selected_description": "Créez une répartition cible pour comparer les pondérations actuelles aux pondérations souhaitées.",
+    "set_target_allocation": "Définir une répartition cible",
+    "chart_classes": "Classes",
+    "chart_regions": "Régions",
+    "chart_sectors": "Secteurs",
+    "explorer": {
+      "lens_allocation": "Répartition",
+      "lens_accounts": "Comptes",
+      "lens_sectors": "Secteurs",
+      "lens_regions": "Régions",
+      "lens_risk": "Risque",
+      "lens_security": "Types de titres",
+      "lens_currency": "Devise",
+      "unit_categories": "catégories",
+      "unit_accounts": "comptes",
+      "unit_sectors": "secteurs",
+      "unit_regions": "régions",
+      "unit_levels": "niveaux",
+      "unit_types": "types",
+      "unit_currencies": "devises",
+      "unit_groups": "groupes",
+      "other_units": "Autres {{unit}}",
+      "breakdown": "Répartition",
+      "top_units": "Principaux {{unit}}",
+      "show_less": "Afficher moins",
+      "show_all": "Tout afficher"
+    },
+    "rails": {
+      "target_allocation": "Répartition cible",
+      "details": "Détails",
+      "suggested_moves": "Mouvements suggérés",
+      "all_in_range": "Toutes les catégories sont dans la plage cible — aucun rééquilibrage nécessaire",
+      "add": "Ajouter",
+      "trim": "Réduire",
+      "inside_target_range": "Dans la plage cible",
+      "outside_range": "{{count}} hors de la plage · plus grand écart {{gap}}",
+      "tolerance": "tolérance {{tolerance}}",
+      "current": "Actuel",
+      "target": "Cible",
+      "no_target_yet": "Aucune répartition cible pour l'instant",
+      "compare_weights": "Comparez les pondérations actuelles avec votre portefeuille souhaité.",
+      "set_target_allocation": "Définir une répartition cible"
+    },
+    "value_strip": {
+      "portfolio_value": "Valeur du portefeuille",
+      "cash_balance": "Solde de trésorerie",
+      "invested": "Investi",
+      "book_cost": "Coût d'acquisition",
+      "no_cash_balance": "Aucun solde de trésorerie",
+      "of_portfolio": "{{percent}} du portefeuille",
+      "available_cash": "Trésorerie disponible",
+      "holdings_count_one": "{{count}} position",
+      "holdings_count_other": "{{count}} positions",
+      "accounts_count_one": "{{count}} compte",
+      "accounts_count_other": "{{count}} comptes"
+    }
+  },
+  "networth": {
+    "failed_to_load": "Échec du chargement de la valeur nette",
+    "stale_valuations_tooltip": "Valorisations obsolètes (90+ jours) :",
+    "days_ago": "il y a {{count}}j",
+    "no_history_data": "Aucune donnée d'historique disponible",
+    "breakdown": "Répartition",
+    "no_assets_found": "Aucun actif trouvé.",
+    "add_first_asset": "Ajoutez votre premier actif",
+    "update_valuations": "Mettez à jour vos valorisations",
+    "assets_count_one": "{{count}} actif",
+    "assets_count_other": "{{count}} actifs",
+    "not_updated_over_90_days": "Non mis à jour depuis plus de 90 jours.",
+    "chart": {
+      "net_worth": "Valeur nette",
+      "net_worth_label": "Valeur nette :",
+      "assets_label": "Actifs :",
+      "liabilities_label": "Passifs :"
+    },
+    "breakdown_table": {
+      "change_over": "Évolution sur {{period}}",
+      "assets": "Actifs",
+      "category": "Catégorie",
+      "value": "Valeur",
+      "delta_period": "Δ {{period}}",
+      "liabilities": "Passifs",
+      "net_worth": "Valeur nette"
+    },
+    "category_sheet": {
+      "over_period": "sur {{period}}",
+      "trend_period": "Tendance · {{period}}",
+      "items": "Éléments"
+    },
+    "trend": {
+      "not_enough_history": "Historique insuffisant"
+    },
+    "momentum": {
+      "title": "Dynamique",
+      "all_time": "depuis le début",
+      "vs_prior": "vs {{period}} précédent",
+      "beat_prior": "Dépasse la période précédente de ",
+      "behind_prior": "En retard sur la période précédente de ",
+      "now": "Maintenant"
+    },
+    "velocity": {
+      "monthly_pace": "Rythme mensuel",
+      "over_months_one": "sur {{count}} mois",
+      "over_months_other": "sur {{count}} mois",
+      "trailing_pace": " · {{multiple}}× rythme sur 12 mois glissants",
+      "drivers_of_change": "Facteurs d'évolution sur {{period}}",
+      "market_returns": "Rendements du marché",
+      "contributions": "Contributions",
+      "equity_built": "Capital constitué",
+      "per_month": "/mois"
+    }
+  }
+}

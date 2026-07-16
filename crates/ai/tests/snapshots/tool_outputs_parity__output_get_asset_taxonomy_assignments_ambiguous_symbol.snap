@@ -1,0 +1,7 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "err": "Asset query is ambiguous. Candidates: VT - Vanguard Total World Stock Index Fund ETF Shares (mic: XNAS, currency: USD, id: asset-vt-xnas), VT - Vanguard Total World Stock Index Fund ETF Shares (mic: ARCX, currency: USD, id: asset-vt-arcx)"
+}

@@ -1,6 +1,6 @@
 use super::assets_model::{
-    normalize_quote_ccy_code, Asset, AssetMetadata, AssetSpec, EnsureAssetsResult, InstrumentType,
-    NewAsset, QuoteMode, UpdateAssetProfile,
+    normalize_quote_ccy_code, Asset, AssetMetadata, AssetProfile, AssetSpec, EnsureAssetsResult,
+    InstrumentType, NewAsset, QuoteMode, UpdateAssetProfile,
 };
 use super::{AssetResolutionInput, AssetResolutionOutput};
 use crate::errors::Result;
@@ -10,6 +10,13 @@ use crate::errors::Result;
 pub trait AssetServiceTrait: Send + Sync {
     fn get_assets(&self) -> Result<Vec<Asset>>;
     fn get_asset_by_id(&self, asset_id: &str) -> Result<Asset>;
+    fn get_asset_profile(&self, asset_id: &str) -> Result<AssetProfile> {
+        Ok(AssetProfile::new(
+            self.get_asset_by_id(asset_id)?,
+            None,
+            None,
+        ))
+    }
     async fn delete_asset(&self, asset_id: &str) -> Result<()>;
     async fn update_asset_profile(
         &self,

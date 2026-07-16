@@ -14,7 +14,7 @@ describe("asset provider config", () => {
       overrides: {
         BOERSE_FRANKFURT: {
           type: "bond_isin",
-          symbol: "IT0005415291",
+          isin: "IT0005415291",
         },
       },
     });

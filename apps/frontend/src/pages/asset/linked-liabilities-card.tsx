@@ -1,4 +1,6 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -23,6 +25,7 @@ export const LinkedLiabilitiesCard: React.FC<LinkedLiabilitiesCardProps> = ({
   onAddLiability,
   className,
 }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { isBalanceHidden } = useBalancePrivacy();
 
@@ -38,11 +41,11 @@ export const LinkedLiabilitiesCard: React.FC<LinkedLiabilitiesCardProps> = ({
   return (
     <Card className={className}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium">Linked Liabilities</CardTitle>
+        <CardTitle className="text-sm font-medium">{t("asset:linkedLiabilities.title")}</CardTitle>
         {onAddLiability && (
           <Button variant="ghost" size="sm" className="h-8 px-2" onClick={onAddLiability}>
             <Icons.Plus className="mr-1 h-4 w-4" />
-            Add
+            {t("asset:linkedLiabilities.add")}
           </Button>
         )}
       </CardHeader>
@@ -65,7 +68,7 @@ export const LinkedLiabilitiesCard: React.FC<LinkedLiabilitiesCardProps> = ({
                   <div className="text-left">
                     <p className="text-sm font-medium">{liability.name}</p>
                     <p className="text-muted-foreground text-xs">
-                      {getLiabilityTypeLabel(liability.metadata)}
+                      {getLiabilityTypeLabel(liability.metadata, t)}
                     </p>
                   </div>
                 </div>
@@ -84,10 +87,10 @@ export const LinkedLiabilitiesCard: React.FC<LinkedLiabilitiesCardProps> = ({
           </div>
         ) : (
           <div className="text-muted-foreground py-4 text-center text-sm">
-            <p>No linked mortgages or loans</p>
+            <p>{t("asset:linkedLiabilities.no_linked")}</p>
             {onAddLiability && (
               <Button variant="link" size="sm" className="mt-1" onClick={onAddLiability}>
-                Add a mortgage or loan
+                {t("asset:linkedLiabilities.add_mortgage_or_loan")}
               </Button>
             )}
           </div>
@@ -97,20 +100,24 @@ export const LinkedLiabilitiesCard: React.FC<LinkedLiabilitiesCardProps> = ({
   );
 };
 
-const LIABILITY_TYPE_LABELS: Record<string, string> = {
-  mortgage: "Mortgage",
-  auto_loan: "Auto Loan",
-  student_loan: "Student Loan",
-  credit_card: "Credit Card",
-  personal_loan: "Personal Loan",
-  heloc: "HELOC",
+const LIABILITY_TYPE_LABEL_KEYS: Record<string, string> = {
+  mortgage: "asset:linkedLiabilities.liabilityType.mortgage",
+  auto_loan: "asset:linkedLiabilities.liabilityType.auto_loan",
+  student_loan: "asset:linkedLiabilities.liabilityType.student_loan",
+  credit_card: "asset:linkedLiabilities.liabilityType.credit_card",
+  personal_loan: "asset:linkedLiabilities.liabilityType.personal_loan",
+  heloc: "asset:linkedLiabilities.liabilityType.heloc",
 };
 
-function getLiabilityTypeLabel(metadata?: Record<string, unknown>): string {
-  if (!metadata) return "Liability";
+function getLiabilityTypeLabel(
+  metadata: Record<string, unknown> | undefined,
+  t: TFunction,
+): string {
+  if (!metadata) return t("asset:linkedLiabilities.liability");
   const liabilityType = metadata.liability_type as string | undefined;
-  if (!liabilityType) return "Liability";
-  return LIABILITY_TYPE_LABELS[liabilityType] || liabilityType;
+  if (!liabilityType) return t("asset:linkedLiabilities.liability");
+  const key = LIABILITY_TYPE_LABEL_KEYS[liabilityType];
+  return key ? t(key) : liabilityType;
 }
 
 /**
@@ -126,6 +133,7 @@ export const LinkedLiabilitiesSection: React.FC<LinkedLiabilitiesSectionProps> =
   liabilities,
   onAddLiability,
 }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { isBalanceHidden } = useBalancePrivacy();
 
@@ -136,11 +144,11 @@ export const LinkedLiabilitiesSection: React.FC<LinkedLiabilitiesSectionProps> =
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-sm font-medium">Linked Liabilities</span>
+        <span className="text-sm font-medium">{t("asset:linkedLiabilities.title")}</span>
         {onAddLiability && (
           <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={onAddLiability}>
             <Icons.Plus className="mr-1 h-3 w-3" />
-            Add
+            {t("asset:linkedLiabilities.add")}
           </Button>
         )}
       </div>
@@ -161,7 +169,7 @@ export const LinkedLiabilitiesSection: React.FC<LinkedLiabilitiesSectionProps> =
                 <div className="text-left">
                   <p className="text-sm font-medium">{liability.name}</p>
                   <p className="text-muted-foreground text-xs">
-                    {getLiabilityTypeLabel(liability.metadata)}
+                    {getLiabilityTypeLabel(liability.metadata, t)}
                   </p>
                 </div>
               </div>
@@ -180,10 +188,10 @@ export const LinkedLiabilitiesSection: React.FC<LinkedLiabilitiesSectionProps> =
         </div>
       ) : (
         <div className="text-muted-foreground py-2 text-center text-sm">
-          <p>No linked mortgages or loans</p>
+          <p>{t("asset:linkedLiabilities.no_linked")}</p>
           {onAddLiability && (
             <Button variant="link" size="sm" className="mt-1" onClick={onAddLiability}>
-              Add a mortgage or loan
+              {t("asset:linkedLiabilities.add_mortgage_or_loan")}
             </Button>
           )}
         </div>
@@ -211,6 +219,7 @@ export const LinkedAssetSection: React.FC<LinkedAssetSectionProps> = ({
   assetValue,
   currency,
 }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { isBalanceHidden } = useBalancePrivacy();
 
@@ -221,12 +230,15 @@ export const LinkedAssetSection: React.FC<LinkedAssetSectionProps> = ({
   // Get icon based on asset kind
   const AssetIcon =
     assetKind?.toLowerCase() === "vehicle" ? Icons.VehicleDuotone : Icons.RealEstateDuotone;
-  const kindLabel = assetKind?.toLowerCase() === "vehicle" ? "Vehicle" : "Property";
+  const kindLabel =
+    assetKind?.toLowerCase() === "vehicle"
+      ? t("asset:linkedLiabilities.vehicle")
+      : t("asset:linkedLiabilities.property");
 
   return (
     <div>
       <div className="mb-3">
-        <span className="text-sm font-medium">Linked Asset</span>
+        <span className="text-sm font-medium">{t("asset:linkedLiabilities.linked_asset")}</span>
       </div>
 
       <button

@@ -59,6 +59,8 @@ pub struct HoldingSummary {
     pub id: String,
     pub symbol: String,
     pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_name: Option<String>,
     pub holding_type: HoldingType,
     pub quantity: Decimal,
     pub market_value: Decimal,
@@ -139,4 +141,134 @@ pub struct Holding {
     /// Empty for single-account holdings; `account_id` is then the authoritative identity.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub source_account_ids: Vec<String>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct HoldingListInstrument {
+    pub id: String,
+    pub symbol: String,
+    pub name: Option<String>,
+    pub currency: String,
+    #[serde(rename = "quoteMode")]
+    pub quote_mode: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub isin: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exchange_mic: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub classifications: Option<AssetClassifications>,
+}
+
+/// List-oriented holding payload for app tables and dashboards.
+/// Omits full asset profile fields such as notes, provider config, lots, and metadata.
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct HoldingListItem {
+    pub id: String,
+    pub account_id: String,
+    pub holding_type: HoldingType,
+    pub instrument: Option<HoldingListInstrument>,
+    pub asset_kind: Option<AssetKind>,
+    pub quantity: Decimal,
+    pub open_date: Option<DateTime<Utc>>,
+    pub contract_multiplier: Decimal,
+    pub local_currency: String,
+    pub base_currency: String,
+    pub fx_rate: Option<Decimal>,
+    pub market_value: MonetaryValue,
+    pub cost_basis: Option<MonetaryValue>,
+    pub price: Option<Decimal>,
+    pub unrealized_gain: Option<MonetaryValue>,
+    pub unrealized_gain_pct: Option<Decimal>,
+    pub realized_gain: Option<MonetaryValue>,
+    pub realized_gain_pct: Option<Decimal>,
+    pub total_gain: Option<MonetaryValue>,
+    pub total_gain_pct: Option<Decimal>,
+    pub income: Option<MonetaryValue>,
+    pub total_return: Option<MonetaryValue>,
+    pub total_return_pct: Option<Decimal>,
+    pub return_basis: Option<MonetaryValue>,
+    pub day_change: Option<MonetaryValue>,
+    pub day_change_pct: Option<Decimal>,
+    pub prev_close_value: Option<MonetaryValue>,
+    pub weight: Decimal,
+    pub as_of_date: NaiveDate,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_account_ids: Vec<String>,
+}
+
+impl From<Holding> for HoldingListItem {
+    fn from(holding: Holding) -> Self {
+        let isin = holding_metadata_isin(holding.metadata.as_ref());
+        let instrument = holding.instrument.map(|instrument| {
+            let classifications = instrument
+                .classifications
+                .as_ref()
+                .and_then(|classifications| {
+                    classifications.asset_type.as_ref()?;
+                    Some(AssetClassifications {
+                        asset_type: classifications.asset_type.clone(),
+                        ..AssetClassifications::default()
+                    })
+                });
+
+            HoldingListInstrument {
+                id: instrument.id,
+                symbol: instrument.symbol,
+                name: instrument.name,
+                currency: instrument.currency,
+                quote_mode: instrument.pricing_mode,
+                isin,
+                exchange_mic: instrument.exchange_mic,
+                classifications,
+            }
+        });
+
+        Self {
+            id: holding.id,
+            account_id: holding.account_id,
+            holding_type: holding.holding_type,
+            instrument,
+            asset_kind: holding.asset_kind,
+            quantity: holding.quantity,
+            open_date: holding.open_date,
+            contract_multiplier: holding.contract_multiplier,
+            local_currency: holding.local_currency,
+            base_currency: holding.base_currency,
+            fx_rate: holding.fx_rate,
+            market_value: holding.market_value,
+            cost_basis: holding.cost_basis,
+            price: holding.price,
+            unrealized_gain: holding.unrealized_gain,
+            unrealized_gain_pct: holding.unrealized_gain_pct,
+            realized_gain: holding.realized_gain,
+            realized_gain_pct: holding.realized_gain_pct,
+            total_gain: holding.total_gain,
+            total_gain_pct: holding.total_gain_pct,
+            income: holding.income,
+            total_return: holding.total_return,
+            total_return_pct: holding.total_return_pct,
+            return_basis: holding.return_basis,
+            day_change: holding.day_change,
+            day_change_pct: holding.day_change_pct,
+            prev_close_value: holding.prev_close_value,
+            weight: holding.weight,
+            as_of_date: holding.as_of_date,
+            source_account_ids: holding.source_account_ids,
+        }
+    }
+}
+
+fn holding_metadata_isin(metadata: Option<&Value>) -> Option<String> {
+    metadata
+        .and_then(|metadata| {
+            metadata
+                .pointer("/identifiers/isin")
+                .or_else(|| metadata.pointer("/bond/isin"))
+        })
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|isin| !isin.is_empty())
+        .map(ToOwned::to_owned)
 }

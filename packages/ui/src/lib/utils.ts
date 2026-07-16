@@ -12,9 +12,12 @@ const DECIMAL_FORMAT_OPTIONS: Intl.NumberFormatOptions = {
   minimumFractionDigits: DISPLAY_DECIMAL_PRECISION,
   maximumFractionDigits: DISPLAY_DECIMAL_PRECISION,
 };
+const STANDARD_PRICE_DECIMAL_PRECISION = 4;
 
 const decimalFormatter = new Intl.NumberFormat("en-US", DECIMAL_FORMAT_OPTIONS);
 const currencyFormatterCache = new Map<string, Intl.NumberFormat>();
+const priceDecimalFormatterCache = new Map<number, Intl.NumberFormat>();
+const priceCurrencyFormatterCache = new Map<string, Intl.NumberFormat>();
 const compactCurrencyFormatterCache = new Map<string, Intl.NumberFormat>();
 const currencySymbolFormatterCache = new Map<string, Intl.NumberFormat>();
 
@@ -38,6 +41,44 @@ const getCurrencyFormatter = (currency: string) => {
   }
 
   currencyFormatterCache.set(cacheKey, formatter);
+  return formatter;
+};
+
+const getPriceDecimalFormatter = (maximumFractionDigits: number) => {
+  if (!priceDecimalFormatterCache.has(maximumFractionDigits)) {
+    priceDecimalFormatterCache.set(
+      maximumFractionDigits,
+      new Intl.NumberFormat("en-US", {
+        minimumFractionDigits: DISPLAY_DECIMAL_PRECISION,
+        maximumFractionDigits,
+      }),
+    );
+  }
+
+  return priceDecimalFormatterCache.get(maximumFractionDigits)!;
+};
+
+const getPriceCurrencyFormatter = (currency: string, maximumFractionDigits: number) => {
+  const normalizedCurrency = currency?.toUpperCase?.() ?? "USD";
+  const cacheKey = `${normalizedCurrency}:${maximumFractionDigits}`;
+
+  if (priceCurrencyFormatterCache.has(cacheKey)) {
+    return priceCurrencyFormatterCache.get(cacheKey)!;
+  }
+
+  let formatter: Intl.NumberFormat;
+  try {
+    formatter = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: normalizedCurrency,
+      minimumFractionDigits: DISPLAY_DECIMAL_PRECISION,
+      maximumFractionDigits,
+    });
+  } catch {
+    formatter = getPriceDecimalFormatter(maximumFractionDigits);
+  }
+
+  priceCurrencyFormatterCache.set(cacheKey, formatter);
   return formatter;
 };
 
@@ -123,6 +164,35 @@ export function formatAmount(
   return getCurrencyFormatter(rawCurrency).format(displayAmount);
 }
 
+/** Format a per-unit price without discarding meaningful precision. */
+export function formatPrice(
+  amount: number | string | null | undefined,
+  currency: string,
+  displayCurrency = true,
+) {
+  if (amount == null) return "-";
+  const numericAmount = typeof amount === "string" ? Number(amount) : amount;
+  if (!Number.isFinite(numericAmount)) return "-";
+  const displayPrice = Math.abs(numericAmount) < 0.000000005 ? 0 : numericAmount;
+  const maximumFractionDigits =
+    displayPrice !== 0 && Math.abs(displayPrice) < 0.01
+      ? DECIMAL_PRECISION
+      : STANDARD_PRICE_DECIMAL_PRECISION;
+  const rawCurrency = currency ?? "USD";
+  const quoteUnit = getQuoteUnitCurrency(rawCurrency);
+
+  if (quoteUnit) {
+    const formattedNumber = getPriceDecimalFormatter(maximumFractionDigits).format(displayPrice);
+    return displayCurrency ? `${formattedNumber}${quoteUnit.symbol}` : formattedNumber;
+  }
+
+  if (!displayCurrency) {
+    return getPriceDecimalFormatter(maximumFractionDigits).format(displayPrice);
+  }
+
+  return getPriceCurrencyFormatter(rawCurrency, maximumFractionDigits).format(displayPrice);
+}
+
 export function formatCompactAmount(
   amount: number | string | null | undefined,
   currency: string,
@@ -169,7 +239,7 @@ export function formatPercent(value: number | null | undefined) {
   } catch (error) {
     console.error(`Error formatting percent ${value}: ${error}`);
     // Fallback to simple string conversion if formatting fails
-    return `${value}%`;
+    return `${(value * 100).toFixed(2)}%`;
   }
 }
 

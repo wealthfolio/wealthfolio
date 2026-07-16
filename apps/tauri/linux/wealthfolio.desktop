@@ -1,0 +1,12 @@
+[Desktop Entry]
+Categories={{categories}}
+{{#if comment}}
+Comment={{comment}}
+{{/if}}
+Exec={{exec}} %u
+Icon={{icon}}
+Name={{name}}
+Terminal=false
+Type=Application
+MimeType=x-scheme-handler/wealthfolio;
+StartupNotify=true

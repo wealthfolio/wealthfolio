@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "@wealthfolio/ui";
 import { useAccounts } from "@/hooks/use-accounts";
 import { usePortfolios } from "@/hooks/use-portfolios";
+import { useTranslation } from "react-i18next";
 
 interface IncomeMobileFilterSheetProps {
   open: boolean;
@@ -27,6 +28,7 @@ export const IncomeMobileFilterSheet = ({
   accountFilter,
   onAccountScopeChange,
 }: IncomeMobileFilterSheetProps) => {
+  const { t } = useTranslation();
   const { accounts } = useAccounts();
   const { data: portfolios = [] } = usePortfolios();
 
@@ -44,12 +46,12 @@ export const IncomeMobileFilterSheet = ({
         className="flex h-[70vh] flex-col rounded-t-xl pb-[max(env(safe-area-inset-bottom),0.75rem)]"
       >
         <SheetHeader className="text-left">
-          <SheetTitle>Filter Options</SheetTitle>
+          <SheetTitle>{t("income:filter_options")}</SheetTitle>
         </SheetHeader>
         <ScrollArea className="flex-1 py-4">
           <div className="space-y-3">
             <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-              Account
+              {t("common:account")}
             </h4>
             <div className="overflow-hidden rounded-lg border">
               <div
@@ -61,7 +63,7 @@ export const IncomeMobileFilterSheet = ({
               >
                 <span className="flex items-center gap-2">
                   <Icons.LayoutDashboard className="text-muted-foreground h-4 w-4" />
-                  All Accounts
+                  {t("income:all_accounts")}
                 </span>
                 {isAll && <Icons.Check className="text-primary h-4 w-4" />}
               </div>
@@ -112,7 +114,7 @@ export const IncomeMobileFilterSheet = ({
         </ScrollArea>
         <SheetFooter className="mt-auto">
           <SheetClose asChild>
-            <Button className="w-full">Done</Button>
+            <Button className="w-full">{t("income:done")}</Button>
           </SheetClose>
         </SheetFooter>
       </SheetContent>

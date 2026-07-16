@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Separator } from "@wealthfolio/ui";
 import {
@@ -30,6 +31,7 @@ import { useAssets } from "./hooks/use-assets";
 import { useLatestQuotes } from "./hooks/use-latest-quotes";
 
 export default function AssetsPage() {
+  const { t } = useTranslation();
   const { assets, isLoading } = useAssets();
   const { createAssetMutation, deleteAssetMutation } = useAssetManagement();
   const refetchQuotesMutation = useSyncMarketDataMutation(true);
@@ -70,13 +72,10 @@ export default function AssetsPage() {
 
   return (
     <div className="space-y-6">
-      <SettingsHeader
-        heading="Securities"
-        text="Browse and manage the securities available in your portfolio."
-      >
+      <SettingsHeader heading={t("asset:securities.heading")} text={t("asset:securities.subtitle")}>
         <Button onClick={() => setCreateDialogOpen(true)} size="sm">
           <Icons.Plus className="mr-2 h-4 w-4" />
-          Add Security
+          {t("asset:securities.add_security")}
         </Button>
       </SettingsHeader>
       <Separator />
@@ -131,21 +130,26 @@ export default function AssetsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete security</AlertDialogTitle>
+            <AlertDialogTitle>{t("asset:securities.delete_title")}</AlertDialogTitle>
             <AlertDialogDescription>
               {assetPendingDelete
-                ? `Are you sure you want to delete ${assetPendingDelete.displayCode ?? assetPendingDelete.name ?? "this security"}? This will also remove its related quote and cannot be undone.`
-                : "Are you sure you want to delete this security? This will also remove related quotes and cannot be undone."}
+                ? t("asset:securities.delete_description_named", {
+                    name:
+                      assetPendingDelete.displayCode ??
+                      assetPendingDelete.name ??
+                      t("asset:securities.delete_fallback_name"),
+                  })
+                : t("asset:securities.delete_description_generic")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deleteAssetMutation.isPending}
               className="bg-destructive hover:bg-destructive/90 dark:text-foreground"
             >
-              {deleteAssetMutation.isPending ? "Deleting..." : "Delete"}
+              {deleteAssetMutation.isPending ? t("asset:securities.deleting") : t("common:delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

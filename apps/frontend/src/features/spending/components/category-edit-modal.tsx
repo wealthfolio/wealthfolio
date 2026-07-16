@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import {
   Dialog,
   DialogContent,
@@ -26,19 +28,21 @@ export function CategoryEditModal({
   onSave,
   isLoading,
 }: CategoryEditModalProps) {
+  const { t } = useTranslation();
   const isEditing = !!category;
   const isSubcategory = !!parentCategory;
 
   const getTitle = () => {
-    if (isEditing) return "Edit Category";
-    if (isSubcategory) return "Add Subcategory";
-    return "Add Category";
+    if (isEditing) return t("spending:category.editTitle");
+    if (isSubcategory) return t("spending:category.addSubcategoryTitle");
+    return t("spending:category.addTitle");
   };
 
   const getDescription = () => {
-    if (isEditing) return "Update the category name and color.";
-    if (isSubcategory) return `Add a new subcategory under "${parentCategory?.name}".`;
-    return "Create a new category to organize your transactions.";
+    if (isEditing) return t("spending:category.editDescription");
+    if (isSubcategory)
+      return t("spending:category.addSubcategoryDescription", { name: parentCategory?.name });
+    return t("spending:category.addDescription");
   };
 
   return (

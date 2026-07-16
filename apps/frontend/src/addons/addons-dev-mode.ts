@@ -1,6 +1,8 @@
 import { logger } from "@/adapters";
 import { reloadAllAddons } from "@/addons/addons-core";
-import { createAddonContext } from "./addons-runtime-context";
+import type { AddonManifest } from "@wealthfolio/addon-sdk";
+import { clearAddonContributions, ingestAddonContributions } from "./contribution-registry";
+import { addonIframeManager, type AddonRuntimeHandle } from "./iframe/addon-iframe-manager";
 
 interface DevModeConfig {
   enabled: boolean;
@@ -21,6 +23,7 @@ interface AddonDevServer {
 class AddonDevManager {
   private config: DevModeConfig;
   private devServers = new Map<string, AddonDevServer>();
+  private devAddons = new Map<string, AddonRuntimeHandle>();
   private watchInterval: number | null = null;
   private eventSource: EventSource | null = null;
 
@@ -170,6 +173,16 @@ class AddonDevManager {
       // Execute addon code in development context
       await this.executeAddonCode(addonCode, manifest, addonId);
 
+      // Dev addons don't flow through loadInstalledAddons, so ingest their
+      // manifest contributions here — otherwise a scaffolded addon's declarative
+      // sidebar link (contributes.links) never appears in dev mode, since the
+      // new template registers only the route at runtime. Clear-then-ingest keeps
+      // this idempotent across hot-reloads (a renamed/removed link doesn't linger).
+      clearAddonContributions(addonId);
+      if (manifest) {
+        ingestAddonContributions(addonId, manifest as AddonManifest);
+      }
+
       devServer.status = "running";
       devServer.lastUpdated = new Date();
 
@@ -185,40 +198,24 @@ class AddonDevManager {
   /**
    * Execute addon code in a sandboxed environment
    */
-  private async executeAddonCode(code: string, _manifest: unknown, addonId: string): Promise<void> {
+  private async executeAddonCode(
+    code: string,
+    manifest: Partial<AddonManifest> | null,
+    addonId: string,
+  ): Promise<void> {
     try {
-      // Runtime guard: Verify React singletons are available
-      const g = globalThis as unknown as { ReactDOM?: { createPortal?: unknown } };
-      if (typeof g.ReactDOM?.createPortal !== "function") {
-        throw new Error(
-          "Host did not expose ReactDOM.createPortal. Portal-based UI components will not work.",
-        );
-      }
-
-      // Create a blob URL for the addon code
-      const blob = new Blob([code], { type: "text/javascript" });
-      const blobUrl = URL.createObjectURL(blob);
-
-      // Import and execute the addon
-      const mod = await import(/* @vite-ignore */ blobUrl);
-
-      if (typeof mod.default === "function") {
-        // Create addon-specific context with scoped secrets
-        const addonSpecificContext = createAddonContext(addonId);
-        const addonInstance = mod.default(addonSpecificContext);
-
-        // Store for cleanup
-        if (addonInstance && typeof addonInstance.disable === "function") {
-          const g2 = globalThis as unknown as {
-            __DEV_ADDONS__?: Map<string, { disable?: () => void }>;
-          };
-          g2.__DEV_ADDONS__ = g2.__DEV_ADDONS__ ?? new Map();
-          g2.__DEV_ADDONS__.set(addonId, addonInstance);
-        }
-      }
-
-      // Cleanup blob URL
-      URL.revokeObjectURL(blobUrl);
+      const handle = await addonIframeManager.startAddon({
+        addonId,
+        code,
+        manifest: {
+          id: addonId,
+          name: manifest?.name ?? addonId,
+          version: manifest?.version ?? "0.0.0-dev",
+          ...manifest,
+        },
+        permissions: manifest?.permissions,
+      });
+      this.devAddons.set(addonId, handle);
     } catch (error) {
       logger.error(`Failed to execute addon code for ${addonId}: ${error}`);
       throw error;
@@ -279,18 +276,13 @@ class AddonDevManager {
   private async reloadAddon(addonId: string): Promise<void> {
     try {
       // Clean up existing instance
-      const devAddons = (
-        globalThis as unknown as {
-          __DEV_ADDONS__?: Map<string, { disable?: () => void }>;
-        }
-      ).__DEV_ADDONS__;
-      if (devAddons?.has(addonId)) {
-        const instance = devAddons.get(addonId);
-        if (instance?.disable) {
+      if (this.devAddons.has(addonId)) {
+        const instance = this.devAddons.get(addonId);
+        if (instance) {
           logger.info(`🧹 Cleaning up old instance of ${addonId}`);
-          instance.disable();
+          await instance.disable();
         }
-        devAddons.delete(addonId);
+        this.devAddons.delete(addonId);
       }
 
       // Also clean up from the main addon loader
@@ -351,7 +343,7 @@ class AddonDevManager {
    */
   private injectDevTools(): void {
     // Add development-specific APIs to a generic context
-    const devCtx = createAddonContext("dev-tools");
+    const devCtx = {};
     (
       devCtx as unknown as {
         dev?: {
@@ -382,20 +374,13 @@ class AddonDevManager {
       this.eventSource = null;
     }
 
-    // Clean up dev addon instances
-    const devAddons = (
-      globalThis as unknown as {
-        __DEV_ADDONS__?: Map<string, { disable?: () => void }>;
-      }
-    ).__DEV_ADDONS__;
-    if (devAddons) {
-      for (const [, instance] of devAddons) {
-        if (instance.disable) {
-          instance.disable();
-        }
-      }
-      devAddons.clear();
+    for (const [addonId, instance] of this.devAddons) {
+      void instance.disable();
+      // Drop the durable nav/routes ingested on load so disabling dev mode
+      // doesn't leave a stale sidebar entry behind.
+      clearAddonContributions(addonId);
     }
+    this.devAddons.clear();
   }
 
   /**
@@ -464,11 +449,24 @@ export const addonDevManager = new AddonDevManager();
 
 // Make debugging tools available globally in development mode
 if (import.meta.env.DEV) {
-  // Make available globally for debugging (dev only)
-  (globalThis as unknown as { __ADDON_DEV__?: unknown }).__ADDON_DEV__ = addonDevManager;
-
-  // Add global helper functions (dev only)
-  (globalThis as unknown as { discoverAddons?: () => void }).discoverAddons = () =>
-    addonDevManager.discoverAndRegister();
-  (globalThis as unknown as { reloadAddons?: () => void }).reloadAddons = () => reloadAllAddons();
+  Object.defineProperties(globalThis, {
+    __ADDON_DEV__: {
+      configurable: true,
+      enumerable: false,
+      value: addonDevManager,
+      writable: false,
+    },
+    discoverAddons: {
+      configurable: true,
+      enumerable: false,
+      value: () => addonDevManager.discoverAndRegister(),
+      writable: false,
+    },
+    reloadAddons: {
+      configurable: true,
+      enumerable: false,
+      value: () => reloadAllAddons(),
+      writable: false,
+    },
+  });
 }

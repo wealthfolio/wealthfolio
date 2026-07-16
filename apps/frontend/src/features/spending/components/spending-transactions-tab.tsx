@@ -10,9 +10,10 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import type { DateRange } from "react-day-picker";
 
-import { createActivity, deleteActivity } from "@/adapters";
+import { createActivity, deleteActivity, updateActivity } from "@/adapters";
 import { generateId } from "@/lib/id";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useIsMobileViewport } from "@/hooks/use-platform";
@@ -21,6 +22,7 @@ import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { QueryKeys } from "@/lib/query-keys";
 import { formatDateISO } from "@/lib/utils";
 import type { Account, ActivityDetails, TaxonomyCategory } from "@/lib/types";
+import { useSettingsContext } from "@/lib/settings-provider";
 
 import {
   Button,
@@ -45,6 +47,7 @@ import type { AmountRange } from "./amount-range-filter";
 import { DeleteTransactionsDialog, type DeletePreview } from "./delete-transactions-dialog";
 import { TransactionCard } from "./transaction-card";
 import { TransactionRow } from "./transaction-row";
+import { SplitTransactionSheet } from "./split-transaction-sheet";
 import { TransactionsBulkBar } from "./transactions-bulk-bar";
 import { TransactionsFilterBar, type FilterOption } from "./transactions-filter-bar";
 import type { QuickCategorizeScope } from "./quick-categorize-popover";
@@ -57,7 +60,6 @@ import {
 } from "../lib/constants";
 import {
   isTransferCashActivity,
-  pluralizeActivity,
   stableArr,
   toRowVM,
   type TransactionRowVM,
@@ -66,13 +68,19 @@ import { useCashActivitySearch } from "../hooks/use-cash-activity-search";
 import {
   useAssignActivityCategory,
   useBulkAssignCategories,
+  useClearActivitySplits,
+  useReplaceActivitySplits,
   useSetActivityEvent,
   useUnassignActivityCategory,
 } from "../hooks/use-cash-activities";
 import { useEventTypes, useSpendingEvents } from "../hooks/use-spending-events";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import { invalidateSpendingCaches } from "../lib/invalidation";
-import type { CashActivitySearchRequest, CashActivityStatusFilter } from "../types/cash-activity";
+import type {
+  CashActivitySearchRequest,
+  CashActivityStatusFilter,
+  NewActivitySplit,
+} from "../types/cash-activity";
 
 const SPENDING_TAXONOMY = "spending_categories";
 const INCOME_TAXONOMY = "income_sources";
@@ -178,6 +186,7 @@ function toActivityDetails(row: TransactionRowVM, account?: Account): Partial<Ac
 
 export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>(
   function SpendingTransactionsTab(_, ref) {
+    const { t } = useTranslation();
     const [searchParams, setSearchParams] = useSearchParams();
     const urlCategoryId = searchParams.get("category");
     const urlSubcategoryId = searchParams.get("subcategory");
@@ -193,9 +202,12 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const urlAmountMax = searchParams.get("amountMax");
 
     const qc = useQueryClient();
+    const { settings } = useSettingsContext();
+    const appTimezone = settings?.timezone?.trim() || undefined;
     const applyingUrlParamsRef = useRef(false);
 
     const [editingActivity, setEditingActivity] = useState<TransactionRowVM | undefined>();
+    const [splittingActivity, setSplittingActivity] = useState<TransactionRowVM | null>(null);
     const [showForm, setShowForm] = useState(false);
     const [showTransferForm, setShowTransferForm] = useState(false);
     const [transferFormActivity, setTransferFormActivity] = useState<
@@ -390,6 +402,8 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const assignMutation = useAssignActivityCategory();
     const bulkAssignMutation = useBulkAssignCategories();
     const unassignMutation = useUnassignActivityCategory();
+    const replaceSplitsMutation = useReplaceActivitySplits();
+    const clearSplitsMutation = useClearActivitySplits();
     const setEventMutation = useSetActivityEvent();
 
     const allCategories = useMemo(() => {
@@ -530,7 +544,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       setSelectedRowIds(new Set());
     }
 
-    const duplicateMutation = useMutation({
+    const { mutate: duplicateTransaction } = useMutation({
       mutationFn: async (row: TransactionRowVM) => {
         const a = row.activity;
         return createActivity({
@@ -541,22 +555,58 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           amount: a.amount,
           activityDate:
             typeof a.activityDate === "string" ? a.activityDate : new Date().toISOString(),
-          comment: "Duplicated",
+          comment: t("spending:txTab.duplicatedComment"),
         });
       },
       onSuccess: () => {
         invalidateSpendingCaches(qc);
         qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITIES] });
         qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] });
-        toast.success("Transaction duplicated.");
+        toast.success(t("spending:txTab.duplicated"));
       },
-      onError: () => toast.error("Failed to duplicate transaction."),
+      onError: () => toast.error(t("spending:txTab.duplicateFailed")),
     });
 
     const handleDuplicate = useCallback(
-      (row: TransactionRowVM) => duplicateMutation.mutate(row),
-      [duplicateMutation],
+      (row: TransactionRowVM) => duplicateTransaction(row),
+      [duplicateTransaction],
     );
+
+    const markReimbursementMutation = useMutation({
+      mutationFn: async (row: TransactionRowVM) => {
+        const a = row.activity;
+        return updateActivity({
+          id: a.id,
+          accountId: a.accountId,
+          activityType: "CREDIT",
+          subtype: "REIMBURSEMENT",
+          activityDate: a.activityDate,
+          amount: Math.abs(Number.parseFloat(a.amount ?? "0")),
+          currency: a.currency,
+          comment: a.notes ?? null,
+        });
+      },
+      onSuccess: (_, row) => {
+        invalidateSpendingCaches(qc);
+        qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITIES] });
+        qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] });
+        const updatedRow: TransactionRowVM = {
+          ...row,
+          activity: {
+            ...row.activity,
+            activityType: "CREDIT",
+            subtype: "REIMBURSEMENT",
+            cashFlowBucket: "spending",
+          },
+          category: null,
+          splitCount: 0,
+        };
+        setEditingActivity(updatedRow);
+        setShowForm(true);
+        toast.success(t("spending:txTab.markedReimbursement"));
+      },
+      onError: () => toast.error(t("spending:txTab.markReimbursementFailed")),
+    });
 
     const deleteMutation = useMutation({
       mutationFn: async (ids: string[]) => {
@@ -569,13 +619,13 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         qc.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] });
         const ok = results.filter((r) => r.status === "fulfilled").length;
         const failed = results.length - ok;
-        if (ok > 0) toast.success(`Deleted ${ok} ${pluralizeActivity(ok)}.`);
-        if (failed > 0) toast.error(`Failed to delete ${failed} ${pluralizeActivity(failed)}.`);
+        if (ok > 0) toast.success(t("spending:txTab.deletedCount", { count: ok }));
+        if (failed > 0) toast.error(t("spending:txTab.deleteFailedCount", { count: failed }));
         setDeletingIds(null);
         setDeletePreview(undefined);
         setSelectedRowIds(new Set());
       },
-      onError: () => toast.error("Failed to delete activities."),
+      onError: () => toast.error(t("spending:txTab.deleteFailed")),
     });
 
     const handleBulkCategorize = useCallback(
@@ -586,13 +636,13 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           const result = await bulkAssignMutation.mutateAsync(
             ids.map((activityId) => ({ activityId, taxonomyId, categoryId })),
           );
-          toast.success(`Categorized ${result.length} ${pluralizeActivity(result.length)}.`);
+          toast.success(t("spending:txTab.categorizedCount", { count: result.length }));
         } catch {
           // Hook already toasts on error.
         }
         setSelectedRowIds(new Set());
       },
-      [selectedRowIds, bulkAssignMutation],
+      [selectedRowIds, bulkAssignMutation, t],
     );
 
     const handleBulkSetEvent = useCallback(
@@ -603,12 +653,17 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         );
         const ok = results.filter((r) => r.status === "fulfilled").length;
         const failed = results.length - ok;
-        const verb = eventId ? "Tagged" : "Cleared event from";
-        if (ok > 0) toast.success(`${verb} ${ok} ${pluralizeActivity(ok)}.`);
-        if (failed > 0) toast.error(`Failed on ${failed} ${pluralizeActivity(failed)}.`);
+        if (ok > 0) {
+          toast.success(
+            eventId
+              ? t("spending:txTab.taggedCount", { count: ok })
+              : t("spending:txTab.clearedEventCount", { count: ok }),
+          );
+        }
+        if (failed > 0) toast.error(t("spending:txTab.failedOnCount", { count: failed }));
         setSelectedRowIds(new Set());
       },
-      [selectedRowIds, setEventMutation],
+      [selectedRowIds, setEventMutation, t],
     );
 
     const clearSelection = useCallback(() => setSelectedRowIds(new Set()), []);
@@ -630,6 +685,20 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         setEventMutation.mutate({ activityId, eventId });
       },
       [setEventMutation],
+    );
+    const handleSaveSplits = useCallback(
+      async (activityId: string, splits: NewActivitySplit[]) => {
+        await replaceSplitsMutation.mutateAsync({ activityId, splits });
+        toast.success(t("spending:txTab.splitSaved"));
+      },
+      [replaceSplitsMutation, t],
+    );
+    const handleClearSplits = useCallback(
+      async (activityId: string) => {
+        await clearSplitsMutation.mutateAsync({ activityId });
+        toast.success(t("spending:txTab.splitCleared"));
+      },
+      [clearSplitsMutation, t],
     );
 
     const handleEditRow = useCallback(
@@ -762,10 +831,10 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         {isFetchingNextPage ? (
           <>
             <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-            Loading…
+            {t("spending:txTab.loading")}
           </>
         ) : (
-          `Load more (${totalCount - rows.length} remaining)`
+          t("spending:txTab.loadMore", { count: totalCount - rows.length })
         )}
       </Button>
     ) : null;
@@ -783,11 +852,14 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
             account={accountById.get(r.activity.accountId)}
             event={ev ?? null}
             eventTypeColor={eventTypeColor}
+            appTimezone={appTimezone}
             isSelected={selectedRowIds.has(r.activity.id)}
             onToggleSelect={handleToggleRow}
             onAssignCategory={handleAssignCategory}
             onClearCategory={handleClearCategory}
             onSetEvent={handleSetEvent}
+            onMarkReimbursement={(row) => markReimbursementMutation.mutate(row)}
+            onEditSplits={setSplittingActivity}
             onEdit={handleEditRow}
             onDuplicate={handleDuplicate}
             onDelete={handleDeleteRow}
@@ -866,31 +938,29 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         ) : isError ? (
           <EmptyPlaceholder>
             <EmptyPlaceholder.Icon name="AlertTriangle" />
-            <EmptyPlaceholder.Title>Transactions could not load</EmptyPlaceholder.Title>
+            <EmptyPlaceholder.Title>{t("spending:txTab.loadErrorTitle")}</EmptyPlaceholder.Title>
             <EmptyPlaceholder.Description>
-              {error?.message ?? "Try refreshing the list."}
+              {error?.message ?? t("spending:txTab.tryRefreshing")}
             </EmptyPlaceholder.Description>
             <Button variant="outline" onClick={() => void refetch()}>
-              Retry
+              {t("common:retry")}
             </Button>
           </EmptyPlaceholder>
         ) : rows.length === 0 ? (
           <EmptyPlaceholder>
             <EmptyPlaceholder.Icon name="Activity" />
-            <EmptyPlaceholder.Title>No transactions</EmptyPlaceholder.Title>
+            <EmptyPlaceholder.Title>{t("spending:txTab.noTransactions")}</EmptyPlaceholder.Title>
             <EmptyPlaceholder.Description>
-              {filtersActive
-                ? "No cash activity matches your filters."
-                : "Add your first transaction to get started."}
+              {filtersActive ? t("spending:txTab.noMatchFilters") : t("spending:txTab.addFirst")}
             </EmptyPlaceholder.Description>
             {filtersActive ? (
               <Button variant="outline" onClick={clearAllFilters}>
-                Clear filters
+                {t("spending:txTab.clearFilters")}
               </Button>
             ) : (
               <Button onClick={openAddForm}>
                 <Icons.Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Add transaction
+                {t("spending:txTab.addTransaction")}
               </Button>
             )}
           </EmptyPlaceholder>
@@ -905,11 +975,11 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
                   onCheckedChange={toggleSelectAllVisible}
                   aria-label={
                     allVisibleSelected
-                      ? "Deselect all visible transactions"
-                      : "Select all visible transactions"
+                      ? t("spending:txTab.deselectAllVisible")
+                      : t("spending:txTab.selectAllVisible")
                   }
                 />
-                <span className="text-muted-foreground text-xs">Select all</span>
+                <span className="text-muted-foreground text-xs">{t("common:select_all")}</span>
               </div>
             )}
             {renderRows()}
@@ -928,18 +998,22 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
                       onCheckedChange={toggleSelectAllVisible}
                       aria-label={
                         allVisibleSelected
-                          ? "Deselect all visible transactions"
-                          : "Select all visible transactions"
+                          ? t("spending:txTab.deselectAllVisible")
+                          : t("spending:txTab.selectAllVisible")
                       }
                     />
                   </TableHead>
-                  <TableHead className="hidden sm:table-cell">Date</TableHead>
-                  <TableHead className="hidden md:table-cell">Type</TableHead>
-                  <TableHead className="hidden lg:table-cell">Account</TableHead>
-                  <TableHead>Name / Notes</TableHead>
-                  <TableHead className="hidden md:table-cell">Category</TableHead>
-                  <TableHead className="hidden lg:table-cell">Event</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t("common:date")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("common:type")}</TableHead>
+                  <TableHead className="hidden lg:table-cell">{t("common:account")}</TableHead>
+                  <TableHead>{t("spending:txTab.nameNotes")}</TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    {t("spending:filters.category")}
+                  </TableHead>
+                  <TableHead className="hidden lg:table-cell">
+                    {t("spending:filters.event")}
+                  </TableHead>
+                  <TableHead className="text-right">{t("common:amount")}</TableHead>
                   <TableHead className="w-12" />
                 </TableRow>
               </TableHeader>
@@ -959,6 +1033,18 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           onOpenChange={setShowForm}
           activity={editingActivityForForm}
           onTransferClick={handleTransferClick}
+        />
+
+        <SplitTransactionSheet
+          open={!!splittingActivity}
+          row={splittingActivity}
+          categories={allCategories}
+          isSaving={replaceSplitsMutation.isPending || clearSplitsMutation.isPending}
+          onOpenChange={(open) => {
+            if (!open) setSplittingActivity(null);
+          }}
+          onSave={handleSaveSplits}
+          onClear={handleClearSplits}
         />
 
         {showTransferForm &&

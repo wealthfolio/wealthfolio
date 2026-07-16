@@ -82,8 +82,10 @@ fn sync_entity_name(entity: &SyncEntity) -> &'static str {
         SyncEntity::PortfolioAccount => "portfolio_account",
         SyncEntity::AllocationTarget => "allocation_target",
         SyncEntity::AllocationTargetWeight => "allocation_target_weight",
+        SyncEntity::AllocationTargetConstraint => "allocation_target_constraint",
         SyncEntity::SpendingSetting => "spending_setting",
         SyncEntity::ActivityTaxonomyAssignment => "activity_taxonomy_assignment",
+        SyncEntity::SpendingActivitySplit => "spending_activity_split",
         SyncEntity::SpendingActivityEvent => "spending_activity_event",
         SyncEntity::SpendingCategorizationRule => "spending_categorization_rule",
         SyncEntity::SpendingPresetRuleDeletion => "spending_preset_rule_deletion",
@@ -93,6 +95,7 @@ fn sync_entity_name(entity: &SyncEntity) -> &'static str {
         SyncEntity::BudgetGroupAssignment => "budget_group_assignment",
         SyncEntity::BudgetTarget => "budget_target",
         SyncEntity::BudgetRolloverSetting => "budget_rollover_setting",
+        SyncEntity::AddonStorage => "addon_storage",
     }
 }
 

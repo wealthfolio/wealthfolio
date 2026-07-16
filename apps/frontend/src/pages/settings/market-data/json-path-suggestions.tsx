@@ -12,6 +12,13 @@ export interface PathEntry {
   raw?: string;
 }
 
+const DOT_NOTATION_KEY = /^(?!length\(\)$)[A-Za-z0-9_#/\\-]+$/;
+
+/** Append an object key using syntax accepted by the backend JSONPath parser. */
+export function appendJsonPathKey(path: string, key: string): string {
+  return DOT_NOTATION_KEY.test(key) ? `${path}.${key}` : `${path}[${JSON.stringify(key)}]`;
+}
+
 /** Recursively collect all numeric leaf paths from a parsed JSON value.
  *  For arrays, generates both `[0]` (specific) and `[*]` (all elements) paths.
  *  The `[*]` variant is shown first for arrays with homogeneous structure. */
@@ -34,7 +41,7 @@ export function walkJson(value: unknown, path = "$"): PathEntry[] {
     return [...wildcardEntries, ...specificEntries];
   }
   if (typeof value === "object" && value !== null) {
-    return Object.entries(value).flatMap(([k, v]) => walkJson(v, `${path}.${k}`));
+    return Object.entries(value).flatMap(([k, v]) => walkJson(v, appendJsonPathKey(path, k)));
   }
   return [];
 }

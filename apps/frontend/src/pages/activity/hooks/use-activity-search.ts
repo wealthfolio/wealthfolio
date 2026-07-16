@@ -16,6 +16,8 @@ export interface ActivitySearchFilters {
   /** Inclusive date bounds (YYYY-MM-DD) — used by Health Center deeplinks. */
   dateFrom?: string;
   dateTo?: string;
+  /** Exact activity ids — used by Health Center deep-links to one transaction. */
+  activityIds?: string[];
 }
 
 interface BaseOptions {
@@ -99,6 +101,7 @@ export function useActivitySearch(options: UseActivitySearchOptions): UseActivit
       needsReview,
       dateFrom: filters.dateFrom,
       dateTo: filters.dateTo,
+      activityIds: filters.activityIds?.length ? filters.activityIds : undefined,
     } as Record<string, unknown>;
   }, [
     filters.accountIds,
@@ -107,6 +110,7 @@ export function useActivitySearch(options: UseActivitySearchOptions): UseActivit
     filters.status,
     filters.dateFrom,
     filters.dateTo,
+    filters.activityIds,
   ]);
 
   const primarySort = useMemo(

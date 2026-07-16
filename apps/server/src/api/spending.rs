@@ -13,6 +13,7 @@ use crate::{
 };
 use wealthfolio_core::activities::Activity;
 use wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignment;
+use wealthfolio_spending::activity_splits::{ActivitySplit, NewActivitySplit};
 use wealthfolio_spending::analytics::{
     EventSpendingSummary, EventSummariesRequest, MonthlyReport, ReportRequest,
 };
@@ -223,6 +224,40 @@ async fn unassign_activity_category(
     state
         .cash_activity_service
         .unassign_category(&activity_id, &taxonomy_id)
+        .await?;
+    Ok(())
+}
+
+async fn get_activity_splits(
+    State(state): State<Arc<AppState>>,
+    Path(activity_id): Path<String>,
+) -> ApiResult<Json<Vec<ActivitySplit>>> {
+    let rows = state
+        .cash_activity_service
+        .list_splits(&activity_id)
+        .await?;
+    Ok(Json(rows))
+}
+
+async fn replace_activity_splits(
+    State(state): State<Arc<AppState>>,
+    Path(activity_id): Path<String>,
+    Json(body): Json<Vec<NewActivitySplit>>,
+) -> ApiResult<Json<Vec<ActivitySplit>>> {
+    let rows = state
+        .cash_activity_service
+        .replace_splits(&activity_id, body)
+        .await?;
+    Ok(Json(rows))
+}
+
+async fn clear_activity_splits(
+    State(state): State<Arc<AppState>>,
+    Path(activity_id): Path<String>,
+) -> ApiResult<()> {
+    state
+        .cash_activity_service
+        .clear_splits(&activity_id)
         .await?;
     Ok(())
 }
@@ -707,6 +742,12 @@ pub fn router() -> Router<Arc<AppState>> {
         .route(
             "/spending/activities/{activity_id}/assignments/{taxonomy_id}",
             delete(unassign_activity_category),
+        )
+        .route(
+            "/spending/activities/{activity_id}/splits",
+            get(get_activity_splits)
+                .put(replace_activity_splits)
+                .delete(clear_activity_splits),
         )
         .route("/spending/assignments/bulk", post(bulk_assign_categories))
         .route(

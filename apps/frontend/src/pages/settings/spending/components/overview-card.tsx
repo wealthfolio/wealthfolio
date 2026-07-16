@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import {
@@ -42,18 +43,23 @@ export function OverviewCard({
   description,
   chips,
   manageHref,
-  manageLabel = "Manage",
+  manageLabel,
   emptyTitle,
   emptyDescription,
   emptyCtaLabel,
   isLoading = false,
   isError = false,
-  errorTitle = "Could not load",
-  errorDescription = "Try again from the manage page.",
+  errorTitle,
+  errorDescription,
   maxVisible = 7,
   showDistribution = false,
   chipShape = "pill",
 }: OverviewCardProps) {
+  const { t } = useTranslation();
+  const resolvedManageLabel = manageLabel ?? t("settings:spending.overview.manage");
+  const resolvedErrorTitle = errorTitle ?? t("settings:spending.overview.error_title");
+  const resolvedErrorDescription =
+    errorDescription ?? t("settings:spending.overview.error_description");
   const visible = chips.slice(0, maxVisible);
   const overflow = Math.max(0, chips.length - visible.length);
   const isEmpty = !isLoading && chips.length === 0;
@@ -73,7 +79,7 @@ export function OverviewCard({
             to={manageHref}
             className="text-foreground hover:text-foreground/80 group inline-flex shrink-0 items-center gap-1 text-xs font-medium"
           >
-            {manageLabel}
+            {resolvedManageLabel}
             <Icons.ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
           </Link>
         )}
@@ -85,8 +91,8 @@ export function OverviewCard({
           <div className="flex items-start gap-3 py-2">
             <Icons.AlertTriangle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
             <div>
-              <div className="text-foreground text-sm font-medium">{errorTitle}</div>
-              <p className="text-muted-foreground text-xs">{errorDescription}</p>
+              <div className="text-foreground text-sm font-medium">{resolvedErrorTitle}</div>
+              <p className="text-muted-foreground text-xs">{resolvedErrorDescription}</p>
             </div>
           </div>
         ) : isEmpty ? (
@@ -151,7 +157,9 @@ export function OverviewCard({
                 ),
               )}
               {overflow > 0 && (
-                <span className="text-muted-foreground text-xs">+{overflow} more</span>
+                <span className="text-muted-foreground text-xs">
+                  {t("settings:spending.overview.more", { count: overflow })}
+                </span>
               )}
             </div>
           </div>

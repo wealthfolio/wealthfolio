@@ -3,6 +3,9 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { formatDistanceToNow } from "date-fns";
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import type { AggregatedSyncStatus } from "../types";
 
 interface SyncSummaryCardProps {
@@ -14,16 +17,20 @@ interface SyncSummaryCardProps {
   isSyncing: boolean;
 }
 
-const statusConfig: Record<
+function buildStatusConfig(
+  t: TFunction,
+): Record<
   AggregatedSyncStatus,
   { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
-> = {
-  not_connected: { label: "Not Connected", variant: "secondary" },
-  idle: { label: "Up to Date", variant: "default" },
-  running: { label: "Syncing...", variant: "outline" },
-  needs_review: { label: "Needs Review", variant: "destructive" },
-  failed: { label: "Failed", variant: "destructive" },
-};
+> {
+  return {
+    not_connected: { label: t("connect:status.notConnected"), variant: "secondary" },
+    idle: { label: t("connect:status.upToDate"), variant: "default" },
+    running: { label: t("connect:status.syncingEllipsis"), variant: "outline" },
+    needs_review: { label: t("connect:status.needsReview"), variant: "destructive" },
+    failed: { label: t("connect:status.failed"), variant: "destructive" },
+  };
+}
 
 export function SyncSummaryCard({
   status,
@@ -32,12 +39,14 @@ export function SyncSummaryCard({
   onSyncAll,
   isSyncing,
 }: SyncSummaryCardProps) {
+  const { t } = useTranslation();
+  const statusConfig = useMemo(() => buildStatusConfig(t), [t]);
   const config = statusConfig[status];
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-base font-medium">Sync Status</CardTitle>
+        <CardTitle className="text-base font-medium">{t("connect:sync.statusTitle")}</CardTitle>
         <Badge variant={config.variant}>{config.label}</Badge>
       </CardHeader>
       <CardContent>
@@ -45,12 +54,14 @@ export function SyncSummaryCard({
           <div className="space-y-1">
             <p className="text-muted-foreground text-sm">
               {lastSyncTime
-                ? `Last synced ${formatDistanceToNow(new Date(lastSyncTime), { addSuffix: true })}`
-                : "Never synced"}
+                ? t("connect:status.lastSynced", {
+                    time: formatDistanceToNow(new Date(lastSyncTime), { addSuffix: true }),
+                  })
+                : t("connect:status.neverSynced")}
             </p>
             {issueCount > 0 && (
               <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                {issueCount} {issueCount === 1 ? "account" : "accounts"} need attention
+                {t("connect:sync.needAttention", { count: issueCount })}
               </p>
             )}
           </div>
@@ -58,12 +69,12 @@ export function SyncSummaryCard({
             {isSyncing || status === "running" ? (
               <>
                 <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                Syncing...
+                {t("connect:sync.syncingShort")}
               </>
             ) : (
               <>
                 <Icons.RefreshCw className="mr-2 h-4 w-4" />
-                Sync All
+                {t("connect:sync.syncAll")}
               </>
             )}
           </Button>

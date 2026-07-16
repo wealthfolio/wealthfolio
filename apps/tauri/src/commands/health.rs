@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
 use crate::context::ServiceContext;
-use crate::events::{MarketSyncResult, MARKET_SYNC_COMPLETE, MARKET_SYNC_ERROR, MARKET_SYNC_START};
+use crate::events::{
+    emit_portfolio_trigger_recalculate, MarketSyncResult, PortfolioRequestPayload,
+    MARKET_SYNC_COMPLETE, MARKET_SYNC_ERROR, MARKET_SYNC_START,
+};
 use log::{debug, error, info, warn};
 use tauri::{AppHandle, Emitter, State};
 use wealthfolio_core::health::{FixAction, HealthConfig, HealthServiceTrait, HealthStatus};
-use wealthfolio_core::quotes::SyncMode;
+use wealthfolio_core::quotes::{MarketSyncMode, SyncMode};
 
 /// Get current health status (cached or fresh check).
 #[tauri::command]
@@ -57,6 +60,7 @@ async fn run_health_checks_internal(
             state.asset_service(),
             state.taxonomy_service(),
             state.valuation_service(),
+            state.snapshot_service(),
             state.activity_service(),
             state.lots_repository.clone(),
             Some(configured_timezone.as_str()),
@@ -138,13 +142,6 @@ pub async fn execute_health_fix(
             asset_ids
         );
 
-        // Reset error counts so the sync won't skip these assets
-        let quote_service = state.quote_service();
-        quote_service
-            .reset_sync_errors(&asset_ids)
-            .await
-            .map_err(|e| format!("Failed to reset sync errors: {}", e))?;
-
         if let Err(e) = app_handle.emit(MARKET_SYNC_START, &()) {
             error!("Failed to emit market:sync-start event: {}", e);
         }
@@ -168,6 +165,7 @@ pub async fn execute_health_fix(
                 let result_payload = MarketSyncResult {
                     failed_syncs: result.failures,
                     skipped_reasons,
+                    show_skipped_reasons: true,
                 };
                 if let Err(e) = app_handle.emit(MARKET_SYNC_COMPLETE, &result_payload) {
                     error!("Failed to emit market:sync-complete event: {}", e);
@@ -183,6 +181,33 @@ pub async fn execute_health_fix(
 
         // Clear health cache so next check reflects the sync results
         state.health_service().clear_cache().await;
+
+        return Ok(());
+    }
+
+    // Handle rebuild_account_history - trigger an account-scoped full recalculation
+    // by reusing the existing portfolio recalculation pipeline (which maps the
+    // recalculate trigger to SnapshotRecalcMode::Full for the given accounts).
+    if action.id == "rebuild_account_history" {
+        let account_ids: Vec<String> = serde_json::from_value(action.payload.clone())
+            .map_err(|e| format!("Failed to parse account IDs: {}", e))?;
+        if account_ids.is_empty() {
+            return Err("No accounts selected for history rebuild".to_string());
+        }
+
+        info!(
+            "Rebuilding account history for {} account(s): {:?}",
+            account_ids.len(),
+            account_ids
+        );
+
+        // Incremental market sync (prices/valuations were already fixed by the
+        // user); the recalculate trigger performs the full snapshot rebuild.
+        let payload = PortfolioRequestPayload::builder()
+            .account_ids(Some(account_ids))
+            .market_sync_mode(MarketSyncMode::Incremental { asset_ids: None })
+            .build();
+        emit_portfolio_trigger_recalculate(&app_handle, payload);
 
         return Ok(());
     }

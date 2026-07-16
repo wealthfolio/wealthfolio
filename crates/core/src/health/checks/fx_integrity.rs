@@ -6,7 +6,10 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 
 use crate::errors::Result;
-use crate::health::model::{AffectedItem, FixAction, HealthCategory, HealthIssue, Severity};
+use crate::health::model::{
+    AffectedItem, DiagnosticDomain, Evidence, HealthCategory, HealthDiagnostic, HealthEntityRef,
+    HealthIssue, NavigateAction, Severity,
+};
 use crate::health::traits::{HealthCheck, HealthContext};
 
 /// Data about a currency pair needed for FX checks.
@@ -114,13 +117,23 @@ impl FxIntegrityCheck {
                     .id(format!("fx_missing:{}", data_hash))
                     .severity(severity)
                     .category(HealthCategory::FxIntegrity)
+                    .code("fx_missing")
+                    .param("count", count as u32)
+                    .param("currency", missing_pairs[0].from_currency.clone())
                     .title(title)
                     .message(
                         "We can't convert some holdings to your base currency. This affects your total portfolio value.",
                     )
                     .affected_count(count as u32)
                     .affected_mv_pct(mv_pct)
-                    .fix_action(FixAction::fetch_fx(pair_ids))
+                    .diagnostics(vec![fx_diagnostic(
+                        &missing_pairs,
+                        "MISSING_FX_RATE",
+                        "Missing exchange rate",
+                        "No exchange rate is on record for these currency pairs, so holdings in \
+                         those currencies can't be converted to your base currency.",
+                    )])
+                    .navigate_action(NavigateAction::to_market_data())
                     .affected_items(affected_items)
                     .data_hash(data_hash)
                     .build(),
@@ -168,13 +181,22 @@ impl FxIntegrityCheck {
                     .id(format!("fx_stale:error:{}", data_hash))
                     .severity(severity)
                     .category(HealthCategory::FxIntegrity)
+                    .code("fx_stale_error")
+                    .param("count", count as u32)
                     .title(title)
                     .message(
                         "Some exchange rates haven't been updated in over 3 days. Currency conversions may be inaccurate.",
                     )
                     .affected_count(count as u32)
                     .affected_mv_pct(mv_pct)
-                    .fix_action(FixAction::fetch_fx(pair_ids))
+                    .diagnostics(vec![fx_diagnostic(
+                        &stale_error_pairs,
+                        "STALE_FX_RATE",
+                        "Outdated exchange rate",
+                        "These exchange rates are more than 3 days old, so currency conversions \
+                         for the affected holdings may be inaccurate.",
+                    )])
+                    .navigate_action(NavigateAction::to_market_data())
                     .affected_items(affected_items)
                     .data_hash(data_hash)
                     .build(),
@@ -222,13 +244,22 @@ impl FxIntegrityCheck {
                     .id(format!("fx_stale:warning:{}", data_hash))
                     .severity(severity)
                     .category(HealthCategory::FxIntegrity)
+                    .code("fx_stale_warning")
+                    .param("count", count as u32)
                     .title(title)
                     .message(
                         "Some exchange rates haven't been updated recently. Consider refreshing rates.",
                     )
                     .affected_count(count as u32)
                     .affected_mv_pct(mv_pct)
-                    .fix_action(FixAction::fetch_fx(pair_ids))
+                    .diagnostics(vec![fx_diagnostic(
+                        &stale_warning_pairs,
+                        "STALE_FX_RATE",
+                        "Exchange rate update needed",
+                        "These exchange rates haven't been refreshed recently; conversions for the \
+                         affected holdings may drift until they are updated.",
+                    )])
+                    .navigate_action(NavigateAction::to_market_data())
                     .affected_items(affected_items)
                     .data_hash(data_hash)
                     .build(),
@@ -237,6 +268,34 @@ impl FxIntegrityCheck {
 
         issues
     }
+}
+
+/// Builds a structured diagnostic for an FX issue: one evidence row per pair
+/// (pair, rate freshness, affected market value) plus a navigation action to the
+/// market-data settings where rates are managed.
+fn fx_diagnostic(
+    pairs: &[&FxPairInfo],
+    code: &str,
+    title: &str,
+    explanation: &str,
+) -> HealthDiagnostic {
+    let mut diagnostic =
+        HealthDiagnostic::new(code, title, explanation).domain(DiagnosticDomain::Fx);
+    for pair in pairs {
+        let rate_state = match pair.latest_quote_time {
+            Some(ts) => format!("last rate {}", ts.format("%Y-%m-%d")),
+            None => "no rate on record".to_string(),
+        };
+        let label = format!("{} → {}", pair.from_currency, pair.to_currency);
+        let value = format!(
+            "{rate_state} · affects ~{:.0} in base currency",
+            pair.affected_mv
+        );
+        diagnostic = diagnostic
+            .entity(HealthEntityRef::new("currencyPair", pair.pair_id.clone()).label(label.clone()))
+            .evidence(Evidence::new(label, value));
+    }
+    diagnostic.navigate(true, NavigateAction::to_market_data())
 }
 
 impl Default for FxIntegrityCheck {
@@ -300,6 +359,18 @@ mod tests {
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].severity, Severity::Error);
         assert_eq!(issues[0].category, HealthCategory::FxIntegrity);
+
+        // The old unimplemented FX fetch fix action must not be shown; the issue
+        // routes to market-data settings and carries a MISSING_FX_RATE diagnostic
+        // with per-pair evidence.
+        assert!(issues[0].fix_action.is_none());
+        assert!(issues[0].navigate_action.is_some());
+        let diagnostics = issues[0].diagnostics.as_ref().expect("fx diagnostics");
+        assert_eq!(diagnostics[0].code, "MISSING_FX_RATE");
+        assert!(diagnostics[0]
+            .evidence
+            .iter()
+            .any(|e| e.label.contains("EUR → USD")));
     }
 
     #[test]

@@ -9,25 +9,8 @@ import {
   Icons,
 } from "@wealthfolio/ui";
 import type { Table } from "@tanstack/react-table";
+import { useTranslation } from "react-i18next";
 import type { ChangesSummary, LocalTransaction } from "./types";
-
-// Column display names for the visibility menu
-const COLUMN_DISPLAY_NAMES: Record<string, string> = {
-  activityType: "Type",
-  subtype: "Subtype",
-  activityStatus: "Status",
-  date: "Date & Time",
-  assetSymbol: "Symbol",
-  quantity: "Quantity",
-  unitPrice: "Price",
-  amount: "Amount",
-  fee: "Fee",
-  fxRate: "FX Rate",
-  accountName: "Account",
-  currency: "Currency",
-  instrumentType: "Instrument",
-  comment: "Comment",
-};
 
 // Columns that can be toggled (exclude select, status indicator, actions)
 const TOGGLEABLE_COLUMNS = [
@@ -41,6 +24,7 @@ const TOGGLEABLE_COLUMNS = [
   "unitPrice",
   "amount",
   "fee",
+  "tax",
   "fxRate",
   "accountName",
   "currency",
@@ -116,6 +100,27 @@ export function ActivityDataGridToolbar({
   unlinkDisabledReason,
   isUnlinking,
 }: ActivityDataGridToolbarProps) {
+  const { t } = useTranslation();
+
+  // Column display names for the visibility menu
+  const columnDisplayNames: Record<string, string> = {
+    activityType: t("activity:datagrid.column.type"),
+    subtype: t("activity:datagrid.column.subtype"),
+    activityStatus: t("activity:datagrid.column.status"),
+    date: t("activity:datagrid.column.date_time"),
+    assetSymbol: t("activity:datagrid.column.symbol"),
+    quantity: t("activity:datagrid.column.quantity"),
+    unitPrice: t("activity:datagrid.column.price"),
+    amount: t("activity:datagrid.column.amount"),
+    fee: t("activity:datagrid.column.fee"),
+    tax: t("activity:datagrid.column.tax"),
+    fxRate: t("activity:datagrid.column.fx_rate"),
+    accountName: t("activity:datagrid.column.account"),
+    currency: t("activity:datagrid.column.currency"),
+    instrumentType: t("activity:datagrid.column.instrument"),
+    comment: t("activity:datagrid.column.comment"),
+  };
+
   // Prevent mousedown from bubbling to document, which would clear DataGrid selection
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -130,7 +135,7 @@ export function ActivityDataGridToolbar({
         {/* Selection info */}
         {selectedRowCount > 0 && (
           <span className="font-medium">
-            {selectedRowCount} row{selectedRowCount === 1 ? "" : "s"} selected
+            {t("activity:datagrid.rows_selected", { count: selectedRowCount })}
           </span>
         )}
 
@@ -138,8 +143,9 @@ export function ActivityDataGridToolbar({
         {hasUnsavedChanges && (
           <div className="flex items-center gap-2">
             <span className="text-primary font-medium">
-              {changesSummary.totalPendingChanges} pending change
-              {changesSummary.totalPendingChanges === 1 ? "" : "s"}
+              {t("activity:datagrid.pending_changes", {
+                count: changesSummary.totalPendingChanges,
+              })}
             </span>
             <div className="bg-border h-3.5 w-px" />
             <div className="flex items-center gap-4">
@@ -173,11 +179,11 @@ export function ActivityDataGridToolbar({
           variant="outline"
           size="xs"
           className="shrink-0 rounded-md"
-          title="Add transaction"
-          aria-label="Add transaction"
+          title={t("activity:datagrid.add_transaction")}
+          aria-label={t("activity:datagrid.add_transaction")}
         >
           <Icons.Plus className="h-3.5 w-3.5" />
-          <span>Add</span>
+          <span>{t("activity:datagrid.add")}</span>
         </Button>
 
         {/* Column visibility dropdown */}
@@ -187,14 +193,16 @@ export function ActivityDataGridToolbar({
               variant="outline"
               size="xs"
               className="shrink-0 rounded-md px-2"
-              title="Toggle columns"
-              aria-label="Toggle columns"
+              title={t("activity:table_toggle_columns")}
+              aria-label={t("activity:table_toggle_columns")}
             >
               <Icons.Settings2 className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuLabel className="text-xs">Toggle columns</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs">
+              {t("activity:table_toggle_columns")}
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
             {table
               .getAllColumns()
@@ -206,7 +214,7 @@ export function ActivityDataGridToolbar({
                   checked={column.getIsVisible()}
                   onCheckedChange={(value) => column.toggleVisibility(!!value)}
                 >
-                  {COLUMN_DISPLAY_NAMES[column.id] || column.id}
+                  {columnDisplayNames[column.id] || column.id}
                 </DropdownMenuCheckboxItem>
               ))}
           </DropdownMenuContent>
@@ -221,12 +229,12 @@ export function ActivityDataGridToolbar({
                 size="xs"
                 variant="outline"
                 className="shrink-0 rounded-md border-green-200 bg-green-50 text-xs text-green-700 hover:bg-green-100 hover:text-green-800 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40"
-                title="Approve selected synced activities"
-                aria-label="Approve selected synced activities"
+                title={t("activity:datagrid.approve_selected")}
+                aria-label={t("activity:datagrid.approve_selected")}
                 disabled={isSaving}
               >
                 <Icons.CheckCircle className="h-3.5 w-3.5" />
-                <span>Approve {selectedPendingCount}</span>
+                <span>{t("activity:datagrid.approve_count", { count: selectedPendingCount })}</span>
               </Button>
             )}
             {selectedRowCount === 2 && showUnlinkSelected && onUnlinkSelected ? (
@@ -235,8 +243,12 @@ export function ActivityDataGridToolbar({
                 size="xs"
                 variant="outline"
                 className="shrink-0 rounded-md text-xs"
-                title={canUnlinkSelected ? "Unlink internal transfer" : unlinkDisabledReason}
-                aria-label="Unlink internal transfer"
+                title={
+                  canUnlinkSelected
+                    ? t("activity:datagrid.unlink_internal_transfer")
+                    : unlinkDisabledReason
+                }
+                aria-label={t("activity:datagrid.unlink_internal_transfer")}
                 disabled={!canUnlinkSelected || isUnlinking || isSaving}
               >
                 {isUnlinking ? (
@@ -244,7 +256,7 @@ export function ActivityDataGridToolbar({
                 ) : (
                   <Icons.Unlink className="h-3.5 w-3.5" />
                 )}
-                <span>Unlink</span>
+                <span>{t("activity:datagrid.unlink")}</span>
               </Button>
             ) : selectedRowCount === 2 && onLinkSelected ? (
               <Button
@@ -252,8 +264,12 @@ export function ActivityDataGridToolbar({
                 size="xs"
                 variant="outline"
                 className="shrink-0 rounded-md text-xs"
-                title={canLinkSelected ? "Link as internal transfer" : linkDisabledReason}
-                aria-label="Link as internal transfer"
+                title={
+                  canLinkSelected
+                    ? t("activity:datagrid.link_as_internal_transfer")
+                    : linkDisabledReason
+                }
+                aria-label={t("activity:datagrid.link_as_internal_transfer")}
                 disabled={!canLinkSelected || isLinking || isSaving}
               >
                 {isLinking ? (
@@ -261,7 +277,7 @@ export function ActivityDataGridToolbar({
                 ) : (
                   <Icons.Link className="h-3.5 w-3.5" />
                 )}
-                <span>Link</span>
+                <span>{t("activity:datagrid.link")}</span>
               </Button>
             ) : null}
             <Button
@@ -269,12 +285,12 @@ export function ActivityDataGridToolbar({
               size="xs"
               variant="destructive"
               className="shrink-0 rounded-md text-xs"
-              title="Delete selected"
-              aria-label="Delete selected"
+              title={t("activity:datagrid_delete_selected")}
+              aria-label={t("activity:datagrid_delete_selected")}
               disabled={isSaving}
             >
               <Icons.Trash className="h-3.5 w-3.5" />
-              <span>Delete</span>
+              <span>{t("activity:datagrid_delete")}</span>
             </Button>
           </>
         )}
@@ -286,8 +302,8 @@ export function ActivityDataGridToolbar({
               onClick={onSave}
               size="xs"
               className="shrink-0 rounded-md text-xs"
-              title="Save changes"
-              aria-label="Save changes"
+              title={t("activity:datagrid_save_changes")}
+              aria-label={t("activity:datagrid_save_changes")}
               disabled={isSaving}
             >
               {isSaving ? (
@@ -295,7 +311,7 @@ export function ActivityDataGridToolbar({
               ) : (
                 <Icons.Save className="h-3.5 w-3.5" />
               )}
-              <span>Save</span>
+              <span>{t("activity:datagrid_save")}</span>
             </Button>
 
             <Button
@@ -303,12 +319,12 @@ export function ActivityDataGridToolbar({
               size="xs"
               variant="outline"
               className="shrink-0 rounded-md text-xs"
-              title="Discard changes"
-              aria-label="Discard changes"
+              title={t("activity:datagrid_discard_changes")}
+              aria-label={t("activity:datagrid_discard_changes")}
               disabled={isSaving}
             >
               <Icons.Undo className="h-3.5 w-3.5" />
-              <span>Cancel</span>
+              <span>{t("activity:datagrid_cancel")}</span>
             </Button>
           </>
         )}

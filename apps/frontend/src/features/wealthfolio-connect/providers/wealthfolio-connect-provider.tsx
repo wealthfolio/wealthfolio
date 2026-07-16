@@ -1,5 +1,6 @@
 import {
   deleteSecret,
+  getCurrentDeepLinks,
   isDesktop,
   listenDeepLink,
   logger,
@@ -20,10 +21,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { authenticate as authenticateWithASWebAuth } from "tauri-plugin-web-auth-api";
 import { clearSyncSession, restoreSyncSession, storeSyncSession } from "../services/auth-service";
 import { getUserInfo } from "../services/broker-service";
 import type { UserInfo } from "../types";
+import { parseAuthCallbackUrl } from "../lib/auth-callback";
 
 // Auth configuration - these are public/publishable keys (safe for client-side)
 // Can be overridden via environment variables: CONNECT_AUTH_URL and CONNECT_AUTH_PUBLISHABLE_KEY
@@ -51,41 +54,19 @@ const HOSTED_OAUTH_CALLBACK_URL =
   (import.meta.env.CONNECT_OAUTH_CALLBACK_URL as string) ||
   "https://connect.wealthfolio.app/deeplink";
 
-type AuthCallbackPayload = { type: "code"; code: string } | { type: "error"; message: string };
+const parseConfiguredAuthCallbackUrl = (url: string) =>
+  parseAuthCallbackUrl(url, { hostedCallbackUrl: HOSTED_OAUTH_CALLBACK_URL });
 
-function parseAuthCallbackUrl(url: string): AuthCallbackPayload | null {
-  try {
-    const urlObj = new URL(url);
-    const hashParams = new URLSearchParams(urlObj.hash.substring(1));
+const PROCESSED_AUTH_CODE_TTL_MS = 10 * 60 * 1000;
+const MAX_PROCESSED_AUTH_CODES = 20;
 
-    const error =
-      urlObj.searchParams.get("error_description") ??
-      urlObj.searchParams.get("error") ??
-      hashParams.get("error_description") ??
-      hashParams.get("error");
-    if (error) {
-      return { type: "error", message: error };
-    }
+type PostLoginSyncSource = "auth-callback" | "email-sign-in" | "email-sign-up" | "otp";
 
-    const code = urlObj.searchParams.get("code");
-    if (code) {
-      return { type: "code", code };
-    }
-
-    const hasAccessToken =
-      hashParams.has("access_token") || urlObj.searchParams.has("access_token") || false;
-    if (hasAccessToken) {
-      return {
-        type: "error",
-        message:
-          "Unexpected token callback (access_token). This app expects Auth Code + PKCE; ensure Supabase is configured for PKCE and your hosted callback forwards the ?code=... parameter.",
-      };
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
+interface PostLoginSyncRequest {
+  id: string;
+  userId: string;
+  createdAt: number;
+  source: PostLoginSyncSource;
 }
 
 interface WealthfolioConnectContextValue {
@@ -98,6 +79,7 @@ interface WealthfolioConnectContextValue {
   session: Session | null;
   teamId: string | null;
   userInfo: UserInfo | null;
+  postLoginSyncRequest: PostLoginSyncRequest | null;
   error: string | null;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
@@ -107,6 +89,7 @@ interface WealthfolioConnectContextValue {
   signOut: () => Promise<void>;
   clearError: () => void;
   refetchUserInfo: () => Promise<void>;
+  consumePostLoginSyncRequest: (requestId: string) => void;
 }
 
 const WealthfolioConnectContext = createContext<WealthfolioConnectContextValue | undefined>(
@@ -125,6 +108,7 @@ const disabledContextValue: WealthfolioConnectContextValue = {
   session: null,
   teamId: null,
   userInfo: null,
+  postLoginSyncRequest: null,
   error: null,
   signInWithEmail: async () => {},
   signUpWithEmail: async () => {},
@@ -134,6 +118,7 @@ const disabledContextValue: WealthfolioConnectContextValue = {
   signOut: async () => {},
   clearError: () => {},
   refetchUserInfo: async () => {},
+  consumePostLoginSyncRequest: () => {},
 };
 
 function getAuthStorageKey(supabaseUrl: string): string {
@@ -216,6 +201,7 @@ const createSupabaseClient = () => {
 
 // Internal provider used when Connect is enabled
 function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const [isInitializing, setIsInitializing] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -223,14 +209,64 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [postLoginSyncRequest, setPostLoginSyncRequest] = useState<PostLoginSyncRequest | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
 
   const supabaseRef = useRef<SupabaseClient | null>(null);
+  const processedAuthCodesRef = useRef<Map<string, number>>(new Map());
+  const postLoginSyncRequestSequenceRef = useRef(0);
 
   // Initialize Supabase client
   supabaseRef.current ??= createSupabaseClient();
 
   const supabase = supabaseRef.current;
+
+  const clearProcessedAuthCodes = useCallback(() => {
+    processedAuthCodesRef.current.clear();
+  }, []);
+
+  const rememberAuthCodeIfNew = useCallback((code: string) => {
+    const now = Date.now();
+    const processedAuthCodes = processedAuthCodesRef.current;
+
+    for (const [processedCode, processedAt] of processedAuthCodes) {
+      if (now - processedAt > PROCESSED_AUTH_CODE_TTL_MS) {
+        processedAuthCodes.delete(processedCode);
+      }
+    }
+
+    if (processedAuthCodes.has(code)) {
+      return false;
+    }
+
+    processedAuthCodes.set(code, now);
+    while (processedAuthCodes.size > MAX_PROCESSED_AUTH_CODES) {
+      const oldestCode = processedAuthCodes.keys().next().value;
+      if (!oldestCode) break;
+      processedAuthCodes.delete(oldestCode);
+    }
+
+    return true;
+  }, []);
+
+  const requestPostLoginSync = useCallback((source: PostLoginSyncSource, session: Session) => {
+    const now = Date.now();
+    const sequence = postLoginSyncRequestSequenceRef.current + 1;
+    postLoginSyncRequestSequenceRef.current = sequence;
+
+    setPostLoginSyncRequest({
+      id: `${session.user.id}:${now}:${sequence}`,
+      userId: session.user.id,
+      createdAt: now,
+      source,
+    });
+  }, []);
+
+  const consumePostLoginSyncRequest = useCallback((requestId: string) => {
+    setPostLoginSyncRequest((current) => (current?.id === requestId ? null : current));
+  }, []);
 
   // Store tokens: refresh token goes to backend (for cloud API calls) and locally (for session restoration)
   const storeTokens = useCallback(async (session: Session | null) => {
@@ -274,7 +310,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   // Handle auth callback from URL (deep link or web redirect)
   const handleAuthCallback = useCallback(
     async (url: string) => {
-      const payload = parseAuthCallbackUrl(url);
+      const payload = parseConfiguredAuthCallbackUrl(url);
 
       if (!payload) {
         logger.error("Failed to parse auth callback URL - no payload");
@@ -287,34 +323,48 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
         return;
       }
 
+      if (!rememberAuthCodeIfNew(payload.code)) {
+        logger.debug("Skipping duplicate auth callback code");
+        return;
+      }
+
+      let didExchangeSession = false;
+
       try {
         const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(
           payload.code,
         );
 
         if (exchangeError) {
+          processedAuthCodesRef.current.delete(payload.code);
           logger.error(`Failed to exchange auth code: ${exchangeError.message}`);
           setError(exchangeError.message);
           return;
         }
 
         if (!data.session) {
+          processedAuthCodesRef.current.delete(payload.code);
           logger.error("No session returned after code exchange");
-          setError("No session returned after completing sign-in.");
+          setError(t("connect:authErrors.noSessionReturned"));
           return;
         }
 
+        didExchangeSession = true;
         // Store tokens BEFORE setting session to avoid race condition
         await storeTokens(data.session);
         setSession(data.session);
         setUser(data.session.user);
+        requestPostLoginSync("auth-callback", data.session);
         logger.info("Auth callback completed successfully");
       } catch (err) {
+        if (!didExchangeSession) {
+          processedAuthCodesRef.current.delete(payload.code);
+        }
         logger.error(`Error in handleAuthCallback: ${err instanceof Error ? err.message : err}`);
-        setError(err instanceof Error ? err.message : "Failed to complete sign in");
+        setError(err instanceof Error ? err.message : t("connect:authErrors.completeSignInFailed"));
       }
     },
-    [supabase, storeTokens],
+    [supabase, storeTokens, rememberAuthCodeIfNew, requestPostLoginSync, t],
   );
 
   // Restore session from stored tokens on mount
@@ -370,6 +420,8 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       } else if (event === "SIGNED_OUT") {
         setSession(null);
         setUser(null);
+        setPostLoginSyncRequest(null);
+        clearProcessedAuthCodes();
         await storeTokens(null);
       }
     });
@@ -385,13 +437,15 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     if (!isDesktop) return;
 
     let unlistenFn: (() => Promise<void>) | undefined;
+    let cancelled = false;
 
     const setupDeepLinkListener = async () => {
       try {
         unlistenFn = await listenDeepLink<string>((event) => {
+          if (cancelled) return;
           const url = event.payload;
 
-          const authPayload = parseAuthCallbackUrl(url);
+          const authPayload = parseConfiguredAuthCallbackUrl(url);
           if (authPayload) {
             void handleAuthCallback(url);
           }
@@ -399,11 +453,25 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       } catch (_err) {
         logger.error("Failed to set up deep link listener.");
       }
+
+      try {
+        const currentUrls = await getCurrentDeepLinks();
+        if (cancelled) return;
+
+        for (const url of currentUrls) {
+          if (parseConfiguredAuthCallbackUrl(url)) {
+            void handleAuthCallback(url);
+          }
+        }
+      } catch (_err) {
+        logger.error("Failed to read startup deep links.");
+      }
     };
 
     void setupDeepLinkListener();
 
     return () => {
+      cancelled = true;
       void unlistenFn?.();
     };
   }, [handleAuthCallback]);
@@ -412,7 +480,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   // This works for both web and desktop (when OAuth happens in webview)
   useEffect(() => {
     const currentUrl = window.location.href;
-    if (parseAuthCallbackUrl(currentUrl)) {
+    if (parseConfiguredAuthCallbackUrl(currentUrl)) {
       void handleAuthCallback(currentUrl);
       // Clean up URL after handling
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -439,16 +507,17 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
           await storeTokens(data.session);
           setSession(data.session);
           setUser(data.session.user);
+          requestPostLoginSync("email-sign-in", data.session);
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Sign in failed";
+        const message = err instanceof Error ? err.message : t("connect:authErrors.signInFailed");
         setError(message);
         throw err;
       } finally {
         setIsLoading(false);
       }
     },
-    [supabase, storeTokens],
+    [supabase, storeTokens, requestPostLoginSync, t],
   );
 
   const signUpWithEmail = useCallback(
@@ -472,19 +541,20 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
           await storeTokens(data.session);
           setSession(data.session);
           setUser(data.session.user);
+          requestPostLoginSync("email-sign-up", data.session);
         } else if (data.user && !data.session) {
           // Email confirmation required
-          setError("Please check your email to confirm your account.");
+          setError(t("connect:authErrors.confirmEmail"));
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Sign up failed";
+        const message = err instanceof Error ? err.message : t("connect:authErrors.signUpFailed");
         setError(message);
         throw err;
       } finally {
         setIsLoading(false);
       }
     },
-    [supabase, storeTokens],
+    [supabase, storeTokens, requestPostLoginSync, t],
   );
 
   const signInWithOAuth = useCallback(
@@ -570,14 +640,14 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
           await openUrlInBrowser(data.url);
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : "OAuth sign in failed";
+        const message = err instanceof Error ? err.message : t("connect:authErrors.oauthFailed");
         setError(message);
         throw err;
       } finally {
         setIsLoading(false);
       }
     },
-    [supabase, handleAuthCallback],
+    [supabase, handleAuthCallback, t],
   );
 
   const signInWithMagicLink = useCallback(
@@ -612,14 +682,15 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
         // Don't throw error - magic link sent successfully
         // The UI will handle showing success message
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to send magic link";
+        const message =
+          err instanceof Error ? err.message : t("connect:authErrors.magicLinkFailed");
         setError(message);
         throw err;
       } finally {
         setIsLoading(false);
       }
     },
-    [supabase],
+    [supabase, t],
   );
 
   const verifyOtp = useCallback(
@@ -643,16 +714,18 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
           await storeTokens(data.session);
           setSession(data.session);
           setUser(data.session.user);
+          requestPostLoginSync("otp", data.session);
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Invalid verification code";
+        const message =
+          err instanceof Error ? err.message : t("connect:authErrors.invalidVerificationCode");
         setError(message);
         throw err;
       } finally {
         setIsLoading(false);
       }
     },
-    [supabase, storeTokens],
+    [supabase, storeTokens, requestPostLoginSync, t],
   );
 
   const signOut = useCallback(async () => {
@@ -670,19 +743,23 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
 
       setSession(null);
       setUser(null);
+      setPostLoginSyncRequest(null);
+      clearProcessedAuthCodes();
       await storeTokens(null);
     } catch (err) {
       // Still clear local state even on unexpected errors
       setSession(null);
       setUser(null);
+      setPostLoginSyncRequest(null);
+      clearProcessedAuthCodes();
       await storeTokens(null).catch(() => {});
-      const message = err instanceof Error ? err.message : "Sign out failed";
+      const message = err instanceof Error ? err.message : t("connect:authErrors.signOutFailed");
       setError(message);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [supabase, storeTokens]);
+  }, [supabase, storeTokens, clearProcessedAuthCodes, t]);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -703,12 +780,13 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     } catch (err) {
       logger.error("Failed to fetch user info from API.");
       setUserInfo(null);
-      const message = err instanceof Error ? err.message : "Failed to fetch user info";
+      const message =
+        err instanceof Error ? err.message : t("connect:authErrors.fetchUserInfoFailed");
       setError(message);
     } finally {
       setIsLoadingUserInfo(false);
     }
-  }, [session]);
+  }, [session, t]);
 
   // Fetch user info when session changes
   useEffect(() => {
@@ -735,6 +813,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       session,
       teamId,
       userInfo,
+      postLoginSyncRequest,
       error,
       signInWithEmail,
       signUpWithEmail,
@@ -744,6 +823,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       signOut,
       clearError,
       refetchUserInfo,
+      consumePostLoginSyncRequest,
     }),
     [
       session,
@@ -753,6 +833,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       user,
       teamId,
       userInfo,
+      postLoginSyncRequest,
       error,
       signInWithEmail,
       signUpWithEmail,
@@ -762,6 +843,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       signOut,
       clearError,
       refetchUserInfo,
+      consumePostLoginSyncRequest,
     ],
   );
 

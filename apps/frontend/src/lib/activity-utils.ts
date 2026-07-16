@@ -1,13 +1,37 @@
+import type { TFunction } from "i18next";
 import {
   ACTIVITY_SUBTYPES,
   ActivityType,
+  ActivityTypeNames,
   DECIMAL_PRECISION,
   INCOME_ACTIVITY_TYPES,
   InstrumentType,
   METADATA_CONTRACT_MULTIPLIER,
+  normalizePositionIntentAlias,
+  POSITION_INTENT_ALIASES,
+  SUBTYPE_DISPLAY_NAMES,
   SYMBOL_REQUIRED_TYPES,
 } from "./constants";
 import { ActivityDetails } from "./types";
+
+/**
+ * Localized display name for an activity type (e.g. BUY -> "Buy" / "买入").
+ * Falls back to the English name from {@link ActivityTypeNames}.
+ */
+export const localizeActivityTypeName = (t: TFunction, activityType: string): string => {
+  const fallback = (ActivityTypeNames as Record<string, string>)[activityType] ?? activityType;
+  return t(`activity:type_${activityType.toLowerCase()}`, fallback);
+};
+
+/**
+ * Localized display name for an activity subtype (e.g. DRIP, POSITION_OPEN).
+ * Falls back to the English name from {@link SUBTYPE_DISPLAY_NAMES}, then the raw value.
+ */
+export const localizeActivitySubtypeName = (t: TFunction, subtype: string): string => {
+  const normalized = subtype.trim().toUpperCase();
+  const fallback = SUBTYPE_DISPLAY_NAMES[normalized] ?? subtype;
+  return t(`activity:subtype_${normalized.toLowerCase()}`, fallback);
+};
 
 const roundCurrency = (value: number, precision = DECIMAL_PRECISION) => {
   if (!Number.isFinite(value)) {
@@ -83,6 +107,41 @@ export const needsImportAssetResolution = (
   subtype?: string | null,
 ): boolean => {
   return isAssetIdentityRequired(activityType, subtype);
+};
+
+export const canonicalizeActivitySubtype = (
+  activityType: string,
+  subtype?: string | null,
+): string | undefined => {
+  const trimmedSubtype = subtype?.trim() ?? "";
+  if (!trimmedSubtype) return undefined;
+  const normalizedSubtype = normalizePositionIntentAlias(trimmedSubtype);
+
+  const normalizedActivityType = activityType?.trim().toUpperCase();
+  const sideAliases =
+    normalizedActivityType === ActivityType.BUY
+      ? POSITION_INTENT_ALIASES[ActivityType.BUY]
+      : normalizedActivityType === ActivityType.SELL
+        ? POSITION_INTENT_ALIASES[ActivityType.SELL]
+        : undefined;
+  if (sideAliases) {
+    if (
+      (sideAliases[ACTIVITY_SUBTYPES.POSITION_OPEN] as readonly string[]).includes(
+        normalizedSubtype,
+      )
+    ) {
+      return ACTIVITY_SUBTYPES.POSITION_OPEN;
+    }
+    if (
+      (sideAliases[ACTIVITY_SUBTYPES.POSITION_CLOSE] as readonly string[]).includes(
+        normalizedSubtype,
+      )
+    ) {
+      return ACTIVITY_SUBTYPES.POSITION_CLOSE;
+    }
+  }
+
+  return trimmedSubtype;
 };
 
 /**
@@ -240,7 +299,11 @@ export const formatSplitRatio = (amount: number): string => {
  * @returns The fee amount
  */
 export const getFee = (activity: ActivityDetails): number => {
-  return Number(activity.fee);
+  return Number(activity.fee ?? 0);
+};
+
+export const getTax = (activity: ActivityDetails): number => {
+  return Number(activity.tax ?? 0);
 };
 
 /**
@@ -300,12 +363,20 @@ export const calculateActivityValue = (activity: ActivityDetails): number => {
     return 0; // Split activities don't have a monetary value
   }
 
+  // Standalone charges mirror the backend's charge_amt_for precedence:
+  // TAX prefers tax, then fee, then amount; FEE prefers fee, then amount.
   if (activityType === ActivityType.FEE || activityType === ActivityType.TAX) {
-    const amount = getAmount(activity);
-    if (amount !== 0) {
-      return roundCurrency(amount);
+    if (activityType === ActivityType.TAX) {
+      const tax = getTax(activity);
+      if (tax !== 0) {
+        return roundCurrency(tax);
+      }
     }
-    return roundCurrency(getFee(activity));
+    const fee = getFee(activity);
+    if (fee !== 0) {
+      return roundCurrency(fee);
+    }
+    return roundCurrency(getAmount(activity));
   }
 
   const isSecTransfer = isSecuritiesTransfer(activityType, assetSymbol, assetId);
@@ -318,6 +389,7 @@ export const calculateActivityValue = (activity: ActivityDetails): number => {
   ) {
     let amount = getAmount(activity);
     const fee = getFee(activity);
+    const tax = getTax(activity);
 
     if (isAssetBackedIncomeSubtype(activityType, subtype) && amount === 0) {
       const derivedAmount = getQuantity(activity) * getUnitPrice(activity);
@@ -326,19 +398,20 @@ export const calculateActivityValue = (activity: ActivityDetails): number => {
       }
     }
 
-    // For outgoing cash activities, subtract fee from amount
+    // For outgoing cash activities, add fee and tax to amount (total cash out)
     if (activityType === ActivityType.WITHDRAWAL || activityType === ActivityType.TRANSFER_OUT) {
-      return roundCurrency(Number(amount) + Number(fee));
+      return roundCurrency(Number(amount) + Number(fee) + Number(tax));
     }
 
-    // For incoming cash activities, subtract fee from amount
-    return roundCurrency(Number(amount) - Number(fee));
+    // For incoming cash activities, subtract fee and withholding tax from amount
+    return roundCurrency(Number(amount) - Number(fee) - Number(tax));
   }
 
   // Handle trading activities (and securities transfers)
   const quantity = getQuantity(activity);
   const unitPrice = getUnitPrice(activity);
   const fee = getFee(activity);
+  const tax = getTax(activity);
   let activityAmount = roundCurrency(
     Number(quantity) * Number(unitPrice) * getContractMultiplier(activity),
   );
@@ -354,11 +427,11 @@ export const calculateActivityValue = (activity: ActivityDetails): number => {
   }
 
   if (activityType === ActivityType.BUY) {
-    return roundCurrency(Number(activityAmount) + Number(fee)); // Total cost including fees
+    return roundCurrency(Number(activityAmount) + Number(fee) + Number(tax)); // Total cost including trade charges
   }
 
   if (activityType === ActivityType.SELL) {
-    return roundCurrency(Number(activityAmount) - Number(fee)); // Net proceeds after fees
+    return roundCurrency(Number(activityAmount) - Number(fee) - Number(tax)); // Net proceeds after trade charges
   }
 
   // Default case - just return the activity amount

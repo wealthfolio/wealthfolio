@@ -1,0 +1,20 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "assetQuery": "VT XNAS",
+    "assignments": [],
+    "resolvedAsset": {
+      "assetId": "asset-vt-xnas",
+      "currency": "USD",
+      "displayCode": "VT",
+      "exchangeMic": "XNAS",
+      "label": "VT - Vanguard Total World Stock Index Fund ETF Shares",
+      "matchedBy": "symbol_exchange_mic",
+      "name": "Vanguard Total World Stock Index Fund ETF Shares",
+      "symbol": "VT"
+    }
+  }
+}

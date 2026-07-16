@@ -11,6 +11,7 @@ import { Card, CardHeader } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { AnimatePresence, motion } from "motion/react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 // Context
@@ -50,8 +51,9 @@ import { HoldingsReviewStep } from "./steps/holdings-review-step";
 import { ImportFormat } from "@/lib/constants";
 import { computeFieldMappings } from "./hooks/use-import-mapping";
 import {
-  buildImportAssetCandidateFromDraft,
   buildSyntheticDraftsFromHoldings,
+  canProceedFromAssetReviewStep,
+  holdingsImportHasAssets,
 } from "./utils/asset-review-utils";
 import { ACTIVITY_SKIP, isFieldMapped, primaryHeader } from "./utils/draft-utils";
 import { findMappedActivityType, validateTickerSymbol } from "./utils/validation-utils";
@@ -67,21 +69,6 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 // Step Configuration
 // ─────────────────────────────────────────────────────────────────────────────
-
-const STEPS: WizardStep[] = [
-  { id: "upload", label: "Upload" },
-  { id: "mapping", label: "Mapping" },
-  { id: "assets", label: "Review Assets" },
-  { id: "review", label: "Review Activities" },
-  { id: "confirm", label: "Import" },
-];
-
-const TRANSACTION_STEPS: WizardStep[] = [
-  { id: "upload", label: "Upload" },
-  { id: "mapping", label: "Mapping" },
-  { id: "review", label: "Review Transactions" },
-  { id: "confirm", label: "Import" },
-];
 
 const STEP_COMPONENTS: Record<ImportStep, React.ComponentType> = {
   upload: UploadStep,
@@ -101,14 +88,6 @@ const HOLDINGS_STEP_COMPONENTS: Record<ImportStep, React.ComponentType> = {
   confirm: HoldingsConfirmStep,
   result: ContextResultStep,
 };
-
-const HOLDINGS_STEPS: WizardStep[] = [
-  { id: "upload", label: "Upload" },
-  { id: "mapping", label: "Mapping" },
-  { id: "assets", label: "Review Assets" },
-  { id: "review", label: "Review Holdings" },
-  { id: "confirm", label: "Import" },
-];
 
 // Holdings import required fields
 const HOLDINGS_REQUIRED_FIELDS: HoldingsFormat[] = [
@@ -290,22 +269,15 @@ function useStepValidation(
         return true;
       }
 
-      case "assets": {
-        const assetCandidateCount = new Set(
-          draftActivities
-            .map((draft) => buildImportAssetCandidateFromDraft(draft)?.key)
-            .filter((key): key is string => Boolean(key)),
-        ).size;
-
-        return (
-          draftActivities.length > 0 &&
-          !state.isPreviewingAssets &&
-          !state.assetPreviewError &&
-          (assetCandidateCount === 0 ||
-            (state.assetPreviewItems.length > 0 &&
-              state.assetPreviewItems.every((item) => item.status !== "NEEDS_FIXING")))
-        );
-      }
+      case "assets":
+        return canProceedFromAssetReviewStep({
+          isHoldingsMode,
+          parsedRowCount: parsedRows.length,
+          draftActivities,
+          isPreviewingAssets: state.isPreviewingAssets,
+          assetPreviewError: state.assetPreviewError,
+          assetPreviewItems: state.assetPreviewItems,
+        });
 
       case "review":
         if (isHoldingsMode) {
@@ -335,7 +307,52 @@ function useStepValidation(
 function ImportWizardContent() {
   const { state, dispatch, validateDrafts, previewAssets } = useImportContext();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { isMobile } = usePlatform();
+
+  const STEPS: WizardStep[] = useMemo(
+    () => [
+      { id: "upload", label: t("activity:import.steps.upload") },
+      { id: "mapping", label: t("activity:import.steps.mapping") },
+      { id: "assets", label: t("activity:import.steps.reviewAssets") },
+      { id: "review", label: t("activity:import.steps.reviewActivities") },
+      { id: "confirm", label: t("activity:import.steps.import") },
+    ],
+    [t],
+  );
+
+  const TRANSACTION_STEPS: WizardStep[] = useMemo(
+    () => [
+      { id: "upload", label: t("activity:import.steps.upload") },
+      { id: "mapping", label: t("activity:import.steps.mapping") },
+      { id: "review", label: t("activity:import.steps.reviewTransactions") },
+      { id: "confirm", label: t("activity:import.steps.import") },
+    ],
+    [t],
+  );
+
+  const HOLDINGS_STEPS: WizardStep[] = useMemo(
+    () => [
+      { id: "upload", label: t("activity:import.steps.upload") },
+      { id: "mapping", label: t("activity:import.steps.mapping") },
+      { id: "assets", label: t("activity:import.steps.reviewAssets") },
+      { id: "review", label: t("activity:import.steps.reviewHoldings") },
+      { id: "confirm", label: t("activity:import.steps.import") },
+    ],
+    [t],
+  );
+
+  // Cash-only holdings imports have no securities to resolve, so the asset review
+  // step is omitted entirely (see holdingsImportHasAssets).
+  const HOLDINGS_STEPS_CASH_ONLY: WizardStep[] = useMemo(
+    () => [
+      { id: "upload", label: t("activity:import.steps.upload") },
+      { id: "mapping", label: t("activity:import.steps.mapping") },
+      { id: "review", label: t("activity:import.steps.reviewHoldings") },
+      { id: "confirm", label: t("activity:import.steps.import") },
+    ],
+    [t],
+  );
 
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [isNextLoading, setIsNextLoading] = useState(false);
@@ -380,8 +397,34 @@ function ImportWizardContent() {
 
   const canProceed = useStepValidation(isHoldingsMode, importProfile, accounts);
 
+  // Cash-only holdings imports have no securities to resolve, so the asset review
+  // step is dropped from the wizard for them (mapping → review directly).
+  const holdingsHasAssets = useMemo(() => {
+    if (!isHoldingsMode || !state.mapping) return false;
+    return holdingsImportHasAssets(
+      state.headers,
+      state.parsedRows,
+      state.mapping,
+      state.accountId,
+      state.parseConfig.defaultCurrency,
+    );
+  }, [
+    isHoldingsMode,
+    state.mapping,
+    state.headers,
+    state.parsedRows,
+    state.accountId,
+    state.parseConfig.defaultCurrency,
+  ]);
+
   // Select the appropriate steps and components based on mode
-  const steps = isHoldingsMode ? HOLDINGS_STEPS : isTransactionImport ? TRANSACTION_STEPS : STEPS;
+  const steps = isHoldingsMode
+    ? holdingsHasAssets
+      ? HOLDINGS_STEPS
+      : HOLDINGS_STEPS_CASH_ONLY
+    : isTransactionImport
+      ? TRANSACTION_STEPS
+      : STEPS;
   const stepComponents = isHoldingsMode ? HOLDINGS_STEP_COMPONENTS : STEP_COMPONENTS;
 
   useEffect(() => {
@@ -568,32 +611,38 @@ function ImportWizardContent() {
   const getNextLabel = useCallback(() => {
     switch (state.step) {
       case "upload":
-        return "Configure Mapping";
+        return t("activity:import.toolbar.configureMapping");
       case "mapping":
-        return isTransactionImport ? "Review Transactions" : "Review Assets";
+        if (isTransactionImport) return t("activity:import.steps.reviewTransactions");
+        if (isHoldingsMode && !holdingsHasAssets) return t("activity:import.steps.reviewHoldings");
+        return t("activity:import.steps.reviewAssets");
       case "assets":
-        return isHoldingsMode ? "Review Holdings" : "Review Activities";
+        return isHoldingsMode
+          ? t("activity:import.steps.reviewHoldings")
+          : t("activity:import.steps.reviewActivities");
       case "review":
         return state.lastValidatedRevision === state.draftRevision
-          ? "Continue to Import"
-          : "Revalidate & Continue";
+          ? t("activity:import.toolbar.continueToImport")
+          : t("activity:import.toolbar.revalidateAndContinue");
       default:
-        return "Continue";
+        return t("activity:import.toolbar.continue");
     }
   }, [
     state.step,
     isHoldingsMode,
+    holdingsHasAssets,
     isTransactionImport,
     state.lastValidatedRevision,
     state.draftRevision,
+    t,
   ]);
 
   // Page title
   const pageTitle = isHoldingsMode
-    ? "Import Holdings"
+    ? t("activity:import.page.titleHoldings")
     : isTransactionImport
-      ? "Import Transactions"
-      : "Import Activities";
+      ? t("activity:import.page.titleTransactions")
+      : t("activity:import.page.titleActivities");
 
   if (selectedAccount && !isCsvImportAllowed) {
     return (
@@ -601,11 +650,11 @@ function ImportWizardContent() {
         <PageHeader heading={pageTitle} onBack={() => navigate(-1)} />
         <PageContent>
           <div className="mx-auto max-w-3xl space-y-4 py-6">
-            <AlertFeedback variant="warning" title="CSV import disabled">
-              Holdings CSV import is disabled for connected accounts using Holdings tracking.
+            <AlertFeedback variant="warning" title={t("activity:import.page.csvDisabledTitle")}>
+              {t("activity:import.page.csvDisabledDescription")}
             </AlertFeedback>
             <Button variant="outline" onClick={() => navigate(`/account/${selectedAccount.id}`)}>
-              Go to Account
+              {t("activity:import.page.goToAccount")}
             </Button>
           </div>
         </PageContent>
@@ -629,7 +678,7 @@ function ImportWizardContent() {
                 className="hidden sm:flex"
               >
                 <Icons.X className="mr-2 h-4 w-4" />
-                Cancel
+                {t("activity:import.toolbar.cancel")}
               </Button>
             )}
           </div>
@@ -637,7 +686,7 @@ function ImportWizardContent() {
       />
 
       <PageContent withPadding={false}>
-        <ErrorBoundary>
+        <ErrorBoundary fallbackTitle={t("activity:import.page.somethingWentWrong")}>
           <div className="px-2 pb-6 pt-2 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
             <Card className="flex max-h-[calc(100dvh-9rem)] w-full flex-col overflow-hidden">
               {/* Step indicator — hidden on result step */}
@@ -700,7 +749,10 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallbackTitle: string },
+  ErrorBoundaryState
+> {
   override state: ErrorBoundaryState = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -713,7 +765,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, Error
 
   override render() {
     if (this.state.hasError) {
-      return <AlertFeedback variant="error" title="Something went wrong." />;
+      return <AlertFeedback variant="error" title={this.props.fallbackTitle} />;
     }
 
     return this.props.children;

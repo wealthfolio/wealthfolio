@@ -1,0 +1,124 @@
+{
+  "insights": {
+    "loading_dashboard": "正在加载仪表盘……",
+    "tab_overview": "概览",
+    "tab_performance": "表现",
+    "tab_income": "收入",
+    "back_to_allocation": "返回配置",
+    "target_allocation": "目标配置",
+    "back_to_overview": "返回概览",
+    "rebalance": "再平衡",
+    "no_target_selected": "未选择目标",
+    "no_target_selected_description": "创建目标配置，以将当前权重与预期权重进行比较。",
+    "set_target_allocation": "设置目标配置",
+    "chart_classes": "类别",
+    "chart_regions": "地区",
+    "chart_sectors": "行业",
+    "explorer": {
+      "lens_allocation": "配置",
+      "lens_accounts": "账户",
+      "lens_sectors": "行业",
+      "lens_regions": "地区",
+      "lens_risk": "风险",
+      "lens_security": "证券类型",
+      "lens_currency": "货币",
+      "unit_categories": "个类别",
+      "unit_accounts": "个账户",
+      "unit_sectors": "个行业",
+      "unit_regions": "个地区",
+      "unit_levels": "个级别",
+      "unit_types": "个类型",
+      "unit_currencies": "种货币",
+      "unit_groups": "个分组",
+      "other_units": "其他 {{unit}}",
+      "breakdown": "明细",
+      "top_units": "前 {{unit}}",
+      "show_less": "收起",
+      "show_all": "显示全部"
+    },
+    "rails": {
+      "target_allocation": "目标配置",
+      "details": "详情",
+      "suggested_moves": "建议操作",
+      "all_in_range": "所有类别均在目标区间内——无需再平衡",
+      "add": "增持",
+      "trim": "减持",
+      "inside_target_range": "在目标区间内",
+      "outside_range": "{{count}} 项超出区间 · 最大偏差 {{gap}}",
+      "tolerance": "容差 {{tolerance}}",
+      "current": "当前",
+      "target": "目标",
+      "no_target_yet": "尚无目标配置",
+      "compare_weights": "将当前权重与您预期的投资组合进行比较。",
+      "set_target_allocation": "设置目标配置"
+    },
+    "value_strip": {
+      "portfolio_value": "投资组合价值",
+      "cash_balance": "现金余额",
+      "invested": "已投资",
+      "book_cost": "账面成本",
+      "no_cash_balance": "无现金余额",
+      "of_portfolio": "占投资组合的 {{percent}}",
+      "available_cash": "可用现金",
+      "holdings_count_one": "{{count}} 项持仓",
+      "holdings_count_other": "{{count}} 项持仓",
+      "accounts_count_one": "{{count}} 个账户",
+      "accounts_count_other": "{{count}} 个账户"
+    }
+  },
+  "networth": {
+    "failed_to_load": "加载净资产失败",
+    "stale_valuations_tooltip": "陈旧估值（90 天以上）：",
+    "days_ago": "{{count}} 天前",
+    "no_history_data": "暂无可用的历史数据",
+    "breakdown": "明细",
+    "no_assets_found": "未找到资产。",
+    "add_first_asset": "添加您的第一项资产",
+    "update_valuations": "更新您的估值",
+    "assets_count_one": "{{count}} 项资产",
+    "assets_count_other": "{{count}} 项资产",
+    "not_updated_over_90_days": "超过 90 天未更新。",
+    "chart": {
+      "net_worth": "净资产",
+      "net_worth_label": "净资产：",
+      "assets_label": "资产：",
+      "liabilities_label": "负债："
+    },
+    "breakdown_table": {
+      "change_over": "{{period}} 内变化",
+      "assets": "资产",
+      "category": "类别",
+      "value": "价值",
+      "delta_period": "Δ {{period}}",
+      "liabilities": "负债",
+      "net_worth": "净资产"
+    },
+    "category_sheet": {
+      "over_period": "在 {{period}} 内",
+      "trend_period": "趋势 · {{period}}",
+      "items": "项目"
+    },
+    "trend": {
+      "not_enough_history": "历史数据不足"
+    },
+    "momentum": {
+      "title": "动能",
+      "all_time": "全部时间",
+      "vs_prior": "对比上一 {{period}}",
+      "beat_prior": "超出上一期 ",
+      "behind_prior": "落后上一期 ",
+      "now": "当前"
+    },
+    "velocity": {
+      "monthly_pace": "月度节奏",
+      "over_months_one": "在 {{count}} 个月内",
+      "over_months_other": "在 {{count}} 个月内",
+      "trailing_pace": " · 过去 12 个月节奏的 {{multiple}} 倍",
+      "drivers_of_change": "{{period}} 变化的驱动因素",
+      "market_returns": "市场回报",
+      "contributions": "投入",
+      "equity_built": "累积权益",
+      "per_month": "/月"
+    }
+  }
+}

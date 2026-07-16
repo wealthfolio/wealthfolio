@@ -1,11 +1,5 @@
 import { expect, Page, test } from "@playwright/test";
-import {
-  BASE_URL,
-  createAccount,
-  gotoActivities,
-  loginIfNeeded,
-  waitForSyncToast,
-} from "./helpers";
+import { createAccount, gotoActivities, loginIfNeeded, waitForSyncToast } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -57,9 +51,9 @@ test.describe("Bulk Holdings (Add Existing Holdings)", () => {
     await gotoActivities(page);
 
     // Open bulk holdings modal
-    await page.getByRole("button", { name: "Add Activities" }).click();
+    await page.getByTestId("add-activities-button").click();
     await page.waitForTimeout(300);
-    await page.getByRole("button", { name: "Transfer Holdings" }).click();
+    await page.getByTestId("transfer-holdings-action").click();
     await expect(page.getByRole("heading", { name: "Add Existing Holdings" })).toBeVisible({
       timeout: 5000,
     });

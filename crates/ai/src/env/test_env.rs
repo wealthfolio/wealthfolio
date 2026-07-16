@@ -3,6 +3,7 @@
 //! eval binary (`cargo run --bin eval --features eval`) can construct one.
 
 use super::*;
+use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::{HashMap, HashSet};
 use std::sync::RwLock;
@@ -40,12 +41,13 @@ use wealthfolio_core::{
         AllocationHoldings, AllocationServiceTrait, PortfolioAllocations,
         TaxonomyHoldingContributions,
     },
+    portfolio::economic_events::BasisStatus,
     portfolio::fire::RetirementOverview,
     portfolio::income::{IncomeServiceTrait, IncomeSummary},
     portfolio::performance::{
         DataQualityStatus, PerformanceAttribution, PerformanceDataQuality, PerformancePeriod,
         PerformanceResult, PerformanceReturns, PerformanceRisk, PerformanceScopeDescriptor,
-        PerformanceServiceTrait, PerformanceSummaryProfile, ReturnMethod,
+        PerformanceServiceTrait, PerformanceSummary, PerformanceSummaryProfile, ReturnMethod,
     },
     quotes::{
         LatestQuotePair, LatestQuoteSnapshot, ProviderInfo, Quote, QuoteImport, QuoteServiceTrait,
@@ -62,6 +64,8 @@ use wealthfolio_core::{
     },
     Error as CoreError, Result as CoreResult,
 };
+use wealthfolio_spending::cash_activities::CashActivityServiceTrait;
+use wealthfolio_spending::categorization_rules::CategorizationRulesServiceTrait;
 
 /// Mock secret store for testing.
 #[derive(Default)]
@@ -427,6 +431,7 @@ impl ActivityServiceTrait for MockActivityService {
         _date_from: Option<chrono::NaiveDate>,
         _date_to: Option<chrono::NaiveDate>,
         _instrument_type_filter: Option<Vec<String>>,
+        _activity_id_filter: Option<Vec<String>>,
     ) -> CoreResult<ActivitySearchResponse> {
         Ok(ActivitySearchResponse {
             data: self.activities.clone(),
@@ -1424,6 +1429,8 @@ fn mock_performance_result(id: &str) -> PerformanceResult {
             warnings: Vec::new(),
             not_applicable_reasons: Vec::new(),
         },
+        basis_status: BasisStatus::NotApplicable,
+        summary: PerformanceSummary::default(),
         series: Vec::new(),
         is_holdings_mode: false,
         is_mixed_tracking_mode: false,
@@ -1520,6 +1527,59 @@ pub struct MockEnvironment {
     pub income_service: Arc<dyn IncomeServiceTrait>,
     pub health_service: Arc<dyn HealthServiceTrait>,
     pub taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
+    pub cash_activity_service: Arc<dyn CashActivityServiceTrait>,
+    pub categorization_rules_service: Arc<dyn CategorizationRulesServiceTrait>,
+}
+
+/// Mock cash-activity service for testing. Seed `items` to control both
+/// `search` results and `get_by_activity_ids` lookups.
+#[derive(Default)]
+pub struct MockCashActivityService {
+    pub items: Vec<wealthfolio_spending::cash_activities::CashActivity>,
+}
+
+#[async_trait]
+impl CashActivityServiceTrait for MockCashActivityService {
+    async fn search(
+        &self,
+        req: wealthfolio_spending::cash_activities::CashActivitySearchRequest,
+    ) -> anyhow::Result<wealthfolio_spending::cash_activities::CashActivitySearchResponse> {
+        let items: Vec<_> = self.items.iter().take(req.limit).cloned().collect();
+        let total_count = items.len();
+        Ok(
+            wealthfolio_spending::cash_activities::CashActivitySearchResponse {
+                items,
+                total_count,
+            },
+        )
+    }
+
+    async fn get_by_activity_ids(
+        &self,
+        activity_ids: &[String],
+    ) -> anyhow::Result<Vec<wealthfolio_spending::cash_activities::CashActivity>> {
+        Ok(self
+            .items
+            .iter()
+            .filter(|item| activity_ids.contains(&item.activity.id))
+            .cloned()
+            .collect())
+    }
+}
+
+/// Mock categorization-rules service for testing.
+#[derive(Default)]
+pub struct MockCategorizationRulesService {
+    pub rules: Vec<wealthfolio_spending::categorization_rules::CategorizationRule>,
+}
+
+#[async_trait]
+impl CategorizationRulesServiceTrait for MockCategorizationRulesService {
+    async fn list(
+        &self,
+    ) -> anyhow::Result<Vec<wealthfolio_spending::categorization_rules::CategorizationRule>> {
+        Ok(self.rules.clone())
+    }
 }
 
 impl Default for MockEnvironment {
@@ -1547,6 +1607,8 @@ impl MockEnvironment {
             income_service: Arc::new(MockIncomeService),
             health_service: Arc::new(MockHealthService::default()),
             taxonomy_service: Arc::new(MockTaxonomyService::default()),
+            cash_activity_service: Arc::new(MockCashActivityService::default()),
+            categorization_rules_service: Arc::new(MockCategorizationRulesService::default()),
         }
     }
 
@@ -1556,8 +1618,7 @@ impl MockEnvironment {
     }
 }
 
-#[async_trait]
-impl AiEnvironment for MockEnvironment {
+impl AgentEnvironment for MockEnvironment {
     fn base_currency(&self) -> String {
         self.base_currency.clone()
     }
@@ -1584,14 +1645,6 @@ impl AiEnvironment for MockEnvironment {
 
     fn settings_service(&self) -> Arc<dyn SettingsServiceTrait> {
         self.settings_service.clone()
-    }
-
-    fn secret_store(&self) -> Arc<dyn SecretStore> {
-        self.secret_store.clone()
-    }
-
-    fn chat_repository(&self) -> Arc<dyn ChatRepositoryTrait> {
-        self.chat_repository.clone()
     }
 
     fn quote_service(&self) -> Arc<dyn QuoteServiceTrait> {
@@ -1622,22 +1675,44 @@ impl AiEnvironment for MockEnvironment {
         self.taxonomy_service.clone()
     }
 
-    fn cash_activity_service(
+    fn portfolio_service(&self) -> Arc<dyn wealthfolio_core::portfolios::PortfolioServiceTrait> {
+        unimplemented!("portfolio_service not used in AI mock environment")
+    }
+
+    fn net_worth_service(
         &self,
-    ) -> Arc<wealthfolio_spending::cash_activities::CashActivityService> {
-        unimplemented!("cash_activity_service not used in AI mock environment")
+    ) -> Arc<dyn wealthfolio_core::portfolio::net_worth::NetWorthServiceTrait> {
+        unimplemented!("net_worth_service not used in AI mock environment")
+    }
+
+    fn contribution_limit_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::limits::ContributionLimitServiceTrait> {
+        unimplemented!("contribution_limit_service not used in AI mock environment")
+    }
+
+    fn cash_activity_service(&self) -> Arc<dyn CashActivityServiceTrait> {
+        self.cash_activity_service.clone()
+    }
+
+    fn categorization_rules_service(&self) -> Arc<dyn CategorizationRulesServiceTrait> {
+        self.categorization_rules_service.clone()
+    }
+}
+
+impl AiEnvironment for MockEnvironment {
+    fn secret_store(&self) -> Arc<dyn SecretStore> {
+        self.secret_store.clone()
+    }
+
+    fn chat_repository(&self) -> Arc<dyn ChatRepositoryTrait> {
+        self.chat_repository.clone()
     }
 
     fn activity_taxonomy_assignment_service(
         &self,
     ) -> Arc<wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignmentService> {
         unimplemented!("activity_taxonomy_assignment_service not used in AI mock environment")
-    }
-
-    fn categorization_rules_service(
-        &self,
-    ) -> Arc<wealthfolio_spending::categorization_rules::CategorizationRulesService> {
-        unimplemented!("categorization_rules_service not used in AI mock environment")
     }
 }
 
@@ -1680,6 +1755,7 @@ impl HealthServiceTrait for MockHealthService {
         _asset_service: Arc<dyn AssetServiceTrait>,
         _taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
         _valuation_service: Arc<dyn ValuationServiceTrait>,
+        _snapshot_service: Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait>,
         _activity_service: Arc<dyn ActivityServiceTrait>,
         _lot_repository: Arc<dyn wealthfolio_core::lots::LotRepositoryTrait>,
         _configured_timezone: Option<&str>,

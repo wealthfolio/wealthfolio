@@ -101,7 +101,7 @@ export const deleteBudgetGroup = async (
       periodKey,
     });
   } catch (e) {
-    logger.error("Error deleting budget group.");
+    logger.error("Error deleting budget group.", e);
     throw e;
   }
 };

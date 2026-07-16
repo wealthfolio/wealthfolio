@@ -1,8 +1,9 @@
 import TickerSearchInput from "@/components/ticker-search";
 import { buildOccSymbol, parseOccSymbol } from "@/lib/occ-symbol";
 import type { SymbolSearchResult } from "@/lib/types";
-import { normalizeCurrency } from "@/lib/utils";
+import { cn, normalizeCurrency } from "@/lib/utils";
 import { resolveSymbolQuote } from "@/adapters";
+import { motion } from "motion/react";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import {
   DatePickerInput,
@@ -12,7 +13,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@wealthfolio/ui";
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useFormContext, type FieldPath, type FieldValues } from "react-hook-form";
 
 interface OptionContractFieldsProps<TFieldValues extends FieldValues = FieldValues> {
@@ -40,7 +42,9 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
   quoteCcyName,
   unitPriceName,
 }: OptionContractFieldsProps<TFieldValues>) {
+  const { t } = useTranslation(["activity"]);
   const { control, setValue, getValues, watch } = useFormContext<TFieldValues>();
+  const optionTypeId = useId();
   const latestResolveRequestId = useRef(0);
   const needsCurrencyConfirmation = useRef(false);
   const provisionalCurrency = useRef<string | undefined>(undefined);
@@ -159,7 +163,9 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
 
   return (
     <div className="space-y-4">
-      <h4 className="text-muted-foreground text-sm font-medium">Option Contract</h4>
+      <h4 className="text-muted-foreground text-sm font-medium">
+        {t("activity:form.option_contract")}
+      </h4>
 
       {/* Symbol search — accepts option contracts, underlying tickers, or OCC symbols */}
       <FormField
@@ -167,77 +173,93 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
         name={underlyingName}
         render={({ field }) => (
           <FormItem className="-mt-2">
-            <FormLabel>Symbol</FormLabel>
+            <FormLabel>{t("activity:form.label_symbol")}</FormLabel>
             <FormControl>
               <TickerSearchInput
                 onSelectResult={handleUnderlyingSelect}
                 value={field.value as string}
-                placeholder="Search option or ticker..."
+                placeholder={t("activity:form.placeholder_search_option_ticker")}
               />
             </FormControl>
             <FormMessage className="text-xs" />
             {!field.value && (
               <p className="text-muted-foreground text-xs">
-                Search by ticker, option contract, or paste an OCC symbol
+                {t("activity:form.contract_search_hint")}
               </p>
             )}
           </FormItem>
         )}
       />
 
-      {/* Call / Put — full-width toggle, prominent */}
+      {/* Call / Put — segmented control matching the Stock/Option/Bond tabs */}
       <FormField
         control={control}
         name={optionTypeName}
-        render={({ field }) => (
-          <FormItem>
-            <FormControl>
-              <div className="bg-muted grid grid-cols-2 gap-1 rounded-lg p-1">
-                <button
-                  type="button"
-                  onClick={() => field.onChange("CALL")}
-                  className={`flex cursor-pointer items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors ${
-                    field.value === "CALL"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
-                    <path
-                      d="M2 12L6 6L10 9L14 3"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  Call
-                </button>
-                <button
-                  type="button"
-                  onClick={() => field.onChange("PUT")}
-                  className={`flex cursor-pointer items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors ${
-                    field.value === "PUT"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
-                    <path
-                      d="M2 4L6 10L10 7L14 13"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  Put
-                </button>
-              </div>
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
+        render={({ field }) => {
+          const optionTypes = [
+            {
+              value: "CALL",
+              label: t("activity:form.option_call"),
+              iconPath: "M2 12L6 6L10 9L14 3",
+            },
+            {
+              value: "PUT",
+              label: t("activity:form.option_put"),
+              iconPath: "M2 4L6 10L10 7L14 13",
+            },
+          ] as const;
+          return (
+            <FormItem>
+              <FormControl>
+                <div className="bg-muted relative flex items-center gap-1 rounded-lg p-1">
+                  {optionTypes.map((option) => {
+                    const isSelected = field.value === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => field.onChange(option.value)}
+                        className={cn(
+                          "relative z-10 flex flex-1 cursor-pointer select-none items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
+                          "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+                          isSelected
+                            ? "text-foreground"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {isSelected && (
+                          <motion.div
+                            layoutId={`option-type-indicator-${optionTypeId}`}
+                            className="bg-background absolute inset-0 -z-10 rounded-md shadow-sm"
+                            initial={false}
+                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                          />
+                        )}
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          className="shrink-0"
+                        >
+                          <path
+                            d={option.iconPath}
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        <span>{option.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          );
+        }}
       />
 
       {/* Strike Price + Expiration Date */}
@@ -247,7 +269,7 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
           name={strikePriceName}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Strike Price</FormLabel>
+              <FormLabel>{t("activity:form.strike_price")}</FormLabel>
               <FormControl>
                 <Input
                   type="number"
@@ -258,7 +280,7 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
                     field.onChange(e.target.value ? Number(e.target.value) : undefined)
                   }
                   className="h-10"
-                  aria-label="Strike Price"
+                  aria-label={t("activity:form.strike_price")}
                 />
               </FormControl>
               <FormMessage />
@@ -270,7 +292,7 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
           name={expirationDateName}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Expiration</FormLabel>
+              <FormLabel>{t("activity:form.expiration")}</FormLabel>
               <FormControl>
                 <DatePickerInput
                   onChange={(date: Date | undefined) => {
@@ -296,7 +318,7 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
       {hasContractSummary && (
         <div className="bg-muted/50 border-border rounded-md border px-3 py-2">
           <span className="text-muted-foreground text-[10px] font-medium uppercase tracking-wider">
-            Contract
+            {t("activity:form.contract")}
           </span>
           <p className="text-sm font-medium tabular-nums">
             {expirationDisplay} ${strikePrice} {optionType}

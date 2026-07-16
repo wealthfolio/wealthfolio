@@ -4,23 +4,25 @@ import { useAggregatedSyncStatus } from "@/features/wealthfolio-connect/hooks";
 import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, Icons } from "@wealthfolio/ui";
 import { motion } from "motion/react";
-import React, { useCallback, useId, useMemo, useState } from "react";
+import { useCallback, useId, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { type NavigationProps, isPathActive } from "./app-navigation";
+import { resolveNavigationIcon } from "./navigation-icons";
 
 interface FloatingNavigationBarProps {
   navigation: NavigationProps;
 }
 
 export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps) {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const [overflowOpen, setOverflowOpen] = useState(false);
-  const [addonsOpen, setAddonsOpen] = useState(false);
   const uniqueId = useId();
   const { status: syncStatus } = useAggregatedSyncStatus();
   const baseButtonClass =
-    "text-foreground relative z-10 flex h-11 w-full items-center justify-center rounded-full transition-colors";
+    "text-foreground relative z-10 flex size-11 shrink-0 items-center justify-center rounded-full transition-colors";
 
   const handleNavigation = useCallback(
     (href: string, isActive: boolean) => {
@@ -30,44 +32,19 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
     [navigate],
   );
 
-  const renderIcon = useCallback((icon?: React.ReactNode) => {
-    if (!icon) {
-      return <Icons.ArrowRight className="size-6" />;
-    }
-
-    if (React.isValidElement<{ className?: string }>(icon)) {
-      return icon.props.className ? icon : React.cloneElement(icon, { className: "size-6" });
-    }
-
-    if (typeof icon === "function") {
-      const IconComponent = icon as React.ComponentType<{ className?: string }>;
-      return <IconComponent className="size-6" />;
-    }
-
-    return <span className="size-6">{icon}</span>;
-  }, []);
+  const renderIcon = useCallback((icon?: ReactNode) => resolveNavigationIcon(icon, "size-6"), []);
 
   const primaryItems = navigation?.primary ?? [];
   const secondaryItems = navigation?.secondary ?? [];
-  const addonItems = navigation?.addons ?? [];
+  const pinnedAddonItems = navigation?.pinnedAddons ?? [];
+  const addonMenuItems = navigation?.addonMenuItems ?? navigation?.addons ?? [];
 
-  const baseItems = useMemo(
-    () => [...primaryItems, ...secondaryItems],
-    [primaryItems, secondaryItems],
-  );
-  const launcherColumn = 1;
-  const connectColumn = 1;
-  const visibleCount = 7;
+  const baseItems = [...primaryItems, ...pinnedAddonItems, ...secondaryItems];
+  const visibleCount = 15;
   const visibleItems = baseItems.slice(0, visibleCount);
   const overflowItems = baseItems.slice(visibleCount);
-  const hasOverflow = overflowItems.length > 0;
-  const hasAddons = addonItems.length > 0;
-  const columnCount =
-    visibleItems.length +
-    launcherColumn +
-    connectColumn +
-    (hasOverflow ? 1 : 0) +
-    (hasAddons ? 1 : 0);
+  const moreItems = [...overflowItems, ...addonMenuItems];
+  const hasMoreItems = moreItems.length > 0;
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40">
@@ -76,15 +53,13 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
           variant="floating"
           intensity="subtle"
           className={cn(
-            "pointer-events-auto w-full px-1 py-1.5",
+            "scrollbar-hide pointer-events-auto w-fit max-w-[calc(100vw-2rem)] overflow-x-auto px-1 py-1.5",
             "h-[var(--mobile-nav-ui-height)]",
-            "max-w-md",
           )}
         >
           <nav
-            aria-label="Floating navigation"
-            className="grid place-items-center items-center gap-0"
-            style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}
+            aria-label={t("common:layout.floating_navigation")}
+            className="flex items-center gap-0"
           >
             {visibleItems.map((item) => {
               const isActive = isPathActive(location.pathname, item.href);
@@ -120,7 +95,7 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
             })}
             <button
               type="button"
-              aria-label="Open launcher"
+              aria-label={t("common:layout.open_launcher")}
               className={baseButtonClass}
               onClick={() => {
                 // Trigger the launcher by dispatching Cmd/Ctrl+K
@@ -150,7 +125,7 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
               onClick={() =>
                 handleNavigation("/connect", isPathActive(location.pathname, "/connect"))
               }
-              aria-label="Connect"
+              aria-label={t("common:connect")}
               className={baseButtonClass}
               aria-current={isPathActive(location.pathname, "/connect") ? "page" : undefined}
             >
@@ -173,11 +148,14 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
                 <SyncStatusIcon status={syncStatus} className="size-6" />
               </span>
             </Link>
-            {hasOverflow && (
+            {hasMoreItems && (
               <DropdownMenu open={overflowOpen} onOpenChange={setOverflowOpen}>
                 <DropdownMenuTrigger asChild>
-                  <button aria-label="More navigation" className={baseButtonClass}>
-                    {overflowItems.some((item) => isPathActive(location.pathname, item.href)) && (
+                  <button
+                    aria-label={t("common:layout.more_navigation")}
+                    className={baseButtonClass}
+                  >
+                    {moreItems.some((item) => isPathActive(location.pathname, item.href)) && (
                       <motion.div
                         layoutId={`floating-nav-indicator-${uniqueId}`}
                         className="absolute inset-0 -z-10 rounded-full border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/10"
@@ -203,7 +181,7 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
                   sideOffset={16}
                   className="mb-0 mr-0 flex w-48 flex-col gap-1 border-0 bg-transparent p-0 shadow-none ring-0 ring-offset-0"
                 >
-                  {overflowItems.map((item) => {
+                  {moreItems.map((item) => {
                     const isActive = isPathActive(location.pathname, item.href);
                     return (
                       <LiquidGlass key={item.href} variant="floating" intensity="subtle">
@@ -212,61 +190,6 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
                           onClick={() => {
                             handleNavigation(item.href, isActive);
                             setOverflowOpen(false);
-                          }}
-                          aria-current={isActive ? "page" : undefined}
-                          className="relative z-10 flex w-full items-center gap-3 rounded-full px-3 py-2 text-sm"
-                        >
-                          <span className="flex size-6 shrink-0 items-center justify-center">
-                            {renderIcon(item.icon)}
-                          </span>
-                          <span className="truncate text-left">{item.title}</span>
-                        </Link>
-                      </LiquidGlass>
-                    );
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-
-            {hasAddons && (
-              <DropdownMenu open={addonsOpen} onOpenChange={setAddonsOpen}>
-                <DropdownMenuTrigger asChild>
-                  <button aria-label="Add-ons" className={baseButtonClass}>
-                    {addonItems.some((item) => isPathActive(location.pathname, item.href)) && (
-                      <motion.div
-                        layoutId={`floating-nav-indicator-${uniqueId}`}
-                        className="absolute inset-0 -z-10 rounded-full border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/10"
-                        initial={false}
-                        transition={{
-                          type: "spring",
-                          stiffness: 400,
-                          damping: 30,
-                        }}
-                      />
-                    )}
-                    <span
-                      className="relative flex size-7 shrink-0 items-center justify-center outline-none"
-                      aria-hidden="true"
-                    >
-                      <Icons.Addons className="size-5" />
-                    </span>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  side="top"
-                  align="end"
-                  sideOffset={16}
-                  className="mb-0 mr-0 flex w-48 flex-col gap-1 border-0 bg-transparent p-0 shadow-none ring-0 ring-offset-0"
-                >
-                  {addonItems.map((item) => {
-                    const isActive = isPathActive(location.pathname, item.href);
-                    return (
-                      <LiquidGlass key={item.href} variant="floating" intensity="subtle">
-                        <Link
-                          to={item.href}
-                          onClick={() => {
-                            handleNavigation(item.href, isActive);
-                            setAddonsOpen(false);
                           }}
                           aria-current={isActive ? "page" : undefined}
                           className="relative z-10 flex w-full items-center gap-3 rounded-full px-3 py-2 text-sm"

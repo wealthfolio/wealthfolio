@@ -10,6 +10,7 @@ import {
 import { Icons } from "../ui/icons";
 import type { ColumnDef, TableMeta } from "@tanstack/react-table";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ContextMenuState, UpdateCell } from "./data-grid-types";
 import { parseCellKey } from "./data-grid-utils";
@@ -90,6 +91,7 @@ function ContextMenuImpl<TData>({
   onCellsCopy,
   onCellsCut,
 }: ContextMenuProps<TData>) {
+  const { t } = useTranslation();
   const triggerStyle = React.useMemo<React.CSSProperties>(
     () => ({
       position: "fixed",
@@ -154,8 +156,8 @@ function ContextMenuImpl<TData>({
 
     onDataUpdate?.(updates);
 
-    toast.success(`${updates.length} cell${updates.length !== 1 ? "s" : ""} cleared`);
-  }, [onDataUpdate, selectionState, columns]);
+    toast.success(t("ui:dataGrid.cellsCleared", "{{count}} cell cleared", { count: updates.length }));
+  }, [onDataUpdate, selectionState, columns, t]);
 
   const onDelete = React.useCallback(async () => {
     if (!selectionState?.selectedCells || selectionState.selectedCells.size === 0) return;
@@ -171,8 +173,8 @@ function ContextMenuImpl<TData>({
 
     await onRowsDelete?.(rowIndicesArray);
 
-    toast.success(`${rowCount} row${rowCount !== 1 ? "s" : ""} deleted`);
-  }, [onRowsDelete, selectionState]);
+    toast.success(t("ui:dataGrid.rowsDeleted", "{{count}} row deleted", { count: rowCount }));
+  }, [onRowsDelete, selectionState, t]);
 
   return (
     <DropdownMenu open={contextMenu.open} onOpenChange={onContextMenuOpenChange}>
@@ -180,22 +182,22 @@ function ContextMenuImpl<TData>({
       <DropdownMenuContent data-grid-popover="" align="start" className="w-48" onCloseAutoFocus={onCloseAutoFocus}>
         <DropdownMenuItem onSelect={onCopy}>
           <Icons.Copy />
-          Copy
+          {t("ui:dataGrid.copy", "Copy")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onCut} disabled={tableMeta?.readOnly}>
           <Icons.Scissors />
-          Cut
+          {t("ui:dataGrid.cut", "Cut")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onClear} disabled={tableMeta?.readOnly}>
           <Icons.Eraser />
-          Clear
+          {t("ui:dataGrid.clear", "Clear")}
         </DropdownMenuItem>
         {onRowsDelete && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={onDelete}>
               <Icons.Trash2 />
-              Delete rows
+              {t("ui:dataGrid.deleteRows", "Delete rows")}
             </DropdownMenuItem>
           </>
         )}

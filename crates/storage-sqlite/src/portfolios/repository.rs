@@ -230,7 +230,6 @@ impl PortfolioRepositoryTrait for PortfolioRepository {
             AccountScope::All => {
                 use crate::schema::accounts::dsl::*;
                 let ids = accounts
-                    .filter(is_active.eq(true))
                     .filter(is_archived.eq(false))
                     .order(name.asc())
                     .select(id)
@@ -251,5 +250,59 @@ impl PortfolioRepositoryTrait for PortfolioRepository {
             }
             AccountScope::Accounts { account_ids } => Ok(account_ids.clone()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::{create_pool, get_connection, run_migrations, write_actor::spawn_writer};
+    use diesel::sql_query;
+    use diesel::sql_types::{Bool, Text};
+    use tempfile::tempdir;
+
+    fn setup() -> (PortfolioRepository, tempfile::TempDir) {
+        std::env::set_var("CONNECT_API_URL", "http://test.local");
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test.db").to_string_lossy().to_string();
+        run_migrations(&db_path).unwrap();
+        let pool = create_pool(&db_path).unwrap();
+        let writer = spawn_writer((*pool).clone()).unwrap();
+        let repo = PortfolioRepository::new(pool, writer);
+        (repo, dir)
+    }
+
+    fn insert_account(
+        repo: &PortfolioRepository,
+        account_id: &str,
+        name: &str,
+        active: bool,
+        archived: bool,
+    ) {
+        let mut conn = get_connection(&repo.pool).unwrap();
+        sql_query(
+            "INSERT INTO accounts (
+                id, name, account_type, currency, is_default, is_active, created_at, updated_at,
+                is_archived, tracking_mode
+             ) VALUES (?, ?, 'SECURITIES', 'USD', 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, 'TRANSACTIONS')",
+        )
+        .bind::<Text, _>(account_id)
+        .bind::<Text, _>(name)
+        .bind::<Bool, _>(active)
+        .bind::<Bool, _>(archived)
+        .execute(&mut conn)
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn resolve_all_keeps_hidden_and_excludes_archived_accounts() {
+        let (repo, _dir) = setup();
+        insert_account(&repo, "active", "Active", true, false);
+        insert_account(&repo, "hidden", "Hidden", false, false);
+        insert_account(&repo, "archived", "Archived", true, true);
+
+        let ids = repo.resolve_account_ids(&AccountScope::All).unwrap();
+
+        assert_eq!(ids, vec!["active", "hidden"]);
     }
 }

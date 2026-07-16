@@ -1,6 +1,6 @@
 {
   "name": "@wealthfolio/ui",
-  "version": "3.5.2",
+  "version": "3.6.3",
   "type": "module",
   "description": "Wealthfolio UI components based on shadcn/ui and Tailwind CSS",
   "main": "dist/index.js",
@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "@internationalized/date": "^3.11.0",
-    "@number-flow/react": "^0.5.11",
+    "@number-flow/react": "^0.6.1",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -106,15 +106,19 @@
     "tailwind-merge": "^3.4.0"
   },
   "peerDependencies": {
+    "i18next": "^25.6.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "react-i18next": "^16.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.13",
     "@types/react-dom": "^19.2.3",
+    "i18next": "^25.6.0",
+    "react-i18next": "^16.0.0",
     "shadcn": "^3.8.4",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
-    "vite": "^7.3.2"
+    "vite": "^7.3.6"
   }
 }

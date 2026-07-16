@@ -10,6 +10,7 @@ import {
 import { AmountDisplay, Skeleton } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useState, useCallback, useEffect } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
@@ -35,6 +36,8 @@ interface AllocationDetailSheetProps {
   initialCategoryId?: string | null;
 }
 
+type HoldingsByAllocationQueryKey = readonly [string, AccountScope, string, string];
+
 export function AllocationDetailSheet({
   isOpen,
   onOpenChange,
@@ -43,6 +46,7 @@ export function AllocationDetailSheet({
   baseCurrency,
   initialCategoryId,
 }: AllocationDetailSheetProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
@@ -88,6 +92,15 @@ export function AllocationDetailSheet({
     }
   }, [isOpen, initialCategoryId, allocation?.categories]);
 
+  const taxonomyId = allocation?.taxonomyId ?? "";
+  const categoryId = selectedCategoryId ?? "";
+  const holdingsQueryKey: HoldingsByAllocationQueryKey = [
+    QueryKeys.HOLDINGS_BY_ALLOCATION,
+    accountFilter,
+    taxonomyId,
+    categoryId,
+  ];
+
   // Fetch holdings for the selected category
   const {
     data: allocationHoldings,
@@ -96,23 +109,22 @@ export function AllocationDetailSheet({
     error: holdingsQueryError,
     refetch: refetchAllocationHoldings,
   } = useQuery({
-    queryKey: [
-      QueryKeys.HOLDINGS_BY_ALLOCATION,
-      accountFilter,
-      allocation?.taxonomyId,
-      selectedCategoryId,
-    ],
-    queryFn: () =>
-      getHoldingsByAllocation(
-        accountFilter,
-        allocation?.taxonomyId ?? "",
-        selectedCategoryId ?? "",
-      ),
-    enabled: !!selectedCategoryId && !!allocation?.taxonomyId,
+    queryKey: holdingsQueryKey,
+    queryFn: ({ queryKey }) => {
+      const [, filter, selectedTaxonomyId, selectedCategoryId] = queryKey;
+      return getHoldingsByAllocation(filter, selectedTaxonomyId, selectedCategoryId);
+    },
+    enabled: !!categoryId && !!taxonomyId,
     staleTime: 30000,
   });
 
-  const holdings = allocationHoldings?.holdings;
+  const hasRequestedCategory = !!categoryId && !!taxonomyId;
+  const holdingsMatchSelection =
+    allocationHoldings?.taxonomyId === taxonomyId && allocationHoldings?.categoryId === categoryId;
+  const holdings = holdingsMatchSelection ? allocationHoldings?.holdings : undefined;
+  const holdingsLoadingForSelection =
+    holdingsLoading ||
+    (hasRequestedCategory && !holdingsError && !!allocationHoldings && !holdingsMatchSelection);
 
   const handleSegmentClick = useCallback(
     (categoryId: string, categoryName: string) => {
@@ -193,7 +205,7 @@ export function AllocationDetailSheet({
         }}
       >
         <SheetHeader className="mt-4">
-          <SheetTitle>{allocation?.taxonomyName ?? "Allocation"}</SheetTitle>
+          <SheetTitle>{allocation?.taxonomyName ?? t("holdings:allocation")}</SheetTitle>
         </SheetHeader>
 
         <div className="flex-1 space-y-4 overflow-y-auto py-4">
@@ -317,15 +329,20 @@ export function AllocationDetailSheet({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium">
-                  Holdings in{" "}
-                  <span style={{ color: selectedColor ?? undefined }}>{selectedCategoryName}</span>
+                  <Trans
+                    i18nKey="holdings:holdings_in_category"
+                    values={{ category: selectedCategoryName }}
+                    components={{
+                      1: <span style={{ color: selectedColor ?? undefined }} />,
+                    }}
+                  />
                 </h3>
                 <Button variant="ghost" size="sm" onClick={handleClearSelection}>
-                  Clear
+                  {t("common:clear")}
                 </Button>
               </div>
 
-              {holdingsLoading ? (
+              {holdingsLoadingForSelection ? (
                 <div className="space-y-2">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="flex items-center gap-3 py-3">
@@ -345,7 +362,7 @@ export function AllocationDetailSheet({
                 <div className="space-y-3 py-4 text-center">
                   <div className="space-y-1">
                     <p className="text-muted-foreground text-sm">
-                      Could not load holdings for this category.
+                      {t("holdings:could_not_load_holdings")}
                     </p>
                     {holdingsQueryError?.message && (
                       <p className="text-muted-foreground text-xs">{holdingsQueryError.message}</p>
@@ -356,20 +373,35 @@ export function AllocationDetailSheet({
                     size="sm"
                     onClick={() => void refetchAllocationHoldings()}
                   >
-                    Retry
+                    {t("common:retry")}
                   </Button>
                 </div>
               ) : holdings && holdings.length > 0 ? (
                 <div className="divide-y">
-                  {holdings.map((holding) => {
+                  {holdings.map((holding, index) => {
                     const canNavigate = holding.holdingType !== HoldingType.CASH;
-                    const avatarSymbol =
-                      holding.holdingType === HoldingType.CASH
-                        ? `CASH:${holding.currency}`
-                        : holding.symbol;
+                    const isCash = holding.holdingType === HoldingType.CASH;
+                    const avatarSymbol = isCash ? `CASH:${holding.currency}` : holding.symbol;
+                    const primaryLabel = isCash
+                      ? (holding.accountName ?? holding.symbol)
+                      : holding.symbol;
+                    const secondaryLabel = isCash
+                      ? (holding.name ??
+                        t("holdings:cash_with_currency", { currency: holding.currency }))
+                      : (holding.name ?? holding.symbol);
+                    const rowKey = isCash
+                      ? [
+                          categoryId,
+                          holding.id,
+                          holding.accountName ?? "",
+                          holding.symbol,
+                          holding.currency,
+                          index,
+                        ].join(":")
+                      : `${categoryId}:${holding.id}`;
                     return (
                       <div
-                        key={holding.id}
+                        key={rowKey}
                         className={cn(
                           "flex items-center gap-3 py-3 transition-colors",
                           canNavigate ? "hover:bg-muted/30 cursor-pointer" : "cursor-default",
@@ -378,10 +410,8 @@ export function AllocationDetailSheet({
                       >
                         <TickerAvatar symbol={avatarSymbol} className="h-9 w-9" />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold">{holding.symbol}</p>
-                          <p className="text-muted-foreground truncate text-xs">
-                            {holding.name ?? holding.symbol}
-                          </p>
+                          <p className="truncate text-sm font-semibold">{primaryLabel}</p>
+                          <p className="text-muted-foreground truncate text-xs">{secondaryLabel}</p>
                         </div>
                         <div className="text-right">
                           <AmountDisplay
@@ -399,21 +429,23 @@ export function AllocationDetailSheet({
                 </div>
               ) : (
                 <p className="text-muted-foreground py-4 text-center text-sm">
-                  No holdings found in this category.
+                  {t("holdings:no_holdings_in_category")}
                 </p>
               )}
             </div>
           )}
 
           {!hasData && (
-            <p className="text-muted-foreground py-8 text-center">No allocation data available.</p>
+            <p className="text-muted-foreground py-8 text-center">
+              {t("holdings:no_allocation_data")}
+            </p>
           )}
         </div>
 
         <SheetFooter className="border-t pt-4">
           <SheetClose asChild>
             <Button variant="outline" className="w-full">
-              Close
+              {t("holdings:close")}
             </Button>
           </SheetClose>
         </SheetFooter>

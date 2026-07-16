@@ -1,0 +1,44 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+assertion_line: 675
+expression: result
+---
+{
+  "ok": {
+    "availableAccounts": [
+      {
+        "accountType": "SECURITIES",
+        "currency": "USD",
+        "id": "acc-1",
+        "name": "Main Broker"
+      }
+    ],
+    "availableSubtypes": [],
+    "draft": {
+      "accountId": "acc-1",
+      "accountName": "Main Broker",
+      "activityDate": "2026-01-17",
+      "activityType": "DEPOSIT",
+      "amount": 5000.0,
+      "assetId": null,
+      "assetKind": null,
+      "assetName": null,
+      "currency": "USD",
+      "fee": null,
+      "isCustomAsset": false,
+      "notes": null,
+      "priceSource": "none",
+      "pricingMode": "MARKET",
+      "quantity": null,
+      "subtype": null,
+      "symbol": null,
+      "unitPrice": null
+    },
+    "resolvedAsset": null,
+    "validation": {
+      "errors": [],
+      "isValid": true,
+      "missingFields": []
+    }
+  }
+}

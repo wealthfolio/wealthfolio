@@ -2,6 +2,7 @@ import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import type { Account } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 export interface TrackingModeBadgeProps {
   account: Account;
@@ -17,6 +18,7 @@ export interface TrackingModeBadgeProps {
  * - "Sync disabled" (muted/gray) - when account is connected but sync is disabled
  */
 export function TrackingModeBadge({ account, syncEnabled, className }: TrackingModeBadgeProps) {
+  const { t } = useTranslation();
   const isConnectedAccount = !!account.providerAccountId;
 
   // For connected accounts with sync disabled, show that status
@@ -26,7 +28,7 @@ export function TrackingModeBadge({ account, syncEnabled, className }: TrackingM
         variant="outline"
         className={cn("text-muted-foreground border-muted-foreground/30", className)}
       >
-        Sync disabled
+        {t("common:component.tracking_sync_disabled")}
       </Badge>
     );
   }
@@ -42,7 +44,7 @@ export function TrackingModeBadge({ account, syncEnabled, className }: TrackingM
           )}
         >
           <Icons.Receipt className="mr-1 h-3 w-3" />
-          Transactions
+          {t("common:component.tracking_transactions")}
         </Badge>
       );
     case "HOLDINGS":
@@ -52,7 +54,7 @@ export function TrackingModeBadge({ account, syncEnabled, className }: TrackingM
           className={cn("border-success/30 text-success rounded-sm", className)}
         >
           <Icons.Holdings className="mr-1 h-3 w-3" />
-          Holdings
+          {t("common:component.tracking_holdings")}
         </Badge>
       );
     case "NOT_SET":
@@ -63,7 +65,7 @@ export function TrackingModeBadge({ account, syncEnabled, className }: TrackingM
           className={cn("border-warning/30 text-warning rounded-sm", className)}
         >
           <Icons.AlertTriangle className="mr-1 h-3 w-3" />
-          Needs setup
+          {t("common:component.tracking_needs_setup")}
         </Badge>
       );
   }

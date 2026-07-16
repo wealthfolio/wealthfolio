@@ -1,0 +1,26 @@
+[package]
+name = "wealthfolio-agent-tools"
+version.workspace = true
+edition.workspace = true
+description = "Runtime-neutral agent tool catalog shared by the in-app AI assistant and MCP"
+license = "AGPL-3.0"
+repository = "https://github.com/wealthfolio/wealthfolio"
+
+[features]
+test-utils = []
+
+[dependencies]
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+log = { workspace = true }
+rust_decimal = { workspace = true }
+uuid = { workspace = true }
+
+wealthfolio-core = { path = "../core" }
+wealthfolio-spending = { path = "../spending" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

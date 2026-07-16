@@ -15,11 +15,16 @@ use super::model::{
     EventSpendingSummary, EventSummariesRequest, MonthlyReport, PeriodSummary, ReportRequest,
     SpendingSummary, SubcategorySpending,
 };
+use crate::activity_allocations::{
+    allocations_for_taxonomy, group_assignments, group_splits, AssignmentsByActivity,
+    SplitsByActivity,
+};
 use crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait;
 use crate::activity_classification::{
     activity_abs_amount, classify_activity, classify_activity_for_aggregation, decimal_to_f64,
     within_spending_transfer_groups, SpendingClassification,
 };
+use crate::activity_splits::ActivitySplitRepositoryTrait;
 use crate::events::EventsService;
 use crate::settings::SpendingSettingsService;
 
@@ -47,6 +52,7 @@ pub struct AnalyticsService {
     activity_repo: Arc<dyn ActivityRepositoryTrait>,
     account_repo: Arc<dyn AccountRepositoryTrait>,
     assignment_repo: Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
+    split_repo: Arc<dyn ActivitySplitRepositoryTrait>,
     settings: Arc<SpendingSettingsService>,
     taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
     events_service: Arc<EventsService>,
@@ -60,6 +66,7 @@ impl AnalyticsService {
         activity_repo: Arc<dyn ActivityRepositoryTrait>,
         account_repo: Arc<dyn AccountRepositoryTrait>,
         assignment_repo: Arc<dyn ActivityTaxonomyAssignmentRepositoryTrait>,
+        split_repo: Arc<dyn ActivitySplitRepositoryTrait>,
         settings: Arc<SpendingSettingsService>,
         taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
         events_service: Arc<EventsService>,
@@ -70,6 +77,7 @@ impl AnalyticsService {
             activity_repo,
             account_repo,
             assignment_repo,
+            split_repo,
             settings,
             taxonomy_service,
             events_service,
@@ -216,16 +224,9 @@ impl AnalyticsService {
             .assignment_repo
             .list_for_activities(&assignment_ids)
             .await?;
-        let mut assignments_by_activity: HashMap<
-            String,
-            Vec<crate::activity_assignments::ActivityTaxonomyAssignment>,
-        > = HashMap::new();
-        for asg in all_assignments {
-            assignments_by_activity
-                .entry(asg.activity_id.clone())
-                .or_default()
-                .push(asg);
-        }
+        let assignments_by_activity = group_assignments(all_assignments);
+        let splits_by_activity =
+            group_splits(self.split_repo.list_for_activities(&assignment_ids).await?);
         // FX as-of: end of the active window for current, end of the prior
         // window for prior. Matches insight's per-window snapshot convention.
         let fx_as_of_current = end.date_naive();
@@ -326,136 +327,56 @@ impl AnalyticsService {
             {
                 continue;
             }
-            let income_amount = fx_to_target(
-                fx,
-                income_native,
-                &a.currency,
-                base_currency,
-                fx_as_of_current,
-            )
-            .unwrap_or(Decimal::ZERO);
-            let spending_amount = fx_to_target(
-                fx,
-                spending_native,
-                &a.currency,
-                base_currency,
-                fx_as_of_current,
-            )
-            .unwrap_or(Decimal::ZERO);
-            let saving_amount = fx_to_target(
-                fx,
-                saving_native,
-                &a.currency,
-                base_currency,
-                fx_as_of_current,
-            )
-            .unwrap_or(Decimal::ZERO);
             let day = wealthfolio_core::utils::time_utils::activity_date_in_user_timezone(
                 a.activity_date,
                 timezone,
             );
             let day_str = format!("{:04}-{:02}-{:02}", day.year(), day.month(), day.day());
-            let assignments = assignments_by_activity
-                .get(&a.id)
-                .cloned()
-                .unwrap_or_default();
-            let mut had_spending_assignment = false;
-            let mut had_income_assignment = false;
-            let mut had_saving_assignment = false;
-            // Single-select per (activity, taxonomy): dedupe defensively here
-            // so a corrupted DB row with two spending_categories assignments
-            // for one activity doesn't double-count into spending_breakdown
-            // while `summarize` (which sees the activity once, no assignments)
-            // doesn't — that would break the
-            // `monthly_report.current.outflow == Σ spending_breakdown.amount`
-            // invariant. Matches the dedupe in budget/service.rs:785-799 and
-            // the debug_assert in insight/service.rs:558.
-            let mut seen_taxonomies: std::collections::HashSet<&str> =
-                std::collections::HashSet::new();
-            for asg in &assignments {
-                if !seen_taxonomies.insert(asg.taxonomy_id.as_str()) {
-                    debug_assert!(
-                        false,
-                        "single-select invariant violated for activity {} in {}",
-                        a.id, asg.taxonomy_id
-                    );
-                    continue;
-                }
-                let bucket = if asg.taxonomy_id == SPENDING_TAXONOMY
-                    && spending_amount != Decimal::ZERO
-                {
-                    had_spending_assignment = true;
-                    Some((&mut spending_acc, spending_amount))
-                } else if asg.taxonomy_id == INCOME_TAXONOMY && income_amount != Decimal::ZERO {
-                    had_income_assignment = true;
-                    Some((&mut income_acc, income_amount))
-                } else if asg.taxonomy_id == SAVINGS_TAXONOMY && saving_amount != Decimal::ZERO {
-                    had_saving_assignment = true;
-                    Some((&mut savings_acc, saving_amount))
-                } else {
-                    None
-                };
-                if let Some((b, bucket_amount)) = bucket {
-                    let entry = b
-                        .entry((asg.taxonomy_id.clone(), asg.category_id.clone()))
-                        .or_insert((Decimal::ZERO, 0));
-                    entry.0 += bucket_amount;
-                    entry.1 += 1;
-                    // Same activity → same (day, taxonomy, category) bucket.
-                    let dc = by_day_cat_acc
-                        .entry((
-                            day_str.clone(),
-                            asg.taxonomy_id.clone(),
-                            asg.category_id.clone(),
-                        ))
-                        .or_insert((Decimal::ZERO, 0));
-                    dc.0 += bucket_amount;
-                    dc.1 += 1;
-                }
-            }
-            // Surface uncategorized outflow as an explicit synthetic row so
-            // Σ spending_breakdown.amount == current.outflow (matches the
-            // insight pipeline's UncategorizedBucket). Sentinel id matches
-            // insight-projection.ts:UNCATEGORIZED_CATEGORY_ID.
-            if !had_spending_assignment && spending_amount != Decimal::ZERO {
-                let entry = spending_acc
-                    .entry((
-                        SPENDING_TAXONOMY.to_string(),
-                        UNCATEGORIZED_CATEGORY_ID.to_string(),
-                    ))
-                    .or_insert((Decimal::ZERO, 0));
-                entry.0 += spending_amount;
-                entry.1 += 1;
-                let dc = by_day_cat_acc
-                    .entry((
-                        day_str.clone(),
-                        SPENDING_TAXONOMY.to_string(),
-                        UNCATEGORIZED_CATEGORY_ID.to_string(),
-                    ))
-                    .or_insert((Decimal::ZERO, 0));
-                dc.0 += spending_amount;
-                dc.1 += 1;
-            }
-            if !had_income_assignment && income_amount != Decimal::ZERO {
-                let entry = income_acc
-                    .entry((
-                        INCOME_TAXONOMY.to_string(),
-                        UNCATEGORIZED_CATEGORY_ID.to_string(),
-                    ))
-                    .or_insert((Decimal::ZERO, 0));
-                entry.0 += income_amount;
-                entry.1 += 1;
-            }
-            if !had_saving_assignment && saving_amount != Decimal::ZERO {
-                let entry = savings_acc
-                    .entry((
-                        SAVINGS_TAXONOMY.to_string(),
-                        UNCATEGORIZED_CATEGORY_ID.to_string(),
-                    ))
-                    .or_insert((Decimal::ZERO, 0));
-                entry.0 += saving_amount;
-                entry.1 += 1;
-            }
+            add_report_breakdown_allocations(
+                &mut spending_acc,
+                &mut by_day_cat_acc,
+                &a.id,
+                SPENDING_TAXONOMY,
+                spending_native,
+                &assignments_by_activity,
+                &splits_by_activity,
+                fx,
+                &a.currency,
+                base_currency,
+                fx_as_of_current,
+                &day_str,
+                true,
+            );
+            add_report_breakdown_allocations(
+                &mut income_acc,
+                &mut by_day_cat_acc,
+                &a.id,
+                INCOME_TAXONOMY,
+                income_native,
+                &assignments_by_activity,
+                &splits_by_activity,
+                fx,
+                &a.currency,
+                base_currency,
+                fx_as_of_current,
+                &day_str,
+                false,
+            );
+            add_report_breakdown_allocations(
+                &mut savings_acc,
+                &mut by_day_cat_acc,
+                &a.id,
+                SAVINGS_TAXONOMY,
+                saving_native,
+                &assignments_by_activity,
+                &splits_by_activity,
+                fx,
+                &a.currency,
+                base_currency,
+                fx_as_of_current,
+                &day_str,
+                false,
+            );
         }
 
         let mut spending_breakdown: Vec<CategoryBreakdownRow> = spending_acc
@@ -595,6 +516,92 @@ fn summarize(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn add_report_breakdown_allocations(
+    acc: &mut HashMap<(String, String), (Decimal, usize)>,
+    by_day_cat_acc: &mut HashMap<(String, String, String), (Decimal, usize)>,
+    activity_id: &str,
+    taxonomy_id: &str,
+    native_amount: Decimal,
+    assignments_by_activity: &AssignmentsByActivity,
+    splits_by_activity: &SplitsByActivity,
+    fx: &dyn wealthfolio_core::fx::FxServiceTrait,
+    from_currency: &str,
+    target_currency: &str,
+    fx_as_of: NaiveDate,
+    day: &str,
+    uncategorized_day_bucket: bool,
+) {
+    if native_amount == Decimal::ZERO {
+        return;
+    }
+
+    let allocations = allocations_for_taxonomy(
+        activity_id,
+        taxonomy_id,
+        native_amount,
+        assignments_by_activity,
+        splits_by_activity,
+    );
+    if allocations.is_empty() {
+        let amount = fx_to_target(fx, native_amount, from_currency, target_currency, fx_as_of)
+            .unwrap_or(Decimal::ZERO);
+        if amount == Decimal::ZERO {
+            return;
+        }
+        let entry = acc
+            .entry((
+                taxonomy_id.to_string(),
+                UNCATEGORIZED_CATEGORY_ID.to_string(),
+            ))
+            .or_insert((Decimal::ZERO, 0));
+        entry.0 += amount;
+        entry.1 += 1;
+        if taxonomy_id == SPENDING_TAXONOMY && uncategorized_day_bucket {
+            let dc = by_day_cat_acc
+                .entry((
+                    day.to_string(),
+                    taxonomy_id.to_string(),
+                    UNCATEGORIZED_CATEGORY_ID.to_string(),
+                ))
+                .or_insert((Decimal::ZERO, 0));
+            dc.0 += amount;
+            dc.1 += 1;
+        }
+        return;
+    }
+
+    for allocation in allocations {
+        let amount = fx_to_target(
+            fx,
+            allocation.amount,
+            from_currency,
+            target_currency,
+            fx_as_of,
+        )
+        .unwrap_or(Decimal::ZERO);
+        if amount == Decimal::ZERO {
+            continue;
+        }
+        let entry = acc
+            .entry((taxonomy_id.to_string(), allocation.category_id.clone()))
+            .or_insert((Decimal::ZERO, 0));
+        entry.0 += amount;
+        entry.1 += 1;
+        if taxonomy_id == SPENDING_TAXONOMY {
+            let dc = by_day_cat_acc
+                .entry((
+                    day.to_string(),
+                    taxonomy_id.to_string(),
+                    allocation.category_id,
+                ))
+                .or_insert((Decimal::ZERO, 0));
+            dc.0 += amount;
+            dc.1 += 1;
+        }
+    }
+}
+
 fn classification_for(
     activity: &Activity,
     account_types: &HashMap<String, String>,
@@ -708,20 +715,9 @@ impl AnalyticsService {
             .assignment_repo
             .list_for_activities(&spending_ids)
             .await?;
-        let mut spending_cat_by_act: HashMap<String, String> = HashMap::new();
-        for asg in all_assignments {
-            if asg.taxonomy_id == SPENDING_TAXONOMY {
-                // First-write wins per activity (matches the original
-                // `into_iter().find(...)` semantics).
-                spending_cat_by_act
-                    .entry(asg.activity_id.clone())
-                    .or_insert(asg.category_id);
-            }
-        }
-        let mut assign_by_act: HashMap<String, Option<String>> = HashMap::new();
-        for id in &spending_ids {
-            assign_by_act.insert(id.clone(), spending_cat_by_act.get(id).cloned());
-        }
+        let assignments_by_activity = group_assignments(all_assignments);
+        let splits_by_activity =
+            group_splits(self.split_repo.list_for_activities(&spending_ids).await?);
 
         // Event filter set
         let include_set: Option<HashSet<String>> = include_event_ids
@@ -820,7 +816,8 @@ impl AnalyticsService {
             out.push(build_summary(
                 period,
                 &in_window,
-                &assign_by_act,
+                &assignments_by_activity,
+                &splits_by_activity,
                 &cat_meta,
                 &account_types,
                 &currency,
@@ -898,6 +895,32 @@ fn empty_summary(period: &str) -> SpendingSummary {
     }
 }
 
+fn add_event_category_allocation(
+    category_id: Option<&str>,
+    amount: Decimal,
+    cat_meta: &HashMap<String, (String, Option<String>, Option<String>)>,
+    by_category: &mut HashMap<String, CategoryAccumulator>,
+) {
+    let (cat_id_opt, cat_name, cat_color) = match category_id {
+        Some(category_id) => match cat_meta.get(category_id) {
+            Some((name, color, _parent)) => {
+                (Some(category_id.to_string()), name.clone(), color.clone())
+            }
+            None => (Some(category_id.to_string()), category_id.to_string(), None),
+        },
+        None => (None, "Uncategorized".to_string(), None),
+    };
+    let key = cat_id_opt
+        .clone()
+        .unwrap_or_else(|| "uncategorized".to_string());
+    let entry =
+        by_category
+            .entry(key)
+            .or_insert((cat_id_opt, cat_name, cat_color, Decimal::ZERO, 0));
+    entry.3 += amount;
+    entry.4 += 1;
+}
+
 // 9 args is intentional — every parameter serves a distinct concern (period
 // label, activities, assignment lookup, category metadata, account types,
 // target currency, FX, snapshot date, timezone). No call site repetition to
@@ -906,7 +929,8 @@ fn empty_summary(period: &str) -> SpendingSummary {
 fn build_summary(
     period: &str,
     activities: &[&Activity],
-    assign_by_act: &HashMap<String, Option<String>>,
+    assignments_by_activity: &AssignmentsByActivity,
+    splits_by_activity: &SplitsByActivity,
     cat_meta: &HashMap<String, (String, Option<String>, Option<String>)>,
     account_types: &HashMap<String, String>,
     currency: &str,
@@ -952,78 +976,47 @@ fn build_summary(
             .entry(a.account_id.clone())
             .or_insert(Decimal::ZERO) += amt;
 
-        // Resolve which top-level category + (optional) subcategory this activity belongs to
-        let assigned_cat_id = assign_by_act.get(&a.id).and_then(|opt| opt.as_ref());
-        let (top_cat_id, sub_cat_id, top_name, top_color, sub_name) = match assigned_cat_id {
-            Some(cid) => match cat_meta.get(cid) {
-                Some((name, color, parent_id)) => match parent_id {
-                    // assigned to a subcategory: parent is the top-level
-                    Some(pid) => {
-                        let parent = cat_meta.get(pid);
-                        let parent_name = parent
-                            .map(|(n, _, _)| n.clone())
-                            .unwrap_or_else(|| pid.clone());
-                        let parent_color = parent.and_then(|(_, c, _)| c.clone());
-                        (
-                            Some(pid.clone()),
-                            Some(cid.clone()),
-                            parent_name,
-                            parent_color,
-                            name.clone(),
-                        )
-                    }
-                    // assigned to a top-level category
-                    None => (
-                        Some(cid.clone()),
-                        None,
-                        name.clone(),
-                        color.clone(),
-                        String::new(),
-                    ),
-                },
-                None => (Some(cid.clone()), None, cid.clone(), None, String::new()),
-            },
-            None => (None, None, "Uncategorized".to_string(), None, String::new()),
-        };
-
-        let top_key = top_cat_id
-            .clone()
-            .unwrap_or_else(|| "uncategorized".to_string());
-        let cat_entry = by_category.entry(top_key.clone()).or_insert((
-            top_cat_id.clone(),
-            top_name.clone(),
-            top_color.clone(),
-            Decimal::ZERO,
-            0,
-        ));
-        cat_entry.3 += amt;
-        cat_entry.4 += 1;
-
-        if let Some(sub_id) = sub_cat_id.clone() {
-            let sub_entry = by_subcategory.entry(sub_id.clone()).or_insert((
-                Some(sub_id.clone()),
-                sub_name,
-                top_cat_id.clone(),
-                top_name.clone(),
-                top_color.clone(),
-                Decimal::ZERO,
-                0,
-            ));
-            sub_entry.5 += amt;
-            sub_entry.6 += 1;
-
-            *by_month_by_subcategory
-                .entry(month_key.clone())
-                .or_default()
-                .entry(sub_id)
-                .or_insert(Decimal::ZERO) += amt;
+        let allocations = allocations_for_taxonomy(
+            &a.id,
+            SPENDING_TAXONOMY,
+            amt_native,
+            assignments_by_activity,
+            splits_by_activity,
+        );
+        if allocations.is_empty() {
+            add_summary_category_allocation(
+                None,
+                amt,
+                &month_key,
+                cat_meta,
+                &mut by_category,
+                &mut by_subcategory,
+                &mut by_month_by_category,
+                &mut by_month_by_subcategory,
+            );
+            continue;
         }
 
-        *by_month_by_category
-            .entry(month_key)
-            .or_default()
-            .entry(top_key)
-            .or_insert(Decimal::ZERO) += amt;
+        for allocation in allocations {
+            let Some(allocation_amount) =
+                fx_to_target(fx, allocation.amount, &a.currency, currency, fx_as_of)
+            else {
+                continue;
+            };
+            if allocation_amount == Decimal::ZERO {
+                continue;
+            }
+            add_summary_category_allocation(
+                Some(&allocation.category_id),
+                allocation_amount,
+                &month_key,
+                cat_meta,
+                &mut by_category,
+                &mut by_subcategory,
+                &mut by_month_by_category,
+                &mut by_month_by_subcategory,
+            );
+        }
     }
 
     let total: Decimal = by_month.values().copied().sum();
@@ -1155,6 +1148,93 @@ fn build_summary(
         transaction_count,
         yoy_growth: None,
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn add_summary_category_allocation(
+    assigned_cat_id: Option<&str>,
+    amount: Decimal,
+    month_key: &str,
+    cat_meta: &HashMap<String, (String, Option<String>, Option<String>)>,
+    by_category: &mut HashMap<String, CategoryAccumulator>,
+    by_subcategory: &mut HashMap<String, SubcategoryAccumulator>,
+    by_month_by_category: &mut HashMap<String, HashMap<String, Decimal>>,
+    by_month_by_subcategory: &mut HashMap<String, HashMap<String, Decimal>>,
+) {
+    let (top_cat_id, sub_cat_id, top_name, top_color, sub_name) = match assigned_cat_id {
+        Some(cid) => match cat_meta.get(cid) {
+            Some((name, color, parent_id)) => match parent_id {
+                Some(pid) => {
+                    let parent = cat_meta.get(pid);
+                    let parent_name = parent
+                        .map(|(n, _, _)| n.clone())
+                        .unwrap_or_else(|| pid.clone());
+                    let parent_color = parent.and_then(|(_, c, _)| c.clone());
+                    (
+                        Some(pid.clone()),
+                        Some(cid.to_string()),
+                        parent_name,
+                        parent_color,
+                        name.clone(),
+                    )
+                }
+                None => (
+                    Some(cid.to_string()),
+                    None,
+                    name.clone(),
+                    color.clone(),
+                    String::new(),
+                ),
+            },
+            None => (
+                Some(cid.to_string()),
+                None,
+                cid.to_string(),
+                None,
+                String::new(),
+            ),
+        },
+        None => (None, None, "Uncategorized".to_string(), None, String::new()),
+    };
+
+    let top_key = top_cat_id
+        .clone()
+        .unwrap_or_else(|| "uncategorized".to_string());
+    let cat_entry = by_category.entry(top_key.clone()).or_insert((
+        top_cat_id.clone(),
+        top_name.clone(),
+        top_color.clone(),
+        Decimal::ZERO,
+        0,
+    ));
+    cat_entry.3 += amount;
+    cat_entry.4 += 1;
+
+    if let Some(sub_id) = sub_cat_id.clone() {
+        let sub_entry = by_subcategory.entry(sub_id.clone()).or_insert((
+            Some(sub_id.clone()),
+            sub_name,
+            top_cat_id.clone(),
+            top_name,
+            top_color,
+            Decimal::ZERO,
+            0,
+        ));
+        sub_entry.5 += amount;
+        sub_entry.6 += 1;
+
+        *by_month_by_subcategory
+            .entry(month_key.to_string())
+            .or_default()
+            .entry(sub_id)
+            .or_insert(Decimal::ZERO) += amount;
+    }
+
+    *by_month_by_category
+        .entry(month_key.to_string())
+        .or_default()
+        .entry(top_key)
+        .or_insert(Decimal::ZERO) += amount;
 }
 
 // Helper to silence unused warning when Duration not referenced elsewhere
@@ -1294,16 +1374,12 @@ impl AnalyticsService {
             .assignment_repo
             .list_for_activities(&all_activity_ids)
             .await?;
-        let mut assignments_by_activity: HashMap<
-            String,
-            Vec<crate::activity_assignments::ActivityTaxonomyAssignment>,
-        > = HashMap::new();
-        for asg in all_assignments {
-            assignments_by_activity
-                .entry(asg.activity_id.clone())
-                .or_default()
-                .push(asg);
-        }
+        let assignments_by_activity = group_assignments(all_assignments);
+        let splits_by_activity = group_splits(
+            self.split_repo
+                .list_for_activities(&all_activity_ids)
+                .await?,
+        );
 
         let mut out = Vec::with_capacity(visible_events.len());
         for ev in visible_events {
@@ -1345,33 +1421,33 @@ impl AnalyticsService {
                 let day = format!("{:04}-{:02}-{:02}", dt.year(), dt.month(), dt.day());
                 *daily.entry(day).or_insert(Decimal::ZERO) += amt;
 
-                // Resolve category for spending taxonomy via the pre-batched
-                // assignments map (single `list_for_activities` upfront).
-                let asg = assignments_by_activity
-                    .get(&a.id)
-                    .and_then(|v| v.iter().find(|x| x.taxonomy_id == SPENDING_TAXONOMY))
-                    .cloned();
-                let (cat_id_opt, cat_name, cat_color) = match asg {
-                    Some(asg) => match cat_meta.get(&asg.category_id) {
-                        Some((name, color, _parent)) => {
-                            (Some(asg.category_id.clone()), name.clone(), color.clone())
+                let allocations = allocations_for_taxonomy(
+                    &a.id,
+                    SPENDING_TAXONOMY,
+                    amt_native,
+                    &assignments_by_activity,
+                    &splits_by_activity,
+                );
+                if allocations.is_empty() {
+                    add_event_category_allocation(None, amt, &cat_meta, &mut by_category);
+                } else {
+                    for allocation in allocations {
+                        let Some(allocation_amount) =
+                            fx_to_target(fx, allocation.amount, &a.currency, &currency, fx_as_of)
+                        else {
+                            continue;
+                        };
+                        if allocation_amount == Decimal::ZERO {
+                            continue;
                         }
-                        None => (Some(asg.category_id.clone()), asg.category_id, None),
-                    },
-                    None => (None, "Uncategorized".to_string(), None),
-                };
-                let key = cat_id_opt
-                    .clone()
-                    .unwrap_or_else(|| "uncategorized".to_string());
-                let entry = by_category.entry(key).or_insert((
-                    cat_id_opt,
-                    cat_name,
-                    cat_color,
-                    Decimal::ZERO,
-                    0,
-                ));
-                entry.3 += amt;
-                entry.4 += 1;
+                        add_event_category_allocation(
+                            Some(&allocation.category_id),
+                            allocation_amount,
+                            &cat_meta,
+                            &mut by_category,
+                        );
+                    }
+                }
             }
             if total <= Decimal::ZERO {
                 total = Decimal::ZERO;
@@ -1651,7 +1727,10 @@ mod tests {
         amount: i64,
         category_id: &str,
         month: u32,
-    ) -> (Activity, (String, Option<String>)) {
+    ) -> (
+        Activity,
+        crate::activity_assignments::ActivityTaxonomyAssignment,
+    ) {
         let activity = Activity {
             id: id.to_string(),
             account_id: "card-account".to_string(),
@@ -1667,6 +1746,7 @@ mod tests {
             unit_price: None,
             amount: Some(Decimal::new(amount, 0)),
             fee: None,
+            tax: None,
             currency: "USD".to_string(),
             fx_rate: None,
             notes: None,
@@ -1682,7 +1762,55 @@ mod tests {
             updated_at: Utc::now(),
         };
 
-        (activity, (id.to_string(), Some(category_id.to_string())))
+        (activity, assignment(id, SPENDING_TAXONOMY, category_id))
+    }
+
+    fn assignment(
+        activity_id: &str,
+        taxonomy_id: &str,
+        category_id: &str,
+    ) -> crate::activity_assignments::ActivityTaxonomyAssignment {
+        crate::activity_assignments::ActivityTaxonomyAssignment {
+            id: format!("{activity_id}-{taxonomy_id}"),
+            activity_id: activity_id.to_string(),
+            taxonomy_id: taxonomy_id.to_string(),
+            category_id: category_id.to_string(),
+            weight: 10_000,
+            source: "manual".to_string(),
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+        }
+    }
+
+    #[test]
+    fn report_breakdown_keeps_income_out_of_daily_category_buckets() {
+        let assignments = group_assignments(vec![assignment("income", INCOME_TAXONOMY, "salary")]);
+        let splits = SplitsByActivity::new();
+        let mut income_acc: HashMap<(String, String), (Decimal, usize)> = HashMap::new();
+        let mut by_day_cat_acc: HashMap<(String, String, String), (Decimal, usize)> =
+            HashMap::new();
+
+        add_report_breakdown_allocations(
+            &mut income_acc,
+            &mut by_day_cat_acc,
+            "income",
+            INCOME_TAXONOMY,
+            Decimal::new(100, 0),
+            &assignments,
+            &splits,
+            &PassthroughFx,
+            "USD",
+            "USD",
+            NaiveDate::from_ymd_opt(2024, 1, 10).unwrap(),
+            "2024-01-10",
+            false,
+        );
+
+        assert_eq!(
+            income_acc.get(&(INCOME_TAXONOMY.to_string(), "salary".to_string())),
+            Some(&(Decimal::new(100, 0), 1)),
+        );
+        assert!(by_day_cat_acc.is_empty());
     }
 
     fn build_credit_card_summary(activities: &[Activity]) -> SpendingSummary {
@@ -1708,22 +1836,26 @@ mod tests {
                 ("Travel".to_string(), Some("#2".to_string()), None),
             ),
         ]);
-        let assign_by_act = activities
-            .iter()
-            .map(|activity| {
-                let category = if activity.id == "charge" {
-                    "groceries"
-                } else {
-                    "travel"
-                };
-                (activity.id.clone(), Some(category.to_string()))
-            })
-            .collect();
+        let assign_by_act = group_assignments(
+            activities
+                .iter()
+                .map(|activity| {
+                    let category = if activity.id == "charge" {
+                        "groceries"
+                    } else {
+                        "travel"
+                    };
+                    assignment(&activity.id, SPENDING_TAXONOMY, category)
+                })
+                .collect(),
+        );
+        let splits_by_act = SplitsByActivity::new();
 
         build_summary(
             "TOTAL",
             &activity_refs,
             &assign_by_act,
+            &splits_by_act,
             &cat_meta,
             &account_types,
             "USD",
@@ -1866,12 +1998,15 @@ mod tests {
             "groceries".to_string(),
             ("Groceries".to_string(), Some("#1".to_string()), None),
         )]);
-        let assignments = HashMap::from([("charge".to_string(), Some("groceries".to_string()))]);
+        let assignments =
+            group_assignments(vec![assignment("charge", SPENDING_TAXONOMY, "groceries")]);
+        let splits = SplitsByActivity::new();
 
         let summary = build_summary(
             "TOTAL",
             &activity_refs,
             &assignments,
+            &splits,
             &cat_meta,
             &account_types,
             "USD",
@@ -1897,12 +2032,15 @@ mod tests {
             "groceries".to_string(),
             ("Groceries".to_string(), Some("#1".to_string()), None),
         )]);
-        let assignments = HashMap::from([("charge".to_string(), Some("groceries".to_string()))]);
+        let assignments =
+            group_assignments(vec![assignment("charge", SPENDING_TAXONOMY, "groceries")]);
+        let splits = SplitsByActivity::new();
 
         let summary = build_summary(
             "TOTAL",
             &activity_refs,
             &assignments,
+            &splits,
             &cat_meta,
             &account_types,
             "USD",
@@ -1936,13 +2074,16 @@ mod tests {
         )]);
         let assignments = activities
             .iter()
-            .map(|activity| (activity.id.clone(), Some("groceries".to_string())))
-            .collect::<HashMap<_, _>>();
+            .map(|activity| assignment(&activity.id, SPENDING_TAXONOMY, "groceries"))
+            .collect::<Vec<_>>();
+        let assignments = group_assignments(assignments);
+        let splits = SplitsByActivity::new();
 
         let summary = build_summary(
             "TOTAL",
             &activity_refs,
             &assignments,
+            &splits,
             &cat_meta,
             &account_types,
             "USD",

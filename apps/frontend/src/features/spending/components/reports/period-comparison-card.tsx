@@ -1,10 +1,11 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Skeleton, formatCompactAmount } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
 
-import { comparisonLabel, type ComparisonMode } from "../../lib/reports-period";
+import { type ComparisonMode } from "../../lib/reports-period";
 import type { MonthlyReport } from "../../types/report";
 
 interface PeriodComparisonCardProps {
@@ -16,6 +17,7 @@ interface PeriodComparisonCardProps {
 }
 
 interface MetricRow {
+  key: "income" | "spending" | "net" | "rate";
   label: string;
   currentValue: number;
   priorValue: number;
@@ -36,6 +38,7 @@ export function PeriodComparisonCard({
   currency,
   isLoading,
 }: PeriodComparisonCardProps) {
+  const { t } = useTranslation();
   const rows: MetricRow[] = useMemo(() => {
     const c = current?.current;
     const p = prior?.current;
@@ -48,12 +51,36 @@ export function PeriodComparisonCard({
     const pNet = pIn - pOut;
     const pRate = pIn > 0 ? pNet / pIn : 0;
     return [
-      { label: "Income", currentValue: cIn, priorValue: pIn, goodOnIncrease: true },
-      { label: "Spending", currentValue: cOut, priorValue: pOut, goodOnIncrease: false },
-      { label: "Net savings", currentValue: cNet, priorValue: pNet, goodOnIncrease: true },
-      { label: "Savings rate", currentValue: cRate, priorValue: pRate, goodOnIncrease: true },
+      {
+        key: "income" as const,
+        label: t("spending:cashFlow.income"),
+        currentValue: cIn,
+        priorValue: pIn,
+        goodOnIncrease: true,
+      },
+      {
+        key: "spending" as const,
+        label: t("spending:cashFlow.spending"),
+        currentValue: cOut,
+        priorValue: pOut,
+        goodOnIncrease: false,
+      },
+      {
+        key: "net" as const,
+        label: t("spending:comparison.netSavings"),
+        currentValue: cNet,
+        priorValue: pNet,
+        goodOnIncrease: true,
+      },
+      {
+        key: "rate" as const,
+        label: t("spending:comparison.savingsRate"),
+        currentValue: cRate,
+        priorValue: pRate,
+        goodOnIncrease: true,
+      },
     ];
-  }, [current, prior]);
+  }, [current, prior, t]);
 
   if (isLoading) {
     return (
@@ -69,12 +96,14 @@ export function PeriodComparisonCard({
     <div className="border-border bg-card shadow-xs rounded-xl border p-4 md:p-5">
       <div className="mb-3 flex items-baseline justify-between">
         <h3 className="text-foreground text-sm font-semibold">
-          vs. {comparisonLabel(comparison).toLowerCase()}
+          {t("spending:comparison.versus", {
+            label: t(`spending:comparison.mode.${comparison}`).toLowerCase(),
+          })}
         </h3>
       </div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {rows.map((r) => (
-          <ComparisonMetric key={r.label} row={r} currency={currency} />
+          <ComparisonMetric key={r.key} row={r} currency={currency} />
         ))}
       </div>
     </div>
@@ -82,9 +111,10 @@ export function PeriodComparisonCard({
 }
 
 function ComparisonMetric({ row, currency }: { row: MetricRow; currency: string }) {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const { currentValue, priorValue, goodOnIncrease, label } = row;
-  const isRate = label === "Savings rate";
+  const isRate = row.key === "rate";
   const delta = currentValue - priorValue;
   const pct = priorValue !== 0 ? delta / Math.abs(priorValue) : null;
 
@@ -107,7 +137,9 @@ function ComparisonMetric({ row, currency }: { row: MetricRow; currency: string 
         <span className={cn("mt-0.5 text-[11px] tabular-nums", toneClass)}>
           {trendingUp ? "↑" : delta < 0 ? "↓" : "→"} {Math.abs(pct * 100).toFixed(1)}%
           <span className="text-muted-foreground/70 ml-1 font-normal">
-            (was {formatMetric(priorValue, currency, isRate)})
+            {t("spending:comparison.was", {
+              value: formatMetric(priorValue, currency, isRate),
+            })}
           </span>
         </span>
       )}

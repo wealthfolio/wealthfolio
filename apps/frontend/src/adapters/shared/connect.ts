@@ -31,6 +31,7 @@ import type {
   BackendSyncSnapshotUploadResult,
   BackendSyncStateResult,
   ImportRunsRequest,
+  PostLoginBootstrapResult,
 } from "../types";
 
 import { invoke } from "./platform";
@@ -41,6 +42,10 @@ import { invoke } from "./platform";
 
 export async function syncBrokerData(): Promise<void> {
   return invoke<void>("broker_ingest_run");
+}
+
+export async function postLoginBootstrap(): Promise<PostLoginBootstrapResult> {
+  return invoke<PostLoginBootstrapResult>("post_login_bootstrap");
 }
 
 export async function getSyncedAccounts(): Promise<Account[]> {

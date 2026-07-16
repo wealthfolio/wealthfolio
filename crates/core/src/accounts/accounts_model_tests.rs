@@ -72,6 +72,48 @@ mod tests {
     }
 
     #[test]
+    fn cash_allocation_category_id_parses_meta() {
+        let account = Account {
+            meta: Some(r#"{"allocation":{"cashCategoryId":"FIXED_INCOME"}}"#.to_string()),
+            ..Account::default()
+        };
+        assert_eq!(
+            account.cash_allocation_category_id(),
+            Some("FIXED_INCOME".to_string())
+        );
+    }
+
+    #[test]
+    fn cash_allocation_category_id_none_when_missing() {
+        let account = Account {
+            meta: Some(r#"{"accountingSettings":{}}"#.to_string()),
+            ..Account::default()
+        };
+        assert_eq!(account.cash_allocation_category_id(), None);
+    }
+
+    #[test]
+    fn cash_allocation_category_id_none_when_no_meta() {
+        let account = Account::default();
+        assert_eq!(account.cash_allocation_category_id(), None);
+    }
+
+    #[test]
+    fn cash_allocation_category_id_with_existing_accounting_meta() {
+        let account = Account {
+            meta: Some(
+                r#"{"accountingSettings":{"costBasisMethod":"fifo"},"allocation":{"cashCategoryId":"EQUITY"}}"#
+                    .to_string(),
+            ),
+            ..Account::default()
+        };
+        assert_eq!(
+            account.cash_allocation_category_id(),
+            Some("EQUITY".to_string())
+        );
+    }
+
+    #[test]
     fn test_credit_card_rejects_holdings_tracking_mode() {
         let account = NewAccount {
             id: None,

@@ -179,7 +179,7 @@ export const importActivitySchema = z
       .refine(
         (val) => {
           if (!val || val.trim() === "") return true;
-          return /^(CASH:[A-Z]{3}|[A-Z0-9]{1,21}([.-][A-Z0-9]+){0,2})$/.test(val.trim());
+          return /^(?=.{1,100}$)(CASH:[A-Z]{3}|[A-Z0-9_]+([.-][A-Z0-9_]+){0,2})$/.test(val.trim());
         },
         { message: "Invalid symbol format" },
       ),
@@ -187,6 +187,7 @@ export const importActivitySchema = z
     quantity: decimalLikeSchema.nullable().optional(),
     unitPrice: decimalLikeSchema.nullable().optional(),
     fee: decimalLikeSchema.nullable().optional(),
+    tax: decimalLikeSchema.nullable().optional(),
     accountName: z.string().optional(),
     symbolName: z.string().optional(),
     /** Resolved exchange MIC for the symbol (populated during validation) */
@@ -247,6 +248,16 @@ export const importActivitySchema = z
     {
       message: "Fee must be a non-negative number.",
       path: ["fee"],
+    },
+  )
+  .refine(
+    (data) => {
+      const tax = parseNumberLike(data.tax);
+      return tax === undefined || tax >= 0;
+    },
+    {
+      message: "Tax must be a non-negative number.",
+      path: ["tax"],
     },
   )
   .refine(

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { AccountSelectOption } from "./forms/fields";
 import {
   ACTIVITY_FORM_CONFIG,
@@ -28,10 +29,11 @@ export function ActivityFormRenderer({
   isLoading,
   isEditing,
 }: ActivityFormRendererProps) {
+  const { t } = useTranslation();
   if (!selectedType) {
     return (
       <div className="text-muted-foreground flex h-40 items-center justify-center">
-        Select an activity type above to continue
+        {t("activity:form_renderer.select_type")}
       </div>
     );
   }
@@ -40,7 +42,7 @@ export function ActivityFormRenderer({
   if (!config) {
     return (
       <div className="text-muted-foreground flex h-40 items-center justify-center text-center text-sm">
-        This activity type can't be edited here.
+        {t("activity:form_renderer.not_editable")}
       </div>
     );
   }

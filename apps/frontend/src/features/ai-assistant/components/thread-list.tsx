@@ -1,5 +1,6 @@
 import { ThreadListPrimitive } from "@assistant-ui/react";
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 
@@ -106,6 +107,7 @@ interface ThreadListNewProps {
 }
 
 const ThreadListNew: FC<ThreadListNewProps> = ({ onNewThread }) => {
+  const { t } = useTranslation();
   return (
     <Button
       className="aui-thread-list-new hover:bg-muted data-active:bg-muted flex items-center justify-start gap-1 rounded-lg px-2.5 py-2 text-start text-xs"
@@ -113,7 +115,7 @@ const ThreadListNew: FC<ThreadListNewProps> = ({ onNewThread }) => {
       onClick={onNewThread}
     >
       <Icons.Plus className="size-3.5" />
-      New Thread
+      {t("ai:threadList.newThread")}
     </Button>
   );
 };
@@ -124,15 +126,16 @@ interface ThreadSearchInputProps {
 }
 
 const ThreadSearchInput: FC<ThreadSearchInputProps> = ({ value, onChange }) => {
+  const { t } = useTranslation();
   return (
     <div className="relative">
       <Icons.Search className="text-muted-foreground pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 opacity-50" />
       <Input
         type="search"
-        placeholder="Search threads..."
+        placeholder={t("ai:threadList.searchThreads")}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        aria-label="Search threads"
+        aria-label={t("ai:threadList.searchThreadsLabel")}
         className="bg-background h-8 pl-8 pr-8 text-sm shadow-none"
       />
       {value && (
@@ -140,7 +143,7 @@ const ThreadSearchInput: FC<ThreadSearchInputProps> = ({ value, onChange }) => {
           type="button"
           onClick={() => onChange("")}
           className="text-muted-foreground hover:text-foreground absolute right-2 top-1/2 -translate-y-1/2"
-          aria-label="Clear search"
+          aria-label={t("ai:threadList.clearSearch")}
         >
           <Icons.Close className="size-4" />
         </button>
@@ -162,6 +165,7 @@ const ThreadListItems: FC<ThreadListItemsProps> = ({
   switchingThreadId,
   onThreadListStateChange,
 }) => {
+  const { t } = useTranslation();
   // Get the runtime for thread switching
   const runtime = useRuntimeContext();
 
@@ -242,7 +246,7 @@ const ThreadListItems: FC<ThreadListItemsProps> = ({
   if (threads.length === 0) {
     return (
       <div className="text-muted-foreground px-3 py-4 text-center text-sm">
-        {search ? "No threads match your search." : "No conversations yet."}
+        {search ? t("ai:threadList.noMatches") : t("ai:threadList.noConversations")}
       </div>
     );
   }
@@ -254,7 +258,7 @@ const ThreadListItems: FC<ThreadListItemsProps> = ({
         <div className="flex flex-col gap-0.5">
           <div className="text-muted-foreground flex items-center gap-1.5 px-3 py-1 text-xs font-medium">
             <Icons.Pin className="size-3" />
-            Pinned
+            {t("ai:threadList.pinned")}
           </div>
           {pinnedThreads.map((thread) => (
             <ThreadListItemCustom
@@ -275,7 +279,9 @@ const ThreadListItems: FC<ThreadListItemsProps> = ({
       {unpinnedThreads.length > 0 && (
         <div className="flex flex-col gap-0.5">
           {pinnedThreads.length > 0 && (
-            <div className="text-muted-foreground px-3 py-1 text-xs font-medium">Recent</div>
+            <div className="text-muted-foreground px-3 py-1 text-xs font-medium">
+              {t("ai:threadList.recent")}
+            </div>
           )}
           {unpinnedThreads.map((thread) => (
             <ThreadListItemCustom
@@ -313,13 +319,14 @@ const ThreadListItems: FC<ThreadListItemsProps> = ({
 };
 
 const ThreadListSkeleton: FC = () => {
+  const { t } = useTranslation();
   return (
     <>
       {Array.from({ length: 5 }, (_, i) => (
         <div
           key={i}
           role="status"
-          aria-label="Loading threads"
+          aria-label={t("ai:threadList.loadingThreads")}
           aria-live="polite"
           className="aui-thread-list-skeleton-wrapper flex items-center gap-2 rounded-md px-3 py-2"
         >
@@ -353,6 +360,7 @@ const ThreadListItemCustom: FC<ThreadListItemCustomProps> = ({
   onDelete,
   onTogglePin,
 }) => {
+  const { t } = useTranslation();
   return (
     <div
       className={cn(
@@ -368,7 +376,7 @@ const ThreadListItemCustom: FC<ThreadListItemCustomProps> = ({
         disabled={isLoading || isDeleting}
       >
         <span className="aui-thread-list-item-title block min-w-0 truncate text-sm tracking-tighter [word-spacing:-0.2em]">
-          {thread.title || "New Chat"}
+          {thread.title || t("ai:threadList.newChat")}
         </span>
       </button>
       {isLoading ? (
@@ -385,7 +393,7 @@ const ThreadListItemCustom: FC<ThreadListItemCustomProps> = ({
               e.stopPropagation();
               onTogglePin(thread.id, thread.isPinned);
             }}
-            title={thread.isPinned ? "Unpin" : "Pin"}
+            title={thread.isPinned ? t("ai:threadList.unpin") : t("ai:threadList.pin")}
           >
             {thread.isPinned ? (
               <Icons.PinOff className="size-3.5" />
@@ -394,12 +402,14 @@ const ThreadListItemCustom: FC<ThreadListItemCustomProps> = ({
             )}
           </Button>
           <ActionConfirm
-            confirmTitle="Delete conversation?"
-            confirmMessage={`This will permanently delete "${thread.title || "this conversation"}" and all its messages.`}
-            confirmButtonText="Delete"
+            confirmTitle={t("ai:threadList.deleteTitle")}
+            confirmMessage={t("ai:threadList.deleteMessage", {
+              title: thread.title || t("ai:threadList.thisConversation"),
+            })}
+            confirmButtonText={t("ai:threadList.deleteButton")}
             confirmButtonVariant="destructive"
             isPending={isDeleting ?? false}
-            pendingText="Deleting..."
+            pendingText={t("ai:threadList.deleting")}
             handleConfirm={() => onDelete(thread.id)}
             side="right"
             button={

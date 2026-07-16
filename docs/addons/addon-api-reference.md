@@ -1,7 +1,9 @@
 # API Reference
 
-Complete reference for Wealthfolio addon APIs. All functions require appropriate
-permissions in `manifest.json`.
+Complete reference for Wealthfolio addon APIs. Data APIs require an appropriate
+permission entry in `manifest.json`. The baseline capabilities — `query`,
+`storage`, `toast`, and `logger` — are available to every addon and need no
+declaration.
 
 ## Context Overview
 
@@ -164,9 +166,41 @@ export default function enable(ctx: AddonContext) {
 
 ## UI Integration APIs
 
+### Declarative Navigation (preferred)
+
+Static navigation belongs in `manifest.json`, not in code. The host reads it
+into a registry and renders your sidebar entry **without booting the addon**,
+which is what enables lazy activation. Two primitives:
+
+```jsonc
+"contributes": {
+  "routes": [{ "id": "my-addon" }],
+  "links": {
+    "sidebar": [
+      { "id": "my-addon", "route": "my-addon", "label": "My Addon", "icon": "wallet", "order": 100 }
+    ]
+  }
+}
+```
+
+- A **route** is a durable addon page — host-renderable before the addon boots,
+  and the surface that triggers lazy activation. A route with no link is a legal
+  deep-link-only page.
+- The host owns its URL namespace: a route with no `path` mounts at
+  `/addons/<manifest.id>`. An optional `path` is a relative suffix such as
+  `reports/:year`; absolute paths, traversal, queries, and fragments are
+  rejected.
+- A **link** places a route into a host slot and references a declared route by
+  `id`. Only `"sidebar"` is consumed today; unknown slot names are reserved for
+  future surfaces.
+- **Contract:** the runtime `router.add({ id })` MUST equal the declared
+  `contributes.routes[].id`. A mismatch renders a blank "route is not available"
+  page.
+
 ### Sidebar API
 
-Add navigation items to the main application sidebar.
+Runtime sidebar registration still exists for **genuinely dynamic** items;
+static nav should be declared in the manifest instead.
 
 #### `addItem(item: SidebarItem): SidebarItemHandle`
 
@@ -174,8 +208,8 @@ Add navigation items to the main application sidebar.
 const sidebarItem = ctx.sidebar.addItem({
   id: "my-addon",
   label: "My Addon",
-  route: "/addon/my-addon",
-  icon: MyAddonIcon, // Optional React component
+  route: "/addons/my-addon",
+  icon: "puzzle-piece", // Optional host icon name; see the migration guide for the full list
   order: 100, // Lower numbers appear first
 });
 
@@ -187,22 +221,49 @@ ctx.onDisable(() => {
 
 ### Router API
 
-Register routes for your addon's pages.
+Register the component that renders your addon's page. The host owns a single
+React root and mounts the component itself.
 
 #### `add(route: RouteConfig): void`
 
 ```typescript
-ctx.router.add({
-  path: "/addon/my-addon",
-  component: React.lazy(() => Promise.resolve({ default: MyAddonComponent })),
-});
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// Multiple routes
-ctx.router.add({
-  path: "/addon/my-addon/settings",
-  component: React.lazy(() => Promise.resolve({ default: MyAddonSettings })),
-});
+// The host mounts the route component with no ctx, so capture it at enable time.
+let addonCtx: AddonContext | undefined;
+
+const MyAddonRoute = () => (
+  <QueryClientProvider client={addonCtx!.api.query.getClient() as QueryClient}>
+    <MyAddonComponent ctx={addonCtx!} />
+  </QueryClientProvider>
+);
+
+const enable: AddonEnableFunction = (ctx) => {
+  addonCtx = ctx;
+
+  // `id` MUST match the declared `contributes.routes[].id`.
+  ctx.router.add({
+    id: "my-addon",
+    path: "/addons/my-addon",
+    component: MyAddonRoute,
+  });
+
+  ctx.onDisable(() => {
+    addonCtx = undefined;
+  });
+};
 ```
+
+- **Do not call `createRoot` yourself.** The host owns the root; a per-route
+  `createRoot` orphans the React tree so re-renders never reach the DOM (the
+  "buttons do nothing" bug). Provide **exactly one** of `component` or `render`;
+  if both are set, `component` wins.
+- The component receives a `{ location }` prop (`AddonRouteLocation` with
+  `pathname/search/hash/params`). The sandbox has **no** react-router provider,
+  so do not call `useLocation()` / `useParams()` — read `location` from props.
+- `render` still exists as a legacy/imperative escape hatch (it receives
+  `{ root, location }` and you mount into `root` yourself), but `component` is
+  preferred.
 
 ---
 
@@ -764,6 +825,47 @@ Opens a file save dialog.
 ```typescript
 const result = await ctx.api.files.openSaveDialog(fileContent, "export.csv");
 ```
+
+---
+
+## Storage API
+
+Durable, per-addon key/value storage. This is a **baseline capability** (no
+permission declaration needed) and the correct replacement for `localStorage`,
+which throws inside the sandbox. Values survive addon updates, are cleared on
+uninstall, and replicate across paired devices.
+
+### Methods
+
+#### `get(key: string): Promise<string | null>`
+
+Reads a stored value, or `null` if the key is unset.
+
+```typescript
+const raw = await ctx.api.storage.get("prefs");
+const prefs = raw ? JSON.parse(raw) : defaults;
+```
+
+#### `set(key: string, value: string): Promise<void>`
+
+Writes a value. Keys are ≤128 chars from the charset `[A-Za-z0-9_.:-]`; values
+are ≤1 MiB. Serialize objects yourself (e.g. with `JSON.stringify`).
+
+```typescript
+await ctx.api.storage.set("prefs", JSON.stringify(prefs));
+```
+
+#### `delete(key: string): Promise<void>`
+
+Removes a stored value.
+
+```typescript
+await ctx.api.storage.delete("prefs");
+```
+
+> **Info** **Storage vs. Secrets**: use `storage` for ordinary addon preferences
+> and state; use `secrets` (below) for sensitive tokens and API keys, which are
+> encrypted at rest.
 
 ---
 

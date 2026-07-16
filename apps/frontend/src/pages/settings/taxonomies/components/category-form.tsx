@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
@@ -27,14 +28,12 @@ import type { TaxonomyCategory } from "@/lib/types";
 import { useCreateCategory, useUpdateCategory, useDeleteCategory } from "@/hooks/use-taxonomies";
 import { toast } from "sonner";
 
-const categoryFormSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  key: z.string().min(1, "Key is required"),
-  color: z.string().min(1, "Color is required"),
-  description: z.string().optional().nullable(),
-});
-
-type CategoryFormValues = z.infer<typeof categoryFormSchema>;
+interface CategoryFormValues {
+  name: string;
+  key: string;
+  color: string;
+  description?: string | null;
+}
 
 interface CategoryFormProps {
   category?: TaxonomyCategory;
@@ -47,10 +46,14 @@ interface CategoryFormProps {
 }
 
 function generateKey(name: string): string {
-  return name
+  const key = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_|_$/g, "");
+  // Names without any Latin letters or digits (e.g. Chinese, Japanese, Arabic)
+  // slugify to an empty string; fall back so the hidden key field doesn't fail
+  // validation and silently block category creation.
+  return key || `cat_${Date.now()}`;
 }
 
 export function CategoryForm({
@@ -62,10 +65,22 @@ export function CategoryForm({
   onCreate,
   onDelete,
 }: CategoryFormProps) {
+  const { t } = useTranslation();
   const isCreateMode = !category;
   const createMutation = useCreateCategory();
   const updateMutation = useUpdateCategory();
   const deleteMutation = useDeleteCategory();
+
+  const categoryFormSchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, t("settings:tax_name_required")),
+        key: z.string().min(1, t("settings:tax_key_required")),
+        color: z.string().min(1, t("settings:tax_color_required")),
+        description: z.string().optional().nullable(),
+      }),
+    [t],
+  );
 
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categoryFormSchema),
@@ -107,7 +122,7 @@ export function CategoryForm({
           description: values.description ?? null,
           sortOrder: 0,
         });
-        toast.success("Category created successfully");
+        toast.success(t("settings:tax_category_created"));
         onCreate?.();
       } else if (category) {
         await updateMutation.mutateAsync({
@@ -117,10 +132,14 @@ export function CategoryForm({
           color: values.color,
           description: values.description ?? null,
         });
-        toast.success("Category updated successfully");
+        toast.success(t("settings:tax_category_updated"));
       }
     } catch {
-      toast.error(isCreateMode ? "Failed to create category" : "Failed to update category");
+      toast.error(
+        isCreateMode
+          ? t("settings:tax_category_create_error")
+          : t("settings:tax_category_update_error"),
+      );
     }
   };
 
@@ -131,10 +150,10 @@ export function CategoryForm({
         taxonomyId,
         categoryId: category.id,
       });
-      toast.success("Category deleted successfully");
+      toast.success(t("settings:tax_category_deleted"));
       onDelete?.();
     } catch {
-      toast.error("Failed to delete category");
+      toast.error(t("settings:tax_category_delete_error"));
     }
   };
 
@@ -150,7 +169,7 @@ export function CategoryForm({
             style={{ backgroundColor: currentColor }}
           />
           <h3 className="text-lg font-semibold">
-            {isCreateMode ? "New Category" : category?.name}
+            {isCreateMode ? t("settings:tax_new_category") : category?.name}
           </h3>
         </div>
         <Button variant="ghost" size="icon" onClick={onClose}>
@@ -165,9 +184,9 @@ export function CategoryForm({
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Name</FormLabel>
+                <FormLabel>{t("common:name")}</FormLabel>
                 <FormControl>
-                  <Input {...field} placeholder="Category name" />
+                  <Input {...field} placeholder={t("settings:tax_category_name_placeholder")} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -179,7 +198,7 @@ export function CategoryForm({
             name="color"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Color</FormLabel>
+                <FormLabel>{t("settings:tax_color")}</FormLabel>
                 <FormControl>
                   <div className="flex items-center gap-2">
                     <input
@@ -201,12 +220,12 @@ export function CategoryForm({
             name="description"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Description</FormLabel>
+                <FormLabel>{t("common:description")}</FormLabel>
                 <FormControl>
                   <Textarea
                     {...field}
                     value={field.value ?? ""}
-                    placeholder="Optional description for this category"
+                    placeholder={t("settings:tax_description_placeholder")}
                     rows={3}
                   />
                 </FormControl>
@@ -224,12 +243,12 @@ export function CategoryForm({
                 {isPending ? (
                   <>
                     <Icons.Loader className="mr-2 h-4 w-4 animate-spin" />
-                    {isCreateMode ? "Creating..." : "Saving..."}
+                    {isCreateMode ? t("settings:tax_creating") : t("settings:tax_saving")}
                   </>
                 ) : isCreateMode ? (
-                  "Create Category"
+                  t("settings:tax_create_category")
                 ) : (
-                  "Save Changes"
+                  t("settings:tax_save_changes")
                 )}
               </Button>
               {!isCreateMode && (
@@ -239,7 +258,7 @@ export function CategoryForm({
                   onClick={() => form.reset()}
                   disabled={!form.formState.isDirty}
                 >
-                  Reset
+                  {t("common:reset")}
                 </Button>
               )}
             </div>
@@ -264,19 +283,18 @@ export function CategoryForm({
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Category</AlertDialogTitle>
+                    <AlertDialogTitle>{t("settings:tax_delete_category")}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Are you sure you want to delete &quot;{category?.name}&quot;? This will remove
-                      all asset assignments to this category. This action cannot be undone.
+                      {t("settings:tax_delete_confirm_desc", { name: category?.name })}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleDelete}
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
-                      Delete
+                      {t("common:delete")}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

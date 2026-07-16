@@ -2,6 +2,7 @@ import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import { Badge, Card, CardContent, CardHeader, CardTitle, Skeleton } from "@wealthfolio/ui";
 import { memo, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { CompactToolCard } from "./shared";
 
@@ -170,23 +171,23 @@ function AccountCard({ account }: { account: AccountDto }) {
 }
 
 function EmptyState() {
+  const { t } = useTranslation();
   return (
     <Card className="bg-muted/40 border-primary/10">
       <CardContent className="flex flex-col items-center justify-center py-8 text-center">
-        <p className="text-muted-foreground text-sm">No accounts found.</p>
-        <p className="text-muted-foreground mt-1 text-xs">
-          Add accounts in Settings to track your investments.
-        </p>
+        <p className="text-muted-foreground text-sm">{t("ai:accounts.empty")}</p>
+        <p className="text-muted-foreground mt-1 text-xs">{t("ai:accounts.emptyHint")}</p>
       </CardContent>
     </Card>
   );
 }
 
 function ErrorState({ message }: { message?: string }) {
+  const { t } = useTranslation();
   return (
     <Card className="border-destructive/30 bg-destructive/5">
       <CardContent className="py-4">
-        <p className="text-destructive text-sm font-medium">Failed to load accounts</p>
+        <p className="text-destructive text-sm font-medium">{t("ai:accounts.error")}</p>
         {message && <p className="text-muted-foreground mt-1 text-xs">{message}</p>}
       </CardContent>
     </Card>
@@ -200,6 +201,7 @@ function ErrorState({ message }: { message?: string }) {
 type AccountsToolUIContentProps = ToolCallMessagePartProps<GetAccountsArgs, GetAccountsResult>;
 
 function AccountsToolUIContentImpl({ args, result, status }: AccountsToolUIContentProps) {
+  const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const parsed = useMemo(() => normalizeResult(result, baseCurrency), [baseCurrency, result]);
@@ -213,20 +215,16 @@ function AccountsToolUIContentImpl({ args, result, status }: AccountsToolUIConte
     }
     return Array.from(byCurrency.entries())
       .sort((a, b) => b[1] - a[1])
-      .map(([currency, cnt]) => `${cnt} ${currency}`)
+      .map(([currency, cnt]) => t("ai:accounts.currencyCount", { count: cnt, currency }))
       .join(", ");
-  }, [parsed]);
+  }, [parsed, t]);
 
   const isLoading = status?.type === "running";
   const isIncomplete = status?.type === "incomplete";
 
   // Compact mode — just show a one-liner when used as a prerequisite
   if (args?.displayMode === "compact" && parsed && !isLoading) {
-    return (
-      <CompactToolCard
-        label={`Fetched ${parsed.accounts.length} account${parsed.accounts.length !== 1 ? "s" : ""}`}
-      />
-    );
+    return <CompactToolCard label={t("ai:accounts.fetched", { count: parsed.accounts.length })} />;
   }
 
   // Show loading skeleton while running
@@ -236,7 +234,7 @@ function AccountsToolUIContentImpl({ args, result, status }: AccountsToolUIConte
 
   // Show error state for incomplete/failed status
   if (isIncomplete) {
-    return <ErrorState message="The request was interrupted or failed." />;
+    return <ErrorState message={t("ai:performance.interrupted")} />;
   }
 
   // Show empty state if no accounts
@@ -251,13 +249,13 @@ function AccountsToolUIContentImpl({ args, result, status }: AccountsToolUIConte
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-base">Accounts</CardTitle>
+            <CardTitle className="text-base">{t("ai:accounts.title")}</CardTitle>
             <Badge variant="secondary" className="text-xs">
-              {count} {count === 1 ? "account" : "accounts"}
+              {t("ai:accounts.count", { count })}
             </Badge>
             {truncated && originalCount && (
               <Badge variant="outline" className="text-muted-foreground text-xs">
-                of {originalCount}
+                {t("ai:accounts.of", { count: originalCount })}
               </Badge>
             )}
           </div>

@@ -1,7 +1,9 @@
 import { Button } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 export default function NotFoundPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   return (
@@ -10,18 +12,17 @@ export default function NotFoundPage() {
         <h1 className="text-muted-foreground/10 select-none text-9xl font-black tracking-tighter">
           404
         </h1>
-        <h2 className="text-3xl font-bold tracking-tight">Page not found</h2>
+        <h2 className="text-3xl font-bold tracking-tight">{t("common:notFound.title")}</h2>
         <p className="text-muted-foreground mx-auto max-w-[450px] text-lg">
-          Sorry, we couldn&apos;t find the page you&apos;re looking for. It might have been moved,
-          deleted, or never existed.
+          {t("common:notFound.description")}
         </p>
       </div>
       <div className="flex gap-4">
         <Button onClick={() => navigate(-1)} variant="outline" size="lg">
-          Go Back
+          {t("common:notFound.goBack")}
         </Button>
         <Button onClick={() => navigate("/")} variant="default" size="lg">
-          Back to Dashboard
+          {t("common:notFound.backToDashboard")}
         </Button>
       </div>
     </div>

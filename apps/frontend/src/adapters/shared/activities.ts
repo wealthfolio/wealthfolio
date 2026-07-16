@@ -32,6 +32,7 @@ interface ActivityFilters {
   dateFrom?: string; // YYYY-MM-DD format
   dateTo?: string; // YYYY-MM-DD format
   instrumentTypes?: string | string[];
+  activityIds?: string | string[];
 }
 
 interface ActivitySort {
@@ -73,6 +74,7 @@ export const searchActivities = async (
   const accountIdFilter = normalizeStringArray(filters?.accountIds);
   const activityTypeFilter = normalizeStringArray(filters?.activityTypes);
   const instrumentTypeFilter = normalizeStringArray(filters?.instrumentTypes);
+  const activityIdFilter = normalizeStringArray(filters?.activityIds);
   const assetIdKeywordRaw = filters?.symbol ?? searchKeyword;
   const assetIdKeyword = assetIdKeywordRaw?.trim() ? assetIdKeywordRaw.trim() : undefined;
   const sortOption = sort?.id
@@ -94,6 +96,7 @@ export const searchActivities = async (
       dateFrom,
       dateTo,
       instrumentTypeFilter,
+      activityIdFilter,
     });
   } catch (err) {
     logger.error("Error fetching activities.");

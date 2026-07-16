@@ -7,6 +7,7 @@ use crate::activities::{
     Activity, ACTIVITY_SUBTYPE_BONUS, ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_DEPOSIT,
     ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL,
 };
+use crate::portfolio::economic_events::TransferBoundary;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use std::collections::HashSet;
@@ -102,9 +103,27 @@ pub fn classify_transfer_for_account_scope(
     scope_account_ids: &HashSet<String>,
     paired_account_id: Option<&str>,
 ) -> FlowType {
+    match classify_transfer_boundary_for_account_scope(
+        activity,
+        scope_account_ids,
+        paired_account_id,
+    ) {
+        TransferBoundary::Internal => FlowType::Internal,
+        TransferBoundary::External | TransferBoundary::Unknown => FlowType::External,
+    }
+}
+
+pub fn classify_transfer_boundary_for_account_scope(
+    activity: &Activity,
+    scope_account_ids: &HashSet<String>,
+    paired_account_id: Option<&str>,
+) -> TransferBoundary {
     let effective_type = activity.effective_type();
     if effective_type != ACTIVITY_TYPE_TRANSFER_IN && effective_type != ACTIVITY_TYPE_TRANSFER_OUT {
-        return classify_flow_for_scope(activity, PerformanceScope::Portfolio);
+        return match classify_flow_for_scope(activity, PerformanceScope::Portfolio) {
+            FlowType::External => TransferBoundary::External,
+            FlowType::Internal => TransferBoundary::Internal,
+        };
     }
 
     let current_inside = scope_account_ids.contains(&activity.account_id);
@@ -112,12 +131,16 @@ pub fn classify_transfer_for_account_scope(
         let paired_inside = scope_account_ids.contains(paired_account_id);
 
         return match (current_inside, paired_inside) {
-            (true, true) | (false, false) => FlowType::Internal,
-            (true, false) | (false, true) => FlowType::External,
+            (true, true) | (false, false) => TransferBoundary::Internal,
+            (true, false) | (false, true) => TransferBoundary::External,
         };
     }
 
-    FlowType::External
+    if is_external_transfer(activity) {
+        TransferBoundary::External
+    } else {
+        TransferBoundary::Unknown
+    }
 }
 
 fn opposite_transfer_type(activity_type: &str) -> Option<&'static str> {
@@ -254,6 +277,7 @@ mod tests {
             unit_price: None,
             amount: Some(rust_decimal::Decimal::from(100)),
             fee: None,
+            tax: None,
             currency: "USD".to_string(),
             fx_rate: None,
             notes: None,
@@ -399,6 +423,16 @@ mod tests {
         assert_eq!(
             classify_transfer_for_account_scope(&activity, &scope, None),
             FlowType::External
+        );
+    }
+
+    #[test]
+    fn unpaired_transfer_without_external_metadata_has_unknown_boundary() {
+        let activity = create_test_activity("TRANSFER_IN");
+        let scope = account_scope(&["account-1"]);
+        assert_eq!(
+            classify_transfer_boundary_for_account_scope(&activity, &scope, None),
+            TransferBoundary::Unknown
         );
     }
 

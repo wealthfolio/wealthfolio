@@ -1,18 +1,20 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useEventTypes } from "@/features/spending/hooks/use-spending-events";
 
 import { OverviewCard, type OverviewChip } from "./overview-card";
 
 export function EventTypesOverviewCard() {
+  const { t } = useTranslation();
   const { data: eventTypes = [], isLoading, isError } = useEventTypes();
 
   const chips = useMemo<OverviewChip[]>(
     () =>
-      eventTypes.map((t) => ({
-        id: t.id,
-        name: t.name,
-        color: t.color ?? null,
+      eventTypes.map((type) => ({
+        id: type.id,
+        name: type.name,
+        color: type.color ?? null,
       })),
     [eventTypes],
   );
@@ -21,21 +23,21 @@ export function EventTypesOverviewCard() {
 
   return (
     <OverviewCard
-      title="Event types"
+      title={t("settings:spending.event_types.title")}
       description={
         total === 0
-          ? "Tag recurring or one-off events on transactions and timelines."
-          : `${total} tag${total === 1 ? "" : "s"} used to mark trips, moves, and one-off life events on the timeline.`
+          ? t("settings:spending.event_types.description_empty")
+          : t("settings:spending.event_types.description", { count: total })
       }
       chips={chips}
       manageHref="/settings/spending/events"
-      emptyTitle="No event types yet"
-      emptyDescription="Add types like Vacation, Move, or Wedding to tag transactions."
-      emptyCtaLabel="Add event type"
+      emptyTitle={t("settings:spending.event_types.empty_title")}
+      emptyDescription={t("settings:spending.event_types.empty_description")}
+      emptyCtaLabel={t("settings:spending.event_types.empty_cta")}
       isLoading={isLoading}
       isError={isError}
-      errorTitle="Event types could not load"
-      errorDescription="Open event settings and retry before editing event tags."
+      errorTitle={t("settings:spending.event_types.error_title")}
+      errorDescription={t("settings:spending.event_types.error_description")}
       chipShape="tag"
       maxVisible={20}
     />

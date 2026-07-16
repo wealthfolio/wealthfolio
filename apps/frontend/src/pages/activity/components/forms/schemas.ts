@@ -133,6 +133,13 @@ export const tradeActivitySchema = baseActivitySchema.extend({
     })
     .min(0, { message: "Fee must be a non-negative number." })
     .default(0),
+  tax: z.coerce
+    .number({
+      required_error: "Please enter a valid tax.",
+      invalid_type_error: "Tax must be a positive number.",
+    })
+    .min(0, { message: "Tax must be a non-negative number." })
+    .default(0),
   quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MARKET),
   // Asset type selection (stock/option/bond)
   assetType: z.enum(["stock", "option", "bond"]).default("stock"),
@@ -182,6 +189,13 @@ export const incomeActivitySchema = baseActivitySchema.extend({
       invalid_type_error: "Fee must be a positive number.",
     })
     .min(0, { message: "Fee must be a non-negative number." })
+    .default(0)
+    .optional(),
+  tax: z.coerce
+    .number({
+      invalid_type_error: "Tax must be a positive number.",
+    })
+    .min(0, { message: "Tax must be a non-negative number." })
     .default(0)
     .optional(),
 });

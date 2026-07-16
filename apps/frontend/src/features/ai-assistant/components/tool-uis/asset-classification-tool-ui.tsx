@@ -17,6 +17,8 @@ import {
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { memo, useMemo, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useRuntimeContext } from "../../hooks/use-runtime-context";
 import type {
   AssetClassificationAssignmentPreview,
@@ -105,27 +107,27 @@ function normalizeAssetClassificationResult(
   return undefined;
 }
 
-function extractToolResultError(value: unknown): string | null {
+function extractToolResultError(value: unknown, t: TFunction): string | null {
   if (!value) return null;
 
   if (typeof value === "string") {
     try {
-      return extractToolResultError(JSON.parse(value)) ?? friendlyToolError(value);
+      return extractToolResultError(JSON.parse(value), t) ?? friendlyToolError(value, t);
     } catch {
-      return friendlyToolError(value);
+      return friendlyToolError(value, t);
     }
   }
 
   if (!isRecord(value)) return null;
 
   if ("data" in value) {
-    const dataError = extractToolResultError(value.data);
+    const dataError = extractToolResultError(value.data, t);
     if (dataError) return dataError;
   }
 
-  if (typeof value.error === "string") return friendlyToolError(value.error);
-  if (typeof value.message === "string") return friendlyToolError(value.message);
-  if (typeof value.content === "string") return friendlyToolError(value.content);
+  if (typeof value.error === "string") return friendlyToolError(value.error, t);
+  if (typeof value.message === "string") return friendlyToolError(value.message, t);
+  if (typeof value.content === "string") return friendlyToolError(value.content, t);
 
   return null;
 }
@@ -139,7 +141,7 @@ function cleanToolError(raw: string): string {
     .trim();
 }
 
-function friendlyToolError(raw: string): string {
+function friendlyToolError(raw: string, t: TFunction): string {
   const cleaned = cleanToolError(raw);
   const lower = cleaned.toLowerCase();
 
@@ -148,33 +150,34 @@ function friendlyToolError(raw: string): string {
     lower.includes("asset-scoped taxonomy") ||
     lower.includes("taxonomy filter")
   ) {
-    return "I could not match the requested taxonomy. I’ll use the available asset taxonomies instead.";
+    return t("ai:assetClassification.matchTaxonomyError");
   }
 
   if (lower.includes("unknown") && lower.includes("category")) {
-    return "The image includes an Unknown slice. It is not a category here, so it should be left unallocated.";
+    return t("ai:assetClassification.unknownSliceError");
   }
 
   if (lower.includes("residual bucket") && lower.includes("cannot be mapped")) {
-    return "The image includes an Other or Unknown slice. It should be left unallocated unless there is an exact matching category.";
+    return t("ai:assetClassification.residualBucketError");
   }
 
   if (lower.includes("does not belong to the selected taxonomy")) {
-    return "One proposed category is not available in the selected taxonomy. I’ll use only matching categories.";
+    return t("ai:assetClassification.notInTaxonomyError");
   }
 
   if (lower.includes("duplicate category")) {
-    return "Some rows map to the same category. I’ll combine them and retry.";
+    return t("ai:assetClassification.duplicateCategoryError");
   }
 
   if (lower.includes("ambiguous")) {
-    return "I found more than one matching asset. Choose the exact asset in the draft widget.";
+    return t("ai:assetClassification.ambiguousError");
   }
 
-  return "I could not prepare this draft yet. I’ll retry with the available categories.";
+  return t("ai:assetClassification.genericError");
 }
 
 function AssetClassificationLoadingState() {
+  const { t } = useTranslation();
   return (
     <Card className="bg-muted/40 border-primary/10 w-full overflow-hidden">
       <CardContent className="flex items-center gap-3 py-5">
@@ -182,7 +185,7 @@ function AssetClassificationLoadingState() {
           <Icons.Sparkles className="text-primary h-4 w-4 animate-pulse" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">Preparing classification...</p>
+          <p className="text-sm font-medium">{t("ai:assetClassification.preparing")}</p>
         </div>
         <Icons.Spinner className="text-muted-foreground h-4 w-4 shrink-0 animate-spin" />
       </CardContent>
@@ -199,27 +202,32 @@ function InlineToolError({ label }: { label: string }) {
   );
 }
 
-function validatePreview(result: PrepareAssetClassificationOutput | undefined): string[] {
-  if (!result) return ["No draft result."];
+function validatePreview(
+  result: PrepareAssetClassificationOutput | undefined,
+  t: TFunction,
+): string[] {
+  if (!result) return [t("ai:assetClassification.noDraftResult")];
 
   const issues: string[] = [];
   const proposedAssignments = result.proposedAssignments ?? [];
   const categoryIds = new Set<string>();
   for (const row of proposedAssignments) {
     if (row.weightBasisPoints < 0 || row.weightBasisPoints > 10000) {
-      issues.push(`${row.categoryName} has an invalid weight.`);
+      issues.push(t("ai:assetClassification.invalidWeight", { categoryName: row.categoryName }));
     }
 
     if (row.weightBasisPoints === 0) continue;
 
     if (categoryIds.has(row.categoryId)) {
-      issues.push(`Duplicate category: ${row.categoryName}`);
+      issues.push(
+        t("ai:assetClassification.duplicateCategory", { categoryName: row.categoryName }),
+      );
     }
     categoryIds.add(row.categoryId);
   }
 
   if (result.unallocatedBasisPoints < 0) {
-    issues.push("Proposed weights exceed 100%.");
+    issues.push(t("ai:assetClassification.weightsExceed"));
   }
 
   const effectiveProposedAssignments = proposedAssignments.filter(
@@ -227,12 +235,12 @@ function validatePreview(result: PrepareAssetClassificationOutput | undefined): 
   );
 
   if (result.taxonomy?.isSingleSelect && effectiveProposedAssignments.length > 1) {
-    issues.push("Single-select taxonomy has more than one proposed category.");
+    issues.push(t("ai:assetClassification.singleSelectMultiple"));
   }
 
   const singleSelectRow = result.taxonomy?.isSingleSelect ? effectiveProposedAssignments[0] : null;
   if (singleSelectRow && singleSelectRow.weightBasisPoints !== 10000) {
-    issues.push("Single-select taxonomy requires 100% weight.");
+    issues.push(t("ai:assetClassification.singleSelectFullWeight"));
   }
 
   return issues;
@@ -242,14 +250,18 @@ function validateEditedPreview(
   result: PrepareAssetClassificationOutput | undefined,
   proposedAssignments: AssetClassificationAssignmentPreview[],
   unallocatedBasisPoints: number,
+  t: TFunction,
 ): string[] {
-  if (!result) return ["No draft result."];
+  if (!result) return [t("ai:assetClassification.noDraftResult")];
 
-  return validatePreview({
-    ...result,
-    proposedAssignments,
-    unallocatedBasisPoints,
-  });
+  return validatePreview(
+    {
+      ...result,
+      proposedAssignments,
+      unallocatedBasisPoints,
+    },
+    t,
+  );
 }
 
 function basisPointsToPercentInput(weightBasisPoints: number): string {
@@ -355,6 +367,7 @@ function ClassificationComparisonTable({
   onDraftPercentValueChange: (categoryId: string, value: string) => void;
   onNewWeightChange: (row: ClassificationComparisonRow, weightBasisPoints: number) => void;
 }) {
+  const { t } = useTranslation();
   const rows = buildComparisonRows(currentRows, proposedRows);
   const currentTotalBasisPoints = currentRows.reduce((sum, row) => sum + row.weightBasisPoints, 0);
   const proposedTotalBasisPoints = rows.reduce(
@@ -364,12 +377,14 @@ function ClassificationComparisonTable({
 
   return (
     <div className="min-w-0 space-y-1.5">
-      <div className="text-muted-foreground text-xs font-medium">Allocation</div>
+      <div className="text-muted-foreground text-xs font-medium">
+        {t("ai:assetClassification.allocation")}
+      </div>
       <div className="bg-background/70 overflow-hidden rounded-md border">
         <div className="text-muted-foreground grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem] gap-2 border-b px-2.5 py-1.5 text-[11px] font-medium sm:grid-cols-[minmax(0,1fr)_5.25rem_5.25rem]">
-          <div>Section</div>
-          <div className="text-right">Current</div>
-          <div className="text-right">New</div>
+          <div>{t("ai:assetClassification.section")}</div>
+          <div className="text-right">{t("ai:assetClassification.current")}</div>
+          <div className="text-right">{t("ai:assetClassification.new")}</div>
         </div>
         {rows.length === 0 ? (
           <div className="text-muted-foreground px-3 py-3 text-xs">{emptyLabel}</div>
@@ -390,7 +405,9 @@ function ClassificationComparisonTable({
               </div>
               <div className="text-right">
                 <span
-                  aria-label={`Current ${row.categoryName} percent`}
+                  aria-label={t("ai:assetClassification.currentPercentLabel", {
+                    categoryName: row.categoryName,
+                  })}
                   className={cn(
                     "bg-muted/60 inline-flex min-w-[3.75rem] justify-end rounded-md px-1.5 py-0.5 text-xs font-medium sm:min-w-[4.5rem]",
                     row.currentWeightBasisPoints === 0 && "text-muted-foreground",
@@ -411,7 +428,9 @@ function ClassificationComparisonTable({
                   )}
                 >
                   <input
-                    aria-label={`New ${row.categoryName} percent`}
+                    aria-label={t("ai:assetClassification.newPercentLabel", {
+                      categoryName: row.categoryName,
+                    })}
                     className="h-6 w-full bg-transparent pl-1.5 pr-4 text-right text-xs font-medium outline-none disabled:cursor-not-allowed"
                     disabled={disabled}
                     inputMode="decimal"
@@ -446,7 +465,9 @@ function ClassificationComparisonTable({
         )}
         {rows.length > 0 ? (
           <div className="bg-muted/50 grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem] items-center gap-2 px-2.5 py-1.5 sm:grid-cols-[minmax(0,1fr)_5.25rem_5.25rem]">
-            <div className="text-muted-foreground text-right text-xs font-medium">Total</div>
+            <div className="text-muted-foreground text-right text-xs font-medium">
+              {t("ai:assetClassification.total")}
+            </div>
             <div className="text-right text-sm font-semibold">
               {formatBasisPoints(currentTotalBasisPoints)}
             </div>
@@ -460,12 +481,14 @@ function ClassificationComparisonTable({
   );
 }
 
-function formatExistingAllocation(rows: AssetClassificationAssignmentPreview[]) {
-  if (rows.length === 0) return "No existing allocation";
+function formatExistingAllocation(rows: AssetClassificationAssignmentPreview[], t: TFunction) {
+  if (rows.length === 0) return t("ai:assetClassification.noExistingAllocation");
 
   const totalBasisPoints = rows.reduce((sum, row) => sum + row.weightBasisPoints, 0);
-  const label = rows.length === 1 ? "allocation" : "allocations";
-  return `Existing: ${rows.length} ${label} · ${formatBasisPoints(totalBasisPoints)}`;
+  return t("ai:assetClassification.existingAllocation", {
+    count: rows.length,
+    total: formatBasisPoints(totalBasisPoints),
+  });
 }
 
 export function AssetClassificationToolUIContentImpl({
@@ -473,6 +496,7 @@ export function AssetClassificationToolUIContentImpl({
   status,
   toolCallId,
 }: AssetClassificationToolUIContentProps) {
+  const { t } = useTranslation();
   const runtime = useRuntimeContext();
   const threadId = runtime.currentThreadId;
   const replaceAssetTaxonomyAssignments = useReplaceAssetTaxonomyAssignments();
@@ -488,25 +512,21 @@ export function AssetClassificationToolUIContentImpl({
   const proposedAssignments = editedProposedAssignments ?? parsedResult?.proposedAssignments ?? [];
   const unallocated = 10000 - sumPositiveWeights(proposedAssignments);
   const validationIssues = useMemo(
-    () => validateEditedPreview(parsedResult, proposedAssignments, unallocated),
-    [parsedResult, proposedAssignments, unallocated],
+    () => validateEditedPreview(parsedResult, proposedAssignments, unallocated, t),
+    [parsedResult, proposedAssignments, unallocated, t],
   );
 
   if (status?.type === "running") return <AssetClassificationLoadingState />;
 
   if (status?.type === "incomplete") {
-    return <InlineToolError label="Failed to prepare classification draft." />;
+    return <InlineToolError label={t("ai:assetClassification.failedPrepareDraft")} />;
   }
 
   if (!result) return null;
 
   if (!parsedResult) {
-    const toolError = extractToolResultError(result);
-    return (
-      <InlineToolError
-        label={toolError ?? "Could not read the classification draft returned by the tool."}
-      />
-    );
+    const toolError = extractToolResultError(result, t);
+    return <InlineToolError label={toolError ?? t("ai:assetClassification.couldNotReadDraft")} />;
   }
 
   const resolvedAsset = parsedResult.resolvedAsset ?? null;
@@ -596,9 +616,7 @@ export function AssetClassificationToolUIContentImpl({
   };
 
   if (!selectedAsset && assetCandidates.length === 0) {
-    return (
-      <InlineToolError label="No resolved asset was returned for this classification draft." />
-    );
+    return <InlineToolError label={t("ai:assetClassification.noResolvedAsset")} />;
   }
 
   const handleConfirm = async () => {
@@ -621,7 +639,9 @@ export function AssetClassificationToolUIContentImpl({
           })),
       });
     } catch (error) {
-      setApplyError(error instanceof Error ? error.message : "Failed to apply classification.");
+      setApplyError(
+        error instanceof Error ? error.message : t("ai:assetClassification.failedApply"),
+      );
       return;
     }
 
@@ -660,7 +680,10 @@ export function AssetClassificationToolUIContentImpl({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <CardTitle className="truncate text-sm">
-              {selectedAsset?.label || `${parsedResult.assetQuery} classification draft`}
+              {selectedAsset?.label ||
+                t("ai:assetClassification.classificationDraft", {
+                  query: parsedResult.assetQuery,
+                })}
             </CardTitle>
             <p className="text-muted-foreground mt-1 text-xs">
               {parsedResult.taxonomy.name}
@@ -670,13 +693,17 @@ export function AssetClassificationToolUIContentImpl({
           </div>
           <div className="flex flex-wrap items-center justify-end gap-1.5">
             <Badge variant={isApplied ? "default" : "secondary"} className="shrink-0">
-              {isApplied ? "Applied" : "Draft"}
+              {isApplied ? t("ai:assetClassification.applied") : t("ai:assetClassification.draft")}
             </Badge>
             <Badge
               variant={!selectedAsset ? "secondary" : isValid ? "outline" : "destructive"}
               className="shrink-0"
             >
-              {!selectedAsset ? "Needs asset" : isValid ? "Valid" : "Invalid"}
+              {!selectedAsset
+                ? t("ai:assetClassification.needsAsset")
+                : isValid
+                  ? t("ai:assetClassification.valid")
+                  : t("ai:assetClassification.invalid")}
             </Badge>
           </div>
         </div>
@@ -685,7 +712,9 @@ export function AssetClassificationToolUIContentImpl({
       <CardContent className="space-y-4">
         {!resolvedAsset && assetCandidates.length > 0 ? (
           <div className="space-y-2">
-            <div className="text-muted-foreground text-xs font-medium">Asset</div>
+            <div className="text-muted-foreground text-xs font-medium">
+              {t("ai:assetClassification.asset")}
+            </div>
             <div className="grid gap-2">
               {assetCandidates.map((candidate) => {
                 const isSelected = selectedAssetId === candidate.assetId;
@@ -697,7 +726,7 @@ export function AssetClassificationToolUIContentImpl({
                 const subtitle = [
                   candidate.exchangeMic,
                   candidate.currency,
-                  formatExistingAllocation(candidateAssignments),
+                  formatExistingAllocation(candidateAssignments, t),
                 ]
                   .filter(Boolean)
                   .join(" · ");
@@ -738,12 +767,24 @@ export function AssetClassificationToolUIContentImpl({
         ) : null}
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          <DiffStat label="Add" value={plan.changes.addCount} className="text-success" />
-          <DiffStat label="Update" value={plan.changes.updateCount} className="text-primary" />
-          <DiffStat label="Remove" value={plan.changes.removeCount} className="text-destructive" />
-          <DiffStat label="Same" value={plan.changes.unchangedCount} />
           <DiffStat
-            label="Unallocated"
+            label={t("ai:assetClassification.add")}
+            value={plan.changes.addCount}
+            className="text-success"
+          />
+          <DiffStat
+            label={t("ai:assetClassification.update")}
+            value={plan.changes.updateCount}
+            className="text-primary"
+          />
+          <DiffStat
+            label={t("ai:assetClassification.remove")}
+            value={plan.changes.removeCount}
+            className="text-destructive"
+          />
+          <DiffStat label={t("ai:assetClassification.same")} value={plan.changes.unchangedCount} />
+          <DiffStat
+            label={t("ai:assetClassification.unallocated")}
             value={formatBasisPoints(Math.max(unallocated, 0))}
             className={unallocated > 0 ? "text-warning" : undefined}
           />
@@ -752,7 +793,11 @@ export function AssetClassificationToolUIContentImpl({
         <ClassificationComparisonTable
           currentRows={currentAssignments}
           proposedRows={proposedAssignments}
-          emptyLabel={selectedAsset ? "No allocation rows." : "Choose an asset."}
+          emptyLabel={
+            selectedAsset
+              ? t("ai:assetClassification.noAllocationRows")
+              : t("ai:assetClassification.chooseAsset")
+          }
           disabled={isApplied || isSubmitting}
           draftPercentValues={draftPercentValues}
           onDraftPercentValueChange={handleDraftPercentValueChange}
@@ -762,7 +807,7 @@ export function AssetClassificationToolUIContentImpl({
         {validationIssues.length > 0 ? (
           <Alert variant="error">
             <Icons.AlertCircle className="h-4 w-4" />
-            <AlertTitle>Invalid draft</AlertTitle>
+            <AlertTitle>{t("ai:assetClassification.invalidDraft")}</AlertTitle>
             <AlertDescription className="space-y-1 text-xs">
               {validationIssues.map((issue) => (
                 <div key={issue}>{issue}</div>
@@ -774,15 +819,13 @@ export function AssetClassificationToolUIContentImpl({
         {applyError ? (
           <Alert variant="error">
             <Icons.AlertCircle className="h-4 w-4" />
-            <AlertTitle>Failed to apply classification</AlertTitle>
+            <AlertTitle>{t("ai:assetClassification.failedApplyTitle")}</AlertTitle>
             <AlertDescription className="break-words text-xs">{applyError}</AlertDescription>
           </Alert>
         ) : null}
 
         {persistError ? (
-          <p className="text-destructive text-xs">
-            Classification changed, but this chat could not be updated.
-          </p>
+          <p className="text-destructive text-xs">{t("ai:assetClassification.chatNotUpdated")}</p>
         ) : null}
 
         {isApplied ? (
@@ -792,11 +835,12 @@ export function AssetClassificationToolUIContentImpl({
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-success text-sm font-medium">
-                {appliedCategoryCount} {appliedCategoryCount === 1 ? "category" : "categories"}{" "}
-                classified
+                {t("ai:assetClassification.categoriesClassified", { count: appliedCategoryCount })}
               </p>
               <p className="text-muted-foreground text-xs">
-                Allocations saved to {selectedAsset?.label ?? "your asset"}.
+                {t("ai:assetClassification.allocationsSaved", {
+                  asset: selectedAsset?.label ?? t("ai:assetClassification.yourAsset"),
+                })}
               </p>
             </div>
           </div>
@@ -805,10 +849,13 @@ export function AssetClassificationToolUIContentImpl({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-muted-foreground min-w-0 text-xs">
             {isApplied && appliedAt
-              ? `Applied ${appliedAt}`
+              ? t("ai:assetClassification.appliedAt", { date: appliedAt })
               : plan.hasChanges
-                ? `${plan.removals.length} removals · ${plan.upserts.length} writes`
-                : "No changes"}
+                ? t("ai:assetClassification.changesSummary", {
+                    removals: plan.removals.length,
+                    writes: plan.upserts.length,
+                  })
+                : t("ai:assetClassification.noChanges")}
           </div>
           <Button size="sm" onClick={handleConfirm} disabled={!canConfirm}>
             {isSubmitting ? (
@@ -816,7 +863,7 @@ export function AssetClassificationToolUIContentImpl({
             ) : isApplied ? (
               <Icons.Check className="mr-2 h-4 w-4" />
             ) : null}
-            {isApplied ? "Applied" : "Confirm"}
+            {isApplied ? t("ai:assetClassification.applied") : t("ai:assetClassification.confirm")}
           </Button>
         </div>
       </CardContent>

@@ -8,6 +8,7 @@ import {
   SheetTrigger,
 } from "@wealthfolio/ui/components/ui/sheet";
 import { Icons } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
 
 export interface MobileAction {
   icon: keyof typeof Icons;
@@ -28,9 +29,10 @@ export function MobileActionsMenu({
   actions,
   open,
   onOpenChange,
-  title = "Actions",
-  description = "Choose an action",
+  title,
+  description,
 }: MobileActionsMenuProps) {
+  const { t } = useTranslation();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
@@ -40,8 +42,10 @@ export function MobileActionsMenu({
       </SheetTrigger>
       <SheetContent side="bottom" className="rounded-t-4xl mx-1 p-0">
         <SheetHeader className="border-border border-b px-6 py-4">
-          <SheetTitle>{title}</SheetTitle>
-          <SheetDescription>{description}</SheetDescription>
+          <SheetTitle>{title ?? t("common:actions")}</SheetTitle>
+          <SheetDescription>
+            {description ?? t("common:component.choose_an_action")}
+          </SheetDescription>
         </SheetHeader>
         <div className="flex flex-col gap-3 p-6">
           {actions.map((action, index) => {

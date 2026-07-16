@@ -72,7 +72,7 @@ pub fn should_sync_outbox_for_import_run(run_type: &str, source_system: &str) ->
 pub fn should_sync_outbox_for_snapshot_source(source: SnapshotSource) -> bool {
     matches!(
         source,
-        SnapshotSource::ManualEntry | SnapshotSource::CsvImport | SnapshotSource::Synthetic
+        SnapshotSource::ManualEntry | SnapshotSource::CsvImport
     )
 }
 
@@ -167,14 +167,14 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_outbox_rules_include_user_and_synthetic_sources() {
+    fn snapshot_outbox_rules_include_only_user_authored_sources() {
         assert!(should_sync_outbox_for_snapshot_source(
             SnapshotSource::ManualEntry
         ));
         assert!(should_sync_outbox_for_snapshot_source(
             SnapshotSource::CsvImport
         ));
-        assert!(should_sync_outbox_for_snapshot_source(
+        assert!(!should_sync_outbox_for_snapshot_source(
             SnapshotSource::Synthetic
         ));
         assert!(!should_sync_outbox_for_snapshot_source(

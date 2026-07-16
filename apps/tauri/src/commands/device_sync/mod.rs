@@ -54,7 +54,7 @@ pub(crate) struct SyncIdentity {
     key_version: Option<i32>,
 }
 
-fn get_sync_identity_from_store() -> Option<SyncIdentity> {
+pub(crate) fn get_sync_identity_from_store() -> Option<SyncIdentity> {
     const SYNC_IDENTITY_KEY: &str = "sync_identity";
 
     match KeyringSecretStore.get_secret(SYNC_IDENTITY_KEY) {
@@ -92,7 +92,7 @@ fn get_sync_identity_from_store() -> Option<SyncIdentity> {
     }
 }
 
-fn sync_identity_can_run_background(identity: &SyncIdentity) -> bool {
+pub(crate) fn sync_identity_can_run_background(identity: &SyncIdentity) -> bool {
     identity.device_id.is_some() && identity.root_key.is_some()
 }
 

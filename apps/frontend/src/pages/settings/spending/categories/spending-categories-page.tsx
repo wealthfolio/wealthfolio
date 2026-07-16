@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -47,6 +48,7 @@ function buildTree(categories: TaxonomyCategory[]): CategoryNode[] {
 }
 
 export default function SpendingCategoriesPage() {
+  const { t } = useTranslation();
   const { isEnabled, isLoading: settingsLoading } = useSpendingSettings();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -128,8 +130,9 @@ export default function SpendingCategoriesPage() {
     deleteCategory.mutate(
       { taxonomyId: category.taxonomyId, categoryId: category.id },
       {
-        onSuccess: () => toast.success(`Deleted "${category.name}"`),
-        onError: () => toast.error("Failed to delete category."),
+        onSuccess: () =>
+          toast.success(t("settings:spending.categories.deleted", { name: category.name })),
+        onError: () => toast.error(t("settings:spending.categories.delete_error")),
       },
     );
   };
@@ -151,10 +154,10 @@ export default function SpendingCategoriesPage() {
         },
         {
           onSuccess: () => {
-            toast.success("Category updated.");
+            toast.success(t("settings:spending.categories.updated"));
             setVisibleModal(false);
           },
-          onError: () => toast.error("Failed to update category."),
+          onError: () => toast.error(t("settings:spending.categories.update_error")),
         },
       );
     } else {
@@ -171,10 +174,10 @@ export default function SpendingCategoriesPage() {
         },
         {
           onSuccess: () => {
-            toast.success("Category created.");
+            toast.success(t("settings:spending.categories.created"));
             setVisibleModal(false);
           },
-          onError: () => toast.error("Failed to create category."),
+          onError: () => toast.error(t("settings:spending.categories.create_error")),
         },
       );
     }
@@ -184,7 +187,7 @@ export default function SpendingCategoriesPage() {
     if (categoryList.length === 0) {
       return (
         <div className="text-muted-foreground py-8 text-center text-sm">
-          No categories yet. Click &quot;Add category&quot; to create one.
+          {t("settings:spending.categories.list_empty")}
         </div>
       );
     }
@@ -210,8 +213,8 @@ export default function SpendingCategoriesPage() {
       <div className="space-y-6">
         <SpendingBackLink />
         <SettingsHeader
-          heading="Categories"
-          text="Manage expense and income categories used to categorize cash transactions."
+          heading={t("settings:spending.categories.heading")}
+          text={t("settings:spending.categories.text")}
           backTo="/settings/spending"
           actionsInline
         >
@@ -219,13 +222,13 @@ export default function SpendingCategoriesPage() {
             size="sm"
             className="sm:hidden"
             onClick={handleAddCategory}
-            aria-label="Add category"
+            aria-label={t("settings:spending.categories.add")}
           >
             <Icons.Plus className="h-3.5 w-3.5" />
           </Button>
           <Button size="sm" className="hidden sm:inline-flex" onClick={handleAddCategory}>
             <Icons.Plus className="mr-2 h-3.5 w-3.5" />
-            Add category
+            {t("settings:spending.categories.add")}
           </Button>
         </SettingsHeader>
 
@@ -238,22 +241,29 @@ export default function SpendingCategoriesPage() {
         ) : total === 0 ? (
           <EmptyPlaceholder>
             <EmptyPlaceholder.Icon name="Tag" />
-            <EmptyPlaceholder.Title>No categories</EmptyPlaceholder.Title>
+            <EmptyPlaceholder.Title>
+              {t("settings:spending.categories.empty_title")}
+            </EmptyPlaceholder.Title>
             <EmptyPlaceholder.Description>
-              You don&apos;t have any categories yet. Create categories to organize your
-              transactions.
+              {t("settings:spending.categories.empty_description")}
             </EmptyPlaceholder.Description>
             <Button onClick={handleAddCategory}>
               <Icons.Plus className="mr-2 h-4 w-4" />
-              Add category
+              {t("settings:spending.categories.add")}
             </Button>
           </EmptyPlaceholder>
         ) : (
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="grid w-full max-w-md grid-cols-3">
-              <TabsTrigger value="expense">Expense ({expenseTree.length})</TabsTrigger>
-              <TabsTrigger value="income">Income ({incomeTree.length})</TabsTrigger>
-              <TabsTrigger value="savings">Savings ({savingsTree.length})</TabsTrigger>
+              <TabsTrigger value="expense">
+                {t("settings:spending.categories.tab_expense", { count: expenseTree.length })}
+              </TabsTrigger>
+              <TabsTrigger value="income">
+                {t("settings:spending.categories.tab_income", { count: incomeTree.length })}
+              </TabsTrigger>
+              <TabsTrigger value="savings">
+                {t("settings:spending.categories.tab_savings", { count: savingsTree.length })}
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="expense" className="mt-6">
               {renderCategoryList(expenseTree)}

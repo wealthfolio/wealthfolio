@@ -1,5 +1,6 @@
 import { Button, DataGrid, Icons, useDataGrid } from "@wealthfolio/ui";
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createColumnHelper } from "@tanstack/react-table";
 import type { Quote } from "@/lib/types";
 import { ValueHistoryToolbar } from "./value-history-toolbar";
@@ -106,6 +107,7 @@ export function ValueHistoryDataGrid({
   onSaveQuote,
   onDeleteQuote,
 }: ValueHistoryDataGridProps) {
+  const { t } = useTranslation();
   // Convert quotes to local entries
   const initialEntries = useMemo(
     () => data.map(toValueHistoryEntry).sort((a, b) => b.date.getTime() - a.date.getTime()),
@@ -152,17 +154,17 @@ export function ValueHistoryDataGrid({
   const columns = useMemo(
     () => [
       columnHelper.accessor("date", {
-        header: "Date",
+        header: t("asset:valueHistory.date"),
         size: 140,
         meta: { cell: { variant: "date-input" } },
       }),
       columnHelper.accessor("value", {
-        header: isLiability ? "Balance" : "Value",
+        header: isLiability ? t("asset:valueHistory.balance") : t("asset:valueHistory.value"),
         size: 180,
         meta: { cell: { variant: "number", min: 0 } },
       }),
       columnHelper.accessor("notes", {
-        header: "Notes",
+        header: t("asset:valueHistory.notes"),
         size: 300,
         meta: { cell: { variant: "long-text" } },
       }),
@@ -188,7 +190,7 @@ export function ValueHistoryDataGrid({
         ),
       }),
     ],
-    [columnHelper, isLiability, handleDeleteRow],
+    [columnHelper, isLiability, handleDeleteRow, t],
   );
 
   // Handle data changes from the grid

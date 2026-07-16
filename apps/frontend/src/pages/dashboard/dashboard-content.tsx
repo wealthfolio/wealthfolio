@@ -1,15 +1,16 @@
 import { calculatePerformanceSummary } from "@/adapters";
 import { HistoryChart } from "@/components/history-chart";
 import { useHapticFeedback } from "@/hooks";
+import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { useHoldings } from "@/hooks/use-holdings";
 import { useValuationHistory } from "@/hooks/use-valuation-history";
 import { HoldingType, isAlternativeAssetKind } from "@/lib/constants";
-import { performanceHeadlineReturn, performancePeriodPnl } from "@/lib/performance";
+import { performancePeriodPnl, performanceSummaryReturn } from "@/lib/performance";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { DateRange, TimePeriod } from "@/lib/types";
 import { PortfolioUpdateTrigger } from "@/pages/dashboard/portfolio-update-trigger";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { TimePeriod as UITimePeriod } from "@wealthfolio/ui";
 import {
   GainAmount,
@@ -21,6 +22,7 @@ import {
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { format } from "date-fns";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AccountsSummary } from "./accounts-summary";
 import Balance from "./balance";
 import SavingGoals from "./goals";
@@ -70,6 +72,7 @@ function getDashboardNetContributionMaxDomainSpanRatio(period: UITimePeriod): nu
 }
 
 export function DashboardContent() {
+  const { t } = useTranslation();
   // Use the same persisted state as IntervalSelector for the interval code
   const [intervalCode] = usePersistentState<UITimePeriod>(INTERVAL_STORAGE_KEY, DEFAULT_INTERVAL);
 
@@ -77,13 +80,15 @@ export function DashboardContent() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
     () => getInitialIntervalData(intervalCode).range,
   );
-  const [selectedIntervalDescription, setSelectedIntervalDescription] = useState<string>(
-    () => getInitialIntervalData(intervalCode).description,
-  );
   const [selectedInterval, setSelectedInterval] = useState<UITimePeriod>(() => intervalCode);
   const [isAllTime, setIsAllTime] = useState<boolean>(() => intervalCode === "ALL");
 
   const { holdings: allHoldings, isLoading: isHoldingsLoading } = useHoldings({ type: "all" });
+  const {
+    currentValuation: portfolioCurrentValuation,
+    isLoading: isCurrentValuationLoading,
+    error: currentValuationError,
+  } = useCurrentValuation({ type: "all" }, { includeAccounts: true });
   const { triggerHaptic } = useHapticFeedback();
 
   // Filter holdings for display (exclude alternative assets and cash for TopHoldings)
@@ -98,17 +103,11 @@ export function DashboardContent() {
     });
   }, [allHoldings]);
 
-  // Total portfolio value (includes cash, excludes alternative assets)
-  const totalValue = useMemo(() => {
-    if (!allHoldings) return 0;
-    return allHoldings
-      .filter((h) => {
-        return !(h.assetKind && isAlternativeAssetKind(h.assetKind));
-      })
-      .reduce((acc, holding) => acc + (holding.marketValue?.base ?? 0), 0);
-  }, [allHoldings]);
+  const totalValue = portfolioCurrentValuation?.summary.totalValueBase ?? 0;
 
-  const { valuationHistory, isLoading: isValuationHistoryLoading } = useValuationHistory(dateRange);
+  const valuationHistoryRange = isAllTime ? undefined : dateRange;
+  const { valuationHistory, isLoading: isValuationHistoryLoading } =
+    useValuationHistory(valuationHistoryRange);
 
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -127,21 +126,23 @@ export function DashboardContent() {
         startDate,
         endDate,
         filter: { type: "all" },
-        profile: "headline",
+        profile: "dashboard",
       }),
     enabled: datesReady,
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
     retry: 1,
   });
 
   const gainLossAmount = performancePeriodPnl(portfolioPerformance);
-  const simpleReturn = performanceHeadlineReturn(portfolioPerformance);
-
-  const currentValuation = useMemo(() => {
-    return valuationHistory && valuationHistory.length > 0
-      ? valuationHistory[valuationHistory.length - 1]
-      : null;
-  }, [valuationHistory]);
+  const simpleReturn = performanceSummaryReturn(portfolioPerformance);
+  const isCurrentValuationUnavailable =
+    !isCurrentValuationLoading && !portfolioCurrentValuation && Boolean(currentValuationError);
+  const portfolioSourceDataAsOf =
+    portfolioCurrentValuation?.summary.sourceDataAsOf ??
+    (!isCurrentValuationUnavailable
+      ? valuationHistory?.[valuationHistory.length - 1]?.calculatedAt
+      : undefined);
 
   const chartData = useMemo(() => {
     return (
@@ -168,11 +169,10 @@ export function DashboardContent() {
   // Callback for IntervalSelector
   const handleIntervalSelect = (
     code: TimePeriod,
-    description: string,
+    _description: string,
     range: DateRange | undefined,
   ) => {
     setSelectedInterval(code);
-    setSelectedIntervalDescription(description);
     setDateRange(range);
     setIsAllTime(code === "ALL");
   };
@@ -180,18 +180,22 @@ export function DashboardContent() {
   return (
     <div className="flex min-h-full flex-col">
       <div className="px-4 pb-1 pt-2 md:px-6 lg:px-8">
-        <PortfolioUpdateTrigger lastCalculatedAt={currentValuation?.calculatedAt}>
+        <PortfolioUpdateTrigger
+          lastCalculatedAt={portfolioSourceDataAsOf}
+          notices={portfolioCurrentValuation?.summary.warnings}
+        >
           <div className="flex items-start gap-2">
             <div>
               <Balance
-                isLoading={isHoldingsLoading}
+                isLoading={isCurrentValuationLoading}
+                isUnavailable={isCurrentValuationUnavailable}
                 targetValue={totalValue}
                 currency={baseCurrency}
                 displayCurrency={true}
               />
-              <div className="text-md flex space-x-3">
+              <div className="text-md flex min-h-5 items-center space-x-3">
                 {isPortfolioPerformanceLoading ? (
-                  <div className="flex items-center gap-3 pt-1">
+                  <div className="flex items-center gap-3">
                     <Skeleton className="h-4 w-24" />
                     <div className="border-secondary my-1 border-r pr-2" />
                     <Skeleton className="h-4 w-16" />
@@ -224,9 +228,9 @@ export function DashboardContent() {
                     )}
                   </>
                 )}
-                {selectedIntervalDescription && (
+                {selectedInterval && (
                   <span className="lg:text-md text-muted-foreground ml-1 text-sm font-light">
-                    {selectedIntervalDescription}
+                    {t(`ui:interval.${selectedInterval}`)}
                   </span>
                 )}
               </div>
@@ -236,13 +240,14 @@ export function DashboardContent() {
       </div>
 
       <div
-        className={`bg-linear-to-t flex grow flex-col ${
-          isNegative
-            ? "from-destructive/30 via-destructive/15 to-transparent"
-            : "from-success/30 via-success/15 to-transparent"
-        }`}
+        className="flex grow flex-col"
+        style={{
+          backgroundImage: isNegative
+            ? `linear-gradient(to top, color-mix(in srgb, var(--destructive) 30%, transparent), color-mix(in srgb, var(--destructive) 15%, transparent) 50%, transparent 100%)`
+            : `linear-gradient(to top, color-mix(in srgb, var(--success) 30%, transparent), color-mix(in srgb, var(--success) 15%, transparent) 50%, transparent 100%)`,
+        }}
       >
-        <div className="h-[280px]">
+        <div className="h-70">
           <HistoryChart
             data={chartData}
             isLoading={isValuationHistoryLoading}
@@ -251,7 +256,7 @@ export function DashboardContent() {
             netContributionMaxDomainSpanRatio={chartNetContributionMaxDomainSpanRatio}
           />
           {valuationHistory && chartData.length > 0 && (
-            <div className="flex w-full -translate-y-6 justify-center">
+            <div className="flex w-full justify-center">
               <IntervalSelector
                 className="pointer-events-auto relative z-20 w-full max-w-screen-sm sm:max-w-screen-md md:max-w-2xl lg:max-w-3xl"
                 onIntervalSelect={handleIntervalSelect}
@@ -264,10 +269,15 @@ export function DashboardContent() {
           )}
         </div>
 
-        <div className="grow px-4 pb-[var(--mobile-nav-total-offset)] pt-12 md:px-6 md:pb-6 md:pt-6 lg:px-10 lg:pb-8 lg:pt-8">
+        <div className="grow px-4 pb-[var(--mobile-nav-total-offset)] pt-14 md:px-6 md:pb-6 md:pt-12 lg:px-10 lg:pb-8 lg:pt-14">
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-20">
             <div className="lg:col-span-2">
-              <AccountsSummary dateRange={dateRange} isAllTime={isAllTime} />
+              <AccountsSummary
+                dateRange={dateRange}
+                isAllTime={isAllTime}
+                currentAccountValuations={portfolioCurrentValuation?.accounts}
+                isLoadingCurrentValuations={isCurrentValuationLoading}
+              />
             </div>
             <div className="space-y-6 lg:col-span-1">
               <TopHoldings

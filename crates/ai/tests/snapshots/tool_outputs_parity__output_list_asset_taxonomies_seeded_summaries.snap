@@ -1,0 +1,28 @@
+---
+source: crates/ai/tests/tool_outputs_parity.rs
+expression: result
+---
+{
+  "ok": {
+    "taxonomies": [
+      {
+        "categoryCount": 3,
+        "color": "#2563eb",
+        "description": null,
+        "isSingleSelect": false,
+        "name": "Asset Class",
+        "sortOrder": 1,
+        "taxonomyId": "asset-tax"
+      },
+      {
+        "categoryCount": 1,
+        "color": "#2563eb",
+        "description": null,
+        "isSingleSelect": false,
+        "name": "Factors",
+        "sortOrder": 1,
+        "taxonomyId": "factor-tax"
+      }
+    ]
+  }
+}

@@ -9,6 +9,7 @@ import {
   SheetTitle,
 } from "@wealthfolio/ui/components/ui/sheet";
 import { format, parseISO } from "date-fns";
+import { useTranslation } from "react-i18next";
 import { parseLocalDate } from "@/lib/utils";
 import { ActivityDateList } from "./activity-date-list";
 
@@ -33,12 +34,17 @@ export function ActivityDateSheet({
   cashCurrency,
   cashAuditTarget,
 }: ActivityDateSheetProps) {
+  const { t } = useTranslation();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex h-full w-full flex-col p-0 sm:max-w-xl">
         <SheetHeader className="border-b px-6 py-4">
-          <SheetTitle>Activities on {date ? formatActivityDate(date) : ""}</SheetTitle>
-          <SheetDescription>{activities.length} activities recorded on this date</SheetDescription>
+          <SheetTitle>
+            {t("activity:date_sheet.title", { date: date ? formatActivityDate(date) : "" })}
+          </SheetTitle>
+          <SheetDescription>
+            {t("activity:date_sheet.count", { count: activities.length })}
+          </SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-auto px-4 py-4">
           {isLoading ? (

@@ -1,0 +1,209 @@
+{
+  "section": {
+    "deviceSync": "设备同步",
+    "connectedDevices": "已连接设备",
+    "otherConnectedDevices": "其他已连接设备",
+    "manageDevices": "管理设备",
+    "options": "选项",
+    "deviceActions": "设备操作"
+  },
+  "setup": {
+    "cardDescription": "在您的所有设备之间安全地同步数据。",
+    "connectToSync": "连接此设备以同步",
+    "keepInSync": "让您的设备保持同步",
+    "foundOtherDevices": "在您的账户上发现了其他已连接设备。继续以连接此设备。",
+    "encryptedInfo": "您的数据经过端到端加密。只有您的设备才能读取。",
+    "morePreview": "+{{count}} 个",
+    "settingUp": "正在设置...",
+    "connectThisDevice": "连接此设备",
+    "enableDeviceSync": "启用设备同步"
+  },
+  "status": {
+    "syncError": "同步错误",
+    "syncPaused": "同步已暂停",
+    "synced": "已同步",
+    "syncing": "同步中",
+    "connected": "已连接",
+    "needsSetup": "需要设置",
+    "revoked": "已撤销",
+    "notConnected": "未连接",
+    "online": "在线",
+    "never": "从未",
+    "minutesAgo": "{{count}}分钟前",
+    "hoursAgo": "{{count}}小时前",
+    "daysAgo": "{{count}}天前",
+    "thisDevice": "此设备",
+    "thisDeviceSuffix": "· 此设备"
+  },
+  "engine": {
+    "pauseSync": "暂停同步",
+    "resumeSync": "恢复同步",
+    "updating": "正在更新...",
+    "backgroundPaused": "后台同步已暂停",
+    "backgroundResumed": "后台同步已恢复",
+    "updateFailed": "更新后台同步失败"
+  },
+  "errorState": {
+    "failedToInitialize": "初始化设备同步失败。",
+    "initializationFailed": "初始化失败",
+    "failedToLoadDevices": "加载设备失败",
+    "tryRefreshing": "请尝试刷新。"
+  },
+  "stale": {
+    "keysNeedUpdating": "密钥需要更新",
+    "keysNeedUpdatingDescription": "另一台设备上的安全设置已更改。请重新连接此设备以继续同步。",
+    "updateThisDevice": "更新此设备"
+  },
+  "orphaned": {
+    "restoreTitle": "使用此设备恢复同步",
+    "restoreDescription": "没有其他已连接设备可用。我们将使用此设备上已有的数据重新启动同步。",
+    "confirmDescription": "我们将使用此设备上已有的数据重新启动同步。",
+    "restarting": "正在重新启动..."
+  },
+  "untrusted": {
+    "notConnectedYet": "此设备尚未连接",
+    "enterCodeFromDevices_one": "输入您 {{count}} 台其他已连接设备中某一台上的代码。",
+    "enterCodeFromDevices_other": "输入您 {{count}} 台其他已连接设备中某一台上的代码。",
+    "enterCodeGeneric": "输入您其他已连接设备上的代码以同步您的数据。",
+    "connectThisDevice": "连接此设备",
+    "connectToStartSyncing": "连接此设备以开始同步。"
+  },
+  "connect": {
+    "connectAnotherDevice": "连接另一台设备",
+    "connectThisDevice": "连接此设备",
+    "pair": "配对",
+    "unpair": "取消配对",
+    "revoke": "撤销",
+    "rename": "重命名",
+    "disconnect": "断开连接"
+  },
+  "waitingSnapshot": {
+    "otherDeviceFinishing": "您的另一台设备仍在完成设置。",
+    "setupAlmostDone": "您的设置即将完成。",
+    "trustedHint": "您可以现在加快进度,或稍等,我们将在后台自动继续。",
+    "untrustedHint": "请先在您的另一台已连接设备上完成设置。此页面将自动更新。",
+    "checking": "正在检查...",
+    "checkAgain": "再次检查",
+    "preparing": "正在准备...",
+    "speedUpSetup": "加快设置"
+  },
+  "bootstrap": {
+    "inProgress": "同步引导进行中...",
+    "hasDataTitle": "此设备已有数据",
+    "hasDataDescription": "为完成同步,此设备上的数据将被您另一台设备的数据替换。",
+    "continue": "继续",
+    "waitingOtherDeviceTitle": "正在等待您的另一台设备",
+    "waitingOtherDeviceDescription": "一旦有新的快照可用,我们将完成同步。",
+    "retryStartedTitle": "同步重试已开始",
+    "retryStartedDescription": "正在检查更新后的快照并应用待处理的同步更改。",
+    "couldNotRetryTitle": "无法重试同步",
+    "unableToContinueTitle": "无法继续同步"
+  },
+  "snapshot": {
+    "uploadedTitle": "快照已上传",
+    "uploadedDescription": "新连接的设备现在可以从此快照完成同步。",
+    "skippedTitle": "已跳过快照上传",
+    "cancelledTitle": "快照上传已取消",
+    "resultTitle": "快照上传结果",
+    "failedTitle": "快照上传失败"
+  },
+  "backup": {
+    "savedTitle": "备份已保存",
+    "savedDescription": "备份已保存为 {{location}}。",
+    "failedTitle": "备份失败",
+    "backingUp": "正在备份...",
+    "backUpFirst": "先备份"
+  },
+  "overwrite": {
+    "replaceDataTitle": "替换此设备上的数据?",
+    "replaceDataDescription": "您的本地数据将被您另一台已连接设备的数据替换。",
+    "localRowsReplaced_one": "{{count}} 行本地数据将被替换。",
+    "localRowsReplaced_other": "{{count}} 行本地数据将被替换。",
+    "notNow": "暂不",
+    "syncing": "同步中...",
+    "replaceAndSync": "替换并同步"
+  },
+  "reinit": {
+    "title": "从此设备重新设置同步?",
+    "description": "我们将保留此设备上的数据并用它来重新启动同步。其他已连接设备可能需要重新连接。",
+    "notNow": "暂不",
+    "continue": "继续"
+  },
+  "recovery": {
+    "title": "重新设置此设备",
+    "description": "此设备的同步已关闭。重新设置以在您的各设备间保持数据最新。",
+    "notNow": "暂不",
+    "settingUp": "正在设置...",
+    "setUpAgain": "重新设置此设备"
+  },
+  "disconnectDialog": {
+    "title": "断开此设备的连接?",
+    "description": "这将从此设备移除同步。您可以稍后重新设置。",
+    "disconnecting": "正在断开连接...",
+    "disconnect": "断开连接"
+  },
+  "unpairDialog": {
+    "titleLast": "取消配对您的最后一台设备?",
+    "title": "取消配对设备?",
+    "descriptionLast": "这是您唯一已连接的设备。您需要重新连接一台设备才能继续同步您的数据。",
+    "description": "这将从您的账户中移除“{{name}}”。该设备需要重新连接才能同步数据。",
+    "unpairing": "正在取消配对...",
+    "unpair": "取消配对"
+  },
+  "toasts": {
+    "reinitFailed": "重新初始化同步失败",
+    "disconnectFailed": "断开连接失败",
+    "unpairFailed": "取消配对设备失败"
+  },
+  "pairing": {
+    "connectThisDeviceTitle": "连接此设备",
+    "enterCodeDescription": "输入您其他已连接设备上的代码",
+    "connectAnotherTitle": "连接另一台设备",
+    "scanOrEnterDescription": "在您的另一台设备上扫描或输入此代码",
+    "gettingReadyTitle": "正在准备此设备...",
+    "gettingReadyDescription": "这只需片刻。",
+    "prepareFailed": "我们无法完成此设备的准备。",
+    "tryAgain": "重试",
+    "starting": "正在启动...",
+    "generatingCode": "正在生成代码...",
+    "computingSecurityCode": "正在计算安全码...",
+    "finishingSetup": "正在完成设置...",
+    "finishingSetupDescription": "正在为新设备准备您的数据",
+    "sessionExpired": "会话已过期",
+    "connecting": "正在连接...",
+    "verifySecurityCode": "验证安全码",
+    "syncingData": "正在同步您的数据...",
+    "syncingDataDescription": "这可能需要几秒钟"
+  },
+  "displayCode": {
+    "expired": "已过期"
+  },
+  "enterCode": {
+    "openingCamera": "正在打开相机...",
+    "scanQrCode": "扫描二维码",
+    "quickAndEasy": "快捷简便",
+    "or": "或",
+    "codePlaceholder": "ABC 123",
+    "paste": "粘贴",
+    "connecting": "正在连接...",
+    "connect": "连接"
+  },
+  "sas": {
+    "sameCodeQuestion": "两台设备上的代码相同吗?"
+  },
+  "waiting": {
+    "waitingForConfirmation": "正在等待确认...",
+    "confirmCodeMatches": "确认此代码与您另一台设备上的代码匹配",
+    "securelyConnecting": "请稍候,我们正在安全地连接您的设备"
+  },
+  "result": {
+    "allSet": "全部就绪!",
+    "connectedSuccessfully": "设备连接成功",
+    "done": "完成",
+    "connectionFailed": "连接失败",
+    "tryAgain": "重试"
+  },
+  "errors": {
+    "backupPlatformUnsupported": "设备同步前的备份目前仅支持桌面端、网页端和 iOS"
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "buttons": {
+    "continue": "Continuer",
+    "subscribeConnect": "S'abonner et connecter",
+    "getStarted": "Commencer"
+  },
+  "steps": {
+    "chooseMode": {
+      "subtitle": "Deux façons de suivre votre portefeuille.",
+      "holdings": {
+        "title": "Positions",
+        "subtitle": "Suivi de la valeur",
+        "badge": "Idéal pour un suivi peu contraignant.",
+        "features": {
+          "netWorth": "Valeur nette et allocation",
+          "unrealizedPnl": "Valeur et plus-value latente",
+          "priceBased": "Performance basée sur les cours",
+          "fastSetup": "Configuration rapide et légère"
+        },
+        "limit": "Limite : pas de TWR/TRI basé sur les transactions.",
+        "note": "Remarque : nécessite de maintenir les positions à jour."
+      },
+      "transactions": {
+        "title": "Transactions",
+        "subtitle": "Suivi de la performance",
+        "badge": "Idéal pour une analyse complète de la performance.",
+        "features": {
+          "totalReturn": "Rendement total dans le temps",
+          "attribution": "Attribution des gains et des flux de trésorerie",
+          "completeView": "Vue de performance la plus complète",
+          "brokerSync": "Idéal avec la synchronisation du courtier ou l'import CSV"
+        },
+        "limit": "Limite : nécessite le suivi de toutes les transactions.",
+        "note": "Remarque : automatisé si synchronisé avec un courtier."
+      },
+      "footnote": "Vous pouvez utiliser différents modes pour différents comptes.",
+      "learnMore": "En savoir plus"
+    },
+    "preferences": {
+      "subtitle": "Quelques préférences pour bien démarrer",
+      "currencyLabel": "Devise",
+      "timezoneLabel": "Fuseau horaire",
+      "other": "Autre",
+      "selectCurrency": "Sélectionner une devise",
+      "selectTimezone": "Sélectionner un fuseau horaire",
+      "searchCurrenciesPlaceholder": "Rechercher des devises...",
+      "searchTimezonesPlaceholder": "Rechercher des fuseaux horaires...",
+      "noCurrenciesFound": "Aucune devise trouvée",
+      "noTimezonesFound": "Aucun fuseau horaire trouvé",
+      "currencyRequired": "Veuillez sélectionner une devise de base.",
+      "timezoneRequired": "Veuillez sélectionner un fuseau horaire.",
+      "languageLabel": "Langue"
+    }
+  },
+  "appearance": {
+    "subtitle": "Personnalisez votre expérience",
+    "themeLabel": "Thème",
+    "fontLabel": "Police",
+    "themeLight": "Clair",
+    "themeDark": "Sombre",
+    "themeSystem": "Système",
+    "themeLightPreviewAlt": "Aperçu du thème clair",
+    "themeDarkPreviewAlt": "Aperçu du thème sombre",
+    "themeSystemPreviewAlt": "Aperçu du thème système",
+    "fontSample": "Investissez en toute clarté.",
+    "fonts": {
+      "monoLabel": "Mono",
+      "monoDescription": "Technique et précise",
+      "sansLabel": "Sans",
+      "sansDescription": "Épurée et moderne",
+      "serifLabel": "Serif",
+      "serifDescription": "Classique et élégante"
+    },
+    "navigationLabel": "Navigation"
+  },
+  "connect": {
+    "optional": "Optionnel",
+    "title": "Wealthfolio Connect",
+    "subtitle": "Synchronisez automatiquement vos courtiers tout en gardant vos données privées.",
+    "learnMore": "En savoir plus sur Connect",
+    "features": {
+      "brokerageSync": {
+        "title": "Synchronisation du courtier",
+        "description": "Synchronisez automatiquement vos comptes et transactions dans votre base de données locale."
+      },
+      "deviceSync": {
+        "title": "Synchronisation des appareils",
+        "description": "Gardez votre base de données synchronisée sur tous vos appareils avec un chiffrement de bout en bout."
+      },
+      "householdView": {
+        "title": "Vue du foyer",
+        "description": "Partagez certains comptes avec votre famille et consultez ensemble une vue agrégée."
+      }
+    }
+  }
+}

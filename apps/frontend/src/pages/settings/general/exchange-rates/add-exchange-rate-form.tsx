@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -44,33 +45,12 @@ import { ExchangeRate } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { MoneyInput, worldCurrencies } from "@wealthfolio/ui";
 
-const exchangeRateSchema = z
-  .object({
-    fromCurrency: z.string().min(1, "From Currency is required"),
-    toCurrency: z.string().min(1, "To Currency is required"),
-    rate: z.coerce
-      .number({
-        invalid_type_error: "Rate must be a valid positive number.",
-      })
-      .min(0, { message: "Rate must be a non-negative number." })
-      .optional(),
-    source: z.string().min(1, "Data source is required"),
-  })
-  .refine(
-    (data) => {
-      // Rate is required only for MANUAL source
-      if (data.source === "MANUAL") {
-        return data.rate !== undefined && data.rate > 0;
-      }
-      return true;
-    },
-    {
-      message: "Please enter a valid exchange rate.",
-      path: ["rate"],
-    },
-  );
-
-type ExchangeRateFormData = z.infer<typeof exchangeRateSchema>;
+interface ExchangeRateFormData {
+  fromCurrency: string;
+  toCurrency: string;
+  rate?: number;
+  source: string;
+}
 
 interface AddExchangeRateFormProps {
   onSubmit: (newRate: Omit<ExchangeRate, "id">) => void;
@@ -78,6 +58,33 @@ interface AddExchangeRateFormProps {
 }
 
 export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormProps) {
+  const { t } = useTranslation();
+  const exchangeRateSchema = z
+    .object({
+      fromCurrency: z.string().min(1, t("settings:fx_err_from_required")),
+      toCurrency: z.string().min(1, t("settings:fx_err_to_required")),
+      rate: z.coerce
+        .number({
+          invalid_type_error: t("settings:fx_err_rate_type"),
+        })
+        .min(0, { message: t("settings:fx_err_rate_negative") })
+        .optional(),
+      source: z.string().min(1, t("settings:fx_err_source_required")),
+    })
+    .refine(
+      (data) => {
+        // Rate is required only for MANUAL source
+        if (data.source === "MANUAL") {
+          return data.rate !== undefined && data.rate > 0;
+        }
+        return true;
+      },
+      {
+        message: t("settings:fx_err_rate_invalid"),
+        path: ["rate"],
+      },
+    );
+
   const { data: providers } = useMarketDataProviders();
   const { data: customProviders = [] } = useCustomProviders();
   const form = useForm<ExchangeRateFormData>({
@@ -98,8 +105,10 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
       fromCurrency: data.fromCurrency,
       toCurrency: data.toCurrency,
       source: data.source,
-      // Only include rate for manual sources
-      rate: isManualSource ? data.rate! : 1,
+      // Only manual sources carry a user-entered rate. Provider-backed sources
+      // are fetched by the market-data sync; the backend ignores this value for
+      // them, so send a neutral 0 rather than a fake rate (#1143).
+      rate: isManualSource ? data.rate! : 0,
       timestamp: new Date().toISOString(),
     });
   };
@@ -125,7 +134,11 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
         name={fieldName}
         render={({ field }) => (
           <FormItem className="flex flex-col">
-            <FormLabel>{fieldName === "fromCurrency" ? "From Currency" : "To Currency"}</FormLabel>
+            <FormLabel>
+              {fieldName === "fromCurrency"
+                ? t("settings:fx_from_currency")
+                : t("settings:fx_to_currency")}
+            </FormLabel>
             <Popover modal={true}>
               <PopoverTrigger asChild>
                 <FormControl>
@@ -137,7 +150,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                     {field.value
                       ? worldCurrencies.find((currency) => currency.value === field.value)?.label ||
                         field.value
-                      : "Select currency"}
+                      : t("settings:fx_select_currency")}
                     <Icons.ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </FormControl>
@@ -145,7 +158,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
               <PopoverContent className="w-full p-0">
                 <Command>
                   <CommandInput
-                    placeholder="Search currency..."
+                    placeholder={t("settings:fx_search_currency")}
                     onValueChange={handleSearchChange}
                   />
                   <CommandList>
@@ -165,7 +178,9 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                                 searchValue === field.value ? "opacity-100" : "opacity-0",
                               )}
                             />
-                            <span className="font-semibold italic">Custom ({searchValue})</span>
+                            <span className="font-semibold italic">
+                              {t("settings:fx_custom_search", { value: searchValue })}
+                            </span>
                           </CommandItem>
                         )}
 
@@ -209,8 +224,8 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
         <DialogHeader>
-          <DialogTitle>Add Exchange Rate</DialogTitle>
-          <DialogDescription>Add a new exchange rate to the system.</DialogDescription>
+          <DialogTitle>{t("settings:fx_add_title")}</DialogTitle>
+          <DialogDescription>{t("settings:fx_add_subtitle")}</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-10 p-4">
@@ -222,15 +237,15 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
             name="source"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Data Source</FormLabel>
+                <FormLabel>{t("settings:fx_data_source")}</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a data source" />
+                      <SelectValue placeholder={t("settings:fx_select_data_source")} />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="MANUAL">Manual</SelectItem>
+                    <SelectItem value="MANUAL">{t("settings:fx_source_manual")}</SelectItem>
                     {providers
                       ?.filter((p) => p.id !== "CUSTOM_SCRAPER" && p.providerType !== "custom")
                       .map((provider) => (
@@ -248,9 +263,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                   </SelectContent>
                 </Select>
                 <FormDescription>
-                  {isManualSource
-                    ? "You'll need to manually update this rate."
-                    : "Rate will be automatically fetched from the selected provider."}
+                  {isManualSource ? t("settings:fx_manual_hint") : t("settings:fx_auto_hint")}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -263,9 +276,9 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
               name="rate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Exchange Rate</FormLabel>
+                  <FormLabel>{t("settings:fx_rate_label")}</FormLabel>
                   <FormControl>
-                    <MoneyInput placeholder="Enter exchange rate" {...field} />
+                    <MoneyInput placeholder={t("settings:fx_rate_placeholder")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -277,12 +290,12 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
         <DialogFooter>
           <DialogTrigger asChild>
             <Button variant="outline" onClick={onCancel}>
-              Cancel
+              {t("common:cancel")}
             </Button>
           </DialogTrigger>
           <Button type="submit">
             <Icons.Plus className="h-4 w-4" />
-            <span className="hidden sm:ml-2 sm:inline">Add Exchange Rate</span>
+            <span className="hidden sm:ml-2 sm:inline">{t("settings:fx_add_title")}</span>
           </Button>
         </DialogFooter>
       </form>

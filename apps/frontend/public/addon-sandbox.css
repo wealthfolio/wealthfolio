@@ -1,0 +1,55 @@
+/*
+ * Baseline styles for the addon sandbox document. Kept as an EXTERNAL
+ * stylesheet on purpose: an inline <style> element in addon-sandbox.html makes
+ * Tauri append a runtime nonce to this document's CSP style-src, which per the
+ * CSP spec disables 'unsafe-inline' — silently blocking the runtime <style>
+ * elements that install addon CSS (addon-sandbox-styles.ts) in packaged
+ * builds. Do not move these rules back inline.
+ */
+
+:root {
+  color-scheme: light dark;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+html,
+body,
+#addon-root {
+  min-height: 100%;
+  margin: 0;
+}
+
+/*
+ * Prefer the LIVE host theme token (--background / --foreground): applyHostTheme
+ * re-copies these into the sandbox on every theme apply, so they track the
+ * current theme. --addon-initial-* is a one-time snapshot taken at addon start
+ * and is never refreshed on its own — using it directly leaves a stale (often
+ * dark) background when the app resolves its real theme after the snapshot.
+ * Keep it only as the pre-loadAddon fallback.
+ */
+html {
+  background: var(--background, var(--addon-initial-background, transparent));
+}
+
+body {
+  background: var(--background, var(--addon-initial-background, transparent));
+  color: var(--foreground, var(--addon-initial-foreground, inherit));
+}
+
+#addon-root {
+  background: inherit;
+  color: inherit;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}

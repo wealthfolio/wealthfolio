@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Area,
   CartesianGrid,
@@ -34,6 +35,7 @@ interface CashflowDatum {
  *  see both magnitudes; the Net line tells the saved-vs-overspent story directly.
  */
 export function CashflowAreaChart({ months, currency, isLoading }: CashflowAreaChartProps) {
+  const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const data: CashflowDatum[] = useMemo(
     () =>
@@ -92,11 +94,21 @@ export function CashflowAreaChart({ months, currency, isLoading }: CashflowAreaC
               return (
                 <div className="bg-background min-w-[180px] rounded-md border px-3 py-2 text-xs shadow-sm">
                   <div className="text-foreground mb-1 font-semibold">{d.label}</div>
-                  <Row label="Income" value={d.income} currency={currency} tone="success" />
-                  <Row label="Spending" value={d.spending} currency={currency} tone="destructive" />
+                  <Row
+                    label={t("spending:cashFlow.income")}
+                    value={d.income}
+                    currency={currency}
+                    tone="success"
+                  />
+                  <Row
+                    label={t("spending:cashFlow.spending")}
+                    value={d.spending}
+                    currency={currency}
+                    tone="destructive"
+                  />
                   <div className="bg-border my-1.5 h-px" />
                   <Row
-                    label="Net"
+                    label={t("spending:cashFlow.net")}
                     value={d.net}
                     currency={currency}
                     tone={d.net >= 0 ? "success" : "destructive"}
@@ -115,7 +127,7 @@ export function CashflowAreaChart({ months, currency, isLoading }: CashflowAreaC
           />
           <Area
             type="monotone"
-            name="Income"
+            name={t("spending:cashFlow.income")}
             dataKey="income"
             stroke="var(--success)"
             strokeWidth={1.5}
@@ -124,7 +136,7 @@ export function CashflowAreaChart({ months, currency, isLoading }: CashflowAreaC
           />
           <Area
             type="monotone"
-            name="Spending"
+            name={t("spending:cashFlow.spending")}
             dataKey="spending"
             stroke="var(--destructive)"
             strokeWidth={1.5}
@@ -133,7 +145,7 @@ export function CashflowAreaChart({ months, currency, isLoading }: CashflowAreaC
           />
           <Line
             type="monotone"
-            name="Net"
+            name={t("spending:cashFlow.net")}
             dataKey="net"
             stroke="var(--foreground)"
             strokeWidth={2}

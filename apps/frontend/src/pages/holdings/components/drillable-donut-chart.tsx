@@ -11,6 +11,7 @@ import {
   Skeleton,
 } from "@wealthfolio/ui";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface DrillableDonutChartProps {
   title: string;
@@ -34,6 +35,7 @@ export function DrillableDonutChart({
   onCategoryClick,
   onCardClick,
 }: DrillableDonutChartProps) {
+  const { t } = useTranslation();
   const [activeIndex, setActiveIndex] = useState(0);
   const { path, drillDown, navigateTo, isAtRoot } = useDrillDownState();
 
@@ -155,7 +157,7 @@ export function DrillableDonutChart({
           />
         ) : (
           <EmptyPlaceholder
-            description={`No ${title.toLowerCase()} data available.`}
+            description={t("holdings:no_typed_data_available", { type: title.toLowerCase() })}
             className="max-h-[160px]"
           />
         )}

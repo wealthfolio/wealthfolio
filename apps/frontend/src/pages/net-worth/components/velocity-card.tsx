@@ -1,4 +1,5 @@
 import { DashboardCard } from "@/components/dashboard-card";
+import { useTranslation } from "react-i18next";
 import { CompactAmount } from "./compact-amount";
 import { CARD_LABEL, toneClass, toneFill, type Velocity } from "./utils";
 
@@ -15,6 +16,7 @@ function DriverRow({
   total: number;
   currency: string;
 }) {
+  const { t } = useTranslation();
   const perMonth = months > 0 ? value / months : value;
   const share = total > 0 ? (Math.abs(value) / total) * 100 : 0;
   const sign = Math.abs(value) < 0.005 ? "" : value > 0 ? "+" : "-";
@@ -25,7 +27,9 @@ function DriverRow({
         <span className={`text-sm font-semibold tabular-nums ${toneClass(value)}`}>
           {sign}
           <CompactAmount value={Math.abs(perMonth)} currency={currency} />
-          <span className="text-muted-foreground/50 font-normal">/mo</span>
+          <span className="text-muted-foreground/50 font-normal">
+            {t("insights:networth.velocity.per_month")}
+          </span>
         </span>
       </div>
       <div className="flex items-center gap-2.5">
@@ -58,6 +62,7 @@ export function VelocityCard({
   currency,
   periodLabel,
 }: VelocityCardProps) {
+  const { t } = useTranslation();
   const { perMonth, netChange, months, marketGains, contributions, equityBuilt } = velocity;
   const total = Math.abs(marketGains) + Math.abs(contributions) + Math.abs(equityBuilt);
   const multiple =
@@ -69,39 +74,44 @@ export function VelocityCard({
   const monthsRounded = Math.max(1, Math.round(months));
 
   return (
-    <DashboardCard title="Monthly pace" meta={periodLabel}>
+    <DashboardCard title={t("insights:networth.velocity.monthly_pace")} meta={periodLabel}>
       <div className="flex items-baseline gap-0.5">
         <span className={`text-lg font-bold tabular-nums ${toneClass(perMonth)}`}>
           {perMonthSign}
           <CompactAmount value={Math.abs(perMonth)} currency={currency} />
         </span>
-        <span className="text-muted-foreground text-sm">/mo</span>
+        <span className="text-muted-foreground text-sm">
+          {t("insights:networth.velocity.per_month")}
+        </span>
       </div>
       <p className="text-muted-foreground/80 mt-1 text-xs tabular-nums">
         {netSign}
-        <CompactAmount value={Math.abs(netChange)} currency={currency} /> over {monthsRounded}{" "}
-        {monthsRounded === 1 ? "month" : "months"}
-        {multiple != null && ` · ${multiple.toFixed(1)}× trailing-12mo pace`}
+        <CompactAmount value={Math.abs(netChange)} currency={currency} />{" "}
+        {t("insights:networth.velocity.over_months", { count: monthsRounded })}
+        {multiple != null &&
+          t("insights:networth.velocity.trailing_pace", { multiple: multiple.toFixed(1) })}
       </p>
 
-      <p className={`${CARD_LABEL} mb-3 mt-5`}>Drivers of {periodLabel} change</p>
+      <p className={`${CARD_LABEL} mb-3 mt-5`}>
+        {t("insights:networth.velocity.drivers_of_change", { period: periodLabel })}
+      </p>
       <div className="space-y-3.5">
         <DriverRow
-          label="Market returns"
+          label={t("insights:networth.velocity.market_returns")}
           value={marketGains}
           months={months}
           total={total}
           currency={currency}
         />
         <DriverRow
-          label="Contributions"
+          label={t("insights:networth.velocity.contributions")}
           value={contributions}
           months={months}
           total={total}
           currency={currency}
         />
         <DriverRow
-          label="Equity built"
+          label={t("insights:networth.velocity.equity_built")}
           value={equityBuilt}
           months={months}
           total={total}

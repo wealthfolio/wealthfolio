@@ -194,6 +194,7 @@ export interface Activity {
   unitPrice?: string | null;
   amount?: string | null;
   fee?: string | null;
+  tax?: string | null;
   currency: string;
   fxRate?: string | null;
 
@@ -243,6 +244,7 @@ export interface ActivityDetails {
   unitPrice: string | null;
   amount: string | null;
   fee: string | null;
+  tax?: string | null;
   currency: string;
   needsReview: boolean;
   comment?: string;
@@ -305,6 +307,7 @@ export interface ActivityCreate {
   amount?: string | number | null;
   currency?: string;
   fee?: string | number | null;
+  tax?: string | number | null;
   comment?: string | null;
   fxRate?: string | number | null;
   metadata?: string | Record<string, unknown>;
@@ -325,6 +328,7 @@ export interface ActivityUpdate {
   amount?: string | number | null;
   currency?: string;
   fee?: string | number | null;
+  tax?: string | number | null;
   comment?: string | null;
   fxRate?: string | number | null;
   metadata?: string | Record<string, unknown>;
@@ -368,6 +372,7 @@ export interface ActivityImport {
   quantity?: number | string | null;
   unitPrice?: number | string | null;
   fee?: number | string | null;
+  tax?: number | string | null;
   fxRate?: number | string | null;
   accountName?: string;
   symbolName?: string;
@@ -660,7 +665,6 @@ export interface Settings {
   baseCurrency: string;
   defaultReturnMetric: 'twr' | 'irr' | 'valueReturn';
   timezone?: string;
-  instanceId: string;
   onboardingCompleted: boolean;
   autoUpdateCheckEnabled: boolean;
   menuBarVisible: boolean;
@@ -746,6 +750,9 @@ export interface DateRange {
 
 export type TimePeriod = '1D' | '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | '5Y' | 'ALL';
 
+export type ValuationStatus = 'complete' | 'partialUnpriced' | 'unavailable';
+export type BasisStatus = 'complete' | 'partialUnknown' | 'unknown' | 'notApplicable';
+
 export interface AccountValuation {
   id: string;
   accountId: string;
@@ -766,12 +773,21 @@ export interface AccountValuation {
   externalInflowBase: number;
   externalOutflowBase: number;
   externalFlowSource:
+    | 'NO_FLOW'
     | 'UNKNOWN'
+    | 'CASH_AMOUNT'
+    | 'QUOTE_DERIVED_MARKET_VALUE'
+    | 'COST_BASIS_FALLBACK'
+    | 'REMOVED_LOT_BASIS_FALLBACK'
+    | 'LEGACY_ACTIVITY_AMOUNT_FALLBACK'
+    | 'UNKNOWN_BOUNDARY_TRANSFER'
     | 'ACTIVITY_DERIVED'
     | 'STORED_GROSS'
     | 'NET_CONTRIBUTION_FALLBACK'
     | 'MIXED';
   performanceEligibleValueBase: number;
+  valueStatus: ValuationStatus;
+  basisStatus: BasisStatus;
   calculatedAt: string;
 }
 
@@ -866,6 +882,8 @@ export interface PerformanceResult {
   attribution: PerformanceAttribution;
   risk: PerformanceRisk;
   dataQuality: PerformanceDataQuality;
+  basisStatus?: BasisStatus;
+  summary?: PerformanceSummary;
   series: ReturnData[];
   isHoldingsMode?: boolean;
   isMixedTrackingMode?: boolean;
@@ -889,6 +907,25 @@ export type ReturnMethod =
   | 'valueReturn'
   | 'symbolPriceBased'
   | 'notApplicable';
+
+export type PerformanceSummaryBasis =
+  | 'marketValue'
+  | 'bookBasis'
+  | 'mixed'
+  | 'notApplicable';
+export type PerformanceSummaryStatus = 'complete' | 'unavailable';
+
+export interface PerformanceSummary {
+  amount?: number | null;
+  percent?: number | null;
+  method: ReturnMethod;
+  basis: PerformanceSummaryBasis;
+  quality: PerformanceDataQuality['status'];
+  amountStatus: PerformanceSummaryStatus;
+  percentStatus: PerformanceSummaryStatus;
+  basisStatus: BasisStatus;
+  reasons: string[];
+}
 
 export interface PerformanceReturns {
   twr?: number | null;

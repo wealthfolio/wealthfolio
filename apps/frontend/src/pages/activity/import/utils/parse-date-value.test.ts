@@ -65,3 +65,10 @@ describe("parseDateValue — 12-hour AM/PM (issue #984)", () => {
     expect({ y: r.y, mo: r.mo, day: r.day }).toEqual({ y: 2026, mo: 5, day: 4 });
   });
 });
+
+describe("parseDateValue — month-name dates", () => {
+  it("auto-detects month-name dates with hyphens", () => {
+    const r = local(parseDateValue("May-19-2023", "auto"));
+    expect({ y: r.y, mo: r.mo, day: r.day }).toEqual({ y: 2023, mo: 5, day: 19 });
+  });
+});

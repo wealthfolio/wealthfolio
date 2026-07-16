@@ -1,0 +1,282 @@
+{
+  "page": {
+    "title": "Sync & Connections",
+    "subtitle": "Your devices, all in one place.",
+    "subtitleWithBrokers": "Your brokerages and devices, all in one place.",
+    "brokerages": "Brokerages",
+    "devices": "Devices",
+    "recentActivity": "Recent Activity",
+    "manage": "Manage",
+    "timeAgo": "{{time}} ago",
+    "noBrokeragesConnected": "No brokerages connected",
+    "noBrokeragesDescription": "Link a brokerage to start syncing your accounts.",
+    "noDevicesSyncing": "No devices syncing yet",
+    "noDevicesDescription": "Set up device sync in settings to keep your data in sync across devices.",
+    "noActivity": "No activity yet",
+    "noActivityDescription": "Updates will appear here once your data starts syncing."
+  },
+  "emptyState": {
+    "optional": "Optional",
+    "subtitle": "Automatically sync your brokers while keeping your data private.",
+    "getStarted": "Get Started with Connect",
+    "loginToAccount": "Login to your account",
+    "learnMore": "Learn more about Connect",
+    "features": {
+      "brokerageSync": {
+        "title": "Brokerage Sync",
+        "description": "Auto-sync accounts and transactions daily."
+      },
+      "deviceSync": {
+        "title": "Device Sync",
+        "description": "Sync across devices with E2E encryption."
+      },
+      "householdView": {
+        "title": "Household View",
+        "description": "Share accounts with family members."
+      }
+    }
+  },
+  "flow": {
+    "yourDevice": "Your Device",
+    "localDatabase": "Local database",
+    "dataStaysHere": "Data stays here",
+    "aggregators": "Aggregators",
+    "brokerages": "Brokerages",
+    "banks": "Banks",
+    "crypto": "Crypto"
+  },
+  "account": {
+    "userAvatar": "User avatar",
+    "userFallback": "User",
+    "active": "Active",
+    "signOut": "Sign out",
+    "signOutTitle": "Sign out of Wealthfolio Connect?",
+    "signOutMessage": "You'll need to sign in again to access your synced broker accounts. Your local data will not be affected.",
+    "signOutConfirm": "Sign Out",
+    "signingOut": "Signing out..."
+  },
+  "accounts": {
+    "title": "Accounts",
+    "manage": "Manage accounts",
+    "accountFallback": "Account",
+    "platformFallback": "Platform",
+    "brokerFallback": "Broker",
+    "paper": "Paper",
+    "shared": "Shared",
+    "sharedBy": "Shared by {{name}}",
+    "syncEnabled": "Sync enabled",
+    "excludedFromSync": "Excluded from sync",
+    "noDataYet": "No data yet",
+    "dataAsOf": "Data as of {{date}}",
+    "emptyTitle": "No accounts synced yet",
+    "emptyDescription": "Connect a broker to start syncing your accounts."
+  },
+  "connections": {
+    "title": "Broker connections",
+    "manage": "Manage connections",
+    "empty": "No broker connections yet",
+    "connectBroker": "Connect Broker",
+    "unknownBroker": "Unknown Broker",
+    "unknown": "Unknown",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "reconnect": "Reconnect",
+    "noAccountsFound": "No accounts found",
+    "allAccountsExcluded": "All accounts excluded",
+    "accountsSyncing_one": "{{count}} account syncing",
+    "accountsSyncing_other": "{{count}} accounts syncing",
+    "partialSyncing_one": "{{syncing}} of {{total}} accounts syncing · {{excluded}} account excluded",
+    "partialSyncing_other": "{{syncing}} of {{total}} accounts syncing · {{excluded}} accounts excluded"
+  },
+  "sync": {
+    "syncNow": "Sync Now",
+    "sync": "Sync",
+    "syncAll": "Sync All",
+    "syncingShort": "Syncing...",
+    "statusTitle": "Sync Status",
+    "syncingBrokerData": "Syncing broker data...",
+    "startFailed": "Failed to start sync: {{error}}",
+    "needAttention_one": "{{count}} account needs attention",
+    "needAttention_other": "{{count}} accounts need attention"
+  },
+  "status": {
+    "upToDate": "Up to Date",
+    "syncing": "Syncing",
+    "syncingEllipsis": "Syncing...",
+    "needsReview": "Needs Review",
+    "failed": "Failed",
+    "notConnected": "Not Connected",
+    "lastSynced": "Last synced {{time}}",
+    "neverSynced": "Never synced"
+  },
+  "runStatus": {
+    "running": "Running",
+    "applied": "Applied",
+    "needsReview": "Needs Review",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "syncRuns": {
+    "title": "Recent Sync Runs",
+    "empty": "No sync runs yet.",
+    "warningsCount_one": "{{count}} warning",
+    "warningsCount_other": "{{count}} warnings",
+    "fetched": "Fetched",
+    "inserted": "Inserted",
+    "updated": "Updated",
+    "skipped": "Skipped",
+    "warningsLabel": "Warnings:",
+    "andMore": "... and {{count}} more",
+    "reviewActivities": "Review activities",
+    "duration": "Duration:",
+    "inProgress": "In progress..."
+  },
+  "syncHistory": {
+    "title": "Sync History",
+    "success": "Success",
+    "review": "Review",
+    "emptyTitle": "No sync runs yet",
+    "emptyDescription": "Your sync history will appear here after your first sync",
+    "runCount_one": "{{count}} run",
+    "runCount_other": "{{count}} runs",
+    "loadMore": "Load more",
+    "lessThanOneSecond": "<1s",
+    "new": "new",
+    "updated": "updated",
+    "skipped": "skipped",
+    "warningsCount_one": "{{count}} warning",
+    "warningsCount_other": "{{count}} warnings",
+    "andMore": "+{{count}} more"
+  },
+  "activity": {
+    "syncingData": "Syncing your data...",
+    "somethingWentWrong": "Something went wrong",
+    "upToDate": "Everything is up to date",
+    "itemsNeedReview_one": "{{count}} item needs your review",
+    "itemsNeedReview_other": "{{count}} items need your review",
+    "newItems": {
+      "transaction_one": "{{count}} new transaction",
+      "transaction_other": "{{count}} new transactions",
+      "position_one": "{{count}} new position",
+      "position_other": "{{count}} new positions"
+    },
+    "updatedItems": {
+      "transaction_one": "{{count}} transaction updated",
+      "transaction_other": "{{count}} transactions updated",
+      "position_one": "{{count}} position updated",
+      "position_other": "{{count}} positions updated"
+    },
+    "removedItems": {
+      "transaction_one": "{{count}} transaction removed",
+      "transaction_other": "{{count}} transactions removed",
+      "position_one": "{{count}} position removed",
+      "position_other": "{{count}} positions removed"
+    }
+  },
+  "attention": {
+    "title": "Broker sync needs attention",
+    "description_one": "{{count}} account needs a retry or broker review.",
+    "description_other": "{{count}} accounts need a retry or broker review."
+  },
+  "setup": {
+    "newAccountsTitle": "New accounts need setup",
+    "newAccountsDescription_one": "{{count}} account needs a quick setup before we can start syncing.",
+    "newAccountsDescription_other": "{{count}} accounts need a quick setup before we can start syncing.",
+    "reviewAccounts": "Review accounts"
+  },
+  "devices": {
+    "thisDevice": "This device",
+    "activeNow": "Active now",
+    "lastSeen": "Last seen {{time}}",
+    "online": "Online",
+    "never": "Never"
+  },
+  "deviceStatus": {
+    "syncError": "Sync error",
+    "syncPaused": "Sync paused",
+    "upToDate": "Up to date",
+    "syncing": "Syncing"
+  },
+  "serviceUnavailable": {
+    "title": "Service Temporarily Unavailable",
+    "description": "We're having trouble connecting to Wealthfolio Connect. This is usually temporary and should resolve shortly.",
+    "retrying": "Retrying...",
+    "tryAgain": "Try Again"
+  },
+  "upgrade": {
+    "title": "Upgrade to sync broker accounts",
+    "description": "Connect your brokerage accounts for automatic portfolio syncing.",
+    "button": "Upgrade"
+  },
+  "privacy": {
+    "footnote": "Wealthfolio Connect doesn't store your brokerage credentials or financial data. Everything syncs securely via an aggregator to your local database. Device sync uses end-to-end encryption. <privacyLink>Learn more</privacyLink>"
+  },
+  "providers": {
+    "continueWithGoogle": "Continue with Google",
+    "continueWithApple": "Continue with Apple",
+    "continueWithEmail": "Continue with Email",
+    "lastUsed": "Last used"
+  },
+  "subscription": {
+    "comingSoon": "Coming Soon",
+    "getStarted": "Get Started",
+    "perMonthShort": "mo",
+    "perYearShort": "yr",
+    "savings": "Save {{percent}}% vs monthly",
+    "choosePlan": "Choose Your Plan",
+    "choosePlanDescription": "Subscribe to unlock broker sync and cloud features.",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "monthlyBilling": "Monthly billing",
+    "yearlyBilling": "Yearly billing",
+    "alreadySubscribed": "Already subscribed?",
+    "connectionIssueTitle": "Connection Issue",
+    "connectionIssueDescription": "We're having trouble connecting to your account. This can happen if your session has expired.",
+    "unableToLoadTitle": "Unable to Load Plans",
+    "unableToLoadDescription": "We couldn't retrieve subscription plans right now. This is usually a temporary issue.",
+    "contactSupport": "Contact support",
+    "emailCopied": "Email copied to clipboard",
+    "reconnecting": "Reconnecting...",
+    "reconnect": "Reconnect",
+    "refreshPage": "Refresh Page"
+  },
+  "authCallback": {
+    "processing": "Processing authentication...",
+    "completing": "Completing sign in..."
+  },
+  "authErrors": {
+    "noSessionReturned": "No session returned after completing sign-in.",
+    "completeSignInFailed": "Failed to complete sign in",
+    "signInFailed": "Sign in failed",
+    "signUpFailed": "Sign up failed",
+    "confirmEmail": "Please check your email to confirm your account.",
+    "oauthFailed": "OAuth sign in failed",
+    "magicLinkFailed": "Failed to send magic link",
+    "invalidVerificationCode": "Invalid verification code",
+    "signOutFailed": "Sign out failed",
+    "fetchUserInfoFailed": "Failed to fetch user info"
+  },
+  "newAccounts": {
+    "title": "New accounts found",
+    "description": "Choose how to track each account. You can change this later.",
+    "trackingInfo": "<strong>Transactions</strong> mode tracks every trade for full performance analytics. <strong>Holdings</strong> mode imports snapshots only with limited metrics. <docsLink>Learn more</docsLink>",
+    "accountName": "Account name",
+    "group": "Group (optional)",
+    "groupPlaceholder": "e.g., Retirement",
+    "trackingMode": "Tracking mode",
+    "transactions": "Transactions",
+    "transactionsDescription": "Full performance analytics",
+    "holdings": "Holdings",
+    "holdingsDescription": "Snapshots only",
+    "holdingsWarning": "Performance metrics will be limited without transaction history.",
+    "notNow": "Not now",
+    "saving": "Saving...",
+    "saveAndSync": "Save and sync",
+    "configured": "Accounts configured",
+    "configuredDescription": "Starting sync with your selected settings...",
+    "saveFailed": "Failed to save accounts"
+  },
+  "errors": {
+    "unknown": "Unknown error"
+  }
+}

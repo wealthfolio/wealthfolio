@@ -28,12 +28,12 @@ pub use transfer_integrity::TransferIntegrityCheck;
 // Re-export data types used by checks
 pub use account_configuration::UnconfiguredAccountInfo;
 pub use classification::{LegacyMigrationInfo, UnclassifiedAssetInfo};
-pub use data_consistency::{ConsistencyIssueInfo, ConsistencyIssueType};
+pub use data_consistency::{ConsistencyIssueInfo, ConsistencyIssueType, ValuationIssueReason};
 pub use fx_integrity::FxPairInfo;
 pub use price_staleness::AssetHoldingInfo;
 pub use quote_sync::QuoteSyncErrorInfo;
 pub use transfer_integrity::{InvalidTransferGroupInfo, TransferLegDetail};
 
 // Re-export data gathering functions
-pub use classification::gather_legacy_migration_status;
+pub use classification::{gather_legacy_migration_status, gather_unclassified_assets};
 pub use quote_sync::gather_quote_sync_errors;

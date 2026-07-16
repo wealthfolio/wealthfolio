@@ -53,16 +53,25 @@ impl CustomScraperProvider {
 
     /// Expand URL template variables using the shared template engine.
     fn expand_url(
-        &self,
         url: &str,
         symbol: &str,
         context: Option<&QuoteContext>,
         from: Option<&str>,
         to: Option<&str>,
     ) -> String {
-        let isin_owned: Option<String> = context.and_then(|ctx| match &ctx.instrument {
-            wealthfolio_market_data::InstrumentId::Bond { isin } => Some(isin.as_ref().to_string()),
-            _ => None,
+        let isin_owned: Option<String> = context.and_then(|ctx| {
+            // Prefer explicit identifiers so equity ISINs can be used without changing the
+            // canonical instrument; bonds fall back to their instrument ISIN.
+            ctx.identifiers
+                .isin
+                .as_deref()
+                .map(str::to_string)
+                .or_else(|| match &ctx.instrument {
+                    wealthfolio_market_data::InstrumentId::Bond { isin } => {
+                        Some(isin.as_ref().to_string())
+                    }
+                    _ => None,
+                })
         });
 
         let mic_owned: Option<String> = context.and_then(|ctx| match &ctx.instrument {
@@ -86,6 +95,10 @@ impl CustomScraperProvider {
         };
 
         expand_template(url, &tctx)
+    }
+
+    fn source_url_has_identity_placeholder(url: &str) -> bool {
+        url.contains("{SYMBOL}") || url.contains("{ISIN}")
     }
 
     /// Build HTTP headers from source config, resolving secrets.
@@ -281,7 +294,7 @@ impl CustomScraperProvider {
             });
         }
 
-        let url = self.expand_url(&source.url, symbol, context, from, to);
+        let url = Self::expand_url(&source.url, symbol, context, from, to);
 
         validate_url(&url).map_err(|e| MarketDataError::ProviderError {
             provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
@@ -612,7 +625,7 @@ impl CustomScraperProvider {
     /// Find candidate sources for the given kind.
     /// If `custom_provider_code` is set, returns that single provider's source.
     /// Otherwise, returns sources from all enabled custom providers whose URL
-    /// contains `{SYMBOL}` (general-purpose sources that work like built-in providers).
+    /// contains an identity placeholder (general-purpose sources that work like built-in providers).
     fn find_sources(
         &self,
         context: &QuoteContext,
@@ -634,7 +647,7 @@ impl CustomScraperProvider {
             return Ok(vec![source]);
         }
 
-        // No explicit code — collect general-purpose sources (URL contains {SYMBOL})
+        // No explicit code — collect general-purpose sources (URL contains an identity placeholder)
         // from all enabled custom providers, tried in priority order.
         let providers = self
             .repo
@@ -648,7 +661,7 @@ impl CustomScraperProvider {
             .into_iter()
             .filter(|p| p.enabled)
             .flat_map(|p| p.sources.into_iter().filter(|s| s.kind == kind))
-            .filter(|s| s.url.contains("{SYMBOL}"))
+            .filter(|s| Self::source_url_has_identity_placeholder(&s.url))
             .collect();
 
         if sources.is_empty() {
@@ -1207,6 +1220,9 @@ fn extract_json_string(body: &str, path: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::borrow::Cow;
+    use std::sync::Arc;
+    use wealthfolio_market_data::{InstrumentId, ProviderOverrides, QuoteIdentifiers};
 
     fn ymd(y: i32, m: u32, d: u32) -> NaiveDate {
         NaiveDate::from_ymd_opt(y, m, d).unwrap()
@@ -1234,6 +1250,212 @@ mod tests {
             default_price: None,
             date_timezone: None,
         }
+    }
+
+    fn source_with_url(provider_id: &str, kind: &str, url: &str) -> CustomProviderSource {
+        let mut source = json_source("$.price");
+        source.id = format!("{provider_id}:{kind}");
+        source.provider_id = provider_id.to_string();
+        source.kind = kind.to_string();
+        source.url = url.to_string();
+        source
+    }
+
+    struct MockCustomProviderRepository {
+        providers: Vec<crate::custom_provider::CustomProviderWithSources>,
+    }
+
+    #[async_trait::async_trait]
+    impl CustomProviderRepository for MockCustomProviderRepository {
+        fn get_all(
+            &self,
+        ) -> crate::errors::Result<Vec<crate::custom_provider::CustomProviderWithSources>> {
+            Ok(self.providers.clone())
+        }
+
+        fn get_source_by_kind(
+            &self,
+            provider_code: &str,
+            kind: &str,
+        ) -> crate::errors::Result<Option<CustomProviderSource>> {
+            Ok(self
+                .providers
+                .iter()
+                .find(|provider| provider.id == provider_code)
+                .and_then(|provider| provider.sources.iter().find(|source| source.kind == kind))
+                .cloned())
+        }
+
+        async fn create(
+            &self,
+            _payload: &crate::custom_provider::NewCustomProvider,
+        ) -> crate::errors::Result<crate::custom_provider::CustomProviderWithSources> {
+            unreachable!("not used by custom scraper provider tests")
+        }
+
+        async fn update(
+            &self,
+            _provider_code: &str,
+            _payload: &crate::custom_provider::UpdateCustomProvider,
+        ) -> crate::errors::Result<crate::custom_provider::CustomProviderWithSources> {
+            unreachable!("not used by custom scraper provider tests")
+        }
+
+        async fn delete(&self, _provider_code: &str) -> crate::errors::Result<()> {
+            unreachable!("not used by custom scraper provider tests")
+        }
+
+        fn get_asset_count_for_provider(&self, _provider_code: &str) -> crate::errors::Result<i64> {
+            Ok(0)
+        }
+    }
+
+    struct MockSecretStore;
+
+    impl SecretStore for MockSecretStore {
+        fn set_secret(&self, _service: &str, _secret: &str) -> crate::errors::Result<()> {
+            Ok(())
+        }
+
+        fn get_secret(&self, _service: &str) -> crate::errors::Result<Option<String>> {
+            Ok(None)
+        }
+
+        fn delete_secret(&self, _service: &str) -> crate::errors::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn expand_url_uses_equity_identifier_isin_independently_from_symbol() {
+        let context = QuoteContext {
+            instrument: InstrumentId::Equity {
+                ticker: Arc::from("LKPG"),
+                mic: None,
+            },
+            identifiers: QuoteIdentifiers {
+                isin: Some(Cow::Borrowed("SI0031101346")),
+            },
+            overrides: None,
+            currency_hint: Some(Cow::Borrowed("EUR")),
+            preferred_provider: None,
+            bond_metadata: None,
+            custom_provider_code: Some("local-exchange".to_string()),
+        };
+
+        let url = CustomScraperProvider::expand_url(
+            "https://server/history/{ISIN}/{SYMBOL}/{FROM}/{TO}/json",
+            "LKPG",
+            Some(&context),
+            Some("2026-03-13"),
+            Some("2026-06-11"),
+        );
+
+        assert_eq!(
+            url,
+            "https://server/history/SI0031101346/LKPG/2026-03-13/2026-06-11/json"
+        );
+    }
+
+    #[test]
+    fn find_sources_includes_isin_only_general_sources() {
+        let repo = Arc::new(MockCustomProviderRepository {
+            providers: vec![
+                crate::custom_provider::CustomProviderWithSources {
+                    id: "isin-source".to_string(),
+                    name: "ISIN Source".to_string(),
+                    description: String::new(),
+                    enabled: true,
+                    priority: 1,
+                    sources: vec![source_with_url(
+                        "isin-source",
+                        "latest",
+                        "https://example.test/quotes/{ISIN}",
+                    )],
+                },
+                crate::custom_provider::CustomProviderWithSources {
+                    id: "static-source".to_string(),
+                    name: "Static Source".to_string(),
+                    description: String::new(),
+                    enabled: true,
+                    priority: 2,
+                    sources: vec![source_with_url(
+                        "static-source",
+                        "latest",
+                        "https://example.test/quotes/static",
+                    )],
+                },
+            ],
+        });
+        let provider = CustomScraperProvider::new(repo, Arc::new(MockSecretStore));
+        let context = QuoteContext {
+            instrument: InstrumentId::Equity {
+                ticker: Arc::from("LKPG"),
+                mic: None,
+            },
+            identifiers: QuoteIdentifiers {
+                isin: Some(Cow::Borrowed("SI0031101346")),
+            },
+            overrides: None,
+            currency_hint: Some(Cow::Borrowed("EUR")),
+            preferred_provider: None,
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+
+        let sources = provider.find_sources(&context, "latest").unwrap();
+
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].provider_id, "isin-source");
+        assert_eq!(sources[0].url, "https://example.test/quotes/{ISIN}");
+    }
+
+    #[test]
+    fn resolve_symbol_uses_legacy_bond_custom_provider_mapping() {
+        let overrides = ProviderOverrides::from_json(&serde_json::json!({
+            "CUSTOM:single-point": {
+                "type": "bond_isin",
+                "symbol": "SWB:US744330AA93"
+            }
+        }))
+        .unwrap();
+        let context = QuoteContext {
+            instrument: InstrumentId::Bond {
+                isin: Arc::from("US744330AA93"),
+            },
+            identifiers: Default::default(),
+            overrides: Some(overrides),
+            currency_hint: Some(Cow::Borrowed("USD")),
+            preferred_provider: Some(Cow::Borrowed("CUSTOM_SCRAPER")),
+            bond_metadata: None,
+            custom_provider_code: Some("single-point".to_string()),
+        };
+        let source = CustomProviderSource {
+            id: "source-1".to_string(),
+            provider_id: "single-point".to_string(),
+            kind: "latest".to_string(),
+            format: "json".to_string(),
+            url: "https://example.test/?ticker={SYMBOL}".to_string(),
+            price_path: "$.price".to_string(),
+            date_path: None,
+            date_format: None,
+            currency_path: None,
+            factor: None,
+            invert: None,
+            locale: None,
+            headers: None,
+            open_path: None,
+            high_path: None,
+            low_path: None,
+            volume_path: None,
+            default_price: None,
+            date_timezone: None,
+        };
+
+        assert_eq!(
+            CustomScraperProvider::resolve_symbol(&context, &source, "US744330AA93"),
+            "SWB:US744330AA93"
+        );
     }
 
     #[test]
@@ -1275,6 +1497,24 @@ mod tests {
             Some("2026-02-01"),
         );
         assert_eq!(currency, "CAD");
+    }
+
+    #[test]
+    fn extract_json_rows_supports_unicode_keys() {
+        let body = r#"[
+            { "净值日期": "2026-07-10T00:00:00.000", "单位净值": 1.4018 },
+            { "净值日期": "2026-07-11T00:00:00.000", "单位净值": 1.4026 }
+        ]"#;
+        let mut source = json_source(r#"$[*]["单位净值"]"#);
+        source.date_path = Some(r#"$[*]["净值日期"]"#.to_string());
+
+        let rows = extract_json_rows(body, &source, "001097", Some("CNY"), None, None, None);
+
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].date, Some(ymd(2026, 7, 10)));
+        assert_eq!(rows[0].close, 1.4018);
+        assert_eq!(rows[1].date, Some(ymd(2026, 7, 11)));
+        assert_eq!(rows[1].close, 1.4026);
     }
 
     #[test]

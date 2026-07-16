@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAccounts } from "@/hooks/use-accounts";
 import { usePortfolioMutations, usePortfolios } from "@/hooks/use-portfolios";
 import type { NewPortfolio, PortfolioWithAccounts } from "@/lib/types";
@@ -34,6 +35,7 @@ import { Button, Checkbox, EmptyPlaceholder, Icons, Separator, Skeleton } from "
 import { SettingsHeader } from "../settings-header";
 
 export default function PortfoliosPage() {
+  const { t } = useTranslation();
   const { data: portfolios = [], isLoading } = usePortfolios();
   const { accounts, isLoading: isAccountsLoading } = useAccounts({
     filterActive: false,
@@ -77,8 +79,8 @@ export default function PortfoliosPage() {
     <>
       <div className="space-y-6">
         <SettingsHeader
-          heading="Portfolios"
-          text="Create named reporting scopes across accounts."
+          heading={t("settings:portfolios.title")}
+          text={t("settings:portfolios.description")}
           actionsInline
         >
           <>
@@ -86,13 +88,13 @@ export default function PortfoliosPage() {
               size="icon"
               className="sm:hidden"
               onClick={openCreate}
-              aria-label="Add portfolio"
+              aria-label={t("settings:portfolios.add_aria")}
             >
               <Icons.Plus className="h-4 w-4" />
             </Button>
             <Button size="sm" className="hidden sm:inline-flex" onClick={openCreate}>
               <Icons.Plus className="mr-2 h-4 w-4" />
-              Add portfolio
+              {t("settings:portfolios.add_button")}
             </Button>
           </>
         </SettingsHeader>
@@ -101,14 +103,13 @@ export default function PortfoliosPage() {
         {portfolios.length === 0 ? (
           <EmptyPlaceholder>
             <EmptyPlaceholder.Icon name="Folder" />
-            <EmptyPlaceholder.Title>No portfolios yet</EmptyPlaceholder.Title>
+            <EmptyPlaceholder.Title>{t("settings:portfolios.empty_title")}</EmptyPlaceholder.Title>
             <EmptyPlaceholder.Description>
-              Group accounts into named reporting scopes to filter performance, holdings, income,
-              and activities.
+              {t("settings:portfolios.empty_description")}
             </EmptyPlaceholder.Description>
             <Button onClick={openCreate}>
               <Icons.Plus className="mr-2 h-4 w-4" />
-              Add a portfolio
+              {t("settings:portfolios.add_first")}
             </Button>
           </EmptyPlaceholder>
         ) : (
@@ -134,20 +135,23 @@ export default function PortfoliosPage() {
                         {missingAccountCount > 0 && (
                           <Icons.AlertTriangle
                             className="text-warning h-4 w-4"
-                            aria-label="Portfolio has deleted account links"
+                            aria-label={t("settings:portfolios.deleted_links_aria")}
                           />
                         )}
                       </div>
                       <div className="text-muted-foreground flex items-center gap-1.5 text-sm">
                         <span>
-                          {existingAccountCount} account{existingAccountCount !== 1 ? "s" : ""}
+                          {t("settings:portfolios.account_count", {
+                            count: existingAccountCount,
+                          })}
                         </span>
                         {missingAccountCount > 0 && (
                           <>
                             <span>·</span>
                             <span className="text-warning">
-                              {missingAccountCount} deleted link
-                              {missingAccountCount !== 1 ? "s" : ""}
+                              {t("settings:portfolios.deleted_link_count", {
+                                count: missingAccountCount,
+                              })}
                             </span>
                           </>
                         )}
@@ -165,16 +169,18 @@ export default function PortfoliosPage() {
                     <DropdownMenu>
                       <DropdownMenuTrigger className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-md border transition-colors">
                         <Icons.MoreVertical className="h-4 w-4" />
-                        <span className="sr-only">Open</span>
+                        <span className="sr-only">{t("settings:portfolios.operations_open")}</span>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openEdit(p)}>Edit</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openEdit(p)}>
+                          {t("common:edit")}
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive flex cursor-pointer items-center"
                           onSelect={() => setDeleting(p)}
                         >
-                          Delete
+                          {t("common:delete")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -206,21 +212,24 @@ export default function PortfoliosPage() {
       <AlertDialog open={deleting !== null} onOpenChange={(value) => !value && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete portfolio?</AlertDialogTitle>
+            <AlertDialogTitle>{t("settings:portfolios.delete_title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes {deleting ? `"${deleting.name}"` : "this portfolio"} and its account
-              memberships. This action cannot be undone.
+              {deleting
+                ? t("settings:portfolios.delete_description_named", { name: deleting.name })
+                : t("settings:portfolios.delete_description_generic")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              {t("common:cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleteMutation.isPending}
               onClick={handleDelete}
             >
               <Icons.Trash className="mr-2 h-4 w-4" />
-              Delete
+              {t("common:delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -246,6 +255,7 @@ function PortfolioDialog({
   onSave,
   isSaving,
 }: PortfolioDialogProps) {
+  const { t } = useTranslation();
   const existingAccountIds = useMemo(
     () => new Set(accountOptions.map((account) => account.id)),
     [accountOptions],
@@ -278,36 +288,44 @@ function PortfolioDialog({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{portfolio ? "Edit portfolio" : "New portfolio"}</DialogTitle>
+          <DialogTitle>
+            {portfolio
+              ? t("settings:portfolios.dialog_edit_title")
+              : t("settings:portfolios.dialog_new_title")}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-1">
-            <Label htmlFor="portfolio-name">Name</Label>
+            <Label htmlFor="portfolio-name">{t("settings:portfolios.name_label")}</Label>
             <Input
               id="portfolio-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Retirement"
+              placeholder={t("settings:portfolios.name_placeholder")}
             />
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="portfolio-description">Description (optional)</Label>
+            <Label htmlFor="portfolio-description">
+              {t("settings:portfolios.description_label")}
+            </Label>
             <Textarea
               id="portfolio-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              placeholder="e.g. IRA + Roth IRA + 401k"
+              placeholder={t("settings:portfolios.description_placeholder")}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Accounts</Label>
+            <Label>{t("settings:portfolios.accounts_label")}</Label>
             <div className="divide-border max-h-56 overflow-y-auto rounded-md border">
               {accountOptions.length === 0 ? (
-                <p className="text-muted-foreground p-3 text-sm">No accounts found.</p>
+                <p className="text-muted-foreground p-3 text-sm">
+                  {t("settings:portfolios.no_accounts")}
+                </p>
               ) : (
                 accountOptions.map((a) => (
                   <label
@@ -326,18 +344,20 @@ function PortfolioDialog({
               )}
             </div>
             {selectedIds.length === 0 && (
-              <p className="text-destructive text-xs">Select at least one account.</p>
+              <p className="text-destructive text-xs">
+                {t("settings:portfolios.select_one_account")}
+              </p>
             )}
             {missingAccountIds.length > 0 && (
               <div className="border-warning/30 bg-warning/10 text-warning rounded-md border p-3 text-xs">
                 <div className="mb-2 flex items-center gap-2 font-medium">
                   <Icons.AlertTriangle className="h-3.5 w-3.5" />
-                  Saving will remove deleted account links.
+                  {t("settings:portfolios.remove_deleted_links")}
                 </div>
                 <div className="text-muted-foreground space-y-1">
                   {missingAccountIds.map((id) => (
                     <div key={id} className="break-all">
-                      Deleted account: {id}
+                      {t("settings:portfolios.deleted_account", { id })}
                     </div>
                   ))}
                 </div>
@@ -348,10 +368,10 @@ function PortfolioDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {t("common:cancel")}
           </Button>
           <Button onClick={handleSave} disabled={!canSave || isSaving}>
-            {isSaving ? "Saving…" : "Save"}
+            {isSaving ? t("settings:portfolios.saving") : t("common:save")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,0 +1,124 @@
+{
+  "insights": {
+    "loading_dashboard": "Loading dashboard...",
+    "tab_overview": "Overview",
+    "tab_performance": "Performance",
+    "tab_income": "Income",
+    "back_to_allocation": "Back to allocation",
+    "target_allocation": "Target allocation",
+    "back_to_overview": "Back to overview",
+    "rebalance": "Rebalance",
+    "no_target_selected": "No target selected",
+    "no_target_selected_description": "Create a target allocation to compare current weights against intended weights.",
+    "set_target_allocation": "Set target allocation",
+    "chart_classes": "Classes",
+    "chart_regions": "Regions",
+    "chart_sectors": "Sectors",
+    "explorer": {
+      "lens_allocation": "Allocation",
+      "lens_accounts": "Accounts",
+      "lens_sectors": "Sectors",
+      "lens_regions": "Regions",
+      "lens_risk": "Risk",
+      "lens_security": "Security types",
+      "lens_currency": "Currency",
+      "unit_categories": "categories",
+      "unit_accounts": "accounts",
+      "unit_sectors": "sectors",
+      "unit_regions": "regions",
+      "unit_levels": "levels",
+      "unit_types": "types",
+      "unit_currencies": "currencies",
+      "unit_groups": "groups",
+      "other_units": "Other {{unit}}",
+      "breakdown": "Breakdown",
+      "top_units": "Top {{unit}}",
+      "show_less": "Show less",
+      "show_all": "Show all"
+    },
+    "rails": {
+      "target_allocation": "Target allocation",
+      "details": "Details",
+      "suggested_moves": "Suggested moves",
+      "all_in_range": "All categories inside target range — no rebalancing needed",
+      "add": "Add",
+      "trim": "Trim",
+      "inside_target_range": "Inside target range",
+      "outside_range": "{{count}} outside range · largest gap {{gap}}",
+      "tolerance": "tolerance {{tolerance}}",
+      "current": "Current",
+      "target": "Target",
+      "no_target_yet": "No target allocation yet",
+      "compare_weights": "Compare current weights with your intended portfolio.",
+      "set_target_allocation": "Set target allocation"
+    },
+    "value_strip": {
+      "portfolio_value": "Portfolio value",
+      "cash_balance": "Cash balance",
+      "invested": "Invested",
+      "book_cost": "Book cost",
+      "no_cash_balance": "No cash balance",
+      "of_portfolio": "{{percent}} of portfolio",
+      "available_cash": "Available cash",
+      "holdings_count_one": "{{count}} holding",
+      "holdings_count_other": "{{count}} holdings",
+      "accounts_count_one": "{{count}} account",
+      "accounts_count_other": "{{count}} accounts"
+    }
+  },
+  "networth": {
+    "failed_to_load": "Failed to load net worth",
+    "stale_valuations_tooltip": "Stale valuations (90+ days):",
+    "days_ago": "{{count}}d ago",
+    "no_history_data": "No history data available",
+    "breakdown": "Breakdown",
+    "no_assets_found": "No assets found.",
+    "add_first_asset": "Add your first asset",
+    "update_valuations": "Update your valuations",
+    "assets_count_one": "{{count}} asset",
+    "assets_count_other": "{{count}} assets",
+    "not_updated_over_90_days": "Not updated in over 90 days.",
+    "chart": {
+      "net_worth": "Net Worth",
+      "net_worth_label": "Net Worth:",
+      "assets_label": "Assets:",
+      "liabilities_label": "Liabilities:"
+    },
+    "breakdown_table": {
+      "change_over": "Change over {{period}}",
+      "assets": "Assets",
+      "category": "Category",
+      "value": "Value",
+      "delta_period": "Δ {{period}}",
+      "liabilities": "Liabilities",
+      "net_worth": "Net Worth"
+    },
+    "category_sheet": {
+      "over_period": "over {{period}}",
+      "trend_period": "Trend · {{period}}",
+      "items": "Items"
+    },
+    "trend": {
+      "not_enough_history": "Not enough history"
+    },
+    "momentum": {
+      "title": "Momentum",
+      "all_time": "all time",
+      "vs_prior": "vs prior {{period}}",
+      "beat_prior": "Beat prior period by ",
+      "behind_prior": "Behind prior period by ",
+      "now": "Now"
+    },
+    "velocity": {
+      "monthly_pace": "Monthly pace",
+      "over_months_one": "over {{count}} month",
+      "over_months_other": "over {{count}} months",
+      "trailing_pace": " · {{multiple}}× trailing-12mo pace",
+      "drivers_of_change": "Drivers of {{period}} change",
+      "market_returns": "Market returns",
+      "contributions": "Contributions",
+      "equity_built": "Equity built",
+      "per_month": "/mo"
+    }
+  }
+}

@@ -10,11 +10,20 @@ pub const PORTFOLIO_UPDATE_COMPLETE: &str = "portfolio:update-complete";
 pub const PORTFOLIO_UPDATE_ERROR: &str = "portfolio:update-error";
 pub const ASSET_ENRICHMENT_START: &str = "asset:enrichment-start";
 pub const ASSET_ENRICHMENT_COMPLETE: &str = "asset:enrichment-complete";
+pub const ASSET_CLASSIFICATIONS_CHANGED: &str = "asset:classifications-changed";
 
 pub const ASSET_ENRICHMENT_PROGRESS: &str = "asset:enrichment-progress";
 pub const BROKER_SYNC_START: &str = "broker:sync-start";
 pub const BROKER_SYNC_COMPLETE: &str = "broker:sync-complete";
 pub const BROKER_SYNC_ERROR: &str = "broker:sync-error";
+
+/// Payload published when a market data sync completes.
+#[derive(Debug, serde::Serialize)]
+pub struct MarketSyncResult {
+    pub failed_syncs: Vec<(String, String)>,
+    pub skipped_reasons: Vec<(String, String)>,
+    pub show_skipped_reasons: bool,
+}
 
 /// Serializable envelope that carries event names and optional payloads.
 #[derive(Clone, Debug)]

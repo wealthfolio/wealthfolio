@@ -3,6 +3,7 @@
 // =============================================
 
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui";
@@ -14,6 +15,7 @@ interface DisplayCodeProps {
 }
 
 export function DisplayCode({ code, expiresAt, onCancel }: DisplayCodeProps) {
+  const { t } = useTranslation();
   const [timeLeft, setTimeLeft] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -21,7 +23,7 @@ export function DisplayCode({ code, expiresAt, onCancel }: DisplayCodeProps) {
     const update = () => {
       const now = new Date();
       if (now >= expiresAt) {
-        setTimeLeft("Expired");
+        setTimeLeft(t("sync:displayCode.expired"));
       } else {
         const seconds = Math.floor((expiresAt.getTime() - now.getTime()) / 1000);
         const mins = Math.floor(seconds / 60);
@@ -32,7 +34,7 @@ export function DisplayCode({ code, expiresAt, onCancel }: DisplayCodeProps) {
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [expiresAt]);
+  }, [expiresAt, t]);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(code);
@@ -73,7 +75,7 @@ export function DisplayCode({ code, expiresAt, onCancel }: DisplayCodeProps) {
           className="text-muted-foreground h-auto p-0 text-xs"
           onClick={onCancel}
         >
-          Cancel
+          {t("common:cancel")}
         </Button>
       </div>
     </div>

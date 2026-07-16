@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wealthfolio/ui/components/ui/tabs";
 import { Account, CsvRowData, ImportFormat, ImportMappingData } from "@/lib/types";
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import { CardContent } from "@wealthfolio/ui/components/ui/card";
 import { validateTickerSymbol } from "../utils/validation-utils";
@@ -25,6 +26,7 @@ interface CsvMappingEditorProps {
 }
 
 export function CsvMappingEditor(props: CsvMappingEditorProps) {
+  const { t } = useTranslation();
   const distinctSymbols = useMemo(() => {
     return Array.from(
       new Set(props.data.map((row) => props.getMappedValue(row, ImportFormat.SYMBOL))),
@@ -211,20 +213,20 @@ export function CsvMappingEditor(props: CsvMappingEditorProps) {
         <div className="py-2">
           <div className="flex items-center justify-between">
             <div className="text-muted-foreground hidden px-3 text-sm md:block">
-              <span className="font-medium">{totalRows} </span>total row{totalRows !== 1 ? "s" : ""}
+              {t("activity:import.mapping.totalRows", { count: totalRows })}
             </div>
             <TabsList className="bg-secondary flex space-x-1 rounded-full p-1">
               <TabsTrigger
                 className="data-[state=active]:bg-primary data-[state=active]:text-primary data-[state=active]:hover:bg-primary/90 h-8 rounded-full px-2 text-sm"
                 value="preview"
               >
-                Activity Preview
+                {t("activity:import.mapping.activityPreview")}
               </TabsTrigger>
               <TabsTrigger
                 className="data-[state=active]:bg-primary data-[state=active]:text-primary data-[state=active]:hover:bg-primary/90 h-8 rounded-full px-2 text-sm"
                 value="raw"
               >
-                File Preview
+                {t("activity:import.mapping.filePreview")}
               </TabsTrigger>
             </TabsList>
           </div>

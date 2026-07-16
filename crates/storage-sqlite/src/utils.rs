@@ -34,9 +34,31 @@ pub fn chunk_for_sqlite<T>(items: &[T]) -> impl Iterator<Item = &[T]> {
     items.chunks(SQLITE_MAX_PARAMS_CHUNK)
 }
 
+/// Build a deterministic, collision-resistant identifier from a prefix and
+/// components. Each component is length-prefixed (`:<len>:<component>`) so that
+/// concatenation is unambiguous — e.g. `["ab", "c"]` and `["a", "bc"]` never
+/// collide. Used to derive stable IDs for composite-key rows (both local
+/// composite PKs and device-sync `entity_id`s), so the same logical key resolves
+/// to the same id on every device.
+pub(crate) fn stable_id(prefix: &str, components: &[&str]) -> String {
+    let mut id = prefix.to_string();
+    for component in components {
+        id.push(':');
+        id.push_str(&component.len().to_string());
+        id.push(':');
+        id.push_str(component);
+    }
+    id
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stable_id_preserves_component_boundaries() {
+        assert_ne!(stable_id("x", &["ab", "c"]), stable_id("x", &["a", "bc"]));
+    }
 
     #[test]
     fn test_chunk_for_sqlite_empty() {

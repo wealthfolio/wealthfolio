@@ -1,0 +1,124 @@
+{
+  "insights": {
+    "loading_dashboard": "Cargando panel...",
+    "tab_overview": "Resumen",
+    "tab_performance": "Rendimiento",
+    "tab_income": "Ingresos",
+    "back_to_allocation": "Volver a la asignación",
+    "target_allocation": "Asignación objetivo",
+    "back_to_overview": "Volver al resumen",
+    "rebalance": "Reequilibrar",
+    "no_target_selected": "No hay objetivo seleccionado",
+    "no_target_selected_description": "Crea una asignación objetivo para comparar los pesos actuales con los pesos previstos.",
+    "set_target_allocation": "Establecer asignación objetivo",
+    "chart_classes": "Clases",
+    "chart_regions": "Regiones",
+    "chart_sectors": "Sectores",
+    "explorer": {
+      "lens_allocation": "Asignación",
+      "lens_accounts": "Cuentas",
+      "lens_sectors": "Sectores",
+      "lens_regions": "Regiones",
+      "lens_risk": "Riesgo",
+      "lens_security": "Tipos de valores",
+      "lens_currency": "Divisa",
+      "unit_categories": "categorías",
+      "unit_accounts": "cuentas",
+      "unit_sectors": "sectores",
+      "unit_regions": "regiones",
+      "unit_levels": "niveles",
+      "unit_types": "tipos",
+      "unit_currencies": "divisas",
+      "unit_groups": "grupos",
+      "other_units": "Otros {{unit}}",
+      "breakdown": "Desglose",
+      "top_units": "Principales {{unit}}",
+      "show_less": "Mostrar menos",
+      "show_all": "Mostrar todo"
+    },
+    "rails": {
+      "target_allocation": "Asignación objetivo",
+      "details": "Detalles",
+      "suggested_moves": "Movimientos sugeridos",
+      "all_in_range": "Todas las categorías dentro del rango objetivo — no se necesita reequilibrar",
+      "add": "Añadir",
+      "trim": "Reducir",
+      "inside_target_range": "Dentro del rango objetivo",
+      "outside_range": "{{count}} fuera de rango · mayor diferencia {{gap}}",
+      "tolerance": "tolerancia {{tolerance}}",
+      "current": "Actual",
+      "target": "Objetivo",
+      "no_target_yet": "Aún no hay asignación objetivo",
+      "compare_weights": "Compara los pesos actuales con tu cartera prevista.",
+      "set_target_allocation": "Establecer asignación objetivo"
+    },
+    "value_strip": {
+      "portfolio_value": "Valor de la cartera",
+      "cash_balance": "Saldo en efectivo",
+      "invested": "Invertido",
+      "book_cost": "Coste contable",
+      "no_cash_balance": "Sin saldo en efectivo",
+      "of_portfolio": "{{percent}} de la cartera",
+      "available_cash": "Efectivo disponible",
+      "holdings_count_one": "{{count}} posición",
+      "holdings_count_other": "{{count}} posiciones",
+      "accounts_count_one": "{{count}} cuenta",
+      "accounts_count_other": "{{count}} cuentas"
+    }
+  },
+  "networth": {
+    "failed_to_load": "No se pudo cargar el patrimonio neto",
+    "stale_valuations_tooltip": "Valoraciones desactualizadas (más de 90 días):",
+    "days_ago": "hace {{count}} d",
+    "no_history_data": "No hay datos de historial disponibles",
+    "breakdown": "Desglose",
+    "no_assets_found": "No se encontraron activos.",
+    "add_first_asset": "Añade tu primer activo",
+    "update_valuations": "Actualiza tus valoraciones",
+    "assets_count_one": "{{count}} activo",
+    "assets_count_other": "{{count}} activos",
+    "not_updated_over_90_days": "No se ha actualizado en más de 90 días.",
+    "chart": {
+      "net_worth": "Patrimonio neto",
+      "net_worth_label": "Patrimonio neto:",
+      "assets_label": "Activos:",
+      "liabilities_label": "Pasivos:"
+    },
+    "breakdown_table": {
+      "change_over": "Cambio en {{period}}",
+      "assets": "Activos",
+      "category": "Categoría",
+      "value": "Valor",
+      "delta_period": "Δ {{period}}",
+      "liabilities": "Pasivos",
+      "net_worth": "Patrimonio neto"
+    },
+    "category_sheet": {
+      "over_period": "en {{period}}",
+      "trend_period": "Tendencia · {{period}}",
+      "items": "Elementos"
+    },
+    "trend": {
+      "not_enough_history": "Historial insuficiente"
+    },
+    "momentum": {
+      "title": "Impulso",
+      "all_time": "histórico",
+      "vs_prior": "frente a {{period}} anterior",
+      "beat_prior": "Superó el periodo anterior en ",
+      "behind_prior": "Por detrás del periodo anterior en ",
+      "now": "Ahora"
+    },
+    "velocity": {
+      "monthly_pace": "Ritmo mensual",
+      "over_months_one": "en {{count}} mes",
+      "over_months_other": "en {{count}} meses",
+      "trailing_pace": " · {{multiple}}× del ritmo de los últimos 12 meses",
+      "drivers_of_change": "Factores del cambio de {{period}}",
+      "market_returns": "Rentabilidades del mercado",
+      "contributions": "Aportaciones",
+      "equity_built": "Capital acumulado",
+      "per_month": "/mes"
+    }
+  }
+}

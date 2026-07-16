@@ -99,3 +99,102 @@ export function distinctTopIds<T extends { categoryId: string }>(
   for (const r of rows) out.add(topCategoryId(r.categoryId, meta));
   return out;
 }
+
+/** Synthetic row id for the "money set aside" entry in the "Where it went"
+ *  widget — kept distinct from real category ids. */
+export const SAVINGS_ROW_ID = "__savings__";
+export const SAVINGS_ROW_COLOR = "#6B8E54";
+
+export interface CategoryMeta {
+  name: string;
+  color: string | null;
+  icon: string | null;
+  parentId: string | null;
+}
+
+export interface WhereItWentRow {
+  id: string;
+  name: string;
+  color: string | null;
+  icon: string | null;
+  amount: number;
+  subCount: number;
+  txCount: number;
+  delta: number;
+  deltaPct: number | null;
+}
+
+/**
+ * Roll spending categories up to their top-level parent for the "Where it
+ * went" widget (map/list), and — when money was saved this period — append
+ * a distinct "Saving" row so it isn't invisible next to where money was
+ * spent. Otherwise savings only showed up on the "view all" insights page,
+ * which read as if nothing had been saved.
+ */
+export function buildWhereItWentRows(params: {
+  spendingBreakdown: { categoryId: string; amount: number; count: number }[];
+  priorSpendingBreakdown: { categoryId: string; amount: number }[];
+  categoriesMeta: Map<string, CategoryMeta>;
+  totalSaved: number;
+  priorSaved: number;
+  uncategorizedLabel: string;
+  savingsLabel: string;
+}): WhereItWentRow[] {
+  const {
+    spendingBreakdown,
+    priorSpendingBreakdown,
+    categoriesMeta,
+    totalSaved,
+    priorSaved,
+    uncategorizedLabel,
+    savingsLabel,
+  } = params;
+
+  const topAmounts = new Map<string, { amount: number; subCount: number; txCount: number }>();
+  for (const row of spendingBreakdown) {
+    const meta = categoriesMeta.get(row.categoryId);
+    const topId = topCategoryId(row.categoryId, categoriesMeta);
+    const e = topAmounts.get(topId) ?? { amount: 0, subCount: 0, txCount: 0 };
+    e.amount += row.amount;
+    e.txCount += row.count;
+    if (meta?.parentId) e.subCount += 1;
+    topAmounts.set(topId, e);
+  }
+
+  const priorAmounts = new Map<string, number>();
+  for (const row of priorSpendingBreakdown) {
+    const topId = topCategoryId(row.categoryId, categoriesMeta);
+    priorAmounts.set(topId, (priorAmounts.get(topId) ?? 0) + row.amount);
+  }
+
+  if (totalSaved > 0) {
+    topAmounts.set(SAVINGS_ROW_ID, { amount: totalSaved, subCount: 0, txCount: 0 });
+    priorAmounts.set(SAVINGS_ROW_ID, priorSaved);
+  }
+
+  return Array.from(topAmounts.entries())
+    .sort(([, a], [, b]) => b.amount - a.amount)
+    .map(([id, e]) => {
+      const meta = categoriesMeta.get(id);
+      const priorAmt = priorAmounts.get(id) ?? 0;
+      const delta = e.amount - priorAmt;
+      const deltaPct = priorAmt > 0 ? (delta / priorAmt) * 100 : null;
+      return {
+        id,
+        name:
+          id === "__uncategorized__"
+            ? uncategorizedLabel
+            : id === SAVINGS_ROW_ID
+              ? savingsLabel
+              : (meta?.name ?? id),
+        color: id === SAVINGS_ROW_ID ? SAVINGS_ROW_COLOR : (meta?.color ?? null),
+        icon: meta?.icon ?? null,
+        amount: e.amount,
+        subCount: e.subCount,
+        txCount: e.txCount,
+        delta,
+        deltaPct,
+      };
+    })
+    .filter((row) => row.amount > 0);
+}

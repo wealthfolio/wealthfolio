@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -29,6 +30,54 @@ pub struct AddonPermission {
     pub purpose: String,
 }
 
+/// A durable addon page declared via `contributes.routes`. Ingested at boot
+/// without executing addon code — the lazy-activation surface.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct AddonContributedRoute {
+    pub id: String,
+    /// Optional suffix below the host-owned `/addons/<addon-id>` mount.
+    /// `None` represents the addon root.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+}
+
+/// A placement in a host slot (e.g. `"sidebar"`) declared via
+/// `contributes.links`, pointing at a declared route of the same addon.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct AddonContributedLink {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    pub route: String,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub order: Option<i32>,
+}
+
+/// Declarative contributions an addon makes to the host: durable routes plus
+/// links placed in host slots (map keyed by slot id; BTreeMap keeps
+/// serialization deterministic). Unknown slot keys round-trip untouched —
+/// they're future host surfaces.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AddonContributes {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub routes: Vec<AddonContributedRoute>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub links: BTreeMap<String, Vec<AddonContributedLink>>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AddonNetworkAccess {
+    pub allowed_hosts: Vec<String>,
+    #[serde(default)]
+    pub approved_hosts: Vec<String>,
+}
+
 /// Unified addon manifest structure that handles both development and runtime scenarios
 /// This represents both what developers write in their manifest.json and installed addon metadata
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -52,6 +101,11 @@ pub struct AddonManifest {
     pub min_wealthfolio_version: Option<String>,
     pub keywords: Option<Vec<String>>,
     pub icon: Option<String>,
+    pub network: Option<AddonNetworkAccess>,
+    #[serde(rename = "hostDependencies")]
+    pub host_dependencies: Option<BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contributes: Option<AddonContributes>,
 
     // Runtime fields (only present after installation)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -113,6 +167,7 @@ pub struct InstalledAddon {
 pub struct AddonStoreListing {
     pub metadata: AddonManifest,
     pub download_url: String,
+    pub sha256: Option<String>,
     pub downloads: Option<u32>,
     pub rating: Option<f32>,
     pub review_count: Option<u32>,
@@ -130,6 +185,7 @@ pub struct AddonUpdateInfo {
     pub latest_version: String,
     pub update_available: bool,
     pub download_url: Option<String>,
+    pub sha256: Option<String>,
     pub release_notes: Option<String>,
     pub release_date: Option<String>,
     pub changelog_url: Option<String>,

@@ -34,10 +34,15 @@ pub struct MarketSyncResult {
     pub failed_syncs: Vec<(String, String)>,
     /// List of (asset_id, reason) tuples for skipped syncs.
     pub skipped_reasons: Vec<(String, String)>,
+    /// Whether the frontend should display skipped reasons to the user.
+    pub show_skipped_reasons: bool,
 }
 
 /// Event emitted when the market data sync process encounters an error.
 pub const MARKET_SYNC_ERROR: &str = "market:sync-error";
+
+/// Event emitted when asset taxonomy assignments change.
+pub const ASSET_CLASSIFICATIONS_CHANGED: &str = "asset:classifications-changed";
 
 /// Event emitted when the broker sync process starts.
 pub const BROKER_SYNC_START: &str = "broker:sync-start";

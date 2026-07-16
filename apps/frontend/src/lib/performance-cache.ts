@@ -8,6 +8,7 @@ export function invalidatePerformanceCaches(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: [QueryKeys.ACCOUNTS_SIMPLE_PERFORMANCE] });
   queryClient.invalidateQueries({ queryKey: [QueryKeys.HISTORY_VALUATION] });
   queryClient.invalidateQueries({ queryKey: [QueryKeys.latestValuations] });
+  queryClient.invalidateQueries({ queryKey: [QueryKeys.CURRENT_VALUATION] });
   queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS] });
   queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDING] });
   queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_HOLDINGS] });

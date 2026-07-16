@@ -591,8 +591,10 @@ pub fn sync_entity_from_remote(entity: &str) -> Option<SyncEntity> {
         "portfolio_account" => Some(SyncEntity::PortfolioAccount),
         "allocation_target" => Some(SyncEntity::AllocationTarget),
         "allocation_target_weight" => Some(SyncEntity::AllocationTargetWeight),
+        "allocation_target_constraint" => Some(SyncEntity::AllocationTargetConstraint),
         "spending_setting" => Some(SyncEntity::SpendingSetting),
         "activity_taxonomy_assignment" => Some(SyncEntity::ActivityTaxonomyAssignment),
+        "spending_activity_split" => Some(SyncEntity::SpendingActivitySplit),
         "spending_activity_event" => Some(SyncEntity::SpendingActivityEvent),
         "spending_categorization_rule" => Some(SyncEntity::SpendingCategorizationRule),
         "spending_preset_rule_deletion" => Some(SyncEntity::SpendingPresetRuleDeletion),
@@ -602,6 +604,7 @@ pub fn sync_entity_from_remote(entity: &str) -> Option<SyncEntity> {
         "budget_group_assignment" => Some(SyncEntity::BudgetGroupAssignment),
         "budget_target" => Some(SyncEntity::BudgetTarget),
         "budget_rollover_setting" => Some(SyncEntity::BudgetRolloverSetting),
+        "addon_storage" => Some(SyncEntity::AddonStorage),
         _ => None,
     }
 }
@@ -776,6 +779,10 @@ mod tests {
         assert_eq!(
             sync_entity_from_remote("broker_activity_user_patch"),
             Some(SyncEntity::BrokerActivityUserPatch)
+        );
+        assert_eq!(
+            sync_entity_from_remote("addon_storage"),
+            Some(SyncEntity::AddonStorage)
         );
     }
 }

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router-dom";
 
 import {
@@ -53,6 +54,7 @@ const INCOME_TAXONOMY = "income_sources";
 const SAVINGS_TAXONOMY = "savings_categories";
 
 export default function SpendingRulesPage() {
+  const { t } = useTranslation();
   const { isEnabled, isLoading: settingsLoading } = useSpendingSettings();
   const {
     data: rules = [],
@@ -82,7 +84,7 @@ export default function SpendingRulesPage() {
     spending.error?.message ??
     income.error?.message ??
     savings.error?.message ??
-    "Rules could not load.";
+    t("settings:spending.rules.load_error");
 
   const { categoryOptions, categoryMeta } = useMemo(() => {
     const buildOptions = (taxonomyId: string, cats: TaxonomyCategory[]) => {
@@ -213,8 +215,8 @@ export default function SpendingRulesPage() {
       <div className="space-y-6">
         <SpendingBackLink />
         <SettingsHeader
-          heading="Categorization rules"
-          text="Automatically tag activities by transaction-name patterns. When multiple rules match, the higher-priority one wins."
+          heading={t("settings:spending.rules.heading")}
+          text={t("settings:spending.rules.text")}
           backTo="/settings/spending"
         >
           <div className="flex items-center gap-2">
@@ -230,7 +232,7 @@ export default function SpendingRulesPage() {
                   ) : (
                     <Icons.Refresh className="mr-2 h-3.5 w-3.5" />
                   )}
-                  Re-run rules
+                  {t("settings:spending.rules.rerun")}
                   <Icons.ChevronDown className="ml-2 h-3.5 w-3.5 opacity-60" />
                 </Button>
               </DropdownMenuTrigger>
@@ -239,9 +241,11 @@ export default function SpendingRulesPage() {
                   onClick={() => rerun.mutate(true)}
                   className="flex-col items-start gap-0.5"
                 >
-                  <span className="text-sm font-medium">Categorize uncategorized</span>
+                  <span className="text-sm font-medium">
+                    {t("settings:spending.rules.rerun_uncategorized")}
+                  </span>
                   <span className="text-muted-foreground text-xs">
-                    Apply rules only to activities without a category. Safe — won&apos;t overwrite.
+                    {t("settings:spending.rules.rerun_uncategorized_desc")}
                   </span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -252,20 +256,26 @@ export default function SpendingRulesPage() {
                   }}
                   className="flex-col items-start gap-0.5"
                 >
-                  <span className="text-sm font-medium">Re-categorize all</span>
+                  <span className="text-sm font-medium">
+                    {t("settings:spending.rules.recategorize_all")}
+                  </span>
                   <span className="text-muted-foreground text-xs">
-                    Re-apply rules to every activity. Overwrites previous rule-based
-                    categorizations; manual ones are preserved.
+                    {t("settings:spending.rules.recategorize_all_desc")}
                   </span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button size="sm" className="sm:hidden" onClick={handleAddRule} aria-label="Add rule">
+            <Button
+              size="sm"
+              className="sm:hidden"
+              onClick={handleAddRule}
+              aria-label={t("settings:spending.rules.add")}
+            >
               <Icons.Plus className="h-3.5 w-3.5" />
             </Button>
             <Button size="sm" className="hidden sm:inline-flex" onClick={handleAddRule}>
               <Icons.Plus className="mr-2 h-3.5 w-3.5" />
-              Add rule
+              {t("settings:spending.rules.add")}
             </Button>
           </div>
         </SettingsHeader>
@@ -279,7 +289,9 @@ export default function SpendingRulesPage() {
         ) : hasLoadError ? (
           <EmptyPlaceholder>
             <EmptyPlaceholder.Icon name="AlertTriangle" />
-            <EmptyPlaceholder.Title>Rules could not load</EmptyPlaceholder.Title>
+            <EmptyPlaceholder.Title>
+              {t("settings:spending.rules.error_title")}
+            </EmptyPlaceholder.Title>
             <EmptyPlaceholder.Description>{loadError}</EmptyPlaceholder.Description>
           </EmptyPlaceholder>
         ) : totalRulesCount === 0 ? (
@@ -289,14 +301,15 @@ export default function SpendingRulesPage() {
             </div>
             <EmptyPlaceholder>
               <EmptyPlaceholder.Icon name="ListFilter" />
-              <EmptyPlaceholder.Title>No rules yet</EmptyPlaceholder.Title>
+              <EmptyPlaceholder.Title>
+                {t("settings:spending.rules.empty_title")}
+              </EmptyPlaceholder.Title>
               <EmptyPlaceholder.Description>
-                Pick a country preset above to seed common merchant rules, or create your own rules
-                to automatically assign categories during import or on activity create.
+                {t("settings:spending.rules.empty_description")}
               </EmptyPlaceholder.Description>
               <Button variant="outline" onClick={handleAddRule}>
                 <Icons.Plus className="mr-2 h-4 w-4" />
-                Add rule manually
+                {t("settings:spending.rules.add_manually")}
               </Button>
             </EmptyPlaceholder>
           </div>
@@ -314,16 +327,16 @@ export default function SpendingRulesPage() {
                   type="search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by rule name or pattern…"
+                  placeholder={t("settings:spending.rules.search_placeholder")}
                   className="bg-muted/40 border-border/60 placeholder:text-muted-foreground/60 h-7 pl-8 text-xs"
-                  aria-label="Search rules"
+                  aria-label={t("settings:spending.rules.search_aria")}
                 />
               </div>
 
               {(installedPresets.length > 0 || customRulesCount > 0) && (
                 <div className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1">
                   <FilterChip
-                    label="All"
+                    label={t("settings:spending.rules.filter_all")}
                     count={totalRulesCount}
                     active={presetFilter === null}
                     onClick={() => setPresetFilter(null)}
@@ -339,7 +352,7 @@ export default function SpendingRulesPage() {
                   ))}
                   {customRulesCount > 0 && (
                     <FilterChip
-                      label="Custom"
+                      label={t("settings:spending.rules.filter_custom")}
                       count={customRulesCount}
                       active={presetFilter === "custom"}
                       onClick={() => setPresetFilter("custom")}
@@ -351,7 +364,9 @@ export default function SpendingRulesPage() {
 
             {filteredRules.length === 0 ? (
               <div className="text-muted-foreground rounded-md border border-dashed py-8 text-center text-sm">
-                No rules match{searchQuery ? ` "${searchQuery}"` : " the current filter"}.{" "}
+                {searchQuery
+                  ? t("settings:spending.rules.no_match_query", { query: searchQuery })
+                  : t("settings:spending.rules.no_match_filter")}{" "}
                 <button
                   type="button"
                   className="text-foreground underline-offset-2 hover:underline"
@@ -360,7 +375,7 @@ export default function SpendingRulesPage() {
                     setPresetFilter(null);
                   }}
                 >
-                  Clear filters
+                  {t("settings:spending.rules.clear_filters")}
                 </button>
                 .
               </div>
@@ -394,19 +409,20 @@ export default function SpendingRulesPage() {
       <AlertDialog open={confirmRerunAllOpen} onOpenChange={setConfirmRerunAllOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Re-categorize all activities?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("settings:spending.rules.recategorize_confirm_title")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will re-run all rules against every activity in your spending accounts and may
-              overwrite existing auto-categorized assignments. Manual categorizations are preserved.
+              {t("settings:spending.rules.recategorize_confirm_desc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => rerun.mutate(false)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Re-categorize all
+              {t("settings:spending.rules.recategorize_all")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

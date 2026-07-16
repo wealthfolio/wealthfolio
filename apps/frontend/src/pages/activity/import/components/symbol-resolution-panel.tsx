@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import TickerSearchInput from "@/components/ticker-search";
@@ -35,6 +36,7 @@ export function SymbolResolutionPanel({
   unresolvedSymbols,
   onApplyMappings,
 }: SymbolResolutionPanelProps) {
+  const { t } = useTranslation();
   const [mappings, setMappings] = useState<Record<string, SymbolSearchResult>>({});
 
   if (unresolvedSymbols.length === 0) return null;
@@ -61,19 +63,18 @@ export function SymbolResolutionPanel({
         <div className="flex items-center gap-2">
           <Icons.AlertTriangle className="text-warning h-4 w-4" />
           <h3 className="text-sm font-medium">
-            {unresolvedSymbols.length} unrecognized{" "}
-            {unresolvedSymbols.length === 1 ? "symbol" : "symbols"}
-            {totalAffectedRows > 0 ? ` affecting ${totalAffectedRows} rows` : ""}
+            {t("activity:import.symbolPanel.unrecognized", { count: unresolvedSymbols.length })}
+            {totalAffectedRows > 0
+              ? t("activity:import.symbolPanel.affectingRows", { count: totalAffectedRows })
+              : ""}
           </h3>
         </div>
         <Button variant="outline" size="sm" onClick={handleMarkAllManual} className="text-xs">
-          Mark All Custom
+          {t("activity:import.symbolPanel.markAllCustom")}
         </Button>
       </div>
       <p className="text-muted-foreground mb-3 text-xs">
-        Search and map these symbols to the correct ticker or mark them custom, then apply. If you
-        mark custom, an asset with this symbol will be automatically created during import. If the
-        asset with this symbol already exists, it will be reused instead of creating a duplicate.
+        {t("activity:import.symbolPanel.description")}
       </p>
 
       <div className="space-y-2">
@@ -84,14 +85,14 @@ export function SymbolResolutionPanel({
             </code>
             {affectedCount != null && (
               <span className="text-muted-foreground w-16 shrink-0 text-xs">
-                {affectedCount} {affectedCount === 1 ? "row" : "rows"}
+                {t("activity:import.symbolPanel.rows", { count: affectedCount })}
               </span>
             )}
             <div className="min-w-0 flex-1">
               <TickerSearchInput
                 defaultValue={csvSymbol}
                 selectedResult={mappings[csvSymbol]}
-                placeholder={`Search for ${csvSymbol}...`}
+                placeholder={t("activity:import.symbolPanel.searchFor", { symbol: csvSymbol })}
                 onSelectResult={(_symbol, result) => {
                   if (result) {
                     setMappings((prev) => ({ ...prev, [csvSymbol]: result }));
@@ -109,7 +110,7 @@ export function SymbolResolutionPanel({
                 onClick={() => handleMarkManual(csvSymbol)}
                 className="h-8 shrink-0 px-2 text-xs"
               >
-                Mark Custom
+                {t("activity:import.symbolPanel.markCustom")}
               </Button>
             )}
           </div>
@@ -119,7 +120,7 @@ export function SymbolResolutionPanel({
       {resolvedCount > 0 && (
         <div className="mt-3 flex justify-end">
           <Button size="sm" onClick={() => onApplyMappings(mappings)}>
-            Apply {resolvedCount} {resolvedCount === 1 ? "mapping" : "mappings"}
+            {t("activity:import.symbolPanel.applyMappings", { count: resolvedCount })}
           </Button>
         </div>
       )}
