@@ -152,7 +152,7 @@ export default function HistoryChart({
                 strokeDasharray="4 2"
                 strokeOpacity={0.5}
                 label={{
-                  value: `Avg ${formatAmount(avgCost, data[0]?.currency ?? "", false)}`,
+                  value: `Avg ${formatPrice(avgCost, data[0]?.currency ?? "", false)}`,
                   position: "insideTopRight",
                   fontSize: 10,
                   fill: "var(--muted-foreground)",
