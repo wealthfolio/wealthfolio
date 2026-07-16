@@ -8,6 +8,7 @@ import { Icons } from "@wealthfolio/ui";
 import { Card, CardContent, CardHeader } from "@wealthfolio/ui/components/ui/card";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Suspense, useMemo, useState, type ReactNode } from "react";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { OverviewPage } from "./overview/overview-page";
 
 // Loading skeleton to show while the dashboard is loading
@@ -34,7 +35,7 @@ const DashboardLoader = () => (
 );
 
 export default function PortfolioInsightsPage() {
-  const [accountFilter, setAccountScope] = useState<AccountScope>({ type: "all" });
+  const [accountFilter, setAccountScope] = usePersistentState<AccountScope>('insights:account-scope', { type: "all" });
   const [overviewToolbarActions, setOverviewToolbarActions] = useState<ReactNode | null>(null);
 
   const holdingsActions = useMemo(
