@@ -69,6 +69,7 @@ import { useCalculatePerformanceHistory } from "./hooks/use-performance-data";
 import {
   comparablePerformanceChartData,
   type ComparableChartDataItem as ChartDataItem,
+  type PerformanceComparisonRange,
   type PerformanceMetric,
 } from "./performance-chart-series";
 import {
@@ -989,6 +990,10 @@ export default function PerformancePage() {
       to: new Date(),
     },
   );
+  const [comparisonRange, setComparisonRange] = usePersistentState<PerformanceComparisonRange>(
+    "performance:comparisonRange",
+    "all",
+  );
 
   useEffect(() => {
     if (!dateRange?.from || !dateRange?.to) return;
@@ -1009,6 +1014,7 @@ export default function PerformancePage() {
     [storedSelectedItems],
   );
   const selectedItemId = migratePerformanceSelectedItemId(storedSelectedItemId);
+  const effectiveComparisonRange = selectedItems.length > 1 ? comparisonRange : "all";
 
   useEffect(() => {
     if (selectedItems !== storedSelectedItems) {
@@ -1119,8 +1125,9 @@ export default function PerformancePage() {
       performanceData,
       selectedChartMetric,
       activeChartAnchorId ?? null,
+      effectiveComparisonRange,
     );
-  }, [activeChartAnchorId, performanceData, selectedChartMetric]);
+  }, [activeChartAnchorId, effectiveComparisonRange, performanceData, selectedChartMetric]);
 
   const chartColorMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1391,14 +1398,34 @@ export default function PerformancePage() {
     }
   };
 
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    setDateRange(range);
+    setComparisonRange("all");
+  };
+  const customDateRangePresets =
+    selectedItems.length > 1
+      ? [
+          {
+            label: "COMMON",
+            name: t("performance:range.common_description"),
+            onSelect: () => {
+              setDateRange(undefined);
+              setComparisonRange("common");
+            },
+          },
+        ]
+      : [];
+
   return (
     <>
       {/* Date range selector - fixed position in header area */}
       <div className="pointer-events-auto fixed right-2 top-4 z-20 hidden md:block lg:right-4">
         <DateRangeSelector
           value={dateRange}
-          onChange={setDateRange}
+          onChange={handleDateRangeChange}
           hiddenRanges={PERFORMANCE_HIDDEN_DATE_RANGES}
+          customPresets={customDateRangePresets}
+          selectedCustomPreset={effectiveComparisonRange === "common" ? "COMMON" : undefined}
         />
       </div>
 
@@ -1406,8 +1433,10 @@ export default function PerformancePage() {
         <div className="flex justify-end md:hidden">
           <DateRangeSelector
             value={dateRange}
-            onChange={setDateRange}
+            onChange={handleDateRangeChange}
             hiddenRanges={PERFORMANCE_HIDDEN_DATE_RANGES}
+            customPresets={customDateRangePresets}
+            selectedCustomPreset={effectiveComparisonRange === "common" ? "COMMON" : undefined}
           />
         </div>
 

@@ -50,6 +50,9 @@
   "print_report": "打印报告",
   "no_performance_data": "暂无可用的表现数据",
   "no_performance_data_desc": "向您的投资组合添加活动以查看表现指标。",
+  "range": {
+    "common_description": "从所有已绘制序列共有的最早日期开始比较。"
+  },
   "tracking_mode": {
     "mixed": "混合模式",
     "holdings": "持仓模式"

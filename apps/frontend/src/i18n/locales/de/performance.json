@@ -50,6 +50,9 @@
   "print_report": "Bericht drucken",
   "no_performance_data": "Keine Performancedaten verfügbar",
   "no_performance_data_desc": "Fügen Sie Aktivitäten zu Ihrem Portfolio hinzu, um Performance-Kennzahlen zu sehen.",
+  "range": {
+    "common_description": "Ab dem frühesten Datum vergleichen, das alle dargestellten Reihen gemeinsam haben."
+  },
   "tracking_mode": {
     "mixed": "Gemischter Modus",
     "holdings": "Bestandsmodus"

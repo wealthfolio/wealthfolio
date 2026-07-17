@@ -174,4 +174,37 @@ describe("comparablePerformanceChartData", () => {
 
     expect(data.map((item) => item.id)).toEqual(["portfolio", "SPY"]);
   });
+
+  it("keeps each series full history and rebases it independently for all-time comparison", () => {
+    const data = comparablePerformanceChartData(
+      [
+        result("older", "timeWeighted", { twr: 0.3 }, [
+          { date: "2026-01-01", value: 0.1 },
+          { date: "2026-01-02", value: 0.2 },
+          { date: "2026-01-03", value: 0.3 },
+        ]),
+        result("newer", "timeWeighted", { twr: 0.1 }, [
+          { date: "2026-01-02", value: 0.05 },
+          { date: "2026-01-03", value: 0.1 },
+        ]),
+        result("disjoint", "timeWeighted", { twr: 0.02 }, [
+          { date: "2026-02-01", value: 0.01 },
+          { date: "2026-02-02", value: 0.02 },
+        ]),
+      ],
+      "twr",
+      "older",
+      "all",
+    );
+
+    expect(data.map((item) => item.id)).toEqual(["older", "newer", "disjoint"]);
+    expect(data.map((item) => item.returns.map((point) => point.date))).toEqual([
+      ["2026-01-01", "2026-01-02", "2026-01-03"],
+      ["2026-01-02", "2026-01-03"],
+      ["2026-02-01", "2026-02-02"],
+    ]);
+    expect(data.map((item) => item.returns[0].value)).toEqual([0, 0, 0]);
+    expect(data[0].returns[2].value).toBeCloseTo(1.3 / 1.1 - 1);
+    expect(data[1].returns[1].value).toBeCloseTo(1.1 / 1.05 - 1);
+  });
 });

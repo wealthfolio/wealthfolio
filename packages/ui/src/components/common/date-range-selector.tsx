@@ -73,13 +73,27 @@ const ranges = [
 
 type DateRangePresetLabel = (typeof ranges)[number]["label"];
 
+interface CustomDateRangePreset {
+  label: string;
+  name: string;
+  onSelect: () => void;
+}
+
 interface DateRangeSelectorProps {
   value: DateRange | undefined;
   onChange: (range: DateRange | undefined) => void;
   hiddenRanges?: readonly DateRangePresetLabel[];
+  customPresets?: readonly CustomDateRangePreset[];
+  selectedCustomPreset?: string;
 }
 
-export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRangeSelectorProps) {
+export function DateRangeSelector({
+  value,
+  onChange,
+  hiddenRanges = [],
+  customPresets = [],
+  selectedCustomPreset,
+}: DateRangeSelectorProps) {
   const { t } = useTranslation();
   const locale = useDateFnsLocale();
   const isMobile = useIsMobile();
@@ -106,7 +120,7 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
     return selected?.label;
   };
 
-  const selectedLabel = getSelectedRange();
+  const selectedLabel = selectedCustomPreset ?? getSelectedRange();
   const isCustomRange = !selectedLabel;
   const isDraftRangeComplete = !draftRange || (!!draftRange.from && !!draftRange.to);
   const allTimeRange = visibleRanges.find((range) => range.label === "ALL")?.getValue();
@@ -146,11 +160,27 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
   return (
     <div className="flex items-center space-x-1">
       <AnimatedToggleGroup
-        items={visibleRanges.map((range) => ({
-          value: range.label,
-          label: range.label,
-          title: t("ui:dateRange.presets." + range.label, range.name),
-        }))}
+        items={[
+          ...visibleRanges
+            .filter((range) => range.label !== "ALL")
+            .map((range) => ({
+              value: range.label,
+              label: range.label,
+              title: t("ui:dateRange.presets." + range.label, range.name),
+            })),
+          ...customPresets.map((range) => ({
+            value: range.label,
+            label: range.label,
+            title: range.name,
+          })),
+          ...visibleRanges
+            .filter((range) => range.label === "ALL")
+            .map((range) => ({
+              value: range.label,
+              label: range.label,
+              title: t("ui:dateRange.presets." + range.label, range.name),
+            })),
+        ]}
         value={selectedLabel}
         onValueChange={(newValue) => {
           if (!newValue) {
@@ -159,7 +189,9 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
           const selectedRange = visibleRanges.find((r) => r.label === newValue);
           if (selectedRange) {
             onChange(selectedRange.getValue());
+            return;
           }
+          customPresets.find((range) => range.label === newValue)?.onSelect();
         }}
         size="sm"
         variant="secondary"

@@ -50,6 +50,9 @@
   "print_report": "Imprimer le rapport",
   "no_performance_data": "Aucune donnée de performance disponible",
   "no_performance_data_desc": "Ajoutez des activités à votre portefeuille pour voir les métriques de performance.",
+  "range": {
+    "common_description": "Comparer à partir de la première date commune à toutes les séries affichées."
+  },
   "tracking_mode": {
     "mixed": "Mode mixte",
     "holdings": "Mode avoirs"

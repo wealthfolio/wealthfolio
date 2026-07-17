@@ -50,6 +50,9 @@
   "print_report": "Imprimir informe",
   "no_performance_data": "No hay datos de rendimiento disponibles",
   "no_performance_data_desc": "Añade actividades a tu cartera para ver las métricas de rendimiento.",
+  "range": {
+    "common_description": "Comparar desde la fecha más antigua compartida por todas las series mostradas."
+  },
   "tracking_mode": {
     "mixed": "Modo mixto",
     "holdings": "Modo de posiciones"
