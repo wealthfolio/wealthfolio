@@ -8,7 +8,7 @@ import {
   ChartTooltipContent,
 } from "@wealthfolio/ui/components/ui/chart";
 import { ReturnData } from "@/lib/types";
-import { formatPercent } from "@wealthfolio/ui";
+import { formatAmount, formatCompactAmount, formatPercent } from "@wealthfolio/ui";
 import { differenceInDays, differenceInMonths, format, parseISO } from "date-fns";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
@@ -20,15 +20,30 @@ interface PerformanceChartProps {
     returns: ReturnData[];
     isReference?: boolean;
   }[];
+  valueFormat?: "percent" | "amount";
+  currency?: string;
 }
 
-export function PerformanceChart({ data }: PerformanceChartProps) {
-  const formattedData = data[0]?.returns?.map((item) => {
-    const dataPoint: Record<string, number | string> = { date: item.date };
+export function PerformanceChart({
+  data,
+  valueFormat = "percent",
+  currency = "USD",
+}: PerformanceChartProps) {
+  const dates = [
+    ...new Set(data.flatMap((series) => series.returns.map((item) => item.date))),
+  ].sort((a, b) => a.localeCompare(b));
+  const formattedData = dates.map((date) => {
+    const dataPoint: Record<string, number | string> = { date };
     data.forEach((series) => {
-      const matchingPoint = series.returns?.find((p) => p.date === item.date);
+      const matchingPoint = series.returns?.find((point) => point.date === date);
       if (matchingPoint) {
         dataPoint[series.id] = matchingPoint.value;
+      } else if (
+        valueFormat === "amount" &&
+        series.returns[0]?.date &&
+        date < series.returns[0].date
+      ) {
+        dataPoint[series.id] = 0;
       }
     });
     return dataPoint;
@@ -84,7 +99,10 @@ export function PerformanceChart({ data }: PerformanceChartProps) {
     value: ValueType | undefined,
     name: NameType | undefined,
   ): [string, string] => {
-    const formattedValue = formatPercent(Number(value ?? 0));
+    const formattedValue =
+      valueFormat === "amount"
+        ? formatAmount(Number(value ?? 0), currency)
+        : formatPercent(Number(value ?? 0));
     return [formattedValue + " - ", (name ?? "").toString()];
   };
 
@@ -106,7 +124,11 @@ export function PerformanceChart({ data }: PerformanceChartProps) {
               interval={getTickInterval()}
             />
             <YAxis
-              tickFormatter={(value: number) => formatPercent(value)}
+              tickFormatter={(value: number) =>
+                valueFormat === "amount"
+                  ? formatCompactAmount(value, currency)
+                  : formatPercent(value)
+              }
               tickLine={false}
               axisLine={false}
               tickMargin={8}

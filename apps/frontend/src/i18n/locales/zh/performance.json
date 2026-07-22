@@ -43,6 +43,7 @@
   "best_day": "最佳单日",
   "worst_day": "最差单日",
   "chart_value": "投资组合价值",
+  "chart_mode_value": "价值",
   "chart_returns": "回报",
   "chart_contributions": "投入",
   "chart_allocation": "配置",
@@ -59,11 +60,13 @@
     "no_series": "此时间段无可用的图表序列。",
     "holdings_not_twr": "持仓模式账户使用价值回报，不以 TWR 绘制。",
     "transaction_not_value": "交易模式账户使用 TWR，不以价值回报绘制。",
-    "no_overlap": "与所选项目无重叠的图表日期。"
+    "no_overlap": "与所选项目无重叠的图表日期。",
+    "benchmark_value": "基准没有货币价值，因此不会在价值模式下绘制。"
   },
   "comparison_notice": {
     "different_methods": "不同的收益计算方法无法共用同一图表。选择灰显的标签以切换图表模式。",
     "not_enough_overlap": "这些所选项目与当前图表没有足够重叠的图表日期。",
+    "benchmark_value": "价值模式暂不支持基准",
     "not_plotted_count_one": "{{count}} 个所选项目未绘制",
     "not_plotted_count_other": "{{count}} 个所选项目未绘制"
   },

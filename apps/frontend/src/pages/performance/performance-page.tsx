@@ -25,10 +25,12 @@ import {
   shouldDisplayAnnualizedPerformanceReturn,
 } from "@/lib/performance";
 import { getPerformanceDateRangeForRequest } from "@/lib/performance-date-range";
+import { useSettingsContext } from "@/lib/settings-provider";
 import { DateRange, PerformanceResult, TrackedItem } from "@/lib/types";
 import { cn, formatAmount } from "@/lib/utils";
 import {
   AlertFeedback,
+  AnimatedToggleGroup,
   Badge,
   Button,
   Card,
@@ -66,6 +68,7 @@ import { AccountSelector } from "../../components/account-selector";
 import { AccountSelectorMobile } from "../../components/account-selector-mobile";
 import { BenchmarkSymbolSelectorMobile } from "../../components/benchmark-symbol-selector-mobile";
 import { useCalculatePerformanceHistory } from "./hooks/use-performance-data";
+import { useValuationData } from "./hooks/use-valuation-data";
 import {
   comparablePerformanceChartData,
   type ComparableChartDataItem as ChartDataItem,
@@ -99,7 +102,11 @@ function trackingModeBadge(
   return null;
 }
 
-type ChartExclusionKind = "missingData" | "differentReturnMethod" | "dateOverlap";
+type ChartExclusionKind =
+  | "missingData"
+  | "differentReturnMethod"
+  | "dateOverlap"
+  | "benchmarkValue";
 
 interface ChartExclusion {
   kind: ChartExclusionKind;
@@ -144,6 +151,9 @@ function chartExclusion(
 }
 
 function comparisonNoticeMessage(kinds: ChartExclusionKind[], t: TFunction): string {
+  if (kinds.includes("benchmarkValue")) {
+    return t("performance:comparison_notice.benchmark_value");
+  }
   if (kinds.includes("differentReturnMethod")) {
     return t("performance:comparison_notice.different_methods");
   }
@@ -814,12 +824,16 @@ function PerformanceContent({
   hasErrors,
   errorMessages,
   isMobile,
+  valueFormat,
+  currency,
 }: {
   chartData: ChartDataItem[] | undefined;
   isLoading: boolean;
   hasErrors: boolean;
   errorMessages: string[];
   isMobile: boolean;
+  valueFormat: "percent" | "amount";
+  currency: string;
 }) {
   const { t } = useTranslation();
   return (
@@ -827,9 +841,13 @@ function PerformanceContent({
       {chartData && chartData.length > 0 && (
         <div className="min-h-0 w-full flex-1">
           {isMobile ? (
-            <PerformanceChartMobile data={chartData} />
+            <PerformanceChartMobile
+              data={chartData}
+              valueFormat={valueFormat}
+              currency={currency}
+            />
           ) : (
-            <PerformanceChart data={chartData} />
+            <PerformanceChart data={chartData} valueFormat={valueFormat} currency={currency} />
           )}
         </div>
       )}
@@ -971,8 +989,11 @@ const SelectedItemBadge = ({
   );
 };
 
+type PerformanceChartMode = "value" | "return";
+
 export default function PerformancePage() {
   const { t } = useTranslation();
+  const { settings } = useSettingsContext();
   const isMobile = useIsMobileViewport();
   const [storedSelectedItems, setSelectedItems] = usePersistentState<TrackedItem[]>(
     "performance:selectedItems",
@@ -988,6 +1009,10 @@ export default function PerformancePage() {
       from: subMonths(new Date(), 12),
       to: new Date(),
     },
+  );
+  const [chartMode, setChartMode] = usePersistentState<PerformanceChartMode>(
+    "performance:chartMode",
+    "return",
   );
 
   useEffect(() => {
@@ -1095,6 +1120,12 @@ export default function PerformancePage() {
     dateRange: getPerformanceDateRangeForRequest(dateRange),
   });
 
+  const valuationData = useValuationData({
+    selectedItems,
+    dateRange: getPerformanceDateRangeForRequest(dateRange),
+    enabled: chartMode === "value",
+  });
+
   const selectedPerformanceData = useMemo(() => {
     if (!performanceData?.length || !selectedItems) return null;
     const targetId = selectedItemId ?? performanceData.find((item) => item !== null)?.id; // Find first non-null item ID if none selected
@@ -1114,13 +1145,17 @@ export default function PerformancePage() {
   const activeChartAnchorId = selectedPerformanceData?.result.id ?? selectedItemId;
 
   // Calculate derived chart data
-  const chartData = useMemo(() => {
+  const returnChartData = useMemo(() => {
     return comparablePerformanceChartData(
       performanceData,
       selectedChartMetric,
       activeChartAnchorId ?? null,
     );
   }, [activeChartAnchorId, performanceData, selectedChartMetric]);
+  const chartData = chartMode === "value" ? valuationData.data : returnChartData;
+  const isLoadingChart = chartMode === "value" ? valuationData.isLoading : isLoadingPerformance;
+  const hasChartErrors = chartMode === "value" ? valuationData.hasErrors : hasErrors;
+  const chartErrorMessages = chartMode === "value" ? valuationData.errorMessages : errorMessages;
 
   const chartColorMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1142,10 +1177,23 @@ export default function PerformancePage() {
     return new Map(
       selectedItems.map((item) => {
         const isAnchor = item.id === activeChartAnchorId;
-        const isPlotted = isLoadingPerformance || hasErrors || isAnchor || chartedIds.has(item.id);
+        const isPlotted =
+          isLoadingChart ||
+          hasChartErrors ||
+          (chartMode === "return" && isAnchor) ||
+          chartedIds.has(item.id);
+        const valueModeExclusion: ChartExclusion =
+          item.type === "symbol"
+            ? {
+                kind: "benchmarkValue",
+                message: t("performance:exclusion.benchmark_value"),
+              }
+            : { kind: "missingData", message: t("performance:exclusion.no_data") };
         const exclusion = isPlotted
           ? undefined
-          : chartExclusion(resultById.get(item.id), selectedChartMetric, t);
+          : chartMode === "value"
+            ? valueModeExclusion
+            : chartExclusion(resultById.get(item.id), selectedChartMetric, t);
         const plotState: SelectedItemPlotState = {
           isPlotted,
           reason: exclusion?.message,
@@ -1157,8 +1205,9 @@ export default function PerformancePage() {
   }, [
     activeChartAnchorId,
     chartData,
-    hasErrors,
-    isLoadingPerformance,
+    chartMode,
+    hasChartErrors,
+    isLoadingChart,
     performanceData,
     selectedChartMetric,
     selectedItems,
@@ -1391,6 +1440,38 @@ export default function PerformancePage() {
     }
   };
 
+  const chartModeToggle = (
+    <AnimatedToggleGroup<PerformanceChartMode>
+      items={[
+        {
+          value: "value",
+          label: (
+            <>
+              <Icons.Coins className="h-4 w-4" />
+              <span className="sr-only">{t("performance:chart_mode_value")}</span>
+            </>
+          ),
+          title: t("performance:chart_mode_value"),
+          "data-testid": "performance-chart-value",
+        },
+        {
+          value: "return",
+          label: (
+            <>
+              <Icons.Percent className="h-4 w-4" />
+              <span className="sr-only">{t("performance:chart_returns")}</span>
+            </>
+          ),
+          title: t("performance:chart_returns"),
+          "data-testid": "performance-chart-returns",
+        },
+      ]}
+      value={chartMode}
+      onValueChange={setChartMode}
+      size="compact"
+      rounded="lg"
+    />
+  );
   return (
     <>
       {/* Date range selector - fixed position in header area */}
@@ -1410,6 +1491,8 @@ export default function PerformancePage() {
             hiddenRanges={PERFORMANCE_HIDDEN_DATE_RANGES}
           />
         </div>
+
+        <div className="flex justify-end md:hidden">{chartModeToggle}</div>
 
         {/* Mobile: Carousel + Plus button in same row */}
         <div className="flex items-center gap-2 md:hidden">
@@ -1478,16 +1561,16 @@ export default function PerformancePage() {
         </div>
 
         {/* Desktop: Full layout with separator */}
-        <div className="hidden md:flex md:flex-row md:items-center">
+        <div className="hidden min-w-0 gap-2 md:flex md:w-full md:flex-row md:items-center">
           {/* Selected items badges - horizontal scroll carousel */}
           {selectedItems.length > 0 && (
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <Carousel
                 opts={{
                   align: "start",
                   loop: false,
                 }}
-                className="w-full max-w-[calc(100vw-24rem)] md:max-w-[calc(100vw-28rem)]"
+                className="w-full min-w-0 max-w-[calc(100vw-24rem)] md:max-w-[calc(100vw-28rem)]"
               >
                 <CarouselContent className="-ml-2">
                   {selectedItems.map((item) => {
@@ -1531,6 +1614,7 @@ export default function PerformancePage() {
             />
             <BenchmarkSymbolSelector onSelect={handleSymbolSelect} />
           </div>
+          <div className="ml-auto shrink-0">{chartModeToggle}</div>
         </div>
 
         {/* Mobile sheets controlled by dropdown - rendered but hidden by Sheet component */}
@@ -1794,10 +1878,12 @@ export default function PerformancePage() {
                 <div className="min-h-0 flex-1">
                   <PerformanceContent
                     chartData={chartData}
-                    isLoading={isLoadingPerformance}
-                    hasErrors={hasErrors}
-                    errorMessages={errorMessages}
+                    isLoading={isLoadingChart}
+                    hasErrors={hasChartErrors}
+                    errorMessages={chartErrorMessages}
                     isMobile={isMobile}
+                    valueFormat={chartMode === "value" ? "amount" : "percent"}
+                    currency={settings?.baseCurrency ?? "USD"}
                   />
                 </div>
               </div>

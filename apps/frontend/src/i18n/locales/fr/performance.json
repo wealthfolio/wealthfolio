@@ -43,6 +43,7 @@
   "best_day": "Meilleur jour",
   "worst_day": "Pire jour",
   "chart_value": "Valeur du portefeuille",
+  "chart_mode_value": "Valeur",
   "chart_returns": "Rendements",
   "chart_contributions": "Contributions",
   "chart_allocation": "Allocation",
@@ -59,11 +60,13 @@
     "no_series": "Aucune série de graphique n'est disponible pour cette période.",
     "holdings_not_twr": "Les comptes en mode avoirs utilisent le rendement en valeur et ne sont pas tracés avec le TWR.",
     "transaction_not_value": "Les comptes en mode transactions utilisent le TWR et ne sont pas tracés avec le rendement en valeur.",
-    "no_overlap": "Aucune date de graphique commune avec l'élément sélectionné."
+    "no_overlap": "Aucune date de graphique commune avec l'élément sélectionné.",
+    "benchmark_value": "Les indices de référence n'ont pas de valeur monétaire et ne sont pas tracés en mode valeur."
   },
   "comparison_notice": {
     "different_methods": "Des méthodes de rendement différentes ne peuvent pas partager le même graphique. Sélectionnez une pastille grisée pour changer le mode du graphique.",
     "not_enough_overlap": "Ces éléments sélectionnés n'ont pas suffisamment de dates de graphique communes avec le graphique actif.",
+    "benchmark_value": "Les indices de référence ne sont pas pris en charge en mode valeur",
     "not_plotted_count_one": "{{count}} élément sélectionné n'est pas tracé",
     "not_plotted_count_other": "{{count}} éléments sélectionnés ne sont pas tracés"
   },

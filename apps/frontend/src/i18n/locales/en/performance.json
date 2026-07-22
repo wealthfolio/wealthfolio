@@ -43,6 +43,7 @@
   "best_day": "Best Day",
   "worst_day": "Worst Day",
   "chart_value": "Portfolio Value",
+  "chart_mode_value": "Value",
   "chart_returns": "Returns",
   "chart_contributions": "Contributions",
   "chart_allocation": "Allocation",
@@ -59,11 +60,13 @@
     "no_series": "No chart series is available for this period.",
     "holdings_not_twr": "Holdings-mode accounts use Value Return and are not plotted with TWR.",
     "transaction_not_value": "Transaction-mode accounts use TWR and are not plotted with Value Return.",
-    "no_overlap": "No overlapping chart dates with the selected item."
+    "no_overlap": "No overlapping chart dates with the selected item.",
+    "benchmark_value": "Benchmarks do not have a monetary value and are not plotted in value mode."
   },
   "comparison_notice": {
     "different_methods": "Different return methods cannot share the same chart. Select a muted chip to switch the chart mode.",
     "not_enough_overlap": "These selected items do not have enough overlapping chart dates with the active chart.",
+    "benchmark_value": "Benchmarks are not supported in Value mode",
     "not_plotted_count_one": "{{count}} selected item is not plotted",
     "not_plotted_count_other": "{{count}} selected items are not plotted"
   },
