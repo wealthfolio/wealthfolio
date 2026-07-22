@@ -1159,7 +1159,18 @@
       "no_match_filter": "No rules match the current filter.",
       "clear_filters": "Clear filters",
       "recategorize_confirm_title": "Re-categorize all activities?",
-      "recategorize_confirm_desc": "This will re-run all rules against every activity in your spending accounts and may overwrite existing auto-categorized assignments. Manual categorizations are preserved."
+      "recategorize_confirm_desc": "This will re-run all rules against every activity in your spending accounts and may overwrite existing auto-categorized assignments. Manual categorizations are preserved.",
+      "suggestions": {
+        "title": "Suggested rules",
+        "extends": "Extends existing rule",
+        "wouldCatch": "Catches {{count}} uncategorized",
+        "confidence": "{{pct}}% confidence",
+        "showExamples": "Examples",
+        "hideExamples": "Hide examples",
+        "add": "Add rule",
+        "extend": "Extend",
+        "dismiss": "Dismiss suggestion"
+      }
     }
   },
   "addons_updates_critical_one": "({{count}} critical)",

@@ -23,6 +23,7 @@
 //! - `budget` — monthly budget config and per-category allocations.
 //! - `analytics` — aggregations for the Spending overview / reports pages.
 //! - `insight` — reconciled period payload powering the Spending Insight dashboard.
+//! - `suggestions` — rule suggestions derived from hand-categorized transactions.
 
 mod activity_allocations;
 pub mod activity_assignments;
@@ -38,5 +39,6 @@ pub mod error;
 pub mod events;
 pub mod insight;
 pub mod settings;
+pub mod suggestions;
 
 pub use error::SpendingError;

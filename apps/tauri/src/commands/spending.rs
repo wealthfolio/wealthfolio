@@ -25,6 +25,7 @@ use wealthfolio_spending::categorization_rules::{
 use wealthfolio_spending::events::{Event, EventType, NewEvent, NewEventType, UpdateEvent};
 use wealthfolio_spending::insight::{SpendingInsight, SpendingInsightRequest};
 use wealthfolio_spending::settings::{SpendingSettings, SpendingSettingsUpdate};
+use wealthfolio_spending::suggestions::{ApplySuggestionRequest, SuggestedRule};
 
 const MAX_BULK_CATEGORY_ASSIGNMENTS: usize = 1_000;
 
@@ -400,6 +401,39 @@ pub async fn remove_rule_preset(
         .remove_preset(&preset_id)
         .await
         .map_err(|e| format!("Failed to remove rule preset: {}", e))
+}
+
+#[tauri::command]
+pub async fn get_spending_rule_suggestions(
+    state: State<'_, Arc<ServiceContext>>,
+) -> Result<Vec<SuggestedRule>, String> {
+    let s = state
+        .spending_settings_service()
+        .get()
+        .await
+        .map_err(|e| format!("Failed to load spending settings: {}", e))?;
+    if !s.enabled {
+        return Ok(Vec::new());
+    }
+    state
+        .categorization_rules_service()
+        .suggest_rules(&s.account_ids)
+        .await
+        .map_err(|e| format!("Failed to build rule suggestions: {}", e))
+}
+
+#[tauri::command]
+pub async fn apply_spending_rule_suggestion(
+    request: ApplySuggestionRequest,
+    state: State<'_, Arc<ServiceContext>>,
+) -> Result<CategorizationRule, String> {
+    let rule = state
+        .categorization_rules_service()
+        .apply_suggestion(request)
+        .await
+        .map_err(|e| format!("Failed to apply rule suggestion: {}", e))?;
+    spawn_auto_categorize_for_opted_in_accounts(&state).await;
+    Ok(rule)
 }
 
 #[tauri::command]

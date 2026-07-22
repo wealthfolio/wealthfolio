@@ -15,6 +15,17 @@ use crate::activity_assignments::{
     ActivityTaxonomyAssignmentService, NewActivityTaxonomyAssignment,
 };
 use crate::error::SpendingError;
+use crate::suggestions::{
+    generate_suggestions, ApplySuggestionRequest, CategorizedSample, SuggestedRule,
+    SuggestionAction,
+};
+
+/// Activity-scope taxonomy that spending categories live under. Suggestions are
+/// derived from (and applied to) this taxonomy only.
+const SPENDING_TAXONOMY: &str = "spending_categories";
+/// Priority given to rules created from an accepted suggestion — below the
+/// bundled presets (70–95) but above the user-rule default (0).
+const SUGGESTED_RULE_PRIORITY: i32 = 50;
 
 pub struct CategorizationRulesService {
     repo: Arc<dyn CategorizationRulesRepositoryTrait>,
@@ -297,6 +308,108 @@ impl CategorizationRulesService {
             removed,
             kept_modified,
         })
+    }
+
+    /// Suggest categorization rules from the transactions the user has already
+    /// categorized by hand in the given accounts. Reads only; it never writes.
+    pub async fn suggest_rules(&self, account_ids: &[String]) -> Result<Vec<SuggestedRule>> {
+        if account_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let activities = self
+            .activity_repo
+            .get_activities_by_account_ids(account_ids)
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+
+        let ids: Vec<String> = activities.iter().map(|a| a.id.clone()).collect();
+        let assignments = self.assignment_service.list_for_activities(&ids).await?;
+
+        // Which activities already have a manual spending category, and which
+        // one. A `manual` assignment is the user's explicit choice — the signal
+        // suggestions are built from.
+        let mut manual_category: HashMap<&str, &str> = HashMap::new();
+        let mut has_spending_assignment: std::collections::HashSet<&str> =
+            std::collections::HashSet::new();
+        for a in &assignments {
+            if a.taxonomy_id != SPENDING_TAXONOMY {
+                continue;
+            }
+            has_spending_assignment.insert(a.activity_id.as_str());
+            if a.source == "manual" {
+                manual_category.insert(a.activity_id.as_str(), a.category_id.as_str());
+            }
+        }
+
+        let mut categorized: Vec<CategorizedSample> = Vec::new();
+        let mut uncategorized: Vec<String> = Vec::new();
+        for a in &activities {
+            let Some(notes) = a.notes.as_deref() else {
+                continue;
+            };
+            if notes.trim().is_empty() {
+                continue;
+            }
+            if let Some(category_id) = manual_category.get(a.id.as_str()) {
+                categorized.push(CategorizedSample {
+                    text: notes.to_string(),
+                    taxonomy_id: SPENDING_TAXONOMY.to_string(),
+                    category_id: category_id.to_string(),
+                });
+            } else if !has_spending_assignment.contains(a.id.as_str()) {
+                uncategorized.push(notes.to_string());
+            }
+        }
+
+        let rules = self.repo.list().await?;
+        Ok(generate_suggestions(&categorized, &uncategorized, &rules))
+    }
+
+    /// Accept a suggestion: create a new rule, or extend an existing alternation
+    /// rule in place. Returns the affected rule. Callers should re-run
+    /// categorization afterwards (as they do after any rule change).
+    pub async fn apply_suggestion(
+        &self,
+        req: ApplySuggestionRequest,
+    ) -> Result<CategorizationRule> {
+        match req.action {
+            SuggestionAction::NewRule => {
+                let name = req
+                    .category_name
+                    .filter(|n| !n.trim().is_empty())
+                    .unwrap_or_else(|| "Suggested rule".to_string());
+                self.create(NewCategorizationRule {
+                    id: None,
+                    name,
+                    pattern: req.pattern,
+                    match_type: RuleMatchType::Regex,
+                    taxonomy_id: Some(req.taxonomy_id),
+                    category_id: Some(req.category_id),
+                    activity_type: None,
+                    priority: SUGGESTED_RULE_PRIORITY,
+                    is_global: true,
+                    account_id: None,
+                    preset_id: None,
+                    preset_rule_key: None,
+                    preset_version: None,
+                })
+                .await
+            }
+            SuggestionAction::ExtendRule {
+                existing_rule_id,
+                proposed_pattern,
+                ..
+            } => {
+                self.update(
+                    &existing_rule_id,
+                    UpdateCategorizationRule {
+                        pattern: Some(proposed_pattern),
+                        match_type: Some(RuleMatchType::Regex),
+                        ..Default::default()
+                    },
+                )
+                .await
+            }
+        }
     }
 }
 
