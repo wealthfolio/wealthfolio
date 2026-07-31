@@ -13,6 +13,22 @@ is wanted.
 - A second router at `.claude/CLAUDE.md` covers the app layout (`apps/`, `crates/`,
   `packages/`).
 
+## Project-local skills — these ship with the fork, not with the workspace
+
+`.claude/skills/` and `.claude/commands/` here carry upstream Wealthfolio's own tooling. They
+are scoped to this repo and are the right tools inside it; nothing else in the workspace is
+React, so they are deliberately unrouted anywhere else.
+
+| when | use |
+|---|---|
+| touching a `useEffect` — dependency arrays, cleanup, effects that should not be effects | `react-useeffect` |
+| running or adding end-to-end tests | `run-e2e-tests` |
+| the upstream contributor-interview flow | `/interview` |
+
+For React component API design and performance, the workspace-level `composition-patterns`
+and `react-best-practices` apply here too — they are React-only and this is the only React
+codebase.
+
 ## Before any upgrade — read this first
 
 The v3 networking migration is the expensive lesson. The webview blocks `fetch` outright and
