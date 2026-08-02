@@ -7,6 +7,7 @@
 pub mod accounts;
 pub mod activities;
 pub mod activity_import;
+pub mod activity_update;
 pub mod allocation;
 pub mod asset_classification;
 pub mod asset_taxonomies;
@@ -91,6 +92,11 @@ pub use record_activity::{
     ResolvedAsset, SubtypeOption, ValidationError, ValidationResult,
 };
 
+pub use activity_update::{
+    CommitActivityUpdate, CommitActivityUpdateArgs, CommitActivityUpdateOutput,
+    PrepareActivityUpdate, PrepareActivityUpdateArgs, PrepareActivityUpdateOutput,
+};
+
 // MCP-only commit tools.
 pub use commit_activity::{
     CommitActivityDraft, CommitActivityDraftOutput, CommitActivityDrafts, CommitActivityDraftsArgs,
@@ -147,6 +153,7 @@ pub fn draft_suggest_tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(ProposeCategories),
         Arc::new(CreateCategorizationRule),
         Arc::new(PrepareAssetClassification),
+        Arc::new(PrepareActivityUpdate),
     ]
 }
 
@@ -157,6 +164,7 @@ pub fn commit_tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(CommitActivityDraft),
         Arc::new(CommitActivityDrafts),
         Arc::new(CommitAssetClassificationDraft),
+        Arc::new(CommitActivityUpdate),
     ]
 }
 
