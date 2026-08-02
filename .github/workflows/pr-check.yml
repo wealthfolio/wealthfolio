@@ -57,12 +57,32 @@ jobs:
       CARGO_INCREMENTAL: 0
       CARGO_TERM_COLOR: always
       RUSTFLAGS: "-C debuginfo=0"
+      # Required for outbox tests in storage-sqlite
+      CONNECT_API_URL: http://test.local
+      # Postgres for integration + tenant-isolation breach tests (Phase 1+).
+      # Harmless in Phase 0; becomes the breach-test backing store in Phase 2.
+      DATABASE_URL: postgresql://postgres:test@localhost:5432/wf_test
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: wf_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Rust
+        # Pinned to the toolchain in rust-toolchain.toml (design doc §2.2).
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -88,9 +108,6 @@ jobs:
 
       - name: Test
         run: cargo test --workspace
-        env:
-          # Required for outbox tests in storage-sqlite
-          CONNECT_API_URL: http://test.local
 
       - name: Check release build (src-server)
         run: cargo check -p wealthfolio-server --release
