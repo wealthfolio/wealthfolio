@@ -251,13 +251,15 @@ export function SwipablePage({
                   />
                 </div>
                 {mobileActionsInHeader ? (
-                  <div className="flex min-w-0 shrink-0 justify-end">{currentActions}</div>
+                  <div className="flex min-w-0 shrink-0 items-center justify-end gap-2">
+                    {currentActions}
+                  </div>
                 ) : (
                   <div />
                 )}
               </div>
               {currentActions && !mobileActionsInHeader && (
-                <div className="flex min-w-0 justify-end">{currentActions}</div>
+                <div className="flex min-w-0 items-center justify-end gap-2">{currentActions}</div>
               )}
             </div>
 
