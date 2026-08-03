@@ -38,6 +38,7 @@ import { useLinkedLiabilities, useAlternativeHoldings } from "@/hooks/use-altern
 import type { AlternativeAssetHolding, Quote, Asset, TimePeriod, DateRange } from "@/lib/types";
 import { AlternativeAssetKind } from "@/lib/types";
 import { parseLocalDate } from "@/lib/utils";
+import { calculateLoanAmortization } from "./alternative-assets/lib/loan-calculations";
 
 interface AlternativeAssetContentProps {
   assetId: string;
@@ -761,6 +762,37 @@ function getDetailRows(
           label: t("asset:altContent.origination_date"),
           value: format(parseLocalDate(originationDate), "MMM d, yyyy"),
         });
+      }
+
+      // End date (loan maturity)
+      const endDate = metadata.end_date as string | undefined;
+      if (endDate) {
+        rows.push({
+          label: t("asset:altContent.end_date"),
+          value: format(parseLocalDate(endDate), "MMM d, yyyy"),
+        });
+      }
+
+      // Total cost of credit, derived from original amount, rate, and duration
+      if (originalAmount && interestRate && originationDate && endDate) {
+        const amortization = calculateLoanAmortization({
+          principal: parseFloat(originalAmount),
+          annualRatePercent: parseFloat(interestRate),
+          startDate: parseLocalDate(originationDate),
+          endDate: parseLocalDate(endDate),
+        });
+        if (amortization) {
+          rows.push({
+            label: t("asset:altContent.total_credit_cost"),
+            value: (
+              <AmountDisplay
+                value={amortization.totalInterestCost}
+                currency={holding.currency}
+                isHidden={isBalanceHidden}
+              />
+            ),
+          });
+        }
       }
       break;
     }

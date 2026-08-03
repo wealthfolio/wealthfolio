@@ -30,6 +30,7 @@ import {
   QuantityInput,
   DatePickerInput,
   ResponsiveSelect,
+  AmountDisplay,
   type ResponsiveSelectOption,
 } from "@wealthfolio/ui";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
@@ -48,6 +49,7 @@ import {
 } from "./asset-details-sheet-schema";
 import { type LinkableAsset } from "./alternative-asset-quick-add-modal";
 import { AlternativeAssetKind, ALTERNATIVE_ASSET_KIND_DISPLAY_NAMES } from "@/lib/types";
+import { calculateLoanAmortization } from "../lib/loan-calculations";
 
 /**
  * Asset data required by the sheet.
@@ -306,6 +308,7 @@ export function AssetDetailsSheet({
                   form={form}
                   linkableAssetOptions={linkableAssetOptions}
                   linkedAssetName={linkedAssetName}
+                  currency={asset.currency}
                 />
               )}
 
@@ -665,12 +668,30 @@ function LiabilityFields({
   form,
   linkableAssetOptions,
   linkedAssetName,
+  currency,
 }: {
   form: ReturnType<typeof useForm<AssetDetailsFormValues>>;
   linkableAssetOptions: ResponsiveSelectOption[];
   linkedAssetName?: string;
+  currency: string;
 }) {
   const { t } = useTranslation();
+
+  const originalAmount = form.watch("originalAmount");
+  const interestRate = form.watch("interestRate");
+  const originationDate = form.watch("originationDate");
+  const endDate = form.watch("endDate");
+
+  const amortization = useMemo(() => {
+    if (!originalAmount || interestRate == null || !originationDate || !endDate) return null;
+    return calculateLoanAmortization({
+      principal: originalAmount,
+      annualRatePercent: interestRate,
+      startDate: originationDate,
+      endDate,
+    });
+  }, [originalAmount, interestRate, originationDate, endDate]);
+
   return (
     <div className="space-y-4">
       <FormField
@@ -736,22 +757,65 @@ function LiabilityFields({
         />
       </div>
 
-      <FormField
-        control={form.control}
-        name="originationDate"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{t("asset:detailsSheet.origination_date")}</FormLabel>
-            <FormControl>
-              <DatePickerInput
-                value={field.value ?? undefined}
-                onChange={(date) => field.onChange(date ?? null)}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField
+          control={form.control}
+          name="originationDate"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("asset:detailsSheet.origination_date")}</FormLabel>
+              <FormControl>
+                <DatePickerInput
+                  value={field.value ?? undefined}
+                  onChange={(date) => field.onChange(date ?? null)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="endDate"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("asset:detailsSheet.end_date")}</FormLabel>
+              <FormControl>
+                <DatePickerInput
+                  value={field.value ?? undefined}
+                  onChange={(date) => field.onChange(date ?? null)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+
+      {amortization && (
+        <div className="bg-muted/30 space-y-2 rounded-lg border p-3 text-sm">
+          <div className="text-muted-foreground text-xs font-medium">
+            {t("asset:detailsSheet.loan_summary")}
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">
+              {t("asset:detailsSheet.monthly_payment")}
+            </span>
+            <span className="font-medium">
+              <AmountDisplay value={amortization.monthlyPayment} currency={currency} />
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">
+              {t("asset:detailsSheet.total_credit_cost")}
+            </span>
+            <span className="font-medium">
+              <AmountDisplay value={amortization.totalInterestCost} currency={currency} />
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Linked Asset Display/Selector */}
       <FormField
