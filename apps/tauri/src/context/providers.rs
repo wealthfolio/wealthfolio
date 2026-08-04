@@ -173,6 +173,10 @@ pub async fn initialize_context(
     let base_currency_string = settings.base_currency.clone();
     let base_currency = Arc::new(RwLock::new(base_currency_string.clone()));
     let timezone = Arc::new(RwLock::new(settings.timezone.clone()));
+    // Initialize custom server URL cache for self-hosting support
+    if !settings.server_url.trim().is_empty() {
+        crate::services::set_custom_server_url(Some(settings.server_url.clone()));
+    }
     let rating_instance_id = Arc::new(
         settings_service
             .get_setting_value("instance_id")?

@@ -858,6 +858,7 @@ export interface Settings {
   autoUpdateCheckEnabled: boolean;
   menuBarVisible: boolean;
   syncEnabled: boolean;
+  serverUrl: string;
 }
 
 export interface SettingsContextType {

@@ -15,6 +15,7 @@ pub struct Settings {
     pub menu_bar_visible: bool,
     pub sync_enabled: bool,
     pub default_return_metric: String,
+    pub server_url: String,
 }
 
 impl Default for Settings {
@@ -30,6 +31,7 @@ impl Default for Settings {
             menu_bar_visible: true,
             sync_enabled: true,
             default_return_metric: "twr".to_string(),
+            server_url: "".to_string(),
         }
     }
 }
@@ -47,6 +49,7 @@ pub struct SettingsUpdate {
     pub menu_bar_visible: Option<bool>,
     pub sync_enabled: Option<bool>,
     pub default_return_metric: Option<String>,
+    pub server_url: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

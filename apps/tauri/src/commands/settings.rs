@@ -56,6 +56,9 @@ pub async fn update_settings(
     let previous_base_currency = state.get_base_currency();
     let previous_timezone = state.get_timezone();
 
+    // Capture server_url before moving settings_update
+    let new_server_url = settings_update.server_url.clone();
+
     // Update settings in the database (this applies all changes in settings_update)
     service
         .update_settings(&settings_update)
@@ -67,6 +70,23 @@ pub async fn update_settings(
 
     let base_currency_changed = updated_settings.base_currency != previous_base_currency;
     let timezone_changed = updated_settings.timezone != previous_timezone;
+
+    // Update custom server URL cache if changed
+    if let Some(server_url) = new_server_url {
+        crate::services::set_custom_server_url(if server_url.trim().is_empty() {
+            None
+        } else {
+            Some(server_url)
+        });
+        debug!(
+            "Custom server URL updated to: {}",
+            if updated_settings.server_url.is_empty() {
+                "(default)"
+            } else {
+                &updated_settings.server_url
+            }
+        );
+    }
 
     if let Some(menu_visible) = settings_update.menu_bar_visible {
         #[cfg(not(any(target_os = "android", target_os = "ios")))]

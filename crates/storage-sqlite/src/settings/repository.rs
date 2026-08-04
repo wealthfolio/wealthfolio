@@ -54,6 +54,7 @@ impl SettingsRepositoryTrait for SettingsRepository {
                     settings.sync_enabled = value.parse().unwrap_or(true);
                 }
                 "default_return_metric" => settings.default_return_metric = value,
+                "server_url" => settings.server_url = value,
                 _ => {} // Ignore unknown settings
             }
         }
@@ -165,6 +166,16 @@ impl SettingsRepositoryTrait for SettingsRepository {
                         .map_err(StorageError::from)?;
                 }
 
+                if let Some(ref server_url) = settings.server_url {
+                    diesel::replace_into(app_settings)
+                        .values(&AppSettingDB {
+                            setting_key: "server_url".to_string(),
+                            setting_value: server_url.clone(),
+                        })
+                        .execute(conn)
+                        .map_err(StorageError::from)?;
+                }
+
                 Ok(())
             })
             .await
@@ -191,6 +202,7 @@ impl SettingsRepositoryTrait for SettingsRepository {
                     "menu_bar_visible" => "true",
                     "sync_enabled" => "true",
                     "default_return_metric" => "twr",
+                    "server_url" => "",
                     _ => return Err(StorageError::from(diesel::result::Error::NotFound).into()),
                 };
                 Ok(default_value.to_string())

@@ -21,5 +21,11 @@ pub fn cloud_api_base_url() -> Option<String> {
         .ok()
         .map(|v| v.trim().trim_end_matches('/').to_string())
         .filter(|v| !v.is_empty())
+        .or_else(|| {
+            std::env::var("WEALTHFOLIO_SERVER_URL")
+                .ok()
+                .map(|v| v.trim().trim_end_matches('/').to_string())
+                .filter(|v| !v.is_empty())
+        })
         .or_else(|| Some(DEFAULT_CLOUD_API_URL.to_string()))
 }

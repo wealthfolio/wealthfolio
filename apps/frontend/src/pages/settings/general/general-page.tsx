@@ -6,6 +6,7 @@ import { AutoUpdateSettings } from "./auto-update-settings";
 import { BaseCurrencySettings } from "./currency-settings";
 import { ExchangeRatesSettings } from "./exchange-rates/exchange-rates-settings";
 import { LanguageRegionSettings } from "./language-region-settings";
+import { ServerUrlSettings } from "./server-url-settings";
 
 export default function GeneralSettingsPage() {
   const { t } = useTranslation();
@@ -22,6 +23,9 @@ export default function GeneralSettingsPage() {
       <LanguageRegionSettings />
       <div className="pt-6">
         <ExchangeRatesSettings />
+      </div>
+      <div className="pt-6">
+        <ServerUrlSettings />
       </div>
       {!isMobile && (
         <div className="pt-6">
