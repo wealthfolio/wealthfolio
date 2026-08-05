@@ -364,9 +364,11 @@ impl CategorizationRulesService {
         Ok(generate_suggestions(&categorized, &uncategorized, &rules))
     }
 
-    /// Accept a suggestion: create a new rule, or extend an existing alternation
-    /// rule in place. Returns the affected rule. Callers should re-run
-    /// categorization afterwards (as they do after any rule change).
+    /// Accept a suggestion: create a new rule, extend an existing alternation
+    /// rule in place, or combine several existing rules into one (rewriting
+    /// the first, deleting the rest). Returns the affected rule. Callers
+    /// should re-run categorization afterwards (as they do after any rule
+    /// change).
     pub async fn apply_suggestion(
         &self,
         req: ApplySuggestionRequest,
@@ -395,19 +397,36 @@ impl CategorizationRulesService {
                 .await
             }
             SuggestionAction::ExtendRule {
-                existing_rule_id,
-                proposed_pattern,
-                ..
+                existing_rule_id, ..
             } => {
                 self.update(
                     &existing_rule_id,
                     UpdateCategorizationRule {
-                        pattern: Some(proposed_pattern),
+                        pattern: Some(req.pattern),
                         match_type: Some(RuleMatchType::Regex),
                         ..Default::default()
                     },
                 )
                 .await
+            }
+            SuggestionAction::CombineRules { rule_ids, .. } => {
+                let (anchor, rest) = rule_ids
+                    .split_first()
+                    .ok_or_else(|| anyhow::anyhow!("combine suggestion has no rules"))?;
+                let updated = self
+                    .update(
+                        anchor,
+                        UpdateCategorizationRule {
+                            pattern: Some(req.pattern),
+                            match_type: Some(RuleMatchType::Regex),
+                            ..Default::default()
+                        },
+                    )
+                    .await?;
+                for id in rest {
+                    self.delete(id).await?;
+                }
+                Ok(updated)
             }
         }
     }

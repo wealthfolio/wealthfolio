@@ -24,6 +24,12 @@ pub struct SuggestedRule {
     pub confidence: f64,
     /// A few real transaction descriptions the pattern matches.
     pub examples: Vec<String>,
+    /// True when `pattern` preserves a case-sensitive rule the user wrote (no
+    /// blanket `(?i)`) instead of the usual fully case-insensitive merge.
+    pub case_sensitive: bool,
+    /// Present only when `case_sensitive` is true: the same merge with
+    /// everything folded to case-insensitive, offered as an opt-in switch.
+    pub case_insensitive_pattern: Option<String>,
     pub action: SuggestionAction,
 }
 
@@ -41,9 +47,18 @@ pub enum SuggestionAction {
     ExtendRule {
         existing_rule_id: String,
         existing_rule_name: String,
-        /// The existing rule's `name_pattern` after merging in the new
-        /// merchants. Applying the suggestion writes this verbatim.
+        /// The default merge preview, for display only. Applying the
+        /// suggestion writes `ApplySuggestionRequest::pattern` instead, so the
+        /// caller can substitute `case_insensitive_pattern`.
         proposed_pattern: String,
+    },
+    /// Fold several existing rules for the same category into one alternation
+    /// rule. The first id in `rule_ids` is rewritten with the merged pattern;
+    /// the rest are deleted.
+    #[serde(rename_all = "camelCase")]
+    CombineRules {
+        rule_ids: Vec<String>,
+        rule_names: Vec<String>,
     },
 }
 

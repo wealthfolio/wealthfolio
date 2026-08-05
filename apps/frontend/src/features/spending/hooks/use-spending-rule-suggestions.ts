@@ -58,12 +58,18 @@ export function useSpendingRuleSuggestions() {
     mutationFn: ({
       suggestion,
       categoryName,
+      useCaseInsensitive,
     }: {
       suggestion: SuggestedRule;
       categoryName?: string;
+      useCaseInsensitive?: boolean;
     }) => {
+      const pattern =
+        useCaseInsensitive && suggestion.caseInsensitivePattern
+          ? suggestion.caseInsensitivePattern
+          : suggestion.pattern;
       const request: ApplySuggestionRequest = {
-        pattern: suggestion.pattern,
+        pattern,
         taxonomyId: suggestion.taxonomyId,
         categoryId: suggestion.categoryId,
         categoryName: categoryName ?? null,
@@ -72,11 +78,16 @@ export function useSpendingRuleSuggestions() {
       return applySpendingRuleSuggestion(request);
     },
     onSuccess: (_rule, { suggestion }) => {
-      // The new/extended rule and the re-categorization it triggers touch rules,
-      // suggestions, and every downstream spending view.
+      // The new/extended/combined rule and the re-categorization it triggers
+      // touch rules, suggestions, and every downstream spending view.
       qc.invalidateQueries({ queryKey: [QueryKeys.SPENDING_RULES] });
       invalidateSpendingCaches(qc);
-      const verb = suggestion.action.type === "extendRule" ? "Extended" : "Added";
+      const verb =
+        suggestion.action.type === "extendRule"
+          ? "Extended"
+          : suggestion.action.type === "combineRules"
+            ? "Combined"
+            : "Added";
       toast.success(`${verb} rule for ${suggestion.merchants.join(", ")}.`);
     },
     onError: () => toast.error("Failed to apply suggestion."),
@@ -92,8 +103,8 @@ export function useSpendingRuleSuggestions() {
     isLoading: query.isLoading,
     isError: query.isError,
     dismiss,
-    apply: (suggestion: SuggestedRule, categoryName?: string) =>
-      applyMutation.mutate({ suggestion, categoryName }),
+    apply: (suggestion: SuggestedRule, categoryName?: string, useCaseInsensitive?: boolean) =>
+      applyMutation.mutate({ suggestion, categoryName, useCaseInsensitive }),
     applyingId:
       applyMutation.isPending && applyMutation.variables
         ? applyMutation.variables.suggestion.id

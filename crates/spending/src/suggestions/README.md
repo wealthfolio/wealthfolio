@@ -5,6 +5,14 @@ proposes categorization rules that would reproduce those choices and catch
 similar transactions in future. It favours one alternation rule per category
 (`(?i)(bristol|gelsons|heinens)`) and, when the user already has a rule of that
 shape, offers to add the new merchants to it instead of creating a second rule.
+It also looks for categories where the user already has several separate
+simple rules and offers to fold them into one.
+
+Case sensitivity is respected, not overridden: a hand-written regex rule
+without `(?i)` stays case-sensitive by default — new alternatives are added as
+a scoped `(?i:...)` branch alongside it rather than forcing insensitivity onto
+the whole pattern. `SuggestedRule::case_insensitive_pattern` carries the fully
+case-insensitive alternative so the caller can offer switching to it.
 
 ## How it fits together
 
@@ -20,9 +28,13 @@ two async methods that talk to the repositories:
   their category assignments, splits them into hand-categorized samples (source
   `manual`, taxonomy `spending_categories`) and still-uncategorized
   descriptions, then calls the engine. Read-only.
-- `apply_suggestion(request)` creates a new rule, or rewrites the pattern of an
-  existing alternation rule in place. It reuses the existing `create` / `update`
-  paths, so the same regex validation and scope checks apply.
+- `apply_suggestion(request)` creates a new rule, rewrites the pattern of an
+  existing alternation rule in place, or — for a combine suggestion — rewrites
+  the first of the combined rules and deletes the rest. It reuses the existing
+  `create` / `update` / `delete` paths, so the same regex validation and scope
+  checks apply. The pattern written is always `request.pattern` (not whatever
+  the action embeds), so the caller can substitute
+  `SuggestedRule::case_insensitive_pattern` when the user opts to switch.
 
 Applying a suggestion does not re-run categorization itself. The command layer
 triggers the same background categorize it already runs after any rule change.

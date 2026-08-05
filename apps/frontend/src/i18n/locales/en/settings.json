@@ -1163,13 +1163,16 @@
       "suggestions": {
         "title": "Suggested rules",
         "extends": "Extends existing rule",
+        "combines": "Combines {{count}} existing rules",
         "wouldCatch": "Catches {{count}} uncategorized",
         "confidence": "{{pct}}% confidence",
         "showExamples": "Examples",
         "hideExamples": "Hide examples",
         "add": "Add rule",
         "extend": "Extend",
-        "dismiss": "Dismiss suggestion"
+        "combine": "Combine",
+        "dismiss": "Dismiss suggestion",
+        "switchCaseInsensitive": "This keeps your rule's case-sensitive matching. Also match regardless of case?"
       }
     }
   },

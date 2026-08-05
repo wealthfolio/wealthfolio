@@ -3,7 +3,15 @@
 //! hand, the rules they already have, and the transactions still uncategorized,
 //! it proposes categorization rules — favouring one alternation rule per
 //! category (`(?i)(bristol|gelsons|heinens)`) and extending an existing
-//! alternation rule rather than adding a duplicate.
+//! alternation rule rather than adding a duplicate. It also looks for
+//! categories where the user has several separate simple rules and offers to
+//! fold them into one.
+//!
+//! Case sensitivity is respected rather than overridden: a `(?i)`-free regex
+//! rule the user wrote by hand stays case-sensitive in the merged pattern
+//! (new alternatives are added as a scoped `(?i:...)` branch alongside it),
+//! and `SuggestedRule::case_insensitive_pattern` carries the fully
+//! case-insensitive alternative so the caller can offer switching to it.
 
 use std::collections::BTreeMap;
 
@@ -62,6 +70,7 @@ pub fn generate_suggestions(
             out.push(suggestion);
         }
     }
+    out.extend(combine_suggestions(existing_rules));
 
     // Most useful first: biggest uncategorized win, then confidence. `id` breaks
     // ties so the order is stable across runs.
@@ -116,7 +125,7 @@ fn suggest_for_category(
     let existing = find_alternation_rule(existing_rules, taxonomy_id, category_id);
     let existing_tokens: Vec<String> = existing
         .as_ref()
-        .map(|(_, _, toks)| toks.clone())
+        .map(|(_, _, toks, _)| toks.clone())
         .unwrap_or_default();
 
     // Only propose merchants the existing rule doesn't already cover.
@@ -158,24 +167,27 @@ fn suggest_for_category(
     let opportunity = (uncategorized_match_count as f64 / OPPORTUNITY_SCALE).min(1.0);
     let confidence = (0.65 * coverage + 0.35 * opportunity).clamp(0.0, 1.0);
 
-    let (action, output_pattern) = match existing {
-        Some((rule_id, rule_name, mut merged)) => {
-            for t in &added_tokens {
-                merged.push(t.clone());
-            }
-            merged.sort();
-            merged.dedup();
-            let proposed = alternation_pattern(&merged);
+    let (action, output_pattern, case_sensitive, case_insensitive_pattern) = match existing {
+        Some((rule_id, rule_name, existing_tokens, existing_case_insensitive)) => {
+            let (default_pattern, insensitive_pattern) =
+                merge_tokens(&existing_tokens, existing_case_insensitive, &added_tokens);
             (
                 SuggestionAction::ExtendRule {
                     existing_rule_id: rule_id,
                     existing_rule_name: rule_name,
-                    proposed_pattern: proposed.clone(),
+                    proposed_pattern: default_pattern.clone(),
                 },
-                proposed,
+                default_pattern,
+                !existing_case_insensitive,
+                (!existing_case_insensitive).then_some(insensitive_pattern),
             )
         }
-        None => (SuggestionAction::NewRule, counting_pattern.clone()),
+        None => (
+            SuggestionAction::NewRule,
+            counting_pattern.clone(),
+            false,
+            None,
+        ),
     };
 
     let merchants_display: Vec<String> = {
@@ -197,8 +209,52 @@ fn suggest_for_category(
         uncategorized_match_count,
         confidence,
         examples,
+        case_sensitive,
+        case_insensitive_pattern,
         action,
     })
+}
+
+/// Merge new (always lowercase, always-matches-any-case) tokens into an
+/// existing alternation's tokens. If the existing rule was case-insensitive,
+/// everything folds into one `(?i)(...)` pattern as before. If it was
+/// case-sensitive, its alternatives are left exactly as the user wrote them
+/// and the new tokens are added as a scoped `(?i:...)` branch instead of
+/// forcing `(?i)` over the whole thing — the second element of the returned
+/// tuple is what that blanket-insensitive merge would have looked like, for
+/// callers that want to offer it as an opt-in switch.
+fn merge_tokens(
+    existing_tokens: &[String],
+    existing_case_insensitive: bool,
+    new_tokens: &[String],
+) -> (String, String) {
+    let fully_insensitive = {
+        let mut all: Vec<String> = existing_tokens
+            .iter()
+            .map(|t| t.to_lowercase())
+            .chain(new_tokens.iter().cloned())
+            .collect();
+        all.sort();
+        all.dedup();
+        alternation_pattern(&all)
+    };
+
+    if existing_case_insensitive {
+        return (fully_insensitive.clone(), fully_insensitive);
+    }
+
+    let mut existing_sorted = existing_tokens.to_vec();
+    existing_sorted.sort();
+    existing_sorted.dedup();
+    let mut new_sorted = new_tokens.to_vec();
+    new_sorted.sort();
+    new_sorted.dedup();
+    let default = format!(
+        "({}|(?i:{}))",
+        existing_sorted.join("|"),
+        new_sorted.join("|")
+    );
+    (default, fully_insensitive)
 }
 
 /// Group a category's samples into merchants, keeping only those seen enough
@@ -328,12 +384,13 @@ fn alternation_pattern(tokens: &[String]) -> String {
 }
 
 /// If the user already has a regex rule for this category shaped like our own
-/// alternations, return `(rule_id, rule_name, alternatives)` so we can extend it.
+/// alternations, return `(rule_id, rule_name, alternatives, case_insensitive)`
+/// so we can extend it.
 fn find_alternation_rule(
     rules: &[CategorizationRule],
     taxonomy_id: &str,
     category_id: &str,
-) -> Option<(String, String, Vec<String>)> {
+) -> Option<(String, String, Vec<String>, bool)> {
     rules.iter().find_map(|r| {
         if r.match_type != RuleMatchType::Regex {
             return None;
@@ -343,15 +400,16 @@ fn find_alternation_rule(
         {
             return None;
         }
-        let alts = parse_alternation(&r.pattern)?;
-        Some((r.id.clone(), r.name.clone(), alts))
+        let (alts, case_insensitive) = parse_alternation(&r.pattern)?;
+        Some((r.id.clone(), r.name.clone(), alts, case_insensitive))
     })
 }
 
-/// Parse `(?i)(a|b|c)` into `["a", "b", "c"]`. Returns `None` for anything that
-/// isn't a plain case-insensitive alternation, so we never try to splice into a
-/// pattern we don't fully understand.
-fn parse_alternation(pattern: &str) -> Option<Vec<String>> {
+/// Parse `(?i)(a|b|c)` or `(a|b|c)` into (`["a", "b", "c"]`, whether it had
+/// `(?i)`). Returns `None` for anything that isn't a plain alternation, so we
+/// never try to splice into a pattern we don't fully understand.
+fn parse_alternation(pattern: &str) -> Option<(Vec<String>, bool)> {
+    let case_insensitive = pattern.starts_with("(?i)");
     let body = pattern.strip_prefix("(?i)").unwrap_or(pattern);
     let inner = body.strip_prefix('(')?.strip_suffix(')')?;
     if inner.is_empty() {
@@ -364,7 +422,166 @@ fn parse_alternation(pattern: &str) -> Option<Vec<String>> {
     {
         return None;
     }
-    Some(alts)
+    Some((alts, case_insensitive))
+}
+
+/// Rule types eligible for the "combine multiple manual rules" suggestion.
+const COMBINABLE_MATCH_TYPES: [RuleMatchType; 2] = [RuleMatchType::Contains, RuleMatchType::Regex];
+
+/// Find categories with two or more separate simple rules and suggest folding
+/// them into one alternation rule. Independent of hand-categorized samples —
+/// this only looks at the rules the user already wrote. Presets are left
+/// alone; `Regex` rules are only combinable when they're already a plain
+/// alternation (parsed by [`parse_alternation`]) so we never mangle a
+/// hand-written pattern we don't fully understand.
+fn combine_suggestions(existing_rules: &[CategorizationRule]) -> Vec<SuggestedRule> {
+    let mut by_category: BTreeMap<(String, String), Vec<&CategorizationRule>> = BTreeMap::new();
+    for r in existing_rules {
+        if r.preset_id.is_some() || !COMBINABLE_MATCH_TYPES.contains(&r.match_type) {
+            continue;
+        }
+        let (Some(taxonomy_id), Some(category_id)) =
+            (r.taxonomy_id.as_deref(), r.category_id.as_deref())
+        else {
+            continue;
+        };
+        by_category
+            .entry((taxonomy_id.to_string(), category_id.to_string()))
+            .or_default()
+            .push(r);
+    }
+
+    by_category
+        .iter()
+        .filter_map(|((taxonomy_id, category_id), rules)| {
+            combine_for_category(taxonomy_id, category_id, rules)
+        })
+        .collect()
+}
+
+/// One alternative contributed by an existing rule, and whether it should
+/// stay case-sensitive in the combined pattern.
+struct RuleToken {
+    text: String,
+    case_insensitive: bool,
+}
+
+fn combine_for_category(
+    taxonomy_id: &str,
+    category_id: &str,
+    rules: &[&CategorizationRule],
+) -> Option<SuggestedRule> {
+    let mut included: Vec<&CategorizationRule> = Vec::new();
+    let mut tokens: Vec<RuleToken> = Vec::new();
+
+    for r in rules {
+        match r.match_type {
+            RuleMatchType::Contains => {
+                let text = r.pattern.trim();
+                if text.is_empty() {
+                    continue;
+                }
+                tokens.push(RuleToken {
+                    text: regex::escape(text),
+                    case_insensitive: true,
+                });
+                included.push(r);
+            }
+            RuleMatchType::Regex => {
+                let Some((alts, case_insensitive)) = parse_alternation(&r.pattern) else {
+                    continue;
+                };
+                tokens.extend(alts.into_iter().map(|text| RuleToken {
+                    text,
+                    case_insensitive,
+                }));
+                included.push(r);
+            }
+            _ => {}
+        }
+    }
+
+    if included.len() < 2 {
+        return None;
+    }
+
+    let dedup_sorted = |mut v: Vec<String>| {
+        v.sort();
+        v.dedup();
+        v
+    };
+    let ci_tokens = dedup_sorted(
+        tokens
+            .iter()
+            .filter(|t| t.case_insensitive)
+            .map(|t| t.text.clone())
+            .collect(),
+    );
+    let cs_tokens = dedup_sorted(
+        tokens
+            .iter()
+            .filter(|t| !t.case_insensitive)
+            .map(|t| t.text.clone())
+            .collect(),
+    );
+
+    let default_pattern = combine_pattern(&ci_tokens, &cs_tokens);
+    let case_sensitive = !cs_tokens.is_empty();
+    let case_insensitive_pattern = case_sensitive.then(|| {
+        let all_lower = dedup_sorted(
+            ci_tokens
+                .iter()
+                .chain(cs_tokens.iter())
+                .map(|t| t.to_lowercase())
+                .collect(),
+        );
+        alternation_pattern(&all_lower)
+    });
+
+    let rule_ids: Vec<String> = included.iter().map(|r| r.id.clone()).collect();
+    let rule_names: Vec<String> = included.iter().map(|r| r.name.clone()).collect();
+    let merchants = dedup_sorted(
+        included
+            .iter()
+            .map(|r| title_case(r.pattern.trim()))
+            .collect(),
+    );
+    let examples: Vec<String> = included.iter().map(|r| truncate(&r.pattern)).collect();
+
+    let action = SuggestionAction::CombineRules {
+        rule_ids: rule_ids.clone(),
+        rule_names,
+    };
+    let id = suggestion_id(taxonomy_id, category_id, &rule_ids, &action);
+
+    Some(SuggestedRule {
+        id,
+        pattern: default_pattern,
+        taxonomy_id: taxonomy_id.to_string(),
+        category_id: category_id.to_string(),
+        merchants,
+        // These consolidate rules the user already wrote rather than infer
+        // anything from transaction data, so there's nothing to count here.
+        match_count: 0,
+        uncategorized_match_count: 0,
+        confidence: 1.0,
+        examples,
+        case_sensitive,
+        case_insensitive_pattern,
+        action,
+    })
+}
+
+/// Combine case-insensitive and case-sensitive alternatives into one pattern.
+/// Case-sensitive alternatives (already alphanumeric-only, validated by
+/// [`parse_alternation`]) are left bare; case-insensitive ones are scoped
+/// with `(?i:...)` so they don't force insensitivity onto the rest.
+fn combine_pattern(ci_tokens: &[String], cs_tokens: &[String]) -> String {
+    match (ci_tokens.is_empty(), cs_tokens.is_empty()) {
+        (_, true) => alternation_pattern(ci_tokens),
+        (true, false) => format!("({})", cs_tokens.join("|")),
+        (false, false) => format!("((?i:{})|{})", ci_tokens.join("|"), cs_tokens.join("|")),
+    }
 }
 
 fn collect_examples(added: &[&Merchant], uncategorized_hits: &[&String]) -> Vec<String> {
@@ -422,6 +639,7 @@ fn suggestion_id(
     let kind = match action {
         SuggestionAction::NewRule => "new",
         SuggestionAction::ExtendRule { .. } => "extend",
+        SuggestionAction::CombineRules { .. } => "combine",
     };
     let seed = format!(
         "{taxonomy_id}\u{1}{category_id}\u{1}{}\u{1}{kind}",
@@ -642,5 +860,99 @@ mod tests {
         assert_eq!(jaro_winkler("gelsons", "gelsons"), 1.0);
         assert!(jaro_winkler("schnucks", "schnuck") >= CLUSTER_SIMILARITY);
         assert!(jaro_winkler("gelsons", "bristol") < CLUSTER_SIMILARITY);
+    }
+
+    fn contains_rule(id: &str, pattern: &str, cat: &str) -> CategorizationRule {
+        CategorizationRule {
+            match_type: RuleMatchType::Contains,
+            ..regex_rule(id, pattern, cat)
+        }
+    }
+
+    #[test]
+    fn extend_respects_case_sensitive_existing_rule() {
+        let categorized = vec![
+            sample("BRISTOL FARMS 552", "groceries"),
+            sample("BRISTOL FARMS STORE", "groceries"),
+        ];
+        let uncategorized = vec!["BRISTOL FARMS 9910".to_string()];
+        // No `(?i)` — the user wrote this case-sensitively.
+        let existing = vec![regex_rule("r1", "(Gelsons|Heinens)", "groceries")];
+        let out = generate_suggestions(&categorized, &uncategorized, &existing);
+        assert_eq!(out.len(), 1);
+        let s = &out[0];
+        assert!(s.case_sensitive);
+        // The user's original alternatives stay untouched and bare; the new
+        // merchant is added as a scoped case-insensitive branch instead of
+        // forcing `(?i)` over everything.
+        assert_eq!(s.pattern, "(Gelsons|Heinens|(?i:bristol))");
+        assert_eq!(
+            s.case_insensitive_pattern.as_deref(),
+            Some("(?i)(bristol|gelsons|heinens)")
+        );
+        match &s.action {
+            SuggestionAction::ExtendRule {
+                existing_rule_id, ..
+            } => assert_eq!(existing_rule_id, "r1"),
+            other => panic!("expected ExtendRule, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn combines_multiple_contains_rules() {
+        let existing = vec![
+            contains_rule("r1", "aldi", "groceries"),
+            contains_rule("r2", "coles", "groceries"),
+            contains_rule("r3", "woolworths", "groceries"),
+        ];
+        let out = generate_suggestions(&[], &[], &existing);
+        assert_eq!(out.len(), 1);
+        let s = &out[0];
+        assert!(!s.case_sensitive);
+        assert_eq!(s.case_insensitive_pattern, None);
+        assert_eq!(s.pattern, "(?i)(aldi|coles|woolworths)");
+        match &s.action {
+            SuggestionAction::CombineRules { rule_ids, .. } => {
+                let mut ids = rule_ids.clone();
+                ids.sort();
+                assert_eq!(ids, vec!["r1", "r2", "r3"]);
+            }
+            other => panic!("expected CombineRules, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn combine_respects_case_sensitive_regex_rule_and_offers_switch() {
+        let existing = vec![
+            contains_rule("r1", "aldi", "groceries"),
+            // Case-sensitive — no `(?i)`.
+            regex_rule("r2", "(Coles)", "groceries"),
+        ];
+        let out = generate_suggestions(&[], &[], &existing);
+        assert_eq!(out.len(), 1);
+        let s = &out[0];
+        assert!(s.case_sensitive);
+        assert_eq!(s.pattern, "((?i:aldi)|Coles)");
+        assert_eq!(
+            s.case_insensitive_pattern.as_deref(),
+            Some("(?i)(aldi|coles)")
+        );
+    }
+
+    #[test]
+    fn does_not_combine_a_single_rule() {
+        let existing = vec![contains_rule("r1", "aldi", "groceries")];
+        let out = generate_suggestions(&[], &[], &existing);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn does_not_combine_preset_rules() {
+        let mut r = contains_rule("r1", "aldi", "groceries");
+        r.preset_id = Some("preset-au".to_string());
+        let mut r2 = contains_rule("r2", "coles", "groceries");
+        r2.preset_id = Some("preset-au".to_string());
+        let out = generate_suggestions(&[], &[], &[r, r2]);
+        assert!(out.is_empty());
     }
 }

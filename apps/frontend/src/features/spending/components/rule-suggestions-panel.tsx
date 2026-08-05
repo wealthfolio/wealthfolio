@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import {
   Badge,
   Button,
+  Checkbox,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -71,7 +72,9 @@ export function RuleSuggestionsPanel({ categoryMeta }: RuleSuggestionsPanelProps
             suggestion={s}
             categoryName={categoryMeta[s.categoryId]?.name ?? null}
             applying={applyingId === s.id}
-            onApply={() => apply(s, categoryMeta[s.categoryId]?.name)}
+            onApply={(useCaseInsensitive) =>
+              apply(s, categoryMeta[s.categoryId]?.name, useCaseInsensitive)
+            }
             onDismiss={() => dismiss(s.id)}
           />
         ))}
@@ -90,12 +93,14 @@ function SuggestionCard({
   suggestion: SuggestedRule;
   categoryName: string | null;
   applying: boolean;
-  onApply: () => void;
+  onApply: (useCaseInsensitive: boolean) => void;
   onDismiss: () => void;
 }) {
   const { t } = useTranslation();
   const [showExamples, setShowExamples] = useState(false);
+  const [useCaseInsensitive, setUseCaseInsensitive] = useState(false);
   const isExtend = suggestion.action.type === "extendRule";
+  const isCombine = suggestion.action.type === "combineRules";
   const confidencePct = Math.round(suggestion.confidence * 100);
   const merchantLabel = suggestion.merchants.join(", ");
 
@@ -118,6 +123,21 @@ function SuggestionCard({
                   <TooltipContent>
                     <code className="text-xs">{suggestion.action.proposedPattern}</code>
                   </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {isCombine && suggestion.action.type === "combineRules" && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="cursor-help text-[10px]">
+                      {t("settings:spending.rules.suggestions.combines", {
+                        count: suggestion.action.ruleIds.length,
+                        defaultValue: "Combines {{count}} existing rules",
+                      })}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>{suggestion.action.ruleNames.join(", ")}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
@@ -158,9 +178,24 @@ function SuggestionCard({
               ))}
             </ul>
           )}
+          {suggestion.caseSensitive && suggestion.caseInsensitivePattern && (
+            <label className="text-muted-foreground mt-1.5 flex items-start gap-1.5 text-xs">
+              <Checkbox
+                checked={useCaseInsensitive}
+                onCheckedChange={(checked) => setUseCaseInsensitive(checked === true)}
+                className="mt-0.5"
+              />
+              <span>
+                {t(
+                  "settings:spending.rules.suggestions.switchCaseInsensitive",
+                  "This keeps your rule's case-sensitive matching. Also match regardless of case?",
+                )}
+              </span>
+            </label>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Button size="sm" onClick={onApply} disabled={applying}>
+          <Button size="sm" onClick={() => onApply(useCaseInsensitive)} disabled={applying}>
             {applying ? (
               <Icons.Spinner className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
             ) : (
@@ -168,7 +203,9 @@ function SuggestionCard({
             )}
             {isExtend
               ? t("settings:spending.rules.suggestions.extend", "Extend")
-              : t("settings:spending.rules.suggestions.add", "Add rule")}
+              : isCombine
+                ? t("settings:spending.rules.suggestions.combine", "Combine")
+                : t("settings:spending.rules.suggestions.add", "Add rule")}
           </Button>
           <Button
             size="icon"

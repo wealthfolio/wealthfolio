@@ -9,6 +9,11 @@ export type SuggestionAction =
       existingRuleId: string;
       existingRuleName: string;
       proposedPattern: string;
+    }
+  | {
+      type: "combineRules";
+      ruleIds: string[];
+      ruleNames: string[];
     };
 
 export interface SuggestedRule {
@@ -28,6 +33,12 @@ export interface SuggestedRule {
   confidence: number;
   /** A few real transaction descriptions the pattern matches. */
   examples: string[];
+  /** True when `pattern` preserves a case-sensitive rule the user wrote,
+   * instead of the usual fully case-insensitive merge. */
+  caseSensitive: boolean;
+  /** Present only when `caseSensitive` is true: the same merge folded to
+   * fully case-insensitive, offered as an opt-in switch. */
+  caseInsensitivePattern: string | null;
   action: SuggestionAction;
 }
 
