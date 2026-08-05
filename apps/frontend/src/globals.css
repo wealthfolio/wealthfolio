@@ -1065,6 +1065,29 @@ summary {
   --chart-cursor: rgba(255, 255, 255, 0.06);
 }
 
+/* Net-worth category palette (composition bar, breakdown rows, detail-sheet
+   icons, net-worth flow diagram). Light values are the original hand-tuned
+   hexes; dark values keep the same hue and lift L by ~0.30-0.38 / add
+   ~0.04-0.06 chroma in OKLCH so they stay legible on the dark card surface. */
+:root {
+  --category-properties: #4b4137; /* warm dark taupe / charcoal */
+  --category-investments: #6f7544; /* muted olive green */
+  --category-cash: #d8c98f; /* pale cream / light gold */
+  --category-vehicles: #6d7c86; /* muted slate */
+  --category-other-assets: #928d83; /* medium warm gray */
+  --category-precious-metals: #b8923a; /* soft gold */
+  --category-collectibles: #8a6b49; /* muted brown */
+}
+.dark {
+  --category-properties: oklch(0.62 0.05 55);
+  --category-investments: oklch(0.78 0.09 110);
+  --category-cash: oklch(0.83 0.06 95);
+  --category-vehicles: oklch(0.72 0.04 240);
+  --category-other-assets: oklch(0.8 0.03 85);
+  --category-precious-metals: oklch(0.82 0.13 75);
+  --category-collectibles: oklch(0.74 0.09 68);
+}
+
 /* Events timeline — fallback tag color when an event type has no user-picked
    color, plus the "today" marker color. */
 :root {

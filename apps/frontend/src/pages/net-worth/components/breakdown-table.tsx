@@ -1,14 +1,18 @@
 import { DashboardCard } from "@/components/dashboard-card";
+import { useIsMobileViewport } from "@/hooks/use-platform";
+import { usePersistentState } from "@wealthfolio/ui";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@wealthfolio/ui/components/ui/collapsible";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CompactAmount } from "./compact-amount";
 import { CompositionBar } from "./composition-bar";
+import { NetWorthFlowDiagram } from "./net-worth-flow-diagram";
+import { FLOW_EXPANDED_STORAGE_KEY, buildNetWorthFlowGraph } from "./net-worth-flow-utils";
 import {
   CARD_LABEL,
   CATEGORY_CSS_COLORS,
@@ -122,6 +126,7 @@ export function BreakdownTable({
   onSelect,
 }: BreakdownTableProps) {
   const { t } = useTranslation();
+  const isMobile = useIsMobileViewport();
   const hasLiabilities = data.liabilities.total > 0 || data.liabilities.breakdown.length > 0;
   const netWorthChange = deriveChange(
     history.map((point) => point.netWorth),
@@ -129,6 +134,22 @@ export function BreakdownTable({
   );
   const [assetsOpen, setAssetsOpen] = useState(true);
   const [liabilitiesOpen, setLiabilitiesOpen] = useState(true);
+  // CompositionBar is the collapsed state of the Sankey flow diagram —
+  // clicking it expands in place. Nothing is removed; the bar keeps its
+  // at-a-glance job and the diagram adds the structure it can't show.
+  const [flowExpanded, setFlowExpanded] = usePersistentState<boolean>(FLOW_EXPANDED_STORAGE_KEY, false);
+  const flowContentId = `nwf-content-${useId().replace(/:/g, "")}`;
+  const flowGraph = useMemo(
+    () =>
+      buildNetWorthFlowGraph(data, {
+        assets: t("insights:networth.breakdown_table.assets"),
+        netWorth: t("insights:networth.breakdown_table.net_worth"),
+        debts: t("insights:networth.flow.debts_label"),
+        otherHoldings: (count) => t("insights:networth.flow.other_holdings", { count }),
+        unattributed: t("insights:networth.flow.unattributed"),
+      }),
+    [data, t],
+  );
 
   return (
     <DashboardCard
@@ -149,9 +170,40 @@ export function BreakdownTable({
           </span>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          {/* Composition — proportion of assets (the rows below are its legend) */}
+          {/* Composition bar — click to expand in place into the Sankey flow
+              diagram. The bar keeps its at-a-glance job; the diagram (the same
+              category proportions, rotated, with flows attached) adds the
+              structure the bar alone can't show. */}
           <div className="border-border/60 mb-1 mt-2.5 border-b pb-3">
-            <CompositionBar data={data} />
+            <Collapsible open={flowExpanded} onOpenChange={setFlowExpanded}>
+              <CollapsibleTrigger
+                className="focus-visible:ring-[var(--theme)] focus-visible:ring-offset-background group flex w-full flex-col gap-1.5 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                aria-controls={flowContentId}
+                aria-label={t(flowExpanded ? "insights:networth.flow.hide" : "insights:networth.flow.show")}
+              >
+                <CompositionBar data={data} />
+                <span
+                  className={`${CARD_LABEL} group-hover:text-foreground flex items-center gap-1 transition-colors`}
+                >
+                  <Icons.ChevronRight
+                    className={`h-3 w-3 transition-transform ${flowExpanded ? "rotate-90" : ""}`}
+                  />
+                  {t(flowExpanded ? "insights:networth.flow.hide" : "insights:networth.flow.show")}
+                </span>
+              </CollapsibleTrigger>
+              <CollapsibleContent id={flowContentId}>
+                {flowGraph && (
+                  <div className="pt-3">
+                    <NetWorthFlowDiagram
+                      graph={flowGraph}
+                      currency={currency}
+                      onSelect={onSelect}
+                      isMobile={isMobile}
+                    />
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
 
           {/* Column labels */}
