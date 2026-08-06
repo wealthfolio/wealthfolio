@@ -96,7 +96,9 @@ describe("buildNetWorthFlowGraph", () => {
     });
 
     const graph = buildNetWorthFlowGraph(data, labels)!;
-    const leaves = graph.nodes.filter((n) => n.kind === "leaf" || n.kind === "bucket") as FlowLeafNode[];
+    const leaves = graph.nodes.filter(
+      (n) => n.kind === "leaf" || n.kind === "bucket",
+    ) as FlowLeafNode[];
     const bucket = leaves.find((n) => n.kind === "bucket")!;
 
     // MAX_VISIBLE_LEAVES - 1 individual leaves shown, the rest folded into one bucket.
@@ -104,7 +106,9 @@ describe("buildNetWorthFlowGraph", () => {
     expect(bucket.bucketedCount).toBe(8 - (MAX_VISIBLE_LEAVES - 1));
 
     // Bucket contains the smallest holdings and sums to exactly their total.
-    const smallest = children.slice(0, 8 - (MAX_VISIBLE_LEAVES - 1)).reduce((s, c) => s + c.value, 0);
+    const smallest = children
+      .slice(0, 8 - (MAX_VISIBLE_LEAVES - 1))
+      .reduce((s, c) => s + c.value, 0);
     expect(bucket.value).toBe(smallest);
 
     // Every leaf/bucket value sums to the category total — nothing dropped.
@@ -120,7 +124,10 @@ describe("buildNetWorthFlowGraph", () => {
     ];
     const data = netWorth({
       netWorth: 3,
-      assets: { total: 3, breakdown: [{ category: "properties", name: "Real Estate", value: 3, children }] },
+      assets: {
+        total: 3,
+        breakdown: [{ category: "properties", name: "Real Estate", value: 3, children }],
+      },
     });
 
     const graph = buildNetWorthFlowGraph(data, labels)!;
@@ -155,7 +162,10 @@ describe("buildNetWorthFlowGraph", () => {
     const data = netWorth({
       netWorth: 700,
       assets: { total: 1000, breakdown: [{ category: "cash", name: "Cash", value: 1000 }] },
-      liabilities: { total: 300, breakdown: [{ category: "liabilities", name: "Loan", value: 300 }] },
+      liabilities: {
+        total: 300,
+        breakdown: [{ category: "liabilities", name: "Loan", value: 300 }],
+      },
     });
 
     const graph = buildNetWorthFlowGraph(data, labels)!;
@@ -175,7 +185,10 @@ describe("buildNetWorthFlowGraph", () => {
     const data = netWorth({
       netWorth: -200,
       assets: { total: 100, breakdown: [{ category: "cash", name: "Cash", value: 100 }] },
-      liabilities: { total: 300, breakdown: [{ category: "liabilities", name: "Loan", value: 300 }] },
+      liabilities: {
+        total: 300,
+        breakdown: [{ category: "liabilities", name: "Loan", value: 300 }],
+      },
     });
 
     const graph = buildNetWorthFlowGraph(data, labels)!;
@@ -215,13 +228,22 @@ describe("buildNetWorthFlowGraph", () => {
     it("fans Investments in by account when provided, sorted by value descending", () => {
       const accounts: BreakdownEntry[] = [
         { category: "investments", name: "Roth IRA", value: 200, assetId: "acc-1" },
-        { category: "investments", name: "Personal Investments – 119", value: 500, assetId: "acc-2" },
+        {
+          category: "investments",
+          name: "Personal Investments – 119",
+          value: 500,
+          assetId: "acc-2",
+        },
         { category: "investments", name: "Parametrics", value: 300, assetId: "acc-3" },
       ];
       const graph = buildNetWorthFlowGraph(investmentData(1000), labels, accounts)!;
       const leaves = graph.nodes.filter((n) => n.kind === "leaf") as FlowLeafNode[];
 
-      expect(leaves.map((n) => n.name)).toEqual(["Personal Investments – 119", "Parametrics", "Roth IRA"]);
+      expect(leaves.map((n) => n.name)).toEqual([
+        "Personal Investments – 119",
+        "Parametrics",
+        "Roth IRA",
+      ]);
     });
 
     it("sums investment account leaves exactly to the Investments category total", () => {
@@ -230,7 +252,9 @@ describe("buildNetWorthFlowGraph", () => {
         { category: "investments", name: "Brokerage", value: 500.22, assetId: "acc-2" },
       ];
       const graph = buildNetWorthFlowGraph(investmentData(700.33), labels, accounts)!;
-      const leaves = graph.nodes.filter((n) => n.kind === "leaf" || n.kind === "bucket") as FlowLeafNode[];
+      const leaves = graph.nodes.filter(
+        (n) => n.kind === "leaf" || n.kind === "bucket",
+      ) as FlowLeafNode[];
 
       const leafTotal = leaves.reduce((sum, n) => sum + n.value, 0);
       expect(leafTotal).toBeCloseTo(700.33, 6);
@@ -259,7 +283,9 @@ describe("buildNetWorthFlowGraph", () => {
       }));
       const total = accounts.reduce((sum, a) => sum + a.value, 0);
       const graph = buildNetWorthFlowGraph(investmentData(total), labels, accounts)!;
-      const leaves = graph.nodes.filter((n) => n.kind === "leaf" || n.kind === "bucket") as FlowLeafNode[];
+      const leaves = graph.nodes.filter(
+        (n) => n.kind === "leaf" || n.kind === "bucket",
+      ) as FlowLeafNode[];
 
       expect(leaves.filter((n) => n.kind === "leaf")).toHaveLength(MAX_VISIBLE_LEAVES - 1);
       expect(leaves.some((n) => n.kind === "bucket")).toBe(true);

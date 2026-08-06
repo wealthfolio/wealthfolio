@@ -140,7 +140,10 @@ export function BreakdownTable({
   // CompositionBar is the collapsed state of the Sankey flow diagram —
   // clicking it expands in place. Nothing is removed; the bar keeps its
   // at-a-glance job and the diagram adds the structure it can't show.
-  const [flowExpanded, setFlowExpanded] = usePersistentState<boolean>(FLOW_EXPANDED_STORAGE_KEY, false);
+  const [flowExpanded, setFlowExpanded] = usePersistentState<boolean>(
+    FLOW_EXPANDED_STORAGE_KEY,
+    false,
+  );
   const flowContentId = `nwf-content-${useId().replace(/:/g, "")}`;
 
   // The Investments category deliberately has no per-holding children from the
@@ -209,9 +212,11 @@ export function BreakdownTable({
           <div className="border-border/60 mb-1 mt-2.5 border-b pb-3">
             <Collapsible open={flowExpanded} onOpenChange={setFlowExpanded}>
               <CollapsibleTrigger
-                className="focus-visible:ring-[var(--theme)] focus-visible:ring-offset-background group flex w-full flex-col gap-1.5 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                className="focus-visible:ring-offset-background group flex w-full flex-col gap-1.5 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme)] focus-visible:ring-offset-2"
                 aria-controls={flowContentId}
-                aria-label={t(flowExpanded ? "insights:networth.flow.hide" : "insights:networth.flow.show")}
+                aria-label={t(
+                  flowExpanded ? "insights:networth.flow.hide" : "insights:networth.flow.show",
+                )}
               >
                 <CompositionBar data={data} />
                 <span

@@ -1,4 +1,10 @@
-import { CATEGORY_CSS_COLORS, THEME_COLOR, type BreakdownEntry, type ParsedNetWorth, type SelectedCategory } from "./utils";
+import {
+  CATEGORY_CSS_COLORS,
+  THEME_COLOR,
+  type BreakdownEntry,
+  type ParsedNetWorth,
+  type SelectedCategory,
+} from "./utils";
 
 /** Individual holding, or the aggregate of the smaller holdings folded into one node. */
 export interface FlowLeafNode {
@@ -133,7 +139,11 @@ export function buildNetWorthFlowGraph(
     const selected = categorySelection(category);
 
     let rawChildren = category.children ?? [];
-    if (category.category === "investments" && investmentAccounts && investmentAccounts.length > 0) {
+    if (
+      category.category === "investments" &&
+      investmentAccounts &&
+      investmentAccounts.length > 0
+    ) {
       const candidateTotal = investmentAccounts.reduce((sum, child) => sum + child.value, 0);
       // Per-account values can disagree with the category total (different
       // valuation source/timing than the net-worth snapshot). An undercount
@@ -150,7 +160,8 @@ export function buildNetWorthFlowGraph(
     const leafIndices: number[] = [];
     if (children.length > 0) {
       const sorted = [...children].sort((a, b) => b.value - a.value);
-      const visibleCount = children.length > MAX_VISIBLE_LEAVES ? MAX_VISIBLE_LEAVES - 1 : children.length;
+      const visibleCount =
+        children.length > MAX_VISIBLE_LEAVES ? MAX_VISIBLE_LEAVES - 1 : children.length;
       const visible = sorted.slice(0, visibleCount);
       const bucketed = sorted.slice(visibleCount);
 
@@ -221,7 +232,12 @@ export function buildNetWorthFlowGraph(
       });
     }
 
-    categoryLinks.push({ index: categoryIndex, value: category.value, color, categoryKey: category.category });
+    categoryLinks.push({
+      index: categoryIndex,
+      value: category.value,
+      color,
+      categoryKey: category.category,
+    });
   }
 
   const assetsIndex = push({
@@ -253,7 +269,12 @@ export function buildNetWorthFlowGraph(
       value: data.netWorth,
       color: THEME_COLOR,
     });
-    links.push({ source: assetsIndex, target: netWorthIndex, value: data.netWorth, color: THEME_COLOR });
+    links.push({
+      source: assetsIndex,
+      target: netWorthIndex,
+      value: data.netWorth,
+      color: THEME_COLOR,
+    });
   }
 
   if (data.liabilities.total > EPSILON) {

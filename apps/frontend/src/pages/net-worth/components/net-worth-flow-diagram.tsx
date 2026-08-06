@@ -3,7 +3,10 @@ import { formatCompactAmount } from "@wealthfolio/ui";
 import { useId, useMemo, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { ResponsiveContainer, Sankey } from "recharts";
-import type { LinkProps as RechartsLinkProps, NodeProps as RechartsNodeProps } from "recharts/types/chart/Sankey";
+import type {
+  LinkProps as RechartsLinkProps,
+  NodeProps as RechartsNodeProps,
+} from "recharts/types/chart/Sankey";
 import { shortenLeafName, type FlowNode, type NetWorthFlowGraph } from "./net-worth-flow-utils";
 import { THEME_COLOR, type SelectedCategory } from "./utils";
 
@@ -97,11 +100,15 @@ function FlowNodeShape({
   payload,
   ctx,
   t,
-}: RechartsNodeProps & { ctx: ShapeContext; t: (key: string, options?: Record<string, unknown>) => string }) {
+}: RechartsNodeProps & {
+  ctx: ShapeContext;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}) {
   const node = payload as unknown as FlowNode;
   const selectable = isSelectable(node);
   const categoryKey = selectable ? node.selected.key : undefined;
-  const dimmed = ctx.hoveredCategory != null && categoryKey != null && ctx.hoveredCategory !== categoryKey;
+  const dimmed =
+    ctx.hoveredCategory != null && categoryKey != null && ctx.hoveredCategory !== categoryKey;
   const rectHeight = Math.max(height, 1.5);
   const rightAligned = RIGHT_ALIGNED_KINDS.has(node.kind);
   const showValue = VALUE_KINDS.has(node.kind);
@@ -150,7 +157,13 @@ function FlowNodeShape({
         <title>{`${node.name} — ${amountText}`}</title>
       </rect>
       {showLabel && (
-        <foreignObject x={labelX} y={y} width={labelWidth} height={Math.max(rectHeight, LABEL_BOX_HEIGHT)} style={{ overflow: "visible" }}>
+        <foreignObject
+          x={labelX}
+          y={y}
+          width={labelWidth}
+          height={Math.max(rectHeight, LABEL_BOX_HEIGHT)}
+          style={{ overflow: "visible" }}
+        >
           {/* No xmlns attribute needed: the app always parses this as HTML5,
               which puts foreignObject's children in the HTML namespace already. */}
           <div
@@ -196,7 +209,10 @@ function FlowLinkShape({
   ctx,
 }: RechartsLinkProps & { ctx: ShapeContext }) {
   const link = payload as unknown as { color: string; categoryKey?: string; target: FlowNode };
-  const dimmed = ctx.hoveredCategory != null && link.categoryKey != null && ctx.hoveredCategory !== link.categoryKey;
+  const dimmed =
+    ctx.hoveredCategory != null &&
+    link.categoryKey != null &&
+    ctx.hoveredCategory !== link.categoryKey;
   const hot = ctx.hoveredCategory != null && ctx.hoveredCategory === link.categoryKey;
   const convergesIntoAssets = link.categoryKey != null && link.target.kind === "assets";
   const stroke = convergesIntoAssets ? `url(#${ctx.uid}-converge-${link.categoryKey})` : link.color;
@@ -252,7 +268,12 @@ function leadingColumnNodeCount(graph: NetWorthFlowGraph): number {
  * the first place; it's folded into its category's bucket node upstream in
  * `buildNetWorthFlowGraph`.
  */
-export function NetWorthFlowDiagram({ graph, currency, onSelect, isMobile }: NetWorthFlowDiagramProps) {
+export function NetWorthFlowDiagram({
+  graph,
+  currency,
+  onSelect,
+  isMobile,
+}: NetWorthFlowDiagramProps) {
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
@@ -323,7 +344,14 @@ export function NetWorthFlowDiagram({ graph, currency, onSelect, isMobile }: Net
               </pattern>
             ))}
             {categoryColors.map(({ key, color }) => (
-              <linearGradient key={`grad-${key}`} id={`${uid}-converge-${key}`} x1="0" y1="0" x2="1" y2="0">
+              <linearGradient
+                key={`grad-${key}`}
+                id={`${uid}-converge-${key}`}
+                x1="0"
+                y1="0"
+                x2="1"
+                y2="0"
+              >
                 <stop offset="0%" stopColor={color} />
                 <stop offset="100%" stopColor={THEME_COLOR} />
               </linearGradient>
