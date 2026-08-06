@@ -23,6 +23,19 @@ const LABEL_GAP = 6;
 const ROW_PITCH_DESKTOP = 28;
 const ROW_PITCH_MOBILE = 14;
 
+/**
+ * A leaf label is a fixed-height box anchored at its node's TOP edge (see the
+ * `foreignObject` in `FlowNodeShape`), so the bottom-most node's label extends
+ * this far BELOW the node itself. The chart's bottom margin must reserve at
+ * least this much or that last label is clipped by the SVG viewport — which is
+ * exactly what happened: every row rendered correctly except the last, whose
+ * text was sliced in half.
+ *
+ * Kept as its own constant, and used for both the margin and the height
+ * budget, so the two cannot drift apart.
+ */
+const LABEL_BOX_HEIGHT = 24;
+
 interface NetWorthFlowDiagramProps {
   graph: NetWorthFlowGraph;
   currency: string;
@@ -137,7 +150,7 @@ function FlowNodeShape({
         <title>{`${node.name} — ${amountText}`}</title>
       </rect>
       {showLabel && (
-        <foreignObject x={labelX} y={y} width={labelWidth} height={Math.max(rectHeight, 24)} style={{ overflow: "visible" }}>
+        <foreignObject x={labelX} y={y} width={labelWidth} height={Math.max(rectHeight, LABEL_BOX_HEIGHT)} style={{ overflow: "visible" }}>
           {/* No xmlns attribute needed: the app always parses this as HTML5,
               which puts foreignObject's children in the HTML namespace already. */}
           <div
@@ -255,9 +268,11 @@ export function NetWorthFlowDiagram({ graph, currency, onSelect, isMobile }: Net
   // room on top of the pitch floor so values still read as proportional
   // ribbon thickness, not just as evenly-spaced hairlines.
   const valueHeightBudget = isMobile ? 60 : 140;
+  // + LABEL_BOX_HEIGHT so the bottom margin below can reserve room for the last
+  // node's label without eating into the plotted area.
   const diagramHeight = Math.min(
-    680,
-    Math.max(isMobile ? 260 : 300, leadingCount * rowPitch + valueHeightBudget),
+    680 + LABEL_BOX_HEIGHT,
+    Math.max(isMobile ? 260 : 300, leadingCount * rowPitch + valueHeightBudget) + LABEL_BOX_HEIGHT,
   );
 
   const categoryColors = useMemo(
@@ -287,7 +302,9 @@ export function NetWorthFlowDiagram({ graph, currency, onSelect, isMobile }: Net
           nodePadding={rowPitch}
           linkCurvature={0.55}
           iterations={32}
-          margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
+          // bottom reserves a full label box: labels hang BELOW their node's top
+          // edge, so the last row is clipped without it.
+          margin={{ top: 8, right: 8, bottom: LABEL_BOX_HEIGHT, left: 8 }}
           node={(props: RechartsNodeProps) => <FlowNodeShape {...props} ctx={ctx} t={t} />}
           link={(props: RechartsLinkProps) => <FlowLinkShape {...props} ctx={ctx} />}
         >
