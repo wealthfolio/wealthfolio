@@ -498,3 +498,11 @@ export {
   syncHashPairingCode,
   syncHmacSha256,
 } from "./crypto";
+
+// Custom asset logo overrides
+export {
+  getAssetLogoDataUrl,
+  getAssetLogoUrl,
+  removeAssetLogo,
+  uploadAssetLogo,
+} from "./asset-logo";

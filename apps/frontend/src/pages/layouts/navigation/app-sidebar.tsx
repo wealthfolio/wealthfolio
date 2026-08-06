@@ -33,7 +33,7 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
   return (
     <div
       className={cn({
-        "light:bg-secondary/50 hidden h-full border-r pt-12 transition-[width] duration-300 ease-in-out md:flex md:flex-shrink-0 md:overflow-hidden": true,
+        "app-sidebar light:bg-secondary/50 hidden h-full border-r pt-12 transition-[width] duration-300 ease-in-out md:flex md:flex-shrink-0 md:overflow-hidden": true,
         "md:w-sidebar": !collapsed,
         "md:w-sidebar-collapsed": collapsed,
       })}
@@ -52,7 +52,7 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
                   data-tauri-drag-region="true"
                   className="draggable flex items-center justify-center pb-6"
                 >
-                  <Link to="/">
+                  <Link to="/" className="app-logo relative">
                     <img
                       className={`h-10 w-10 rounded-full bg-transparent shadow-lg transition-transform duration-700 ease-in-out [transform-style:preserve-3d] hover:[transform:rotateY(-180deg)] ${
                         collapsed ? "[transform:rotateY(180deg)]" : ""
@@ -60,6 +60,9 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
                       aria-hidden="true"
                       src="/logo.png"
                     />
+                    {/* Cyberpunk-only RGB-split glitch layers, see globals.css */}
+                    <span className="app-logo-glitch app-logo-glitch-cyan" aria-hidden="true" />
+                    <span className="app-logo-glitch app-logo-glitch-magenta" aria-hidden="true" />
                   </Link>
 
                   <span

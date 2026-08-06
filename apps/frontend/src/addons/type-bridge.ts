@@ -98,6 +98,7 @@ export interface InternalHostAPI {
   getAssetProfile(assetId: string): Promise<Asset>;
   updateAssetProfile(payload: UpdateAssetProfile): Promise<Asset>;
   updateQuoteMode(assetId: string, quoteMode: string): Promise<Asset>;
+  getAssetLogoDataUrl(assetId: string): Promise<string | null>;
   updateQuote(symbol: string, quote: Quote): Promise<void>;
   syncMarketData(
     assetIds: string[],
@@ -455,6 +456,7 @@ export function createSDKHostAPIBridge(
       getProfile: internalAPI.getAssetProfile,
       updateProfile: internalAPI.updateAssetProfile,
       updateQuoteMode: internalAPI.updateQuoteMode,
+      getLogoDataUrl: internalAPI.getAssetLogoDataUrl,
     },
     "assets",
     guard,

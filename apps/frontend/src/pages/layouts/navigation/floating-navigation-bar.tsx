@@ -47,7 +47,7 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
   const hasMoreItems = moreItems.length > 0;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40">
+    <div className="floating-nav-bar pointer-events-none fixed inset-x-0 bottom-0 z-40">
       <div className="flex justify-center px-4 pb-[var(--mobile-nav-bottom-offset)]">
         <LiquidGlass
           variant="floating"

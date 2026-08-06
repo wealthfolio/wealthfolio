@@ -974,6 +974,14 @@ mod tests {
             unimplemented!("not used in this test")
         }
 
+        async fn update_custom_logo_filename(
+            &self,
+            _asset_id: &str,
+            _filename: Option<&str>,
+        ) -> Result<crate::assets::assets_model::Asset> {
+            unimplemented!("not used in this test")
+        }
+
         fn get_by_id(&self, asset_id: &str) -> Result<crate::assets::assets_model::Asset> {
             self.assets
                 .iter()

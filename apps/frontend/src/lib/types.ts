@@ -625,6 +625,9 @@ export interface Instrument {
 
   // Taxonomy-based classifications
   classifications?: AssetClassifications | null;
+
+  // User-uploaded logo override filename, if one has been set
+  customLogoFilename?: string | null;
 }
 
 export interface MonetaryValue {
@@ -804,6 +807,9 @@ export interface Asset {
   // Derived
   exchangeName?: string | null; // Friendly exchange name (e.g., "NASDAQ")
 
+  // User-uploaded logo override filename, if one has been set
+  customLogoFilename?: string | null;
+
   // Audit
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
@@ -849,6 +855,7 @@ export interface QuoteUpdate {
 
 export interface Settings {
   theme: string;
+  chartPalette: "sage" | "amber" | "newspaper" | "cyberpunk";
   font: string;
   language: string;
   baseCurrency: string;
@@ -858,6 +865,7 @@ export interface Settings {
   autoUpdateCheckEnabled: boolean;
   menuBarVisible: boolean;
   syncEnabled: boolean;
+  showTargetAllocationCard: boolean;
 }
 
 export interface SettingsContextType {

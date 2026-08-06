@@ -4,6 +4,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `NetworkRequest.timeoutSecs` — optional per-request timeout override (in
+  seconds) for the addon network broker. Defaults to 10s when omitted;
+  clamped server-side to a 120s maximum. Lets addons make longer-running
+  non-streaming calls (e.g. LLM completions) that exceed the default timeout.
+
 ## [3.6.1] - 2026-07-06
 
 Follow-up to the v3.6 sandbox release: sidebar icons are now a typed, curated

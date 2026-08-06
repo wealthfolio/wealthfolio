@@ -1698,6 +1698,7 @@ pub async fn get_snapshot_by_date(
             preferred_provider: asset.preferred_provider(),
             exchange_mic: asset.instrument_exchange_mic.clone(),
             classifications: None,
+            custom_logo_filename: asset.custom_logo_filename.clone(),
         };
 
         let holding = Holding {

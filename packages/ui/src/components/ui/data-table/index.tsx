@@ -14,6 +14,7 @@ import {
 } from "@tanstack/react-table";
 import * as React from "react";
 
+import { cn } from "../../../lib/utils";
 import { Icons } from "../icons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../table";
 import { usePersistentState } from "../../../hooks/use-persistent-state";
@@ -37,6 +38,8 @@ interface DataTableProps<TData, TValue> {
   scrollable?: boolean;
   showColumnToggle?: boolean;
   toolbarActions?: React.ReactNode;
+  /** Extra className applied to each body row (e.g. to host a per-row background decoration). */
+  rowClassName?: string | ((row: TData) => string);
 }
 
 export function DataTable<TData, TValue>({
@@ -52,6 +55,7 @@ export function DataTable<TData, TValue>({
   scrollable = false,
   showColumnToggle = false,
   toolbarActions,
+  rowClassName,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [storedColumnVisibility, setColumnVisibility] = storageKey
@@ -127,7 +131,13 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                  className={cn(
+                    typeof rowClassName === "function" ? rowClassName(row.original) : rowClassName,
+                  )}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
                   ))}

@@ -596,6 +596,10 @@ pub async fn initialize_context(
         warn!("Failed to prune local sync outbox: {}", err);
     }
 
+    let asset_logo_store = Arc::new(wealthfolio_core::assets::AssetLogoStore::new(
+        std::path::Path::new(app_data_dir).join("asset-logos"),
+    ));
+
     Ok(ContextInitResult {
         context: ServiceContext {
             base_currency,
@@ -606,6 +610,7 @@ pub async fn initialize_context(
             account_service,
             activity_service,
             asset_service,
+            asset_logo_store,
             goal_service,
             quote_service,
             limits_service,

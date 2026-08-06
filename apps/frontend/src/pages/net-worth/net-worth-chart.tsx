@@ -11,8 +11,8 @@ import { Area, AreaChart, Tooltip, YAxis } from "recharts";
 import type { NetWorthHistoryPoint } from "@/lib/types";
 import type { MouseHandlerDataParam } from "recharts/types/synchronisation/types";
 
-// Goldish orange for net worth chart (consistent across light/dark modes)
-const CHART_COLOR = "hsl(38, 75%, 50%)";
+// Follows the active chart palette (Sage/Amber/Newspaper/Cyberpunk), see globals.css
+const CHART_COLOR = "var(--chart-1)";
 const NEGATIVE_COLOR = "var(--destructive)";
 const CHART_SCRUB_HAPTIC_INTERVAL_MS = 80;
 

@@ -33,7 +33,7 @@ import {
   AlertDialogTitle,
 } from "@wealthfolio/ui/components/ui/alert-dialog";
 import { Tabs, TabsContent } from "@wealthfolio/ui/components/ui/tabs";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -51,6 +51,8 @@ import ActivityTableMobile from "@/pages/activity/components/activity-table/acti
 import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
 import { useActivityActionDialogs } from "@/pages/activity/hooks/use-activity-action-dialogs";
 import { useAssetProfile } from "./hooks/use-asset-profile";
+import { useAssetLogoUrl } from "@/hooks/use-asset-logo-url";
+import { isDesktop } from "@/adapters";
 import { useAssetProfileMutations } from "./hooks/use-asset-profile-mutations";
 import { RefreshQuotesConfirmDialog } from "./refresh-quotes-confirm-dialog";
 import { useQuoteMutations } from "./hooks/use-quote-mutations";
@@ -304,6 +306,9 @@ export const AssetProfilePage = () => {
     isError: isAssetProfileError,
   } = useAssetProfile(assetId);
 
+  const { data: customLogoUrl } = useAssetLogoUrl(assetProfile ?? undefined);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
+
   const {
     holdings: allHoldings,
     isLoading: isHoldingLoading,
@@ -334,7 +339,8 @@ export const AssetProfilePage = () => {
   // Taxonomy data for category badges - use same approach as edit sheet
   const { data: assignments = [], isLoading: isAssignmentsLoading } =
     useAssetTaxonomyAssignments(assetId);
-  const { updateQuoteModeMutation } = useAssetProfileMutations();
+  const { updateQuoteModeMutation, uploadAssetLogoMutation, removeAssetLogoMutation } =
+    useAssetProfileMutations();
 
   // Fetch taxonomy details for taxonomies with assignments
   // We need the categories to get name and color
@@ -1359,6 +1365,30 @@ export const AssetProfilePage = () => {
                             label: t("asset:profile.edit"),
                             onClick: () => setEditSheetOpen(true),
                           },
+                          {
+                            icon: Icons.FileImage,
+                            label: assetProfile?.customLogoFilename
+                              ? t("asset:profile.change_logo", { defaultValue: "Change logo" })
+                              : t("asset:profile.upload_logo", { defaultValue: "Upload logo" }),
+                            onClick: () => {
+                              if (isDesktop) {
+                                uploadAssetLogoMutation.mutate({ assetId });
+                              } else {
+                                logoFileInputRef.current?.click();
+                              }
+                            },
+                          },
+                          ...(assetProfile?.customLogoFilename
+                            ? [
+                                {
+                                  icon: Icons.Trash,
+                                  label: t("asset:profile.remove_logo", {
+                                    defaultValue: "Remove logo",
+                                  }),
+                                  onClick: () => removeAssetLogoMutation.mutate(assetId),
+                                },
+                              ]
+                            : []),
                         ],
                       },
                     ] satisfies ActionPaletteGroup[])
@@ -1368,6 +1398,17 @@ export const AssetProfilePage = () => {
                   <Icons.DotsThreeVertical className="h-5 w-5" weight="fill" />
                 </Button>
               }
+            />
+            <input
+              ref={logoFileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) uploadAssetLogoMutation.mutate({ assetId, file });
+              }}
             />
           </div>
         }
@@ -1387,6 +1428,7 @@ export const AssetProfilePage = () => {
                   assetId
                 }
                 className="size-9"
+                customLogoUrl={customLogoUrl}
               />
             )
           )}
@@ -1500,6 +1542,11 @@ export const AssetProfilePage = () => {
                   totalGainAmount={profile.totalGainAmount}
                   totalGainPercent={profile.totalGainPercent}
                   quoteHistory={quoteHistory ?? []}
+                  averageCost={
+                    symbolHolding && symbolHolding.numShares > 0
+                      ? symbolHolding.averagePrice
+                      : undefined
+                  }
                   className={`col-span-1 ${symbolHolding ? "md:col-span-2" : "md:col-span-3"}`}
                 />
                 {symbolHolding && (
@@ -1528,6 +1575,11 @@ export const AssetProfilePage = () => {
                   totalGainAmount={profile.totalGainAmount}
                   totalGainPercent={profile.totalGainPercent}
                   quoteHistory={quoteHistory ?? []}
+                  averageCost={
+                    symbolHolding && symbolHolding.numShares > 0
+                      ? symbolHolding.averagePrice
+                      : undefined
+                  }
                   className={`col-span-1 ${symbolHolding ? "md:col-span-2" : "md:col-span-3"}`}
                 />
                 {symbolHolding && (

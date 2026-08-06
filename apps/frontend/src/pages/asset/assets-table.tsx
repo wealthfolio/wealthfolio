@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
-import { TickerAvatar } from "@/components/ticker-avatar";
+import { AssetTickerAvatar } from "@/components/ticker-avatar";
 import { Badge } from "@wealthfolio/ui";
 import { DataTable } from "@wealthfolio/ui/components/ui/data-table";
 import { DataTableColumnHeader } from "@wealthfolio/ui/components/ui/data-table/data-table-column-header";
@@ -107,7 +107,7 @@ export function AssetsTable({
               onClick={() => navigate(`/holdings/${encodeURIComponent(asset.id)}`)}
               className="hover:bg-muted/60 focus-visible:ring-ring group flex w-full items-center gap-2.5 rounded-md py-1 text-left transition"
             >
-              <TickerAvatar symbol={avatarSymbol} className="h-8 w-8 shrink-0" />
+              <AssetTickerAvatar asset={asset} symbol={avatarSymbol} className="h-8 w-8 shrink-0" />
               <div className="min-w-0 flex-1">
                 <div className="group-hover:text-primary flex items-center gap-1.5 font-semibold leading-tight transition-colors">
                   {displaySymbol}

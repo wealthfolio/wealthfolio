@@ -33,6 +33,9 @@ pub struct Instrument {
 
     // Taxonomy-based classifications
     pub classifications: Option<AssetClassifications>,
+
+    // User-uploaded logo override filename, if one has been set
+    pub custom_logo_filename: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -158,6 +161,8 @@ pub struct HoldingListInstrument {
     pub exchange_mic: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub classifications: Option<AssetClassifications>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_logo_filename: Option<String>,
 }
 
 /// List-oriented holding payload for app tables and dashboards.
@@ -222,6 +227,7 @@ impl From<Holding> for HoldingListItem {
                 isin,
                 exchange_mic: instrument.exchange_mic,
                 classifications,
+                custom_logo_filename: instrument.custom_logo_filename,
             }
         });
 

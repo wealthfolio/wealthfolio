@@ -2301,6 +2301,7 @@ mod tests {
             exchange_name: None,
             created_at: now.naive_utc(),
             updated_at: now.naive_utc(),
+            custom_logo_filename: None,
         }
     }
 

@@ -52,6 +52,12 @@ export default function SettingsLayout() {
             icon: <Icons.TrendingUp className="size-5" />,
           },
           {
+            title: t("settings:nav.items.target_allocation"),
+            href: "target-allocation",
+            subtitle: t("settings:nav.subtitles.target_allocation"),
+            icon: <Icons.Target className="size-5" />,
+          },
+          {
             title: t("settings:nav.items.spending"),
             href: "spending",
             subtitle: t("settings:nav.subtitles.spending"),

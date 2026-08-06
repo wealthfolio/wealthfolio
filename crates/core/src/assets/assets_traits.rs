@@ -46,6 +46,17 @@ pub trait AssetServiceTrait: Send + Sync {
     async fn update_quote_mode_silent(&self, asset_id: &str, quote_mode: &str) -> Result<Asset> {
         self.update_quote_mode(asset_id, quote_mode).await
     }
+    /// Sets or clears the stored custom logo filename for an asset.
+    /// Default is unsupported; only the concrete `AssetService` overrides this.
+    async fn update_custom_logo_filename(
+        &self,
+        _asset_id: &str,
+        _filename: Option<&str>,
+    ) -> Result<Asset> {
+        Err(crate::errors::Error::Asset(
+            "Custom logo overrides are not supported by this asset service".to_string(),
+        ))
+    }
     async fn get_assets_by_asset_ids(&self, asset_ids: &[String]) -> Result<Vec<Asset>>;
     /// Enriches an existing asset's profile with data from market data provider.
     /// Updates the profile JSON (sectors, countries, website) and notes fields.
@@ -181,6 +192,13 @@ pub trait AssetRepositoryTrait: Send + Sync {
     async fn create_batch(&self, new_assets: Vec<NewAsset>) -> Result<Vec<Asset>>;
     async fn update_profile(&self, asset_id: &str, payload: UpdateAssetProfile) -> Result<Asset>;
     async fn update_quote_mode(&self, asset_id: &str, quote_mode: &str) -> Result<Asset>;
+    /// Sets or clears the stored custom logo filename for an asset.
+    /// `filename` is `None` to clear the override back to the default logo.
+    async fn update_custom_logo_filename(
+        &self,
+        asset_id: &str,
+        filename: Option<&str>,
+    ) -> Result<Asset>;
     fn get_by_id(&self, asset_id: &str) -> Result<Asset>;
     fn list(&self) -> Result<Vec<Asset>>;
     fn list_by_asset_ids(&self, asset_ids: &[String]) -> Result<Vec<Asset>>;

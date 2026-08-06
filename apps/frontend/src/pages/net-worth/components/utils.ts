@@ -1,10 +1,11 @@
 import type { CategoryAllocation, NetWorthHistoryPoint, TaxonomyAllocation } from "@/lib/types";
 import { formatPercent } from "@/lib/utils";
 
-// Goldish orange net-worth theme (matches the history chart). Reserved for the
-// chart/brand; value numbers use semantic green/red tones (orange == warning).
-export const THEME_COLOR = "hsl(38 75% 50%)";
-export const THEME_COLOR_LIGHT = "hsl(38 75% 50% / 0.12)";
+// Net-worth theme accent — matches the history chart's line color and follows
+// the active chart palette (see globals.css). Value numbers use semantic
+// green/red tones separately.
+export const THEME_COLOR = "var(--chart-1)";
+export const THEME_COLOR_LIGHT = "color-mix(in srgb, var(--chart-1) 12%, transparent)";
 
 /** Semantic text tone for a signed value: green gain, red loss, muted when flat. */
 export function toneClass(value: number): string {
@@ -25,18 +26,19 @@ export function toneFill(value: number): string {
 
 export const CARD_LABEL = "text-muted-foreground/70 text-xs font-semibold uppercase tracking-wide";
 
-// Muted, semantic category palette (tuned for the warm/cream theme). Used for
-// the composition bar, breakdown row dots, and the detail-sheet icons so they
-// stay consistent. Liabilities keep the semantic red.
-// NOTE: tuned for light mode — dark-mode variants would need theme-aware tokens.
+// Semantic category palette, mapped onto the app's --chart-N tokens (see
+// globals.css) so it follows whichever chart palette (Sage/Amber/Newspaper/
+// Cyberpunk) and light/dark mode is active. Used for the composition bar,
+// breakdown row dots, and the detail-sheet icons so they stay consistent.
+// Liabilities keep the semantic destructive (red) tone.
 export const CATEGORY_CSS_COLORS: Record<string, string> = {
-  properties: "#4b4137", // warm dark taupe / charcoal
-  investments: "#6f7544", // muted olive green
-  cash: "#d8c98f", // pale cream / light gold
-  vehicles: "#6d7c86", // muted slate
-  otherAssets: "#928d83", // medium warm gray
-  preciousMetals: "#b8923a", // soft gold
-  collectibles: "#8a6b49", // muted brown
+  properties: "var(--chart-1)",
+  investments: "var(--chart-2)",
+  cash: "var(--chart-3)",
+  vehicles: "var(--chart-4)",
+  otherAssets: "var(--chart-5)",
+  preciousMetals: "var(--chart-6)",
+  collectibles: "var(--chart-7)",
   liabilities: "var(--destructive)",
 };
 

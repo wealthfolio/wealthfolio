@@ -8,6 +8,7 @@ import {
   Area,
   AreaChart,
   ReferenceDot,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -65,6 +66,7 @@ export default function HistoryChart({
   interval,
   activityMarkers = [],
   onActivityMarkerClick,
+  averageCost,
   height = 350,
 }: {
   data: HistoryChartData[];
@@ -72,6 +74,7 @@ export default function HistoryChart({
   height?: number;
   activityMarkers?: HistoryChartActivityMarker[];
   onActivityMarkerClick?: (marker: HistoryChartActivityMarker) => void;
+  averageCost?: number;
 }) {
   const [hoveredMarker, setHoveredMarker] = useState(false);
   const markerByTimestamp = useMemo(() => {
@@ -142,6 +145,21 @@ export default function HistoryChart({
               fillOpacity={1}
               fill="url(#colorUv)"
             />
+            {averageCost != null && averageCost > 0 && (
+              <ReferenceLine
+                y={averageCost}
+                stroke="var(--foreground)"
+                strokeDasharray="4 3"
+                strokeWidth={1}
+                ifOverflow="extendDomain"
+                label={{
+                  value: formatPrice(averageCost, data[0]?.currency ?? "", false),
+                  position: "insideBottomLeft",
+                  fill: "var(--foreground)",
+                  fontSize: 11,
+                }}
+              />
+            )}
             {activityMarkers.map((marker) => {
               return (
                 <ReferenceDot

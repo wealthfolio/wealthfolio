@@ -295,6 +295,13 @@ export interface AssetsAPI {
    * @returns Promise resolving to updated asset
    */
   updateQuoteMode(assetId: string, quoteMode: string): Promise<Asset>;
+
+  /**
+   * Get the user-uploaded custom logo override for an asset, if one is set.
+   * @param assetId Asset identifier
+   * @returns Promise resolving to a ready-to-use `data:` URL, or `null` if no custom logo is set
+   */
+  getLogoDataUrl(assetId: string): Promise<string | null>;
 }
 
 /**
@@ -766,6 +773,11 @@ export interface NetworkRequest {
   headers?: Record<string, string>;
   body?: string;
   auth?: NetworkAuth;
+  /**
+   * Per-request timeout override, in seconds. Defaults to 10s when omitted.
+   * Clamped server-side to a 120s maximum.
+   */
+  timeoutSecs?: number;
 }
 
 export interface NetworkResponse {

@@ -527,6 +527,84 @@
   --input: hsl(var(--flexoki-ui-2));
 }
 
+/* Amber chart palette (classic pre-v3.5 dark-mode hues), opt-in via Settings > Appearance.
+   Same values in light and dark so the palette identity stays consistent across themes. */
+.chart-amber,
+.dark.chart-amber {
+  --chart-1: hsl(25 92% 72%);
+  --chart-2: hsl(24 81% 61%);
+  --chart-3: hsl(23 70% 51%);
+  --chart-4: hsl(23 73% 46%);
+  --chart-5: hsl(22 80% 41%);
+  --chart-6: hsl(22 82% 34%);
+  --chart-7: hsl(22 79% 25%);
+  --chart-8: hsl(22 75% 20%);
+  --chart-9: hsl(22 70% 15%);
+  --chart-stone: hsl(22 82% 34%);
+}
+
+/* Newspaper chart palette — monochrome ombre (the pre-v3.5 light-mode grayscale hues) */
+.chart-newspaper {
+  --chart-1: hsl(40 3% 20%);
+  --chart-2: hsl(45 2% 33%);
+  --chart-3: hsl(50 3% 42%);
+  --chart-4: hsl(43 3% 52%);
+  --chart-5: hsl(47 4% 61%);
+  --chart-6: hsl(49 7% 70%);
+  --chart-7: hsl(55 10% 79%);
+  --chart-8: hsl(50 14% 83%);
+  --chart-9: hsl(51 21% 88%);
+  --chart-stone: hsl(49 7% 70%);
+}
+
+.dark.chart-newspaper {
+  --chart-1: hsl(50 8% 88%);
+  --chart-2: hsl(49 7% 78%);
+  --chart-3: hsl(51 6% 68%);
+  --chart-4: hsl(48 5% 58%);
+  --chart-5: hsl(46 4% 48%);
+  --chart-6: hsl(44 3% 38%);
+  --chart-7: hsl(42 3% 30%);
+  --chart-8: hsl(38 2% 24%);
+  --chart-9: hsl(35 2% 18%);
+  --chart-stone: hsl(44 3% 38%);
+}
+
+/* Cyberpunk chart palette — cyan/blue/purple/magenta from the Flexoki extended
+   palette (https://mdscheuerell.github.io/flexoki/). Dark mode uses lighter
+   300/400 steps for contrast on the near-black surface. */
+.chart-cyberpunk {
+  --chart-1: #1c6c66; /* Cyan 700 */
+  --chart-2: #205ea6; /* Blue 600 */
+  --chart-3: #735eb5; /* Purple 500 */
+  --chart-4: #b74583; /* Magenta 600 */
+  --chart-5: #3aa99f; /* Cyan 400 */
+  --chart-6: hsl(49 7% 70%);
+  --chart-7: hsl(55 10% 79%);
+  --chart-8: hsl(50 14% 83%);
+  --chart-9: hsl(51 21% 88%);
+  --chart-stone: hsl(49 7% 70%);
+  /* App-wide gain/loss (--success/--destructive) follow the same cyan/magenta
+     identity as the heatmaps, instead of the default olive-green/red. */
+  --success: var(--heatmap-good);
+  --destructive: var(--heatmap-bad);
+}
+
+.dark.chart-cyberpunk {
+  --chart-1: #5abdac; /* Cyan 300 */
+  --chart-2: #66a0c8; /* Blue 300 */
+  --chart-3: #a699d0; /* Purple 300 */
+  --chart-4: #ce5d97; /* Magenta 400 */
+  --chart-5: #87d3c3; /* Cyan 200 */
+  --chart-6: hsl(49 8% 60%);
+  --chart-7: hsl(55 10% 67%);
+  --chart-8: hsl(50 13% 72%);
+  --chart-9: hsl(51 18% 77%);
+  --chart-stone: hsl(49 8% 60%);
+  --success: var(--heatmap-good);
+  --destructive: var(--heatmap-bad);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -1043,12 +1121,325 @@ summary {
   --heatmap-empty-opacity: 0.07;
   --heatmap-min-opacity: 0.18;
   --heatmap-range-opacity: 0.75;
+  /* Good/warn/bad cell tones for diverging heatmaps (e.g. the Risk Lab decision
+     grid). Default to the semantic theme colors; palettes below can override. */
+  --heatmap-good: var(--success);
+  --heatmap-warn: var(--warning);
+  --heatmap-bad: var(--destructive);
 }
 .dark {
   --heatmap-accent: oklch(0.78 0.13 150);
   --heatmap-empty-opacity: 0.1;
   --heatmap-min-opacity: 0.25;
   --heatmap-range-opacity: 0.7;
+}
+
+/* Amber heatmap tones — from the user-supplied red/green scales. Light mode
+   uses the deep 700 step for contrast on a light card; dark mode uses the
+   lighter 400 step so cells stay visible against the near-black surface. */
+.chart-amber {
+  --heatmap-accent: #536907;
+  --heatmap-good: #536907;
+  --heatmap-warn: oklch(0.62 0.16 55);
+  --heatmap-bad: #942822;
+}
+
+.dark.chart-amber {
+  --heatmap-accent: #879a39;
+  --heatmap-good: #879a39;
+  --heatmap-warn: oklch(0.75 0.16 60);
+  --heatmap-bad: #d14d41;
+}
+
+/* Newspaper heatmap tones — grayscale, good/bad distinguished by lightness only. */
+.chart-newspaper {
+  --heatmap-accent: hsl(40 3% 20%);
+  --heatmap-good: hsl(40 3% 20%);
+  --heatmap-warn: hsl(47 4% 50%);
+  --heatmap-bad: hsl(50 3% 35%);
+}
+
+.dark.chart-newspaper {
+  --heatmap-accent: hsl(50 8% 88%);
+  --heatmap-good: hsl(50 8% 88%);
+  --heatmap-warn: hsl(48 5% 58%);
+  --heatmap-bad: hsl(44 3% 40%);
+}
+
+/* Cyberpunk heatmap tones — cyan (good) / magenta (bad), the classic neon
+   two-tone contrast; blue stands in for the warn step. */
+.chart-cyberpunk {
+  --heatmap-accent: #1c6c66;
+  --heatmap-good: #1c6c66;
+  --heatmap-warn: #205ea6;
+  --heatmap-bad: #87285e;
+}
+
+.dark.chart-cyberpunk {
+  --heatmap-accent: #3aa99f;
+  --heatmap-good: #3aa99f;
+  --heatmap-warn: #4385be;
+  --heatmap-bad: #ce5d97;
+}
+
+/* Newspaper: sharp column-box corners app-wide, and cards get a solid rule
+   line instead of a soft drop shadow. */
+.chart-newspaper {
+  --radius: 0rem;
+}
+
+.chart-newspaper .shadow-xs {
+  box-shadow: none;
+  border-width: 1.3px;
+  border-color: color-mix(in srgb, var(--foreground) 30%, transparent);
+}
+
+/* Shared paper-grain texture, referenced by both the live Newspaper theme
+   and its always-on settings preview swatch. */
+:root {
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch' result='noise'/%3E%3CfeColorMatrix in='noise' type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Always show the grain on the Newspaper option in the palette picker,
+   regardless of which palette is currently active. */
+.newspaper-swatch-texture::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image: var(--paper-grain);
+  background-repeat: repeat;
+}
+
+/* Always show a cyan glow hint on the Cyberpunk option in the palette picker,
+   regardless of which palette is currently active. Fixed color (not
+   var(--chart-1)) since this should always read as cyan here. */
+.cyberpunk-swatch-glow {
+  box-shadow: inset 0 0 20px 2px color-mix(in srgb, #3aa99f 55%, transparent);
+}
+
+/* Newspaper: paper texture. Cards paint their own opaque backgrounds over
+   most of .app-shell, so a background-image on the shell itself only shows
+   through the gaps. Instead, overlay a pseudo-element on top of everything
+   (still inside .app-shell's stacking context, so it never floats above
+   body-portaled dialogs) and blend it with mix-blend-mode.
+   Some routes (e.g. settings) nest a second .app-shell inside the outer one —
+   :not(.app-shell .app-shell) restricts this to the outermost shell only, so
+   the two don't each tile their own copy from a different origin (a visible
+   seam where the nested shell begins). */
+.chart-newspaper .app-shell:not(.app-shell .app-shell) {
+  position: relative;
+}
+
+.chart-newspaper .app-shell:not(.app-shell .app-shell)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image: var(--paper-grain);
+  background-repeat: repeat;
+}
+
+/* Cyberpunk: neon glow on primary actions, active nav items, and focus rings.
+   --chart-1 is this palette's cyan, and already resolves per light/dark mode. */
+.chart-cyberpunk .bg-primary {
+  box-shadow: 0 0 14px 1px color-mix(in srgb, var(--chart-1) 55%, transparent);
+}
+
+/* Sidebar nav: no pill background/ring on any item, in any state — the icon
+   glows instead. Nav items use Button asChild + Link, so the rendered element
+   is an <a>, not a <button> — target both to be safe. Covers focus-visible
+   explicitly since these keep that state after being clicked, which otherwise
+   looks like a persistent highlight box around the icon. */
+.chart-cyberpunk .app-sidebar a,
+.chart-cyberpunk .app-sidebar button,
+.chart-cyberpunk .app-sidebar a:hover,
+.chart-cyberpunk .app-sidebar button:hover,
+.chart-cyberpunk .app-sidebar a:focus,
+.chart-cyberpunk .app-sidebar button:focus,
+.chart-cyberpunk .app-sidebar a:focus-visible,
+.chart-cyberpunk .app-sidebar button:focus-visible {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.chart-cyberpunk .app-sidebar a:hover svg,
+.chart-cyberpunk .app-sidebar button:hover svg {
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--chart-1) 70%, transparent));
+}
+
+/* Sidebar active nav item: icon stays tinted + glowing (not just on hover),
+   plus a subtle glowing underline instead of a full glow halo around the button. */
+.chart-cyberpunk .app-sidebar [aria-current="page"] {
+  position: relative;
+}
+
+.chart-cyberpunk .app-sidebar [aria-current="page"] svg {
+  color: var(--chart-1);
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--chart-1) 70%, transparent));
+}
+
+.chart-cyberpunk .app-sidebar [aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  transform: translateX(-50%);
+  width: 55%;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--chart-1);
+  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--chart-1) 70%, transparent);
+}
+
+/* Other nav/tab bars (e.g. page-level tabs like Investments/Assets/Liabilities):
+   a border-outline glow around the active tab instead of an underline.
+   Some of these tabs have a sibling motion.div (Framer Motion layoutId pill)
+   that slides/resizes via transform right when aria-current changes — a
+   blurred box-shadow rendering mid-transform produces a visible artifact.
+   The delay skips past that animation entirely; the fade then only plays
+   once it's already settled, so there's never a transform + glow overlap.
+   Excludes .floating-nav-bar (bottom nav bar), which gets icon-only glow
+   treatment below instead — same as the sidebar, no underline or outline. */
+.chart-cyberpunk
+  [aria-current="page"]:not(.app-sidebar [aria-current="page"]):not(
+    .floating-nav-bar [aria-current="page"]
+  ) {
+  box-shadow:
+    0 0 0 1px var(--chart-1),
+    0 0 10px 1px color-mix(in srgb, var(--chart-1) 45%, transparent);
+  transition: box-shadow 0.3s ease-out 0.15s;
+}
+
+/* Bottom floating nav bar: icon tint + glow only, no underline/outline. */
+.chart-cyberpunk .floating-nav-bar [aria-current="page"] svg {
+  color: var(--chart-1);
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--chart-1) 70%, transparent));
+}
+
+/* Soft neon glow behind the Wealthfolio logo in the sidebar. Kept tight
+   (small inset/blur) since the logo sits close to the sidebar nav's
+   scrollable container (overflow-y-auto), which clips anything bleeding
+   further than the available padding above it. */
+.chart-cyberpunk .app-logo::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--chart-1) 75%, transparent) 0%,
+    transparent 70%
+  );
+  filter: blur(4px);
+  pointer-events: none;
+}
+
+/* Cyberpunk: replace the logo's 3D flip with an RGB-split glitch on hover.
+   Two duplicate copies of the logo (added as sibling <span>s in JSX, since
+   ::before/::after on the img itself isn't reliably rendered as a separate
+   box across browsers) get hue-shifted and jitter via clip-path + transform,
+   screen-blended over the original for a torn-signal look. */
+.chart-cyberpunk .app-logo:hover img {
+  transform: none !important;
+}
+
+.app-logo-glitch {
+  display: none;
+}
+
+.chart-cyberpunk .app-logo-glitch {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-image: url("/logo.png");
+  background-size: cover;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.chart-cyberpunk .app-logo:hover .app-logo-glitch {
+  display: block;
+  animation: logo-glitch 0.5s steps(1, end) infinite;
+}
+
+.chart-cyberpunk .app-logo-glitch-cyan {
+  filter: hue-rotate(140deg) saturate(3);
+}
+
+.chart-cyberpunk .app-logo-glitch-magenta {
+  filter: hue-rotate(-40deg) saturate(3);
+  animation-direction: reverse;
+}
+
+@keyframes logo-glitch {
+  0%,
+  100% {
+    clip-path: inset(0 0 0 0);
+    transform: translate(0, 0);
+  }
+  15% {
+    clip-path: inset(10% 0 55% 0);
+    transform: translate(-2px, 1px);
+  }
+  30% {
+    clip-path: inset(55% 0 10% 0);
+    transform: translate(2px, -1px);
+  }
+  45% {
+    clip-path: inset(0 0 75% 0);
+    transform: translate(-1px, 2px);
+  }
+  60% {
+    clip-path: inset(65% 0 5% 0);
+    transform: translate(1px, -2px);
+  }
+  75% {
+    clip-path: inset(0 0 0 0);
+    transform: translate(0, 0);
+  }
+}
+
+/* Donut/gauge active-or-hovered segment glows in its own color. */
+.chart-cyberpunk .donut-active-sector {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--segment-glow-color) 70%, transparent));
+}
+
+/* Ambient neon glow behind everything — a soft colored blob, screen-blended
+   (additive/brightening, unlike the paper-grain's multiply) so it reads
+   through opaque cards instead of only showing in the gaps. Scoped to
+   .main-content (not .app-shell) so it doesn't spill onto the sidebar. */
+.chart-cyberpunk .main-content::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 49;
+  pointer-events: none;
+  opacity: 0.4;
+  mix-blend-mode: screen;
+  background-image: radial-gradient(
+    circle at 8% 12%,
+    color-mix(in srgb, var(--chart-1) 30%, transparent) 0%,
+    transparent 25%
+  );
+}
+
+/* Skip the ambient glow on the dashboard view — too busy alongside its own
+   charts/gauges. */
+.chart-cyberpunk .main-content:has(.dashboard-page)::after {
+  display: none;
+}
+
+/* filter/drop-shadow (not box-shadow) so this doesn't clobber the existing
+   focus-visible ring, which is itself implemented via box-shadow. */
+.chart-cyberpunk *:focus-visible {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--chart-1) 60%, transparent));
 }
 
 /* Spending-module shared chart tokens. --status-warn is the "approaching

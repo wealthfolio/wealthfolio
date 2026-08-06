@@ -20,7 +20,7 @@ use wealthfolio_core::{
     activities::{ActivityService as CoreActivityService, ActivityServiceTrait},
     assets::{
         AlternativeAssetRepositoryTrait, AlternativeAssetService, AlternativeAssetServiceTrait,
-        AssetClassificationService, AssetService, AssetServiceTrait,
+        AssetClassificationService, AssetLogoStore, AssetService, AssetServiceTrait,
     },
     events::DomainEventSink,
     fx::{FxService, FxServiceTrait},
@@ -94,6 +94,7 @@ pub struct AppState {
     pub fx_service: Arc<dyn FxServiceTrait + Send + Sync>,
     pub activity_service: Arc<dyn ActivityServiceTrait + Send + Sync>,
     pub asset_service: Arc<dyn AssetServiceTrait + Send + Sync>,
+    pub asset_logo_store: Arc<AssetLogoStore>,
     pub taxonomy_service: Arc<dyn TaxonomyServiceTrait + Send + Sync>,
     pub net_worth_service: Arc<dyn NetWorthServiceTrait + Send + Sync>,
     pub alternative_asset_service: Arc<dyn AlternativeAssetServiceTrait + Send + Sync>,
@@ -829,6 +830,10 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         None => None,
     };
 
+    let asset_logo_store = Arc::new(AssetLogoStore::new(
+        std::path::Path::new(&data_root).join("asset-logos"),
+    ));
+
     let state = Arc::new(AppState {
         domain_event_sink,
         account_service,
@@ -849,6 +854,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         fx_service: fx_service.clone(),
         activity_service,
         asset_service,
+        asset_logo_store,
         taxonomy_service,
         net_worth_service,
         alternative_asset_service,

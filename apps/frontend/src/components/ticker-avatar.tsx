@@ -2,12 +2,16 @@ import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { parseOccSymbol } from "@/lib/occ-symbol";
+import { useAssetLogoUrl } from "@/hooks/use-asset-logo-url";
+import type { Asset } from "@/lib/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@wealthfolio/ui";
 
 interface TickerAvatarProps {
   symbol: string;
   className?: string;
   imageClassName?: string;
+  /** Resolved user-uploaded logo override URL (data URL or server path), if any. */
+  customLogoUrl?: string | null;
 }
 
 const CASH_AVATAR_LABELS: Record<string, string> = {
@@ -34,7 +38,8 @@ const getFallbackAvatarLabel = (symbol: string): string => symbol.slice(0, 4);
 export const TickerAvatar = ({
   symbol,
   className = "size-8",
-  imageClassName = "object-contain p-2",
+  imageClassName,
+  customLogoUrl,
 }: TickerAvatarProps) => {
   // For OCC option symbols (e.g. "AAPL250321C00150000"), use the underlying ticker for logo
   const parsed = symbol ? parseOccSymbol(symbol) : null;
@@ -44,12 +49,25 @@ export const TickerAvatar = ({
   const baseSymbol = logoSymbol ? logoSymbol.split(/[.:-]/)[0].toUpperCase() : "";
   const fullSymbol = logoSymbol ? logoSymbol.toUpperCase() : "";
 
-  // Try full symbol first, then fallback to base symbol
-  const primaryLogoUrl = fullSymbol ? `/ticker-logos/${fullSymbol}.png` : "";
-  const fallbackLogoUrl = baseSymbol ? `/ticker-logos/${baseSymbol}.png` : "";
+  // A user-uploaded override always wins; only fall back to the bundled
+  // ticker-logos resolution (full symbol, then base symbol) when unset.
+  const primaryLogoUrl = customLogoUrl || (fullSymbol ? `/ticker-logos/${fullSymbol}.png` : "");
+  const fallbackLogoUrl = customLogoUrl
+    ? ""
+    : baseSymbol
+      ? `/ticker-logos/${baseSymbol}.png`
+      : "";
   const cashAvatarLabel = getCashAvatarLabel(fullSymbol);
   const fallbackAvatarLabel = baseSymbol ? getFallbackAvatarLabel(baseSymbol) : "•";
   const [logoUrl, setLogoUrl] = useState(primaryLogoUrl);
+
+  // object-contain never distorts the source image: a landscape logo scales
+  // to the circle's full width (letterboxed top/bottom), a portrait logo
+  // scales to the circle's full height (letterboxed left/right) — either
+  // way the aspect ratio is preserved, unlike `object-cover` (which crops)
+  // or leaving `object-fit` unset (which stretches to fill).
+  const resolvedImageClassName =
+    imageClassName ?? (customLogoUrl ? "object-contain" : "object-contain p-2");
 
   useEffect(() => {
     setLogoUrl(primaryLogoUrl);
@@ -74,7 +92,7 @@ export const TickerAvatar = ({
       <AvatarImage
         src={logoUrl}
         alt={fullSymbol}
-        className={imageClassName}
+        className={resolvedImageClassName}
         onLoadingStatusChange={(status) => {
           if (
             status === "error" &&
@@ -97,5 +115,66 @@ export const TickerAvatar = ({
         </span>
       </AvatarFallback>
     </Avatar>
+  );
+};
+
+interface AssetTickerAvatarProps extends Omit<TickerAvatarProps, "customLogoUrl"> {
+  /** The full asset row/profile this avatar represents (needed to resolve a logo override). */
+  asset: Pick<Asset, "id" | "customLogoFilename"> | undefined;
+}
+
+/**
+ * Convenience wrapper for call sites that already have a full `Asset` object
+ * (as opposed to the slimmer `Instrument` DTO some holdings/activity views
+ * use) — resolves the logo override automatically instead of requiring each
+ * caller to call `useAssetLogoUrl` itself.
+ */
+export const AssetTickerAvatar = ({ asset, ...props }: AssetTickerAvatarProps) => {
+  const { data: customLogoUrl } = useAssetLogoUrl(asset);
+  return <TickerAvatar {...props} customLogoUrl={customLogoUrl} />;
+};
+
+interface AssetLogoWatermarkProps {
+  /** The full asset/instrument this row represents (needed to resolve a logo override). */
+  asset: Pick<Asset, "id" | "customLogoFilename"> | undefined;
+  className?: string;
+}
+
+/**
+ * Large, unboxed, low-opacity background rendering of a custom logo,
+ * intended for full-width list rows (e.g. a holdings row). Renders nothing
+ * when the asset has no custom logo override. The containing row must be
+ * `relative` (and ideally `isolate overflow-hidden`) for this to lay out
+ * correctly behind the row's foreground content.
+ */
+export const AssetLogoWatermark = ({ asset, className }: AssetLogoWatermarkProps) => {
+  const { data: customLogoUrl } = useAssetLogoUrl(asset);
+  if (!customLogoUrl) return null;
+
+  // A background-image div anchored directly to its own container's edges
+  // (top-0 bottom-0), rather than an <img> sized via `h-full`/`inset-y-0` —
+  // percentage heights on a positioned element only resolve if every
+  // ancestor in the chain has a *definite* height, which table cells and
+  // flex rows sized by their own content don't reliably provide. Anchoring
+  // to edges works regardless of how the container's height was computed.
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(
+        "pointer-events-none absolute left-0 top-0 bottom-0 -z-10 w-48 opacity-10",
+        "[mask-image:linear-gradient(to_right,black,transparent_85%)]",
+        className,
+      )}
+      style={{
+        backgroundImage: `url(${customLogoUrl})`,
+        // Bounded to a fixed-width box (not the full row): `cover` scales to
+        // fill both dimensions of *that* box, giving a bigger, more zoomed-in
+        // result than fitting to height alone, and leaves room past the
+        // image's own edge for the mask fade to actually be visible against.
+        backgroundSize: "cover",
+        backgroundPosition: "left center",
+        backgroundRepeat: "no-repeat",
+      }}
+    />
   );
 };

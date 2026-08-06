@@ -32,7 +32,7 @@ import {
   TooltipTrigger,
 } from "@wealthfolio/ui";
 import { format, subMonths } from "date-fns";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ASSET_MARKER_ACTIVITY_TYPES,
@@ -43,6 +43,8 @@ import {
 } from "./asset-history-markers";
 import { RefreshQuotesConfirmDialog } from "./refresh-quotes-confirm-dialog";
 
+const SHOW_ACTIVITY_MARKERS_STORAGE_KEY = "history-chart-show-activity-markers";
+
 interface AssetHistoryProps {
   marketPrice: number;
   totalGainAmount: number;
@@ -50,6 +52,7 @@ interface AssetHistoryProps {
   currency: string;
   quoteHistory: Quote[];
   assetId: string;
+  averageCost?: number;
   className?: string;
 }
 
@@ -60,13 +63,27 @@ const AssetHistoryCard: React.FC<AssetHistoryProps> = ({
   currency,
   quoteHistory,
   assetId,
+  averageCost,
   className,
 }) => {
   const { t } = useTranslation();
   const syncMarketDataMutation = useSyncMarketDataMutation(true);
   const { isBalanceHidden } = useBalancePrivacy();
   const [refreshConfirmOpen, setRefreshConfirmOpen] = useState(false);
-  const [showActivityMarkers, setShowActivityMarkers] = useState(false);
+  const [showActivityMarkers, setShowActivityMarkers] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(SHOW_ACTIVITY_MARKERS_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SHOW_ACTIVITY_MARKERS_STORAGE_KEY, String(showActivityMarkers));
+    } catch {
+      // localStorage unavailable (e.g. private browsing); the toggle just won't persist.
+    }
+  }, [showActivityMarkers]);
   const [selectedActivityDate, setSelectedActivityDate] = useState<string | null>(null);
   const [isActivitySheetOpen, setIsActivitySheetOpen] = useState(false);
 
@@ -270,6 +287,7 @@ const AssetHistoryCard: React.FC<AssetHistoryProps> = ({
           <HistoryChart
             data={chartData}
             activityMarkers={activityMarkers}
+            averageCost={showActivityMarkers ? averageCost : undefined}
             onActivityMarkerClick={(marker) => {
               setSelectedActivityDate(dateKey(marker.point));
               setIsActivitySheetOpen(true);

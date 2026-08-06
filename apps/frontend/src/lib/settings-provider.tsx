@@ -13,6 +13,7 @@ interface ExtendedSettingsContextType extends SettingsContextType {
       Pick<
         Settings,
         | "theme"
+        | "chartPalette"
         | "font"
         | "language"
         | "baseCurrency"
@@ -21,6 +22,7 @@ interface ExtendedSettingsContextType extends SettingsContextType {
         | "onboardingCompleted"
         | "menuBarVisible"
         | "syncEnabled"
+        | "showTargetAllocationCard"
       >
     >,
   ) => Promise<void>;
@@ -47,6 +49,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       Pick<
         Settings,
         | "theme"
+        | "chartPalette"
         | "font"
         | "language"
         | "baseCurrency"
@@ -55,6 +58,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         | "onboardingCompleted"
         | "menuBarVisible"
         | "syncEnabled"
+        | "showTargetAllocationCard"
       >
     >,
   ) => {
@@ -151,6 +155,17 @@ const applySettingsToDocument = (newSettings: Settings) => {
   // Font classes
   document.body.classList.remove("font-mono", "font-sans", "font-serif");
   document.body.classList.add(newSettings.font);
+
+  // Chart palette
+  document.documentElement.classList.toggle("chart-amber", newSettings.chartPalette === "amber");
+  document.documentElement.classList.toggle(
+    "chart-newspaper",
+    newSettings.chartPalette === "newspaper",
+  );
+  document.documentElement.classList.toggle(
+    "chart-cyberpunk",
+    newSettings.chartPalette === "cyberpunk",
+  );
 
   // Cache theme/font in localStorage for pre-auth usage (login screen)
   try {

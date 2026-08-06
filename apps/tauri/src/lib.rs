@@ -606,6 +606,9 @@ pub fn run() {
             commands::asset::update_quote_mode,
             commands::asset::delete_asset,
             commands::asset::create_asset,
+            commands::asset::get_asset_logo,
+            commands::asset::pick_and_upload_asset_logo,
+            commands::asset::remove_asset_logo,
             // Alternative asset commands
             commands::alternative_assets::create_alternative_asset,
             commands::alternative_assets::update_alternative_asset_valuation,

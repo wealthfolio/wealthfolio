@@ -50,6 +50,7 @@ export function OverviewPage({
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
+  const showTargetAllocationCard = settings?.showTargetAllocationCard ?? true;
 
   const accountFilter: AccountScope = useMemo(() => filterProp ?? { type: "all" }, [filterProp]);
   const selectedAccountScopeKey = accountScopeKey(accountFilter);
@@ -446,18 +447,20 @@ export function OverviewPage({
 
         {/* Row 3 — treemap + target rails, aligned to the 4-column grid above */}
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
-          <div className="xl:col-span-3">
+          <div className={showTargetAllocationCard ? "xl:col-span-3" : "xl:col-span-4"}>
             <PortfolioComposition holdings={nonCashHoldings} isLoading={isLoading} />
           </div>
-          <TargetRailsCard
-            targets={scopedLiveTargets}
-            selectedTargetId={effectiveTargetId}
-            onTargetChange={requestTargetChange}
-            driftReport={driftReport}
-            isLoading={driftLoading && !driftReport}
-            onCreateTarget={handleCreateTarget}
-            onViewDetails={() => setWorkspaceView("details")}
-          />
+          {showTargetAllocationCard && (
+            <TargetRailsCard
+              targets={scopedLiveTargets}
+              selectedTargetId={effectiveTargetId}
+              onTargetChange={requestTargetChange}
+              driftReport={driftReport}
+              isLoading={driftLoading && !driftReport}
+              onCreateTarget={handleCreateTarget}
+              onViewDetails={() => setWorkspaceView("details")}
+            />
+          )}
         </div>
 
         {/* Row 4 — breakdown */}

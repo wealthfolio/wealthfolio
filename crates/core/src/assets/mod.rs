@@ -4,6 +4,7 @@ mod alternative_assets_model;
 mod alternative_assets_service;
 mod alternative_assets_traits;
 mod asset_id;
+mod asset_logo_store;
 mod asset_resolution;
 mod assets_constants;
 mod assets_model;
@@ -29,6 +30,7 @@ pub use asset_id::{
     parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix, symbol_resolution_candidates,
     unknown_dotted_suffix_fallback,
 };
+pub use asset_logo_store::AssetLogoStore;
 pub(crate) use asset_resolution::asset_provider_alias_symbols;
 pub use asset_resolution::{AssetResolutionInput, AssetResolutionOutput};
 pub use assets_model::{

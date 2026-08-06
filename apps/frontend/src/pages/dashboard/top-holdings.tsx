@@ -1,6 +1,6 @@
 import { DashboardCard } from "@/components/dashboard-card";
 import { HoldingPerformancePercent } from "@/components/holding-performance-percent";
-import { TickerAvatar } from "@/components/ticker-avatar";
+import { AssetTickerAvatar } from "@/components/ticker-avatar";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { HoldingType, isAlternativeAssetKind } from "@/lib/constants";
 import { getBaseHoldingPerformancePercentForMode } from "@/lib/holding-performance";
@@ -73,7 +73,11 @@ function HoldingRow({
       onKeyDown={(e) => e.key === "Enter" && onClick?.()}
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <TickerAvatar symbol={avatarSymbol} className="size-9 shrink-0" />
+        <AssetTickerAvatar
+          asset={holding.instrument ?? undefined}
+          symbol={avatarSymbol}
+          className="size-9 shrink-0"
+        />
         <div className="flex min-w-0 flex-col">
           <span className="truncate text-sm font-semibold">{title}</span>
           <span className="text-muted-foreground text-xs">{subtitle}</span>
@@ -134,7 +138,11 @@ function StackedAvatars({ holdings, totalRemaining, onClick }: StackedAvatarsPro
               className={cn("relative", index > 0 && "-ml-2")}
               style={{ zIndex: displayedHoldings.length - index }}
             >
-              <TickerAvatar symbol={avatarSym} className="ring-background size-8 ring-2" />
+              <AssetTickerAvatar
+                asset={holding.instrument ?? undefined}
+                symbol={avatarSym}
+                className="ring-background size-8 ring-2"
+              />
             </div>
           );
         })}

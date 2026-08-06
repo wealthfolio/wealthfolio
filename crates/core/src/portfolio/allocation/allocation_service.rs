@@ -1540,6 +1540,7 @@ mod tests {
                 preferred_provider: None,
                 exchange_mic: None,
                 classifications: None,
+                custom_logo_filename: None,
             }),
             asset_kind: None,
             quantity: dec!(1),

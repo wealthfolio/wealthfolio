@@ -1,7 +1,7 @@
 import { getExchanges, resolveSymbolQuote } from "@/adapters";
 import { MultiSelectTaxonomy } from "@/components/classification/multi-select-taxonomy";
 import { SingleSelectTaxonomy } from "@/components/classification/single-select-taxonomy";
-import { TickerAvatar } from "@/components/ticker-avatar";
+import { AssetTickerAvatar } from "@/components/ticker-avatar";
 import { useCustomProviders } from "@/hooks/use-custom-providers";
 import { useMarketDataProviders } from "@/hooks/use-market-data-providers";
 import { useTaxonomies } from "@/hooks/use-taxonomies";
@@ -655,7 +655,7 @@ export function AssetEditSheet({
       <SheetContent side="right" className="pb-safe flex h-full w-full flex-col sm:max-w-2xl">
         <SheetHeader className="shrink-0 pb-4">
           <div className="flex items-center gap-3">
-            <TickerAvatar symbol={asset.displayCode ?? ""} className="size-10" />
+            <AssetTickerAvatar asset={asset} symbol={asset.displayCode ?? ""} className="size-10" />
             <div className="min-w-0 flex-1">
               <SheetTitle className="truncate text-lg">
                 {asset.displayCode ?? asset.name ?? t("asset:editSheet.unknown")}

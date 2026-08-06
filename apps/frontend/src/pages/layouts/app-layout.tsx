@@ -95,7 +95,7 @@ const AppLayoutContent = () => {
 
         <div
           className={cn(
-            "relative flex min-h-0 w-full max-w-full flex-1 overflow-x-hidden",
+            "main-content relative flex min-h-0 w-full max-w-full flex-1 overflow-x-hidden",
             shouldUseMobileNavigation ? "overscroll-contain" : undefined,
           )}
         >

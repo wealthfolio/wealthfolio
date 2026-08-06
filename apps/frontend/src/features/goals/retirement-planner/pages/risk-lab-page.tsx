@@ -1175,7 +1175,11 @@ function logStrength(value: number, max: number) {
 
 function tint(color: "success" | "warning" | "destructive", strength: number) {
   const token =
-    color === "success" ? "--success" : color === "warning" ? "--warning" : "--destructive";
+    color === "success"
+      ? "--heatmap-good"
+      : color === "warning"
+        ? "--heatmap-warn"
+        : "--heatmap-bad";
   const mix = 5 + Math.max(0, Math.min(1, strength)) * 11;
   return `color-mix(in srgb, var(${token}) ${mix}%, var(--card))`;
 }

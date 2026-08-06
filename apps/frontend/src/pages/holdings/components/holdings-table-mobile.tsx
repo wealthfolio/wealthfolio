@@ -1,4 +1,4 @@
-import { TickerAvatar } from "@/components/ticker-avatar";
+import { AssetLogoWatermark, AssetTickerAvatar } from "@/components/ticker-avatar";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { HoldingType } from "@/lib/constants";
 import { parseOccSymbol } from "@/lib/occ-symbol";
@@ -187,14 +187,19 @@ export const HoldingsTableMobile = ({
               <Card
                 key={holding.id}
                 className={cn(
-                  "p-3",
+                  "relative isolate overflow-hidden p-3",
                   isNavigable && "hover:bg-muted/50 cursor-pointer transition-colors",
                 )}
                 onClick={() => isNavigable && handleNavigate(holding)}
               >
+                <AssetLogoWatermark asset={holding.instrument ?? undefined} />
                 <div className="flex items-center justify-between">
                   <div className="flex flex-1 items-center gap-3 overflow-hidden">
-                    <TickerAvatar symbol={avatarSymbol} className="h-10 w-10" />
+                    <AssetTickerAvatar
+                      asset={holding.instrument ?? undefined}
+                      symbol={avatarSymbol}
+                      className="h-10 w-10"
+                    />
                     <div className="flex-1 overflow-hidden">
                       <div className="flex items-center gap-1.5">
                         <p className="truncate font-semibold">{displaySymbol}</p>

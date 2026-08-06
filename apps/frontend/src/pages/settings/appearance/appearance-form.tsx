@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
+import { ChartPaletteSelector } from "@/components/chart-palette-selector";
 import { FontSelector } from "@/components/font-selector";
 import { NavigationStyleSelector } from "@/components/navigation-style-selector";
 import { ThemeSelector } from "@/components/theme-selector";
@@ -22,6 +23,7 @@ import { useNavigationMode } from "@/pages/layouts/navigation/navigation-mode-co
 
 interface AppearanceFormValues {
   theme: "light" | "dark" | "system";
+  chartPalette: "sage" | "amber" | "newspaper" | "cyberpunk";
   font: "font-mono" | "font-sans" | "font-serif";
   menuBarVisible: boolean;
 }
@@ -35,6 +37,9 @@ export function AppearanceForm() {
     theme: z.enum(["light", "dark", "system"], {
       required_error: t("settings:appearance_theme_required"),
     }),
+    chartPalette: z.enum(["sage", "amber", "newspaper", "cyberpunk"], {
+      required_error: t("settings:appearance_chart_palette_required"),
+    }),
     font: z.enum(["font-mono", "font-sans", "font-serif"], {
       invalid_type_error: t("settings:appearance_font_error"),
       required_error: t("settings:appearance_font_required"),
@@ -43,6 +48,7 @@ export function AppearanceForm() {
   });
   const defaultValues: Partial<AppearanceFormValues> = {
     theme: settings?.theme as AppearanceFormValues["theme"],
+    chartPalette: settings?.chartPalette,
     font: settings?.font as AppearanceFormValues["font"],
     menuBarVisible: settings?.menuBarVisible ?? true,
   };
@@ -104,6 +110,50 @@ export function AppearanceForm() {
                   onChange={(value) => {
                     field.onChange(value);
                     handlePartialUpdate({ theme: value as AppearanceFormValues["theme"] });
+                  }}
+                  className="pt-2"
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="chartPalette"
+          render={({ field }) => (
+            <FormItem className="space-y-3">
+              <div className="space-y-1">
+                <FormLabel className="text-base font-medium">
+                  {t("settings:appearance_chart_palette_title")}
+                </FormLabel>
+                <FormDescription className="text-sm">
+                  {t("settings:appearance_chart_palette_description")}
+                </FormDescription>
+              </div>
+              <FormMessage />
+              <FormControl>
+                <ChartPaletteSelector
+                  value={field.value}
+                  onChange={(value) => {
+                    const chartPalette = value as AppearanceFormValues["chartPalette"];
+                    field.onChange(chartPalette);
+                    // Cyberpunk's glow effects only read well on dark backgrounds;
+                    // Newspaper's print look is built for light. Auto-switch the
+                    // theme to match, but the user can still override it after.
+                    const forcedTheme =
+                      chartPalette === "cyberpunk"
+                        ? "dark"
+                        : chartPalette === "newspaper"
+                          ? "light"
+                          : undefined;
+                    if (forcedTheme) {
+                      form.setValue("theme", forcedTheme);
+                    }
+                    handlePartialUpdate({
+                      chartPalette,
+                      ...(forcedTheme ? { theme: forcedTheme } : {}),
+                    });
                   }}
                   className="pt-2"
                 />

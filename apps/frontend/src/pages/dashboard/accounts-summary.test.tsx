@@ -105,6 +105,7 @@ const mockUseQuery = vi.mocked(useQuery);
 
 const mockSettings: Settings = {
   theme: "light",
+  chartPalette: "sage",
   font: "font-sans",
   language: "en",
   baseCurrency: "USD",
@@ -114,6 +115,7 @@ const mockSettings: Settings = {
   autoUpdateCheckEnabled: true,
   menuBarVisible: true,
   syncEnabled: false,
+  showTargetAllocationCard: true,
 };
 
 function createAccount(overrides: Partial<Account>): Account {

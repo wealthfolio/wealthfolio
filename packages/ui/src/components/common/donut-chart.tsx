@@ -119,7 +119,10 @@ function renderActiveSector(props: PieSectorShapeProps) {
   const ringThickness = Math.max(1.5, (outerRadius - innerRadius) * 0.07);
 
   return (
-    <g>
+    <g
+      className="donut-active-sector"
+      style={{ "--segment-glow-color": fill } as React.CSSProperties}
+    >
       <Sector {...props} />
       {trimAngle > 0 && (
         <Sector

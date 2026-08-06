@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { updateAssetProfile, updateQuoteMode, logger } from "@/adapters";
+import { updateAssetProfile, updateQuoteMode, uploadAssetLogo, removeAssetLogo, logger } from "@/adapters";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { QueryKeys } from "@/lib/query-keys";
 
@@ -48,8 +48,33 @@ export const useAssetProfileMutations = () => {
     },
   });
 
+  const uploadAssetLogoMutation = useMutation({
+    mutationFn: ({ assetId, file }: { assetId: string; file?: File }) =>
+      uploadAssetLogo(assetId, file),
+    onSuccess: (_result, variables) => {
+      handleSuccess("Logo updated successfully.", variables.assetId);
+    },
+    onError: (error) => {
+      logger.error(`Error uploading asset logo: ${error}`);
+      handleError("uploading the logo");
+    },
+  });
+
+  const removeAssetLogoMutation = useMutation({
+    mutationFn: (assetId: string) => removeAssetLogo(assetId),
+    onSuccess: (_result, assetId) => {
+      handleSuccess("Logo removed.", assetId);
+    },
+    onError: (error) => {
+      logger.error(`Error removing asset logo: ${error}`);
+      handleError("removing the logo");
+    },
+  });
+
   return {
     updateAssetProfileMutation,
     updateQuoteModeMutation,
+    uploadAssetLogoMutation,
+    removeAssetLogoMutation,
   };
 };

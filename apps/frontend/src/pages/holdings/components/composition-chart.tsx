@@ -66,16 +66,48 @@ const DisplayModeToggle: React.FC<{
   );
 };
 
-// Treemap heatmap palette — symbols colored by return.
-// Matches the "Allocation Concept E - Unified" design: gains lerp from a light
-// sage to a deep green, losses from a light clay to a deep red.
-const POS_LO = [205, 217, 191]; // #cdd9bf
-const POS_HI = [53, 92, 76]; // #355c4c
-// Loss ramp tuned to the theme's --destructive (flexoki red). NEG_HI matches the
-// dark-mode token hsl(5 61% 54%) = #d14e42; NEG_LO is a saturated tint of the same
-// hue so small losses read red-tinted instead of washed-out pink.
-const NEG_LO = [233, 179, 168]; // #e9b3a8
-const NEG_HI = [209, 78, 66]; // #d14e42
+// Treemap heatmap palette — symbols colored by return. Ramps are keyed by the
+// active chart palette (Settings > Appearance) so the treemap follows the
+// same green/red identity as the other heatmaps in the app.
+type ChartPalette = "sage" | "amber" | "newspaper" | "cyberpunk";
+
+const TREEMAP_RAMPS: Record<
+  ChartPalette,
+  { posLo: number[]; posHi: number[]; negLo: number[]; negHi: number[] }
+> = {
+  // Matches the "Allocation Concept E - Unified" design: gains lerp from a
+  // light sage to a deep green, losses from a light clay to a deep red
+  // (tuned to the theme's --destructive / flexoki red).
+  sage: {
+    posLo: [205, 217, 191], // #cdd9bf
+    posHi: [53, 92, 76], // #355c4c
+    negLo: [233, 179, 168], // #e9b3a8
+    negHi: [209, 78, 66], // #d14e42
+  },
+  // From the user-supplied red/green scales — 150 step for the pale end,
+  // 700 step for the deep end. Matches --heatmap-good/--heatmap-bad (light mode).
+  amber: {
+    posLo: [205, 213, 151], // #cdd597
+    posHi: [83, 105, 7], // #536907
+    negLo: [253, 178, 162], // #fdb2a2
+    negHi: [148, 40, 34], // #942822
+  },
+  // Grayscale — matches --heatmap-good/--heatmap-bad under .chart-newspaper.
+  newspaper: {
+    posLo: [225, 222, 214],
+    posHi: [45, 43, 40],
+    negLo: [225, 222, 214],
+    negHi: [120, 115, 106],
+  },
+  // Cyan (good) / magenta (bad) from the Flexoki extended palette — matches
+  // --heatmap-good/--heatmap-bad under .chart-cyberpunk.
+  cyberpunk: {
+    posLo: [162, 222, 206], // Cyan 150 #a2dece
+    posHi: [28, 108, 102], // Cyan 700 #1c6c66
+    negLo: [249, 185, 207], // Magenta 150 #f9b9cf
+    negHi: [135, 40, 94], // Magenta 700 #87285e
+  },
+};
 
 const lerp = (a: number, b: number, t: number) => Math.round(a + (b - a) * t);
 
@@ -94,9 +126,14 @@ interface TreemapTile {
 // instead of collapsing into a single shade. `k` is the return magnitude that
 // maps to the mid-tone (losses ramp ~2× faster, matching the design). Values
 // are fractions: 0.5 = +50%, 0.025 = +2.5% for the smaller daily returns.
-function getTreemapColor(gain: number, returnType: ReturnType): TreemapTile {
+function getTreemapColor(
+  gain: number,
+  returnType: ReturnType,
+  chartPalette: ChartPalette,
+): TreemapTile {
+  const ramp = TREEMAP_RAMPS[chartPalette];
   const isGain = isNaN(gain) || gain >= 0;
-  const [lo, hi] = isGain ? [POS_LO, POS_HI] : [NEG_LO, NEG_HI];
+  const [lo, hi] = isGain ? [ramp.posLo, ramp.posHi] : [ramp.negLo, ramp.negHi];
   const k = isGain
     ? returnType === "daily"
       ? 0.025
@@ -141,6 +178,7 @@ interface CustomizedContentProps {
   displayMode?: DisplayMode;
   returnType?: ReturnType;
   isDark?: boolean;
+  chartPalette?: ChartPalette;
 }
 
 const CustomizedContent: FC<CustomizedContentProps> = ({
@@ -156,10 +194,11 @@ const CustomizedContent: FC<CustomizedContentProps> = ({
   displayMode = "symbol",
   returnType = "daily",
   isDark = false,
+  chartPalette = "sage",
 }) => {
   const fontSize = Math.min(width, height) < 80 ? Math.min(width, height) * 0.16 : 13;
   const fontSize2 = Math.min(width, height) < 80 ? Math.min(width, height) * 0.14 : 12;
-  const { fill: fillColor, isLightTile } = getTreemapColor(gain, returnType);
+  const { fill: fillColor, isLightTile } = getTreemapColor(gain, returnType, chartPalette);
   const textColor = isDark || !isLightTile ? TILE_TEXT_LIGHT : TILE_TEXT_DARK;
 
   // Determine what text to display based on mode
@@ -184,7 +223,7 @@ const CustomizedContent: FC<CustomizedContentProps> = ({
           fill: depth === 1 ? fillColor : undefined,
           // Soften tiles in dark mode so they blend into the background instead
           // of reading as bright rectangles on near-black.
-          fillOpacity: depth === 1 && isDark ? 0.45 : undefined,
+          fillOpacity: depth === 1 && isDark ? 0.65 : undefined,
           cursor: "pointer",
         }}
       />
@@ -429,6 +468,7 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
                 displayMode={displayMode}
                 returnType={returnType}
                 isDark={isDark}
+                chartPalette={settings?.chartPalette ?? "sage"}
               />
             )}
           >

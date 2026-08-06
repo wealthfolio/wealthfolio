@@ -306,6 +306,7 @@ const ALLOWED_API_METHODS = new Set([
   "assets.getProfile",
   "assets.updateProfile",
   "assets.updateQuoteMode",
+  "assets.getLogoDataUrl",
   "quotes.update",
   "quotes.getHistory",
   "performance.calculateHistory",

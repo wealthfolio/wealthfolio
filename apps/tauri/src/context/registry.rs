@@ -46,6 +46,7 @@ pub struct ServiceContext {
     pub account_service: Arc<dyn accounts::AccountServiceTrait>,
     pub goal_service: Arc<dyn goals::GoalServiceTrait>,
     pub asset_service: Arc<dyn assets::AssetServiceTrait>,
+    pub asset_logo_store: Arc<assets::AssetLogoStore>,
     pub quote_service: Arc<dyn quotes::QuoteServiceTrait>,
     pub limits_service: Arc<dyn limits::ContributionLimitServiceTrait>,
     pub fx_service: Arc<dyn fx::FxServiceTrait>,
@@ -147,6 +148,10 @@ impl ServiceContext {
 
     pub fn asset_service(&self) -> Arc<dyn assets::AssetServiceTrait> {
         Arc::clone(&self.asset_service)
+    }
+
+    pub fn asset_logo_store(&self) -> Arc<assets::AssetLogoStore> {
+        Arc::clone(&self.asset_logo_store)
     }
 
     pub fn goal_service(&self) -> Arc<dyn goals::GoalServiceTrait> {

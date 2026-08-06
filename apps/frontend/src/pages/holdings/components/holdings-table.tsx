@@ -13,7 +13,7 @@ import {
 } from "@wealthfolio/ui/components/ui/dropdown-menu";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 
-import { TickerAvatar } from "@/components/ticker-avatar";
+import { AssetLogoWatermark, AssetTickerAvatar } from "@/components/ticker-avatar";
 import { HoldingPerformancePercent } from "@/components/holding-performance-percent";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { HoldingType } from "@/lib/constants";
@@ -228,8 +228,13 @@ const getColumns = (
 
       const isManual = holding.instrument?.quoteMode === "MANUAL";
       const content = (
-        <div className="flex items-center">
-          <TickerAvatar symbol={avatarSymbol} className="mr-2 h-8 w-8" />
+        <div className="relative isolate -m-4 flex items-center overflow-hidden p-4">
+          <AssetLogoWatermark asset={holding.instrument ?? undefined} />
+          <AssetTickerAvatar
+            asset={holding.instrument ?? undefined}
+            symbol={avatarSymbol}
+            className="mr-2 h-8 w-8"
+          />
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
               <span className="font-medium">{displaySymbol}</span>

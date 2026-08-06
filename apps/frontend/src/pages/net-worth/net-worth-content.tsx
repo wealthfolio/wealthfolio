@@ -273,7 +273,7 @@ export function NetWorthContent() {
           backgroundImage:
             (parsedData?.netWorth ?? 0) < 0
               ? `linear-gradient(to top, color-mix(in srgb, var(--destructive) 30%, transparent), color-mix(in srgb, var(--destructive) 15%, transparent) 50%, transparent 100%)`
-              : `linear-gradient(to top, ${THEME_COLOR.replace(")", " / 0.30)")}, ${THEME_COLOR.replace(")", " / 0.15)")} 50%, transparent 100%)`,
+              : `linear-gradient(to top, color-mix(in srgb, ${THEME_COLOR} 30%, transparent), color-mix(in srgb, ${THEME_COLOR} 15%, transparent) 50%, transparent 100%)`,
         }}
       >
         {/* Chart section */}
