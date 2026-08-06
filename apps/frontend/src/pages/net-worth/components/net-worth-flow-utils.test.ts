@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { ParsedNetWorth } from "./utils";
-import { buildNetWorthFlowGraph, MAX_VISIBLE_LEAVES, type FlowLeafNode } from "./net-worth-flow-utils";
+import type { BreakdownEntry, ParsedNetWorth } from "./utils";
+import {
+  buildNetWorthFlowGraph,
+  MAX_VISIBLE_LEAVES,
+  shortenLeafName,
+  type FlowLeafNode,
+} from "./net-worth-flow-utils";
 
 const labels = {
   assets: "Assets",
@@ -192,5 +197,108 @@ describe("buildNetWorthFlowGraph", () => {
 
     const graph = buildNetWorthFlowGraph(data, labels)!;
     expect(graph.nodes.some((n) => n.name === "Car Collection")).toBe(false);
+  });
+
+  describe("investmentAccounts", () => {
+    function investmentData(total: number): ParsedNetWorth {
+      return netWorth({
+        netWorth: total,
+        assets: {
+          total,
+          // The backend never populates Investments' children — this is the
+          // real shape net-worth-content.tsx hands the graph builder.
+          breakdown: [{ category: "investments", name: "Investments", value: total }],
+        },
+      });
+    }
+
+    it("fans Investments in by account when provided, sorted by value descending", () => {
+      const accounts: BreakdownEntry[] = [
+        { category: "investments", name: "Roth IRA", value: 200, assetId: "acc-1" },
+        { category: "investments", name: "Personal Investments – 119", value: 500, assetId: "acc-2" },
+        { category: "investments", name: "Parametrics", value: 300, assetId: "acc-3" },
+      ];
+      const graph = buildNetWorthFlowGraph(investmentData(1000), labels, accounts)!;
+      const leaves = graph.nodes.filter((n) => n.kind === "leaf") as FlowLeafNode[];
+
+      expect(leaves.map((n) => n.name)).toEqual(["Personal Investments – 119", "Parametrics", "Roth IRA"]);
+    });
+
+    it("sums investment account leaves exactly to the Investments category total", () => {
+      const accounts: BreakdownEntry[] = [
+        { category: "investments", name: "Roth IRA", value: 200.11, assetId: "acc-1" },
+        { category: "investments", name: "Brokerage", value: 500.22, assetId: "acc-2" },
+      ];
+      const graph = buildNetWorthFlowGraph(investmentData(700.33), labels, accounts)!;
+      const leaves = graph.nodes.filter((n) => n.kind === "leaf" || n.kind === "bucket") as FlowLeafNode[];
+
+      const leafTotal = leaves.reduce((sum, n) => sum + n.value, 0);
+      expect(leafTotal).toBeCloseTo(700.33, 6);
+    });
+
+    it("adds a balancing leaf when accounts undercount the category total", () => {
+      const accounts: BreakdownEntry[] = [
+        { category: "investments", name: "Roth IRA", value: 200, assetId: "acc-1" },
+      ];
+      const graph = buildNetWorthFlowGraph(investmentData(1000), labels, accounts)!;
+      const leaves = graph.nodes.filter((n) => n.kind === "leaf") as FlowLeafNode[];
+
+      const balancing = leaves.find((n) => n.name === labels.unattributed);
+      expect(balancing).toBeDefined();
+      expect(balancing!.value).toBeCloseTo(800, 6);
+      const leafTotal = leaves.reduce((sum, n) => sum + n.value, 0);
+      expect(leafTotal).toBeCloseTo(1000, 6);
+    });
+
+    it("buckets accounts beyond MAX_VISIBLE_LEAVES the same way other categories do", () => {
+      const accounts: BreakdownEntry[] = Array.from({ length: 20 }, (_, i) => ({
+        category: "investments",
+        name: `Account ${i}`,
+        value: (i + 1) * 100,
+        assetId: `acc-${i}`,
+      }));
+      const total = accounts.reduce((sum, a) => sum + a.value, 0);
+      const graph = buildNetWorthFlowGraph(investmentData(total), labels, accounts)!;
+      const leaves = graph.nodes.filter((n) => n.kind === "leaf" || n.kind === "bucket") as FlowLeafNode[];
+
+      expect(leaves.filter((n) => n.kind === "leaf")).toHaveLength(MAX_VISIBLE_LEAVES - 1);
+      expect(leaves.some((n) => n.kind === "bucket")).toBe(true);
+      const leafTotal = leaves.reduce((sum, n) => sum + n.value, 0);
+      expect(leafTotal).toBeCloseTo(total, 6);
+    });
+
+    it("falls back to the flat Investments node when accounts overcount the category total", () => {
+      const accounts: BreakdownEntry[] = [
+        { category: "investments", name: "Roth IRA", value: 900, assetId: "acc-1" },
+        { category: "investments", name: "Brokerage", value: 500, assetId: "acc-2" },
+      ];
+      // Accounts sum to 1400, but the net-worth snapshot says 1000 — never fudge.
+      const graph = buildNetWorthFlowGraph(investmentData(1000), labels, accounts)!;
+      expect(graph.nodes.some((n) => n.kind === "leaf" || n.kind === "bucket")).toBe(false);
+      expect(graph.nodes.some((n) => n.kind === "category" && n.name === "Investments")).toBe(true);
+    });
+
+    it("falls back to the flat Investments node when no account data is supplied", () => {
+      const graph = buildNetWorthFlowGraph(investmentData(1000), labels)!;
+      expect(graph.nodes.some((n) => n.kind === "leaf" || n.kind === "bucket")).toBe(false);
+    });
+  });
+});
+
+describe("shortenLeafName", () => {
+  it("drops a trailing parenthetical suffix", () => {
+    expect(shortenLeafName("FundersClub ($236K Basis)")).toBe("FundersClub");
+  });
+
+  it("drops a trailing parenthetical and a trailing date suffix together", () => {
+    expect(shortenLeafName("FundersClub ($236K Basis) - 12/31/2024")).toBe("FundersClub");
+  });
+
+  it("leaves an ordinary name untouched", () => {
+    expect(shortenLeafName("Roth IRA")).toBe("Roth IRA");
+  });
+
+  it("never returns an empty string", () => {
+    expect(shortenLeafName("(100%)")).toBe("(100%)");
   });
 });

@@ -1,4 +1,6 @@
 import { DashboardCard } from "@/components/dashboard-card";
+import { useAccounts } from "@/hooks/use-accounts";
+import { useCurrentAccountValuations } from "@/hooks/use-current-account-valuations";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { usePersistentState } from "@wealthfolio/ui";
 import {
@@ -19,6 +21,7 @@ import {
   deriveChange,
   formatChangePercent,
   seriesFor,
+  type BreakdownEntry,
   type Change,
   type ParsedHistoryPoint,
   type ParsedNetWorth,
@@ -139,16 +142,45 @@ export function BreakdownTable({
   // at-a-glance job and the diagram adds the structure it can't show.
   const [flowExpanded, setFlowExpanded] = usePersistentState<boolean>(FLOW_EXPANDED_STORAGE_KEY, false);
   const flowContentId = `nwf-content-${useId().replace(/:/g, "")}`;
+
+  // The Investments category deliberately has no per-holding children from the
+  // backend (hundreds of holdings; the allocation view owns that drill-down —
+  // see net_worth_service.rs). Fan the flow diagram's Investments node in by
+  // ACCOUNT instead, fetched client-side from current account valuations.
+  // `undefined` while accounts/valuations are still loading, which
+  // `buildNetWorthFlowGraph` treats as "no data" and falls back to today's
+  // flat Investments node.
+  const { accounts } = useAccounts();
+  const accountIds = useMemo(() => accounts.map((account) => account.id), [accounts]);
+  const { currentAccountValuations, isLoading: valuationsLoading } =
+    useCurrentAccountValuations(accountIds);
+  const investmentAccounts = useMemo((): BreakdownEntry[] | undefined => {
+    if (!currentAccountValuations || valuationsLoading) return undefined;
+    const accountNameById = new Map(accounts.map((account) => [account.id, account.name]));
+    return currentAccountValuations
+      .filter((valuation) => valuation.investmentMarketValueBase > 0)
+      .map((valuation) => ({
+        category: "investments",
+        name: accountNameById.get(valuation.accountId) ?? valuation.accountId,
+        value: valuation.investmentMarketValueBase,
+        assetId: valuation.accountId,
+      }));
+  }, [accounts, currentAccountValuations, valuationsLoading]);
+
   const flowGraph = useMemo(
     () =>
-      buildNetWorthFlowGraph(data, {
-        assets: t("insights:networth.breakdown_table.assets"),
-        netWorth: t("insights:networth.breakdown_table.net_worth"),
-        debts: t("insights:networth.flow.debts_label"),
-        otherHoldings: (count) => t("insights:networth.flow.other_holdings", { count }),
-        unattributed: t("insights:networth.flow.unattributed"),
-      }),
-    [data, t],
+      buildNetWorthFlowGraph(
+        data,
+        {
+          assets: t("insights:networth.breakdown_table.assets"),
+          netWorth: t("insights:networth.breakdown_table.net_worth"),
+          debts: t("insights:networth.flow.debts_label"),
+          otherHoldings: (count) => t("insights:networth.flow.other_holdings", { count }),
+          unattributed: t("insights:networth.flow.unattributed"),
+        },
+        investmentAccounts,
+      ),
+    [data, investmentAccounts, t],
   );
 
   return (

@@ -86,6 +86,18 @@ function categorySelection(category: BreakdownEntry): SelectedCategory {
 }
 
 /**
+ * Strip a trailing parenthetical or date/detail suffix from a leaf's display
+ * name — "FundersClub ($236K Basis) - 12/31/2024" -> "FundersClub". Only
+ * affects what's rendered on the node label; callers keep the untouched name
+ * for the tooltip/aria-label so no information is actually lost.
+ */
+export function shortenLeafName(name: string): string {
+  const withoutParens = name.replace(/\s*\([^()]*\)\s*/g, " ").trim();
+  const withoutTrailingDetail = withoutParens.replace(/\s*[-–]\s*[\d/.:]+\s*$/, "").trim();
+  return withoutTrailingDetail || name;
+}
+
+/**
  * Build the Sankey graph for the Net Worth Flow card from the same
  * `ParsedNetWorth` the breakdown table renders. Pure and side-effect free so
  * it can be unit tested without React or recharts.
@@ -94,10 +106,18 @@ function categorySelection(category: BreakdownEntry): SelectedCategory {
  * also branching to Debts when there are liabilities. Categories with no
  * itemized children (e.g. Cash) skip the leaf layer and link straight to
  * Assets. Returns null when there is nothing to draw.
+ *
+ * @param investmentAccounts Per-account leaves for the Investments category
+ *   (the backend deliberately omits per-holding children there — see
+ *   `net_worth_service.rs`). Sourced client-side from current account
+ *   valuations. Only used when it doesn't overcount the Investments category
+ *   total (see the reconciliation note below); omit/undefined falls back to
+ *   today's flat Investments node.
  */
 export function buildNetWorthFlowGraph(
   data: ParsedNetWorth,
   labels: FlowLabels,
+  investmentAccounts?: BreakdownEntry[],
 ): NetWorthFlowGraph | null {
   const categories = data.assets.breakdown.filter((category) => category.value > EPSILON);
   if (categories.length === 0) return null;
@@ -111,7 +131,21 @@ export function buildNetWorthFlowGraph(
   for (const category of categories) {
     const color = CATEGORY_CSS_COLORS[category.category] ?? "var(--muted-foreground)";
     const selected = categorySelection(category);
-    const children = (category.children ?? []).filter((child) => child.value > EPSILON);
+
+    let rawChildren = category.children ?? [];
+    if (category.category === "investments" && investmentAccounts && investmentAccounts.length > 0) {
+      const candidateTotal = investmentAccounts.reduce((sum, child) => sum + child.value, 0);
+      // Per-account values can disagree with the category total (different
+      // valuation source/timing than the net-worth snapshot). An undercount
+      // is reconciled below with an explicit balancing leaf; an overcount
+      // can't be reconciled without fudging one of the two numbers, so fall
+      // back to the flat category node rather than show accounts that don't
+      // sum to the total directly beneath them in the breakdown table.
+      if (candidateTotal - category.value <= EPSILON) {
+        rawChildren = investmentAccounts;
+      }
+    }
+    const children = rawChildren.filter((child) => child.value > EPSILON);
 
     const leafIndices: number[] = [];
     if (children.length > 0) {

@@ -4,11 +4,24 @@ import { useId, useMemo, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { ResponsiveContainer, Sankey } from "recharts";
 import type { LinkProps as RechartsLinkProps, NodeProps as RechartsNodeProps } from "recharts/types/chart/Sankey";
-import type { FlowNode, NetWorthFlowGraph } from "./net-worth-flow-utils";
+import { shortenLeafName, type FlowNode, type NetWorthFlowGraph } from "./net-worth-flow-utils";
 import { THEME_COLOR, type SelectedCategory } from "./utils";
 
 const NODE_WIDTH = 8;
 const LABEL_GAP = 6;
+/**
+ * Minimum vertical distance guaranteed between the tops of two adjacent nodes
+ * in the same column — a floor independent of either node's value. This is
+ * `nodePadding`, and it's what makes label collisions structurally
+ * impossible rather than something detected and patched after layout: a
+ * two-line label (name + amount) needs ~24-26px, so leaving this much room
+ * around every node means a leaf's label always has a fully clear row, no
+ * matter how small the ribbon feeding it is. Mobile hides leaf/bucket labels
+ * entirely (see `showLabel`), so it only needs enough room for the sparser
+ * category/total labels.
+ */
+const ROW_PITCH_DESKTOP = 28;
+const ROW_PITCH_MOBILE = 14;
 
 interface NetWorthFlowDiagramProps {
   graph: NetWorthFlowGraph;
@@ -52,6 +65,16 @@ interface ShapeContext {
  * color (the same `--bar-stripe` overlay the budget meters use) to flag "this
  * is several holdings, not one" rather than rendering them as an
  * indistinguishable hairline.
+ *
+ * Every leaf/bucket label gets its own opaque per-line chip behind the text
+ * (rather than relying on empty space), so even a ribbon that happens to
+ * pass close to the label gutter can never visually cut through it. The real
+ * anti-overlap guarantee is structural, not visual: see `ROW_PITCH_DESKTOP`
+ * and `diagramHeight` in `NetWorthFlowDiagram` — labels never collide
+ * because every node in a column is spaced at least one label-height apart
+ * by construction, and `MAX_VISIBLE_LEAVES` (net-worth-flow-utils.ts) caps
+ * how many individually-labelled leaves a category can have in the first
+ * place, folding the rest into a bucket instead.
  */
 function FlowNodeShape({
   x,
@@ -69,10 +92,12 @@ function FlowNodeShape({
   const rectHeight = Math.max(height, 1.5);
   const rightAligned = RIGHT_ALIGNED_KINDS.has(node.kind);
   const showValue = VALUE_KINDS.has(node.kind);
+  const isLeafOrBucket = node.kind === "leaf" || node.kind === "bucket";
   // Leaf/bucket labels are dropped at narrow widths (embedded in the
   // breakdown card, roughly 700-760px) so the diagram degrades to
   // category -> Assets -> Net Worth / Debts instead of scrolling sideways.
-  const showLabel = !ctx.isMobile || (node.kind !== "leaf" && node.kind !== "bucket");
+  const showLabel = !ctx.isMobile || !isLeafOrBucket;
+  const displayName = isLeafOrBucket ? shortenLeafName(node.name) : node.name;
 
   const amountText = ctx.isBalanceHidden ? "••••" : formatCompactAmount(node.value, ctx.currency);
   const ariaLabel = selectable
@@ -112,18 +137,22 @@ function FlowNodeShape({
         <title>{`${node.name} — ${amountText}`}</title>
       </rect>
       {showLabel && (
-        <foreignObject x={labelX} y={y} width={labelWidth} height={Math.max(rectHeight, 26)}>
+        <foreignObject x={labelX} y={y} width={labelWidth} height={Math.max(rectHeight, 24)} style={{ overflow: "visible" }}>
           {/* No xmlns attribute needed: the app always parses this as HTML5,
               which puts foreignObject's children in the HTML namespace already. */}
           <div
-            className={`flex flex-col leading-tight ${rightAligned ? "items-end text-right" : "items-start text-left"}`}
+            className={`flex flex-col justify-center leading-tight ${rightAligned ? "items-end text-right" : "items-start text-left"}`}
+            style={{ minHeight: "100%" }}
           >
-            <span className="text-foreground truncate text-[11px] font-medium" style={{ maxWidth: labelWidth }}>
-              {node.name}
+            <span
+              className="bg-background/90 text-foreground inline-block truncate rounded-sm px-0.5 text-[11px] font-medium"
+              style={{ maxWidth: labelWidth }}
+            >
+              {displayName}
             </span>
             {showValue && (
               <span
-                className="text-muted-foreground/70 truncate text-[10px] tabular-nums"
+                className="bg-background/90 text-muted-foreground/70 inline-block truncate rounded-sm px-0.5 text-[10px] tabular-nums"
                 style={{ maxWidth: labelWidth, fontVariantNumeric: "tabular-nums" }}
               >
                 {amountText}
@@ -174,6 +203,17 @@ function FlowLinkShape({
 }
 
 /**
+ * Number of nodes stacked in the diagram's leftmost (most crowded) column —
+ * every leaf/bucket, plus any category with no itemized children (e.g. Cash,
+ * which links straight to Assets and therefore starts at the same depth as
+ * everyone else's leaves). Nodes are "leftmost" when nothing links into them.
+ */
+function leadingColumnNodeCount(graph: NetWorthFlowGraph): number {
+  const hasIncoming = new Set(graph.links.map((link) => link.target));
+  return graph.nodes.filter((_, index) => !hasIncoming.has(index)).length;
+}
+
+/**
  * Sankey diagram of how holdings roll up into categories, into total assets,
  * then into net worth (with debts branching off). Reads the same graph
  * `buildNetWorthFlowGraph` derives from `ParsedNetWorth` — no API call of its
@@ -188,12 +228,37 @@ function FlowLinkShape({
  * breakdown table's rows do; the Assets / Net Worth / Debts totals are
  * non-interactive, matching the breakdown table's own total row having no
  * click handler either.
+ *
+ * Labels never collide by construction, not by detecting and patching
+ * overlaps after the fact: `nodePadding` is fixed at `ROW_PITCH_DESKTOP`
+ * (independent of any node's value, so a $40K leaf gets exactly as much
+ * clearance as a $1.4M one), and the diagram's own height grows with the
+ * leftmost column's node count so that pitch always fits inside it — see
+ * `leadingColumnNodeCount` / `diagramHeight` below. A leaf that would need
+ * more rows than `MAX_VISIBLE_LEAVES` allows never reaches this component in
+ * the first place; it's folded into its category's bucket node upstream in
+ * `buildNetWorthFlowGraph`.
  */
 export function NetWorthFlowDiagram({ graph, currency, onSelect, isMobile }: NetWorthFlowDiagramProps) {
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const uid = `nwf-${useId().replace(/:/g, "")}`;
+
+  const rowPitch = isMobile ? ROW_PITCH_MOBILE : ROW_PITCH_DESKTOP;
+  const leadingCount = useMemo(() => leadingColumnNodeCount(graph), [graph]);
+  // recharts' Sankey scales every node's thickness by ONE shared ratio,
+  // `(columnHeight - (n-1)*nodePadding) / sum(columnValues)`, taken as the
+  // min across all columns — so budgeting only just enough height for the
+  // pitch floor would starve every node's thickness to near-zero (the
+  // leftmost column has by far the most nodes to pad between). Reserve real
+  // room on top of the pitch floor so values still read as proportional
+  // ribbon thickness, not just as evenly-spaced hairlines.
+  const valueHeightBudget = isMobile ? 60 : 140;
+  const diagramHeight = Math.min(
+    680,
+    Math.max(isMobile ? 260 : 300, leadingCount * rowPitch + valueHeightBudget),
+  );
 
   const categoryColors = useMemo(
     () =>
@@ -214,12 +279,12 @@ export function NetWorthFlowDiagram({ graph, currency, onSelect, isMobile }: Net
   };
 
   return (
-    <div className="h-[300px] w-full overflow-x-auto md:h-[340px]">
+    <div className="w-full overflow-x-auto" style={{ height: diagramHeight }}>
       <ResponsiveContainer width="100%" height="100%" minWidth={320}>
         <Sankey
           data={{ nodes: graph.nodes, links: graph.links }}
           nodeWidth={NODE_WIDTH}
-          nodePadding={isMobile ? 8 : 12}
+          nodePadding={rowPitch}
           linkCurvature={0.55}
           iterations={32}
           margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
