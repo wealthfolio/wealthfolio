@@ -107,6 +107,11 @@ export interface AddonNetworkRequest {
   headers?: Record<string, string>;
   body?: string;
   auth?: AddonNetworkAuth;
+  /**
+   * Per-request timeout override, in seconds. Defaults to 10s when omitted.
+   * Clamped server-side to a 120s maximum.
+   */
+  timeoutSecs?: number;
 }
 
 export interface AddonNetworkResponse {

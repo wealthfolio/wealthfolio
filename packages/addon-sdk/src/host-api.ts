@@ -766,6 +766,11 @@ export interface NetworkRequest {
   headers?: Record<string, string>;
   body?: string;
   auth?: NetworkAuth;
+  /**
+   * Per-request timeout override, in seconds. Defaults to 10s when omitted.
+   * Clamped server-side to a 120s maximum.
+   */
+  timeoutSecs?: number;
 }
 
 export interface NetworkResponse {

@@ -18,6 +18,7 @@ use crate::secrets::{addon_secret_service_id, legacy_addon_secret_service_id, Se
 const MAX_REQUEST_BODY_BYTES: usize = 1024 * 1024;
 const MAX_RESPONSE_BODY_BYTES: usize = 2 * 1024 * 1024;
 const REQUEST_TIMEOUT_SECS: u64 = 10;
+const MAX_REQUEST_TIMEOUT_SECS: u64 = 120;
 
 fn validate_addon_runtime_id(addon_id: &str) -> Result<(), String> {
     validate_addon_id(&addon_id.to_ascii_lowercase())
@@ -39,6 +40,9 @@ pub struct AddonNetworkRequest {
     pub headers: Option<BTreeMap<String, String>>,
     pub body: Option<String>,
     pub auth: Option<AddonNetworkAuth>,
+    /// Per-request timeout override in seconds. Clamped server-side to
+    /// `MAX_REQUEST_TIMEOUT_SECS`; falls back to `REQUEST_TIMEOUT_SECS` when unset.
+    pub timeout_secs: Option<u64>,
     #[serde(skip)]
     pub injected_authorization: Option<String>,
 }
@@ -69,9 +73,10 @@ pub async fn perform_addon_network_request(
         return Err("Addon network request body is too large".to_string());
     }
 
+    let timeout_secs = resolve_request_timeout_secs(request.timeout_secs);
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+        .timeout(Duration::from_secs(timeout_secs))
         .resolve_to_addrs(&host, &resolved_addresses)
         .build()
         .map_err(|e| e.to_string())?;
@@ -160,6 +165,12 @@ pub fn resolve_addon_network_auth_header(
         return Err("Addon network auth secret is empty".to_string());
     }
     Ok(Some(format!("{} {}", scheme, secret)))
+}
+
+fn resolve_request_timeout_secs(timeout_secs: Option<u64>) -> u64 {
+    timeout_secs
+        .unwrap_or(REQUEST_TIMEOUT_SECS)
+        .min(MAX_REQUEST_TIMEOUT_SECS)
 }
 
 fn validate_url(url: &str, allowed_hosts: &[String]) -> Result<Url, String> {
@@ -336,6 +347,16 @@ mod tests {
         fn delete_secret(&self, _service: &str) -> Result<()> {
             Ok(())
         }
+    }
+
+    #[test]
+    fn resolves_request_timeout() {
+        assert_eq!(resolve_request_timeout_secs(None), REQUEST_TIMEOUT_SECS);
+        assert_eq!(resolve_request_timeout_secs(Some(30)), 30);
+        assert_eq!(
+            resolve_request_timeout_secs(Some(9999)),
+            MAX_REQUEST_TIMEOUT_SECS
+        );
     }
 
     #[test]
