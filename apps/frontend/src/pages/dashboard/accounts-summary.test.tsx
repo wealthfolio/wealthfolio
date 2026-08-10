@@ -412,10 +412,12 @@ describe("AccountsSummary", () => {
       ],
     });
 
+    // "Single Group" is a group of one, so it gets a group scope rather than being
+    // flattened into a standalone row.
     expect(getLastPerformanceScopes()).toEqual([
       { accountIds: ["group-a-1", "group-a-2"] },
-      { accountIds: ["standalone"] },
       { accountIds: ["single-group"] },
+      { accountIds: ["standalone"] },
     ]);
 
     await user.click(screen.getByText("Group A"));
@@ -424,9 +426,20 @@ describe("AccountsSummary", () => {
       { accountIds: ["group-a-1", "group-a-2"] },
       { accountIds: ["group-a-1"] },
       { accountIds: ["group-a-2"] },
-      { accountIds: ["standalone"] },
       { accountIds: ["single-group"] },
+      { accountIds: ["standalone"] },
     ]);
+  });
+
+  it("renders a group row for a group with a single account", () => {
+    renderAccountsSummary({
+      accounts: [createAccount({ id: "solo", name: "Solo Account", group: "Solo Group" })],
+      valuations: [createValuation({ accountId: "solo", totalValue: 400 })],
+    });
+
+    // The group header renders instead of a bare account link, so group-wide stats stay visible.
+    expect(screen.getByText("Solo Group")).toBeInTheDocument();
+    expect(screen.queryByText("Solo Account")).not.toBeInTheDocument();
   });
 
   it("counts hidden accounts in group totals without rendering them", async () => {

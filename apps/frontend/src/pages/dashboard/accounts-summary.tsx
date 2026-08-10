@@ -93,13 +93,6 @@ function getDashboardAccountPerformanceScopes(
   }
 
   for (const [groupName, groupAccounts] of groupedAccounts) {
-    // Membership counts hidden accounts, so hiding all but one member does not
-    // dissolve the group into a bare account row.
-    if (groupAccounts.length === 1) {
-      if (groupAccounts[0].isActive) standaloneAccountIds.push(groupAccounts[0].id);
-      continue;
-    }
-
     if (!groupAccounts.some((account) => account.isActive)) continue;
 
     addPerformanceScope(
@@ -594,13 +587,6 @@ export const AccountsSummary = React.memo(
         Object.entries(groups).forEach(([groupName, groupAccounts]) => {
           const visibleAccounts = groupAccounts.filter((account) => account.isActive);
           if (visibleAccounts.length === 0) return;
-
-          // Membership counts hidden accounts, so a group only collapses to a bare
-          // account row when it genuinely has one member.
-          if (groupAccounts.length === 1) {
-            standaloneAccounts.push(groupAccounts[0]);
-            return;
-          }
 
           const baseCurrency = groupAccounts[0]?.baseCurrency ?? settings?.baseCurrency ?? "USD";
           // Totals span every group member, hidden included, so value and gain are computed
