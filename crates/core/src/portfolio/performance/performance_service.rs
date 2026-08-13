@@ -615,7 +615,15 @@ impl PerformanceService {
                 warned_partial_value_coverage = true;
             }
 
-            if prev_value.is_sign_negative() || curr_value.is_sign_negative() {
+            // Before the return chain starts, a negative opening balance can be
+            // historical pre-funding bookkeeping (for example, a trade-date
+            // debit that is covered by a later settlement deposit). It has no
+            // valid return base, so skip that window and let the first funded
+            // window establish the chain. Once the opening value is positive
+            // or compounding has started, a negative value remains fatal.
+            if (prev_value.is_sign_negative() || curr_value.is_sign_negative())
+                && (chain_started || prev_value > Decimal::ZERO)
+            {
                 not_applicable_reasons.push(format!(
                     "TWR unavailable for {} because portfolio value is negative. Review the underlying transactions, prices, and cash balances.",
                     curr_point.valuation_date
@@ -9267,6 +9275,53 @@ mod tests {
             .not_applicable_reasons
             .iter()
             .any(|reason| reason.contains("below 1 base currency unit")));
+    }
+
+    #[test]
+    fn twr_skips_pre_funding_negative_opening_balance() {
+        // A trade-date debit can appear before the deposit that covers it when
+        // settlement is recorded separately. The initial negative row has no
+        // return base and must not poison the later funded return chain.
+        let mut history = vec![
+            valuation(
+                "2026-06-24",
+                dec!(-110),
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            valuation(
+                "2026-06-25",
+                dec!(999525),
+                dec!(1_000_000),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            valuation(
+                "2026-06-26",
+                dec!(968216),
+                dec!(1_000_000),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+        ];
+        history[1].external_inflow_base = dec!(1_000_000);
+        history[1].external_flow_source = ExternalFlowSource::CashAmount;
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            true,
+        )
+        .expect("performance should compute");
+
+        assert_eq!(result.returns.twr.unwrap().round_dp(4), dec!(-0.0313));
+        assert!(!result
+            .data_quality
+            .not_applicable_reasons
+            .iter()
+            .any(|reason| reason.contains("portfolio value is negative")));
     }
 
     #[test]
