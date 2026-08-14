@@ -2345,6 +2345,30 @@ impl AddonService {
         Ok(())
     }
 
+    /// Performs a brokered network request against an explicitly supplied manifest,
+    /// bypassing the on-disk installed-addon lookup. Used for addons running via the
+    /// dev server, which are never written to the installed addons directory.
+    pub async fn addon_network_request_with_manifest(
+        &self,
+        addon_id: &str,
+        manifest: AddonManifest,
+        request: AddonNetworkRequest,
+    ) -> Result<AddonNetworkResponse, String> {
+        let result = if (request.auth.is_some() || request.injected_authorization.is_some())
+            && !Self::manifest_allows_function(&manifest, "secrets", "use")
+        {
+            Err("Addon is not allowed to use network auth secrets".to_string())
+        } else {
+            let approved_hosts = manifest
+                .network
+                .map(|network| network.approved_hosts)
+                .unwrap_or_default();
+            perform_addon_network_request(addon_id, &approved_hosts, request.clone()).await
+        };
+        self.audit_network_request(addon_id, &request, &result);
+        result
+    }
+
     fn read_manifest_if_exists(&self, addon_dir: &Path) -> Result<Option<AddonManifest>, String> {
         let manifest_path = addon_dir.join("manifest.json");
         if !manifest_path.exists() {
@@ -3163,24 +3187,17 @@ impl AddonServiceTrait for AddonService {
         addon_id: &str,
         request: AddonNetworkRequest,
     ) -> Result<AddonNetworkResponse, String> {
-        let result = match self.enabled_manifest_for_addon(addon_id) {
+        match self.enabled_manifest_for_addon(addon_id) {
             Ok(manifest) => {
-                if (request.auth.is_some() || request.injected_authorization.is_some())
-                    && !Self::manifest_allows_function(&manifest, "secrets", "use")
-                {
-                    Err("Addon is not allowed to use network auth secrets".to_string())
-                } else {
-                    let approved_hosts = manifest
-                        .network
-                        .map(|network| network.approved_hosts)
-                        .unwrap_or_default();
-                    perform_addon_network_request(addon_id, &approved_hosts, request.clone()).await
-                }
+                self.addon_network_request_with_manifest(addon_id, manifest, request)
+                    .await
             }
-            Err(error) => Err(error),
-        };
-        self.audit_network_request(addon_id, &request, &result);
-        result
+            Err(error) => {
+                let result = Err(error);
+                self.audit_network_request(addon_id, &request, &result);
+                result
+            }
+        }
     }
 
     fn update_addon_network_approvals(

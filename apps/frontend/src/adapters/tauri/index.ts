@@ -193,6 +193,8 @@ export {
   getAddonStorageItem,
   setAddonStorageItem,
   deleteAddonStorageItem,
+  registerDevAddonManifest,
+  unregisterDevAddonManifest,
 } from "./addons";
 
 // Agent Access Commands (embedded MCP server; PATs are web-only stubs)

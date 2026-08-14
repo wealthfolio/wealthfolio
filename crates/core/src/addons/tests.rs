@@ -2667,4 +2667,156 @@ mod service_tests {
 
         std::fs::remove_dir_all(&temp_dir).ok();
     }
+
+    /// `addon_network_request_with_manifest` backs the dev-server addon network broker:
+    /// dev addons are hot-loaded by the frontend and never written to the installed
+    /// addons directory, so it must apply the same host-approval policy as the
+    /// disk-backed path using only the manifest handed to it directly.
+    #[tokio::test]
+    async fn test_addon_network_request_with_manifest_bypasses_disk_lookup() {
+        let temp_dir = env::temp_dir().join("wealthfolio_test_dev_addon_network_bypass");
+        if temp_dir.exists() {
+            std::fs::remove_dir_all(&temp_dir).ok();
+        }
+
+        let manifest = parse_manifest_json_metadata(
+            r#"{
+                "id":"dev-addon",
+                "name":"Dev Addon",
+                "version":"1.0.0",
+                "main":"addon.js",
+                "network": {
+                    "allowedHosts": ["api.example.com"],
+                    "approvedHosts": ["api.example.com"]
+                }
+            }"#,
+        )
+        .expect("manifest should parse");
+
+        let service = test_addon_service(&temp_dir);
+
+        // Nothing was ever installed to disk for this addon, so the disk-backed
+        // trait method can't find it.
+        assert!(service
+            .list_installed_addons()
+            .expect("installed addons should list")
+            .is_empty());
+
+        let result = service
+            .addon_network_request_with_manifest(
+                "dev-addon",
+                manifest,
+                AddonNetworkRequest {
+                    url: "https://not-approved.example.com/v1".to_string(),
+                    method: Some("GET".to_string()),
+                    headers: None,
+                    body: None,
+                    auth: None,
+                    injected_authorization: None,
+                },
+            )
+            .await;
+
+        // Reaching the host-approval check (rather than an "addon not found" error)
+        // proves the manifest passed in was used directly instead of a disk lookup.
+        assert!(result.is_err());
+        assert!(result.err().unwrap_or_default().contains("not approved"));
+
+        std::fs::remove_dir_all(&temp_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn test_addon_network_request_with_manifest_requires_secrets_permission() {
+        let temp_dir = env::temp_dir().join("wealthfolio_test_dev_addon_network_auth");
+        if temp_dir.exists() {
+            std::fs::remove_dir_all(&temp_dir).ok();
+        }
+
+        let manifest = parse_manifest_json_metadata(
+            r#"{
+                "id":"dev-addon",
+                "name":"Dev Addon",
+                "version":"1.0.0",
+                "main":"addon.js",
+                "network": {
+                    "allowedHosts": ["api.example.com"],
+                    "approvedHosts": ["api.example.com"]
+                }
+            }"#,
+        )
+        .expect("manifest should parse");
+
+        let service = test_addon_service(&temp_dir);
+        let result = service
+            .addon_network_request_with_manifest(
+                "dev-addon",
+                manifest,
+                AddonNetworkRequest {
+                    url: "https://api.example.com/v1".to_string(),
+                    method: Some("GET".to_string()),
+                    headers: None,
+                    body: None,
+                    auth: Some(AddonNetworkAuth {
+                        auth_type: "bearer".to_string(),
+                        secret_key: "api-token".to_string(),
+                    }),
+                    injected_authorization: Some("Bearer secret-token".to_string()),
+                },
+            )
+            .await;
+
+        assert!(result.is_err());
+        assert!(result
+            .err()
+            .unwrap_or_default()
+            .contains("not allowed to use network auth"));
+
+        std::fs::remove_dir_all(&temp_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn test_addon_network_request_with_manifest_writes_audit_entry() {
+        let temp_dir = env::temp_dir().join("wealthfolio_test_dev_addon_network_audit");
+        if temp_dir.exists() {
+            std::fs::remove_dir_all(&temp_dir).ok();
+        }
+
+        let manifest = parse_manifest_json_metadata(
+            r#"{
+                "id":"dev-addon",
+                "name":"Dev Addon",
+                "version":"1.0.0",
+                "main":"addon.js",
+                "network": {
+                    "allowedHosts": ["api.example.com"],
+                    "approvedHosts": ["api.example.com"]
+                }
+            }"#,
+        )
+        .expect("manifest should parse");
+
+        let service = test_addon_service(&temp_dir);
+        let _ = service
+            .addon_network_request_with_manifest(
+                "dev-addon",
+                manifest,
+                AddonNetworkRequest {
+                    url: "https://not-approved.example.com/v1".to_string(),
+                    method: Some("GET".to_string()),
+                    headers: None,
+                    body: None,
+                    auth: None,
+                    injected_authorization: None,
+                },
+            )
+            .await;
+
+        let audit_log =
+            std::fs::read_to_string(temp_dir.join("addons").join("network-audit.jsonl"))
+                .expect("audit log should be written even for an addon with no installed manifest");
+        assert!(audit_log.contains("\"addonId\":\"dev-addon\""));
+        assert!(audit_log.contains("\"allowed\":false"));
+
+        std::fs::remove_dir_all(&temp_dir).ok();
+    }
 }

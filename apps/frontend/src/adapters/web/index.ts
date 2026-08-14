@@ -467,10 +467,12 @@ export {
   loadAddon,
   loadAddonForRuntime,
   loadAddonAsset,
+  registerDevAddonManifest,
   setAddonStorageItem,
   submitAddonRating,
   toggleAddon,
   uninstallAddon,
+  unregisterDevAddonManifest,
   updateAddon,
   updateAddonNetworkApprovals,
 } from "./addons";
