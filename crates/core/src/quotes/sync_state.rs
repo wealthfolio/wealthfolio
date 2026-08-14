@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use crate::errors::Result;
 
@@ -339,6 +340,48 @@ pub struct SymbolSyncPlan {
     pub suppress_closed_fetch_errors: bool,
 }
 
+// =============================================================================
+// Profile Enrichment Freshness
+// =============================================================================
+
+/// Default maximum age of an asset profile before it is re-enriched, in days.
+///
+/// Fundamentals (P/E, dividend yield, 52-week range) move on quarterly earnings
+/// cycles, so a weekly refresh keeps them current at negligible provider cost.
+pub const DEFAULT_PROFILE_ENRICHMENT_TTL_DAYS: i64 = 7;
+
+static PROFILE_ENRICHMENT_TTL: OnceLock<Option<Duration>> = OnceLock::new();
+
+/// Set the process-wide profile-enrichment TTL. `None` disables periodic
+/// re-enrichment, leaving profiles enriched exactly once at asset creation.
+///
+/// Call once during startup, before any sync work begins. Later calls are ignored
+/// (returns `false`) so the value cannot change under a running scheduler.
+pub fn set_profile_enrichment_ttl(ttl: Option<Duration>) -> bool {
+    PROFILE_ENRICHMENT_TTL.set(ttl).is_ok()
+}
+
+/// The process-wide profile-enrichment TTL, defaulting to
+/// [`DEFAULT_PROFILE_ENRICHMENT_TTL_DAYS`] if startup never set one.
+pub fn profile_enrichment_ttl() -> Option<Duration> {
+    *PROFILE_ENRICHMENT_TTL
+        .get_or_init(|| Some(Duration::days(DEFAULT_PROFILE_ENRICHMENT_TTL_DAYS)))
+}
+
+/// The timestamp at or before which a profile counts as stale, or `None` when the
+/// TTL is disabled.
+///
+/// This is the SQL-side half of [`QuoteSyncState::needs_profile_enrichment_at`]:
+/// the repository selects `profile_enriched_at IS NULL OR profile_enriched_at <= cutoff`.
+/// The two must agree, or the scheduler selects assets that `enrich_assets` then
+/// skips and nothing ever refreshes.
+pub fn profile_enrichment_cutoff(
+    now: DateTime<Utc>,
+    max_age: Option<Duration>,
+) -> Option<DateTime<Utc>> {
+    max_age.map(|max_age| now - max_age)
+}
+
 /// Domain model for quote sync state.
 ///
 /// This table tracks sync coordination state per asset. It is NOT a cache of
@@ -395,9 +438,30 @@ impl QuoteSyncState {
         }
     }
 
-    /// Returns true if the asset profile needs enrichment (profile_enriched_at is None).
+    /// Returns true if the asset profile needs enrichment, using the process-wide
+    /// TTL (see [`profile_enrichment_ttl`]).
     pub fn needs_profile_enrichment(&self) -> bool {
-        self.profile_enriched_at.is_none()
+        self.needs_profile_enrichment_at(Utc::now(), profile_enrichment_ttl())
+    }
+
+    /// Freshness predicate, with `now` and the TTL injected so it is deterministic.
+    ///
+    /// A profile is stale when it has never been enriched, or when the last
+    /// enrichment is at least `max_age` old. `max_age` of `None` disables periodic
+    /// re-enrichment, restoring the legacy one-shot behaviour.
+    ///
+    /// An enrichment timestamp in the future (clock skew, restored backup) reads as
+    /// fresh rather than infinitely stale.
+    pub fn needs_profile_enrichment_at(
+        &self,
+        now: DateTime<Utc>,
+        max_age: Option<Duration>,
+    ) -> bool {
+        match (self.profile_enriched_at, max_age) {
+            (None, _) => true,
+            (Some(_), None) => false,
+            (Some(enriched_at), Some(max_age)) => now.signed_duration_since(enriched_at) >= max_age,
+        }
     }
 
     /// Mark profile as enriched.
@@ -544,6 +608,150 @@ pub trait SyncStateStore: Send + Sync {
 
     /// Get sync states with errors (error_count > 0).
     fn get_with_errors(&self) -> Result<Vec<QuoteSyncState>>;
+}
+
+#[cfg(test)]
+mod profile_enrichment_tests {
+    use super::*;
+
+    fn state_enriched_at(at: Option<DateTime<Utc>>) -> QuoteSyncState {
+        let mut state = QuoteSyncState::new("AAPL".to_string(), "YAHOO".to_string());
+        state.profile_enriched_at = at;
+        state
+    }
+
+    fn now() -> DateTime<Utc> {
+        Utc::now()
+    }
+
+    #[test]
+    fn never_enriched_needs_enrichment() {
+        let state = state_enriched_at(None);
+        assert!(state.needs_profile_enrichment_at(now(), Some(Duration::days(7))));
+    }
+
+    #[test]
+    fn never_enriched_needs_enrichment_even_when_ttl_disabled() {
+        let state = state_enriched_at(None);
+        assert!(
+            state.needs_profile_enrichment_at(now(), None),
+            "a profile that was never enriched must be enriched once regardless of TTL"
+        );
+    }
+
+    #[test]
+    fn enriched_older_than_ttl_needs_enrichment() {
+        let now = now();
+        let state = state_enriched_at(Some(now - Duration::days(8)));
+        assert!(state.needs_profile_enrichment_at(now, Some(Duration::days(7))));
+    }
+
+    #[test]
+    fn enriched_within_ttl_does_not_need_enrichment() {
+        let now = now();
+        let state = state_enriched_at(Some(now - Duration::days(3)));
+        assert!(!state.needs_profile_enrichment_at(now, Some(Duration::days(7))));
+    }
+
+    /// Boundary direction is documented, not incidental: an age of exactly the TTL
+    /// counts as stale, so a daily loop with a 7-day TTL refreshes on day 7, not day 8.
+    #[test]
+    fn enriched_exactly_at_ttl_boundary_needs_enrichment() {
+        let now = now();
+        let state = state_enriched_at(Some(now - Duration::days(7)));
+        assert!(state.needs_profile_enrichment_at(now, Some(Duration::days(7))));
+    }
+
+    #[test]
+    fn enriched_one_second_inside_ttl_does_not_need_enrichment() {
+        let now = now();
+        let state = state_enriched_at(Some(now - Duration::days(7) + Duration::seconds(1)));
+        assert!(!state.needs_profile_enrichment_at(now, Some(Duration::days(7))));
+    }
+
+    /// Clock skew (or a restored backup) can leave a timestamp in the future.
+    /// That must not panic and must not be read as "infinitely stale".
+    #[test]
+    fn enriched_in_the_future_does_not_need_enrichment() {
+        let now = now();
+        let state = state_enriched_at(Some(now + Duration::days(30)));
+        assert!(!state.needs_profile_enrichment_at(now, Some(Duration::days(7))));
+    }
+
+    #[test]
+    fn ttl_none_restores_legacy_one_shot_behaviour() {
+        let now = now();
+        let state = state_enriched_at(Some(now - Duration::days(3650)));
+        assert!(
+            !state.needs_profile_enrichment_at(now, None),
+            "a disabled TTL must never re-enrich an already-enriched profile"
+        );
+    }
+
+    #[test]
+    fn cutoff_is_none_when_ttl_disabled() {
+        assert!(profile_enrichment_cutoff(now(), None).is_none());
+    }
+
+    #[test]
+    fn cutoff_is_ttl_before_now() {
+        let now = now();
+        assert_eq!(
+            profile_enrichment_cutoff(now, Some(Duration::days(7))),
+            Some(now - Duration::days(7))
+        );
+    }
+
+    /// The regression this unit exists to prevent, in the form it can actually take:
+    /// the scheduler selects stale assets with the SQL cutoff
+    /// (`profile_enriched_at IS NULL OR profile_enriched_at <= cutoff`), and
+    /// `enrich_assets` then re-checks each one with `needs_profile_enrichment`.
+    /// If the two disagree, the loop selects assets that are immediately skipped and
+    /// nothing ever refreshes — silently, exactly like today's bug.
+    #[test]
+    fn sql_cutoff_and_in_memory_predicate_agree() {
+        let now = now();
+        let ttl = Duration::days(7);
+        let cutoff = profile_enrichment_cutoff(now, Some(ttl)).expect("ttl enabled");
+
+        let ages_in_hours = [0, 1, 24, 167, 168, 169, 24 * 30, -24];
+        for hours in ages_in_hours {
+            let enriched_at = now - Duration::hours(hours);
+            let state = state_enriched_at(Some(enriched_at));
+
+            let selected_by_sql = enriched_at <= cutoff;
+            let accepted_by_predicate = state.needs_profile_enrichment_at(now, Some(ttl));
+
+            assert_eq!(
+                selected_by_sql, accepted_by_predicate,
+                "SQL cutoff and in-memory predicate disagree for a profile enriched {hours}h ago"
+            );
+        }
+    }
+
+    /// An asset enriched now, then aged past the TTL, becomes selectable again.
+    #[test]
+    fn enriched_asset_becomes_stale_again_after_the_ttl() {
+        let enriched_at = Utc::now();
+        let state = state_enriched_at(Some(enriched_at));
+        let ttl = Duration::days(7);
+
+        assert!(
+            !state.needs_profile_enrichment_at(enriched_at, Some(ttl)),
+            "freshly enriched profile must not be re-enriched immediately"
+        );
+
+        let later = enriched_at + Duration::days(8);
+        assert!(
+            state.needs_profile_enrichment_at(later, Some(ttl)),
+            "profile aged past the TTL must be enriched again \
+             — this is the permanent-staleness bug the unit fixes"
+        );
+        assert!(
+            profile_enrichment_cutoff(later, Some(ttl)).is_some_and(|cutoff| enriched_at <= cutoff),
+            "the repository query must select it too"
+        );
+    }
 }
 
 #[cfg(test)]

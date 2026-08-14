@@ -207,6 +207,14 @@ mod desktop {
             .await;
         });
 
+        // Start periodic asset profile enrichment (fundamentals). Same pair of calls
+        // as the server target, so the two cannot drift apart.
+        wealthfolio_core::quotes::scheduler::start_periodic_profile_enrichment(
+            Arc::clone(&context.quote_service),
+            Arc::clone(&context.asset_service),
+            wealthfolio_core::quotes::scheduler::configure_profile_enrichment(),
+        );
+
         // Start background device sync engine (self-skips when device is not READY).
         #[cfg(feature = "device-sync")]
         {
@@ -334,6 +342,12 @@ fn get_app_data_dir(handle: &AppHandle) -> Result<String, Box<dyn std::error::Er
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     dotenv().ok();
+
+    // Publish the profile-enrichment TTL before any context is initialized: the
+    // domain-event queue worker can reach the freshness predicate as soon as it
+    // starts, and the first reader fixes the TTL for the process. Re-read at the
+    // spawn site below, which returns the same values.
+    wealthfolio_core::quotes::scheduler::configure_profile_enrichment();
 
     let builder = tauri::Builder::default();
 

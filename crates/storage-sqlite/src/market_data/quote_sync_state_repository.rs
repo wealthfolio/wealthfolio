@@ -12,7 +12,10 @@ use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
 use crate::schema::quote_sync_state::dsl as qss_dsl;
 use crate::utils::chunk_for_sqlite;
-use wealthfolio_core::quotes::{ProviderSyncStats, QuoteSyncState, SyncStateStore};
+use wealthfolio_core::quotes::{
+    profile_enrichment_cutoff, profile_enrichment_ttl, ProviderSyncStats, QuoteSyncState,
+    SyncStateStore,
+};
 use wealthfolio_core::Result;
 
 pub struct QuoteSyncStateRepository {
@@ -470,9 +473,27 @@ impl SyncStateStore for QuoteSyncStateRepository {
     fn get_assets_needing_profile_enrichment(&self) -> Result<Vec<QuoteSyncState>> {
         let mut conn = get_connection(&self.pool)?;
 
-        // Get assets where profile_enriched_at is NULL
+        // Assets never enriched, plus those whose profile has aged past the TTL.
+        // The cutoff must match `QuoteSyncState::needs_profile_enrichment`, which
+        // `enrich_assets` re-applies to every id this returns — if the two diverge,
+        // selected assets are silently skipped and nothing ever refreshes.
+        //
+        // `profile_enriched_at` is stored as RFC3339 in UTC, so lexicographic
+        // comparison matches chronological order (same pattern as the
+        // `position_closed_date` grace cutoff above).
+        let cutoff = profile_enrichment_cutoff(Utc::now(), profile_enrichment_ttl())
+            .map(|cutoff| cutoff.to_rfc3339())
+            // TTL disabled: an empty cutoff sorts below every RFC3339 timestamp, so
+            // the `le` arm matches nothing and only never-enriched rows are returned
+            // — the legacy one-shot behaviour, with one query shape instead of two.
+            .unwrap_or_default();
+
         let results = qss_dsl::quote_sync_state
-            .filter(qss_dsl::profile_enriched_at.is_null())
+            .filter(
+                qss_dsl::profile_enriched_at
+                    .is_null()
+                    .or(qss_dsl::profile_enriched_at.le(cutoff)),
+            )
             .order(qss_dsl::sync_priority.desc())
             .load::<QuoteSyncStateDB>(&mut conn)
             .map_err(StorageError::from)?;
