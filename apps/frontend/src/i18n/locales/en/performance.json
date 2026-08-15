@@ -133,5 +133,21 @@
     "contributions_desc": "Cash you added to the account",
     "distributions": "Distributions",
     "distributions_desc": "Cash withdrawn from the account"
+  },
+  "monthly": {
+    "title": "Monthly Performance",
+    "info": "Monthly breakdown of investment returns by year and month, with comparison against benchmark if selected.",
+    "view_portfolio": "Portfolio",
+    "view_benchmark": "Benchmark",
+    "view_relative": "Relative (Alpha)",
+    "benchmark_comparison": "vs Benchmark",
+    "alpha": "Alpha",
+    "portfolio": "Portfolio",
+    "benchmark": "Benchmark",
+    "excess_return": "Excess Return",
+    "year_total": "Total",
+    "ytd": "YTD",
+    "no_data": "No monthly data available for the selected item.",
+    "select_item": "Select item"
   }
 }

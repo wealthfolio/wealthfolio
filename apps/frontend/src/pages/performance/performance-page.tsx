@@ -76,6 +76,7 @@ import {
   migratePerformanceSelectedItemId,
   migratePerformanceSelectedItems,
 } from "./performance-selection";
+import { MonthlyPerformanceCard } from "./components/monthly-performance/monthly-performance-card";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
 
@@ -1095,6 +1096,13 @@ export default function PerformancePage() {
     dateRange: getPerformanceDateRangeForRequest(dateRange),
   });
 
+  // Fetch all-time performance history for the multi-year monthly breakdown matrix
+  const { data: allTimePerformanceData, isLoading: isLoadingAllTimePerformance } =
+    useCalculatePerformanceHistory({
+      selectedItems,
+      dateRange: undefined,
+    });
+
   const selectedPerformanceData = useMemo(() => {
     if (!performanceData?.length || !selectedItems) return null;
     const targetId = selectedItemId ?? performanceData.find((item) => item !== null)?.id; // Find first non-null item ID if none selected
@@ -1112,6 +1120,29 @@ export default function PerformancePage() {
 
   const selectedChartMetric = selectedPerformanceData?.chartMetric ?? "twr";
   const activeChartAnchorId = selectedPerformanceData?.result.id ?? selectedItemId;
+
+  const activeAnchorItem = useMemo(
+    () => selectedItems.find((item) => item.id === activeChartAnchorId) ?? selectedItems[0],
+    [activeChartAnchorId, selectedItems],
+  );
+
+  const activePortfolioAllTimeResult = useMemo(
+    () => allTimePerformanceData?.find((item) => item?.id === activeAnchorItem?.id),
+    [allTimePerformanceData, activeAnchorItem],
+  );
+
+  const benchmarkItem = useMemo(
+    () => selectedItems.find((item) => item.type === "symbol"),
+    [selectedItems],
+  );
+
+  const benchmarkAllTimeResult = useMemo(
+    () =>
+      benchmarkItem
+        ? allTimePerformanceData?.find((item) => item?.id === benchmarkItem.id)
+        : undefined,
+    [allTimePerformanceData, benchmarkItem],
+  );
 
   // Calculate derived chart data
   const chartData = useMemo(() => {
@@ -1804,6 +1835,22 @@ export default function PerformancePage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Monthly Performance Breakdown Matrix and Bar Chart */}
+        <MonthlyPerformanceCard
+          portfolioSeries={activePortfolioAllTimeResult?.series}
+          portfolioName={activeAnchorItem?.name ?? t("performance:all_portfolio")}
+          benchmarkSeries={benchmarkAllTimeResult?.series}
+          benchmarkName={
+            benchmarkItem
+              ? benchmarkItem.name !== benchmarkItem.id
+                ? `${benchmarkItem.name} (${benchmarkItem.id})`
+                : benchmarkItem.name
+              : undefined
+          }
+          dateRange={dateRange}
+          isLoading={isLoadingAllTimePerformance}
+        />
       </div>
     </>
   );

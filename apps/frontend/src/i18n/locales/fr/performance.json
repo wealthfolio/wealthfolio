@@ -130,8 +130,24 @@
     "taxes": "Impôts",
     "taxes_desc": "Retenues fiscales sur les revenus",
     "contributions": "Contributions",
-    "contributions_desc": "Liquidités ajoutées au compte",
+    "contributions_desc": "Fonds ajoutés au compte",
     "distributions": "Distributions",
-    "distributions_desc": "Liquidités retirées du compte"
+    "distributions_desc": "Fonds retirés du compte"
+  },
+  "monthly": {
+    "title": "Performances mensuelles",
+    "info": "Répartition mensuelle des rendements par année et par mois, avec comparaison par rapport à l'indice de référence.",
+    "view_portfolio": "Portefeuille",
+    "view_benchmark": "Indice",
+    "view_relative": "Relatif (Alpha)",
+    "benchmark_comparison": "vs Indice",
+    "alpha": "Alpha",
+    "portfolio": "Portefeuille",
+    "benchmark": "Indice de référence",
+    "excess_return": "Rendement relatif",
+    "year_total": "Total",
+    "ytd": "YTD",
+    "no_data": "Aucune donnée mensuelle disponible pour la sélection.",
+    "select_item": "Sélectionner un élément"
   }
 }
