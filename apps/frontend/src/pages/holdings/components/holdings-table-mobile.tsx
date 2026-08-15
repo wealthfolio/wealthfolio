@@ -194,7 +194,11 @@ export const HoldingsTableMobile = ({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex flex-1 items-center gap-3 overflow-hidden">
-                    <TickerAvatar symbol={avatarSymbol} className="h-10 w-10" />
+                    <TickerAvatar
+                      symbol={avatarSymbol}
+                      exchangeMic={holding.instrument?.exchangeMic ?? undefined}
+                      className="h-10 w-10"
+                    />
                     <div className="flex-1 overflow-hidden">
                       <div className="flex items-center gap-1.5">
                         <p className="truncate font-semibold">{displaySymbol}</p>

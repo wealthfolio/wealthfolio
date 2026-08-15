@@ -200,7 +200,11 @@ function ActivityDateListItem({
   const content = (
     <>
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <TickerAvatar symbol={avatarSymbol} className="h-10 w-10 flex-shrink-0" />
+        <TickerAvatar
+          symbol={avatarSymbol}
+          exchangeMic={activity.exchangeMic}
+          className="h-10 w-10 flex-shrink-0"
+        />
         <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] gap-x-3">
           <p className="truncate text-base font-semibold leading-5">{displaySymbol}</p>
           {activity.activityType !== ActivityType.SPLIT ? (

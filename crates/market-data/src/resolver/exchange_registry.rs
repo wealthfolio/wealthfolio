@@ -61,6 +61,7 @@ pub struct ExchangeInfo {
     pub name: String,
     pub long_name: String,
     pub currency: String,
+    pub logo_suffix: Option<String>,
 }
 
 /// Return the list of "real" exchanges (those with a name).
@@ -71,11 +72,20 @@ pub fn get_exchange_list() -> Vec<ExchangeInfo> {
         .iter()
         .filter_map(|e| {
             let name = e.name.as_ref()?;
+            let logo_suffix = e.yahoo.as_ref().and_then(|y| {
+                let s = y.suffix.trim().trim_start_matches('.').to_string();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
             Some(ExchangeInfo {
                 mic: e.mic.clone(),
                 long_name: e.long_name.as_ref().unwrap_or(name).clone(),
                 name: name.clone(),
                 currency: e.currency.as_ref()?.clone(),
+                logo_suffix,
             })
         })
         .collect()
@@ -207,5 +217,28 @@ impl ExchangeRegistry {
             yahoo_suffix_to_mic: suffix_to_mic,
             yahoo_suffixes,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_exchange_list_logo_suffix() {
+        let exchanges = get_exchange_list();
+        assert!(!exchanges.is_empty());
+
+        let xpar = exchanges
+            .iter()
+            .find(|e| e.mic == "XPAR")
+            .expect("XPAR should be in registry");
+        assert_eq!(xpar.logo_suffix.as_deref(), Some("PA"));
+
+        let xnas = exchanges
+            .iter()
+            .find(|e| e.mic == "XNAS")
+            .expect("XNAS should be in registry");
+        assert_eq!(xnas.logo_suffix, None);
     }
 }

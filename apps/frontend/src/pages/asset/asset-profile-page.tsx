@@ -1386,6 +1386,11 @@ export const AssetProfilePage = () => {
                   assetProfile?.displayCode ??
                   assetId
                 }
+                exchangeMic={
+                  holding?.instrument?.exchangeMic ??
+                  assetProfile?.instrumentExchangeMic ??
+                  undefined
+                }
                 className="size-9"
               />
             )

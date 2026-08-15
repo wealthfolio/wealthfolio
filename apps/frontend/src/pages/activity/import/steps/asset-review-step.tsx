@@ -97,7 +97,11 @@ function NeedsFixingRow({
     >
       {/* Col 1: avatar + symbol + count */}
       <div className="flex items-center gap-2.5">
-        <TickerAvatar symbol={symbol} className="size-7 shrink-0" />
+        <TickerAvatar
+          symbol={symbol}
+          exchangeMic={item.draft?.instrumentExchangeMic ?? undefined}
+          className="size-7 shrink-0"
+        />
         <div className="flex min-w-0 flex-col">
           <div className="flex items-center gap-1.5">
             <span className="font-mono text-sm font-bold tracking-tight">{symbol}</span>
@@ -199,7 +203,11 @@ function AutoResolvedRow({
     >
       {/* Col 1: avatar + symbol + name */}
       <div className="flex items-center gap-2.5">
-        <TickerAvatar symbol={symbol} className="size-7 shrink-0" />
+        <TickerAvatar
+          symbol={symbol}
+          exchangeMic={asset?.instrumentExchangeMic ?? undefined}
+          className="size-7 shrink-0"
+        />
         <div className="flex min-w-0 flex-col">
           <div className="flex items-center gap-1.5">
             <span className="font-mono text-sm font-bold tracking-tight">{symbol}</span>
@@ -318,7 +326,11 @@ function ReadyAssetRow({
     >
       {/* Col 1: avatar + symbol + name */}
       <div className="flex items-center gap-2.5">
-        <TickerAvatar symbol={symbol} className="size-7 shrink-0" />
+        <TickerAvatar
+          symbol={symbol}
+          exchangeMic={asset?.instrumentExchangeMic ?? undefined}
+          className="size-7 shrink-0"
+        />
         <div className="flex min-w-0 flex-col">
           <div className="flex items-center gap-1.5">
             <span className="font-mono text-sm font-bold tracking-tight">{symbol}</span>

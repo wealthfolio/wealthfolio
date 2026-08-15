@@ -540,6 +540,7 @@ export interface ExchangeInfo {
   name: string;
   longName: string;
   currency: string;
+  logoSuffix?: string | null;
 }
 
 export interface MarketDataProviderInfo {
@@ -749,6 +750,7 @@ export interface HoldingSummary {
   marketValue: number; // Base currency value
   currency: string;
   weightInCategory: number; // Percentage weight within the category (0-100)
+  exchangeMic?: string | null;
 }
 
 /**

@@ -229,7 +229,11 @@ const getColumns = (
       const isManual = holding.instrument?.quoteMode === "MANUAL";
       const content = (
         <div className="flex items-center">
-          <TickerAvatar symbol={avatarSymbol} className="mr-2 h-8 w-8" />
+          <TickerAvatar
+            symbol={avatarSymbol}
+            exchangeMic={holding.instrument?.exchangeMic ?? undefined}
+            className="mr-2 h-8 w-8"
+          />
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
               <span className="font-medium">{displaySymbol}</span>

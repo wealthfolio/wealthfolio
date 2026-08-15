@@ -268,7 +268,11 @@ function HoldingRow({
       >
         {/* Symbol/Name Column */}
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <TickerAvatar symbol={avatarSymbol} className="h-8 w-8 flex-shrink-0" />
+          <TickerAvatar
+            symbol={avatarSymbol}
+            exchangeMic={holding.instrument?.exchangeMic ?? undefined}
+            className="h-8 w-8 flex-shrink-0"
+          />
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex items-center gap-2">
               <span className="truncate font-medium">{symbol}</span>

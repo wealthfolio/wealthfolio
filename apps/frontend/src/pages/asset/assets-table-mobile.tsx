@@ -226,7 +226,11 @@ export function AssetsTableMobile({
                   const avatarSymbol = parsedOption ? parsedOption.underlying : rawSymbol;
                   return (
                     <>
-                      <TickerAvatar symbol={avatarSymbol} className="h-10 w-10 flex-shrink-0" />
+                      <TickerAvatar
+                        symbol={avatarSymbol}
+                        exchangeMic={asset.instrumentExchangeMic ?? undefined}
+                        className="h-10 w-10 flex-shrink-0"
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="truncate font-semibold">{displaySymbol}</p>

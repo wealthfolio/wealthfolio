@@ -742,7 +742,11 @@ export function AssetClassificationToolUIContentImpl({
                       isSelected && "border-primary/50 bg-primary/5",
                     )}
                   >
-                    <TickerAvatar symbol={avatarSymbol} className="size-8 shrink-0" />
+                    <TickerAvatar
+                      symbol={avatarSymbol}
+                      exchangeMic={candidate.exchangeMic}
+                      className="size-8 shrink-0"
+                    />
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium">{candidate.label}</div>
                       <div className="text-muted-foreground mt-0.5 truncate text-xs">
