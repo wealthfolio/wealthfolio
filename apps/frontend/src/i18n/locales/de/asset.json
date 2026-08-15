@@ -153,7 +153,11 @@
     "maturity": "Fälligkeit",
     "type": "Typ",
     "strike": "Ausübungspreis",
-    "expiry": "Verfall"
+    "expiry": "Verfall",
+    "twr": "TWR",
+    "annualized_twr": "Annualisierter TWR",
+    "irr": "IRR",
+    "annualized_irr": "Annualisierter IRR"
   },
   "profile": {
     "overview": "Übersicht",
@@ -336,7 +340,11 @@
     "period_year_month": "{{years}}J {{months}}Mon.",
     "period_year": "{{years}}J",
     "period_month": "{{months}}Mon.",
-    "period_day": "{{days}}T"
+    "period_day": "{{days}}T",
+    "twr": "TWR",
+    "annualized_twr": "Annualisierter TWR",
+    "irr": "IRR",
+    "annualized_irr": "Annualisierter IRR"
   },
   "accountHoldings": {
     "manual": "Manuell",

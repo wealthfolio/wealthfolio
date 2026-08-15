@@ -17,7 +17,11 @@ import { TickerAvatar } from "@/components/ticker-avatar";
 import { HoldingPerformancePercent } from "@/components/holding-performance-percent";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { HoldingType } from "@/lib/constants";
-import { getBaseHoldingPerformancePercent } from "@/lib/holding-performance";
+import {
+  getBaseHoldingPerformancePercent,
+  computeHoldingPerformance,
+  type DatedCashFlow,
+} from "@/lib/holding-performance";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { Holding } from "@/lib/types";
 import { AmountDisplay, PriceDisplay, QuantityDisplay, formatPercent } from "@wealthfolio/ui";
@@ -144,6 +148,8 @@ export const HoldingsTable = ({
           realizedPnl: false,
           income: false,
           dayPnl: false,
+          twr: false,
+          irr: false,
         }}
         defaultSorting={[{ id: "symbol", desc: false }]}
         scrollable={true}
@@ -184,6 +190,46 @@ export const HoldingsTable = ({
 };
 
 export default HoldingsTable;
+
+function getHoldingPerformanceData(holding: Holding) {
+  let openDate: string | Date | null = holding.openDate ?? null;
+  const cashFlows: DatedCashFlow[] = [];
+
+  if (holding.lots && holding.lots.length > 0) {
+    for (const lot of holding.lots) {
+      const acqDate = lot.acquisitionDate;
+      if (acqDate) {
+        if (!openDate) {
+          openDate = acqDate;
+        } else {
+          const lotTime = new Date(acqDate).getTime();
+          const curTime =
+            typeof openDate === "string" ? new Date(openDate).getTime() : openDate.getTime();
+          if (!Number.isNaN(lotTime) && (Number.isNaN(curTime) || lotTime < curTime)) {
+            openDate = acqDate;
+          }
+        }
+        const cost = Number(lot.costBasis ?? 0);
+        if (cost > 0) {
+          cashFlows.push({ date: acqDate, amount: -cost });
+        }
+      }
+    }
+  }
+
+  const marketVal = Number(holding.marketValue?.local ?? holding.marketValue?.base ?? 0);
+  if (marketVal > 0 && cashFlows.length > 0) {
+    cashFlows.push({ date: new Date(), amount: marketVal });
+  }
+
+  const totalReturnPct = holding.totalReturnPct ?? holding.totalGainPct ?? null;
+
+  return computeHoldingPerformance({
+    totalReturnPct,
+    openDate,
+    cashFlows: cashFlows.length >= 2 ? cashFlows : undefined,
+  });
+}
 
 const getColumns = (
   t: TFunction,
@@ -692,6 +738,80 @@ const getColumns = (
       const valueA = rowA.original.income?.base ?? 0;
       const valueB = rowB.original.income?.base ?? 0;
       return valueA - valueB;
+    },
+  },
+  {
+    id: "twr",
+    accessorFn: (row) => {
+      const perf = getHoldingPerformanceData(row);
+      return perf.displayTwr ?? -Infinity;
+    },
+    enableHiding: true,
+    enableSorting: true,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        className="justify-end text-right"
+        column={column}
+        title={t("holdings:twr")}
+      />
+    ),
+    meta: {
+      label: t("holdings:twr"),
+    },
+    cell: ({ row }) => {
+      const perf = getHoldingPerformanceData(row.original);
+      return (
+        <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
+          {perf.displayTwr == null ? (
+            <span className="text-muted-foreground text-xs">N/A</span>
+          ) : (
+            <HoldingPerformancePercent className="text-sm" value={perf.displayTwr} />
+          )}
+          <div className="text-xs text-transparent">-</div>
+        </div>
+      );
+    },
+    sortingFn: (rowA, rowB) => {
+      const a = getHoldingPerformanceData(rowA.original).displayTwr ?? -Infinity;
+      const b = getHoldingPerformanceData(rowB.original).displayTwr ?? -Infinity;
+      return a - b;
+    },
+  },
+  {
+    id: "irr",
+    accessorFn: (row) => {
+      const perf = getHoldingPerformanceData(row);
+      return perf.displayIrr ?? -Infinity;
+    },
+    enableHiding: true,
+    enableSorting: true,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        className="justify-end text-right"
+        column={column}
+        title={t("holdings:irr")}
+      />
+    ),
+    meta: {
+      label: t("holdings:irr"),
+    },
+    cell: ({ row }) => {
+      const perf = getHoldingPerformanceData(row.original);
+      return (
+        <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
+          {perf.displayIrr == null ? (
+            <span className="text-muted-foreground text-xs">N/A</span>
+          ) : (
+            <HoldingPerformancePercent className="text-sm" value={perf.displayIrr} />
+          )}
+          <div className="text-xs text-transparent">-</div>
+        </div>
+      );
+    },
+    sortingFn: (rowA, rowB) => {
+      const a = getHoldingPerformanceData(rowA.original).displayIrr ?? -Infinity;
+      const b = getHoldingPerformanceData(rowB.original).displayIrr ?? -Infinity;
+      return a - b;
     },
   },
   {

@@ -172,6 +172,8 @@ pub struct HoldingListItem {
     pub asset_kind: Option<AssetKind>,
     pub quantity: Decimal,
     pub open_date: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lots: Option<VecDeque<Lot>>,
     pub contract_multiplier: Decimal,
     pub local_currency: String,
     pub base_currency: String,
@@ -233,6 +235,7 @@ impl From<Holding> for HoldingListItem {
             asset_kind: holding.asset_kind,
             quantity: holding.quantity,
             open_date: holding.open_date,
+            lots: holding.lots,
             contract_multiplier: holding.contract_multiplier,
             local_currency: holding.local_currency,
             base_currency: holding.base_currency,

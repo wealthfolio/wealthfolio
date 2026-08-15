@@ -153,7 +153,11 @@
     "maturity": "償還日",
     "type": "タイプ",
     "strike": "権利行使価格",
-    "expiry": "満期日"
+    "expiry": "満期日",
+    "twr": "TWR",
+    "annualized_twr": "年率化 TWR",
+    "irr": "IRR",
+    "annualized_irr": "年率化 IRR"
   },
   "profile": {
     "overview": "概要",
@@ -336,7 +340,11 @@
     "period_year_month": "{{years}}年{{months}}か月",
     "period_year": "{{years}}年",
     "period_month": "{{months}}か月",
-    "period_day": "{{days}}日"
+    "period_day": "{{days}}日",
+    "twr": "TWR",
+    "annualized_twr": "年率化 TWR",
+    "irr": "IRR",
+    "annualized_irr": "年率化 IRR"
   },
   "accountHoldings": {
     "manual": "手動",

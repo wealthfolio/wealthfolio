@@ -153,7 +153,11 @@
     "maturity": "만기",
     "type": "유형",
     "strike": "행사가",
-    "expiry": "만료"
+    "expiry": "만료",
+    "twr": "TWR",
+    "annualized_twr": "연환산 TWR",
+    "irr": "IRR",
+    "annualized_irr": "연환산 IRR"
   },
   "profile": {
     "overview": "개요",
@@ -336,7 +340,11 @@
     "period_year_month": "{{years}}년 {{months}}개월",
     "period_year": "{{years}}년",
     "period_month": "{{months}}개월",
-    "period_day": "{{days}}일"
+    "period_day": "{{days}}일",
+    "twr": "TWR",
+    "annualized_twr": "연환산 TWR",
+    "irr": "IRR",
+    "annualized_irr": "연환산 IRR"
   },
   "accountHoldings": {
     "manual": "수동",

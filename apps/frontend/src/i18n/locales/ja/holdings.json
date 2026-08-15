@@ -211,5 +211,9 @@
   "assets_need_valuations_one": "{{count}}件の資産で評価額の更新が必要です",
   "assets_need_valuations_other": "{{count}}件の資産で評価額の更新が必要です",
   "category_breakdown": "カテゴリ別内訳",
-  "personal_assets": "個人資産"
+  "personal_assets": "個人資産",
+  "twr": "TWR",
+  "annualized_twr": "年率化 TWR",
+  "irr": "IRR",
+  "annualized_irr": "年率化 IRR"
 }

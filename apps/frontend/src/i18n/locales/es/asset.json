@@ -153,7 +153,11 @@
     "maturity": "Vencimiento",
     "type": "Tipo",
     "strike": "Precio de ejercicio",
-    "expiry": "Vencimiento"
+    "expiry": "Vencimiento",
+    "twr": "TWR",
+    "annualized_twr": "TWR anualizada",
+    "irr": "IRR",
+    "annualized_irr": "IRR anualizada"
   },
   "profile": {
     "overview": "Resumen",
@@ -336,7 +340,11 @@
     "period_year_month": "{{years}} a {{months}} m",
     "period_year": "{{years}} a",
     "period_month": "{{months}} m",
-    "period_day": "{{days}} d"
+    "period_day": "{{days}} d",
+    "twr": "TWR",
+    "annualized_twr": "TWR anualizada",
+    "irr": "IRR",
+    "annualized_irr": "IRR anualizada"
   },
   "accountHoldings": {
     "manual": "Manual",

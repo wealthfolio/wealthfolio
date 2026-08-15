@@ -211,5 +211,9 @@
   "assets_need_valuations_one": "{{count}} actif nécessite des valorisations à jour",
   "assets_need_valuations_other": "{{count}} actifs nécessitent des valorisations à jour",
   "category_breakdown": "Répartition par catégorie",
-  "personal_assets": "Actifs personnels"
+  "personal_assets": "Actifs personnels",
+  "twr": "TWR",
+  "annualized_twr": "TWR annualisé",
+  "irr": "TRI",
+  "annualized_irr": "TRI annualisé"
 }

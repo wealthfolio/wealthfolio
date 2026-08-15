@@ -211,5 +211,9 @@
   "assets_need_valuations_one": "{{count}} asset needs updated valuations",
   "assets_need_valuations_other": "{{count}} assets need updated valuations",
   "category_breakdown": "Category Breakdown",
-  "personal_assets": "Personal Assets"
+  "personal_assets": "Personal Assets",
+  "twr": "TWR",
+  "annualized_twr": "Annualized TWR",
+  "irr": "IRR",
+  "annualized_irr": "Annualized IRR"
 }

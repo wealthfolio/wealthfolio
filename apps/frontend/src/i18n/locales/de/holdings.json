@@ -211,5 +211,9 @@
   "assets_need_valuations_one": "{{count}} Vermögenswert benötigt aktualisierte Bewertungen",
   "assets_need_valuations_other": "{{count}} Vermögenswerte benötigen aktualisierte Bewertungen",
   "category_breakdown": "Kategorieaufschlüsselung",
-  "personal_assets": "Persönliche Vermögenswerte"
+  "personal_assets": "Persönliche Vermögenswerte",
+  "twr": "TWR",
+  "annualized_twr": "Annualisierter TWR",
+  "irr": "IRR",
+  "annualized_irr": "Annualisierter IRR"
 }

@@ -11,6 +11,7 @@ import { useSyncMarketDataMutation } from "@/hooks/use-sync-market-data";
 import { useAssetTaxonomyAssignments, useTaxonomy } from "@/hooks/use-taxonomies";
 import { getActivityRestrictionLevel } from "@/lib/activity-restrictions";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
+import { computeHoldingPerformance, DatedCashFlow } from "@/lib/holding-performance";
 import { generateId } from "@/lib/id";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
@@ -103,6 +104,11 @@ interface AssetDetailData {
   totalPnlPercent: number | null;
   totalReturn: number | null;
   totalReturnPercent: number | null;
+  twr: number | null;
+  annualizedTwr: number | null;
+  irr: number | null;
+  annualizedIrr: number | null;
+  isAnnualized: boolean;
   currency: string;
   baseCurrency: string;
   quoteCurrency: string | null;
@@ -809,6 +815,72 @@ export const AssetProfilePage = () => {
           ? totalReturn / fallbackReturnBasis
           : null;
 
+    // Compute IRR (TRI) from dated cash flows (activities + current market value)
+    const currentMarketVal = Number(holding?.marketValue.local ?? quantity * averageCostPrice);
+    const cashFlows: DatedCashFlow[] = [];
+
+    if (assetActivities && assetActivities.length > 0) {
+      for (const act of assetActivities) {
+        if (act.assetId !== assetId || act.status !== ActivityStatus.POSTED) continue;
+        const actDate = act.date;
+        if (!actDate) continue;
+
+        if (act.activityType === ActivityType.BUY) {
+          const totalCost =
+            Number(act.unitPrice ?? 0) * Number(act.quantity ?? 0) + Number(act.fee ?? 0);
+          if (totalCost > 0) {
+            cashFlows.push({ date: actDate, amount: -totalCost });
+          }
+        } else if (act.activityType === ActivityType.SELL) {
+          const proceeds =
+            Number(act.unitPrice ?? 0) * Number(act.quantity ?? 0) - Number(act.fee ?? 0);
+          if (proceeds > 0) {
+            cashFlows.push({ date: actDate, amount: proceeds });
+          }
+        } else if (
+          act.activityType === ActivityType.DIVIDEND ||
+          act.activityType === ActivityType.INTEREST
+        ) {
+          const inc = Number(act.amount ?? 0);
+          if (inc > 0) {
+            cashFlows.push({ date: actDate, amount: inc });
+          }
+        }
+      }
+    }
+
+    // If no activities found, fallback to lots
+    if (cashFlows.length === 0 && assetLots && assetLots.length > 0) {
+      for (const lot of assetLots) {
+        const acqDate = lot.acquisitionDate ?? lot.snapshotDate;
+        if (acqDate) {
+          const cost = Number(lot.valuationCostBasis ?? lot.costBasis ?? 0);
+          if (cost > 0) {
+            cashFlows.push({ date: acqDate, amount: -cost });
+          }
+        }
+        if (lot.isClosed && lot.closeDate) {
+          const proceeds = Number(
+            lot.disposalProceeds ??
+              Number(lot.valuationDisposalCostBasis ?? 0) + Number(lot.valuationRealizedPnl ?? 0),
+          );
+          if (proceeds > 0) {
+            cashFlows.push({ date: lot.closeDate, amount: proceeds });
+          }
+        }
+      }
+    }
+
+    if (currentMarketVal > 0) {
+      cashFlows.push({ date: new Date(), amount: currentMarketVal });
+    }
+
+    const perfMetrics = computeHoldingPerformance({
+      totalReturnPct: totalReturnPercent ?? totalPnlPercent,
+      openDate: holding?.openDate,
+      cashFlows,
+    });
+
     return {
       numShares: quantity,
       marketValue: Number(holding?.marketValue.local ?? 0),
@@ -830,6 +902,11 @@ export const AssetProfilePage = () => {
       totalPnlPercent,
       totalReturn,
       totalReturnPercent,
+      twr: perfMetrics.twr,
+      annualizedTwr: perfMetrics.annualizedTwr,
+      irr: perfMetrics.irr,
+      annualizedIrr: perfMetrics.annualizedIrr,
+      isAnnualized: perfMetrics.isAnnualized,
       currency: displayCurrency,
       baseCurrency: holding?.baseCurrency ?? baseCurrency,
       quoteCurrency: quoteData?.quoteCurrency ?? null,

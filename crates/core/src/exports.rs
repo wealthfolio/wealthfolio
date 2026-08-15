@@ -463,6 +463,7 @@ mod tests {
             asset_kind: Some(AssetKind::Investment),
             quantity: dec!(10),
             open_date: None,
+            lots: None,
             contract_multiplier: dec!(1),
             local_currency: "USD".to_string(),
             base_currency: "USD".to_string(),

@@ -211,5 +211,9 @@
   "assets_need_valuations_one": "{{count}} 项资产需要更新估值",
   "assets_need_valuations_other": "{{count}} 项资产需要更新估值",
   "category_breakdown": "类别明细",
-  "personal_assets": "个人资产"
+  "personal_assets": "个人资产",
+  "twr": "TWR",
+  "annualized_twr": "年化 TWR",
+  "irr": "IRR",
+  "annualized_irr": "年化 IRR"
 }

@@ -19,6 +19,7 @@ import {
   formatPercent,
 } from "@wealthfolio/ui";
 import { cn, formatDate, formatQuantity, normalizeCurrency } from "@/lib/utils";
+import { computeHoldingPerformance } from "@/lib/holding-performance";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -533,12 +534,13 @@ function AccountLotGroup({
             <div className="hidden overflow-x-auto md:block">
               <Table className="table-fixed">
                 <colgroup>
-                  <col style={{ width: "20%" }} />
-                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "11%" }} />
+                  <col style={{ width: "13%" }} />
                   <col style={{ width: "14%" }} />
                   <col style={{ width: "16%" }} />
                   <col style={{ width: "18%" }} />
-                  <col style={{ width: "20%" }} />
+                  <col style={{ width: "10%" }} />
                 </colgroup>
                 <TableHeader>
                   <TableRow>
@@ -559,6 +561,9 @@ function AccountLotGroup({
                     </TableHead>
                     <TableHead className="text-right text-[10px] uppercase tracking-[0.1em]">
                       {t("asset:lots.unrealized")}
+                    </TableHead>
+                    <TableHead className="text-right text-[10px] uppercase tracking-[0.1em]">
+                      {t("asset:lots.irr")}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -658,6 +663,21 @@ function AssetLotTableRow({ item, currency }: { item: ComputedLot; currency: str
           "—"
         )}
       </TableCell>
+      <TableCell className="text-right">
+        {(() => {
+          const acqDate = lot.acquisitionDate ?? lot.snapshotDate;
+          const perf = computeHoldingPerformance({
+            totalReturnPct: item.gainLossPercent,
+            openDate: acqDate,
+            endDate: lot.isClosed ? lot.closeDate : null,
+          });
+          return perf.displayIrr != null ? (
+            <GainPercent value={perf.displayIrr} className="text-[11px]" />
+          ) : (
+            <span className="text-muted-foreground text-[11px]">N/A</span>
+          );
+        })()}
+      </TableCell>
     </TableRow>
   );
 }
@@ -720,6 +740,26 @@ function AssetLotMobileRow({ item, currency }: { item: ComputedLot; currency: st
             <span>{t("asset:lots.market_value_col")}</span>
             <span className="text-foreground text-right tabular-nums">
               <PrivacyAmount value={item.marketValue} currency={currency} />
+            </span>
+          </>
+        )}
+        {item.gainLossAmount != null && (
+          <>
+            <span>{t("asset:lots.irr")}</span>
+            <span className="text-foreground text-right tabular-nums">
+              {(() => {
+                const acqDate = lot.acquisitionDate ?? lot.snapshotDate;
+                const perf = computeHoldingPerformance({
+                  totalReturnPct: item.gainLossPercent,
+                  openDate: acqDate,
+                  endDate: lot.isClosed ? lot.closeDate : null,
+                });
+                return perf.displayIrr != null ? (
+                  <GainPercent value={perf.displayIrr} className="text-[11px]" />
+                ) : (
+                  <span className="text-muted-foreground text-[11px]">N/A</span>
+                );
+              })()}
             </span>
           </>
         )}

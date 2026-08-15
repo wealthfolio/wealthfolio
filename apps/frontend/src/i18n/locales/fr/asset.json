@@ -153,7 +153,11 @@
     "maturity": "Échéance",
     "type": "Type",
     "strike": "Prix d'exercice",
-    "expiry": "Expiration"
+    "expiry": "Expiration",
+    "twr": "TWR",
+    "annualized_twr": "TWR annualisé",
+    "irr": "TRI",
+    "annualized_irr": "TRI annualisé"
   },
   "profile": {
     "overview": "Aperçu",
@@ -336,7 +340,11 @@
     "period_year_month": "{{years}}a {{months}}mois",
     "period_year": "{{years}}a",
     "period_month": "{{months}}mois",
-    "period_day": "{{days}}j"
+    "period_day": "{{days}}j",
+    "twr": "TWR",
+    "annualized_twr": "TWR annualisé",
+    "irr": "TRI",
+    "annualized_irr": "TRI annualisé"
   },
   "accountHoldings": {
     "manual": "Manuel",

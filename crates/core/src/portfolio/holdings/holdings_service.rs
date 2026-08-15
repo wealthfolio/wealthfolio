@@ -337,9 +337,6 @@ impl HoldingsService {
                 .map(|id| id == snapshot_pos.asset_id)
                 .unwrap_or(false);
 
-            // STEP 2: newly written snapshots no longer embed lots, so source
-            // the current open lots from the normalized `lots` table. Only
-            // fetch when this holding's lots were requested.
             let lots = if include_lots {
                 self.open_display_lots(
                     account_id,
@@ -564,7 +561,7 @@ impl HoldingsService {
         let mut mismatched_base_assets: HashSet<String> = HashSet::new();
         let mut invalid_base_cost_assets: HashSet<String> = HashSet::new();
 
-        for lot in open_lots {
+        for lot in &open_lots {
             if !security_asset_ids.contains(&lot.asset_id) {
                 continue;
             }
@@ -587,7 +584,7 @@ impl HoldingsService {
                 }
             };
             cost_basis_base_by_asset
-                .entry(lot.asset_id)
+                .entry(lot.asset_id.clone())
                 .and_modify(|total| *total += remaining_cost_basis_base)
                 .or_insert(remaining_cost_basis_base);
         }
@@ -604,11 +601,21 @@ impl HoldingsService {
             );
         }
 
-        if cost_basis_base_by_asset.is_empty() {
-            return;
+        let mut display_lots_by_asset: HashMap<String, VecDeque<snapshot::Lot>> = HashMap::new();
+        for lot in &open_lots {
+            if !security_asset_ids.contains(&lot.asset_id) {
+                continue;
+            }
+            display_lots_by_asset
+                .entry(lot.asset_id.clone())
+                .or_default()
+                .push_back(lot_record_to_display_lot(
+                    &format!("POS-{}", lot.asset_id),
+                    lot.clone(),
+                ));
         }
 
-        for holding in holdings {
+        for holding in holdings.iter_mut() {
             if holding.holding_type != HoldingType::Security {
                 continue;
             }
@@ -617,14 +624,20 @@ impl HoldingsService {
             else {
                 continue;
             };
-            let Some(cost_basis_base) = cost_basis_base_by_asset.get(asset_id) else {
-                continue;
-            };
-            let Some(cost_basis) = &mut holding.cost_basis else {
-                continue;
-            };
 
-            cost_basis.base = *cost_basis_base;
+            if holding.lots.is_none() {
+                if let Some(lots) = display_lots_by_asset.get(asset_id) {
+                    if !lots.is_empty() {
+                        holding.lots = Some(lots.clone());
+                    }
+                }
+            }
+
+            if let Some(cost_basis_base) = cost_basis_base_by_asset.get(asset_id) {
+                if let Some(cost_basis) = &mut holding.cost_basis {
+                    cost_basis.base = *cost_basis_base;
+                }
+            }
         }
     }
 

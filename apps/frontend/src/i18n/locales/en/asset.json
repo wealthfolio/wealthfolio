@@ -153,7 +153,11 @@
     "maturity": "Maturity",
     "type": "Type",
     "strike": "Strike",
-    "expiry": "Expiry"
+    "expiry": "Expiry",
+    "twr": "TWR",
+    "annualized_twr": "Annualized TWR",
+    "irr": "IRR",
+    "annualized_irr": "Annualized IRR"
   },
   "profile": {
     "overview": "Overview",
@@ -336,7 +340,11 @@
     "period_year_month": "{{years}}y {{months}}mo",
     "period_year": "{{years}}y",
     "period_month": "{{months}}mo",
-    "period_day": "{{days}}d"
+    "period_day": "{{days}}d",
+    "twr": "TWR",
+    "annualized_twr": "Annualized TWR",
+    "irr": "IRR",
+    "annualized_irr": "Annualized IRR"
   },
   "accountHoldings": {
     "manual": "Manual",

@@ -29,6 +29,11 @@ interface AssetDetail {
   totalPnlPercent: number | null;
   totalReturn: number | null;
   totalReturnPercent: number | null;
+  twr?: number | null;
+  annualizedTwr?: number | null;
+  irr?: number | null;
+  annualizedIrr?: number | null;
+  isAnnualized?: boolean;
   currency: string;
   baseCurrency: string;
   quoteCurrency?: string | null;
@@ -87,6 +92,11 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
     totalPnlPercent,
     totalReturn,
     totalReturnPercent,
+    twr,
+    annualizedTwr,
+    irr,
+    annualizedIrr,
+    isAnnualized,
     currency,
     baseCurrency,
     quoteCurrency,
@@ -103,7 +113,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
   const hasFxEffect =
     fxEffect !== null && currency.trim().toUpperCase() !== baseCurrency.trim().toUpperCase();
 
-  const amountTone = (amount: number | null) => {
+  const amountTone = (amount: number | null | undefined) => {
     if (amount == null || amount === 0) return "";
     return amount < 0 ? "text-destructive" : "text-success";
   };
@@ -135,6 +145,17 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
             currency,
             percent: todaysReturnPercent,
             color: amountTone(todaysReturn),
+          },
+        ]
+      : []),
+    ...(priceReturnPercent !== null
+      ? [
+          {
+            label: t("asset:detailCard.price_return"),
+            amount: null,
+            currency,
+            percent: priceReturnPercent,
+            color: amountTone(priceReturnPercent),
           },
         ]
       : []),
@@ -171,13 +192,6 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
         ]
       : []),
     {
-      label: t("asset:detailCard.price_return"),
-      amount: null,
-      currency,
-      percent: priceReturnPercent,
-      color: amountTone(priceReturnPercent),
-    },
-    {
       label: t("asset:detailCard.total_pnl"),
       amount: totalPnl,
       currency,
@@ -191,6 +205,28 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
       percent: totalReturnPercent,
       color: amountTone(totalReturn),
     },
+    ...(twr != null || annualizedTwr != null
+      ? [
+          {
+            label: isAnnualized ? t("asset:detailCard.annualized_twr") : t("asset:detailCard.twr"),
+            amount: null,
+            currency,
+            percent: (isAnnualized ? (annualizedTwr ?? twr) : (twr ?? annualizedTwr)) ?? null,
+            color: amountTone(isAnnualized ? (annualizedTwr ?? twr) : (twr ?? annualizedTwr)),
+          },
+        ]
+      : []),
+    ...(irr != null || annualizedIrr != null
+      ? [
+          {
+            label: isAnnualized ? t("asset:detailCard.annualized_irr") : t("asset:detailCard.irr"),
+            amount: null,
+            currency,
+            percent: (isAnnualized ? (annualizedIrr ?? irr) : (irr ?? annualizedIrr)) ?? null,
+            color: amountTone(isAnnualized ? (annualizedIrr ?? irr) : (irr ?? annualizedIrr)),
+          },
+        ]
+      : []),
   ];
 
   return (
