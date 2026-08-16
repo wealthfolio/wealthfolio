@@ -844,6 +844,6 @@ licensed under AGPL-3.0; trademarks are not granted under that license.
 
 ## 🌟 Star History
 
-## [![Star History Chart](https://api.star-history.com/svg?repos=wealthfolio/wealthfolio&type=Timeline)](https://star-history.com/#wealthfolio/wealthfolio&Date)
+## [![Star History Chart](https://star-history.dera.page/svg?repos=wealthfolio/wealthfolio&type=Timeline)](https://star-history.dera.page/#wealthfolio/wealthfolio&Date)
 
 Enjoy managing your wealth with **Wealthfolio**! 🚀
