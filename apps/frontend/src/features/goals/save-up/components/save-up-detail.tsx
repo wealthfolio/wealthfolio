@@ -609,7 +609,7 @@ function formatGoalDate(value?: string | null, t?: TFn) {
   if (!value) return null;
   const [year, month] = value.split("-").map(Number);
   if (!year || !month) return null;
-  const monthName = t ? t(`ui:months_short.${month - 1}`) : String(month);
+  const monthName = t ? t(`ui:months_long.${month - 1}`) : String(month);
   return `${monthName} ${year}`;
 }
 
