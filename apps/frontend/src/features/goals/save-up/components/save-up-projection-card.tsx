@@ -1,6 +1,7 @@
 import type { SaveUpProjectionPointDTO } from "@/lib/types";
 import { formatCompactAmount } from "@wealthfolio/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Area,
@@ -23,18 +24,11 @@ function formatRate(rate: number) {
   return `${(rate * 100).toFixed(1)}%`;
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
 const COLORS = {
   nominal: { fill: "hsl(92, 24%, 70%)", stroke: "var(--success)" },
   range: { stroke: "hsl(91, 24%, 46%)" },
   target: "var(--muted-foreground)",
 };
-
-function formatDateLabel(v: string) {
-  const [y, m] = v.split("-");
-  return `${MONTHS[Number(m) - 1]} ${y.slice(2)}`;
-}
 
 function ProjectionTooltip({
   active,
@@ -56,7 +50,7 @@ function ProjectionTooltip({
   if (!point) return null;
 
   const [y, m] = point.date.split("-");
-  const label = `${MONTHS[Number(m) - 1]} ${y}`;
+  const label = `${t(`ui:months_long.${Number(m) - 1}`)} ${y}`;
   const fmt = (v: number) => (isHidden ? "***" : formatCompactAmount(v, currency));
 
   const highRate = annualReturn + RANGE_RATE_DELTA;
@@ -125,6 +119,15 @@ function ProjectionChart({
   isHidden: boolean;
   annualReturn: number;
 }) {
+  const { t } = useTranslation();
+  const formatDateLabel = useCallback(
+    (v: string) => {
+      const [y, m] = v.split("-");
+      return `${t(`ui:months_short.${Number(m) - 1}`)} ${y.slice(2)}`;
+    },
+    [t],
+  );
+
   const target = data[0]?.target ?? 0;
   const last = data.length > 0 ? data[data.length - 1] : null;
   const finalTarget = last?.target ?? 0;

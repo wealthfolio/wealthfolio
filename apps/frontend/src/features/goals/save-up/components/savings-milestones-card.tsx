@@ -19,13 +19,10 @@ export interface SavingsMilestone {
 
 const MILESTONE_RATIOS = [0.25, 0.5, 0.75, 1];
 
-function formatMilestoneDate(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
+function formatMilestoneDate(value: string, t: TFn) {
+  const [year, month] = value.split("-").map(Number);
   if (!year || !month) return "-";
-  return new Date(year, month - 1, day || 1).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-  });
+  return `${t(`ui:months_short.${month - 1}`)} ${year}`;
 }
 
 export function buildSavingsMilestones(
@@ -46,7 +43,7 @@ export function buildSavingsMilestones(
       dateLabel: reached
         ? t("goals:milestones.reached")
         : projected
-          ? formatMilestoneDate(projected.date)
+          ? formatMilestoneDate(projected.date, t)
           : t("goals:milestones.not_reached"),
       reached,
       isFinal: ratio === 1,

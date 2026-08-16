@@ -79,6 +79,8 @@
     "sortDesc": "Desc",
     "hide": "Ocultar"
   },
+  "months_short": ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."],
+  "months_long": ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"],
   "datePicker": {
     "dateLabel": "Fecha",
     "pick": "Elige una fecha"

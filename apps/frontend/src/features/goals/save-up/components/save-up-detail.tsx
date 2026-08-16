@@ -259,7 +259,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
         ? t("goals:save_up.surplus")
         : t("goals:save_up.gap");
   const gapMetricValue = projectedGap === null ? remainingNow : Math.abs(projectedGap);
-  const targetDateLabel = formatGoalDate(targetDate);
+  const targetDateLabel = formatGoalDate(targetDate, t);
   const savingsMilestones = useMemo(
     () => buildSavingsMilestones(chartData, targetAmount, currentValue, t),
     [chartData, targetAmount, currentValue, t],
@@ -538,7 +538,7 @@ function getSaveUpStatus(
   },
   t: TFn,
 ): SaveUpStatus {
-  const dateLabel = formatGoalDate(targetDate) ?? t("goals:save_up.your_target_date");
+  const dateLabel = formatGoalDate(targetDate, t) ?? t("goals:save_up.your_target_date");
 
   if (!targetAmount || !targetDate) {
     return {
@@ -605,14 +605,12 @@ function getSaveUpStatus(
   };
 }
 
-function formatGoalDate(value?: string | null) {
+function formatGoalDate(value?: string | null, t?: TFn) {
   if (!value) return null;
-  const [year, month, day] = value.split("-").map(Number);
+  const [year, month] = value.split("-").map(Number);
   if (!year || !month) return null;
-  return new Date(year, month - 1, day || 1).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-  });
+  const monthName = t ? t(`ui:months_short.${month - 1}`) : String(month);
+  return `${monthName} ${year}`;
 }
 
 function HeroMetric({ label, children }: { label: string; children: React.ReactNode }) {
