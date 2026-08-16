@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { CompactAmount } from "./compact-amount";
 import { CompositionBar } from "./composition-bar";
 import {
+  breakdownLabel,
   CARD_LABEL,
   CATEGORY_CSS_COLORS,
   deriveChange,
@@ -170,7 +171,7 @@ export function BreakdownTable({
             {data.assets.breakdown.map((item) => (
               <BreakdownRow
                 key={item.category}
-                name={item.name}
+                name={breakdownLabel(t, item)}
                 dotColor={CATEGORY_CSS_COLORS[item.category] ?? "var(--muted-foreground)"}
                 value={item.value}
                 percentOfSection={
@@ -181,7 +182,7 @@ export function BreakdownTable({
                 onClick={() =>
                   onSelect({
                     key: item.category,
-                    name: item.name,
+                    name: breakdownLabel(t, item),
                     value: item.value,
                     isLiability: false,
                     isInvestment: item.category === "investments",

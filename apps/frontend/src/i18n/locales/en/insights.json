@@ -93,6 +93,16 @@
       "liabilities": "Liabilities",
       "net_worth": "Net Worth"
     },
+    "categories": {
+      "cash": "Cash",
+      "investments": "Investments",
+      "properties": "Properties",
+      "vehicles": "Vehicles",
+      "collectibles": "Collectibles",
+      "precious_metals": "Precious Metals",
+      "other_assets": "Other Assets",
+      "liabilities": "Liabilities"
+    },
     "category_sheet": {
       "over_period": "over {{period}}",
       "trend_period": "Trend · {{period}}",

@@ -1,5 +1,6 @@
 import type { CategoryAllocation, NetWorthHistoryPoint, TaxonomyAllocation } from "@/lib/types";
 import { formatPercent } from "@/lib/utils";
+import type { TFunction } from "i18next";
 
 // Goldish orange net-worth theme (matches the history chart). Reserved for the
 // chart/brand; value numbers use semantic green/red tones (orange == warning).
@@ -46,6 +47,30 @@ export interface BreakdownEntry {
   value: number;
   assetId?: string;
   children?: BreakdownEntry[];
+}
+
+// The backend labels aggregate category rows with an English display name
+// ("Precious Metals", …); the stable `category` key is what we translate from.
+const CATEGORY_LABEL_KEYS: Record<string, string> = {
+  cash: "insights:networth.categories.cash",
+  investments: "insights:networth.categories.investments",
+  properties: "insights:networth.categories.properties",
+  vehicles: "insights:networth.categories.vehicles",
+  collectibles: "insights:networth.categories.collectibles",
+  preciousMetals: "insights:networth.categories.precious_metals",
+  otherAssets: "insights:networth.categories.other_assets",
+  liabilities: "insights:networth.categories.liabilities",
+};
+
+/**
+ * Display label for a breakdown row. Rows carrying an `assetId` are individual
+ * user-named assets (liabilities, category children), so their name is shown
+ * as-is; aggregate category rows get the translated category label.
+ */
+export function breakdownLabel(t: TFunction, entry: BreakdownEntry): string {
+  if (entry.assetId) return entry.name;
+  const key = CATEGORY_LABEL_KEYS[entry.category];
+  return key ? t(key) : entry.name;
 }
 
 /** A breakdown row selected for the detail drawer. */

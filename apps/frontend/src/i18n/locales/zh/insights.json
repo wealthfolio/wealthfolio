@@ -93,6 +93,16 @@
       "liabilities": "负债",
       "net_worth": "净资产"
     },
+    "categories": {
+      "cash": "现金",
+      "investments": "投资",
+      "properties": "房产",
+      "vehicles": "车辆",
+      "collectibles": "收藏品",
+      "precious_metals": "贵金属",
+      "other_assets": "其他资产",
+      "liabilities": "负债"
+    },
     "category_sheet": {
       "over_period": "在 {{period}} 内",
       "trend_period": "趋势 · {{period}}",

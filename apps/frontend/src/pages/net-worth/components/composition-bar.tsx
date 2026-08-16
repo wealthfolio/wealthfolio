@@ -5,21 +5,23 @@ import {
   TooltipTrigger,
 } from "@wealthfolio/ui/components/ui/tooltip";
 import { useMemo } from "react";
-import { CATEGORY_CSS_COLORS, type ParsedNetWorth } from "./utils";
+import { useTranslation } from "react-i18next";
+import { breakdownLabel, CATEGORY_CSS_COLORS, type ParsedNetWorth } from "./utils";
 
 /** Slim stacked bar of asset composition (% of assets). The breakdown rows below act as its legend. */
 export function CompositionBar({ data, className }: { data: ParsedNetWorth; className?: string }) {
+  const { t } = useTranslation();
   const items = useMemo(() => {
     if (data.assets.total === 0) return [];
     return data.assets.breakdown
       .filter((item) => item.value > 0)
       .map((item) => ({
         category: item.category,
-        name: item.name,
+        name: breakdownLabel(t, item),
         percentage: (item.value / data.assets.total) * 100,
       }))
       .sort((a, b) => b.percentage - a.percentage);
-  }, [data]);
+  }, [data, t]);
 
   if (items.length === 0) return null;
 

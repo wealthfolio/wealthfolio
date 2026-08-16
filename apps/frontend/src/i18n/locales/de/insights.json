@@ -93,6 +93,16 @@
       "liabilities": "Verbindlichkeiten",
       "net_worth": "Nettovermögen"
     },
+    "categories": {
+      "cash": "Bargeld",
+      "investments": "Investitionen",
+      "properties": "Immobilien",
+      "vehicles": "Fahrzeuge",
+      "collectibles": "Sammlerstücke",
+      "precious_metals": "Edelmetalle",
+      "other_assets": "Sonstige Vermögenswerte",
+      "liabilities": "Verbindlichkeiten"
+    },
     "category_sheet": {
       "over_period": "über {{period}}",
       "trend_period": "Trend · {{period}}",

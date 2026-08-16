@@ -93,6 +93,16 @@
       "liabilities": "負債",
       "net_worth": "純資産"
     },
+    "categories": {
+      "cash": "現金",
+      "investments": "投資",
+      "properties": "不動産",
+      "vehicles": "車両",
+      "collectibles": "コレクション",
+      "precious_metals": "貴金属",
+      "other_assets": "その他の資産",
+      "liabilities": "負債"
+    },
     "category_sheet": {
       "over_period": "{{period}}の推移",
       "trend_period": "推移 · {{period}}",

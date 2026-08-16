@@ -93,6 +93,16 @@
       "liabilities": "Passifs",
       "net_worth": "Valeur nette"
     },
+    "categories": {
+      "cash": "Liquidités",
+      "investments": "Investissements",
+      "properties": "Biens immobiliers",
+      "vehicles": "Véhicules",
+      "collectibles": "Objets de collection",
+      "precious_metals": "Métaux précieux",
+      "other_assets": "Autres actifs",
+      "liabilities": "Passifs"
+    },
     "category_sheet": {
       "over_period": "sur {{period}}",
       "trend_period": "Tendance · {{period}}",

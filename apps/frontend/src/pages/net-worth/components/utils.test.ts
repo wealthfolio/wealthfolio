@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import i18n from "i18next";
 
 import type { NetWorthHistoryPoint, TaxonomyAllocation } from "@/lib/types";
+import frInsights from "@/i18n/locales/fr/insights.json";
 import {
   averageMonthlyChange,
+  breakdownLabel,
   computeMomentum,
   computeVelocity,
   deriveChange,
@@ -10,6 +13,12 @@ import {
   parseHistory,
   type ParsedHistoryPoint,
 } from "./utils";
+
+// The test setup initializes i18next with the English bundles; add French so we
+// can assert the labels actually localize.
+i18n.addResourceBundle("fr", "insights", frInsights);
+const en = i18n.getFixedT("en");
+const fr = i18n.getFixedT("fr");
 
 function rawPoint(overrides: Partial<NetWorthHistoryPoint>): NetWorthHistoryPoint {
   return {
@@ -72,6 +81,43 @@ describe("net worth utils", () => {
     expect(deriveChange([125, 100], true)).toEqual({ amount: 25, percent: 0.2 });
     expect(deriveChange([0, 25], false)).toEqual({ amount: 25, percent: 0 });
     expect(deriveChange([100], false)).toEqual({ amount: 0, percent: 0 });
+  });
+
+  // Category keys emitted by the backend (net_worth_service::category_key).
+  const CATEGORY_KEYS = [
+    "cash",
+    "investments",
+    "properties",
+    "vehicles",
+    "collectibles",
+    "preciousMetals",
+    "otherAssets",
+    "liabilities",
+  ];
+
+  it("translates every backend category key instead of showing its English name", () => {
+    for (const category of CATEGORY_KEYS) {
+      const entry = { category, name: "English name", value: 0 };
+      // Every key must resolve (a miss returns the raw key or the English name).
+      expect(breakdownLabel(en, entry)).not.toBe(entry.name);
+      expect(breakdownLabel(en, entry)).not.toContain("insights:");
+      // …and resolve to a genuinely localized string, not the English one.
+      expect(breakdownLabel(fr, entry)).not.toBe(breakdownLabel(en, entry));
+    }
+
+    expect(
+      breakdownLabel(fr, { category: "preciousMetals", name: "Precious Metals", value: 0 }),
+    ).toBe("Métaux précieux");
+  });
+
+  it("leaves user-named asset rows and unknown categories untouched", () => {
+    // Individual assets (liabilities, category children) carry an assetId.
+    expect(
+      breakdownLabel(fr, { category: "properties", name: "Beach House", value: 0, assetId: "a1" }),
+    ).toBe("Beach House");
+    expect(breakdownLabel(fr, { category: "unmapped", name: "Something New", value: 0 })).toBe(
+      "Something New",
+    );
   });
 
   it("decomposes monthly velocity into market gains, contributions, and equity built", () => {
