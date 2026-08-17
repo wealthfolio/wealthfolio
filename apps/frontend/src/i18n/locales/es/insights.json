@@ -114,7 +114,7 @@
       "over_months_one": "en {{count}} mes",
       "over_months_other": "en {{count}} meses",
       "trailing_pace": " · {{multiple}}× del ritmo de los últimos 12 meses",
-      "drivers_of_change": "Factores del cambio de {{period}}",
+      "drivers_of_change": "Factores del cambio",
       "market_returns": "Rentabilidades del mercado",
       "contributions": "Aportaciones",
       "equity_built": "Capital acumulado",

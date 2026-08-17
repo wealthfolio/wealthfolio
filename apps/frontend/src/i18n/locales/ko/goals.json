@@ -251,6 +251,8 @@
       "retirement_age": "은퇴 연령",
       "desired_retirement_age_hint": "경제적으로 자유로워지고 싶은 나이입니다.",
       "retirement_age_hint": "은퇴하고 싶은 나이입니다.",
+      "horizon_age_fire": "계획 종료 연령",
+      "horizon_age_traditional": "기대 수명",
       "horizon_hint": "계획이 대상으로 하는 최대 연령입니다.",
       "monthly_contribution": "월 납입액",
       "monthly_contribution_hint": "은퇴 전까지 매달 추가로 납입할 금액입니다.",

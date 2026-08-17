@@ -114,7 +114,7 @@
       "over_months_one": "sur {{count}} mois",
       "over_months_other": "sur {{count}} mois",
       "trailing_pace": " · {{multiple}}× rythme sur 12 mois glissants",
-      "drivers_of_change": "Facteurs d'évolution sur {{period}}",
+      "drivers_of_change": "Facteurs d'évolution",
       "market_returns": "Rendements du marché",
       "contributions": "Contributions",
       "equity_built": "Capital constitué",

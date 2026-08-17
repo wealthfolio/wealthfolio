@@ -114,7 +114,7 @@
       "over_months_one": "{{count}}か月間",
       "over_months_other": "{{count}}か月間",
       "trailing_pace": " · 直近12か月ペースの{{multiple}}倍",
-      "drivers_of_change": "{{period}}の変動要因",
+      "drivers_of_change": "変動要因",
       "market_returns": "市場リターン",
       "contributions": "入金",
       "equity_built": "エクイティ増加",

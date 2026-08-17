@@ -93,7 +93,7 @@ export function VelocityCard({
       </p>
 
       <p className={`${CARD_LABEL} mb-3 mt-5`}>
-        {t("insights:networth.velocity.drivers_of_change", { period: periodLabel })}
+        {t("insights:networth.velocity.drivers_of_change")}
       </p>
       <div className="space-y-3.5">
         <DriverRow

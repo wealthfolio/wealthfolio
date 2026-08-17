@@ -251,6 +251,8 @@
       "retirement_age": "退休年龄",
       "desired_retirement_age_hint": "您希望实现财务独立的年龄。",
       "retirement_age_hint": "您希望退休的年龄。",
+      "horizon_age_fire": "计划终止年龄",
+      "horizon_age_traditional": "预期寿命",
       "horizon_hint": "计划应覆盖至的年龄。",
       "monthly_contribution": "每月供款",
       "monthly_contribution_hint": "退休前您每月增加的金额。",

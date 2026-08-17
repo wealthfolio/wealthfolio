@@ -251,6 +251,8 @@
       "retirement_age": "Ruhestandsalter",
       "desired_retirement_age_hint": "Alter, in dem Sie finanziell unabhängig werden möchten.",
       "retirement_age_hint": "Alter, in dem Sie in Rente gehen möchten.",
+      "horizon_age_fire": "Planhorizont (Alter)",
+      "horizon_age_traditional": "Lebenserwartung",
       "horizon_hint": "Alter, bis zu dem der Plan reichen soll.",
       "monthly_contribution": "Monatlicher Beitrag",
       "monthly_contribution_hint": "Wie viel Sie jeden Monat bis zum Ruhestand hinzufügen.",

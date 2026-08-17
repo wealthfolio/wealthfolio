@@ -251,6 +251,8 @@
       "retirement_age": "Edad de jubilación",
       "desired_retirement_age_hint": "Edad a la que quieres ser financieramente independiente.",
       "retirement_age_hint": "Edad a la que quieres jubilarte.",
+      "horizon_age_fire": "Horizonte del plan",
+      "horizon_age_traditional": "Esperanza de vida",
       "horizon_hint": "Edad hasta la que debe cubrir el plan.",
       "monthly_contribution": "Aportación mensual",
       "monthly_contribution_hint": "Cuánto añades cada mes hasta la jubilación.",

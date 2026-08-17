@@ -1,0 +1,305 @@
+{
+  "presetId": "nz",
+  "presetVersion": "2026-07.1",
+  "name": "New Zealand",
+  "description": "~40 expense rules for common New Zealand household transactions: supermarkets, fuel, transit, telecom, power, retail, health, and government payments. Merchant names follow how they usually appear on New Zealand bank and card statements.",
+  "language": "en-NZ",
+  "rules": [
+    {
+      "key": "nz.groceries.major_chains",
+      "name": "Groceries — major chains",
+      "pattern": "(?i)countdown|pak'?n ?save|new world|four ?square|fresh ?choice|super ?value|\\bwoolworths\\b|the warehouse\\b food|\\bmoore wilson\\b|\\bfarro\\b",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 80
+    },
+    {
+      "key": "nz.coffee",
+      "name": "Coffee shops",
+      "pattern": "(?i)\\bmojo\\b|coffee culture|\\bstarbucks\\b|\\besquires\\b|robert harris|\\bcaffe\\b|\\bcafé\\b|\\bcafe\\b|\\bespresso\\b|\\bcoffee\\b|\\bbaristas?\\b",
+      "matchType": "regex",
+      "categoryKey": "food_coffee",
+      "priority": 78
+    },
+    {
+      "key": "nz.fastfood",
+      "name": "Fast food & casual dining",
+      "pattern": "(?i)mcdonald|\\bkfc\\b|burger king|\\bwendy'?s\\b|carl'?s jr|\\bsubway\\b|domino|pizza hut|\\bhell\\b pizza|burger ?fuel|\\bnando'?s\\b|st pierre|\\bsushi\\b|\\btank\\b juice|\\bmovenpick\\b",
+      "matchType": "regex",
+      "categoryKey": "food_restaurants",
+      "priority": 75
+    },
+    {
+      "key": "nz.food_delivery",
+      "name": "Food delivery",
+      "pattern": "(?i)uber ?eats|\\bdelivereasy\\b|door ?dash|hello ?fresh|my food bag|\\bwoop\\b|\\bbargain box\\b",
+      "matchType": "regex",
+      "categoryKey": "food_delivery",
+      "priority": 85
+    },
+    {
+      "key": "nz.alcohol",
+      "name": "Liquor & bottle stores",
+      "pattern": "(?i)liquorland|super liquor|big barrel|black bull|\\bbottle-?o\\b|\\bbottle store\\b|thirsty liquor|\\bglengarry\\b|\\bpub\\b|\\btavern\\b|\\bbar\\b tab",
+      "matchType": "regex",
+      "categoryKey": "food_alcohol",
+      "priority": 70
+    },
+    {
+      "key": "nz.fuel",
+      "name": "Fuel stations",
+      "pattern": "(?i)\\bz energy\\b|\\bz\\b petrol|\\bbp\\b|\\bmobil\\b|\\bcaltex\\b|\\bgull\\b|\\bwaitomo\\b|\\bchallenge\\b fuel|\\bnpd\\b|\\ballied\\b petroleum|\\bgas\\b station",
+      "matchType": "regex",
+      "categoryKey": "transport_gas",
+      "priority": 80
+    },
+    {
+      "key": "nz.transit",
+      "name": "Public transit",
+      "pattern": "(?i)\\bat hop\\b|auckland transport|\\bbee card\\b|\\bmetlink\\b|\\bsnapper\\b|\\bmetrocard\\b|\\benvironment canterbury\\b|\\bgo bus\\b|\\bintercity\\b|\\bat mobile\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_public",
+      "priority": 80
+    },
+    {
+      "key": "nz.rideshare",
+      "name": "Rideshare & taxi",
+      "pattern": "(?i)\\buber\\b|\\bola\\b|\\bzoomy\\b|\\bdidi\\b|\\bbolt\\b|\\btaxi\\b|\\bcorporate cabs\\b|\\bgreen cabs\\b|\\bkiwi cabs\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_rideshare",
+      "priority": 80
+    },
+    {
+      "key": "nz.parking",
+      "name": "Parking & tolls",
+      "pattern": "(?i)wilson parking|\\bcare park\\b|tournament parking|\\bat parking\\b|\\beasypark\\b|\\bpaymywayparking\\b|\\bnzta\\b toll|\\btoll\\b road|\\bcar park\\b|parking fee",
+      "matchType": "regex",
+      "categoryKey": "transport_parking",
+      "priority": 85
+    },
+    {
+      "key": "nz.car_maintenance",
+      "name": "Car maintenance & parts",
+      "pattern": "(?i)\\bvtnz\\b|\\bwof\\b|\\brepco\\b|supercheap auto|beaurepaires|tony'?s tyre|\\bmidas\\b|\\bfirestone\\b|\\bbridgestone\\b|\\bpit stop\\b|car grooming|car wash|\\brego\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_maintenance",
+      "priority": 85
+    },
+    {
+      "key": "nz.airlines",
+      "name": "Airlines",
+      "pattern": "(?i)air new zealand|\\bair nz\\b|jetstar|qantas|\\bnz\\b flight",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 90
+    },
+    {
+      "key": "nz.hotels",
+      "name": "Hotels & accommodation",
+      "pattern": "(?i)airbnb|\\bbookabach\\b|\\bvrbo\\b|booking\\.com|\\bexpedia\\b|hotels\\.com|\\bagoda\\b|\\btrivago\\b|\\bibis\\b|\\bnovotel\\b|\\bmercure\\b|\\brydges\\b|\\bsudima\\b|\\bmotel\\b|\\bhotel\\b|\\bholiday park\\b",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 85
+    },
+    {
+      "key": "nz.streaming",
+      "name": "Streaming services",
+      "pattern": "(?i)netflix|\\bneon\\b|sky ?go|sky tv|\\btvnz\\b\\+?|three ?now|disney ?\\+|amazon prime video|prime video|apple\\.com/bill|apple music|spotify|youtube ?premium|\\baudible\\b",
+      "matchType": "regex",
+      "categoryKey": "entertainment_streaming",
+      "priority": 85
+    },
+    {
+      "key": "nz.software_subs",
+      "name": "Software & cloud",
+      "pattern": "(?i)\\badobe\\b|microsoft ?\\*|\\bm365\\b|office 365|dropbox|\\bicloud\\b|google ?one|google ?storage|\\bnotion\\b|\\bslack\\b|\\bzoom\\.us\\b|\\bgithub\\b|jetbrains|chatgpt|openai|claude\\.ai|anthropic|\\bcanva\\b|grammarly|\\b1password\\b|\\bxero\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_software",
+      "priority": 80
+    },
+    {
+      "key": "nz.telecom",
+      "name": "Phone & internet",
+      "pattern": "(?i)\\bspark\\b|\\bone nz\\b|vodafone|2degrees|\\bskinny\\b|\\bslingshot\\b|\\borcon\\b|\\bcontact\\b broadband|\\bnow\\b broadband|\\bmyrepublic\\b|\\bbigpipe\\b|\\bvoyager\\b|\\bstuff fibre\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_phone",
+      "priority": 80
+    },
+    {
+      "key": "nz.utilities",
+      "name": "Utilities (power/gas/water)",
+      "pattern": "(?i)genesis energy|contact energy|\\bmercury\\b energy|\\bmeridian\\b|\\bnova\\b energy|electric kiwi|\\bpowershop\\b|\\bfrank\\b energy|\\bpulse\\b energy|\\bwatercare\\b|\\bwellington water\\b|\\bvector\\b",
+      "matchType": "regex",
+      "categoryKey": "housing_utilities",
+      "priority": 80
+    },
+    {
+      "key": "nz.housing_rent_mortgage",
+      "name": "Rent & mortgage",
+      "pattern": "(?i)\\brent\\b|mortgage|home loan|body corporate|property management|\\bbarfoot\\b|\\bray white\\b rent|\\bharcourts\\b rent|\\btrademe property\\b|\\brates\\b",
+      "matchType": "regex",
+      "categoryKey": "housing_rent",
+      "priority": 88
+    },
+    {
+      "key": "nz.online_marketplaces",
+      "name": "Online marketplaces",
+      "pattern": "(?i)\\btrade ?me\\b|\\btrademe\\b|amazon|\\bmighty ?ape\\b|\\bebay\\b|\\btemu\\b|\\bshein\\b|aliexpress|\\bthe market\\b|\\bonecard\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_online",
+      "priority": 70
+    },
+    {
+      "key": "nz.shopping_clothing",
+      "name": "Clothing & department stores",
+      "pattern": "(?i)cotton on|\\bglassons\\b|hallenstein|\\bbarkers\\b|\\bfarmers\\b|\\bkmart\\b|the warehouse\\b|\\buniqlo\\b|\\bh&m\\b|\\bzara\\b|\\bhuffer\\b|\\bkathmandu\\b|\\bmacpac\\b|\\brebel sport\\b|\\bnumber one shoes\\b|\\bhannahs\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_clothing",
+      "priority": 80
+    },
+    {
+      "key": "nz.shopping_electronics",
+      "name": "Electronics & office",
+      "pattern": "(?i)jb hi-?fi|harvey norman|noel leeming|\\bpb tech\\b|\\bpbtech\\b|\\bcomputer lounge\\b|apple store|\\bwarehouse stationery\\b|\\bofficemax\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_electronics",
+      "priority": 85
+    },
+    {
+      "key": "nz.home_improvement",
+      "name": "Home improvement & furniture",
+      "pattern": "(?i)bunnings|mitre ?10|\\bplacemakers\\b|\\bnido\\b|\\bfreedom\\b furniture|\\bbriscoes\\b|\\bnido\\b|\\bharvey norman\\b furniture|\\bbig save\\b|\\btarget furniture\\b|\\bspotlight\\b|\\bstevens\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_home",
+      "priority": 80
+    },
+    {
+      "key": "nz.pharmacy",
+      "name": "Pharmacy & chemists",
+      "pattern": "(?i)chemist warehouse|\\bunichem\\b|life pharmacy|bargain chemist|\\bpharmacy\\b|\\bchemist\\b",
+      "matchType": "regex",
+      "categoryKey": "health_pharmacy",
+      "priority": 85
+    },
+    {
+      "key": "nz.medical",
+      "name": "Medical & clinics",
+      "pattern": "(?i)medical centre|\\bgp\\b clinic|\\bclinic\\b|\\bhospital\\b|white cross|\\bhealthline\\b|\\bpathlab\\b|physiotherapy|\\bphysio\\b|\\bchiro\\b|\\bmedlab\\b|\\bradiology\\b",
+      "matchType": "regex",
+      "categoryKey": "health_medical",
+      "priority": 86
+    },
+    {
+      "key": "nz.dental",
+      "name": "Dental",
+      "pattern": "(?i)\\bdental\\b|\\bdentist\\b|orthodont|\\blumino\\b|\\bdentalcare\\b",
+      "matchType": "regex",
+      "categoryKey": "health_dental",
+      "priority": 86
+    },
+    {
+      "key": "nz.vision",
+      "name": "Vision & optical",
+      "pattern": "(?i)specsavers|\\bopsm\\b|\\bvisique\\b|bailey nelson|\\boptometrist\\b|\\boptical\\b|\\beye care\\b",
+      "matchType": "regex",
+      "categoryKey": "health_vision",
+      "priority": 86
+    },
+    {
+      "key": "nz.health_insurance",
+      "name": "Private health insurance",
+      "pattern": "(?i)southern cross|\\bnib\\b|\\baia\\b|\\baccuro\\b|\\bunimed\\b|health insurance|\\bpartners life\\b health",
+      "matchType": "regex",
+      "categoryKey": "health_insurance",
+      "priority": 86
+    },
+    {
+      "key": "nz.fitness",
+      "name": "Gyms & fitness",
+      "pattern": "(?i)les mills|anytime fitness|\\bcityfitness\\b|\\bjetts\\b|\\bf45\\b|snap fitness|\\bcontours\\b|\\bpilates\\b|crossfit|\\bexercise\\b",
+      "matchType": "regex",
+      "categoryKey": "health_fitness",
+      "priority": 85
+    },
+    {
+      "key": "nz.movies_events",
+      "name": "Cinemas & live events",
+      "pattern": "(?i)event cinemas|\\bhoyts\\b|reading cinemas|\\brialto\\b|\\bimax\\b|\\bticketek\\b|ticketmaster|\\biticket\\b|\\beventfinda\\b|\\bhumanitix\\b",
+      "matchType": "regex",
+      "categoryKey": "entertainment_movies",
+      "priority": 85
+    },
+    {
+      "key": "nz.gaming",
+      "name": "Gaming platforms",
+      "pattern": "(?i)\\bsteam\\b games|steamgames|\\bxbox\\b|playstation|\\bpsn\\b|nintendo|\\beb games\\b|epic games",
+      "matchType": "regex",
+      "categoryKey": "entertainment_games",
+      "priority": 85
+    },
+    {
+      "key": "nz.discount_stores",
+      "name": "Discount & variety stores",
+      "pattern": "(?i)\\bthe warehouse\\b|\\bdaiso\\b|\\b2 dollar\\b|\\bdollar store\\b|\\bsave barn\\b|\\bthe reject shop\\b|\\bcoin save\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping",
+      "priority": 74
+    },
+    {
+      "key": "nz.personal_care",
+      "name": "Personal care & beauty",
+      "pattern": "(?i)\\bmecca\\b|\\bsephora\\b|\\bbarber\\b|hair salon|\\bnails\\b|\\bnail bar\\b|\\bday spa\\b|\\bspa\\b treatment|\\bwaxing\\b|\\bhaircut\\b|\\bcaci\\b",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 82
+    },
+    {
+      "key": "nz.pets",
+      "name": "Pets & vets",
+      "pattern": "(?i)\\banimates\\b|pet\\.co\\.nz|\\bpetdirect\\b|\\bvetora\\b|\\bvet clinic\\b|\\bveterinary\\b|animal hospital|\\bpet supplies\\b|\\bpetstock\\b",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 82
+    },
+    {
+      "key": "nz.education_childcare",
+      "name": "Education & childcare",
+      "pattern": "(?i)university|\\bpolytechnic\\b|\\bnzqa\\b|\\bchild ?care\\b|\\bkindergarten\\b|\\bkindercare\\b|early learning|\\bschool fees\\b|\\bstudylink\\b|\\bstudent loan\\b|coursera|udemy",
+      "matchType": "regex",
+      "categoryKey": "education",
+      "priority": 82
+    },
+    {
+      "key": "nz.donations",
+      "name": "Donations & charities",
+      "pattern": "(?i)\\bgivealittle\\b|\\bgofundme\\b|red cross|\\bunicef\\b|salvation army|\\bsalvation\\b|world vision|\\bspca\\b|\\bkidscan\\b|\\bdonation\\b|\\bcharity\\b|\\bchurch\\b|\\btithe\\b",
+      "matchType": "regex",
+      "categoryKey": "gifts",
+      "priority": 82
+    },
+    {
+      "key": "nz.bank_fees",
+      "name": "Bank & account fees",
+      "pattern": "(?i)account fee|monthly (base )?fee|\\bdishonour\\b fee|international transaction fee|foreign (currency )?fee|\\batm\\b fee|\\bcash advance\\b fee|\\bod\\b fee|annual (card )?fee",
+      "matchType": "regex",
+      "categoryKey": "fees_bank",
+      "priority": 90
+    },
+    {
+      "key": "nz.insurance_auto_home",
+      "name": "Car & home insurance",
+      "pattern": "(?i)\\baa\\b insurance|\\bstate\\b insurance|\\bami\\b insurance|\\btower\\b insurance|\\bvero\\b|\\bfmg\\b|\\bcove\\b insurance|\\btrade me insurance\\b|\\bprotecta\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_insurance",
+      "priority": 85
+    },
+    {
+      "key": "nz.government",
+      "name": "Government & rates",
+      "pattern": "(?i)\\bird\\b payment|inland revenue|\\bnzta\\b|waka kotahi|\\bwork and income\\b|\\bwinz\\b|\\bacc\\b levy|\\bcouncil rates\\b|city council|district council|\\bmsd\\b",
+      "matchType": "regex",
+      "categoryKey": "fees",
+      "priority": 90
+    }
+  ]
+}

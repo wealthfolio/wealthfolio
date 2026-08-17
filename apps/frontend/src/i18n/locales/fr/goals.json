@@ -251,6 +251,8 @@
       "retirement_age": "Âge de retraite",
       "desired_retirement_age_hint": "Âge auquel vous voulez devenir financièrement indépendant.",
       "retirement_age_hint": "Âge auquel vous voulez prendre votre retraite.",
+      "horizon_age_fire": "Horizon du plan",
+      "horizon_age_traditional": "Espérance de vie",
       "horizon_hint": "Âge que le plan doit couvrir.",
       "monthly_contribution": "Cotisation mensuelle",
       "monthly_contribution_hint": "Combien vous ajoutez chaque mois jusqu’à la retraite.",

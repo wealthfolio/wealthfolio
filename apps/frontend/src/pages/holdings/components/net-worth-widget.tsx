@@ -14,6 +14,7 @@ import {
 } from "@wealthfolio/ui/components/ui/tooltip";
 import { PrivacyAmount } from "@wealthfolio/ui";
 import { useNetWorth } from "@/hooks/use-alternative-assets";
+import { getNetWorthCategoryLabel } from "@/lib/net-worth-category-label";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { cn, parseLocalDate } from "@/lib/utils";
 import { useMemo, useState } from "react";
@@ -174,7 +175,7 @@ export const NetWorthWidget = ({
       totalAssets: parseFloat(netWorthData.assets.total) || 0,
       totalLiabilities: parseFloat(netWorthData.liabilities.total) || 0,
       assetsBreakdown: netWorthData.assets.breakdown.map((item) => ({
-        label: item.name,
+        label: getNetWorthCategoryLabel(t, item.category, item.name),
         value: parseFloat(item.value) || 0,
       })),
       liabilitiesBreakdown: netWorthData.liabilities.breakdown.map((item) => ({
@@ -183,7 +184,7 @@ export const NetWorthWidget = ({
         isDebt: true,
       })),
     };
-  }, [netWorthData]);
+  }, [netWorthData, t]);
 
   // Build breakdown items for display
   const breakdownItems = useMemo((): BreakdownItem[] => {

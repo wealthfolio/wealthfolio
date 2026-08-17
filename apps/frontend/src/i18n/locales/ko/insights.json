@@ -114,7 +114,7 @@
       "over_months_one": "{{count}}개월 동안",
       "over_months_other": "{{count}}개월 동안",
       "trailing_pace": " · 최근 12개월 평균 대비 {{multiple}}배",
-      "drivers_of_change": "{{period}} 변화 요인",
+      "drivers_of_change": "변화 요인",
       "market_returns": "시장 수익률",
       "contributions": "납입금",
       "equity_built": "축적된 자본",

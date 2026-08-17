@@ -251,6 +251,8 @@
       "retirement_age": "退職年齢",
       "desired_retirement_age_hint": "経済的自立を達成したい年齢です。",
       "retirement_age_hint": "退職したい年齢です。",
+      "horizon_age_fire": "プラン終了年齢",
+      "horizon_age_traditional": "平均寿命",
       "horizon_hint": "プランがカバーする最終年齢です。",
       "monthly_contribution": "毎月の積立額",
       "monthly_contribution_hint": "退職まで毎月積み立てる金額です。",

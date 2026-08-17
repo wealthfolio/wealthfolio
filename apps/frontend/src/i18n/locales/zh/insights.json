@@ -114,7 +114,7 @@
       "over_months_one": "在 {{count}} 个月内",
       "over_months_other": "在 {{count}} 个月内",
       "trailing_pace": " · 过去 12 个月节奏的 {{multiple}} 倍",
-      "drivers_of_change": "{{period}} 变化的驱动因素",
+      "drivers_of_change": "变化驱动因素",
       "market_returns": "市场回报",
       "contributions": "投入",
       "equity_built": "累积权益",

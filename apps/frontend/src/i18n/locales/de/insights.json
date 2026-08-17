@@ -114,7 +114,7 @@
       "over_months_one": "über {{count}} Monat",
       "over_months_other": "über {{count}} Monate",
       "trailing_pace": " · {{multiple}}× Tempo der letzten 12 Monate",
-      "drivers_of_change": "Treiber der Veränderung über {{period}}",
+      "drivers_of_change": "Treiber der Veränderung",
       "market_returns": "Marktrenditen",
       "contributions": "Einzahlungen",
       "equity_built": "Aufgebautes Eigenkapital",

@@ -114,7 +114,7 @@
       "over_months_one": "over {{count}} month",
       "over_months_other": "over {{count}} months",
       "trailing_pace": " · {{multiple}}× trailing-12mo pace",
-      "drivers_of_change": "Drivers of {{period}} change",
+      "drivers_of_change": "Drivers of change",
       "market_returns": "Market returns",
       "contributions": "Contributions",
       "equity_built": "Equity built",

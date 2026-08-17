@@ -412,13 +412,16 @@ impl NetWorthServiceTrait for NetWorthService {
                     });
                 }
 
-                if !account_valuation.cash_balance_base.is_zero() {
+                // Round before the zero check: activity replay leaves residual
+                // balances around 1e-15 that are non-zero but display as $0.
+                let cash_base = account_valuation
+                    .cash_balance_base
+                    .round_dp(DECIMAL_PRECISION);
+                if !cash_base.is_zero() {
                     valuations.push(ValuationInfo {
                         asset_id: format!("CASH:{}", account.id),
                         name: Some(account.name.clone()),
-                        market_value_base: account_valuation
-                            .cash_balance_base
-                            .round_dp(DECIMAL_PRECISION),
+                        market_value_base: cash_base,
                         valuation_date: account_valuation.valuation_date,
                         category: AssetCategory::Cash,
                         is_cash_like: true,
@@ -527,9 +530,12 @@ impl NetWorthServiceTrait for NetWorthService {
             }
 
             if is_liability_account {
-                let cash_base_total = snapshot.cash_balances.iter().fold(
-                    Decimal::ZERO,
-                    |acc, (currency, &amount)| {
+                // Rounded before the sign checks so residual dust does not emit a
+                // phantom $0 liability (or cash) row for the account.
+                let cash_base_total = snapshot
+                    .cash_balances
+                    .iter()
+                    .fold(Decimal::ZERO, |acc, (currency, &amount)| {
                         if amount.is_zero() {
                             acc
                         } else {
@@ -540,14 +546,14 @@ impl NetWorthServiceTrait for NetWorthService {
                                 date,
                             )
                         }
-                    },
-                );
+                    })
+                    .round_dp(DECIMAL_PRECISION);
 
                 if cash_base_total < Decimal::ZERO {
                     valuations.push(ValuationInfo {
                         asset_id: format!("CREDIT_CARD:{}", account.id),
                         name: Some(account.name.clone()),
-                        market_value_base: cash_base_total.abs().round_dp(DECIMAL_PRECISION),
+                        market_value_base: cash_base_total.abs(),
                         valuation_date: snapshot.snapshot_date,
                         category: AssetCategory::Liability,
                         is_cash_like: true,
@@ -556,7 +562,7 @@ impl NetWorthServiceTrait for NetWorthService {
                     valuations.push(ValuationInfo {
                         asset_id: format!("CASH:{}", account.id),
                         name: Some(account.name.clone()),
-                        market_value_base: cash_base_total.round_dp(DECIMAL_PRECISION),
+                        market_value_base: cash_base_total,
                         valuation_date: snapshot.snapshot_date,
                         category: AssetCategory::Cash,
                         is_cash_like: true,
@@ -574,15 +580,23 @@ impl NetWorthServiceTrait for NetWorthService {
                     continue;
                 }
 
-                let cash_base =
-                    self.convert_cash_balance_to_base(amount, currency, &base_currency, date);
+                let cash_base = self
+                    .convert_cash_balance_to_base(amount, currency, &base_currency, date)
+                    .round_dp(DECIMAL_PRECISION);
+
+                // Long-closed accounts keep residual balances around 1e-15 that
+                // are non-zero yet round to nothing; skip them so the Cash
+                // drill-down does not fill up with $0 rows.
+                if cash_base.is_zero() {
+                    continue;
+                }
 
                 // Name by account (with currency suffix) so the Cash drill-down
                 // lists each account distinctly instead of repeating "Cash (USD)".
                 let (asset_id, name, market_value_base, category) = (
                     format!("CASH:{}:{}", account.id, currency),
                     Some(format!("{} ({})", account.name, currency)),
-                    cash_base.round_dp(DECIMAL_PRECISION),
+                    cash_base,
                     AssetCategory::Cash,
                 );
 

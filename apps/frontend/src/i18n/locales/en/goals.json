@@ -251,6 +251,8 @@
       "retirement_age": "Retirement age",
       "desired_retirement_age_hint": "Age you want to become financially independent.",
       "retirement_age_hint": "Age you want to retire.",
+      "horizon_age_fire": "Plan through age",
+      "horizon_age_traditional": "Life expectancy",
       "horizon_hint": "Age the plan should cover through.",
       "monthly_contribution": "Monthly contribution",
       "monthly_contribution_hint": "How much you add each month until retirement.",

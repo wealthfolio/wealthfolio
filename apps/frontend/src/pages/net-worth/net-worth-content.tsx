@@ -1,6 +1,7 @@
 import { useNetWorth, useNetWorthHistory } from "@/hooks/use-alternative-assets";
 import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
 import { useIsMobileViewport } from "@/hooks/use-platform";
+import { getNetWorthCategoryLabel } from "@/lib/net-worth-category-label";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { DateRange } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
@@ -110,7 +111,7 @@ export function NetWorthContent() {
         total: parseFloat(netWorthData.assets.total) || 0,
         breakdown: (netWorthData.assets.breakdown || []).map((item) => ({
           category: item.category,
-          name: item.name,
+          name: getNetWorthCategoryLabel(t, item.category, item.name),
           value: parseFloat(item.value) || 0,
           assetId: item.assetId,
           children: (item.children ?? []).map((child) => ({
@@ -131,7 +132,7 @@ export function NetWorthContent() {
         })),
       },
     };
-  }, [netWorthData]);
+  }, [netWorthData, t]);
 
   const parsedHistory = useMemo(() => parseHistory(historyData), [historyData]);
   const longHistory = useMemo(() => parseHistory(longHistoryData), [longHistoryData]);
@@ -160,6 +161,7 @@ export function NetWorthContent() {
   const currency = netWorthData?.currency || settings?.baseCurrency || "USD";
   const hasStaleValuations = netWorthData && netWorthData.staleAssets.length > 0;
   const periodLabel = periodCode;
+  const localizedPeriodLabel = t(`ui:interval.${periodCode}`);
 
   // Breakdown row → detail drawer. Investments open the existing asset-class
   // allocation sheet; every other row opens the category detail sheet.
@@ -353,7 +355,7 @@ export function NetWorthContent() {
                   velocity={velocity}
                   trailingYearMonthly={trailingYearMonthly}
                   currency={currency}
-                  periodLabel={periodLabel}
+                  periodLabel={localizedPeriodLabel}
                 />
               )}
 

@@ -28,7 +28,7 @@ import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { DEFAULT_DC_PAYOUT_ESTIMATE_RATE } from "../lib/constants";
-import { incomeStreamMonthlyAmount, modeLabel, type PlannerMode } from "../lib/dashboard-math";
+import { incomeStreamMonthlyAmount, type PlannerMode } from "../lib/dashboard-math";
 import {
   createExpenseItem,
   expenseAgeRangeLabel,
@@ -389,7 +389,6 @@ export function SidebarConfigurator({
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
   const [expandedIncomeId, setExpandedIncomeId] = useState<string | null>(null);
-  const L = modeLabel(draftMode);
   const moneyPrefix = formatCurrencySymbol(currency);
 
   const update = useCallback((updater: (d: RetirementPlan) => RetirementPlan) => {
@@ -566,8 +565,24 @@ export function SidebarConfigurator({
             <ConfigRow label={t("goals:sidebar.plan.current_age")}>
               {draft.personal.currentAge}
             </ConfigRow>
-            <ConfigRow label={L.targetAge}>{draft.personal.targetRetirementAge}</ConfigRow>
-            <ConfigRow label={L.horizonAge}>{draft.personal.planningHorizonAge}</ConfigRow>
+            <ConfigRow
+              label={
+                draftMode === "fire"
+                  ? t("goals:sidebar.plan.desired_retirement_age")
+                  : t("goals:sidebar.plan.retirement_age")
+              }
+            >
+              {draft.personal.targetRetirementAge}
+            </ConfigRow>
+            <ConfigRow
+              label={
+                draftMode === "fire"
+                  ? t("goals:sidebar.plan.horizon_age_fire")
+                  : t("goals:sidebar.plan.horizon_age_traditional")
+              }
+            >
+              {draft.personal.planningHorizonAge}
+            </ConfigRow>
             <ConfigRow label={t("goals:sidebar.plan.monthly_contribution_until_retirement")}>
               {formatAmount(draft.investment.monthlyContribution, currency)}
             </ConfigRow>
@@ -659,7 +674,11 @@ export function SidebarConfigurator({
               format={(v) => String(Math.round(v))}
             />
             <LeverRow
-              label={L.horizonAge}
+              label={
+                draftMode === "fire"
+                  ? t("goals:sidebar.plan.horizon_age_fire")
+                  : t("goals:sidebar.plan.horizon_age_traditional")
+              }
               hint={t("goals:sidebar.plan.horizon_hint")}
               value={draft.personal.planningHorizonAge}
               onChange={(v) =>

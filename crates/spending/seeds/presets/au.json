@@ -1,0 +1,305 @@
+{
+  "presetId": "au",
+  "presetVersion": "2026-07.1",
+  "name": "Australia",
+  "description": "~40 expense rules for common Australian household transactions: supermarkets, fuel, transit, telecom, utilities, retail, health, and government payments. Merchant names follow how they usually appear on Australian bank and card statements.",
+  "language": "en-AU",
+  "rules": [
+    {
+      "key": "au.groceries.major_chains",
+      "name": "Groceries — major chains",
+      "pattern": "(?i)woolworths|\\bwoolies\\b|ww metro|\\bcoles\\b|\\baldi\\b|\\biga\\b|foodland|harris farm|drakes\\b|foodworks|\\bcostco\\b|supabarn",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 80
+    },
+    {
+      "key": "au.coffee",
+      "name": "Coffee shops",
+      "pattern": "(?i)gloria jean|coffee club|zarraffa|muffin break|jamaica blue|starbucks|\\bcafe\\b|\\bcafé\\b|\\bespresso\\b|\\bcoffee\\b|\\bbaristas?\\b",
+      "matchType": "regex",
+      "categoryKey": "food_coffee",
+      "priority": 78
+    },
+    {
+      "key": "au.fastfood",
+      "name": "Fast food & casual dining",
+      "pattern": "(?i)mcdonald|\\bmacca'?s\\b|hungry jack|\\bhjs\\b|\\bkfc\\b|red rooster|\\bnando'?s\\b|frango'?s?|\\boporto\\b|domino|pizza hut|\\bsubway\\b|guzman y gomez|guzman|\\bgyg\\b|mad mex|zambrero|grill'?d|betty'?s burgers|schnitz|\\bboost juice\\b|\\bsushi\\b hub",
+      "matchType": "regex",
+      "categoryKey": "food_restaurants",
+      "priority": 75
+    },
+    {
+      "key": "au.food_delivery",
+      "name": "Food delivery",
+      "pattern": "(?i)uber ?eats|\\bmenulog\\b|doordash|deliveroo|hello ?fresh|marley spoon|dinnerly|youfoodz|\\beasydiner\\b",
+      "matchType": "regex",
+      "categoryKey": "food_delivery",
+      "priority": 85
+    },
+    {
+      "key": "au.alcohol",
+      "name": "Liquor & bottle shops",
+      "pattern": "(?i)dan murphy|\\bbws\\b|liquorland|first choice liquor|vintage cellars|\\bcellarbrations\\b|\\bthe bottle-?o\\b|\\bbottle shop\\b|\\biga liquor\\b|\\bpub\\b|\\btavern\\b|\\bhotel\\b bar",
+      "matchType": "regex",
+      "categoryKey": "food_alcohol",
+      "priority": 70
+    },
+    {
+      "key": "au.fuel",
+      "name": "Fuel stations",
+      "pattern": "(?i)\\bbp\\b|\\bshell\\b|\\bcaltex\\b|\\bampol\\b|\\bmobil\\b|7-?eleven|united petroleum|metro petroleum|reddy express|coles express|\\beg ampol\\b|\\bogr\\b|\\bliberty\\b fuel|\\bapco\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_gas",
+      "priority": 80
+    },
+    {
+      "key": "au.transit",
+      "name": "Public transit",
+      "pattern": "(?i)\\bopal\\b|transport ?(?:for)? ?nsw|\\bmyki\\b|ptv\\b|public transport vic|\\bgo card\\b|translink|\\bmetrocard\\b|adelaide metro|transperth|smartrider|metro tasmania|\\bv/?line\\b|\\bnightrider\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_public",
+      "priority": 80
+    },
+    {
+      "key": "au.rideshare",
+      "name": "Rideshare & taxi",
+      "pattern": "(?i)\\buber\\b|\\bdidi\\b|\\bola\\b|\\bbolt\\b|\\b13cabs\\b|\\bsilver service\\b|\\btaxi\\b|\\bcabcharge\\b|\\bggt\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_rideshare",
+      "priority": 80
+    },
+    {
+      "key": "au.parking",
+      "name": "Parking & tolls",
+      "pattern": "(?i)wilson parking|secure parking|care park\\b|\\beasypark\\b|cellopark\\b|\\blinkt\\b|\\betoll\\b|\\bcity ?link\\b|\\beastlink\\b|\\bcar park\\b|parking fee",
+      "matchType": "regex",
+      "categoryKey": "transport_parking",
+      "priority": 85
+    },
+    {
+      "key": "au.car_maintenance",
+      "name": "Car maintenance & parts",
+      "pattern": "(?i)ultra ?tune|kmart tyre|\\bmycar\\b|bob jane|beaurepaires|\\bmidas\\b|supercheap auto|\\brepco\\b|\\bautobarn\\b|\\bjax tyres\\b|tyrepower|car wash|\\brego\\b check|roadworthy",
+      "matchType": "regex",
+      "categoryKey": "transport_maintenance",
+      "priority": 85
+    },
+    {
+      "key": "au.airlines",
+      "name": "Airlines",
+      "pattern": "(?i)qantas|jetstar|virgin australia|\\brex\\b airlines|regional express|\\bbonza\\b|\\bqf\\b flight",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 90
+    },
+    {
+      "key": "au.hotels",
+      "name": "Hotels & accommodation",
+      "pattern": "(?i)airbnb|\\bstayz\\b|\\bvrbo\\b|booking\\.com|\\bexpedia\\b|hotels\\.com|\\bagoda\\b|\\btrivago\\b|\\bibis\\b|\\bnovotel\\b|\\bmercure\\b|crown hotel|\\bmeriton\\b|quest apartments|\\bmotel\\b|\\bhotel\\b",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 85
+    },
+    {
+      "key": "au.streaming",
+      "name": "Streaming services",
+      "pattern": "(?i)netflix|\\bstan\\b|\\bbinge\\b|\\bkayo\\b|\\bfoxtel\\b|flash news|disney ?\\+|amazon prime video|prime video|paramount ?\\+|\\bbritbox\\b|apple\\.com/bill|apple music|spotify|youtube ?premium|\\baudible\\b",
+      "matchType": "regex",
+      "categoryKey": "entertainment_streaming",
+      "priority": 85
+    },
+    {
+      "key": "au.software_subs",
+      "name": "Software & cloud",
+      "pattern": "(?i)\\badobe\\b|microsoft ?\\*|\\bm365\\b|office 365|dropbox|\\bicloud\\b|google ?one|google ?storage|\\bnotion\\b|\\bslack\\b|\\bzoom\\.us\\b|\\bgithub\\b|jetbrains|chatgpt|openai|claude\\.ai|anthropic|\\bcanva\\b|grammarly|\\b1password\\b|\\bxero\\b|\\bmyob\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_software",
+      "priority": 80
+    },
+    {
+      "key": "au.telecom",
+      "name": "Phone & internet",
+      "pattern": "(?i)\\btelstra\\b|\\boptus\\b|vodafone|\\btpg\\b|\\biinet\\b|aussie broadband|\\bbelong\\b|\\bboost\\b mobile|amaysim|\\bdodo\\b|\\bsuperloop\\b|\\bexetel\\b|\\bmoose\\b mobile|\\bfelix\\b mobile|\\bkogan\\b mobile|\\bmate\\b communicate",
+      "matchType": "regex",
+      "categoryKey": "bills_phone",
+      "priority": 80
+    },
+    {
+      "key": "au.utilities",
+      "name": "Utilities (electricity/gas/water)",
+      "pattern": "(?i)\\bagl\\b|origin energy|energy ?australia|red energy|\\balinta\\b|simply energy|\\bactewagl\\b|\\bmomentum\\b energy|\\bpowershop\\b|\\bergon\\b|sydney water|\\bsa water\\b|yarra valley water|water corporation|\\bunitywater\\b|\\bausgrid\\b",
+      "matchType": "regex",
+      "categoryKey": "housing_utilities",
+      "priority": 80
+    },
+    {
+      "key": "au.housing_rent_mortgage",
+      "name": "Rent & mortgage",
+      "pattern": "(?i)\\brent\\b|mortgage|home loan|body corporate|strata\\b|real estate|\\bltd re\\b|property management|\\bragent\\b|\\brealestate\\.com\\b|\\bdomain\\b rent",
+      "matchType": "regex",
+      "categoryKey": "housing_rent",
+      "priority": 88
+    },
+    {
+      "key": "au.online_marketplaces",
+      "name": "Online marketplaces",
+      "pattern": "(?i)amazon\\.com\\.au|amzn mktp au|\\bamzn\\b|\\bebay\\b|\\bcatch\\b\\.com|\\bkogan\\b|\\btemu\\b|\\bshein\\b|aliexpress|\\bgumtree\\b|\\bmightyape\\b|\\bthe iconic\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_online",
+      "priority": 70
+    },
+    {
+      "key": "au.shopping_clothing",
+      "name": "Clothing & department stores",
+      "pattern": "(?i)cotton on|\\bkmart\\b|\\btarget\\b australia|\\bbig w\\b|\\bmyer\\b|david jones|country road|\\buniqlo\\b|\\bh&m\\b|\\bzara\\b|jd sports|\\brebel\\b sport|\\bthe iconic\\b|\\bsportsgirl\\b|\\bglue store\\b|\\bgeneral pants\\b|\\bpeter alexander\\b|\\bbonds\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_clothing",
+      "priority": 80
+    },
+    {
+      "key": "au.shopping_electronics",
+      "name": "Electronics & office",
+      "pattern": "(?i)jb hi-?fi|harvey norman|officeworks|the good guys|apple store|\\bmwave\\b|\\bscorptec\\b|\\bpccasegear\\b|\\bcentre com\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_electronics",
+      "priority": 85
+    },
+    {
+      "key": "au.home_improvement",
+      "name": "Home improvement & furniture",
+      "pattern": "(?i)bunnings|mitre ?10|\\bikea\\b|\\bfreedom\\b furniture|fantastic furniture|\\bamart\\b|nick scali|\\badairs\\b|pillow talk|\\bhome co\\b|\\bbeacon lighting\\b|\\bspotlight\\b|\\bhouse\\b homewares",
+      "matchType": "regex",
+      "categoryKey": "shopping_home",
+      "priority": 80
+    },
+    {
+      "key": "au.pharmacy",
+      "name": "Pharmacy & chemists",
+      "pattern": "(?i)chemist warehouse|\\bpriceline\\b|terry white|\\bamcal\\b|\\bguardian\\b pharmacy|my chemist|\\bpharmacy\\b|good price pharmacy|\\bnational pharmacies\\b",
+      "matchType": "regex",
+      "categoryKey": "health_pharmacy",
+      "priority": 85
+    },
+    {
+      "key": "au.medical",
+      "name": "Medical & clinics",
+      "pattern": "(?i)\\bmedicare\\b|medical centre|\\bgp\\b clinic|\\bclinic\\b|\\bhospital\\b|\\bpathology\\b|\\bradiology\\b|physiotherapy|\\bphysio\\b|\\bchiro\\b|\\bhealthscope\\b|\\bipn\\b medical",
+      "matchType": "regex",
+      "categoryKey": "health_medical",
+      "priority": 86
+    },
+    {
+      "key": "au.dental",
+      "name": "Dental",
+      "pattern": "(?i)\\bdental\\b|\\bdentist\\b|orthodont|\\bpacific smiles\\b|\\bmaven dental\\b",
+      "matchType": "regex",
+      "categoryKey": "health_dental",
+      "priority": 86
+    },
+    {
+      "key": "au.vision",
+      "name": "Vision & optical",
+      "pattern": "(?i)specsavers|\\bopsm\\b|bailey nelson|\\boscar wylee\\b|laubman|\\boptometrist\\b|\\boptical\\b",
+      "matchType": "regex",
+      "categoryKey": "health_vision",
+      "priority": 86
+    },
+    {
+      "key": "au.health_insurance",
+      "name": "Private health insurance",
+      "pattern": "(?i)\\bmedibank\\b|\\bbupa\\b|\\bhcf\\b|\\bnib\\b|\\bahm\\b|\\bhbf\\b|\\bgmhba\\b|australian unity|\\bteachers health\\b|health insurance",
+      "matchType": "regex",
+      "categoryKey": "health_insurance",
+      "priority": 86
+    },
+    {
+      "key": "au.fitness",
+      "name": "Gyms & fitness",
+      "pattern": "(?i)anytime fitness|fitness first|\\bgoodlife\\b|\\bjetts\\b|\\bf45\\b|snap fitness|plus fitness|\\bcrunch\\b fitness|\\bgenesis\\b health|\\bpilates\\b|crossfit|\\borangetheory\\b",
+      "matchType": "regex",
+      "categoryKey": "health_fitness",
+      "priority": 85
+    },
+    {
+      "key": "au.movies_events",
+      "name": "Cinemas & live events",
+      "pattern": "(?i)event cinemas|\\bhoyts\\b|village cinemas|palace cinemas|\\bdendy\\b|\\breading cinemas\\b|\\bimax\\b|\\bticketek\\b|ticketmaster|\\bmoshtix\\b|\\boztix\\b",
+      "matchType": "regex",
+      "categoryKey": "entertainment_movies",
+      "priority": 85
+    },
+    {
+      "key": "au.gaming",
+      "name": "Gaming platforms",
+      "pattern": "(?i)\\bsteam\\b games|steamgames|\\bxbox\\b|playstation|\\bpsn\\b|nintendo|\\beb games\\b|epic games",
+      "matchType": "regex",
+      "categoryKey": "entertainment_games",
+      "priority": 85
+    },
+    {
+      "key": "au.discount_stores",
+      "name": "Discount & variety stores",
+      "pattern": "(?i)the reject shop|\\bdaiso\\b|\\bmy dollar\\b|\\bdollar king\\b|\\bsilly solly\\b|\\bhot dollar\\b|\\bcheap as chips\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping",
+      "priority": 74
+    },
+    {
+      "key": "au.personal_care",
+      "name": "Personal care & beauty",
+      "pattern": "(?i)\\bmecca\\b|\\bsephora\\b|\\bulta\\b|\\bbarber\\b|hair salon|\\bnails\\b|\\bnail bar\\b|\\bday spa\\b|\\bspa\\b treatment|\\bwaxing\\b|\\bhaircut\\b",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 82
+    },
+    {
+      "key": "au.pets",
+      "name": "Pets & vets",
+      "pattern": "(?i)\\bpetbarn\\b|\\bpetstock\\b|pet circle|\\bpeto\\b|greencross vets|\\bvetwest\\b|\\bveterinary\\b|\\bvet clinic\\b|animal hospital|\\bpet supplies\\b",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 82
+    },
+    {
+      "key": "au.education_childcare",
+      "name": "Education & childcare",
+      "pattern": "(?i)\\btafe\\b|university|\\buni\\b sa|\\bchild ?care\\b|\\bgoodstart\\b|\\bkindergarten\\b|early learning|\\bschool fees\\b|\\bhecs\\b|\\bhelp\\b debt|coursera|udemy",
+      "matchType": "regex",
+      "categoryKey": "education",
+      "priority": 82
+    },
+    {
+      "key": "au.donations",
+      "name": "Donations & charities",
+      "pattern": "(?i)\\bgofundme\\b|\\braise\\b\\.ly|red cross|\\bunicef\\b|salvation army|\\bsalvos\\b|world vision|\\bvinnies\\b|cancer council|\\brspca\\b|\\bdonation\\b|\\bcharity\\b|\\bchurch\\b|\\btithe\\b",
+      "matchType": "regex",
+      "categoryKey": "gifts",
+      "priority": 82
+    },
+    {
+      "key": "au.bank_fees",
+      "name": "Bank & account fees",
+      "pattern": "(?i)account keeping fee|monthly (account )?fee|\\boverdrawn\\b fee|\\bdishonour\\b fee|international transaction fee|foreign (currency )?fee|\\batm\\b fee|\\bcash advance\\b fee|annual (card )?fee",
+      "matchType": "regex",
+      "categoryKey": "fees_bank",
+      "priority": 90
+    },
+    {
+      "key": "au.insurance_auto_home",
+      "name": "Car & home insurance",
+      "pattern": "(?i)\\bnrma\\b|\\bracv\\b|\\bracq\\b|\\bract\\b|\\braa\\b|\\bac\\b insurance|\\baami\\b|budget direct|\\byoui\\b|\\ballianz\\b|\\bsuncorp\\b|\\bgio\\b|\\bbingle\\b|\\bapia\\b|\\bqbe\\b|\\bwoolworths insurance\\b|\\bcoles insurance\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_insurance",
+      "priority": 85
+    },
+    {
+      "key": "au.government",
+      "name": "Government & rego",
+      "pattern": "(?i)\\bato\\b payment|australian tax|services australia|\\bcentrelink\\b|\\bmedicare\\b levy|service nsw|\\bvicroads\\b|service vic|\\btmr\\b qld|\\bdotdirect\\b|\\bmygov\\b|department of transport|\\bcouncil rates\\b",
+      "matchType": "regex",
+      "categoryKey": "fees",
+      "priority": 90
+    }
+  ]
+}
