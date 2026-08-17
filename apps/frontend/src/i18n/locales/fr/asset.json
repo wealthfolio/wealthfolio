@@ -231,6 +231,8 @@
     "name_placeholder": "Nom d'affichage de l'actif",
     "isin": "ISIN",
     "isin_placeholder": "p. ex. FR0010959676",
+    "expense_ratio": "Ratio de frais (%)",
+    "expense_ratio_placeholder": "p. ex. 0.03",
     "notes": "Notes",
     "notes_placeholder": "Ajoutez du contexte ou des liens",
     "symbol": "Symbole",

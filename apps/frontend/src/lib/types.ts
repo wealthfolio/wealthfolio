@@ -622,6 +622,8 @@ export interface Instrument {
   preferredProvider?: string | null;
   isin?: string | null;
   exchangeMic?: string | null;
+  /** Fraction (e.g. 0.0003 = 0.03%), read from asset metadata. */
+  expenseRatio?: number | null;
 
   // Taxonomy-based classifications
   classifications?: AssetClassifications | null;

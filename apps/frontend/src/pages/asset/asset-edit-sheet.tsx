@@ -51,12 +51,12 @@ import {
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wealthfolio/ui/components/ui/tabs";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
+import { toast } from "@wealthfolio/ui/components/ui/use-toast";
+import type { TFunction } from "i18next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Path, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 import * as z from "zod";
-import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { serializeProviderConfig } from "./asset-provider-config";
 import { useAssetProfileMutations } from "./hooks/use-asset-profile-mutations";
 
@@ -79,6 +79,7 @@ const assetFormSchema = (t: TFunction) =>
     name: z.string().optional(),
     notes: z.string().optional(),
     isin: z.string().optional(),
+    expenseRatio: z.string().optional(),
     instrumentType: z.string().optional(),
     quoteCcy: z.string().min(1, t("asset:editSheet.currency_required")),
     instrumentExchangeMic: z.string().optional(),
@@ -123,6 +124,29 @@ function extractIsin(metadata: unknown): string {
   const identifiers = (metadata as Record<string, unknown>).identifiers;
   if (!identifiers || typeof identifiers !== "object") return "";
   return ((identifiers as Record<string, unknown>).isin as string) ?? "";
+}
+
+// expenseRatio is stored in metadata as a fraction (e.g. 0.0003 = 0.03%).
+// The form displays/edits it as a percent string (e.g. "0.03").
+function extractExpenseRatio(metadata: unknown): string {
+  if (!metadata || typeof metadata !== "object") return "";
+  const value = (metadata as Record<string, unknown>).expenseRatio;
+  if (typeof value !== "number" || Number.isNaN(value)) return "";
+  return (value * 100).toString();
+}
+
+const EXPENSE_RATIO_ELIGIBLE_QUOTE_TYPES = new Set(["ETF", "MUTUALFUND"]);
+
+// Expense ratio only applies to funds; quoteType comes from the provider profile
+// synced into metadata.profile.quoteType (e.g. EQUITY, ETF, MUTUALFUND, INDEX).
+function canEditExpenseRatio(metadata: unknown): boolean {
+  if (!metadata || typeof metadata !== "object") return false;
+  const profile = (metadata as Record<string, unknown>).profile;
+  if (!profile || typeof profile !== "object") return false;
+  const quoteType = (profile as Record<string, unknown>).quoteType;
+  return (
+    typeof quoteType === "string" && EXPENSE_RATIO_ELIGIBLE_QUOTE_TYPES.has(quoteType.toUpperCase())
+  );
 }
 
 // Parse provider overrides from config JSON (supports nested and flat formats)
@@ -533,6 +557,7 @@ export function AssetEditSheet({
       name: asset?.name ?? "",
       notes: asset?.notes ?? "",
       isin: extractIsin(asset?.metadata),
+      expenseRatio: extractExpenseRatio(asset?.metadata),
       instrumentType: asset?.instrumentType ?? "",
       quoteCcy: asset?.quoteCcy ?? "",
       instrumentExchangeMic: normalizeMic(asset?.instrumentExchangeMic),
@@ -562,6 +587,7 @@ export function AssetEditSheet({
         name: asset.name ?? "",
         notes: asset.notes ?? "",
         isin: extractIsin(asset.metadata),
+        expenseRatio: extractExpenseRatio(asset.metadata),
         instrumentType: asset.instrumentType ?? "",
         quoteCcy: asset.quoteCcy ?? "",
         instrumentExchangeMic: normalizeMic(asset.instrumentExchangeMic),
@@ -612,11 +638,14 @@ export function AssetEditSheet({
         const newIdentifiers = isinTrimmed
           ? { ...existingIdentifiers, isin: isinTrimmed }
           : Object.fromEntries(Object.entries(existingIdentifiers).filter(([k]) => k !== "isin"));
+        const expenseRatioTrimmed = values.expenseRatio?.trim() ?? "";
+        const expenseRatioParsed = expenseRatioTrimmed ? Number(expenseRatioTrimmed) : NaN;
         const newMetadata = {
           ...existingMeta,
           ...(Object.keys(newIdentifiers).length > 0
             ? { identifiers: newIdentifiers }
             : { identifiers: undefined }),
+          expenseRatio: Number.isFinite(expenseRatioParsed) ? expenseRatioParsed / 100 : undefined,
         };
 
         // Update profile with all fields including quote mode
@@ -647,6 +676,7 @@ export function AssetEditSheet({
 
   // Check if current asset kind is system-managed (shouldn't allow editing)
   const isSystemManagedKind = asset?.kind === "FX";
+  const expenseRatioEditable = canEditExpenseRatio(asset?.metadata);
 
   if (!asset) return null;
 
@@ -850,6 +880,28 @@ export function AssetEditSheet({
                           </FormItem>
                         )}
                       />
+
+                      {expenseRatioEditable && (
+                        <FormField
+                          control={form.control}
+                          name="expenseRatio"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("asset:editSheet.expense_ratio")}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder={t("asset:editSheet.expense_ratio_placeholder")}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
 
                       <FormField
                         control={form.control}

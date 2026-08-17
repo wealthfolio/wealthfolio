@@ -158,6 +158,8 @@ pub struct HoldingListInstrument {
     pub exchange_mic: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub classifications: Option<AssetClassifications>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expense_ratio: Option<Decimal>,
 }
 
 /// List-oriented holding payload for app tables and dashboards.
@@ -201,6 +203,7 @@ pub struct HoldingListItem {
 impl From<Holding> for HoldingListItem {
     fn from(holding: Holding) -> Self {
         let isin = holding_metadata_isin(holding.metadata.as_ref());
+        let expense_ratio = holding_metadata_expense_ratio(holding.metadata.as_ref());
         let instrument = holding.instrument.map(|instrument| {
             let classifications = instrument
                 .classifications
@@ -222,6 +225,7 @@ impl From<Holding> for HoldingListItem {
                 isin,
                 exchange_mic: instrument.exchange_mic,
                 classifications,
+                expense_ratio,
             }
         });
 
@@ -271,4 +275,15 @@ fn holding_metadata_isin(metadata: Option<&Value>) -> Option<String> {
         .map(str::trim)
         .filter(|isin| !isin.is_empty())
         .map(ToOwned::to_owned)
+}
+
+fn holding_metadata_expense_ratio(metadata: Option<&Value>) -> Option<Decimal> {
+    metadata
+        .and_then(|metadata| metadata.pointer("/expenseRatio"))
+        .and_then(|value| {
+            value
+                .as_str()
+                .and_then(|s| s.parse::<Decimal>().ok())
+                .or_else(|| value.as_f64().and_then(Decimal::from_f64_retain))
+        })
 }

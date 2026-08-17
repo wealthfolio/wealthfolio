@@ -231,6 +231,8 @@
     "name_placeholder": "Anzeigename der Anlage",
     "isin": "ISIN",
     "isin_placeholder": "z. B. FR0010959676",
+    "expense_ratio": "Kostenquote (%)",
+    "expense_ratio_placeholder": "z. B. 0.03",
     "notes": "Notizen",
     "notes_placeholder": "Kontext oder Links hinzufügen",
     "symbol": "Symbol",
