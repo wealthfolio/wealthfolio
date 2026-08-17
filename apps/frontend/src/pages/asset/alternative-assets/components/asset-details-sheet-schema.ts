@@ -121,6 +121,7 @@ export const liabilityDetailsSchema = baseSchema.extend({
     .optional()
     .nullable(),
   originationDate: z.date().optional().nullable(),
+  endDate: z.date().optional().nullable(),
   interestRate: z.coerce
     .number()
     .min(0, "Interest rate must be 0 or greater")
@@ -141,14 +142,29 @@ export const otherDetailsSchema = baseSchema.extend({
 });
 
 // Discriminated union of all asset type schemas
-export const assetDetailsSchema = z.discriminatedUnion("kind", [
-  propertyDetailsSchema,
-  vehicleDetailsSchema,
-  collectibleDetailsSchema,
-  preciousMetalDetailsSchema,
-  liabilityDetailsSchema,
-  otherDetailsSchema,
-]);
+export const assetDetailsSchema = z
+  .discriminatedUnion("kind", [
+    propertyDetailsSchema,
+    vehicleDetailsSchema,
+    collectibleDetailsSchema,
+    preciousMetalDetailsSchema,
+    liabilityDetailsSchema,
+    otherDetailsSchema,
+  ])
+  .superRefine((values, ctx) => {
+    if (
+      values.kind === AlternativeAssetKind.LIABILITY &&
+      values.originationDate &&
+      values.endDate &&
+      values.endDate <= values.originationDate
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["endDate"],
+        message: "End date must be after the origination date",
+      });
+    }
+  });
 
 // Type for the combined form values
 export type AssetDetailsFormValues = z.infer<typeof assetDetailsSchema>;
@@ -227,6 +243,7 @@ export function getDefaultDetailsFormValues(
         liabilityType: subType as LiabilityDetailsFormValues["liabilityType"],
         originalAmount: origAmount ? parseFloat(origAmount as string) : null,
         originationDate: origDate ? parseLocalDate(origDate as string) : null,
+        endDate: metadata?.end_date ? parseLocalDate(metadata.end_date as string) : null,
         interestRate: metadata?.interest_rate ? parseFloat(metadata.interest_rate as string) : null,
         linkedAssetId: (metadata?.linked_asset_id as string) ?? null,
       };
@@ -291,6 +308,7 @@ export function formValuesToMetadata(values: AssetDetailsFormValues): Record<str
         metadata.original_amount = values.originalAmount.toString();
       if (values.originationDate)
         metadata.origination_date = formatDateToISO(values.originationDate);
+      if (values.endDate) metadata.end_date = formatDateToISO(values.endDate);
       if (values.interestRate != null) metadata.interest_rate = values.interestRate.toString();
       if (values.linkedAssetId) metadata.linked_asset_id = values.linkedAssetId;
       break;
