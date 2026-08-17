@@ -26,17 +26,18 @@ export function toneFill(value: number): string {
 export const CARD_LABEL = "text-muted-foreground/70 text-xs font-semibold uppercase tracking-wide";
 
 // Muted, semantic category palette (tuned for the warm/cream theme). Used for
-// the composition bar, breakdown row dots, and the detail-sheet icons so they
-// stay consistent. Liabilities keep the semantic red.
-// NOTE: tuned for light mode — dark-mode variants would need theme-aware tokens.
+// the composition bar, breakdown row dots, the detail-sheet icons, and the
+// net-worth flow diagram, so they stay consistent. Liabilities keep the
+// semantic red. Values are theme-aware CSS custom properties — see the
+// `--category-*` tokens in globals.css for the light/dark pairs.
 export const CATEGORY_CSS_COLORS: Record<string, string> = {
-  properties: "#4b4137", // warm dark taupe / charcoal
-  investments: "#6f7544", // muted olive green
-  cash: "#d8c98f", // pale cream / light gold
-  vehicles: "#6d7c86", // muted slate
-  otherAssets: "#928d83", // medium warm gray
-  preciousMetals: "#b8923a", // soft gold
-  collectibles: "#8a6b49", // muted brown
+  properties: "var(--category-properties)",
+  investments: "var(--category-investments)",
+  cash: "var(--category-cash)",
+  vehicles: "var(--category-vehicles)",
+  otherAssets: "var(--category-other-assets)",
+  preciousMetals: "var(--category-precious-metals)",
+  collectibles: "var(--category-collectibles)",
   liabilities: "var(--destructive)",
 };
 
