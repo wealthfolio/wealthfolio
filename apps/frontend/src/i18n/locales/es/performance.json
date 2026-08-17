@@ -43,6 +43,7 @@
   "best_day": "Mejor día",
   "worst_day": "Peor día",
   "chart_value": "Valor de la cartera",
+  "chart_mode_value": "Valor",
   "chart_returns": "Rentabilidades",
   "chart_contributions": "Aportaciones",
   "chart_allocation": "Asignación",
@@ -59,11 +60,13 @@
     "no_series": "No hay ninguna serie del gráfico disponible para este periodo.",
     "holdings_not_twr": "Las cuentas en modo de posiciones usan Rentabilidad por valor y no se representan con TWR.",
     "transaction_not_value": "Las cuentas en modo de transacciones usan TWR y no se representan con Rentabilidad por valor.",
-    "no_overlap": "No hay fechas del gráfico que coincidan con el elemento seleccionado."
+    "no_overlap": "No hay fechas del gráfico que coincidan con el elemento seleccionado.",
+    "benchmark_value": "Los índices de referencia no tienen un valor monetario y no se representan en el modo de valor."
   },
   "comparison_notice": {
     "different_methods": "Los distintos métodos de rentabilidad no pueden compartir el mismo gráfico. Selecciona una etiqueta atenuada para cambiar el modo del gráfico.",
     "not_enough_overlap": "Estos elementos seleccionados no tienen suficientes fechas del gráfico que coincidan con el gráfico activo.",
+    "benchmark_value": "Los índices de referencia no son compatibles con el modo de valor",
     "not_plotted_count_one": "{{count}} elemento seleccionado no está representado",
     "not_plotted_count_other": "{{count}} elementos seleccionados no están representados"
   },

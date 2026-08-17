@@ -43,6 +43,7 @@
   "best_day": "Bester Tag",
   "worst_day": "Schlechtester Tag",
   "chart_value": "Portfoliowert",
+  "chart_mode_value": "Wert",
   "chart_returns": "Renditen",
   "chart_contributions": "Einlagen",
   "chart_allocation": "Allokation",
@@ -59,11 +60,13 @@
     "no_series": "Für diesen Zeitraum ist keine Diagrammreihe verfügbar.",
     "holdings_not_twr": "Konten im Bestandsmodus verwenden die Wertrendite und werden nicht mit dem TWR dargestellt.",
     "transaction_not_value": "Konten im Transaktionsmodus verwenden den TWR und werden nicht mit der Wertrendite dargestellt.",
-    "no_overlap": "Keine überlappenden Diagrammdaten mit dem ausgewählten Element."
+    "no_overlap": "Keine überlappenden Diagrammdaten mit dem ausgewählten Element.",
+    "benchmark_value": "Benchmarks haben keinen Geldwert und werden im Wertmodus nicht dargestellt."
   },
   "comparison_notice": {
     "different_methods": "Unterschiedliche Renditemethoden können sich nicht dasselbe Diagramm teilen. Wählen Sie einen abgeblendeten Chip, um den Diagrammmodus zu wechseln.",
     "not_enough_overlap": "Diese ausgewählten Elemente haben nicht genügend überlappende Diagrammdaten mit dem aktiven Diagramm.",
+    "benchmark_value": "Benchmarks werden im Wertmodus nicht unterstützt",
     "not_plotted_count_one": "{{count}} ausgewähltes Element wird nicht dargestellt",
     "not_plotted_count_other": "{{count}} ausgewählte Elemente werden nicht dargestellt"
   },
