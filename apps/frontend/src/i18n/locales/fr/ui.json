@@ -79,8 +79,34 @@
     "sortDesc": "Décroissant",
     "hide": "Masquer"
   },
-  "months_short": ["jan.", "fév.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."],
-  "months_long": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"],
+  "months_short": [
+    "jan.",
+    "fév.",
+    "mars",
+    "avr.",
+    "mai",
+    "juin",
+    "juil.",
+    "août",
+    "sept.",
+    "oct.",
+    "nov.",
+    "déc."
+  ],
+  "months_long": [
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre"
+  ],
   "datePicker": {
     "dateLabel": "Date",
     "pick": "Choisir une date"
