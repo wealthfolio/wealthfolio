@@ -587,9 +587,13 @@ impl HoldingsService {
         }
     }
 
-    async fn apply_realized_gains_best_effort(&self, account_id: &str, holdings: &mut [Holding]) {
+    /// Sum realized P&L and disposed cost per asset from persisted lot disposals for one account.
+    /// Returned for every disposed asset — including ones with no open holding — so callers that
+    /// aggregate across accounts can recover realized gains from positions fully closed in a
+    /// member account.
+    async fn realized_totals_for_account(&self, account_id: &str) -> HashMap<String, RealizedTotals> {
         let Some(lot_repository) = &self.lot_repository else {
-            return;
+            return HashMap::new();
         };
         let disposals = match lot_repository
             .get_lot_disposals_for_account(account_id)
@@ -601,23 +605,15 @@ impl HoldingsService {
                     "Failed to load lot disposals for account {} while calculating realized gains: {}",
                     account_id, e
                 );
-                return;
+                return HashMap::new();
             }
         };
         if disposals.is_empty() {
-            return;
+            return HashMap::new();
         }
         let disposal_trade_activity_ids = self.disposal_trade_activity_ids_for_account(account_id);
 
-        #[derive(Default)]
-        struct Totals {
-            realized_local: Decimal,
-            realized_base: Decimal,
-            disposed_cost_local: Decimal,
-            disposed_cost_base: Decimal,
-        }
-
-        let mut totals_by_asset: HashMap<String, Totals> = HashMap::new();
+        let mut totals_by_asset: HashMap<String, RealizedTotals> = HashMap::new();
         for disposal in disposals {
             if let Some(disposal_trade_activity_ids) = &disposal_trade_activity_ids {
                 if !disposal_trade_activity_ids.contains(&disposal.disposal_activity_id) {
@@ -629,6 +625,14 @@ impl HoldingsService {
             totals.realized_base += parse_decimal_lossy(&disposal.realized_pnl_base);
             totals.disposed_cost_local += parse_decimal_lossy(&disposal.cost_basis);
             totals.disposed_cost_base += parse_decimal_lossy(&disposal.cost_basis_base);
+        }
+        totals_by_asset
+    }
+
+    async fn apply_realized_gains_best_effort(&self, account_id: &str, holdings: &mut [Holding]) {
+        let totals_by_asset = self.realized_totals_for_account(account_id).await;
+        if totals_by_asset.is_empty() {
+            return;
         }
 
         for holding in holdings {
@@ -789,6 +793,14 @@ impl HoldingsService {
             refresh_total_return(holding);
         }
     }
+}
+
+#[derive(Default)]
+struct RealizedTotals {
+    realized_local: Decimal,
+    realized_base: Decimal,
+    disposed_cost_local: Decimal,
+    disposed_cost_base: Decimal,
 }
 
 fn gain_pct(amount: Decimal, basis: Decimal) -> Option<Decimal> {
@@ -1252,6 +1264,34 @@ impl HoldingsServiceTrait for HoldingsService {
             all_holdings.extend(holdings);
         }
 
+        // Positions fully closed in a member account produce no holding (zero-qty positions are
+        // dropped in build_live_holdings_from_snapshot), so the per-account realized pass has no
+        // holding to attach their realized P&L to and drops it. Recover it here and fold it into
+        // the aggregated holding for the same asset, so a symbol closed in one account but still
+        // open in another reports realized P&L summed across all member accounts.
+        let open_asset_ids_by_account: HashSet<(String, String)> = all_holdings
+            .iter()
+            .filter_map(|holding| {
+                holding
+                    .instrument
+                    .as_ref()
+                    .map(|instrument| (holding.account_id.clone(), instrument.id.clone()))
+            })
+            .collect();
+        let mut orphan_realized: HashMap<String, RealizedTotals> = HashMap::new();
+        for account_id in account_ids {
+            for (asset_id, totals) in self.realized_totals_for_account(account_id).await {
+                if open_asset_ids_by_account.contains(&(account_id.clone(), asset_id.clone())) {
+                    continue;
+                }
+                let entry = orphan_realized.entry(asset_id).or_default();
+                entry.realized_local += totals.realized_local;
+                entry.realized_base += totals.realized_base;
+                entry.disposed_cost_local += totals.disposed_cost_local;
+                entry.disposed_cost_base += totals.disposed_cost_base;
+            }
+        }
+
         // Merge by key: securities/alternatives → asset id; cash → local_currency.
         let mut merged: HashMap<String, Holding> = HashMap::new();
         for holding in all_holdings {
@@ -1305,6 +1345,37 @@ impl HoldingsServiceTrait for HoldingsService {
         }
 
         let mut result: Vec<Holding> = merged.into_values().collect();
+
+        // Fold recovered realized from closed member-account positions into the matching
+        // aggregated (still-open) holding. Percentages are recomputed below from these totals.
+        if !orphan_realized.is_empty() {
+            for holding in result.iter_mut() {
+                let Some(asset_id) = holding
+                    .instrument
+                    .as_ref()
+                    .map(|instrument| instrument.id.clone())
+                else {
+                    continue;
+                };
+                let Some(totals) = orphan_realized.get(&asset_id) else {
+                    continue;
+                };
+                let realized = MonetaryValue {
+                    local: totals.realized_local,
+                    base: totals.realized_base,
+                };
+                add_optional_monetary(&mut holding.realized_gain, &Some(realized.clone()));
+                add_optional_monetary(&mut holding.total_gain, &Some(realized));
+                add_optional_monetary(
+                    &mut holding.return_basis,
+                    &Some(MonetaryValue {
+                        local: totals.disposed_cost_local,
+                        base: totals.disposed_cost_base,
+                    }),
+                );
+            }
+        }
+
         // Sort for deterministic output: cash last, then by id.
         result.sort_by(|a, b| {
             let a_cash = matches!(a.holding_type, HoldingType::Cash);
@@ -1776,6 +1847,7 @@ mod tests {
 
     struct MockSnapshotService {
         snapshot: AccountStateSnapshot,
+        per_account: HashMap<String, AccountStateSnapshot>,
     }
 
     #[async_trait::async_trait]
@@ -1808,9 +1880,14 @@ mod tests {
 
         fn get_latest_holdings_snapshot(
             &self,
-            _account_id: &str,
+            account_id: &str,
         ) -> Result<Option<AccountStateSnapshot>> {
-            Ok(Some(self.snapshot.clone()))
+            Ok(Some(
+                self.per_account
+                    .get(account_id)
+                    .cloned()
+                    .unwrap_or_else(|| self.snapshot.clone()),
+            ))
         }
 
         async fn save_manual_snapshot(
@@ -2740,7 +2817,31 @@ mod tests {
     ) -> HoldingsService {
         HoldingsService::new(
             Arc::new(MockAssetService::new(assets)),
-            Arc::new(MockSnapshotService { snapshot }),
+            Arc::new(MockSnapshotService {
+                snapshot,
+                per_account: HashMap::new(),
+            }),
+            Arc::new(MockValuationService { values }),
+            Arc::new(AssetClassificationService::new(Arc::new(
+                EmptyTaxonomyService,
+            ))),
+        )
+    }
+
+    /// Like `test_service`, but serves a distinct snapshot per member account (falling back to the
+    /// shared one). Lets tests model a symbol still open in one account but fully closed in another.
+    fn test_service_with_account_snapshots(
+        shared: AccountStateSnapshot,
+        per_account: HashMap<String, AccountStateSnapshot>,
+        assets: Vec<Asset>,
+        values: HashMap<String, Decimal>,
+    ) -> HoldingsService {
+        HoldingsService::new(
+            Arc::new(MockAssetService::new(assets)),
+            Arc::new(MockSnapshotService {
+                snapshot: shared,
+                per_account,
+            }),
             Arc::new(MockValuationService { values }),
             Arc::new(AssetClassificationService::new(Arc::new(
                 EmptyTaxonomyService,
@@ -3544,6 +3645,70 @@ mod tests {
         assert_eq!(holding.return_basis.as_ref().unwrap().base, dec!(150));
         assert_eq!(holding.total_gain_pct, Some(dec!(0.14)));
         assert_eq!(holding.total_return_pct, Some(dec!(0.18)));
+    }
+
+    #[tokio::test]
+    async fn multi_account_aggregation_includes_realized_from_position_closed_in_one_account() {
+        // Regression: a symbol still open in one account but fully closed in another used to report
+        // only the open account's realized P&L. The closed account's realized was dropped because
+        // its zero-qty position produced no holding to attach it to.
+        let asset_id = "AAPL";
+        let open_account = "acc-open";
+        let closed_account = "acc-closed";
+
+        let mut position = test_position(open_account, asset_id);
+        position.total_cost_basis = dec!(100);
+        let open_snapshot = AccountStateSnapshot {
+            account_id: open_account.to_string(),
+            currency: "USD".to_string(),
+            positions: HashMap::from([(asset_id.to_string(), position)]),
+            ..Default::default()
+        };
+        // The closed account holds no open position for the asset anymore.
+        let closed_snapshot = AccountStateSnapshot {
+            account_id: closed_account.to_string(),
+            currency: "USD".to_string(),
+            positions: HashMap::new(),
+            ..Default::default()
+        };
+
+        let lot_repository = MockLotRepository::new(vec![test_lot_record(
+            open_account,
+            asset_id,
+            "USD",
+            dec!(50),
+        )])
+        .with_disposals(vec![
+            // Open account: realized loss on a partial sale (attached to the open holding).
+            test_lot_disposal(open_account, asset_id, dec!(40), dec!(20), dec!(-10), dec!(-5)),
+            // Closed account: realized gain on the now fully-closed position (previously dropped).
+            test_lot_disposal(closed_account, asset_id, dec!(60), dec!(30), dec!(30), dec!(15)),
+        ]);
+
+        let service = test_service_with_account_snapshots(
+            open_snapshot,
+            HashMap::from([(closed_account.to_string(), closed_snapshot)]),
+            vec![test_asset(asset_id, "AAPL", InstrumentType::Equity)],
+            HashMap::from([(asset_id.to_string(), dec!(110))]),
+        )
+        .with_lot_repository(Arc::new(lot_repository));
+
+        let holdings = service
+            .get_holdings_for_accounts(
+                &[open_account.to_string(), closed_account.to_string()],
+                "USD",
+                "portfolio",
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(holdings.len(), 1);
+        let holding = &holdings[0];
+        // Realized must sum both accounts: -10 (open) + 30 (closed) = 20 local, -5 + 15 = 10 base.
+        assert_eq!(holding.realized_gain.as_ref().unwrap().local, dec!(20));
+        assert_eq!(holding.realized_gain.as_ref().unwrap().base, dec!(10));
+        // Realized % uses total disposed cost (40 + 60 = 100): 20 / 100 = 0.2.
+        assert_eq!(holding.realized_gain_pct, Some(dec!(0.2)));
     }
 
     #[tokio::test]
