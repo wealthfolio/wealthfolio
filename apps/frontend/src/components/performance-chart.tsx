@@ -23,13 +23,18 @@ interface PerformanceChartProps {
 }
 
 export function PerformanceChart({ data }: PerformanceChartProps) {
-  const formattedData = data[0]?.returns?.map((item) => {
-    const dataPoint: Record<string, number | string> = { date: item.date };
-    data.forEach((series) => {
-      const matchingPoint = series.returns?.find((p) => p.date === item.date);
-      if (matchingPoint) {
-        dataPoint[series.id] = matchingPoint.value;
-      }
+  const dates = [
+    ...new Set(data.flatMap((series) => series.returns.map((point) => point.date))),
+  ].sort((a, b) => a.localeCompare(b));
+  const valuesBySeries = data.map((series) => ({
+    id: series.id,
+    values: new Map(series.returns.map((point) => [point.date, point.value])),
+  }));
+  const formattedData = dates.map((date) => {
+    const dataPoint: Record<string, number | string> = { date };
+    valuesBySeries.forEach((series) => {
+      const value = series.values.get(date);
+      if (value !== undefined) dataPoint[series.id] = value;
     });
     return dataPoint;
   });

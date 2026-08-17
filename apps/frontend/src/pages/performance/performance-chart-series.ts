@@ -1,6 +1,7 @@
 import type { PerformanceResult, ReturnData } from "@/lib/types";
 
 export type PerformanceMetric = "twr" | "irr" | "valueReturn" | "volatility" | "drawdown";
+export type PerformanceComparisonRange = "all" | "common";
 
 export interface ComparablePerformanceSeries extends PerformanceResult {
   id: string;
@@ -125,6 +126,7 @@ export function comparablePerformanceChartData(
   performanceData: (ComparablePerformanceSeries | null)[] | undefined,
   metric: PerformanceMetric,
   selectedItemId: string | null,
+  comparisonRange: PerformanceComparisonRange = "common",
 ): ComparableChartDataItem[] {
   if (metric !== "twr" && metric !== "valueReturn") return [];
   if (!performanceData) return [];
@@ -151,6 +153,28 @@ export function comparablePerformanceChartData(
   const comparableSeries = candidates
     .filter((entry) => entry.group === selectedGroup)
     .map(({ item }) => item);
+  if (comparisonRange === "all") {
+    const anchor = selectedItemId
+      ? (comparableSeries.find((item) => item.id === selectedItemId) ?? comparableSeries[0])
+      : comparableSeries[0];
+    if (!anchor || anchor.series.length < 2) return [];
+
+    return comparableSeries.flatMap((item) => {
+      const dates = [...new Set(item.series.map((point) => point.date))].sort((a, b) =>
+        a.localeCompare(b),
+      );
+      if (dates.length < 2) return [];
+      const returns = rebaseSeriesToDates(item.series, dates);
+      if (!returns) return [];
+      return {
+        id: item.id,
+        name: item.name,
+        returns,
+        isReference: item.mode === "symbolPriceBased",
+      };
+    });
+  }
+
   const selectedComparableSeries = selectComparableSeries(comparableSeries, selectedItemId);
   const commonDates = comparableDateIntersection(selectedComparableSeries);
   if (commonDates.length < 2) return [];

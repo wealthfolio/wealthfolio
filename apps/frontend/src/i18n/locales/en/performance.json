@@ -50,6 +50,9 @@
   "print_report": "Print Report",
   "no_performance_data": "No performance data available",
   "no_performance_data_desc": "Add activities to your portfolio to see performance metrics.",
+  "range": {
+    "common_description": "Compare from the earliest date shared by all plotted series."
+  },
   "tracking_mode": {
     "mixed": "Mixed mode",
     "holdings": "Holdings mode"
