@@ -1426,6 +1426,110 @@ async fn test_dust_credit_card_balance_produces_no_liability_row() {
 }
 
 #[tokio::test]
+async fn test_sub_cent_snapshot_cash_excluded_from_cash_breakdown() {
+    let dusty = create_test_account("acc1", "SECURITIES", "USD");
+    let funded = create_test_account("acc2", "SECURITIES", "USD");
+    // Real-world residue from `quantity * unit_price` reconstruction: survives
+    // 1e-8 rounding but carries no value the UI can show.
+    let mut dust = HashMap::new();
+    dust.insert("USD".to_string(), dec!(0.00001));
+    let mut funds = HashMap::new();
+    funds.insert("USD".to_string(), dec!(2500));
+
+    let service = create_net_worth_service(
+        vec![dusty, funded],
+        vec![],
+        vec![
+            create_test_snapshot("acc1", vec![], dust),
+            create_test_snapshot("acc2", vec![], funds),
+        ],
+        vec![],
+    );
+
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let result = service.get_net_worth(date).await.unwrap();
+
+    assert_eq!(get_category_value(&result, "cash"), dec!(2500));
+
+    let cash = result
+        .assets
+        .breakdown
+        .iter()
+        .find(|b| b.category == "cash")
+        .unwrap();
+    assert_eq!(cash.children.len(), 1);
+    assert_eq!(cash.children[0].name, "Test Account acc2 (USD)");
+}
+
+#[tokio::test]
+async fn test_sub_cent_stored_valuation_cash_excluded_from_cash_breakdown() {
+    let dusty = create_test_account("acc1", "SECURITIES", "USD");
+    let funded = create_test_account("acc2", "SECURITIES", "USD");
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+
+    let service = create_net_worth_service_with_valuations(
+        vec![dusty, funded],
+        vec![],
+        vec![
+            create_test_snapshot("acc1", vec![], HashMap::new()),
+            create_test_snapshot("acc2", vec![], HashMap::new()),
+        ],
+        vec![],
+        vec![
+            create_account_valuation("acc1", date, dec!(-0.00001358)),
+            create_account_valuation("acc2", date, dec!(2500)),
+        ],
+    );
+
+    let result = service.get_net_worth(date).await.unwrap();
+
+    assert_eq!(get_category_value(&result, "cash"), dec!(2500));
+
+    let cash = result
+        .assets
+        .breakdown
+        .iter()
+        .find(|b| b.category == "cash")
+        .unwrap();
+    assert_eq!(cash.children.len(), 1);
+    assert_eq!(cash.children[0].name, "Test Account acc2");
+}
+
+#[tokio::test]
+async fn test_sub_cent_credit_card_balance_produces_no_liability_row() {
+    let account = create_test_account("card1", "CREDIT_CARD", "USD");
+    let mut cash = HashMap::new();
+    cash.insert("USD".to_string(), dec!(-0.00022048));
+    let snapshot = create_test_snapshot("card1", vec![], cash);
+
+    let service = create_net_worth_service(vec![account], vec![], vec![snapshot], vec![]);
+
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let result = service.get_net_worth(date).await.unwrap();
+
+    assert!(result.liabilities.breakdown.is_empty());
+    assert_eq!(result.liabilities.total, Decimal::ZERO);
+    assert_eq!(result.net_worth, Decimal::ZERO);
+}
+
+#[tokio::test]
+async fn test_half_cent_cash_balance_still_included() {
+    // The cut is at the displayed cent: 0.005 rounds up to a visible cent, so it
+    // stays. Whether the UI then renders it as $0.01 is the formatter's business.
+    let account = create_test_account("acc1", "SECURITIES", "USD");
+    let mut cash = HashMap::new();
+    cash.insert("USD".to_string(), dec!(0.005));
+    let snapshot = create_test_snapshot("acc1", vec![], cash);
+
+    let service = create_net_worth_service(vec![account], vec![], vec![snapshot], vec![]);
+
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let result = service.get_net_worth(date).await.unwrap();
+
+    assert_eq!(get_category_value(&result, "cash"), dec!(0.005));
+}
+
+#[tokio::test]
 async fn test_staleness_detection() {
     let account = create_test_account("acc1", "SECURITIES", "USD");
     let asset = create_test_asset("AAPL", AssetKind::Investment, "USD");

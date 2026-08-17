@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 use chrono::NaiveDate;
 use log::{debug, warn};
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, RoundingStrategy};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
@@ -14,7 +14,7 @@ use super::net_worth_model::{
 use super::net_worth_traits::NetWorthServiceTrait;
 use crate::accounts::{account_types, is_liability_account_type, AccountRepositoryTrait};
 use crate::assets::{Asset, AssetKind, AssetRepositoryTrait};
-use crate::constants::DECIMAL_PRECISION;
+use crate::constants::{DECIMAL_PRECISION, DISPLAY_DECIMAL_PRECISION};
 use crate::errors::Result;
 use crate::fx::currency::normalize_amount;
 use crate::fx::FxServiceTrait;
@@ -24,6 +24,32 @@ use crate::quotes::QuoteServiceTrait;
 
 /// Number of days after which a valuation is considered stale.
 const STALENESS_THRESHOLD_DAYS: i64 = 90;
+
+/// True when a cash amount rounds away at the precision the UI renders.
+///
+/// Liquidated accounts keep residual cash balances far larger than
+/// `DECIMAL_PRECISION` (1e-8): `unit_price` is stored as a total divided by
+/// quantity and rounded to 8dp, so recomputing the cash effect as
+/// `quantity * unit_price` misses the original whole-cent total by ~1e-8 per
+/// trade. The sum scales with trade count, reaching 1e-5..1e-4 over a few
+/// hundred trades — emitting breakdown rows that carry no visible value. Gating
+/// on display precision is the only bound that does not drift as history grows.
+///
+/// This drops residue only. Real sub-dollar balances survive and are the
+/// frontend's to render: `formatCompactAmount` currently gives amounts under
+/// $1,000 zero fraction digits, so a genuine $0.33 still shows as $0.
+///
+/// Rounds half away from zero to match `Intl.NumberFormat` in the UI, rather
+/// than `round_dp`'s banker's rounding, so a balance the UI would show as
+/// $0.01 is never dropped.
+fn is_display_zero(value: Decimal) -> bool {
+    value
+        .round_dp_with_strategy(
+            DISPLAY_DECIMAL_PRECISION,
+            RoundingStrategy::MidpointAwayFromZero,
+        )
+        .is_zero()
+}
 
 /// Service for calculating net worth.
 pub struct NetWorthService {
@@ -413,11 +439,11 @@ impl NetWorthServiceTrait for NetWorthService {
                 }
 
                 // Round before the zero check: activity replay leaves residual
-                // balances around 1e-15 that are non-zero but display as $0.
+                // balances that are non-zero but display as $0.
                 let cash_base = account_valuation
                     .cash_balance_base
                     .round_dp(DECIMAL_PRECISION);
-                if !cash_base.is_zero() {
+                if !is_display_zero(cash_base) {
                     valuations.push(ValuationInfo {
                         asset_id: format!("CASH:{}", account.id),
                         name: Some(account.name.clone()),
@@ -549,6 +575,10 @@ impl NetWorthServiceTrait for NetWorthService {
                     })
                     .round_dp(DECIMAL_PRECISION);
 
+                if is_display_zero(cash_base_total) {
+                    continue;
+                }
+
                 if cash_base_total < Decimal::ZERO {
                     valuations.push(ValuationInfo {
                         asset_id: format!("CREDIT_CARD:{}", account.id),
@@ -558,7 +588,7 @@ impl NetWorthServiceTrait for NetWorthService {
                         category: AssetCategory::Liability,
                         is_cash_like: true,
                     });
-                } else if cash_base_total > Decimal::ZERO {
+                } else {
                     valuations.push(ValuationInfo {
                         asset_id: format!("CASH:{}", account.id),
                         name: Some(account.name.clone()),
@@ -584,10 +614,10 @@ impl NetWorthServiceTrait for NetWorthService {
                     .convert_cash_balance_to_base(amount, currency, &base_currency, date)
                     .round_dp(DECIMAL_PRECISION);
 
-                // Long-closed accounts keep residual balances around 1e-15 that
-                // are non-zero yet round to nothing; skip them so the Cash
-                // drill-down does not fill up with $0 rows.
-                if cash_base.is_zero() {
+                // Long-closed accounts keep residual balances that are non-zero
+                // yet round to nothing; skip them so the Cash drill-down does
+                // not fill up with $0 rows.
+                if is_display_zero(cash_base) {
                     continue;
                 }
 
