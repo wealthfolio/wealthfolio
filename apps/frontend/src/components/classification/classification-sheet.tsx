@@ -11,13 +11,15 @@ import {
 import { useTaxonomies } from "@/hooks/use-taxonomies";
 import { SingleSelectTaxonomy } from "./single-select-taxonomy";
 import { MultiSelectTaxonomy } from "./multi-select-taxonomy";
-import { TickerAvatar } from "@/components/ticker-avatar";
+import { AssetTickerAvatar } from "@/components/ticker-avatar";
 import type { Taxonomy } from "@/lib/types";
 
 interface ClassificationSheetProps {
   assetId: string;
   assetName?: string;
   assetSymbol?: string;
+  /** User-uploaded logo override filename, if one has been set on the asset */
+  assetCustomLogoFilename?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -34,6 +36,7 @@ export function ClassificationSheet({
   assetId,
   assetName,
   assetSymbol,
+  assetCustomLogoFilename,
   open,
   onOpenChange,
 }: ClassificationSheetProps) {
@@ -70,7 +73,13 @@ export function ClassificationSheet({
       <SheetContent side="right" className="flex h-full w-full flex-col sm:max-w-lg">
         <SheetHeader className="shrink-0 pb-4">
           <div className="flex items-center gap-3">
-            {assetSymbol && <TickerAvatar symbol={assetSymbol} className="size-10" />}
+            {assetSymbol && (
+              <AssetTickerAvatar
+                asset={{ id: assetId, customLogoFilename: assetCustomLogoFilename }}
+                symbol={assetSymbol}
+                className="size-10"
+              />
+            )}
             <div className="min-w-0 flex-1">
               <SheetTitle className="truncate text-lg">
                 {assetSymbol || t("asset:classification.classifyAsset")}

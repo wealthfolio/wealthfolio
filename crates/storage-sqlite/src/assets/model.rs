@@ -67,9 +67,14 @@ pub struct AssetDB {
     pub provider_config: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    pub custom_logo_filename: Option<String>,
 }
 
 /// Database write model for assets (excludes generated columns).
+///
+/// `custom_logo_filename` is intentionally excluded here — it is written via a
+/// dedicated narrow update (see `update_custom_logo_filename`), the same
+/// pattern as `quote_mode`, so a full profile update never clobbers it.
 #[derive(Insertable, AsChangeset, Debug, Clone)]
 #[diesel(table_name = crate::schema::assets)]
 pub struct InsertableAssetDB {
@@ -132,6 +137,7 @@ impl From<AssetDB> for Asset {
             exchange_name: None, // Computed by Asset::enrich()
             created_at: text_to_datetime(&db.created_at),
             updated_at: text_to_datetime(&db.updated_at),
+            custom_logo_filename: db.custom_logo_filename,
         }
     }
 }

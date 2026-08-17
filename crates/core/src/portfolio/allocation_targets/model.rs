@@ -281,6 +281,8 @@ pub struct DriftHoldingRow {
     pub drift_bps: Option<i32>,
     pub is_unknown_category: bool,
     pub is_cash: bool,
+    /// User-uploaded logo override filename, if one has been set on the asset
+    pub custom_logo_filename: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

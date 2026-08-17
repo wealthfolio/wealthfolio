@@ -1,6 +1,6 @@
 import React from "react";
 
-import { TickerAvatar } from "@/components/ticker-avatar";
+import { AssetTickerAvatar } from "@/components/ticker-avatar";
 import { parseOccSymbol } from "@/lib/occ-symbol";
 import { DataTableColumnHeader } from "@wealthfolio/ui/components/ui/data-table/data-table-column-header";
 import {
@@ -226,7 +226,11 @@ export const ActivityTable = ({
 
           const content = (
             <div className="flex max-w-[220px] items-center gap-2">
-              <TickerAvatar symbol={avatarSymbol} className="h-8 w-8 shrink-0" />
+              <AssetTickerAvatar
+                asset={{ id: assetId, customLogoFilename: row.original.customLogoFilename }}
+                symbol={avatarSymbol}
+                className="h-8 w-8 shrink-0"
+              />
               <div className="flex min-w-0 flex-col">
                 <span className="flex items-center gap-1 truncate font-medium">
                   <span className="truncate">{displaySymbol}</span>

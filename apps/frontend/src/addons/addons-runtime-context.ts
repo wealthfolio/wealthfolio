@@ -37,6 +37,7 @@ import {
 } from "@/adapters";
 import {
   fetchDividends,
+  getAssetLogoDataUrl,
   getAssetProfile,
   getMarketDataProviders,
   getQuoteHistory,
@@ -471,6 +472,7 @@ export function createAddonHostAPI(
       getAssetProfile,
       updateAssetProfile,
       updateQuoteMode,
+      getAssetLogoDataUrl,
       updateQuote,
       syncMarketData,
       getQuoteHistory,

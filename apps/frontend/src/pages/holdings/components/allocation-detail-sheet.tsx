@@ -15,7 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { getHoldingsByAllocation } from "@/adapters";
-import { TickerAvatar } from "@/components/ticker-avatar";
+import { AssetTickerAvatar } from "@/components/ticker-avatar";
 import { HoldingType } from "@/lib/constants";
 import type {
   AccountScope,
@@ -408,7 +408,11 @@ export function AllocationDetailSheet({
                         )}
                         onClick={() => handleHoldingClick(holding)}
                       >
-                        <TickerAvatar symbol={avatarSymbol} className="h-9 w-9" />
+                        <AssetTickerAvatar
+                          asset={{ id: holding.id, customLogoFilename: holding.customLogoFilename }}
+                          symbol={avatarSymbol}
+                          className="h-9 w-9"
+                        />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold">{primaryLabel}</p>
                           <p className="text-muted-foreground truncate text-xs">{secondaryLabel}</p>

@@ -216,6 +216,14 @@ mod tests {
             unimplemented!("Not needed for tests")
         }
 
+        async fn update_custom_logo_filename(
+            &self,
+            _asset_id: &str,
+            _filename: Option<&str>,
+        ) -> Result<Asset> {
+            unimplemented!("Not needed for tests")
+        }
+
         fn find_by_instrument_key(&self, _instrument_key: &str) -> Result<Option<Asset>> {
             Ok(None)
         }

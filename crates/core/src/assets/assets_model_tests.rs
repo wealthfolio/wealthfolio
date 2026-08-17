@@ -615,6 +615,7 @@ mod tests {
             exchange_name: None,
             created_at: NaiveDateTime::default(),
             updated_at: NaiveDateTime::default(),
+            custom_logo_filename: None,
         }
     }
 }

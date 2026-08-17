@@ -295,6 +295,13 @@ export interface AssetsAPI {
    * @returns Promise resolving to updated asset
    */
   updateQuoteMode(assetId: string, quoteMode: string): Promise<Asset>;
+
+  /**
+   * Get the user-uploaded custom logo override for an asset, if one is set.
+   * @param assetId Asset identifier
+   * @returns Promise resolving to a ready-to-use `data:` URL, or `null` if no custom logo is set
+   */
+  getLogoDataUrl(assetId: string): Promise<string | null>;
 }
 
 /**

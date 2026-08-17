@@ -115,6 +115,7 @@ export const HoldingsPage = () => {
     id: string;
     symbol: string;
     name?: string;
+    customLogoFilename?: string | null;
   } | null>(null);
 
   // Edit mode state for HOLDINGS-mode accounts
@@ -446,6 +447,7 @@ export const HoldingsPage = () => {
                   id: holding.instrument?.id ?? holding.id,
                   symbol: holding.instrument?.symbol ?? holding.id,
                   name: holding.instrument?.name ?? undefined,
+                  customLogoFilename: holding.instrument?.customLogoFilename,
                 })
               }
             />
@@ -760,6 +762,7 @@ export const HoldingsPage = () => {
         assetId={classifyAsset?.id ?? ""}
         assetSymbol={classifyAsset?.symbol}
         assetName={classifyAsset?.name}
+        assetCustomLogoFilename={classifyAsset?.customLogoFilename}
       />
     </>
   );

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 import { Badge, Card, formatPrice, Input } from "@wealthfolio/ui";
 
-import { TickerAvatar } from "@/components/ticker-avatar";
+import { AssetTickerAvatar } from "@/components/ticker-avatar";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { ASSET_KIND_DISPLAY_NAMES, LatestQuoteSnapshot } from "@/lib/types";
 import { parseOccSymbol } from "@/lib/occ-symbol";
@@ -226,7 +226,11 @@ export function AssetsTableMobile({
                   const avatarSymbol = parsedOption ? parsedOption.underlying : rawSymbol;
                   return (
                     <>
-                      <TickerAvatar symbol={avatarSymbol} className="h-10 w-10 flex-shrink-0" />
+                      <AssetTickerAvatar
+                        asset={asset}
+                        symbol={avatarSymbol}
+                        className="h-10 w-10 flex-shrink-0"
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="truncate font-semibold">{displaySymbol}</p>

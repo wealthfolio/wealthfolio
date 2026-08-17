@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { TickerAvatar } from "@/components/ticker-avatar";
+import { AssetTickerAvatar, getTickerLogoImageClassName } from "@/components/ticker-avatar";
 import { cn, formatAmount } from "@/lib/utils";
 import { useAccounts } from "@/hooks/use-accounts";
 import type { DriftHoldingRow, DriftReport } from "@/lib/types";
@@ -32,10 +32,14 @@ function cashSymbol(currency: string): string {
 function HoldingAvatar({
   isCash,
   symbol,
+  assetId,
+  customLogoFilename,
   className = "size-6",
 }: {
   isCash: boolean;
   symbol: string;
+  assetId: string;
+  customLogoFilename?: string | null;
   className?: string;
 }) {
   if (isCash) {
@@ -52,10 +56,11 @@ function HoldingAvatar({
   }
 
   return (
-    <TickerAvatar
+    <AssetTickerAvatar
+      asset={{ id: assetId, customLogoFilename }}
       symbol={symbol === "-" ? "?" : symbol}
       className={cn("shrink-0", className)}
-      imageClassName="object-contain p-1"
+      imageClassName={getTickerLogoImageClassName(!!customLogoFilename, "p-1")}
     />
   );
 }
@@ -149,7 +154,13 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
               >
                 <div className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] gap-x-3 gap-y-1">
                   <div className="row-span-2 flex items-center">
-                    <HoldingAvatar isCash={row.isCash} symbol={row.symbol} className="size-7" />
+                    <HoldingAvatar
+                      isCash={row.isCash}
+                      symbol={row.symbol}
+                      assetId={row.assetId}
+                      customLogoFilename={row.customLogoFilename}
+                      className="size-7"
+                    />
                   </div>
 
                   <div className="flex min-w-0 items-baseline gap-1.5">
@@ -238,7 +249,12 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                   >
                     <td className="pl-6 pr-3">
                       <div className="flex min-w-[280px] items-center gap-2">
-                        <HoldingAvatar isCash={row.isCash} symbol={row.symbol} />
+                        <HoldingAvatar
+                          isCash={row.isCash}
+                          symbol={row.symbol}
+                          assetId={row.assetId}
+                          customLogoFilename={row.customLogoFilename}
+                        />
                         <div className="flex min-w-0 items-baseline gap-2">
                           <span className="text-foreground shrink-0 text-[12px] font-semibold">
                             {row.symbol}

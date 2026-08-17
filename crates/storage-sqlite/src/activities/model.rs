@@ -201,6 +201,8 @@ pub struct ActivityDetailsDB {
     pub instrument_type: Option<String>,
     #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
     pub metadata: Option<String>,
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
+    pub custom_logo_filename: Option<String>,
 }
 
 impl ActivityDetailsDB {
@@ -356,6 +358,7 @@ impl From<ActivityDetailsDB> for wealthfolio_core::activities::ActivityDetails {
             import_run_id: db.import_run_id,
             is_user_modified: db.is_user_modified != 0,
             metadata: db.metadata.and_then(|s| serde_json::from_str(&s).ok()),
+            custom_logo_filename: db.custom_logo_filename,
         }
     }
 }

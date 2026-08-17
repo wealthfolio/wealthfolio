@@ -8,7 +8,7 @@ import {
 } from "@wealthfolio/ui/components/ui/collapsible";
 import { AmountDisplay, QuantityDisplay } from "@wealthfolio/ui";
 import { HoldingPerformancePercent } from "@/components/holding-performance-percent";
-import { TickerAvatar } from "@/components/ticker-avatar";
+import { AssetTickerAvatar } from "@/components/ticker-avatar";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { Holding, HOLDING_GROUP_ORDER } from "@/lib/types";
 import { AccountType, AssetKind, HoldingType } from "@/lib/constants";
@@ -268,7 +268,11 @@ function HoldingRow({
       >
         {/* Symbol/Name Column */}
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <TickerAvatar symbol={avatarSymbol} className="h-8 w-8 flex-shrink-0" />
+          <AssetTickerAvatar
+            asset={holding.instrument ?? undefined}
+            symbol={avatarSymbol}
+            className="h-8 w-8 flex-shrink-0"
+          />
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex items-center gap-2">
               <span className="truncate font-medium">{symbol}</span>

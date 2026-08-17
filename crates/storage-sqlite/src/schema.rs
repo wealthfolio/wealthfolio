@@ -148,6 +148,7 @@ diesel::table! {
         provider_config -> Nullable<Text>,
         created_at -> Text,
         updated_at -> Text,
+        custom_logo_filename -> Nullable<Text>,
     }
 }
 

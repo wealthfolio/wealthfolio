@@ -270,3 +270,11 @@ export {
   runRetirementSorr,
   runRetirementStressTests,
 } from "./fire-planner";
+
+// Custom asset logo overrides
+export {
+  getAssetLogoDataUrl,
+  getAssetLogoUrl,
+  removeAssetLogo,
+  uploadAssetLogo,
+} from "./asset-logo";

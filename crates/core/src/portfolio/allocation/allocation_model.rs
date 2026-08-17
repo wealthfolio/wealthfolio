@@ -133,6 +133,8 @@ pub struct HoldingAllocationContribution {
     pub category_color: String,
     /// Weighted market value in base currency.
     pub value: Decimal,
+    /// User-uploaded logo override filename, if one has been set on the asset
+    pub custom_logo_filename: Option<String>,
 }
 
 /// Holding-level category contributions for one taxonomy.

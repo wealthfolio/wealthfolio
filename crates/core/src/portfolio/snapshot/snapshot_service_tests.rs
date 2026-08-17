@@ -218,6 +218,14 @@ mod tests {
             unimplemented!("update_quote_mode not implemented for MockAssetRepository")
         }
 
+        async fn update_custom_logo_filename(
+            &self,
+            _asset_id: &str,
+            _filename: Option<&str>,
+        ) -> AppResult<Asset> {
+            unimplemented!("update_custom_logo_filename not implemented for MockAssetRepository")
+        }
+
         fn find_by_instrument_key(&self, _instrument_key: &str) -> AppResult<Option<Asset>> {
             Ok(None)
         }

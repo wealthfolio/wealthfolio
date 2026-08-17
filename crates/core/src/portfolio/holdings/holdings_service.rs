@@ -273,6 +273,7 @@ impl HoldingsService {
                             preferred_provider: asset.preferred_provider(),
                             exchange_mic: asset.instrument_exchange_mic.clone(),
                             classifications: None,
+                            custom_logo_filename: asset.custom_logo_filename.clone(),
                         };
 
                         let asset_info = AssetInfo {
@@ -408,6 +409,7 @@ impl HoldingsService {
                 preferred_provider: None,
                 exchange_mic: None,
                 classifications: None,
+                custom_logo_filename: None,
             };
 
             let holding_view = Holding {
@@ -1611,6 +1613,7 @@ impl HoldingsServiceTrait for HoldingsService {
                 preferred_provider: asset.preferred_provider(),
                 exchange_mic: asset.instrument_exchange_mic.clone(),
                 classifications: None,
+                custom_logo_filename: asset.custom_logo_filename.clone(),
             };
 
             let holding = Holding {
@@ -3726,6 +3729,7 @@ mod tests {
                 preferred_provider: None,
                 exchange_mic: None,
                 classifications: None,
+                custom_logo_filename: None,
             }),
             asset_kind: None,
             quantity: dec!(1),

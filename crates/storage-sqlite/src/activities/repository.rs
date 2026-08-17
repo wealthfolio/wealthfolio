@@ -574,6 +574,7 @@ impl ActivityRepository {
                 assets::quote_mode.nullable(),
                 assets::instrument_type.nullable(),
                 activities::metadata,
+                assets::custom_logo_filename.nullable(),
             ))
             .limit(page_size)
             .offset(offset)

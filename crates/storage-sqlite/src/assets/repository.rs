@@ -315,6 +315,27 @@ impl AssetRepositoryTrait for AssetRepository {
             .await
     }
 
+    /// Sets or clears the stored custom logo filename for an asset.
+    async fn update_custom_logo_filename(
+        &self,
+        asset_id: &str,
+        filename: Option<&str>,
+    ) -> Result<Asset> {
+        let asset_id_owned = asset_id.to_string();
+        let filename_owned = filename.map(|f| f.to_string());
+        self.writer
+            .exec_tx(move |tx| -> Result<Asset> {
+                let result_db = diesel::update(assets::table.filter(assets::id.eq(asset_id_owned)))
+                    .set(assets::custom_logo_filename.eq(filename_owned))
+                    .get_result::<AssetDB>(tx.conn())
+                    .map_err(StorageError::from)?;
+                let payload_db = result_db.clone();
+                tx.update(&payload_db)?;
+                Ok(result_db.into())
+            })
+            .await
+    }
+
     /// Retrieves an asset by its ID
     fn get_by_id(&self, asset_id: &str) -> Result<Asset> {
         self.get_by_id_impl(asset_id)

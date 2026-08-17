@@ -26,7 +26,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 # Database
-diesel = { version = "2.2", features = ["sqlite", "chrono", "r2d2", "numeric", "returning_clauses_for_sqlite_3_35"] }
+diesel = { version = "2.2", features = ["sqlite", "chrono", "r2d2", "numeric", "returning_clauses_for_sqlite_3_35", "64-column-tables"] }
 diesel_migrations = { version = "2.2", features = ["sqlite"] }
 rusqlite = { version = "0.34", features = ["bundled"] }
 r2d2 = "0.8"

@@ -6038,6 +6038,17 @@ mod tests {
             ))
         }
 
+        async fn update_custom_logo_filename(
+            &self,
+            _asset_id: &str,
+            _filename: Option<&str>,
+        ) -> Result<Asset> {
+            Err(errors::Error::Unexpected(
+                "TestAssetRepository::update_custom_logo_filename should not be called"
+                    .to_string(),
+            ))
+        }
+
         fn get_by_id(&self, asset_id: &str) -> Result<Asset> {
             if asset_id == "AAPL" {
                 Ok(Asset {

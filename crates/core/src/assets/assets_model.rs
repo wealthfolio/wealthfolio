@@ -271,6 +271,11 @@ pub struct Asset {
 
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+
+    // User-uploaded logo override filename (read-only here; written only via
+    // the dedicated asset-logo service, never through profile updates)
+    #[serde(skip_deserializing)]
+    pub custom_logo_filename: Option<String>,
 }
 
 fn default_is_active() -> bool {

@@ -2250,6 +2250,16 @@ impl AssetServiceTrait for AssetService {
         Ok(asset)
     }
 
+    async fn update_custom_logo_filename(
+        &self,
+        asset_id: &str,
+        filename: Option<&str>,
+    ) -> Result<Asset> {
+        self.asset_repository
+            .update_custom_logo_filename(asset_id, filename)
+            .await
+    }
+
     async fn get_assets_by_asset_ids(&self, asset_ids: &[String]) -> Result<Vec<Asset>> {
         self.asset_repository.list_by_asset_ids(asset_ids)
     }
@@ -2785,6 +2795,14 @@ mod tests {
         }
 
         async fn update_quote_mode(&self, _asset_id: &str, _quote_mode: &str) -> Result<Asset> {
+            unimplemented!()
+        }
+
+        async fn update_custom_logo_filename(
+            &self,
+            _asset_id: &str,
+            _filename: Option<&str>,
+        ) -> Result<Asset> {
             unimplemented!()
         }
 

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { TickerAvatar } from "./ticker-avatar";
+import { getTickerLogoImageClassName, TickerAvatar } from "./ticker-avatar";
 
 describe("TickerAvatar", () => {
   it("renders cash symbols with a painted avatar background", () => {
@@ -30,5 +30,17 @@ describe("TickerAvatar", () => {
     render(<TickerAvatar symbol="ABCDE" />);
 
     expect(screen.getByTitle("ABCDE")).toHaveTextContent("ABCD");
+  });
+});
+
+describe("getTickerLogoImageClassName", () => {
+  it("renders a custom logo edge-to-edge, with no padding", () => {
+    expect(getTickerLogoImageClassName(true, "p-1")).toBe("object-contain");
+    expect(getTickerLogoImageClassName(true, "p-2")).toBe("object-contain");
+  });
+
+  it("keeps the caller-specific padding for the bundled ticker-logo fallback", () => {
+    expect(getTickerLogoImageClassName(false, "p-1")).toBe("object-contain p-1");
+    expect(getTickerLogoImageClassName(false, "p-2")).toBe("object-contain p-2");
   });
 });

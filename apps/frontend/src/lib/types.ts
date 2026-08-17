@@ -243,6 +243,8 @@ export interface ActivityDetails {
   counterpartCurrency?: string | null;
   counterpartFxRate?: string | null;
   subRows?: ActivityDetails[];
+  /** User-uploaded logo override filename for the activity's asset, if one has been set */
+  customLogoFilename?: string | null;
 }
 
 export interface ActivitySearchResponse {
@@ -625,6 +627,9 @@ export interface Instrument {
 
   // Taxonomy-based classifications
   classifications?: AssetClassifications | null;
+
+  // User-uploaded logo override filename, if one has been set
+  customLogoFilename?: string | null;
 }
 
 export interface MonetaryValue {
@@ -749,6 +754,8 @@ export interface HoldingSummary {
   marketValue: number; // Base currency value
   currency: string;
   weightInCategory: number; // Percentage weight within the category (0-100)
+  /** User-uploaded logo override filename, if one has been set on the asset */
+  customLogoFilename?: string | null;
 }
 
 /**
@@ -803,6 +810,9 @@ export interface Asset {
 
   // Derived
   exchangeName?: string | null; // Friendly exchange name (e.g., "NASDAQ")
+
+  // User-uploaded logo override filename, if one has been set
+  customLogoFilename?: string | null;
 
   // Audit
   createdAt: string; // ISO date string
@@ -2666,6 +2676,8 @@ export interface DriftHoldingRow {
   driftBps?: number | null;
   isUnknownCategory: boolean;
   isCash: boolean;
+  /** User-uploaded logo override filename, if one has been set on the asset */
+  customLogoFilename?: string | null;
 }
 
 export interface DriftHoldingsReport {

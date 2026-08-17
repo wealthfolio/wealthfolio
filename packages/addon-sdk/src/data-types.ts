@@ -490,6 +490,9 @@ export interface Instrument {
   quoteMode: QuoteMode;
   preferredProvider?: string | null;
   classifications?: AssetClassifications | null;
+
+  // User-uploaded logo override filename, if one has been set
+  customLogoFilename?: string | null;
 }
 
 export interface AssetClassifications {
@@ -626,6 +629,9 @@ export interface Asset {
 
   // Derived
   exchangeName?: string | null; // Friendly exchange name (e.g., "NASDAQ")
+
+  // User-uploaded logo override filename, if one has been set
+  customLogoFilename?: string | null;
 
   // Audit
   createdAt: string;

@@ -333,6 +333,7 @@ impl DriftService {
                     drift_bps,
                     is_unknown_category: contribution.category_id == "__UNKNOWN__",
                     is_cash: contribution.holding_type == HoldingType::Cash,
+                    custom_logo_filename: contribution.custom_logo_filename.clone(),
                 }
             })
             .collect();
@@ -588,6 +589,7 @@ mod tests {
             category_name: category_id.to_string(),
             category_color: "#111111".to_string(),
             value,
+            custom_logo_filename: None,
         }
     }
 
@@ -687,6 +689,7 @@ mod tests {
                 category_name: category.category_name,
                 category_color: category.color,
                 value: category.value,
+                custom_logo_filename: None,
             })
             .collect();
 
@@ -1155,6 +1158,7 @@ mod tests {
                         category_name: "Equity".to_string(),
                         category_color: "#111111".to_string(),
                         value: dec!(7000),
+                        custom_logo_filename: None,
                     },
                     HoldingAllocationContribution {
                         id: "bnd:BONDS:0".to_string(),
@@ -1170,6 +1174,7 @@ mod tests {
                         category_name: "Bonds".to_string(),
                         category_color: "#222222".to_string(),
                         value: dec!(3000),
+                        custom_logo_filename: None,
                     },
                 ],
             },

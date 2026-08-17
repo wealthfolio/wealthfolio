@@ -1,4 +1,4 @@
-import { TickerAvatar } from "@/components/ticker-avatar";
+import { AssetTickerAvatar } from "@/components/ticker-avatar";
 import { Card } from "@wealthfolio/ui/components/ui/card";
 import {
   calculateActivityValue,
@@ -134,7 +134,11 @@ export const ActivityTableMobile = ({
                 {(() => {
                   const inner = (
                     <>
-                      <TickerAvatar symbol={avatarSymbol} className="h-10 w-10 flex-shrink-0" />
+                      <AssetTickerAvatar
+                        asset={{ id: activity.assetId, customLogoFilename: activity.customLogoFilename }}
+                        symbol={avatarSymbol}
+                        className="h-10 w-10 flex-shrink-0"
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-2">
                           <p className="truncate font-semibold">{displaySymbol}</p>
@@ -203,7 +207,11 @@ export const ActivityTableMobile = ({
                 {(() => {
                   const inner = (
                     <>
-                      <TickerAvatar symbol={avatarSymbol} className="h-10 w-10" />
+                      <AssetTickerAvatar
+                        asset={{ id: activity.assetId, customLogoFilename: activity.customLogoFilename }}
+                        symbol={avatarSymbol}
+                        className="h-10 w-10"
+                      />
                       <div>
                         <p className="font-semibold">{displaySymbol}</p>
                         <p className="text-muted-foreground text-xs">

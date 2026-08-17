@@ -854,6 +854,8 @@ pub struct ActivityDetails {
     pub import_run_id: Option<String>,
     pub is_user_modified: bool,
     pub metadata: Option<Value>,
+    // User-uploaded logo override filename, if one has been set on the asset
+    pub custom_logo_filename: Option<String>,
 }
 
 impl ActivityDetails {

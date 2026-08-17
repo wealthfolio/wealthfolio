@@ -103,7 +103,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
     id: 'assets',
     name: 'Asset Management',
     description: 'Access to asset profiles and data sources',
-    functions: ['getProfile', 'updateProfile', 'updateQuoteMode'],
+    functions: ['getProfile', 'updateProfile', 'updateQuoteMode', 'getLogoDataUrl'],
     riskLevel: 'medium',
   },
   {

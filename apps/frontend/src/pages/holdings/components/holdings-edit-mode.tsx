@@ -20,7 +20,7 @@ import { ScrollArea } from "@wealthfolio/ui/components/ui/scroll-area";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 
-import { TickerAvatar } from "@/components/ticker-avatar";
+import { AssetTickerAvatar, TickerAvatar } from "@/components/ticker-avatar";
 import TickerSearchInput from "@/components/ticker-search";
 import {
   saveManualHoldings,
@@ -57,6 +57,8 @@ interface EditableHolding {
   /** Provider-native symbol/code selected by search/import. */
   providerSymbol?: string;
   isNew?: boolean;
+  /** User-uploaded logo override filename, if one has been set on the asset */
+  customLogoFilename?: string | null;
 }
 
 interface EditableCashBalance {
@@ -130,6 +132,7 @@ export const HoldingsEditMode = ({
           averageCost,
           currency: h.localCurrency,
           isNew: false,
+          customLogoFilename: h.instrument?.customLogoFilename,
         };
       });
   }, []);
@@ -463,7 +466,11 @@ export const HoldingsEditMode = ({
                         {/* Symbol */}
                         <div className="col-span-5">
                           <div className="flex items-center gap-2">
-                            <TickerAvatar symbol={holding.symbol} className="h-7 w-7 shrink-0" />
+                            <AssetTickerAvatar
+                              asset={{ id: holding.assetId, customLogoFilename: holding.customLogoFilename }}
+                              symbol={holding.symbol}
+                              className="h-7 w-7 shrink-0"
+                            />
                             <div className="min-w-0">
                               <div className="truncate text-sm font-medium">{holding.symbol}</div>
                               {holding.name && (

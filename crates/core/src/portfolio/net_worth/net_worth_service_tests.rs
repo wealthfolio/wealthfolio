@@ -111,6 +111,14 @@ impl AssetRepositoryTrait for MockAssetRepository {
         unimplemented!()
     }
 
+    async fn update_custom_logo_filename(
+        &self,
+        _asset_id: &str,
+        _filename: Option<&str>,
+    ) -> Result<Asset> {
+        unimplemented!()
+    }
+
     fn find_by_instrument_key(&self, _instrument_key: &str) -> Result<Option<Asset>> {
         Ok(None)
     }
@@ -892,6 +900,7 @@ fn create_test_asset(id: &str, kind: AssetKind, currency: &str) -> Asset {
         provider_config: None,
         is_active: true,
         metadata: None,
+        custom_logo_filename: None,
     }
 }
 

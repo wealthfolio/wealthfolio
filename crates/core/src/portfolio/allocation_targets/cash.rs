@@ -92,6 +92,7 @@ mod tests {
             category_name: category_id.to_string(),
             category_color: "#000000".to_string(),
             value,
+            custom_logo_filename: None,
         }
     }
 

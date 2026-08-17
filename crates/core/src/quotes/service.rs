@@ -3267,6 +3267,14 @@ mod tests {
             unimplemented!("unused in this test")
         }
 
+        async fn update_custom_logo_filename(
+            &self,
+            _asset_id: &str,
+            _filename: Option<&str>,
+        ) -> Result<Asset> {
+            unimplemented!("unused in this test")
+        }
+
         fn get_by_id(&self, _asset_id: &str) -> Result<Asset> {
             unimplemented!("unused in this test")
         }
@@ -3338,6 +3346,14 @@ mod tests {
         }
 
         async fn update_quote_mode(&self, _asset_id: &str, _quote_mode: &str) -> Result<Asset> {
+            unimplemented!("unused in this test")
+        }
+
+        async fn update_custom_logo_filename(
+            &self,
+            _asset_id: &str,
+            _filename: Option<&str>,
+        ) -> Result<Asset> {
             unimplemented!("unused in this test")
         }
 
