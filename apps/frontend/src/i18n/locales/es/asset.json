@@ -666,7 +666,12 @@
     "date": "Fecha",
     "balance": "Saldo",
     "value": "Valor",
-    "notes": "Notas"
+    "notes": "Notas",
+    "edit_entry_aria": "Editar la entrada del {{date}}, {{value}}",
+    "delete_entry_aria": "Eliminar la entrada del {{date}}, {{value}}",
+    "delete_title": "¿Eliminar entrada del historial?",
+    "delete_description": "Esta entrada del historial se eliminará de forma permanente.",
+    "duplicate_date_error": "Cada entrada del historial debe usar una fecha única."
   },
   "valueToolbar": {
     "add_balance": "Añadir saldo",

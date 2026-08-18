@@ -666,7 +666,12 @@
     "date": "Date",
     "balance": "Solde",
     "value": "Valeur",
-    "notes": "Notes"
+    "notes": "Notes",
+    "edit_entry_aria": "Modifier l’entrée du {{date}}, {{value}}",
+    "delete_entry_aria": "Supprimer l’entrée du {{date}}, {{value}}",
+    "delete_title": "Supprimer cette entrée d’historique ?",
+    "delete_description": "Cette entrée d’historique sera définitivement supprimée.",
+    "duplicate_date_error": "Chaque entrée d’historique doit utiliser une date unique."
   },
   "valueToolbar": {
     "add_balance": "Ajouter un solde",

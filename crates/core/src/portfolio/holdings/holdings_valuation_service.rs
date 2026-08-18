@@ -101,6 +101,7 @@ impl HoldingsValuationService {
         // Asset ID is the unique identifier matching quotes table (e.g., "SHOP:XTSE", "BTC:USD")
         let required_asset_ids: Vec<String> = holdings
             .iter()
+            .filter(|holding| holding.quantity != Decimal::ZERO)
             .filter_map(|holding| {
                 // Include both Security and AlternativeAsset holdings
                 match holding.holding_type {
@@ -241,7 +242,6 @@ impl HoldingsValuationService {
 
         // --- Handle Zero Quantity ---
         if quantity == Decimal::ZERO {
-            warn!("{}: Skipping valuation for zero quantity.", context_msg);
             holding.market_value = MonetaryValue::zero();
             holding.price = None;
             holding.unrealized_gain = None;
@@ -480,7 +480,6 @@ impl HoldingsValuationService {
 
         // --- Handle Zero Quantity ---
         if quantity == Decimal::ZERO {
-            warn!("{}: Skipping valuation for zero quantity.", context_msg);
             holding.market_value = MonetaryValue::zero();
             holding.price = None;
             holding.unrealized_gain = None;

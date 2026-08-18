@@ -665,7 +665,12 @@
     "date": "日付",
     "balance": "残高",
     "value": "評価額",
-    "notes": "メモ"
+    "notes": "メモ",
+    "edit_entry_aria": "{{date}}、{{value}}の履歴を編集",
+    "delete_entry_aria": "{{date}}、{{value}}の履歴を削除",
+    "delete_title": "履歴エントリを削除しますか？",
+    "delete_description": "この履歴エントリは完全に削除されます。",
+    "duplicate_date_error": "各履歴エントリには重複しない日付を使用してください。"
   },
   "valueToolbar": {
     "add_balance": "残高を追加",

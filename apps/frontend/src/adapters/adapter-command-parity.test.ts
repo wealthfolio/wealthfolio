@@ -267,6 +267,17 @@ describe("scope-based routing — get_holdings_list", () => {
     expect(method).toBe("GET");
   });
 
+  it("account with closed positions → GET with includeClosed", async () => {
+    const mock = stubFetch();
+    await invoke("get_holdings_list", {
+      filter: { type: "account", accountId: "acc_1" },
+      includeClosed: true,
+    });
+    const { url, method } = lastCall(mock);
+    expect(url).toBe("/api/v1/holdings/list?accountId=acc_1&includeClosed=true");
+    expect(method).toBe("GET");
+  });
+
   it("portfolio → POST /holdings/list/query", async () => {
     const mock = stubFetch();
     await invoke("get_holdings_list", { filter: { type: "portfolio", portfolioId: "pf_1" } });
@@ -288,6 +299,21 @@ describe("scope-based routing — get_holdings_list", () => {
     expect(method).toBe("POST");
     expect(JSON.parse(body as string)).toEqual({
       filter: { type: "accounts", accountIds: ["acc_1", "acc_2"] },
+    });
+  });
+
+  it("all with closed positions → POST with includeClosed", async () => {
+    const mock = stubFetch();
+    await invoke("get_holdings_list", {
+      filter: { type: "all" },
+      includeClosed: true,
+    });
+    const { url, method, body } = lastCall(mock);
+    expect(url).toBe("/api/v1/holdings/list/query");
+    expect(method).toBe("POST");
+    expect(JSON.parse(body as string)).toEqual({
+      filter: { type: "all" },
+      includeClosed: true,
     });
   });
 });

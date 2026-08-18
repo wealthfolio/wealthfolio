@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import {
   DEFAULT_RETIREMENT_PLAN,
   ageFromBirthYearMonth,
+  createDefaultRetirementPlan,
   inferBirthYearMonthFromAge,
   normalizeRetirementPlan,
 } from "@/features/goals/retirement-planner/lib/plan-adapter";
@@ -188,8 +189,7 @@ export default function GoalNewPage() {
           plannerMode,
           settingsJson: JSON.stringify(
             normalizeRetirementPlan({
-              ...DEFAULT_RETIREMENT_PLAN,
-              currency: baseCurrency,
+              ...createDefaultRetirementPlan(baseCurrency),
               personal: {
                 ...DEFAULT_RETIREMENT_PLAN.personal,
                 birthYearMonth: retirementBirthYearMonthForCreate,

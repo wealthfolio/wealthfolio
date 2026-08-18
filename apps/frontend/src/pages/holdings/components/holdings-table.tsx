@@ -27,6 +27,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
+import { HoldingsVisibilityFacet } from "./holdings-visibility-filter";
+import { isCashHolding, isClosedPosition } from "./holdings-visibility";
+import type { HoldingsVisibilityFilter } from "./holdings-visibility";
 
 // Helper function to get display value and currency based on toggle state
 const getDisplayValueAndCurrency = (
@@ -54,7 +57,7 @@ const getDisplayValueAndCurrency = (
 
 const getAveragePrice = (holding: Holding): number | null => {
   const costBasis = holding.costBasis?.local;
-  if (costBasis == null || holding.quantity === 0) {
+  if (isCashHolding(holding) || costBasis == null || holding.quantity === 0) {
     return null;
   }
 
@@ -71,10 +74,16 @@ export const HoldingsTable = ({
   holdings,
   isLoading,
   onClassify,
+  visibilityFilters,
+  setVisibilityFilters,
+  showClosedPositions = true,
 }: {
   holdings: Holding[];
   isLoading: boolean;
   onClassify?: (holding: Holding) => void;
+  visibilityFilters?: HoldingsVisibilityFilter[];
+  setVisibilityFilters?: (value: HoldingsVisibilityFilter[]) => void;
+  showClosedPositions?: boolean;
 }) => {
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
@@ -147,6 +156,16 @@ export const HoldingsTable = ({
         }}
         defaultSorting={[{ id: "symbol", desc: false }]}
         scrollable={true}
+        pinRowsToTop={isCashHolding}
+        toolbarFilters={
+          visibilityFilters && setVisibilityFilters ? (
+            <HoldingsVisibilityFacet
+              value={visibilityFilters}
+              onChange={setVisibilityFilters}
+              showClosedPositions={showClosedPositions}
+            />
+          ) : undefined
+        }
         toolbarActions={
           <div className="mr-2 flex items-center gap-2">
             {hasMultipleCurrencies && (
@@ -205,6 +224,7 @@ const getColumns = (
       const holding = row.original;
       const symbol = holding.instrument?.symbol ?? holding.id;
       const isCash = holding.holdingType === HoldingType.CASH;
+      const isClosed = isClosedPosition(holding);
 
       // Parse OCC symbol for options
       const parsedOption = isCash ? null : parseOccSymbol(symbol);
@@ -233,21 +253,31 @@ const getColumns = (
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
               <span className="font-medium">{displaySymbol}</span>
-              {isManual && (
+              {isManual && !isCash && (
                 <Badge variant="secondary" className="h-4 px-1 py-0 text-[10px]">
                   {t("holdings:manual")}
                 </Badge>
               )}
+              {isClosed && (
+                <Badge variant="outline" className="h-4 px-1 py-0 text-[10px]">
+                  {t("holdings:closed")}
+                </Badge>
+              )}
             </div>
             <span className="text-muted-foreground line-clamp-1 text-xs">
-              {optionSubtitle ?? holding.instrument?.name ?? null}
+              {optionSubtitle ??
+                (isCash ? t("holdings:cash_balance") : holding.instrument?.name) ??
+                null}
             </span>
           </div>
         </div>
       );
 
       return (
-        <div className="-m-1 cursor-pointer p-1" onClick={handleNavigate}>
+        <div
+          className={isCash ? "-m-1 p-1" : "-m-1 cursor-pointer p-1"}
+          onClick={isCash ? undefined : handleNavigate}
+        >
           {content}
         </div>
       );
@@ -294,22 +324,30 @@ const getColumns = (
       label: t("common:quantity"),
     },
     cell: ({ row }) => {
-      const symbol = row.original.instrument?.symbol ?? row.original.id;
+      const holding = row.original;
+      if (isCashHolding(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
+
+      const symbol = holding.instrument?.symbol ?? holding.id;
       const isOption = !!parseOccSymbol(symbol);
-      const assetTypeKey = row.original.instrument?.classifications?.assetType?.key ?? "";
+      const assetTypeKey = holding.instrument?.classifications?.assetType?.key ?? "";
       const isBond =
         assetTypeKey.startsWith("BOND_") ||
         assetTypeKey === "DEBT_SECURITY" ||
         assetTypeKey === "MONEY_MARKET_DEBT";
+      const isEtfOrFund = assetTypeKey === "ETF" || assetTypeKey === "FUND_MUTUAL";
       return (
         <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
-          <QuantityDisplay value={row.original.quantity} isHidden={isHidden} />
+          <QuantityDisplay value={holding.quantity} isHidden={isHidden} />
           <span className="text-muted-foreground text-xs">
             {isOption
               ? t("holdings:contracts")
               : isBond
                 ? t("holdings:bonds")
-                : t("holdings:shares")}
+                : isEtfOrFund
+                  ? t("holdings:units")
+                  : t("holdings:shares")}
           </span>
         </div>
       );
@@ -333,6 +371,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding) || isClosedPosition(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const price = holding.price ?? 0;
       const currency = holding.localCurrency;
       return (
@@ -398,6 +439,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding) || isClosedPosition(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = holding.costBasis?.local ?? 0;
       const currency = holding.localCurrency;
 
@@ -430,6 +474,14 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isClosedPosition(holding)) {
+        return (
+          <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
+            <span className="text-muted-foreground">—</span>
+            <span className="text-muted-foreground text-xs">{t("holdings:closed")}</span>
+          </div>
+        );
+      }
       const { value, currency } = getDisplayValueAndCurrency(
         holding,
         holding.marketValue.base,
@@ -469,12 +521,17 @@ const getColumns = (
     meta: {
       label: t("holdings:weight"),
     },
-    cell: ({ row }) => (
-      <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
-        <span className="font-medium tabular-nums">{formatPercent(row.original.weight ?? 0)}</span>
-        <div className="text-xs text-transparent">-</div>
-      </div>
-    ),
+    cell: ({ row }) =>
+      isClosedPosition(row.original) ? (
+        <div className="text-muted-foreground px-4 text-right">—</div>
+      ) : (
+        <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
+          <span className="font-medium tabular-nums">
+            {formatPercent(row.original.weight ?? 0)}
+          </span>
+          <div className="text-xs text-transparent">-</div>
+        </div>
+      ),
     sortingFn: (rowA, rowB) => (rowA.original.weight ?? 0) - (rowB.original.weight ?? 0),
   },
   {
@@ -493,6 +550,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = showConvertedValues
         ? (holding.totalGain?.base ?? 0)
         : (holding.totalGain?.local ?? 0);
@@ -535,6 +595,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = showConvertedValues
         ? (holding.totalReturn?.base ?? 0)
         : (holding.totalReturn?.local ?? 0);
@@ -572,6 +635,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding) || isClosedPosition(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = showConvertedValues
         ? (holding.dayChange?.base ?? 0)
         : (holding.dayChange?.local ?? 0);
@@ -606,6 +672,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding) || isClosedPosition(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = showConvertedValues
         ? (holding.unrealizedGain?.base ?? 0)
         : (holding.unrealizedGain?.local ?? 0);
@@ -643,6 +712,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = showConvertedValues
         ? (holding.realizedGain?.base ?? 0)
         : (holding.realizedGain?.local ?? 0);
@@ -676,6 +748,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = showConvertedValues
         ? (holding.income?.base ?? 0)
         : (holding.income?.local ?? 0);
@@ -726,7 +801,9 @@ const getColumns = (
     cell: ({ row }) => {
       const navigate = useNavigate();
       const holding = row.original;
-      const hasInstrument = !!holding.instrument;
+      const hasInstrument = holding.holdingType !== HoldingType.CASH && !!holding.instrument;
+
+      if (!hasInstrument) return null;
 
       const handleNavigate = () => {
         // Use instrument.id (asset ID) for navigation, not symbol (which may be stripped)
@@ -745,7 +822,7 @@ const getColumns = (
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {hasInstrument && onClassify && (
+              {onClassify && (
                 <DropdownMenuItem onClick={() => onClassify(holding)}>
                   <Icons.Tag className="mr-2 h-4 w-4" />
                   {t("holdings:classify")}

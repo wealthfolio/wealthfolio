@@ -666,7 +666,12 @@
     "date": "日期",
     "balance": "余额",
     "value": "价值",
-    "notes": "备注"
+    "notes": "备注",
+    "edit_entry_aria": "编辑 {{date}}，{{value}}",
+    "delete_entry_aria": "删除 {{date}}，{{value}}",
+    "delete_title": "删除历史记录？",
+    "delete_description": "此历史记录将被永久删除。",
+    "duplicate_date_error": "每条历史记录必须使用唯一日期。"
   },
   "valueToolbar": {
     "add_balance": "添加余额",

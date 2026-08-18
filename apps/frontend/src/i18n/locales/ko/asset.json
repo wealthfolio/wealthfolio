@@ -666,7 +666,12 @@
     "date": "날짜",
     "balance": "잔액",
     "value": "가치",
-    "notes": "메모"
+    "notes": "메모",
+    "edit_entry_aria": "{{date}}, {{value}} 기록 편집",
+    "delete_entry_aria": "{{date}}, {{value}} 기록 삭제",
+    "delete_title": "기록 항목을 삭제할까요?",
+    "delete_description": "이 기록 항목은 영구적으로 삭제됩니다.",
+    "duplicate_date_error": "각 기록 항목에는 중복되지 않는 날짜를 사용해야 합니다."
   },
   "valueToolbar": {
     "add_balance": "잔액 추가",

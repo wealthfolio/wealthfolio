@@ -6,6 +6,8 @@ use wealthfolio_core::portfolios::AccountScope;
 #[derive(Deserialize)]
 pub struct FilterBody {
     pub filter: AccountScope,
+    #[serde(rename = "includeClosed", default)]
+    pub include_closed: bool,
 }
 
 #[derive(Deserialize)]
@@ -21,6 +23,8 @@ pub struct AllocationFilterBody {
 pub struct AccountIdQuery {
     #[serde(rename = "accountId")]
     pub account_id: String,
+    #[serde(rename = "includeClosed", default)]
+    pub include_closed: bool,
 }
 
 #[derive(Deserialize)]

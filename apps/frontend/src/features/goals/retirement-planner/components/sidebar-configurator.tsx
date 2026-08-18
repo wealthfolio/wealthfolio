@@ -703,6 +703,7 @@ export function SidebarConfigurator({
               step={100}
               prefix={moneyPrefix}
               format={(v) => String(Math.round(v))}
+              inputWidthClassName="w-56"
             />
             <LeverRow
               label={t("goals:sidebar.assumptions.return_before_retirement")}

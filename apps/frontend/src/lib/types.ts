@@ -703,6 +703,8 @@ export interface CashHolding {
 export interface Holding {
   id: string;
   holdingType: HoldingType;
+  /** Explicit lifecycle state; aggregate quantity alone may net to zero. */
+  isClosed?: boolean;
   accountId: string;
   instrument?: Instrument | null;
   assetKind?: AssetKind | null;

@@ -255,7 +255,6 @@ const AccountPage = () => {
 
   // Check if account has any holdings (including cash)
   const hasHoldings = useMemo(() => {
-    if (!holdings) return false;
     return holdings.length > 0;
   }, [holdings]);
 
@@ -1173,7 +1172,7 @@ const AccountPage = () => {
             </SheetHeader>
             <div className="flex-1 overflow-hidden px-6">
               <HoldingsEditMode
-                holdings={holdings ?? []}
+                holdings={holdings}
                 account={account}
                 isLoading={isHoldingsLoading}
                 onClose={() => {

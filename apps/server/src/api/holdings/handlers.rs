@@ -92,7 +92,8 @@ pub async fn get_holdings(
     State(state): State<Arc<AppState>>,
     Json(body): Json<FilterBody>,
 ) -> ApiResult<Json<Vec<Holding>>> {
-    let holdings = load_holdings_for_filter(state.as_ref(), &body.filter).await?;
+    let holdings =
+        load_holdings_for_filter(state.as_ref(), &body.filter, body.include_closed).await?;
     Ok(Json(holdings))
 }
 
@@ -100,7 +101,8 @@ pub async fn get_holdings_list(
     State(state): State<Arc<AppState>>,
     Json(body): Json<FilterBody>,
 ) -> ApiResult<Json<Vec<HoldingListItem>>> {
-    let holdings = load_holdings_for_filter(state.as_ref(), &body.filter).await?;
+    let holdings =
+        load_holdings_for_filter(state.as_ref(), &body.filter, body.include_closed).await?;
     Ok(Json(
         holdings.into_iter().map(HoldingListItem::from).collect(),
     ))
@@ -109,6 +111,7 @@ pub async fn get_holdings_list(
 async fn load_holdings_for_filter(
     state: &AppState,
     filter: &AccountScope,
+    include_closed: bool,
 ) -> ApiResult<Vec<Holding>> {
     let base = state.base_currency.read().unwrap().clone();
     let resolved = resolve_scope(filter, state)?;
@@ -118,12 +121,17 @@ async fn load_holdings_for_filter(
     } else if account_ids.len() == 1 {
         state
             .holdings_service
-            .get_holdings(&account_ids[0], &base)
+            .get_holdings_with_options(&account_ids[0], &base, include_closed)
             .await?
     } else {
         state
             .holdings_service
-            .get_holdings_for_accounts(&account_ids, &base, &resolved.scope_id)
+            .get_holdings_for_accounts_with_options(
+                &account_ids,
+                &base,
+                &resolved.scope_id,
+                include_closed,
+            )
             .await?
     };
     Ok(holdings)
@@ -141,7 +149,7 @@ pub async fn get_holdings_for_account(
     }
     let holdings = state
         .holdings_service
-        .get_holdings(&account_ids[0], &base)
+        .get_holdings_with_options(&account_ids[0], &base, q.include_closed)
         .await?;
     Ok(Json(holdings))
 }
@@ -158,7 +166,7 @@ pub async fn get_holdings_list_for_account(
     }
     let holdings = state
         .holdings_service
-        .get_holdings(&account_ids[0], &base)
+        .get_holdings_with_options(&account_ids[0], &base, q.include_closed)
         .await?;
     Ok(Json(
         holdings.into_iter().map(HoldingListItem::from).collect(),

@@ -241,16 +241,24 @@ function computeLot(
   const marketValue = effectiveQuantity * marketPrice * rowContractMultiplier;
   const valuationCurrency = lot.valuationCurrency || currency;
   const valuationUnitCost = finiteAmount(lot.valuationUnitCost);
-  const valuationCostBasis = finiteAmount(lot.valuationCostBasis);
+  const openCostBasis = finiteAmount(lot.valuationCostBasis);
+  const disposedCostBasis = finiteAmount(lot.valuationDisposalCostBasis);
+  const realizedGainLoss = finiteAmount(lot.valuationRealizedPnl);
+  const valuationCostBasis = lot.isClosed ? disposedCostBasis : openCostBasis;
   const canAggregate =
-    isValuable && valuationCostBasis != null && sameCurrency(valuationCurrency, currency);
+    isValuable && openCostBasis != null && sameCurrency(valuationCurrency, currency);
   const aggregateMarketValue = canAggregate ? marketValue : 0;
-  const gainLossAmount =
-    canAggregate && valuationCostBasis != null ? marketValue - valuationCostBasis : null;
+  const gainLossAmount = lot.isClosed
+    ? realizedGainLoss
+    : canAggregate && openCostBasis != null
+      ? marketValue - openCostBasis
+      : null;
   const gainLossPercent =
     gainLossAmount != null && valuationCostBasis != null && valuationCostBasis !== 0
-      ? gainLossAmount / valuationCostBasis
-      : null;
+      ? gainLossAmount / Math.abs(valuationCostBasis)
+      : gainLossAmount === 0
+        ? 0
+        : null;
   const hasPartialSell =
     !isSnapshot && lot.originalQuantity > 0 && lot.remainingQuantity < lot.originalQuantity;
 
@@ -558,7 +566,7 @@ function AccountLotGroup({
                       {t("asset:lots.market_value_col")}
                     </TableHead>
                     <TableHead className="text-right text-[10px] uppercase tracking-[0.1em]">
-                      {t("asset:lots.unrealized")}
+                      {t("holdings:gain_loss")}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -651,8 +659,14 @@ function AssetLotTableRow({ item, currency }: { item: ComputedLot; currency: str
       <TableCell className="text-right">
         {item.gainLossAmount != null ? (
           <div className="flex flex-col items-end">
-            <GainAmount value={item.gainLossAmount} currency={currency} displayCurrency={false} />
-            <GainPercent value={item.gainLossPercent ?? 0} className="text-[11px]" />
+            <GainAmount
+              value={item.gainLossAmount}
+              currency={item.valuationCurrency}
+              displayCurrency={false}
+            />
+            {item.gainLossPercent != null && (
+              <GainPercent value={item.gainLossPercent} className="text-[11px]" />
+            )}
           </div>
         ) : (
           "—"
@@ -683,8 +697,14 @@ function AssetLotMobileRow({ item, currency }: { item: ComputedLot; currency: st
         </div>
         {item.gainLossAmount != null && (
           <div className="flex shrink-0 flex-col items-end">
-            <GainAmount value={item.gainLossAmount} currency={currency} displayCurrency={false} />
-            <GainPercent value={item.gainLossPercent ?? 0} className="text-[11px]" />
+            <GainAmount
+              value={item.gainLossAmount}
+              currency={item.valuationCurrency}
+              displayCurrency={false}
+            />
+            {item.gainLossPercent != null && (
+              <GainPercent value={item.gainLossPercent} className="text-[11px]" />
+            )}
           </div>
         )}
       </div>

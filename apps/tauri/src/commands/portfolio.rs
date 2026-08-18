@@ -235,23 +235,30 @@ pub async fn get_holdings(
 ) -> Result<Vec<Holding>, String> {
     debug!("Get holdings...");
     let filter = filter.into_account_filter()?;
-    get_holdings_for_filter(state.inner().as_ref(), filter).await
+    get_holdings_for_filter(state.inner().as_ref(), filter, false).await
 }
 
 #[tauri::command]
 pub async fn get_holdings_list(
     state: State<'_, Arc<ServiceContext>>,
     filter: AccountScopeInput,
+    include_closed: Option<bool>,
 ) -> Result<Vec<HoldingListItem>, String> {
     debug!("Get holdings list...");
     let filter = filter.into_account_filter()?;
-    let holdings = get_holdings_for_filter(state.inner().as_ref(), filter).await?;
+    let holdings = get_holdings_for_filter(
+        state.inner().as_ref(),
+        filter,
+        include_closed.unwrap_or(false),
+    )
+    .await?;
     Ok(holdings.into_iter().map(HoldingListItem::from).collect())
 }
 
 async fn get_holdings_for_filter(
     state: &ServiceContext,
     filter: AccountScope,
+    include_closed: bool,
 ) -> Result<Vec<Holding>, String> {
     let base_currency = state.get_base_currency();
     let resolved = resolve_scope(&filter, state).await?;
@@ -262,13 +269,18 @@ async fn get_holdings_for_filter(
     if account_ids.len() == 1 {
         state
             .holdings_service()
-            .get_holdings(&account_ids[0], &base_currency)
+            .get_holdings_with_options(&account_ids[0], &base_currency, include_closed)
             .await
             .map_err(|e| e.to_string())
     } else {
         state
             .holdings_service()
-            .get_holdings_for_accounts(&account_ids, &base_currency, &resolved.scope_id)
+            .get_holdings_for_accounts_with_options(
+                &account_ids,
+                &base_currency,
+                &resolved.scope_id,
+                include_closed,
+            )
             .await
             .map_err(|e| e.to_string())
     }
@@ -1685,6 +1697,7 @@ pub async fn get_snapshot_by_date(
             id: format!("{}-{}-{}", id_prefix, account_id, position.asset_id),
             account_id: account_id.clone(),
             holding_type,
+            is_closed: false,
             instrument: Some(instrument),
             asset_kind: Some(asset.kind.clone()),
             quantity: position.quantity,
@@ -1732,6 +1745,7 @@ pub async fn get_snapshot_by_date(
             id: format!("CASH-{}-{}", account_id, currency),
             account_id: account_id.clone(),
             holding_type: wealthfolio_core::holdings::HoldingType::Cash,
+            is_closed: false,
             instrument: None,
             asset_kind: None, // Cash holdings have no asset
             quantity: amount,

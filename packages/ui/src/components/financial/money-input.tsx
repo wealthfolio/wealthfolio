@@ -20,6 +20,8 @@ export interface MoneyInputProps {
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   /** Maximum decimal places (default: 8) */
   maxDecimalPlaces?: number;
+  /** Always display the configured number of decimal places */
+  fixedDecimalScale?: boolean;
   /** Use thousand separators (default: false) */
   thousandSeparator?: boolean;
   /** Placeholder text */
@@ -49,6 +51,7 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
       onValueChange,
       onChange,
       maxDecimalPlaces = DECIMAL_PRECISION,
+      fixedDecimalScale = false,
       thousandSeparator = false,
       placeholder = "0.00",
       className,
@@ -80,6 +83,7 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
         onKeyDown={onKeyDown}
         allowNegative={false}
         decimalScale={maxDecimalPlaces}
+        fixedDecimalScale={fixedDecimalScale}
         thousandSeparator={thousandSeparator}
         allowedDecimalSeparators={[".", ","]}
         valueIsNumericString={false}

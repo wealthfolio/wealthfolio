@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { normalizeDashboardRetirementPlan, parseSettingsJson } from "./plan-adapter";
+import {
+  DEFAULT_RETIREMENT_PLAN,
+  createDefaultRetirementPlan,
+  normalizeDashboardRetirementPlan,
+  parseSettingsJson,
+} from "./plan-adapter";
 
 describe("retirement plan adapter", () => {
   it("default plans do not include legacy withdrawal-rule fields", () => {
@@ -37,5 +42,17 @@ describe("retirement plan adapter", () => {
     const normalized = normalizeDashboardRetirementPlan(plan);
 
     expect(normalized).not.toHaveProperty("withdrawal");
+  });
+});
+
+describe("createDefaultRetirementPlan", () => {
+  it("sets the currency to the given base currency without altering amounts", () => {
+    const plan = createDefaultRetirementPlan("IDR");
+
+    expect(plan.currency).toBe("IDR");
+    expect(plan.investment.monthlyContribution).toBe(
+      DEFAULT_RETIREMENT_PLAN.investment.monthlyContribution,
+    );
+    expect(plan.expenses.items).toEqual(DEFAULT_RETIREMENT_PLAN.expenses.items);
   });
 });

@@ -294,6 +294,7 @@ mod tests {
             id: "holding-1".to_string(),
             account_id: "account-1".to_string(),
             holding_type: HoldingType::Security,
+            is_closed: false,
             instrument: None,
             asset_kind: None,
             quantity: Decimal::ONE,

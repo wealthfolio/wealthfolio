@@ -666,7 +666,12 @@
     "date": "Date",
     "balance": "Balance",
     "value": "Value",
-    "notes": "Notes"
+    "notes": "Notes",
+    "edit_entry_aria": "Edit {{date}}, {{value}}",
+    "delete_entry_aria": "Delete {{date}}, {{value}}",
+    "delete_title": "Delete history entry?",
+    "delete_description": "This historical entry will be permanently deleted.",
+    "duplicate_date_error": "Each history entry must use a unique date."
   },
   "valueToolbar": {
     "add_balance": "Add Balance",

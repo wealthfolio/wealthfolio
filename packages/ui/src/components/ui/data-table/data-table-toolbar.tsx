@@ -16,6 +16,7 @@ interface DataTableToolbarProps<TData> {
   table: Table<TData>;
   searchBy?: string;
   filters?: DataTableFacetedFilterProps<TData, unknown>[];
+  additionalFilters?: React.ReactNode;
   showColumnToggle?: boolean;
   actions?: React.ReactNode;
 }
@@ -24,6 +25,7 @@ export function DataTableToolbar<TData>({
   table,
   searchBy,
   filters,
+  additionalFilters,
   showColumnToggle = false,
   actions,
 }: DataTableToolbarProps<TData>) {
@@ -51,6 +53,7 @@ export function DataTableToolbar<TData>({
             options={filter.options}
           />
         ))}
+        {additionalFilters}
         {isFiltered && (
           <Button
             variant="ghost"

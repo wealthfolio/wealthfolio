@@ -36,7 +36,9 @@ interface DataTableProps<TData, TValue> {
   manualPagination?: boolean;
   scrollable?: boolean;
   showColumnToggle?: boolean;
+  toolbarFilters?: React.ReactNode;
   toolbarActions?: React.ReactNode;
+  pinRowsToTop?: (row: TData) => boolean;
 }
 
 export function DataTable<TData, TValue>({
@@ -51,7 +53,9 @@ export function DataTable<TData, TValue>({
   storageKey,
   scrollable = false,
   showColumnToggle = false,
+  toolbarFilters,
   toolbarActions,
+  pinRowsToTop,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [storedColumnVisibility, setColumnVisibility] = storageKey
@@ -98,6 +102,11 @@ export function DataTable<TData, TValue>({
     getFacetedUniqueValues: getFacetedUniqueValues(),
   });
 
+  const rows = table.getRowModel().rows;
+  const displayRows = pinRowsToTop
+    ? [...rows.filter((row) => pinRowsToTop(row.original)), ...rows.filter((row) => !pinRowsToTop(row.original))]
+    : rows;
+
   return (
     <div className="flex h-full flex-col">
       <div className="mb-2 shrink-0">
@@ -105,6 +114,7 @@ export function DataTable<TData, TValue>({
           table={table}
           searchBy={searchBy}
           filters={filters}
+          additionalFilters={toolbarFilters}
           showColumnToggle={showColumnToggle}
           actions={toolbarActions}
         />
@@ -125,8 +135,8 @@ export function DataTable<TData, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
+            {displayRows.length ? (
+              displayRows.map((row) => (
                 <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
