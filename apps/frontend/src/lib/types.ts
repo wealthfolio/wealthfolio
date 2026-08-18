@@ -811,6 +811,44 @@ export interface Asset {
   updatedAt: string; // ISO date string
 }
 
+export type PriceAlertCondition = "ABOVE" | "BELOW";
+export type PriceAlertStatus = "ACTIVE" | "TRIGGERED" | "PAUSED";
+
+export interface PriceAlert {
+  id: string;
+  assetId: string;
+  condition: PriceAlertCondition;
+  targetPrice: string;
+  currency: string;
+  status: PriceAlertStatus;
+  armedAt: string;
+  armedMarketDate: string;
+  pauseReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewPriceAlert {
+  assetId: string;
+  condition: PriceAlertCondition;
+  targetPrice: string;
+}
+
+export interface PriceAlertEvent {
+  id: string;
+  alertId: string;
+  assetId: string;
+  quoteId: string;
+  targetPrice: string;
+  observedClose: string;
+  observedHigh: string;
+  observedLow: string;
+  currency: string;
+  quoteTimestamp: string;
+  triggeredAt: string;
+  acknowledgedAt?: string | null;
+}
+
 export interface Quote {
   id: string;
   createdAt: string;

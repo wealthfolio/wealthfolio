@@ -5,6 +5,7 @@ use tokio::sync::broadcast;
 pub const MARKET_SYNC_START: &str = "market:sync-start";
 pub const MARKET_SYNC_COMPLETE: &str = "market:sync-complete";
 pub const MARKET_SYNC_ERROR: &str = "market:sync-error";
+pub const PRICE_ALERTS_TRIGGERED: &str = "price-alerts:triggered";
 pub const PORTFOLIO_UPDATE_START: &str = "portfolio:update-start";
 pub const PORTFOLIO_UPDATE_COMPLETE: &str = "portfolio:update-complete";
 pub const PORTFOLIO_UPDATE_ERROR: &str = "portfolio:update-error";

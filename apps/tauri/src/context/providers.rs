@@ -31,6 +31,7 @@ use wealthfolio_core::{
         valuation::ValuationService,
     },
     portfolios::PortfolioService,
+    price_alerts::PriceAlertService,
     quotes::{QuoteService, QuoteServiceTrait},
     settings::{SettingsRepositoryTrait, SettingsService, SettingsServiceTrait},
     taxonomies::TaxonomyService,
@@ -54,6 +55,7 @@ use wealthfolio_storage_sqlite::{
         valuation::ValuationRepository,
     },
     portfolios::PortfolioRepository,
+    price_alerts::PriceAlertRepository,
     settings::SettingsRepository,
     sync::{AppSyncRepository, BrokerSyncStateRepository, ImportRunRepository, PlatformRepository},
     taxonomies::TaxonomyRepository,
@@ -207,6 +209,12 @@ pub async fn initialize_context(
         )
         .await?,
     );
+    let price_alert_repository = Arc::new(PriceAlertRepository::new(pool.clone(), writer.clone()));
+    let price_alert_service = Arc::new(PriceAlertService::new(
+        price_alert_repository,
+        asset_repository.clone(),
+        quote_service.clone(),
+    ));
 
     // Portfolio service
     let portfolio_repository = Arc::new(PortfolioRepository::new(pool.clone(), writer.clone()));
@@ -616,6 +624,7 @@ pub async fn initialize_context(
             asset_service,
             goal_service,
             quote_service,
+            price_alert_service,
             limits_service,
             fx_service,
             performance_service,

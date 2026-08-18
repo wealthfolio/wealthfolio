@@ -96,6 +96,9 @@ export { parseCsv } from "./activities";
 // Portfolio Commands
 export * from "../shared/portfolio";
 
+// Price Alert Commands
+export * from "../shared/price-alerts";
+
 // Market Data Commands
 export * from "../shared/market-data";
 
@@ -225,6 +228,7 @@ export {
   listenPortfolioUpdateError,
   listenAssetClassificationsChanged,
   listenMarketSyncComplete,
+  listenPriceAlertsTriggered,
   listenMarketSyncStart,
   listenMarketSyncError,
   listenBrokerSyncStart,

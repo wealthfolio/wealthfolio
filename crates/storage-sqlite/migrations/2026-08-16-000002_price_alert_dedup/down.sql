@@ -1,0 +1,1 @@
+DROP INDEX price_alerts_unique_target_idx;

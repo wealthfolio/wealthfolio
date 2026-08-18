@@ -63,6 +63,77 @@
   "login": "Login",
   "income": "Income",
   "dashboard": "Dashboard",
+  "price_alerts": {
+    "title": "Price Alerts",
+    "subtitle": "Track price targets for your investments.",
+    "nav_label": "Monitor investment price targets",
+    "new_alert": "New alert",
+    "mark_all_read": "Mark all read",
+    "tabs": {
+      "active": "Managed",
+      "triggered": "Triggered"
+    },
+    "condition": {
+      "above": "At or above",
+      "below": "At or below"
+    },
+    "status": {
+      "active": "Active",
+      "triggered": "Triggered",
+      "paused": "Paused"
+    },
+    "columns": {
+      "asset": "Investment",
+      "target": "Target",
+      "status": "Status",
+      "created": "Created",
+      "observed": "Closing price",
+      "triggered": "Triggered",
+      "actions": "Actions"
+    },
+    "create": {
+      "title": "Create price alert",
+      "description": "You will be notified after fresh market data reaches this price.",
+      "asset": "Investment",
+      "select_asset": "Select an investment",
+      "search_assets": "Search investments...",
+      "no_assets": "No market-priced investments found.",
+      "condition": "Trigger when price is",
+      "target": "Target price",
+      "latest_price": "Latest: {{price}}",
+      "target_required": "Enter a target price.",
+      "target_invalid": "Enter a price greater than zero.",
+      "target_above_current": "For an upward alert, enter a target above {{price}}.",
+      "target_below_current": "For a downward alert, enter a target below {{price}}.",
+      "duplicate": "An identical price alert already exists.",
+      "one_shot_hint": "This alert triggers once and then moves to Triggered.",
+      "creating": "Creating...",
+      "submit": "Create alert"
+    },
+    "actions": {
+      "pause": "Pause alert",
+      "rearm": "Re-arm alert",
+      "mark_read": "Mark as read"
+    },
+    "empty": {
+      "active_title": "No managed alerts",
+      "active_description": "Create an alert for an investment you want to watch.",
+      "triggered_title": "No triggered alerts",
+      "triggered_description": "Triggered price targets will appear here."
+    },
+    "toast": {
+      "created": "Price alert created.",
+      "rearmed": "Price alert re-armed.",
+      "create_failed": "Could not create price alert.",
+      "update_failed": "Could not update price alert.",
+      "delete_failed": "Could not delete price alert.",
+      "triggered_one": "A price alert was triggered",
+      "triggered_other": "{{count}} price alerts were triggered",
+      "unread_one": "You have an unread price alert",
+      "unread_other": "You have {{count}} unread price alerts",
+      "view": "View alerts"
+    }
+  },
   "symbol": "Symbol",
   "shares": "Shares",
   "fee": "Fee",

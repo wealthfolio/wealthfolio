@@ -15,6 +15,7 @@ import {
   BadgeDollarSign,
   BarChart,
   Baseline,
+  Bell,
   Bitcoin,
   Blocks,
   Brain,
@@ -77,6 +78,7 @@ import {
   List,
   Lock,
   LockOpen,
+  Pause,
   ListChecks,
   ListCollapse,
   ListFilter,
@@ -334,6 +336,7 @@ const IconsInternal = {
   Settings2: Settings2,
   // Additional icons for UI components
   Baseline: Baseline,
+  Bell: Bell,
   CalendarIcon: Calendar,
   CaseSensitive: CaseSensitive,
   CheckSquare: CheckSquare,
@@ -348,6 +351,7 @@ const IconsInternal = {
   List: List,
   Lock: Lock,
   LockOpen: LockOpen,
+  Pause: Pause,
   Pin: Pin,
   PinOff: PinOff,
   Presentation: Presentation,
@@ -817,6 +821,7 @@ const IconsInternal = {
  * All available icon names
  */
 export type IconName =
+  | "Bell"
   | "AlertCircle"
   | "AlertTriangle"
   | "DatabaseBackup"
@@ -881,6 +886,7 @@ export type IconName =
   | "Minus"
   | "MinusCircle"
   | "PauseCircle"
+  | "Pause"
   | "PlayCircle"
   | "Monitor"
   | "QrCode"

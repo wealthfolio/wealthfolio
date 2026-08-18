@@ -5,6 +5,7 @@ use crate::{
     events::{
         MarketSyncResult, ServerEvent, MARKET_SYNC_COMPLETE, MARKET_SYNC_ERROR, MARKET_SYNC_START,
         PORTFOLIO_UPDATE_COMPLETE, PORTFOLIO_UPDATE_ERROR, PORTFOLIO_UPDATE_START,
+        PRICE_ALERTS_TRIGGERED,
     },
     main_lib::AppState,
 };
@@ -207,6 +208,7 @@ pub async fn process_portfolio_job(
 
         let sync_start = std::time::Instant::now();
         let asset_ids = config.market_sync_mode.asset_ids().cloned();
+        let alert_asset_ids = asset_ids.clone();
 
         // Convert MarketSyncMode to SyncMode for the quote service
         let sync_result = match config.market_sync_mode.to_sync_mode() {
@@ -220,6 +222,30 @@ pub async fn process_portfolio_job(
 
         match sync_result {
             Ok(result) => {
+                if alert_asset_ids.is_none() {
+                    match state.price_alert_service.get_active_asset_ids() {
+                        Ok(ids) if !ids.is_empty() => {
+                            if let Err(err) = state
+                                .quote_service
+                                .sync(wealthfolio_core::quotes::SyncMode::Incremental, Some(ids))
+                                .await
+                            {
+                                tracing::warn!("Failed to sync active price-alert assets: {}", err);
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(err) => {
+                            tracing::warn!("Failed to list active price-alert assets: {}", err)
+                        }
+                    }
+                }
+                match state.price_alert_service.evaluate(alert_asset_ids).await {
+                    Ok(events) if !events.is_empty() => event_bus.publish(
+                        ServerEvent::with_payload(PRICE_ALERTS_TRIGGERED, json!(events)),
+                    ),
+                    Ok(_) => {}
+                    Err(err) => tracing::warn!("Failed to evaluate price alerts: {}", err),
+                }
                 let skipped_reasons: Vec<(String, String)> = result
                     .skipped_reasons
                     .into_iter()

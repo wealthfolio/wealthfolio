@@ -5,11 +5,12 @@ use crate::{
     context::ServiceContext,
     events::{
         emit_portfolio_trigger_recalculate, emit_portfolio_trigger_update, PortfolioRequestPayload,
+        PRICE_ALERTS_TRIGGERED,
     },
 };
 
 use log::{debug, error, warn};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 use wealthfolio_core::quotes::{
     service::ProviderInfo, FetchDividendsParams, LatestQuoteSnapshot, MarketSyncMode, Quote,
     QuoteImport, SymbolSearchResult,
@@ -56,12 +57,26 @@ pub async fn sync_market_data(
 }
 
 #[tauri::command]
-pub async fn synch_quotes(state: State<'_, Arc<ServiceContext>>) -> Result<(), String> {
+pub async fn synch_quotes(
+    state: State<'_, Arc<ServiceContext>>,
+    handle: AppHandle,
+) -> Result<(), String> {
     let result = state
         .quote_service()
         .resync(None)
         .await
         .map_err(|e| e.to_string())?;
+
+    let events = state
+        .price_alert_service()
+        .evaluate(None)
+        .await
+        .map_err(|e| e.to_string())?;
+    if !events.is_empty() {
+        handle
+            .emit(PRICE_ALERTS_TRIGGERED, &events)
+            .map_err(|e| e.to_string())?;
+    }
     if result.failed > 0 {
         warn!("resync reported {} failures", result.failed);
     }
@@ -81,6 +96,17 @@ pub async fn update_quote(
         .await
         .map(|_| ())
         .map_err(|e| e.to_string())?;
+
+    let events = state
+        .price_alert_service()
+        .evaluate(Some(vec![quote.asset_id.clone()]))
+        .await
+        .map_err(|e| e.to_string())?;
+    if !events.is_empty() {
+        handle
+            .emit(PRICE_ALERTS_TRIGGERED, &events)
+            .map_err(|e| e.to_string())?;
+    }
 
     // Manual quote update - no market sync needed, but force full recalculation
     // so historical valuations are recomputed with the updated quotes
@@ -200,6 +226,21 @@ pub async fn import_quotes_csv(
             error!("TAURI COMMAND: import_quotes_csv failed: {}", e);
             format!("Failed to import CSV quotes: {}", e)
         })?;
+
+    let mut imported_asset_ids: Vec<String> =
+        result.iter().map(|quote| quote.symbol.clone()).collect();
+    imported_asset_ids.sort();
+    imported_asset_ids.dedup();
+    let events = state
+        .price_alert_service()
+        .evaluate(Some(imported_asset_ids))
+        .await
+        .map_err(|e| e.to_string())?;
+    if !events.is_empty() {
+        handle
+            .emit(PRICE_ALERTS_TRIGGERED, &events)
+            .map_err(|e| e.to_string())?;
+    }
 
     // Quote import - no market sync needed, just recalculate
     let handle = handle.clone();

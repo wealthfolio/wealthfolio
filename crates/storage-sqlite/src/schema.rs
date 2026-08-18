@@ -439,6 +439,39 @@ diesel::table! {
 }
 
 diesel::table! {
+    price_alert_events (id) {
+        id -> Text,
+        alert_id -> Text,
+        asset_id -> Text,
+        quote_id -> Text,
+        target_price -> Text,
+        observed_close -> Text,
+        observed_high -> Text,
+        observed_low -> Text,
+        currency -> Text,
+        quote_timestamp -> Text,
+        triggered_at -> Text,
+        acknowledged_at -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    price_alerts (id) {
+        id -> Text,
+        asset_id -> Text,
+        condition -> Text,
+        target_price -> Text,
+        currency -> Text,
+        status -> Text,
+        armed_at -> Text,
+        armed_market_date -> Text,
+        pause_reason -> Nullable<Text>,
+        created_at -> Text,
+        updated_at -> Text,
+    }
+}
+
+diesel::table! {
     quotes (id) {
         id -> Text,
         asset_id -> Text,
@@ -738,6 +771,9 @@ diesel::table! {
 
 diesel::joinable!(portfolio_accounts -> portfolios (portfolio_id));
 diesel::joinable!(portfolio_accounts -> accounts (account_id));
+diesel::joinable!(price_alert_events -> assets (asset_id));
+diesel::joinable!(price_alert_events -> price_alerts (alert_id));
+diesel::joinable!(price_alerts -> assets (asset_id));
 
 diesel::table! {
     allocation_targets (id) {
@@ -899,6 +935,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     lots,
     market_data_providers,
     platforms,
+    price_alert_events,
+    price_alerts,
     quote_sync_state,
     quotes,
     snapshot_positions,

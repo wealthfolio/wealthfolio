@@ -60,6 +60,9 @@ export const QueryKeys = {
   ASSET_DATA: "asset_data",
   ASSETS: "assets",
   LATEST_QUOTES: "latest_quotes",
+  PRICE_ALERTS: "priceAlerts",
+  PRICE_ALERT_EVENTS: "priceAlertEvents",
+  PRICE_ALERT_UNREAD_COUNT: "priceAlertUnreadCount",
   IMPORT_MAPPING: "import_mapping",
   IMPORT_TEMPLATES: "import_templates",
 

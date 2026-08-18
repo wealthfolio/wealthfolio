@@ -45,6 +45,7 @@ pub mod lots;
 pub mod market_data;
 pub mod portfolio;
 pub mod portfolios;
+pub mod price_alerts;
 pub mod settings;
 pub mod spending;
 pub mod sync;

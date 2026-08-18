@@ -202,6 +202,9 @@ export {
   updatePortfolio,
 } from "../shared/portfolio";
 
+// Price Alert Commands
+export * from "../shared/price-alerts";
+
 // Market Data Commands
 export {
   checkQuotesImport,
@@ -407,6 +410,7 @@ export {
   listenFileDropCancelled,
   listenFileDropHover,
   listenMarketSyncComplete,
+  listenPriceAlertsTriggered,
   listenMarketSyncError,
   listenMarketSyncStart,
   listenNavigateToRoute,

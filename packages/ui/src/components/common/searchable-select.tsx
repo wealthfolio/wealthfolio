@@ -45,10 +45,12 @@ export function SearchableSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between rounded-md font-normal", className)}
+          className={cn("min-w-0 max-w-full justify-between rounded-md font-normal", className)}
           disabled={disabled}
         >
-          <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
+          <span className="min-w-0 flex-1 truncate text-left">
+            {selectedOption ? selectedOption.label : placeholder}
+          </span>
           <Icons.ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>

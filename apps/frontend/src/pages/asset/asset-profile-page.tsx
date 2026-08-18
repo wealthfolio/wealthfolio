@@ -55,6 +55,7 @@ import { useAssetProfileMutations } from "./hooks/use-asset-profile-mutations";
 import { RefreshQuotesConfirmDialog } from "./refresh-quotes-confirm-dialog";
 import { useQuoteMutations } from "./hooks/use-quote-mutations";
 import { QuoteHistoryDataGrid } from "./quote-history-data-grid";
+import { CreatePriceAlertDialog } from "@/features/price-alerts/components/create-price-alert-dialog";
 
 // Alternative asset kinds that should use ValueHistoryDataGrid
 const ALTERNATIVE_ASSET_KINDS: AssetKind[] = [
@@ -1029,6 +1030,7 @@ export const AssetProfilePage = () => {
 
   const isLoading = isHoldingLoading || isQuotesLoading || isAssetProfileLoading;
   const [refreshConfirmOpen, setRefreshConfirmOpen] = useState(false);
+  const [priceAlertOpen, setPriceAlertOpen] = useState(false);
 
   const handleUpdateQuotes = useCallback(() => {
     if (!profile?.id) return;
@@ -1232,6 +1234,17 @@ export const AssetProfilePage = () => {
         onBack={handleBack}
         actions={
           <div className="flex items-center gap-2">
+            {!isAltAsset && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPriceAlertOpen(true)}
+                title={t("common:price_alerts.create.title")}
+              >
+                <Icons.Bell className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">{t("common:price_alerts.new_alert")}</span>
+              </Button>
+            )}
             {isAltAsset && (
               <div className="hidden sm:flex">
                 <AnimatedToggleGroup
@@ -1412,6 +1425,14 @@ export const AssetProfilePage = () => {
           </div>
         </div>
       </PageHeader>
+      {assetProfile && !isAltAsset && (
+        <CreatePriceAlertDialog
+          assets={[assetProfile]}
+          initialAssetId={assetProfile.id}
+          open={priceAlertOpen}
+          onOpenChange={setPriceAlertOpen}
+        />
+      )}
       <PageContent>
         <AssetHealthBanner
           context={healthContext}

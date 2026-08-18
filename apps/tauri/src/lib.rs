@@ -197,14 +197,60 @@ mod desktop {
         });
 
         // Start periodic market data sync (6h interval, 2min initial delay)
-        let periodic_quote_service = Arc::clone(&context.quote_service);
+        let periodic_context = Arc::clone(&context);
+        let periodic_handle = handle.clone();
         tauri::async_runtime::spawn(async move {
-            wealthfolio_core::quotes::scheduler::run_periodic_sync(
-                periodic_quote_service,
-                std::time::Duration::from_secs(120),
-                std::time::Duration::from_secs(6 * 3600),
-            )
-            .await;
+            tokio::time::sleep(std::time::Duration::from_secs(120)).await;
+            let interval = std::time::Duration::from_secs(6 * 3600);
+            loop {
+                match periodic_context
+                    .quote_service()
+                    .sync(wealthfolio_core::quotes::SyncMode::Incremental, None)
+                    .await
+                {
+                    Ok(_) => {
+                        match periodic_context
+                            .price_alert_service()
+                            .get_active_asset_ids()
+                        {
+                            Ok(ids) if !ids.is_empty() => {
+                                if let Err(err) = periodic_context
+                                    .quote_service()
+                                    .sync(
+                                        wealthfolio_core::quotes::SyncMode::Incremental,
+                                        Some(ids),
+                                    )
+                                    .await
+                                {
+                                    log::warn!(
+                                        "Failed to sync periodic price-alert assets: {}",
+                                        err
+                                    );
+                                }
+                            }
+                            Ok(_) => {}
+                            Err(err) => {
+                                log::warn!("Failed to list periodic price-alert assets: {}", err)
+                            }
+                        }
+                        match periodic_context.price_alert_service().evaluate(None).await {
+                            Ok(events) if !events.is_empty() => {
+                                if let Err(err) = periodic_handle
+                                    .emit(crate::events::PRICE_ALERTS_TRIGGERED, &events)
+                                {
+                                    log::warn!("Failed to emit periodic price alerts: {}", err);
+                                }
+                            }
+                            Ok(_) => {}
+                            Err(err) => {
+                                log::warn!("Failed to evaluate periodic price alerts: {}", err)
+                            }
+                        }
+                    }
+                    Err(err) => log::warn!("Periodic market data sync failed: {}", err),
+                }
+                tokio::time::sleep(interval).await;
+            }
         });
 
         // Start background device sync engine (self-skips when device is not READY).
@@ -510,6 +556,15 @@ pub fn run() {
             commands::goal::get_retirement_overview,
             commands::goal::get_save_up_overview,
             commands::goal::preview_save_up_overview,
+            // Price alert commands
+            commands::price_alerts::get_price_alerts,
+            commands::price_alerts::get_price_alert_events,
+            commands::price_alerts::get_unacknowledged_price_alert_count,
+            commands::price_alerts::create_price_alert,
+            commands::price_alerts::pause_price_alert,
+            commands::price_alerts::rearm_price_alert,
+            commands::price_alerts::delete_price_alert,
+            commands::price_alerts::acknowledge_price_alert_events,
             // Portfolios (saved reporting scopes)
             commands::portfolios::get_portfolios,
             commands::portfolios::get_portfolio,

@@ -33,7 +33,7 @@ use crate::events::{
     MarketSyncResult, PortfolioRequestPayload, ASSET_CLASSIFICATIONS_CHANGED,
     ASSET_ENRICHMENT_COMPLETE, ASSET_ENRICHMENT_PROGRESS, ASSET_ENRICHMENT_START,
     MARKET_SYNC_COMPLETE, MARKET_SYNC_ERROR, MARKET_SYNC_START, PORTFOLIO_UPDATE_COMPLETE,
-    PORTFOLIO_UPDATE_ERROR, PORTFOLIO_UPDATE_START,
+    PORTFOLIO_UPDATE_ERROR, PORTFOLIO_UPDATE_START, PRICE_ALERTS_TRIGGERED,
 };
 
 /// Debounce window duration in milliseconds.
@@ -363,6 +363,7 @@ async fn run_portfolio_job(
 
         let sync_start = std::time::Instant::now();
         let asset_ids = market_sync_mode.asset_ids().cloned();
+        let alert_asset_ids = asset_ids.clone();
 
         // Convert MarketSyncMode to SyncMode for the quote service
         let sync_result = match market_sync_mode.to_sync_mode() {
@@ -377,6 +378,33 @@ async fn run_portfolio_job(
 
         match sync_result {
             Ok(result) => {
+                if alert_asset_ids.is_none() {
+                    match context.price_alert_service().get_active_asset_ids() {
+                        Ok(ids) if !ids.is_empty() => {
+                            if let Err(e) = market_data_service
+                                .sync(wealthfolio_core::quotes::SyncMode::Incremental, Some(ids))
+                                .await
+                            {
+                                warn!("Failed to sync active price-alert assets: {}", e);
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(e) => warn!("Failed to list active price-alert assets: {}", e),
+                    }
+                }
+                match context
+                    .price_alert_service()
+                    .evaluate(alert_asset_ids)
+                    .await
+                {
+                    Ok(events) if !events.is_empty() => {
+                        if let Err(e) = app_handle.emit(PRICE_ALERTS_TRIGGERED, &events) {
+                            error!("Failed to emit price-alerts:triggered event: {}", e);
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => warn!("Failed to evaluate price alerts: {}", e),
+                }
                 let failed_syncs = result.failures;
                 let skipped_reasons = result
                     .skipped_reasons

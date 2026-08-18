@@ -21,6 +21,7 @@ pub mod lots;
 pub mod planning;
 pub mod portfolio;
 pub mod portfolios;
+pub mod price_alerts;
 pub mod quotes;
 pub mod secrets;
 pub mod settings;

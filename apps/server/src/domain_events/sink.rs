@@ -69,6 +69,9 @@ impl WebDomainEventSink {
             dyn wealthfolio_core::portfolio::snapshot::SnapshotRepositoryTrait + Send + Sync,
         >,
         quote_service: Arc<dyn wealthfolio_core::quotes::QuoteServiceTrait + Send + Sync>,
+        price_alert_service: Arc<
+            dyn wealthfolio_core::price_alerts::PriceAlertServiceTrait + Send + Sync,
+        >,
         valuation_service: Arc<
             dyn wealthfolio_core::portfolio::valuation::ValuationServiceTrait + Send + Sync,
         >,
@@ -100,6 +103,7 @@ impl WebDomainEventSink {
             snapshot_service,
             snapshot_repository,
             quote_service,
+            price_alert_service,
             valuation_service,
             account_service,
             goal_service,

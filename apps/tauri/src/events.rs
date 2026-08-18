@@ -41,6 +41,9 @@ pub struct MarketSyncResult {
 /// Event emitted when the market data sync process encounters an error.
 pub const MARKET_SYNC_ERROR: &str = "market:sync-error";
 
+/// Event emitted when one or more price alerts trigger.
+pub const PRICE_ALERTS_TRIGGERED: &str = "price-alerts:triggered";
+
 /// Event emitted when asset taxonomy assignments change.
 pub const ASSET_CLASSIFICATIONS_CHANGED: &str = "asset:classifications-changed";
 

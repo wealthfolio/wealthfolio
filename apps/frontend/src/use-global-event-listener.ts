@@ -1,6 +1,7 @@
 // useGlobalEventListener.ts
 import {
   isDesktop,
+  getPriceAlertEvents,
   listenAssetClassificationsChanged,
   listenBrokerSyncComplete,
   listenBrokerSyncError,
@@ -11,6 +12,7 @@ import {
   listenPortfolioUpdateComplete,
   listenPortfolioUpdateError,
   listenPortfolioUpdateStart,
+  listenPriceAlertsTriggered,
   logger,
   updatePortfolio,
 } from "@/adapters";
@@ -21,6 +23,8 @@ import {
   shouldInvalidateAfterPortfolioUpdate,
   type AssetClassificationsChangedPayload,
 } from "@/lib/query-invalidation";
+import { QueryKeys } from "@/lib/query-keys";
+import type { PriceAlertEvent } from "@/lib/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -33,6 +37,7 @@ const TOAST_IDS = {
   portfolioUpdateStart: "portfolio-update-start",
   portfolioUpdateError: "portfolio-update-error",
   portfolioInvalidSnapshotError: "portfolio-invalid-snapshot-error",
+  priceAlertsUnread: "price-alerts-unread",
 
   brokerSyncStart: "broker-sync-start",
 } as const;
@@ -62,6 +67,8 @@ const useGlobalEventListener = () => {
   const navigate = useNavigate();
   const [areListenersReady, setAreListenersReady] = useState(false);
   const hasTriggeredInitialUpdate = useRef(false);
+  const hasShownInitialAlertSummary = useRef(false);
+  const shownPriceAlertEventIds = useRef(new Set<string>());
   const isDesktopEnv = isDesktop;
   const isMobileViewport = useIsMobileViewport();
   const syncContext = usePortfolioSyncOptional();
@@ -218,6 +225,62 @@ const useGlobalEventListener = () => {
       logger.error("Portfolio Update Error: " + errorMessage);
     };
 
+    const showInitialUnreadPriceAlerts = async () => {
+      if (hasShownInitialAlertSummary.current) return;
+      hasShownInitialAlertSummary.current = true;
+
+      try {
+        const unreadEvents = await getPriceAlertEvents(true);
+        const unseenEvents = unreadEvents.filter(
+          (event) => !shownPriceAlertEventIds.current.has(event.id),
+        );
+        if (unseenEvents.length === 0) return;
+
+        toast.info(
+          translationRef.current("common:price_alerts.toast.unread", {
+            count: unseenEvents.length,
+          }),
+          {
+            id: TOAST_IDS.priceAlertsUnread,
+            duration: Infinity,
+            action: {
+              label: translationRef.current("common:price_alerts.toast.view"),
+              onClick: () => navigateRef.current("/alerts"),
+            },
+          },
+        );
+      } catch (error) {
+        logger.warn("Failed to load unread price alerts: " + String(error));
+      }
+    };
+
+    const handlePriceAlertsTriggered = (event: { payload: PriceAlertEvent[] | null }) => {
+      const triggeredEvents = Array.isArray(event.payload) ? event.payload : [];
+      if (triggeredEvents.length === 0) return;
+
+      triggeredEvents.forEach((triggeredEvent) =>
+        shownPriceAlertEventIds.current.add(triggeredEvent.id),
+      );
+      void queryClientRef.current.invalidateQueries({ queryKey: [QueryKeys.PRICE_ALERTS] });
+      void queryClientRef.current.invalidateQueries({ queryKey: [QueryKeys.PRICE_ALERT_EVENTS] });
+      void queryClientRef.current.invalidateQueries({
+        queryKey: [QueryKeys.PRICE_ALERT_UNREAD_COUNT],
+      });
+
+      toast.info(
+        translationRef.current("common:price_alerts.toast.triggered", {
+          count: triggeredEvents.length,
+        }),
+        {
+          duration: Infinity,
+          action: {
+            label: translationRef.current("common:price_alerts.toast.view"),
+            onClick: () => navigateRef.current("/alerts"),
+          },
+        },
+      );
+    };
+
     const handlePortfolioUpdateComplete = () => {
       if (isMobileViewportRef.current && syncContextRef.current) {
         syncContextRef.current.setIdle();
@@ -227,6 +290,7 @@ const useGlobalEventListener = () => {
       queryClientRef.current.invalidateQueries({
         predicate: (query) => shouldInvalidateAfterPortfolioUpdate(query.queryKey),
       });
+      void showInitialUnreadPriceAlerts();
     };
 
     const handleDatabaseRestored = () => {
@@ -358,6 +422,7 @@ const useGlobalEventListener = () => {
         ["market-sync-start", listenMarketSyncStart(handleMarketSyncStart)],
         ["market-sync-complete", listenMarketSyncComplete(handleMarketSyncComplete)],
         ["market-sync-error", listenMarketSyncError(handleMarketSyncError)],
+        ["price-alerts-triggered", listenPriceAlertsTriggered(handlePriceAlertsTriggered)],
         [
           "asset-classifications-changed",
           listenAssetClassificationsChanged(handleAssetClassificationsChanged),

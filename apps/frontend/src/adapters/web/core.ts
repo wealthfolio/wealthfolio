@@ -141,6 +141,21 @@ export const COMMANDS: CommandMap = {
   update_contribution_limit: { method: "PUT", path: "/limits" },
   delete_contribution_limit: { method: "DELETE", path: "/limits" },
   calculate_deposits_for_contribution_limit: { method: "GET", path: "/limits" },
+  // Price alerts
+  get_price_alerts: { method: "GET", path: "/price-alerts" },
+  create_price_alert: { method: "POST", path: "/price-alerts" },
+  pause_price_alert: { method: "POST", path: "/price-alerts" },
+  rearm_price_alert: { method: "POST", path: "/price-alerts" },
+  delete_price_alert: { method: "DELETE", path: "/price-alerts" },
+  get_price_alert_events: { method: "GET", path: "/price-alert-events" },
+  get_unacknowledged_price_alert_count: {
+    method: "GET",
+    path: "/price-alert-events/unread-count",
+  },
+  acknowledge_price_alert_events: {
+    method: "POST",
+    path: "/price-alert-events/acknowledge",
+  },
   // Asset profile
   get_assets: { method: "GET", path: "/assets" },
   create_asset: { method: "POST", path: "/assets" },
@@ -982,6 +997,34 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     case "delete_contribution_limit": {
       const { id } = payload as { id: string };
       url += `/${encodeURIComponent(id)}`;
+      break;
+    }
+    case "create_price_alert": {
+      const { input } = payload as { input: Record<string, unknown> };
+      body = JSON.stringify(input);
+      break;
+    }
+    case "pause_price_alert":
+    case "rearm_price_alert":
+    case "delete_price_alert": {
+      const { id } = payload as { id: string };
+      const suffix =
+        command === "pause_price_alert"
+          ? "/pause"
+          : command === "rearm_price_alert"
+            ? "/rearm"
+            : "";
+      url += `/${encodeURIComponent(id)}${suffix}`;
+      break;
+    }
+    case "get_price_alert_events": {
+      const { unacknowledgedOnly } = payload as { unacknowledgedOnly?: boolean };
+      if (unacknowledgedOnly) url += "?unacknowledgedOnly=true";
+      break;
+    }
+    case "acknowledge_price_alert_events": {
+      const { eventIds } = payload as { eventIds?: string[] };
+      body = JSON.stringify({ eventIds });
       break;
     }
     case "create_asset": {

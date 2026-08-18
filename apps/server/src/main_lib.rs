@@ -39,6 +39,7 @@ use wealthfolio_core::{
         valuation::{ValuationService, ValuationServiceTrait},
     },
     portfolios::{PortfolioService, PortfolioServiceTrait},
+    price_alerts::{PriceAlertService, PriceAlertServiceTrait},
     quotes::{QuoteService, QuoteServiceTrait},
     secrets::SecretStore,
     settings::{SettingsRepositoryTrait, SettingsService, SettingsServiceTrait},
@@ -60,6 +61,7 @@ use wealthfolio_storage_sqlite::{
     market_data::{MarketDataRepository, QuoteSyncStateRepository},
     portfolio::{snapshot::SnapshotRepository, valuation::ValuationRepository},
     portfolios::PortfolioRepository,
+    price_alerts::PriceAlertRepository,
     settings::SettingsRepository,
     sync::{AppSyncRepository, BrokerSyncStateRepository, ImportRunRepository, PlatformRepository},
     taxonomies::TaxonomyRepository,
@@ -77,6 +79,7 @@ pub struct AppState {
     pub valuation_service: Arc<dyn ValuationServiceTrait + Send + Sync>,
     pub allocation_service: Arc<dyn AllocationServiceTrait + Send + Sync>,
     pub quote_service: Arc<dyn QuoteServiceTrait + Send + Sync>,
+    pub price_alert_service: Arc<dyn PriceAlertServiceTrait + Send + Sync>,
     pub base_currency: Arc<RwLock<String>>,
     pub timezone: Arc<RwLock<String>>,
     pub snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
@@ -380,6 +383,13 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         )
         .await?,
     );
+    let price_alert_repository = Arc::new(PriceAlertRepository::new(pool.clone(), writer.clone()));
+    let price_alert_service: Arc<dyn PriceAlertServiceTrait + Send + Sync> =
+        Arc::new(PriceAlertService::new(
+            price_alert_repository,
+            asset_repository.clone(),
+            quote_service.clone(),
+        ));
     let custom_provider_service = Arc::new(
         wealthfolio_core::custom_provider::CustomProviderService::new(
             custom_provider_repository.clone(),
@@ -797,6 +807,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         snapshot_service.clone(),
         snapshot_repository.clone(),
         quote_service.clone(),
+        price_alert_service.clone(),
         valuation_service.clone(),
         account_service.clone(),
         goal_service.clone(),
@@ -839,6 +850,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         valuation_service,
         allocation_service,
         quote_service,
+        price_alert_service,
         base_currency,
         timezone,
         snapshot_service,

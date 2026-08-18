@@ -120,7 +120,20 @@ async fn update_quote(
 ) -> ApiResult<StatusCode> {
     // Ensure asset_id matches path parameter
     quote.asset_id = symbol;
+    let asset_id = quote.asset_id.clone();
     state.quote_service.update_quote(quote).await?;
+    let events = state
+        .price_alert_service
+        .evaluate(Some(vec![asset_id]))
+        .await?;
+    if !events.is_empty() {
+        state
+            .event_bus
+            .publish(crate::events::ServerEvent::with_payload(
+                crate::events::PRICE_ALERTS_TRIGGERED,
+                serde_json::json!(events),
+            ));
+    }
     // Manual quote update - no market sync needed, but force full recalculation
     // so historical valuations are recomputed with the updated quotes
     enqueue_portfolio_job(
@@ -197,6 +210,15 @@ async fn import_quotes_csv(
         .quote_service
         .import_quotes(body.quotes, body.overwrite_existing)
         .await?;
+    let events = state.price_alert_service.evaluate(None).await?;
+    if !events.is_empty() {
+        state
+            .event_bus
+            .publish(crate::events::ServerEvent::with_payload(
+                crate::events::PRICE_ALERTS_TRIGGERED,
+                serde_json::json!(events),
+            ));
+    }
 
     // Quote import - no market sync needed, but force full recalculation
     // so historical valuations are recomputed with the imported quotes

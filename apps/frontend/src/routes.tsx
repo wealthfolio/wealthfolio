@@ -54,6 +54,7 @@ import GoalsDashboardPage from "@/features/goals/pages/goals-dashboard-page";
 import GoalNewPage from "@/features/goals/pages/goal-new-page";
 import GoalDetailPage from "@/features/goals/pages/goal-detail-page";
 import GoalRetirementGuidePage from "@/features/goals/pages/goal-retirement-guide-page";
+import PriceAlertsPage from "@/features/price-alerts/pages/price-alerts-page";
 
 function NavigationEventBridge() {
   useNavigationEventListener();
@@ -102,6 +103,7 @@ export function AppRoutes() {
           <Route path="activities" element={<ActivityPage />} />
           <Route path="activities/manage" element={<ActivityManagerPage />} />
           <Route path="holdings" element={<HoldingsPage />} />
+          <Route path="alerts" element={<PriceAlertsPage />} />
           <Route path="holdings/:assetId" element={<AssetProfilePage />} />
           <Route path="import" element={<ActivityImportPage />} />
           <Route path="accounts/:id" element={<AccountPage />} />

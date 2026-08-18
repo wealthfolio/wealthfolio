@@ -85,6 +85,13 @@ export async function listenMarketSyncError<T>(handler: EventCallback<T>): Promi
   return adaptUnlisten(unlisten);
 }
 
+export async function listenPriceAlertsTriggered<T>(
+  handler: EventCallback<T>,
+): Promise<UnlistenFn> {
+  const unlisten = await listen<T>("price-alerts:triggered", adaptCallback(handler));
+  return adaptUnlisten(unlisten);
+}
+
 export async function listenAssetClassificationsChanged<T>(
   handler: EventCallback<T>,
 ): Promise<UnlistenFn> {
