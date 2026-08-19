@@ -221,6 +221,8 @@ export const COMMANDS: CommandMap = {
   list_rule_presets: { method: "GET", path: "/spending/rule-presets" },
   import_rule_preset: { method: "POST", path: "/spending/rule-presets" },
   remove_rule_preset: { method: "DELETE", path: "/spending/rule-presets" },
+  get_spending_rule_suggestions: { method: "GET", path: "/spending/rule-suggestions" },
+  apply_spending_rule_suggestion: { method: "POST", path: "/spending/rule-suggestions/apply" },
   // Spending events + event types
   list_event_types: { method: "GET", path: "/spending/event-types" },
   create_event_type: { method: "POST", path: "/spending/event-types" },
@@ -1464,6 +1466,13 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     case "remove_rule_preset": {
       const { presetId } = payload as { presetId: string };
       url += `/${encodeURIComponent(presetId)}`;
+      break;
+    }
+    case "get_spending_rule_suggestions":
+      break;
+    case "apply_spending_rule_suggestion": {
+      const { request } = payload as { request: Record<string, unknown> };
+      body = JSON.stringify(request);
       break;
     }
     // Spending events + event types

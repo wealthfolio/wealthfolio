@@ -29,6 +29,7 @@ use wealthfolio_spending::categorization_rules::{
 use wealthfolio_spending::events::{Event, EventType, NewEvent, NewEventType, UpdateEvent};
 use wealthfolio_spending::insight::{SpendingInsight, SpendingInsightRequest};
 use wealthfolio_spending::settings::{SpendingSettings, SpendingSettingsUpdate};
+use wealthfolio_spending::suggestions::{ApplySuggestionRequest, SuggestedRule};
 
 const MAX_BULK_CATEGORY_ASSIGNMENTS: usize = 1_000;
 
@@ -381,6 +382,33 @@ async fn import_rule_preset(
         .await?;
     spawn_auto_categorize_for_opted_in_accounts(&state).await;
     Ok(Json(result))
+}
+
+async fn get_spending_rule_suggestions(
+    State(state): State<Arc<AppState>>,
+) -> ApiResult<Json<Vec<SuggestedRule>>> {
+    let s = state.spending_settings_service.get().await?;
+    if !s.enabled {
+        return Ok(Json(Vec::new()));
+    }
+    Ok(Json(
+        state
+            .categorization_rules_service
+            .suggest_rules(&s.account_ids)
+            .await?,
+    ))
+}
+
+async fn apply_spending_rule_suggestion(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<ApplySuggestionRequest>,
+) -> ApiResult<Json<CategorizationRule>> {
+    let rule = state
+        .categorization_rules_service
+        .apply_suggestion(request)
+        .await?;
+    spawn_auto_categorize_for_opted_in_accounts(&state).await;
+    Ok(Json(rule))
 }
 
 async fn list_event_types(State(state): State<Arc<AppState>>) -> ApiResult<Json<Vec<EventType>>> {
@@ -767,6 +795,14 @@ pub fn router() -> Router<Arc<AppState>> {
         .route(
             "/spending/rule-presets/{preset_id}",
             delete(remove_rule_preset),
+        )
+        .route(
+            "/spending/rule-suggestions",
+            get(get_spending_rule_suggestions),
+        )
+        .route(
+            "/spending/rule-suggestions/apply",
+            post(apply_spending_rule_suggestion),
         )
         .route(
             "/spending/event-types",

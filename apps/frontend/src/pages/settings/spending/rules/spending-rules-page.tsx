@@ -35,6 +35,7 @@ import {
 } from "@/features/spending/components/rule-item";
 import { PRESET_FLAGS } from "@/features/spending/components/rule-preset-constants";
 import { RulePresetPicker } from "@/features/spending/components/rule-preset-picker";
+import { RuleSuggestionsPanel } from "@/features/spending/components/rule-suggestions-panel";
 import type {
   RuleFormAccountOption,
   RuleFormCategoryOption,
@@ -324,6 +325,7 @@ export default function SpendingRulesPage() {
             <div className="bg-muted/30 rounded-lg border p-4">
               <RulePresetPicker />
             </div>
+            <RuleSuggestionsPanel categoryMeta={categoryMeta} />
             <EmptyPlaceholder>
               <EmptyPlaceholder.Icon name="ListFilter" />
               <EmptyPlaceholder.Title>
@@ -343,6 +345,8 @@ export default function SpendingRulesPage() {
             <div className="bg-muted/30 rounded-md border p-3">
               <RulePresetPicker compact />
             </div>
+
+            <RuleSuggestionsPanel categoryMeta={categoryMeta} />
 
             {/* Search + preset filter chips */}
             <div className="space-y-2">

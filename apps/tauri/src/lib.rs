@@ -472,6 +472,8 @@ pub fn run() {
             commands::spending::list_rule_presets,
             commands::spending::import_rule_preset,
             commands::spending::remove_rule_preset,
+            commands::spending::get_spending_rule_suggestions,
+            commands::spending::apply_spending_rule_suggestion,
             commands::spending::list_event_types,
             commands::spending::create_event_type,
             commands::spending::update_event_type,
