@@ -38,7 +38,6 @@
   "select_benchmark": "벤치마크 선택",
   "no_benchmark": "벤치마크 없음",
   "volatility": "변동성",
-  "sharpe_ratio": "샤프 비율",
   "max_drawdown": "최대 낙폭",
   "best_day": "최고 수익일",
   "worst_day": "최저 수익일",

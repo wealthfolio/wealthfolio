@@ -38,7 +38,6 @@
   "select_benchmark": "选择基准",
   "no_benchmark": "无基准",
   "volatility": "波动率",
-  "sharpe_ratio": "夏普比率",
   "max_drawdown": "最大回撤",
   "best_day": "最佳单日",
   "worst_day": "最差单日",

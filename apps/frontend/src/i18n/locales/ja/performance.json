@@ -38,7 +38,6 @@
   "select_benchmark": "ベンチマークを選択",
   "no_benchmark": "ベンチマークなし",
   "volatility": "ボラティリティ",
-  "sharpe_ratio": "シャープレシオ",
   "max_drawdown": "最大ドローダウン",
   "best_day": "最高日",
   "worst_day": "最低日",

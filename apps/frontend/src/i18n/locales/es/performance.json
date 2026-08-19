@@ -38,7 +38,6 @@
   "select_benchmark": "Seleccionar índice de referencia",
   "no_benchmark": "Sin índice de referencia",
   "volatility": "Volatilidad",
-  "sharpe_ratio": "Ratio de Sharpe",
   "max_drawdown": "Caída máxima",
   "best_day": "Mejor día",
   "worst_day": "Peor día",

@@ -38,7 +38,6 @@
   "select_benchmark": "Benchmark wählen",
   "no_benchmark": "Keine Benchmark",
   "volatility": "Volatilität",
-  "sharpe_ratio": "Sharpe-Ratio",
   "max_drawdown": "Max. Drawdown",
   "best_day": "Bester Tag",
   "worst_day": "Schlechtester Tag",
