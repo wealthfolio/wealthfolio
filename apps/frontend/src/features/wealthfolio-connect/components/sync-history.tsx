@@ -1,16 +1,17 @@
+import { formatDistanceToNow } from "@/lib/utils";
+import { useDateFormatting, useLocalizationSettings } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import { format, formatDistanceToNow } from "date-fns";
-import { useMemo } from "react";
-import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { useImportRunsInfinite } from "../hooks";
-import type { ImportRun, ImportRunStatus } from "../types";
 import { BROKER_SYNC_RUN_FAILED_MESSAGE } from "../lib/broker-sync-messages";
+import type { ImportRun, ImportRunStatus } from "../types";
 
 function buildStatusConfig(t: TFunction): Record<
   ImportRunStatus,
@@ -136,6 +137,7 @@ export function SyncHistory({ pageSize = 10 }: SyncHistoryProps) {
 }
 
 function SyncRunItem({ run }: { run: ImportRun }) {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   const statusConfig = useMemo(() => buildStatusConfig(t), [t]);
   const config = statusConfig[run.status];
@@ -150,8 +152,9 @@ function SyncRunItem({ run }: { run: ImportRun }) {
   }, [run.startedAt, run.finishedAt, t]);
 
   const timeAgo = useMemo(() => {
-    return formatDistanceToNow(new Date(run.startedAt), { addSuffix: true });
-  }, [run.startedAt]);
+    const localizationSettings = useLocalizationSettings();
+    return formatDistanceToNow(new Date(run.startedAt), localizationSettings, { addSuffix: true });
+  }, [run.startedAt, formatting]);
 
   return (
     <div className="hover:bg-muted/50 group rounded-lg border p-3 transition-colors">
@@ -191,7 +194,7 @@ function SyncRunItem({ run }: { run: ImportRun }) {
             <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
               <span>{timeAgo}</span>
               <span className="text-muted-foreground/50">&middot;</span>
-              <span>{format(new Date(run.startedAt), "MMM d, HH:mm")}</span>
+              <span>{formatting.formatDateTime(new Date(run.startedAt))}</span>
               {duration && (
                 <>
                   <span className="text-muted-foreground/50">&middot;</span>

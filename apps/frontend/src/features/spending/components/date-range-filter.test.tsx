@@ -1,9 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@/test/render";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { DateRangeFilter } from "./date-range-filter";
 
-vi.mock("@wealthfolio/ui", () => ({
+vi.mock("@wealthfolio/ui", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@wealthfolio/ui")>()),
   Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,

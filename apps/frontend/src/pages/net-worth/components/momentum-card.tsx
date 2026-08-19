@@ -1,14 +1,17 @@
 import { DashboardCard } from "@/components/dashboard-card";
+import { useDateFormatting, type FormattingApi, useNumberFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 import { CompactAmount } from "./compact-amount";
 import { toneClass, toneFill, type Momentum } from "./utils";
 
 const PRIOR_BAR_COLOR = "color-mix(in srgb, var(--muted-foreground) 35%, transparent)";
 
-function monthLabel(month: string): string {
-  // month is "YYYY-MM"
-  const date = new Date(`${month}-01T00:00:00`);
-  return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+function monthLabel(month: string, formatting: Pick<FormattingApi, "formatCalendarDate">): string {
+  return formatting.formatCalendarDate(`${month}-01`, {
+    calendar: "gregory",
+    month: "short",
+    year: "2-digit",
+  });
 }
 
 interface MomentumCardProps {
@@ -18,7 +21,13 @@ interface MomentumCardProps {
 }
 
 export function MomentumCard({ momentum, currency, periodLabel }: MomentumCardProps) {
+  const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
+  const dateFormatting = useDateFormatting();
+
+  const formatting = { ...dateFormatting, ...numberFormatting };
+
+  const { formatDecimal } = formatting;
   const { currentChange, beatBy, bars } = momentum;
   const changeSign = Math.abs(currentChange) < 0.005 ? "" : currentChange > 0 ? "+" : "-";
 
@@ -68,7 +77,7 @@ export function MomentumCard({ momentum, currency, periodLabel }: MomentumCardPr
             )}
             <div className="flex h-full items-stretch gap-1">
               {bars.map((bar) => {
-                const title = `${monthLabel(bar.month)}: ${bar.value >= 0 ? "+" : ""}${bar.value.toFixed(0)}`;
+                const title = `${monthLabel(bar.month, dateFormatting)}: ${bar.value >= 0 ? "+" : ""}${formatDecimal(bar.value, { maximumFractionDigits: 0 })}`;
                 return (
                   <div key={bar.month} className="flex flex-1 flex-col" title={title}>
                     {/* above-zero zone */}
@@ -101,7 +110,7 @@ export function MomentumCard({ momentum, currency, periodLabel }: MomentumCardPr
             </div>
           </div>
           <div className="text-muted-foreground/60 mt-1.5 flex justify-between text-xs">
-            <span>{monthLabel(bars[0].month)}</span>
+            <span>{monthLabel(bars[0].month, dateFormatting)}</span>
             <span>{t("insights:networth.momentum.now")}</span>
           </div>
         </>

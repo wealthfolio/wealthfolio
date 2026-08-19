@@ -709,6 +709,7 @@ mod tests {
             id: id.to_string(),
             account_id: "acc-1".to_string(),
             holding_type: HoldingType::Security,
+            is_closed: false,
             instrument: Some(Instrument {
                 id: id.to_string(),
                 symbol: symbol.to_string(),
@@ -760,6 +761,7 @@ mod tests {
             id: "cash".to_string(),
             account_id: "acc-1".to_string(),
             holding_type: HoldingType::Cash,
+            is_closed: false,
             instrument: None,
             asset_kind: None,
             quantity: amount,

@@ -32,6 +32,10 @@
   "save_settings": "설정 저장",
   "settings_saved": "설정이 저장되었습니다",
   "settings_error": "설정 저장 중 오류가 발생했습니다",
+  "settings_updated_title": "설정이 업데이트되었습니다",
+  "settings_updated_description": "설정이 성공적으로 업데이트되었습니다.",
+  "settings_update_error_title": "문제가 발생했습니다.",
+  "settings_update_error_description": "설정을 업데이트하는 중 문제가 발생했습니다.",
   "nav_general_subtitle": "통화 및 일반 환경설정",
   "nav_appearance_subtitle": "테마, 타이포그래피, 밀도",
   "nav_accounts_subtitle": "투자 및 저축 계좌",
@@ -958,7 +962,19 @@
     "placeholders": "플레이스홀더:",
     "empty_response_before": "URL을 입력한 다음 ",
     "empty_response_after": "을(를) 눌러 테스트하세요.",
-    "retry": "다시 시도"
+    "retry": "다시 시도",
+    "table_click_column_to_map_field_other": "{{count}}행 · {{field}}에 매핑하려면 열 머리글을 클릭하세요",
+    "table_click_column_to_map_other": "{{count}}행 · 매핑하려면 열 머리글을 클릭하세요",
+    "csv_rows_detected_field_other": "{{count}}행이 감지되었습니다. {{field}}에 매핑하려면 열 머리글을 클릭하세요.",
+    "csv_rows_detected_other": "{{count}}행이 감지되었습니다. 매핑하려면 열 머리글을 클릭하세요.",
+    "elements_detected_field_other": "{{count}}개 요소가 감지되었습니다. {{field}}에 선택자를 지정하려면 하나를 클릭하세요.",
+    "elements_detected_other": "{{count}}개 요소가 감지되었습니다. 선택자를 지정하려면 하나를 클릭하세요.",
+    "show_more_elements_other": "요소 {{count}}개 더 표시",
+    "preview_data_rows_other": "데이터 미리보기 ({{count}}행)",
+    "review_first_rows_other": "CSV 데이터의 처음 {{count}}개 행을 확인하세요",
+    "import_quotes_count_other": "시세 {{count}}건 가져오기",
+    "imported_count_other": "{{count}}건 가져옴",
+    "failed_count_other": "{{count}}건 실패"
   },
   "addon_permission_none_detected": "감지된 데이터 접근 권한이 없습니다. 이 애드온은 시스템 접근 권한이 최소한인 것으로 보입니다.",
   "addon_permission_list_title": "권한",
@@ -1011,7 +1027,8 @@
       "stat_budget_groups": "예산 그룹",
       "stat_active": "활성",
       "no_rules_prompt": "아직 분류 규칙이 없습니다 — 이름 패턴으로 거래를 자동 태그하세요.",
-      "setup_rules": "규칙 설정"
+      "setup_rules": "규칙 설정",
+      "stat_accounts_unit_other": "현금 계좌 {{count}}개 중"
     },
     "accounts": {
       "title": "지출 계좌",
@@ -1091,7 +1108,8 @@
       "manage": "관리",
       "error_title": "불러올 수 없습니다",
       "error_description": "관리 페이지에서 다시 시도하세요.",
-      "more": "+{{count}}개 더"
+      "more": "+{{count}}개 더",
+      "more_other": "+{{count}}개 더"
     },
     "setup": {
       "title": "기본 월간 예산 계획",
@@ -1112,7 +1130,10 @@
       "updated": "카테고리가 수정되었습니다.",
       "update_error": "카테고리를 수정하지 못했습니다.",
       "created": "카테고리가 생성되었습니다.",
-      "create_error": "카테고리를 생성하지 못했습니다."
+      "create_error": "카테고리를 생성하지 못했습니다.",
+      "tab_expense_other": "지출 ({{count}})",
+      "tab_income_other": "수입 ({{count}})",
+      "tab_savings_other": "저축 ({{count}})"
     },
     "events": {
       "heading": "지출 이벤트",
@@ -1383,7 +1404,8 @@
     },
     "copied_generic": "{{label}}이(가) 클립보드에 복사되었습니다.",
     "hero_aria": "AI 에이전트 접근 상태",
-    "mcp_in_project": "프로젝트 내에서"
+    "mcp_in_project": "프로젝트 내에서",
+    "pat_scope_custom_other": "사용자 지정 · 범위 {{count}}개"
   },
   "tax_add_category": "카테고리 추가",
   "tax_export": "내보내기",
@@ -1401,6 +1423,23 @@
   "ai_providers_empty_description": "AI 제공자가 구성되면 여기에 표시됩니다. 나중에 다시 확인하거나 지원팀에 문의하세요.",
   "about_logo_alt": "Wealthfolio 로고",
   "language_region_title": "언어 및 지역",
+  "formattingRegion": {
+    "title": "지역 및 표시 형식",
+    "description": "날짜, 시간, 숫자 구분 기호, 백분율 및 통화 표시 형식을 설정합니다.",
+    "options": {
+      "system": "시스템 지역",
+      "canada": "캐나다",
+      "unitedStates": "미국",
+      "unitedKingdom": "영국",
+      "france": "프랑스",
+      "germany": "독일",
+      "spain": "스페인",
+      "mexico": "멕시코",
+      "china": "중국",
+      "japan": "일본",
+      "southKorea": "대한민국"
+    }
+  },
   "appearance_navigation_title": "탐색",
   "appearance_navigation_description": "큰 화면에서 탐색하는 방식을 선택하세요.",
   "addons_pin_to_navigation": "{{name}}을(를) 탐색에 고정",
@@ -1412,5 +1451,11 @@
   "addon_permission_denied": "거부됨",
   "health_banner_classification": "Health Center에서 표시한 분류를 표시하는 중",
   "health_banner_market_data": "Health Center에서 표시한 시세 데이터 설정을 표시하는 중",
-  "health_banner_clear": "지우기"
+  "health_banner_clear": "지우기",
+  "tax_categories_count_other": "카테고리 {{count}}개",
+  "tax_migration_body_other": "{{count}}개 자산에 더 나은 관리와 분석을 위해 새 분류 체계로 마이그레이션할 수 있는 기존 섹터/국가 데이터가 있습니다.",
+  "addon_rating_characters_other": "{{count}}/500자",
+  "addon_store_filter_all_other": "전체 ({{count}})",
+  "addon_store_filter_uninstalled_other": "설치 안 됨 ({{count}})",
+  "addon_store_showing_other": "전체 {{total}}개 중 {{count}}개 애드온 표시"
 }

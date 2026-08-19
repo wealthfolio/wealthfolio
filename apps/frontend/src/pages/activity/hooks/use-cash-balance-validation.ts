@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
-import { useFormContext } from "react-hook-form";
 import { useLatestValuations } from "@/hooks/use-latest-valuations";
 import { ActivityType } from "@/lib/constants";
+import { useAmountFormatting } from "@wealthfolio/ui";
+import { useEffect, useState } from "react";
+import { useFormContext } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { NewActivityFormValues } from "../components/forms/schemas";
 
 export interface CashBalanceValidationResult {
@@ -17,6 +19,8 @@ export interface CashBalanceValidationResult {
 }
 
 export function useCashBalanceValidation(): CashBalanceValidationResult {
+  const formatting = useAmountFormatting();
+  const { t } = useTranslation("activity");
   const { watch } = useFormContext<NewActivityFormValues>();
   const [validationResult, setValidationResult] = useState<CashBalanceValidationResult>({
     isValid: true,
@@ -118,14 +122,11 @@ export function useCashBalanceValidation(): CashBalanceValidationResult {
 
     let warning: string | undefined;
     if (!isValid) {
-      const formatter = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: accountValuation.accountCurrency,
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
+      warning = t("cash_balance_warning", {
+        required: formatting.formatAmount(requiredAmount, accountValuation.accountCurrency),
+        available: formatting.formatAmount(currentBalance, accountValuation.accountCurrency),
+        shortfall: formatting.formatAmount(shortfall, accountValuation.accountCurrency),
       });
-
-      warning = `Insufficient cash balance. Required: ${formatter.format(requiredAmount)}, Available: ${formatter.format(currentBalance)}, Shortfall: ${formatter.format(shortfall)}`;
     }
 
     setValidationResult({
@@ -139,7 +140,18 @@ export function useCashBalanceValidation(): CashBalanceValidationResult {
       hasAccount,
       hasValues,
     });
-  }, [activityType, accountId, quantity, unitPrice, fee, tax, latestValuations, isLoading]);
+  }, [
+    activityType,
+    accountId,
+    quantity,
+    unitPrice,
+    fee,
+    tax,
+    latestValuations,
+    isLoading,
+    formatting,
+    t,
+  ]);
 
   return validationResult;
 }

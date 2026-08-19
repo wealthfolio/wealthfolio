@@ -1,20 +1,23 @@
+import { useIsMobileViewport } from "@/hooks/use-platform";
+import type { Quote } from "@/lib/types";
+import { createColumnHelper } from "@tanstack/react-table";
 import {
   Button,
+  calendarDateFromLocalDate,
   DataGrid,
   DatePickerInput,
   Icons,
   Input,
+  useAmountFormatting,
   useDataGrid,
-  formatPrice,
+  useDateFormatting,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
+import { format } from "date-fns";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { createColumnHelper } from "@tanstack/react-table";
-import type { Quote } from "@/lib/types";
 import { QuoteHistoryToolbar } from "./quote-history-toolbar";
 import { toQuoteEntry, type QuoteEntry } from "./quote-history-utils";
-import { format } from "date-fns";
-import { useIsMobileViewport } from "@/hooks/use-platform";
 
 // Helper to normalize date values (handles both Date objects and strings from DateCell)
 const normalizeDate = (value: Date | string): Date => {
@@ -23,9 +26,6 @@ const normalizeDate = (value: Date | string): Date => {
 };
 
 const QUOTE_DECIMAL_PRECISION = 8;
-
-const renderPriceCellValue = (value: number | string | null, rowData: unknown) =>
-  formatPrice(value, (rowData as QuoteEntry).currency, false);
 
 interface QuoteHistoryDataGridProps {
   /** Quote data from the backend */
@@ -91,6 +91,16 @@ export function QuoteHistoryDataGrid({
   onDeleteQuote,
   onChangeDataSource,
 }: QuoteHistoryDataGridProps) {
+  const amountFormatting = useAmountFormatting();
+  const dateFormatting = useDateFormatting();
+  const numberFormatting = useNumberFormatting();
+
+  const renderPriceCellValue = useCallback(
+    (value: number | string | null, rowData: unknown) =>
+      amountFormatting.formatPrice(value, (rowData as QuoteEntry).currency, false),
+    [amountFormatting],
+  );
+
   const { t } = useTranslation();
   const isMobile = useIsMobileViewport();
   // Convert quotes to local entries without changing their stored precision.
@@ -202,7 +212,7 @@ export function QuoteHistoryDataGrid({
           ]
         : []),
     ],
-    [columnHelper, stepValue, isManualDataSource, handleDeleteRow, t],
+    [columnHelper, stepValue, isManualDataSource, handleDeleteRow, renderPriceCellValue, t],
   );
 
   // Handle data changes from the grid
@@ -560,10 +570,14 @@ export function QuoteHistoryDataGrid({
                   onClick={isManualDataSource ? () => setMobileEditingId(entry.id) : undefined}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{format(entry.date, "yyyy-MM-dd")}</span>
+                    <span className="text-sm font-medium">
+                      {dateFormatting.formatCalendarDate(calendarDateFromLocalDate(entry.date), {
+                        dateStyle: "short",
+                      })}
+                    </span>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold">
-                        {formatPrice(entry.close, entry.currency, false)}
+                        {amountFormatting.formatPrice(entry.close, entry.currency, false)}
                       </span>
                       {isManualDataSource && (
                         <Button
@@ -584,24 +598,26 @@ export function QuoteHistoryDataGrid({
                     <div>
                       <span className="block">{t("asset:quoteGrid.open")}</span>
                       <span className="text-foreground">
-                        {formatPrice(entry.open, entry.currency, false)}
+                        {amountFormatting.formatPrice(entry.open, entry.currency, false)}
                       </span>
                     </div>
                     <div>
                       <span className="block">{t("asset:quoteGrid.high")}</span>
                       <span className="text-foreground">
-                        {formatPrice(entry.high, entry.currency, false)}
+                        {amountFormatting.formatPrice(entry.high, entry.currency, false)}
                       </span>
                     </div>
                     <div>
                       <span className="block">{t("asset:quoteGrid.low")}</span>
                       <span className="text-foreground">
-                        {formatPrice(entry.low, entry.currency, false)}
+                        {amountFormatting.formatPrice(entry.low, entry.currency, false)}
                       </span>
                     </div>
                     <div>
                       <span className="block">{t("asset:quoteGrid.vol")}</span>
-                      <span className="text-foreground">{entry.volume.toLocaleString()}</span>
+                      <span className="text-foreground">
+                        {numberFormatting.formatDecimal(entry.volume)}
+                      </span>
                     </div>
                   </div>
                 </div>

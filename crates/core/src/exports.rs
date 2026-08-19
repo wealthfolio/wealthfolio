@@ -450,6 +450,7 @@ mod tests {
             id: "AGG-AAPL".to_string(),
             account_id: "all".to_string(),
             holding_type: HoldingType::Security,
+            is_closed: false,
             instrument: Some(crate::portfolio::holdings::HoldingListInstrument {
                 id: "asset-aapl".to_string(),
                 symbol: "AAPL".to_string(),

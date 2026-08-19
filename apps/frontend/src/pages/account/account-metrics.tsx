@@ -20,6 +20,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  useDateFormatting,
 } from "@wealthfolio/ui";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -153,6 +154,8 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
   isHoldingsMode = false,
   balanceWarning,
 }) => {
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const resolvedBalanceLabel = balanceLabel ?? t("account:cash_balance");
   // Full skeleton only when valuation data itself is loading
@@ -270,10 +273,16 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
         },
       ];
 
-  const formattedStartDate = performance ? formatDate(performance.period.startDate || "") : "";
-  const formattedEndDate = performance ? formatDate(performance.period.endDate || "") : "";
+  const formattedStartDate = performance
+    ? formatDate(performance.period.startDate || "", dateFormatting)
+    : "";
+  const formattedEndDate = performance
+    ? formatDate(performance.period.endDate || "", dateFormatting)
+    : "";
   const hasPerformancePeriod = Boolean(formattedStartDate && formattedEndDate);
-  const lastUpdated = valuation?.calculatedAt ? formatDate(valuation.calculatedAt) : null;
+  const lastUpdated = valuation?.calculatedAt
+    ? formatDate(valuation.calculatedAt, dateFormatting)
+    : null;
 
   return (
     <Card className={cn("flex flex-col", className)}>
@@ -306,17 +315,19 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
               </Tooltip>
             </TooltipProvider>
           ) : null}
-          {valuation && !hideBalanceEdit ? (
-            <EditableBalance
-              account={valuation}
-              initialBalance={valuation?.cashBalance || 0}
-              currency={displayCurrency}
-            />
-          ) : (
-            <span className="text-lg font-extrabold">
-              <PrivacyAmount value={valuation?.cashBalance || 0} currency={displayCurrency} />
-            </span>
-          )}
+          <div data-testid="account-cash-balance-value">
+            {valuation && !hideBalanceEdit ? (
+              <EditableBalance
+                account={valuation}
+                initialBalance={valuation?.cashBalance || 0}
+                currency={displayCurrency}
+              />
+            ) : (
+              <span className="text-lg font-extrabold">
+                <PrivacyAmount value={valuation?.cashBalance || 0} currency={displayCurrency} />
+              </span>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className={cn(compact ? "space-y-4 pb-2" : "space-y-6 pb-4")}>

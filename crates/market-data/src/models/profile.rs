@@ -16,6 +16,18 @@ pub struct AssetProfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quote_type: Option<String>,
 
+    /// Trading currency the provider reports for the listing it matched.
+    ///
+    /// Not stored on the asset - it exists so a caller can confirm the provider
+    /// answered for the instrument that was asked for.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub currency: Option<String>,
+
+    /// Provider-native exchange code for the listing it matched (Yahoo's "NEO",
+    /// "NGM", ...). Same purpose as `currency`: confirmation, not storage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exchange: Option<String>,
+
     /// Business sector (e.g., "Technology") - single sector for stocks
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sector: Option<String>,

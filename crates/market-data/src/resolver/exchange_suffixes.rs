@@ -461,6 +461,7 @@ mod tests {
         assert_eq!(yahoo_suffix_to_mic("TO"), Some("XTSE"));
         assert_eq!(yahoo_suffix_to_mic("V"), Some("XTSX"));
         assert_eq!(yahoo_suffix_to_mic("to"), Some("XTSE")); // Case insensitive
+        assert_eq!(yahoo_suffix_to_mic("NE"), Some("NEOE")); // Cboe Canada's ISO MIC
 
         // UK & Europe
         assert_eq!(yahoo_suffix_to_mic("L"), Some("XLON"));

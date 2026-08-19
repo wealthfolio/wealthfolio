@@ -1,28 +1,32 @@
 /**
  * Format helpers shared across the insights stages.
  *
- * Wraps the canonical `formatPercent` from `@/lib/utils` for the common
- * "I already have a percent value, give me 'X%'" case, and centralises a
- * couple of `Intl.DateTimeFormat` configurations the stage components reach
- * for repeatedly.
+ * Adapts the injected formatting service for the report domain's percent and
+ * calendar-date conventions.
  */
 
-import { formatPercent as formatFractionPercent } from "@/lib/utils";
+import { calendarDateFromLocalDate, type FormattingApi } from "@wealthfolio/ui";
 
 /** Format an already-percent value (e.g. `4.2` → `"4%"`). */
 export function formatPercentValue(
   percent: number,
+  formatting: Pick<FormattingApi, "formatPercent">,
   options: { digits?: number; signDisplay?: "auto" | "always" | "never" } = {},
 ): string {
-  return formatFractionPercent(percent / 100, options);
+  return formatting.formatPercent(percent / 100, options);
 }
 
-const monthLong = new Intl.DateTimeFormat(undefined, { month: "long" });
-const monthShortYear = new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" });
-const monthDay = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
-const yearOnly = new Intl.DateTimeFormat(undefined, { year: "numeric" });
-
-export const formatMonthName = (d: Date) => monthLong.format(d);
-export const formatMonthYear = (d: Date) => monthShortYear.format(d);
-export const formatMonthDay = (d: Date) => monthDay.format(d);
-export const formatYear = (d: Date) => yearOnly.format(d);
+export const formatMonthName = (d: Date, formatting: Pick<FormattingApi, "formatCalendarDate">) =>
+  formatting.formatCalendarDate(calendarDateFromLocalDate(d), { month: "long" });
+export const formatMonthYear = (d: Date, formatting: Pick<FormattingApi, "formatCalendarDate">) =>
+  formatting.formatCalendarDate(calendarDateFromLocalDate(d), {
+    month: "short",
+    year: "numeric",
+  });
+export const formatMonthDay = (d: Date, formatting: Pick<FormattingApi, "formatCalendarDate">) =>
+  formatting.formatCalendarDate(calendarDateFromLocalDate(d), {
+    month: "short",
+    day: "numeric",
+  });
+export const formatYear = (d: Date, formatting: Pick<FormattingApi, "formatCalendarDate">) =>
+  formatting.formatCalendarDate(calendarDateFromLocalDate(d), { year: "numeric" });

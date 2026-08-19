@@ -4,7 +4,9 @@
 //! This module retains only symbol parsing helpers needed by other modules.
 //! The typed prefix ID system (SEC:AAPL:XNAS) is removed.
 
-use wealthfolio_market_data::{strip_yahoo_suffix, yahoo_exchange_suffixes, yahoo_suffix_to_mic};
+use wealthfolio_market_data::{
+    mic_to_currency, strip_yahoo_suffix, yahoo_exchange_suffixes, yahoo_suffix_to_mic,
+};
 
 /// Parse crypto pair symbols like "BTC-USD" or "BTC-USDT" into (base, quote).
 /// Returns None if the symbol doesn't match the expected pair pattern.
@@ -46,6 +48,77 @@ pub fn parse_symbol_with_exchange_suffix(symbol: &str) -> (&str, Option<&'static
         .and_then(yahoo_suffix_to_mic);
 
     (base_symbol, mic)
+}
+
+/// Parse a symbol's exchange suffix when the venue is already known.
+///
+/// [`parse_symbol_with_exchange_suffix`] cannot tell an exchange suffix from a
+/// ticker that merely ends in one — the symbol alone carries nothing to check
+/// against. When the caller already knows the venue, that is the better evidence,
+/// and a suffix that names a market the instrument cannot be trading on was never
+/// a venue marker.
+///
+/// `ZAAA.F` on `NEOE` is the case that motivated this: BMO's currency-hedged unit
+/// class on Cboe Canada, where `.F` is Yahoo's Frankfurt suffix. Stripping it files
+/// the holding under `ZAAA` — the *unhedged* listing, a real security quoting ~4%
+/// away — and nothing downstream can notice, because the shortened ticker resolves
+/// a perfectly valid quote for the wrong fund. Observed live on 2026-07-30 in 33
+/// activity records from a real brokerage.
+///
+/// A merely *different* MIC is not enough to rule a suffix out, so two guards keep
+/// the rule narrow:
+///
+/// - **The known venue must be a MIC the registry recognises.** Brokers send
+///   exchange labels that are not MICs at all (`NEO`, `NMS`), and the sync paths
+///   pass one through as the venue when the symbol has no suffix to read. Junk must
+///   not silence a good suffix.
+/// - **The two venues must trade in different currencies.** `XETR` (`.DE`) and
+///   `XFRA` (`.F`) are separate registry entries for the same German listing, and a
+///   caller naming one while the symbol carries the other is choosing a venue, not
+///   spelling a share class. Keeping `.DE` on the ticker there would resolve the
+///   provider symbol `BMW-DE.F`, which does not exist. A different currency means a
+///   different market, and `.F` on a CAD venue cannot be Frankfurt.
+///
+/// With no known venue, or one the suffix agrees with, this is
+/// [`parse_symbol_with_exchange_suffix`]. A share class whose suffix is not a known
+/// venue at all (`BRK.B`) never reaches either rule.
+///
+/// # Returns
+///
+/// `(base_symbol, mic)` as above, except that a contradicted suffix is left on the
+/// symbol and reported as no MIC — the caller's own venue is the answer.
+pub fn parse_symbol_with_known_exchange<'a>(
+    symbol: &'a str,
+    known_mic: Option<&str>,
+) -> (&'a str, Option<&'static str>) {
+    let (base_symbol, suffix_mic) = parse_symbol_with_exchange_suffix(symbol);
+
+    let Some(parsed_mic) = suffix_mic else {
+        return (base_symbol, None);
+    };
+    let Some(known) = known_mic.map(str::trim).filter(|mic| !mic.is_empty()) else {
+        return (base_symbol, Some(parsed_mic));
+    };
+    if known.eq_ignore_ascii_case(parsed_mic) {
+        return (base_symbol, Some(parsed_mic));
+    }
+
+    // Both lookups have to land for the venues to disagree about anything: an
+    // unrecognised MIC carries no evidence, and same-currency venues are the same
+    // market listing the same security.
+    let contradicted = match (
+        mic_to_currency(&known.to_uppercase()),
+        mic_to_currency(parsed_mic),
+    ) {
+        (Some(known_ccy), Some(suffix_ccy)) => !known_ccy.eq_ignore_ascii_case(suffix_ccy),
+        _ => false,
+    };
+
+    if contradicted {
+        (symbol.trim(), None)
+    } else {
+        (base_symbol, Some(parsed_mic))
+    }
 }
 
 /// Returns a best-effort fallback base symbol for unknown dotted suffixes.
@@ -174,6 +247,99 @@ mod tests {
                 (symbol, Some("XTSE"))
             );
         }
+    }
+
+    #[test]
+    fn test_parse_symbol_with_known_exchange_without_a_venue_is_the_plain_rule() {
+        for symbol in ["SHOP.TO", "BRK.B", "AAPL", "ZAAA.F"] {
+            assert_eq!(
+                parse_symbol_with_known_exchange(symbol, None),
+                parse_symbol_with_exchange_suffix(symbol),
+                "{symbol} with no venue must parse exactly as it always did"
+            );
+            // Blank and whitespace-only venues are no venue at all.
+            for blank in ["", "   "] {
+                assert_eq!(
+                    parse_symbol_with_known_exchange(symbol, Some(blank)),
+                    parse_symbol_with_exchange_suffix(symbol),
+                    "{symbol} with a blank venue must parse as if none were given"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_symbol_with_known_exchange_strips_when_the_venue_agrees() {
+        // Agreement is checked case- and whitespace-insensitively.
+        for known in ["XTSE", "xtse", "  XTSE  "] {
+            assert_eq!(
+                parse_symbol_with_known_exchange("SHOP.TO", Some(known)),
+                ("SHOP", Some("XTSE"))
+            );
+        }
+    }
+
+    #[test]
+    fn test_parse_symbol_with_known_exchange_keeps_a_suffix_from_another_currency() {
+        // `.F` is Frankfurt (EUR); Cboe Canada (NEOE) trades in CAD. BMO's `ZAAA.F`
+        // is the hedged unit class, so the suffix belongs to the ticker.
+        assert_eq!(
+            parse_symbol_with_known_exchange("ZAAA.F", Some("NEOE")),
+            ("ZAAA.F", None)
+        );
+        assert_eq!(
+            parse_symbol_with_known_exchange("  ZAAA.F  ", Some("neoe")),
+            ("ZAAA.F", None)
+        );
+    }
+
+    #[test]
+    fn test_parse_symbol_with_known_exchange_strips_for_a_sibling_venue() {
+        // XETR and XFRA are two German entries for the same listing, so a caller
+        // naming one while the symbol carries the other is picking a venue rather
+        // than spelling a share class. Stripping keeps the provider symbol real:
+        // `BMW` + XFRA resolves `BMW.F`, where `BMW.DE` would resolve `BMW-DE.F`.
+        assert_eq!(
+            parse_symbol_with_known_exchange("BMW.DE", Some("XFRA")),
+            ("BMW", Some("XETR"))
+        );
+        assert_eq!(
+            parse_symbol_with_known_exchange("BMW.F", Some("XETR")),
+            ("BMW", Some("XFRA"))
+        );
+        // Same market, same currency, different Canadian venue.
+        assert_eq!(
+            parse_symbol_with_known_exchange("SHOP.TO", Some("XTSX")),
+            ("SHOP", Some("XTSE"))
+        );
+    }
+
+    #[test]
+    fn test_parse_symbol_with_known_exchange_ignores_a_venue_that_is_not_a_mic() {
+        // Brokers label exchanges with their own abbreviations (`NEO` for Cboe
+        // Canada, whose MIC is NEOE), and the sync paths pass one through as the
+        // venue. None of them may silence a suffix that does resolve.
+        for junk in ["NEO", "TSX", "NASDAQ", "not-a-mic"] {
+            assert_eq!(
+                parse_symbol_with_known_exchange("SHOP.TO", Some(junk)),
+                ("SHOP", Some("XTSE")),
+                "{junk} is not a MIC and must not override the suffix"
+            );
+        }
+    }
+
+    #[test]
+    fn test_parse_symbol_with_known_exchange_leaves_unsuffixed_symbols_alone() {
+        // No suffix to argue about, whatever the venue says.
+        assert_eq!(
+            parse_symbol_with_known_exchange("AAPL", Some("NEOE")),
+            ("AAPL", None)
+        );
+        // `.B` is not in the Yahoo suffix table, so no rule reaches it.
+        assert_eq!(
+            parse_symbol_with_known_exchange("BRK.B", Some("XNYS")),
+            ("BRK.B", None)
+        );
     }
 
     #[test]

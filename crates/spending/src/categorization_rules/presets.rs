@@ -89,6 +89,8 @@ const PRESET_JSONS: &[(&str, &str)] = &[
     ("ca", include_str!("../../seeds/presets/ca.json")),
     ("gb", include_str!("../../seeds/presets/gb.json")),
     ("es", include_str!("../../seeds/presets/es.json")),
+    ("au", include_str!("../../seeds/presets/au.json")),
+    ("nz", include_str!("../../seeds/presets/nz.json")),
 ];
 
 /// Parse all bundled presets. Bad JSON (or schema-mismatched files) is logged
@@ -150,7 +152,7 @@ mod tests {
 
     #[test]
     fn bundled_presets_have_unique_keys_and_valid_regexes() {
-        for preset_id in ["us", "ca", "gb", "es"] {
+        for preset_id in ["us", "ca", "gb", "es", "au", "nz"] {
             let preset = load_preset(preset_id).expect("preset should load");
             assert_eq!(preset.preset_id, preset_id);
             assert!(!preset.rules.is_empty(), "preset {preset_id} has no rules");

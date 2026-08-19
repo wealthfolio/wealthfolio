@@ -1,12 +1,12 @@
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Toggle } from "@wealthfolio/ui/components/ui/toggle";
+import { AccountPurpose, accountSupportsPurpose } from "@/lib/constants";
+import { Account, ContributionLimit, DepositsCalculation } from "@/lib/types";
+import { useAmountFormatting } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { Account, ContributionLimit, DepositsCalculation } from "@/lib/types";
-import { AccountPurpose, accountSupportsPurpose } from "@/lib/constants";
+import { Toggle } from "@wealthfolio/ui/components/ui/toggle";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useContributionLimitMutations } from "../use-contribution-limit-mutations";
-import { formatAmount } from "@wealthfolio/ui";
 
 interface AccountSelectionProps {
   limit: ContributionLimit;
@@ -16,6 +16,7 @@ interface AccountSelectionProps {
 }
 
 export function AccountSelection({ limit, accounts, deposits, isLoading }: AccountSelectionProps) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>(
     limit.accountIds ? limit.accountIds.split(",") : [],
@@ -74,7 +75,10 @@ export function AccountSelection({ limit, accounts, deposits, isLoading }: Accou
                       </span>
                     ) : accountDeposit ? (
                       <span className="text-muted-foreground text-xs font-light">
-                        {formatAmount(accountDeposit.convertedAmount, deposits.baseCurrency)}{" "}
+                        {formatting.formatAmount(
+                          accountDeposit.convertedAmount,
+                          deposits.baseCurrency,
+                        )}{" "}
                         {t("settings:limits_contributed")}
                       </span>
                     ) : null}

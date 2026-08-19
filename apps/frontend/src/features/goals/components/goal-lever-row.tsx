@@ -2,16 +2,9 @@ import { MoneyInput } from "@wealthfolio/ui";
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
 
-const DEFAULT_SLIDER_GROWTH_MULTIPLE = 10;
-
-export function sliderMaxFor(
-  value: number,
-  baseMax: number,
-  increment: number,
-  maxGrowthMultiple = DEFAULT_SLIDER_GROWTH_MULTIPLE,
-) {
-  const steppedMax = Math.max(baseMax, Math.ceil(value / increment) * increment + increment);
-  return Math.min(baseMax * maxGrowthMultiple, steppedMax);
+export function sliderMaxFor(value: number, baseMax: number, increment: number) {
+  const valueInclusiveMax = Math.ceil((value + increment) / increment) * increment;
+  return Math.max(baseMax, valueInclusiveMax);
 }
 
 export function rateSliderMaxFor(
@@ -38,6 +31,7 @@ interface GoalLeverRowProps {
   suffix?: string;
   format: (value: number) => string;
   warning?: ReactNode;
+  inputWidthClassName?: string;
 }
 
 export function GoalLeverRow({
@@ -54,9 +48,14 @@ export function GoalLeverRow({
   suffix,
   format,
   warning,
+  inputWidthClassName,
 }: GoalLeverRowProps) {
   const inputScale = suffix === "%" ? 100 : 1;
-  const inputUpperBound = inputMax ?? max;
+  // Money fields have no natural hard cap (currencies vary by orders of
+  // magnitude, e.g. IDR vs USD), so typed amounts stay unclamped unless the
+  // caller passes an explicit inputMax. The slider itself stays bounded to a
+  // practical, value-relative range via `max`.
+  const inputUpperBound = inputMax ?? (kind === "money" ? Number.MAX_SAFE_INTEGER : max);
   // Sliders use a practical range; text inputs can allow a higher hard cap.
   const sliderUpperBound = Math.min(max, inputUpperBound);
   const clampedValue = Math.min(sliderUpperBound, Math.max(min, value));
@@ -113,7 +112,9 @@ export function GoalLeverRow({
           {hint && <div className="text-muted-foreground mt-1 text-xs leading-tight">{hint}</div>}
         </div>
         <div
-          className="bg-muted/70 flex h-8 w-32 items-center gap-1 rounded-md border px-2.5"
+          className={`bg-muted/70 flex h-8 items-center gap-1 rounded-md border px-2.5 ${
+            inputWidthClassName ?? (kind === "money" ? "w-44" : "w-32")
+          }`}
           onFocus={
             kind === "money"
               ? () => {

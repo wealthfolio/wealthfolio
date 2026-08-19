@@ -1,6 +1,5 @@
-import { useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { format } from "date-fns";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useDateFormatting } from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,7 +30,8 @@ import {
   TableHeader,
   TableRow,
 } from "@wealthfolio/ui/components/ui/table";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAccessTokens } from "../hooks/use-access-tokens";
 import { useAgentAudit } from "../hooks/use-agent-audit";
 
@@ -55,6 +55,7 @@ function outcomeVariant(outcome: string): "success" | "warning" | "destructive" 
 }
 
 export function AuditLogTable({ disabledNotice }: { disabledNotice?: string }) {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   const OUTCOME_OPTIONS = useMemo(
     () => [
@@ -204,7 +205,10 @@ export function AuditLogTable({ disabledNotice }: { disabledNotice?: string }) {
                   {items.map((entry) => (
                     <TableRow key={entry.id}>
                       <TableCell className="text-muted-foreground whitespace-nowrap text-sm">
-                        {format(new Date(entry.createdAt), "MMM d, HH:mm:ss")}
+                        {formatting.formatDateTime(new Date(entry.createdAt), {
+                          dateStyle: "medium",
+                          timeStyle: "medium",
+                        })}
                       </TableCell>
                       <TableCell className="font-mono text-xs">{entry.tool}</TableCell>
                       <TableCell>

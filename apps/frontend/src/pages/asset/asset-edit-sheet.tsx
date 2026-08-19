@@ -6,7 +6,6 @@ import { useCustomProviders } from "@/hooks/use-custom-providers";
 import { useMarketDataProviders } from "@/hooks/use-market-data-providers";
 import { useTaxonomies } from "@/hooks/use-taxonomies";
 import type { Asset, Quote } from "@/lib/types";
-import { formatPrice } from "@wealthfolio/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -26,6 +25,8 @@ import {
   SheetHeader,
   SheetTitle,
   Switch,
+  useAmountFormatting,
+  useDateFormatting,
 } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -51,12 +52,12 @@ import {
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wealthfolio/ui/components/ui/tabs";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
+import { toast } from "@wealthfolio/ui/components/ui/use-toast";
+import type { TFunction } from "i18next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Path, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 import * as z from "zod";
-import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { serializeProviderConfig } from "./asset-provider-config";
 import { useAssetProfileMutations } from "./hooks/use-asset-profile-mutations";
 
@@ -434,6 +435,9 @@ export function AssetEditSheet({
   onOpenChange,
   defaultTab = "general",
 }: AssetEditSheetProps) {
+  const amountFormatting = useAmountFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const EDIT_INSTRUMENT_TYPE_OPTIONS = useMemo(
     () =>
@@ -996,7 +1000,10 @@ export function AssetEditSheet({
                         <div className="grid grid-cols-3 gap-4 text-center">
                           <div>
                             <p className="text-xl font-semibold">
-                              {formatPrice(latestQuote.close, latestQuote.currency)}
+                              {amountFormatting.formatPrice(
+                                latestQuote.close,
+                                latestQuote.currency,
+                              )}
                             </p>
                             <p className="text-muted-foreground text-xs">
                               {t("asset:editSheet.latest_price")}
@@ -1004,10 +1011,10 @@ export function AssetEditSheet({
                           </div>
                           <div>
                             <p className="text-sm font-medium">
-                              {new Date(latestQuote.timestamp).toLocaleDateString()}
+                              {dateFormatting.formatDate(latestQuote.timestamp)}
                             </p>
                             <p className="text-muted-foreground text-xs">
-                              {new Date(latestQuote.timestamp).toLocaleTimeString([], {
+                              {dateFormatting.formatTime(latestQuote.timestamp, {
                                 hour: "2-digit",
                                 minute: "2-digit",
                               })}

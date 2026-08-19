@@ -1,8 +1,8 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
-import { format, isSameDay, startOfYear, subDays, subMonths, subYears } from "date-fns";
+import { isSameDay, startOfYear, subDays, subMonths, subYears } from "date-fns";
 import { DateRange as DayPickerDateRange } from "react-day-picker";
-import { useDateFnsLocale } from "../../hooks/use-date-fns-locale";
+import { useDateFormatting } from "../formatting-provider";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { cn } from "../../lib/utils";
 import { AnimatedToggleGroup } from "../ui/animated-toggle-group";
@@ -81,7 +81,7 @@ interface DateRangeSelectorProps {
 
 export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRangeSelectorProps) {
   const { t } = useTranslation();
-  const locale = useDateFnsLocale();
+  const formatting = useDateFormatting();
   const isMobile = useIsMobile();
   const [isCustomPickerOpen, setIsCustomPickerOpen] = React.useState(false);
   const [draftRange, setDraftRange] = React.useState<DateRange | undefined>(value);
@@ -126,7 +126,12 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
   };
 
   const formatRangeDate = (date: Date | undefined) =>
-    date ? format(date, "MMM d, yyyy", { locale }) : t("ui:dateRange.notSet", "Not set");
+    date
+      ? formatting.formatCalendarDate(
+          { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() },
+          { month: "short", day: "numeric", year: "numeric" },
+        )
+      : t("ui:dateRange.notSet", "Not set");
 
   const triggerButton = (
     <Button

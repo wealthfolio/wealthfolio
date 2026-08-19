@@ -68,7 +68,13 @@
     "colCurrent": "Current",
     "colTarget": "Target",
     "colDrift": "Drift",
-    "colAccount": "Account"
+    "colAccount": "Account",
+    "accountCount_one": "{{count}} account",
+    "accountCount_other": "{{count}} accounts",
+    "summary_one": "{{count}} holding · {{currency}}",
+    "summary_other": "{{count}} holdings · {{currency}}",
+    "summaryUpdated_one": "{{count}} holding · {{currency}} · Updated {{updatedAt}}",
+    "summaryUpdated_other": "{{count}} holdings · {{currency}} · Updated {{updatedAt}}"
   },
   "presets": {
     "currentAllocation": "Current allocation",

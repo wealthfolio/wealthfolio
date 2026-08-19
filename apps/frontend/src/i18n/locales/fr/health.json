@@ -242,6 +242,8 @@
       "title": "Ignorer ce problème ?",
       "message": "Cela masquera le problème de votre centre de santé. Il réapparaîtra si les données sous-jacentes changent.",
       "pendingText": "Masquage en cours..."
-    }
+    },
+    "affectedItems_one": "Élément concerné ({{count}})",
+    "affectedItems_other": "Éléments concernés ({{count}})"
   }
 }

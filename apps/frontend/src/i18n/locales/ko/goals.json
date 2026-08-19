@@ -251,6 +251,8 @@
       "retirement_age": "은퇴 연령",
       "desired_retirement_age_hint": "경제적으로 자유로워지고 싶은 나이입니다.",
       "retirement_age_hint": "은퇴하고 싶은 나이입니다.",
+      "horizon_age_fire": "계획 종료 연령",
+      "horizon_age_traditional": "기대 수명",
       "horizon_hint": "계획이 대상으로 하는 최대 연령입니다.",
       "monthly_contribution": "월 납입액",
       "monthly_contribution_hint": "은퇴 전까지 매달 추가로 납입할 금액입니다.",
@@ -671,7 +673,7 @@
     "per_month_suffix": "/월",
     "your_target_date": "목표 날짜",
     "status_setup_needed": "설정 필요",
-    "headline_setup_prefix": "",
+    "headline_setup_prefix": "진행 상황을",
     "headline_setup_emphasis": "추적",
     "headline_setup_suffix": "하려면 목표를 설정하세요 — {{title}}.",
     "status_reached": "달성함",
@@ -679,7 +681,7 @@
     "headline_reached_emphasis": "달성",
     "headline_reached_suffix": "했습니다 — {{title}}.",
     "status_on_track": "정상 진행 중",
-    "headline_on_track_prefix": "",
+    "headline_on_track_prefix": "현재",
     "headline_on_track_emphasis": "정상 진행 중",
     "headline_on_track_suffix": "이며, {{date}}까지 {{title}} 목표를 달성할 것으로 예상됩니다.",
     "status_at_risk": "위험",
@@ -687,7 +689,7 @@
     "headline_at_risk_emphasis": "근접했지만",
     "headline_at_risk_suffix": " {{date}}까지 완전히 충당되지는 않습니다.",
     "status_off_track": "목표 이탈",
-    "headline_off_track_prefix": "",
+    "headline_off_track_prefix": "현재",
     "headline_off_track_emphasis": "미달",
     "headline_off_track_suffix": "입니다 — {{title}} 목표는 {{date}}까지 충족되지 못할 것으로 예상됩니다.",
     "action": "작업",
@@ -707,7 +709,7 @@
     "low_range": "하단 범위 ({{rate}})",
     "legend_projected": "예상",
     "legend_target": "목표",
-    "legend_range": "범위 (±{{pct}}%)"
+    "legend_range": "범위 (±{{pct}})"
   },
   "milestones": {
     "kicker": "체크포인트",
@@ -750,7 +752,8 @@
       "gap_at_target_age": "목표 연령 기준 부족액",
       "money_lasts": "자금 유지",
       "paths_count": "{{count}}개 경로",
-      "not_run": "실행 안 함"
+      "not_run": "실행 안 함",
+      "paths_count_other": "{{count}}개 경로"
     },
     "results": {
       "base_plan": "기본 계획",
@@ -796,7 +799,8 @@
       "outcome": "결과",
       "fi_age": "경제적 자유 달성 연령",
       "extra_gap": "추가 격차",
-      "money_left": "잔여 자금"
+      "money_left": "잔여 자금",
+      "eyebrow_with_count_other": "이 계획을 무너뜨릴 수 있는 요인은? · 시나리오 {{count}}개"
     },
     "montecarlo": {
       "eyebrow": "시장 경로",
@@ -829,7 +833,8 @@
       "median_fi_age": "중앙값 경제적 자유 달성 연령",
       "market_paths_count": "시장 경로 {{count}}개",
       "retire": "은퇴",
-      "goal": "목표"
+      "goal": "목표",
+      "market_paths_count_other": "시장 경로 {{count}}개"
     },
     "moves": {
       "eyebrow": "계획에 가장 큰 영향을 주는 요인은?",

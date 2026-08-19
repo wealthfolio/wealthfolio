@@ -1,11 +1,11 @@
 /**
  * KPI strip rendered above the spending-tab chart: income / spending / saving / net.
  */
-import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import { Skeleton, formatCompactAmount } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
+import { Skeleton, useAmountFormatting } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 export interface CashFlowStripProps {
   income: number;
@@ -99,6 +99,7 @@ function KpiStat({
   tone: "success" | "destructive" | "muted" | "saving";
   href?: string;
 }) {
+  const formatting = useAmountFormatting();
   const { isBalanceHidden } = useBalancePrivacy();
   const toneClass =
     tone === "success"
@@ -113,7 +114,7 @@ function KpiStat({
       <span className="text-muted-foreground text-[11px] font-light tracking-wide">{label}</span>
       <span className={cn("text-sm font-medium tabular-nums", toneClass)}>
         {sign}
-        {isBalanceHidden ? "••••" : formatCompactAmount(value, currency)}
+        {isBalanceHidden ? "••••" : formatting.formatCompactAmount(value, currency)}
       </span>
     </>
   );

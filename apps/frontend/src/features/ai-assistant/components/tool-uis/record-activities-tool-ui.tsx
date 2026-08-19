@@ -18,11 +18,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  useDateFormatting,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import type { TFunction } from "i18next";
 import { memo, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 import { useRuntimeContext } from "../../hooks/use-runtime-context";
 import type {
   RecordActivitiesArgs,
@@ -131,6 +133,9 @@ function RecordActivitiesToolUIContentImpl({
   status,
   toolCallId,
 }: RecordActivitiesToolUIContentProps) {
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -141,8 +146,14 @@ function RecordActivitiesToolUIContentImpl({
     () => normalizeRecordActivitiesResult(result, baseCurrency),
     [baseCurrency, result],
   );
-  const amountFormatter = useMemo(() => createActivityAmountFormatter(), []);
-  const quantityFormatter = useMemo(() => createActivityQuantityFormatter(), []);
+  const amountFormatter = useMemo(
+    () => createActivityAmountFormatter(numberFormatting),
+    [numberFormatting],
+  );
+  const quantityFormatter = useMemo(
+    () => createActivityQuantityFormatter(numberFormatting),
+    [numberFormatting],
+  );
 
   const [localStatuses, setLocalStatuses] = useState<RecordActivitiesSubmissionStatus[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -326,7 +337,7 @@ function RecordActivitiesToolUIContentImpl({
                 return (
                   <TableRow key={row.rowIndex} className="text-xs">
                     <TableCell className="py-2 pl-4 tabular-nums">
-                      {formatActivityDate(row.draft.activityDate)}
+                      {formatActivityDate(row.draft.activityDate, dateFormatting)}
                     </TableCell>
                     <TableCell className="py-2">
                       <Badge

@@ -1,3 +1,4 @@
+import type { FormattingApi } from "@wealthfolio/ui";
 import type { AssetClassificationAssignmentPreview, AssetClassificationChanges } from "../../types";
 
 export interface AssetClassificationRemoveOperation {
@@ -69,9 +70,12 @@ export function buildAssetClassificationApplyPlan(
   };
 }
 
-export function formatBasisPoints(weightBasisPoints: number): string {
+export function formatBasisPoints(
+  weightBasisPoints: number,
+  formatting: Pick<FormattingApi, "formatDecimal">,
+): string {
   const percent = weightBasisPoints / 100;
-  return `${percent.toLocaleString(undefined, {
+  return `${formatting.formatDecimal(percent, {
     maximumFractionDigits: 2,
     minimumFractionDigits: Number.isInteger(percent) ? 0 : 2,
   })}%`;

@@ -646,7 +646,6 @@ export function CashActivityForm({
                             <MoneyInput
                               value={field.value}
                               onValueChange={(v: number | undefined) => field.onChange(v ?? 0)}
-                              placeholder="0.00"
                             />
                           </FormControl>
                           <FormMessage />

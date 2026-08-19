@@ -6,11 +6,11 @@
 import { useMemo, type FC } from "react";
 import { useTranslation } from "react-i18next";
 
-import { formatCompactAmount } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import type { Activity } from "@/lib/types";
-import { cn, formatAmount } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useAmountFormatting } from "@wealthfolio/ui";
 
 import { getActivitySpendingAmount } from "../../../lib/constants";
 import { createZonedDayHourFormatter, type ZonedDayHour } from "../../../lib/timezone";
@@ -161,6 +161,7 @@ function Row({
   onCellClick?: (weekday: number, startHour: number, endHour: number) => void;
   noSpendLabel: string;
 }) {
+  const formatting = useAmountFormatting();
   const cols = cells.length;
   const hoursPerCell = Math.max(1, Math.round(24 / cols));
   return (
@@ -183,7 +184,11 @@ function Row({
               ? formatHour(startHour)
               : `${formatHour(startHour)}–${formatHour(endHour + 1)}`;
           const label = `${day} ${range} · ${
-            amount > 0 ? (isBalanceHidden ? "••••" : formatAmount(amount, currency)) : noSpendLabel
+            amount > 0
+              ? isBalanceHidden
+                ? "••••"
+                : formatting.formatAmount(amount, currency)
+              : noSpendLabel
           }`;
           if (!onCellClick) {
             return (
@@ -216,7 +221,7 @@ function Row({
       >
         {!isPhone && <span className="bg-foreground/30 inline-block h-px w-6" />}
         <span className="font-medium">
-          {isBalanceHidden ? "••••" : formatCompactAmount(median, currency)}
+          {isBalanceHidden ? "••••" : formatting.formatCompactAmount(median, currency)}
         </span>
       </div>
     </>

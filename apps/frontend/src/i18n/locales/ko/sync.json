@@ -16,7 +16,8 @@
     "morePreview": "+{{count}}개 더",
     "settingUp": "설정 중...",
     "connectThisDevice": "이 기기 연결",
-    "enableDeviceSync": "기기 동기화 사용"
+    "enableDeviceSync": "기기 동기화 사용",
+    "morePreview_other": "+{{count}}개 더"
   },
   "status": {
     "syncError": "동기화 오류",
@@ -33,7 +34,10 @@
     "hoursAgo": "{{count}}시간 전",
     "daysAgo": "{{count}}일 전",
     "thisDevice": "이 기기",
-    "thisDeviceSuffix": "· 이 기기"
+    "thisDeviceSuffix": "· 이 기기",
+    "minutesAgo_other": "{{count}}분 전",
+    "hoursAgo_other": "{{count}}시간 전",
+    "daysAgo_other": "{{count}}일 전"
   },
   "engine": {
     "pauseSync": "동기화 일시 중지",

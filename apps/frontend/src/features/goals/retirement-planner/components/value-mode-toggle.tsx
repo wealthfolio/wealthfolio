@@ -1,4 +1,4 @@
-import { AnimatedToggleGroup, formatCompactAmount } from "@wealthfolio/ui";
+import { AnimatedToggleGroup, useAmountFormatting } from "@wealthfolio/ui";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import { useTranslation } from "react-i18next";
 
@@ -40,6 +40,7 @@ export function ValueModeTooltip({
   nominalValue: number;
   children: React.ReactNode;
 }) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const showingLabel =
     valueMode === "real" ? t("goals:value_mode.todays_value") : t("goals:value_mode.nominal");
@@ -59,7 +60,7 @@ export function ValueModeTooltip({
           {t("goals:value_mode.showing", { label: showingLabel })}
         </div>
         <div className="mt-1 tabular-nums">
-          {alternateLabel}: {formatCompactAmount(alternateValue, currency)}
+          {alternateLabel}: {formatting.formatCompactAmount(alternateValue, currency)}
         </div>
       </TooltipContent>
     </Tooltip>

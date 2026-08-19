@@ -129,7 +129,8 @@
     "andMore": "... 还有 {{count}} 个",
     "reviewActivities": "审核活动",
     "duration": "耗时:",
-    "inProgress": "进行中..."
+    "inProgress": "进行中...",
+    "andMore_other": "... 还有 {{count}} 个"
   },
   "syncHistory": {
     "title": "同步历史",
@@ -146,7 +147,8 @@
     "skipped": "已跳过",
     "warningsCount_one": "{{count}} 个警告",
     "warningsCount_other": "{{count}} 个警告",
-    "andMore": "+{{count}} 个"
+    "andMore": "+{{count}} 个",
+    "andMore_other": "+{{count}} 个"
   },
   "activity": {
     "syncingData": "正在同步您的数据...",

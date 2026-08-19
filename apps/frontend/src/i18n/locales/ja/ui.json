@@ -81,7 +81,13 @@
   },
   "datePicker": {
     "dateLabel": "日付",
-    "pick": "日付を選択"
+    "pick": "日付を選択",
+    "previousMonth": "前の月",
+    "nextMonth": "次の月",
+    "chooseMonth": "月を選択",
+    "chooseYear": "年を選択",
+    "previousYear": "前年",
+    "nextYear": "翌年"
   },
   "dateRange": {
     "pick": "期間を選択",

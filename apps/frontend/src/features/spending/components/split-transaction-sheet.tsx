@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useIsMobileViewport } from "@/hooks/use-platform";
+import type { TaxonomyCategory } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import {
   Button,
-  formatCurrencySymbol,
   Icons,
   Input,
   MoneyInput,
@@ -13,12 +15,9 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
+  useAmountFormatting,
 } from "@wealthfolio/ui";
-import { useIsMobileViewport } from "@/hooks/use-platform";
-import type { TaxonomyCategory } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
-import { QuickCategorizePopover, type QuickCategorizeScope } from "./quick-categorize-popover";
 import {
   canDistributeSplitCents,
   centsToAmount,
@@ -28,6 +27,7 @@ import {
 } from "../lib/split-utils";
 import type { TransactionRowVM } from "../lib/transactions-helpers";
 import type { NewActivitySplit } from "../types/cash-activity";
+import { QuickCategorizePopover, type QuickCategorizeScope } from "./quick-categorize-popover";
 
 const SPENDING_TAXONOMY = "spending_categories";
 const INCOME_TAXONOMY = "income_sources";
@@ -111,13 +111,14 @@ export function SplitTransactionSheet({
   onSave,
   onClear,
 }: SplitTransactionSheetProps) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const isMobile = useIsMobileViewport();
   const activity = row?.activity ?? null;
   const taxonomyId = taxonomyForBucket(activity?.cashFlowBucket);
   const totalCents = toCents(activity?.amount);
   const totalAmount = Math.abs(totalCents) / 100;
-  const currencySymbol = formatCurrencySymbol(activity?.currency);
+  const currencySymbol = formatting.formatCurrencySymbol(activity?.currency || "USD");
 
   const [lines, setLines] = useState<SplitLineState[]>([]);
   const [expandedNoteLineIds, setExpandedNoteLineIds] = useState<Set<string>>(new Set());
@@ -394,7 +395,6 @@ export function SplitTransactionSheet({
                         onValueChange={(value: number | undefined) =>
                           updateLine(line.id, { amount: value ?? undefined })
                         }
-                        placeholder="0.00"
                         className="bg-background hover:bg-muted !h-8 rounded-md px-2 pl-5 text-right text-sm shadow-none transition-colors focus-visible:ring-2 md:text-sm"
                       />
                     </div>

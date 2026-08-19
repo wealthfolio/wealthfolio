@@ -242,6 +242,7 @@
       "title": "忽略此问题？",
       "message": "这将在您的健康中心隐藏该问题。如果底层数据发生变化，它将重新出现。",
       "pendingText": "正在忽略……"
-    }
+    },
+    "affectedItems_other": "受影响的项目（{{count}}）"
   }
 }

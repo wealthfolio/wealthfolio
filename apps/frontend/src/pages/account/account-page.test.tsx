@@ -1,6 +1,3 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useQuery } from "@tanstack/react-query";
 import { getHoldingsList } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useRecalculatePortfolioMutation } from "@/hooks/use-calculate-portfolio";
@@ -19,6 +16,9 @@ import type {
 import { AccountType } from "@/lib/types";
 import { useActivitySearch } from "@/pages/activity/hooks/use-activity-search";
 import { useCalculatePerformanceHistory } from "@/pages/performance/hooks/use-performance-data";
+import { useQuery } from "@tanstack/react-query";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import AccountPage from "./account-page";
 
 vi.mock("@/adapters", () => ({
@@ -502,6 +502,7 @@ function createSettings(): Settings {
     theme: "light",
     font: "font-sans",
     language: "en",
+    formattingRegion: "US",
     baseCurrency: "USD",
     defaultReturnMetric: "twr",
     timezone: "America/Chicago",

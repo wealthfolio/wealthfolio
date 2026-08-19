@@ -1,7 +1,13 @@
-import { parseOccSymbol } from "@/lib/occ-symbol";
+import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
 import { safeDivide } from "@/lib/utils";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Badge, GainPercent } from "@wealthfolio/ui";
+import {
+  Badge,
+  GainPercent,
+  useNumberFormatting,
+  type FormattingApi,
+  useDateFormatting,
+} from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { DataTable } from "@wealthfolio/ui/components/ui/data-table";
 import { DataTableColumnHeader } from "@wealthfolio/ui/components/ui/data-table/data-table-column-header";
@@ -19,14 +25,22 @@ import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { HoldingType } from "@/lib/constants";
 import { getBaseHoldingPerformancePercent } from "@/lib/holding-performance";
 import { useSettingsContext } from "@/lib/settings-provider";
-import { Holding } from "@/lib/types";
-import { AmountDisplay, PriceDisplay, QuantityDisplay, formatPercent } from "@wealthfolio/ui";
+import { Holding, MonetaryValue } from "@/lib/types";
+import { AmountDisplay, PriceDisplay, QuantityDisplay } from "@wealthfolio/ui";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
+import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, type NavigateFunction } from "react-router-dom";
+import { HoldingsStatusSegmentedControl } from "./holdings-status-control";
+import { isCashHolding, isClosedPosition } from "./holdings-visibility";
+import type { HoldingsVisibilityFilter } from "./holdings-visibility";
+import {
+  getHoldingTypeFilterOption,
+  getHoldingTypeFilterValue,
+  getHoldingTypeTranslationKey,
+} from "./holdings-type-filter";
 
 // Helper function to get display value and currency based on toggle state
 const getDisplayValueAndCurrency = (
@@ -54,7 +68,7 @@ const getDisplayValueAndCurrency = (
 
 const getAveragePrice = (holding: Holding): number | null => {
   const costBasis = holding.costBasis?.local;
-  if (costBasis == null || holding.quantity === 0) {
+  if (isCashHolding(holding) || costBasis == null || holding.quantity === 0) {
     return null;
   }
 
@@ -67,19 +81,71 @@ const getAveragePrice = (holding: Holding): number | null => {
   return costUnits !== 0 ? costBasis / costUnits : null;
 };
 
+const getDisposedCostBasis = (holding: Holding): MonetaryValue | null => {
+  if (holding.returnBasis == null || holding.realizedGain == null) {
+    return null;
+  }
+
+  return {
+    local: holding.returnBasis.local - (holding.costBasis?.local ?? 0),
+    base: holding.returnBasis.base - (holding.costBasis?.base ?? 0),
+  };
+};
+
+const getClosingCashFlow = (holding: Holding): MonetaryValue | null => {
+  const costBasis = getDisposedCostBasis(holding);
+  if (costBasis == null || holding.realizedGain == null) {
+    return null;
+  }
+
+  return {
+    local: costBasis.local + holding.realizedGain.local,
+    base: costBasis.base + holding.realizedGain.base,
+  };
+};
+
+const CLOSED_POSITION_COLUMN_IDS = new Set([
+  "symbol",
+  "closedCostBasis",
+  "saleProceeds",
+  "closedRealizedPnl",
+  "realizedReturn",
+  "symbolName",
+  "holdingType",
+  "currency",
+  "actions",
+]);
+
+const CLOSED_ONLY_COLUMN_IDS = new Set([
+  "closedCostBasis",
+  "saleProceeds",
+  "closedRealizedPnl",
+  "realizedReturn",
+]);
+
 export const HoldingsTable = ({
   holdings,
   isLoading,
   onClassify,
+  visibilityFilters,
+  setVisibilityFilters,
+  showClosedPositions = true,
 }: {
   holdings: Holding[];
   isLoading: boolean;
   onClassify?: (holding: Holding) => void;
+  visibilityFilters?: HoldingsVisibilityFilter[];
+  setVisibilityFilters?: (value: HoldingsVisibilityFilter[]) => void;
+  showClosedPositions?: boolean;
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const formatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+  const navigate = useNavigate();
   const { isBalanceHidden } = useBalancePrivacy();
   const { settings } = useSettingsContext();
   const [showConvertedValues, setShowConvertedValues] = useState(false);
+  const isClosedView = visibilityFilters?.length === 1 && visibilityFilters[0] === "closed";
 
   const baseCurrency = settings?.baseCurrency ?? holdings[0]?.baseCurrency;
   const hasMultipleCurrencies = holdings.some((holding) => {
@@ -103,12 +169,16 @@ export const HoldingsTable = ({
 
   const uniqueTypesSet = new Set();
   const assetsTypes: { label: string; value: string }[] = holdings.reduce(
-    (result: { label: string; value: string }[], asset) => {
-      // Use taxonomy-based assetType classification
-      const type = asset.instrument?.classifications?.assetType?.name;
-      if (type && !uniqueTypesSet.has(type)) {
-        uniqueTypesSet.add(type);
-        result.push({ label: type.toUpperCase(), value: type });
+    (result: { label: string; value: string }[], holding) => {
+      const option = getHoldingTypeFilterOption(holding, t("holdings:cash"));
+      if (option && !uniqueTypesSet.has(option.value)) {
+        uniqueTypesSet.add(option.value);
+        result.push({
+          label: t(getHoldingTypeTranslationKey(option.value), {
+            defaultValue: option.fallbackLabel,
+          }).toLocaleUpperCase(i18n.resolvedLanguage),
+          value: option.value,
+        });
       }
       return result;
     },
@@ -123,30 +193,63 @@ export const HoldingsTable = ({
     },
   ];
 
+  const columns = getColumns(
+    t,
+    isBalanceHidden,
+    showConvertedValues,
+    formatting,
+    dateFormatting,
+    navigate,
+    onClassify,
+  ).filter((column) => {
+    if (!("id" in column) || column.id == null) return false;
+    return isClosedView
+      ? CLOSED_POSITION_COLUMN_IDS.has(column.id)
+      : !CLOSED_ONLY_COLUMN_IDS.has(column.id);
+  });
+
   return (
     <div className="flex h-full flex-col">
       <DataTable
         data={holdings}
-        columns={getColumns(t, isBalanceHidden, showConvertedValues, onClassify)}
+        columns={columns}
         searchBy="symbol"
         filters={filters}
         showColumnToggle={true}
-        storageKey="holdings-table-v2"
-        defaultColumnVisibility={{
-          currency: false,
-          symbolName: false,
-          holdingType: false,
-          avgPrice: false,
-          weight: false,
-          bookValue: false,
-          totalPnl: false,
-          unrealizedPnl: false,
-          realizedPnl: false,
-          income: false,
-          dayPnl: false,
-        }}
+        storageKey="holdings-table-v4"
+        defaultColumnVisibility={
+          isClosedView
+            ? {
+                currency: false,
+                holdingType: false,
+                symbolName: false,
+              }
+            : {
+                currency: false,
+                symbolName: false,
+                holdingType: false,
+                avgPrice: false,
+                weight: false,
+                bookValue: false,
+                totalPnl: false,
+                unrealizedPnl: false,
+                realizedPnl: false,
+                income: false,
+                dayPnl: false,
+              }
+        }
         defaultSorting={[{ id: "symbol", desc: false }]}
         scrollable={true}
+        pinRowsToTop={isCashHolding}
+        toolbarView={
+          visibilityFilters && setVisibilityFilters ? (
+            <HoldingsStatusSegmentedControl
+              value={visibilityFilters}
+              onChange={setVisibilityFilters}
+              showClosedPositions={showClosedPositions}
+            />
+          ) : undefined
+        }
         toolbarActions={
           <div className="mr-2 flex items-center gap-2">
             {hasMultipleCurrencies && (
@@ -189,6 +292,9 @@ const getColumns = (
   t: TFunction,
   isHidden: boolean,
   showConvertedValues: boolean,
+  formatting: Pick<FormattingApi, "formatPercent" | "formatDecimal">,
+  dateFormatting: Pick<FormattingApi, "formatCalendarDate">,
+  navigate: NavigateFunction,
   onClassify?: (holding: Holding) => void,
 ): ColumnDef<Holding>[] => [
   {
@@ -201,10 +307,10 @@ const getColumns = (
       label: t("holdings:position"),
     },
     cell: ({ row }) => {
-      const navigate = useNavigate();
       const holding = row.original;
       const symbol = holding.instrument?.symbol ?? holding.id;
       const isCash = holding.holdingType === HoldingType.CASH;
+      const isClosed = isClosedPosition(holding);
 
       // Parse OCC symbol for options
       const parsedOption = isCash ? null : parseOccSymbol(symbol);
@@ -217,7 +323,7 @@ const getColumns = (
 
       // Option subtitle: "Mar 29 $150 CALL"
       const optionSubtitle = parsedOption
-        ? `${new Date(parsedOption.expiration + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} $${parsedOption.strikePrice} ${parsedOption.optionType}`
+        ? formatOptionSubtitle(parsedOption, { ...formatting, ...dateFormatting })
         : null;
 
       const handleNavigate = () => {
@@ -233,21 +339,31 @@ const getColumns = (
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
               <span className="font-medium">{displaySymbol}</span>
-              {isManual && (
+              {isManual && !isCash && (
                 <Badge variant="secondary" className="h-4 px-1 py-0 text-[10px]">
                   {t("holdings:manual")}
                 </Badge>
               )}
+              {isClosed && (
+                <Badge variant="outline" className="h-4 px-1 py-0 text-[10px]">
+                  {t("holdings:closed")}
+                </Badge>
+              )}
             </div>
             <span className="text-muted-foreground line-clamp-1 text-xs">
-              {optionSubtitle ?? holding.instrument?.name ?? null}
+              {optionSubtitle ??
+                (isCash ? t("holdings:cash_balance") : holding.instrument?.name) ??
+                null}
             </span>
           </div>
         </div>
       );
 
       return (
-        <div className="-m-1 cursor-pointer p-1" onClick={handleNavigate}>
+        <div
+          className={isCash ? "-m-1 p-1" : "-m-1 cursor-pointer p-1"}
+          onClick={isCash ? undefined : handleNavigate}
+        >
           {content}
         </div>
       );
@@ -272,6 +388,146 @@ const getColumns = (
     enableHiding: false,
   },
   {
+    id: "closedCostBasis",
+    accessorFn: (row) => getDisposedCostBasis(row)?.base ?? 0,
+    enableHiding: true,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        className="justify-end text-right"
+        column={column}
+        title={t("holdings:cost_basis")}
+      />
+    ),
+    meta: {
+      label: t("holdings:cost_basis"),
+    },
+    cell: ({ row }) => {
+      const holding = row.original;
+      const costBasis = getDisposedCostBasis(holding);
+      if (costBasis == null) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
+
+      const value = showConvertedValues ? costBasis.base : costBasis.local;
+      const currency = showConvertedValues ? holding.baseCurrency : holding.localCurrency;
+      return (
+        <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
+          <AmountDisplay value={value} currency={currency} isHidden={isHidden} />
+          <div className="text-muted-foreground text-xs">{currency}</div>
+        </div>
+      );
+    },
+    sortingFn: (rowA, rowB) =>
+      (getDisposedCostBasis(rowA.original)?.base ?? 0) -
+      (getDisposedCostBasis(rowB.original)?.base ?? 0),
+  },
+  {
+    id: "saleProceeds",
+    accessorFn: (row) => getClosingCashFlow(row)?.base ?? 0,
+    enableHiding: true,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        className="justify-end text-right"
+        column={column}
+        title={t("holdings:closing_cash_flow")}
+      />
+    ),
+    meta: {
+      label: t("holdings:closing_cash_flow"),
+    },
+    cell: ({ row }) => {
+      const holding = row.original;
+      const cashFlow = getClosingCashFlow(holding);
+      if (cashFlow == null) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
+
+      const value = showConvertedValues ? cashFlow.base : cashFlow.local;
+      const currency = showConvertedValues ? holding.baseCurrency : holding.localCurrency;
+      return (
+        <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
+          <AmountDisplay value={value} currency={currency} isHidden={isHidden} />
+          <div className="text-muted-foreground text-xs">{currency}</div>
+        </div>
+      );
+    },
+    sortingFn: (rowA, rowB) =>
+      (getClosingCashFlow(rowA.original)?.base ?? 0) -
+      (getClosingCashFlow(rowB.original)?.base ?? 0),
+  },
+  {
+    id: "closedRealizedPnl",
+    accessorFn: (row) => row.realizedGain?.base ?? 0,
+    enableHiding: true,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        className="justify-end text-right"
+        column={column}
+        title={t("holdings:realized_pnl")}
+      />
+    ),
+    meta: {
+      label: t("holdings:realized_pnl"),
+    },
+    cell: ({ row }) => {
+      const holding = row.original;
+      if (holding.realizedGain == null) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
+
+      const value = showConvertedValues ? holding.realizedGain.base : holding.realizedGain.local;
+      const currency = showConvertedValues ? holding.baseCurrency : holding.localCurrency;
+      return (
+        <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
+          <AmountDisplay value={value} currency={currency} colorFormat={true} isHidden={isHidden} />
+          <div className="text-muted-foreground text-xs">{currency}</div>
+        </div>
+      );
+    },
+    sortingFn: (rowA, rowB) =>
+      (rowA.original.realizedGain?.base ?? 0) - (rowB.original.realizedGain?.base ?? 0),
+  },
+  {
+    id: "realizedReturn",
+    accessorFn: (row) => row.realizedGainPct ?? 0,
+    enableHiding: true,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        className="justify-end text-right"
+        column={column}
+        title={t("holdings:realized_return")}
+      />
+    ),
+    meta: {
+      label: t("holdings:realized_return"),
+    },
+    cell: ({ row }) => {
+      const holding = row.original;
+      const percentage = showConvertedValues
+        ? getBaseHoldingPerformancePercent(holding, "realizedGain")
+        : holding.realizedGainPct;
+
+      return (
+        <div className="flex min-h-[40px] items-center justify-end px-4">
+          {percentage == null ? (
+            <span className="text-muted-foreground">—</span>
+          ) : (
+            <HoldingPerformancePercent value={percentage} />
+          )}
+        </div>
+      );
+    },
+    sortingFn: (rowA, rowB) => {
+      const percentageA = showConvertedValues
+        ? getBaseHoldingPerformancePercent(rowA.original, "realizedGain")
+        : rowA.original.realizedGainPct;
+      const percentageB = showConvertedValues
+        ? getBaseHoldingPerformancePercent(rowB.original, "realizedGain")
+        : rowB.original.realizedGainPct;
+      return (percentageA ?? 0) - (percentageB ?? 0);
+    },
+  },
+  {
     id: "symbolName",
     accessorFn: (row) => row.instrument?.name || row.id,
     meta: {
@@ -294,22 +550,30 @@ const getColumns = (
       label: t("common:quantity"),
     },
     cell: ({ row }) => {
-      const symbol = row.original.instrument?.symbol ?? row.original.id;
+      const holding = row.original;
+      if (isCashHolding(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
+
+      const symbol = holding.instrument?.symbol ?? holding.id;
       const isOption = !!parseOccSymbol(symbol);
-      const assetTypeKey = row.original.instrument?.classifications?.assetType?.key ?? "";
+      const assetTypeKey = holding.instrument?.classifications?.assetType?.key ?? "";
       const isBond =
         assetTypeKey.startsWith("BOND_") ||
         assetTypeKey === "DEBT_SECURITY" ||
         assetTypeKey === "MONEY_MARKET_DEBT";
+      const isEtfOrFund = assetTypeKey === "ETF" || assetTypeKey === "FUND_MUTUAL";
       return (
         <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
-          <QuantityDisplay value={row.original.quantity} isHidden={isHidden} />
+          <QuantityDisplay value={holding.quantity} isHidden={isHidden} />
           <span className="text-muted-foreground text-xs">
             {isOption
               ? t("holdings:contracts")
               : isBond
                 ? t("holdings:bonds")
-                : t("holdings:shares")}
+                : isEtfOrFund
+                  ? t("holdings:units")
+                  : t("holdings:shares_label")}
           </span>
         </div>
       );
@@ -333,6 +597,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding) || isClosedPosition(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const price = holding.price ?? 0;
       const currency = holding.localCurrency;
       return (
@@ -398,6 +665,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding) || isClosedPosition(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = holding.costBasis?.local ?? 0;
       const currency = holding.localCurrency;
 
@@ -430,6 +700,14 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isClosedPosition(holding)) {
+        return (
+          <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
+            <span className="text-muted-foreground">—</span>
+            <span className="text-muted-foreground text-xs">{t("holdings:closed")}</span>
+          </div>
+        );
+      }
       const { value, currency } = getDisplayValueAndCurrency(
         holding,
         holding.marketValue.base,
@@ -469,12 +747,17 @@ const getColumns = (
     meta: {
       label: t("holdings:weight"),
     },
-    cell: ({ row }) => (
-      <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
-        <span className="font-medium tabular-nums">{formatPercent(row.original.weight ?? 0)}</span>
-        <div className="text-xs text-transparent">-</div>
-      </div>
-    ),
+    cell: ({ row }) =>
+      isClosedPosition(row.original) ? (
+        <div className="text-muted-foreground px-4 text-right">—</div>
+      ) : (
+        <div className="flex min-h-[40px] flex-col items-end justify-center px-4">
+          <span className="font-medium tabular-nums">
+            {formatting.formatPercent(row.original.weight ?? 0)}
+          </span>
+          <div className="text-xs text-transparent">-</div>
+        </div>
+      ),
     sortingFn: (rowA, rowB) => (rowA.original.weight ?? 0) - (rowB.original.weight ?? 0),
   },
   {
@@ -493,6 +776,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = showConvertedValues
         ? (holding.totalGain?.base ?? 0)
         : (holding.totalGain?.local ?? 0);
@@ -535,6 +821,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = showConvertedValues
         ? (holding.totalReturn?.base ?? 0)
         : (holding.totalReturn?.local ?? 0);
@@ -572,6 +861,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding) || isClosedPosition(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = showConvertedValues
         ? (holding.dayChange?.base ?? 0)
         : (holding.dayChange?.local ?? 0);
@@ -606,6 +898,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding) || isClosedPosition(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = showConvertedValues
         ? (holding.unrealizedGain?.base ?? 0)
         : (holding.unrealizedGain?.local ?? 0);
@@ -643,6 +938,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = showConvertedValues
         ? (holding.realizedGain?.base ?? 0)
         : (holding.realizedGain?.local ?? 0);
@@ -676,6 +974,9 @@ const getColumns = (
     },
     cell: ({ row }) => {
       const holding = row.original;
+      if (isCashHolding(holding)) {
+        return <div className="text-muted-foreground px-4 text-right">—</div>;
+      }
       const value = showConvertedValues
         ? (holding.income?.base ?? 0)
         : (holding.income?.local ?? 0);
@@ -696,14 +997,25 @@ const getColumns = (
   },
   {
     id: "holdingType",
-    accessorFn: (row) => row.instrument?.classifications?.assetType?.name,
+    accessorFn: getHoldingTypeFilterValue,
     meta: {
       label: t("holdings:asset_type"),
     },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={t("holdings:asset_type")} />
     ),
-    filterFn: "arrIncludesSome",
+    cell: ({ row }) => {
+      const option = getHoldingTypeFilterOption(row.original, t("holdings:cash"));
+      if (!option) return null;
+
+      return t(getHoldingTypeTranslationKey(option.value), {
+        defaultValue: option.fallbackLabel,
+      });
+    },
+    filterFn: (row, id, value: string[]) => {
+      const holdingType = row.getValue<string | undefined>(id);
+      return holdingType != null && value.includes(holdingType);
+    },
   },
   {
     id: "currency",
@@ -724,9 +1036,10 @@ const getColumns = (
     enableHiding: false,
     header: () => null,
     cell: ({ row }) => {
-      const navigate = useNavigate();
       const holding = row.original;
-      const hasInstrument = !!holding.instrument;
+      const hasInstrument = holding.holdingType !== HoldingType.CASH && !!holding.instrument;
+
+      if (!hasInstrument) return null;
 
       const handleNavigate = () => {
         // Use instrument.id (asset ID) for navigation, not symbol (which may be stripped)
@@ -745,7 +1058,7 @@ const getColumns = (
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {hasInstrument && onClassify && (
+              {onClassify && (
                 <DropdownMenuItem onClick={() => onClassify(holding)}>
                   <Icons.Tag className="mr-2 h-4 w-4" />
                   {t("holdings:classify")}

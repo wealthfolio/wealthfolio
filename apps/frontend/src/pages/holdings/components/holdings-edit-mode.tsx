@@ -1,11 +1,10 @@
-import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from "react";
-import { Trans, useTranslation } from "react-i18next";
-import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { Label } from "@wealthfolio/ui/components/ui/label";
-import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import { CurrencyInput, DatePickerInput, QuantityInput, MoneyInput } from "@wealthfolio/ui";
+import {
+  CurrencyInput,
+  DatePickerInput,
+  MoneyInput,
+  QuantityInput,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,24 +15,31 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@wealthfolio/ui/components/ui/alert-dialog";
+import { Button } from "@wealthfolio/ui/components/ui/button";
+import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { Label } from "@wealthfolio/ui/components/ui/label";
 import { ScrollArea } from "@wealthfolio/ui/components/ui/scroll-area";
-import { toast } from "sonner";
+import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { format, parseISO } from "date-fns";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
-import { TickerAvatar } from "@/components/ticker-avatar";
-import TickerSearchInput from "@/components/ticker-search";
 import {
-  saveManualHoldings,
-  getSnapshotByDate,
   deleteSnapshot,
+  getSnapshotByDate,
+  saveManualHoldings,
   type HoldingInput,
 } from "@/adapters";
-import { Holding, Account, SymbolSearchResult } from "@/lib/types";
+import { TickerAvatar } from "@/components/ticker-avatar";
+import TickerSearchInput from "@/components/ticker-search";
 import { getAssetIdFromSearchResult } from "@/lib/asset-utils";
 import { HoldingType } from "@/lib/constants";
+import { QueryKeys } from "@/lib/query-keys";
+import { Account, Holding, SymbolSearchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { QueryKeys } from "@/lib/query-keys";
 
 interface EditableHolding {
   assetId: string;
@@ -80,6 +86,7 @@ export const HoldingsEditMode = ({
   onClose,
   existingSnapshotDate,
 }: HoldingsEditModeProps) => {
+  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
@@ -495,7 +502,6 @@ export const HoldingsEditMode = ({
                             onValueChange={(value) =>
                               handleAverageCostChange(holding.assetId, value)
                             }
-                            placeholder="0.00"
                             className="h-8 text-sm"
                           />
                         </div>
@@ -508,7 +514,7 @@ export const HoldingsEditMode = ({
                               totalValue > 0 ? "text-foreground" : "text-muted-foreground",
                             )}
                           >
-                            {totalValue.toLocaleString(undefined, {
+                            {formatting.formatDecimal(totalValue, {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}
@@ -625,7 +631,6 @@ export const HoldingsEditMode = ({
                           }}
                           value={cash.amount}
                           onValueChange={(value) => handleCashAmountChange(cash.currency, value)}
-                          placeholder="0.00"
                           className="h-8 text-sm"
                         />
                       </div>

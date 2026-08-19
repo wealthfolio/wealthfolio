@@ -1,6 +1,11 @@
-import type { CashAuditReviewTarget } from "@/pages/account/cash-audit";
 import type { ActivityDetails } from "@/lib/types";
-import { Icons } from "@wealthfolio/ui";
+import type { CashAuditReviewTarget } from "@/pages/account/cash-audit";
+import {
+  Icons,
+  calendarDateFromLocalDate,
+  useDateFormatting,
+  type FormattingApi,
+} from "@wealthfolio/ui";
 import {
   Sheet,
   SheetContent,
@@ -8,9 +13,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@wealthfolio/ui/components/ui/sheet";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
-import { parseLocalDate } from "@/lib/utils";
 import { ActivityDateList } from "./activity-date-list";
 
 interface ActivityDateSheetProps {
@@ -35,12 +39,15 @@ export function ActivityDateSheet({
   cashAuditTarget,
 }: ActivityDateSheetProps) {
   const { t } = useTranslation();
+  const formatting = useDateFormatting();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex h-full w-full flex-col p-0 sm:max-w-xl">
         <SheetHeader className="border-b px-6 py-4">
           <SheetTitle>
-            {t("activity:date_sheet.title", { date: date ? formatActivityDate(date) : "" })}
+            {t("activity:date_sheet.title", {
+              date: date ? formatActivityDate(date, formatting) : "",
+            })}
           </SheetTitle>
           <SheetDescription>
             {t("activity:date_sheet.count", { count: activities.length })}
@@ -65,12 +72,17 @@ export function ActivityDateSheet({
   );
 }
 
-function formatActivityDate(date: string): string {
+function formatActivityDate(
+  date: string,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+): string {
   try {
-    return format(parseLocalDate(date), "MMMM d, yyyy");
+    return formatting.formatCalendarDate(date, { dateStyle: "long" });
   } catch {
     try {
-      return format(parseISO(date), "MMMM d, yyyy");
+      return formatting.formatCalendarDate(calendarDateFromLocalDate(parseISO(date)), {
+        dateStyle: "long",
+      });
     } catch {
       return date;
     }

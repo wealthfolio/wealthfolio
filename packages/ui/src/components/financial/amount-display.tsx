@@ -1,4 +1,5 @@
-import { cn, formatAmount } from "../../lib/utils";
+import { cn } from "../../lib/utils";
+import { useAmountFormatting } from "../formatting-provider";
 
 interface AmountDisplayProps {
   value: number;
@@ -19,6 +20,7 @@ export function AmountDisplay({
   invertColor = false,
   className,
 }: AmountDisplayProps) {
+  const { formatAmount } = useAmountFormatting();
   const formattedAmount = formatAmount(value, currency, displayCurrency);
   const positive = invertColor ? "text-destructive" : "text-success";
   const negative = invertColor ? "text-success" : "text-destructive";

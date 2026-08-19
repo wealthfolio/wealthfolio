@@ -13,6 +13,7 @@ import { Account, AccountScope, HoldingCategoryFilterId } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { AnimatedToggleGroup, ScrollArea, Separator } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
+import { DEFAULT_HOLDINGS_VISIBILITY, type HoldingsVisibilityFilter } from "./holdings-visibility";
 
 type PerformanceMode = "daily" | "pnl" | "return";
 
@@ -40,6 +41,9 @@ interface HoldingsMobileFilterSheetProps {
   categoryFilter?: HoldingCategoryFilterId;
   setCategoryFilter?: (value: HoldingCategoryFilterId) => void;
   typeOptions?: { value: string; label: string }[];
+  visibilityFilters?: HoldingsVisibilityFilter[];
+  setVisibilityFilters?: (value: HoldingsVisibilityFilter[]) => void;
+  showClosedPositions?: boolean;
 }
 
 export const HoldingsMobileFilterSheet = ({
@@ -59,8 +63,16 @@ export const HoldingsMobileFilterSheet = ({
   categoryFilter = "investments",
   setCategoryFilter,
   typeOptions,
+  visibilityFilters = DEFAULT_HOLDINGS_VISIBILITY,
+  setVisibilityFilters,
+  showClosedPositions = true,
 }: HoldingsMobileFilterSheetProps) => {
   const { t } = useTranslation();
+  const visibilityOptions: { value: HoldingsVisibilityFilter; label: string }[] = [
+    { value: "open", label: t("holdings:open") },
+    ...(showClosedPositions ? [{ value: "closed" as const, label: t("holdings:closed") }] : []),
+  ];
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -109,6 +121,38 @@ export const HoldingsMobileFilterSheet = ({
             </div>
 
             <Separator />
+
+            {/* Position visibility */}
+            {setVisibilityFilters && showClosedPositions && (
+              <div className="space-y-3">
+                <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                  {t("common:status")}
+                </h4>
+                <div className="overflow-hidden rounded-lg border">
+                  {visibilityOptions.map((option, index) => {
+                    const isSelected = visibilityFilters.includes(option.value);
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={isSelected}
+                        className={cn(
+                          "flex w-full items-center justify-between p-3 text-left text-sm transition-colors",
+                          index > 0 && "border-t",
+                          isSelected ? "bg-accent/50 font-medium" : "hover:bg-muted/50",
+                        )}
+                        onClick={() => setVisibilityFilters([option.value])}
+                      >
+                        <span>{option.label}</span>
+                        {isSelected && <Icons.Check className="text-primary h-4 w-4" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {setVisibilityFilters && showClosedPositions && <Separator />}
 
             {/* Category Filter Section */}
             {setCategoryFilter && (
@@ -228,7 +272,7 @@ export const HoldingsMobileFilterSheet = ({
             )}
 
             {/* Asset Type Filter Section */}
-            {typeOptions && typeOptions.length > 0 && (
+            {((typeOptions?.length ?? 0) > 0 || selectedTypes.length > 0) && (
               <div className="space-y-3">
                 <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
                   {t("holdings:asset_type")}
@@ -247,7 +291,7 @@ export const HoldingsMobileFilterSheet = ({
                     <span>{t("holdings:all_types")}</span>
                     {selectedTypes.length === 0 && <Icons.Check className="text-primary h-4 w-4" />}
                   </div>
-                  {typeOptions.map((type) => (
+                  {(typeOptions ?? []).map((type) => (
                     <div
                       key={type.value}
                       className={cn(

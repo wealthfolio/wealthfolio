@@ -1,4 +1,5 @@
-import { format, parseISO } from "date-fns";
+import type { FormattingApi } from "@wealthfolio/ui";
+import { parseISO } from "date-fns";
 
 export function getActivityTypeBadge(activityType: string): {
   variant: "default" | "secondary" | "destructive" | "success";
@@ -30,33 +31,48 @@ export function formatActivityType(activityType: string): string {
   return activityType.replace(/_/g, " ");
 }
 
-export function formatActivityDate(dateString: string): string {
+export function formatActivityDate(
+  dateString: string,
+  formatting: Pick<FormattingApi, "formatDate">,
+): string {
   try {
-    return format(parseISO(dateString), "MMM d, yyyy");
+    return formatting.formatDate(parseISO(dateString));
   } catch {
     return dateString;
   }
 }
 
-export function createActivityAmountFormatter(): Intl.NumberFormat {
-  return new Intl.NumberFormat(undefined, {
-    style: "decimal",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+interface ValueFormatter {
+  format(value: number): string;
 }
 
-export function createActivityQuantityFormatter(): Intl.NumberFormat {
-  return new Intl.NumberFormat(undefined, {
-    style: "decimal",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
-  });
+export function createActivityAmountFormatter(
+  formatting: Pick<FormattingApi, "formatDecimal">,
+): ValueFormatter {
+  return {
+    format: (value) =>
+      formatting.formatDecimal(value, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+  };
+}
+
+export function createActivityQuantityFormatter(
+  formatting: Pick<FormattingApi, "formatDecimal">,
+): ValueFormatter {
+  return {
+    format: (value) =>
+      formatting.formatDecimal(value, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 4,
+      }),
+  };
 }
 
 export function formatActivityAmount(
   value: number | null | undefined,
-  formatter: Intl.NumberFormat,
+  formatter: ValueFormatter,
   isHidden: boolean,
   currency?: string,
 ): string {
@@ -68,7 +84,7 @@ export function formatActivityAmount(
 
 export function formatActivityQuantity(
   value: number | null | undefined,
-  formatter: Intl.NumberFormat,
+  formatter: ValueFormatter,
   isHidden: boolean,
 ): string {
   if (value == null) return "-";

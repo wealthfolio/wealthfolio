@@ -8,7 +8,7 @@ description = "BUY/SELL/DIVIDEND/DEPOSIT drafting flows."
 [[case]]
 id = "buy_with_account_specified"
 description = "Single BUY with account named — should draft directly, not ask"
-prompt = "Buy 20 AAPL at 240 today in my Taxable account"
+prompt = "Record a BUY of 20 AAPL at 240 today in my Taxable account"
 severity = "P0"
 tags = ["smoke", "recording"]
 
@@ -32,7 +32,7 @@ record_activity = 1
 [[case]]
 id = "deposit_minimal_args"
 description = "DEPOSIT with amount only, no symbol needed"
-prompt = "Deposit $5000 to my Roth IRA today"
+prompt = "Record a $5000 deposit to my Roth IRA today"
 severity = "P0"
 tags = ["smoke", "recording"]
 

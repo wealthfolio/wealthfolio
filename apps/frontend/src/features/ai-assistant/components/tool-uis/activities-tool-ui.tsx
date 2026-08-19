@@ -1,3 +1,6 @@
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useSettingsContext } from "@/lib/settings-provider";
+import { cn } from "@/lib/utils";
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import {
@@ -13,12 +16,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  useDateFormatting,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { useSettingsContext } from "@/lib/settings-provider";
 import {
   CompactToolCard,
   createActivityAmountFormatter,
@@ -171,6 +173,9 @@ type ActivitiesContentProps = ToolCallMessagePartProps<
 const ActivitiesContent = memo(ActivitiesContentImpl);
 
 function ActivitiesContentImpl({ args, result, status }: ActivitiesContentProps) {
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -187,8 +192,14 @@ function ActivitiesContentImpl({ args, result, status }: ActivitiesContentProps)
     });
   }, [parsed?.activities]);
 
-  const formatter = useMemo(() => createActivityAmountFormatter(), []);
-  const quantityFormatter = useMemo(() => createActivityQuantityFormatter(), []);
+  const formatter = useMemo(
+    () => createActivityAmountFormatter(numberFormatting),
+    [numberFormatting],
+  );
+  const quantityFormatter = useMemo(
+    () => createActivityQuantityFormatter(numberFormatting),
+    [numberFormatting],
+  );
 
   const accountScope = parsed?.accountScope ?? args?.accountId ?? "all";
   // Show account name instead of ID when filtering a single account
@@ -333,7 +344,7 @@ function ActivitiesContentImpl({ args, result, status }: ActivitiesContentProps)
                 return (
                   <TableRow key={activity.id} className="text-xs">
                     <TableCell className="py-2 pl-4 font-medium tabular-nums">
-                      {formatActivityDate(activity.date)}
+                      {formatActivityDate(activity.date, dateFormatting)}
                     </TableCell>
                     <TableCell className="py-2">
                       <Badge

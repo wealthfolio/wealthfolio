@@ -1,7 +1,12 @@
-import { useEffect } from "react";
-import { useForm, type Resolver } from "react-hook-form";
-import { useTranslation } from "react-i18next";
 import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  DatePickerInput,
+  MoneyInput,
+  useAmountFormatting,
+  type FormattingApi,
+  useDateFormatting,
+} from "@wealthfolio/ui";
+import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -18,18 +23,19 @@ import {
   FormLabel,
   FormMessage,
 } from "@wealthfolio/ui/components/ui/form";
-import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { MoneyInput, DatePickerInput } from "@wealthfolio/ui";
+import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
+import { useEffect } from "react";
+import { useForm, type Resolver } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 
+import {} from "@/lib/utils";
+import { useAlternativeAssetMutations } from "../hooks/use-alternative-asset-mutations";
 import {
+  getUpdateValuationDefaultValues,
   updateValuationSchema,
   type UpdateValuationFormValues,
-  getUpdateValuationDefaultValues,
 } from "./update-valuation-schema";
-import { useAlternativeAssetMutations } from "../hooks/use-alternative-asset-mutations";
-import { formatAmount } from "@/lib/utils";
 
 interface UpdateValuationModalProps {
   /** Whether the modal is open */
@@ -61,6 +67,8 @@ export function UpdateValuationModal({
   lastUpdatedDate,
   currency,
 }: UpdateValuationModalProps) {
+  const dateFormatting = useDateFormatting();
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const { updateValuationMutation } = useAlternativeAssetMutations({
     onUpdateSuccess: () => {
@@ -99,10 +107,10 @@ export function UpdateValuationModal({
   const isLoading = updateValuationMutation.isPending;
 
   // Format the current value for display
-  const formattedCurrentValue = formatAmount(parseFloat(currentValue) || 0, currency);
+  const formattedCurrentValue = formatting.formatAmount(parseFloat(currentValue) || 0, currency);
 
   // Format the last updated date for display
-  const formattedLastUpdatedDate = formatDisplayDate(lastUpdatedDate);
+  const formattedLastUpdatedDate = formatDisplayDate(lastUpdatedDate, dateFormatting);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -139,7 +147,6 @@ export function UpdateValuationModal({
                         name={field.name}
                         value={field.value}
                         onValueChange={field.onChange}
-                        placeholder="0.00"
                       />
                     </FormControl>
                     <FormMessage />
@@ -220,11 +227,13 @@ function formatDateToISO(date: Date): string {
 /**
  * Helper to format ISO date string for display
  */
-function formatDisplayDate(isoDate: string): string {
+function formatDisplayDate(
+  isoDate: string,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+): string {
   if (!isoDate) return "N/A";
   try {
-    const date = new Date(isoDate + "T00:00:00");
-    return date.toLocaleDateString(undefined, {
+    return formatting.formatCalendarDate(isoDate, {
       year: "numeric",
       month: "short",
       day: "numeric",

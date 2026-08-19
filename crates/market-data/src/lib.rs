@@ -73,7 +73,7 @@ pub use resolver::{
     exchanges_for_currency, get_exchange_list, mic_to_currency, mic_to_exchange_name,
     strip_yahoo_suffix, yahoo_equity_base_to_provider, yahoo_equity_provider_symbol_to_canonical,
     yahoo_equity_search_queries, yahoo_exchange_suffixes, yahoo_exchange_to_mic,
-    yahoo_suffix_to_mic, AssetResolver, ExchangeInfo, ExchangeMap, ExchangeSuffix,
+    yahoo_suffix_to_mic, AssetResolver, ExchangeInfo, ExchangeMap, ExchangeSuffix, ProfileMismatch,
     ResolutionSource, ResolvedInstrument, Resolver, ResolverChain, RulesResolver, SymbolResolver,
 };
 

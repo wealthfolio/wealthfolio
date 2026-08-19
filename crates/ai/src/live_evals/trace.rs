@@ -53,6 +53,9 @@ impl ToolTrace {
                 self.had_error = true;
                 self.error_message = Some(message.clone());
             }
+            AiStreamEvent::Done { message, .. } => {
+                self.final_text = message.content.get_text_content();
+            }
             _ => {}
         }
     }

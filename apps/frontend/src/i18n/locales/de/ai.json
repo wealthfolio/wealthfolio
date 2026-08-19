@@ -140,7 +140,11 @@
     "emptyHint": "Fügen Sie in den Einstellungen Konten hinzu, um Ihre Anlagen zu verfolgen.",
     "error": "Konten konnten nicht geladen werden",
     "currencyCount": "{{count}} {{currency}}",
-    "unknown": "Unbekannt"
+    "unknown": "Unbekannt",
+    "currencyCount_one": "{{count}} {{currency}}",
+    "currencyCount_other": "{{count}} {{currency}}",
+    "of_one": "von {{count}}",
+    "of_other": "von {{count}}"
   },
   "activities": {
     "fetched_one": "{{count}} Aktivität abgerufen",
@@ -242,7 +246,15 @@
     "loadedTaxonomies": "{{count}} Anlage-Taxonomien geladen",
     "loadingClassifications": "Klassifizierungen werden geladen...",
     "couldNotLoadClassifications": "Klassifizierungen konnten nicht geladen werden.",
-    "loadedClassifications": "{{count}} Klassifizierungen für {{asset}} geladen"
+    "loadedClassifications": "{{count}} Klassifizierungen für {{asset}} geladen",
+    "loadedCategoriesTotal_one": "{{count}} Kategorie für {{taxonomy}} geladen · {{total}} insgesamt",
+    "loadedCategoriesTotal_other": "{{count}} Kategorien für {{taxonomy}} geladen · {{total}} insgesamt",
+    "loadedCategories_one": "{{count}} Kategorie für {{taxonomy}} geladen",
+    "loadedCategories_other": "{{count}} Kategorien für {{taxonomy}} geladen",
+    "loadedTaxonomies_one": "{{count}} Anlage-Taxonomie geladen",
+    "loadedTaxonomies_other": "{{count}} Anlage-Taxonomien geladen",
+    "loadedClassifications_one": "{{count}} Klassifizierung für {{asset}} geladen",
+    "loadedClassifications_other": "{{count}} Klassifizierungen für {{asset}} geladen"
   },
   "categorization": {
     "categorizing": "Ihre Transaktionen werden kategorisiert…",
@@ -269,7 +281,13 @@
     "transactionsCategorized_other": "{{count}} Transaktionen kategorisiert",
     "categoriesSaved": "Kategorien in Ihren Transaktionen gespeichert.",
     "apply": "Anwenden",
-    "applySelected": "{{count}} ausgewählte anwenden"
+    "applySelected": "{{count}} ausgewählte anwenden",
+    "selected_one": "{{count}} ausgewählt",
+    "selected_other": "{{count}} ausgewählt",
+    "needsManualChoice_one": "Erfordert manuelle Auswahl ({{count}})",
+    "needsManualChoice_other": "Erfordert manuelle Auswahl ({{count}})",
+    "applySelected_one": "{{count}} ausgewähltes Element anwenden",
+    "applySelected_other": "{{count}} ausgewählte anwenden"
   },
   "importReview": {
     "all": "Alle",
@@ -310,7 +328,11 @@
     "count_one": "{{count}} Ziel",
     "count_other": "{{count}} Ziele",
     "of": "von {{count}}",
-    "achieved": "{{count}} erreicht"
+    "achieved": "{{count}} erreicht",
+    "of_one": "von {{count}}",
+    "of_other": "von {{count}}",
+    "achieved_one": "{{count}} erreicht",
+    "achieved_other": "{{count}} erreicht"
   },
   "holdings": {
     "fetched_one": "{{count}} Position abgerufen",
@@ -358,7 +380,9 @@
     "statsSummary": "{{valid}} gültig · {{warning}} Warnungen · {{errors}} Fehler · {{duplicates}} Duplikate",
     "revalidate": "Neu validieren",
     "import_one": "{{count}} Aktivität importieren",
-    "import_other": "{{count}} Aktivitäten importieren"
+    "import_other": "{{count}} Aktivitäten importieren",
+    "mappedColumns_one": "{{count}} Spalte zugeordnet. ",
+    "mappedColumns_other": "{{count}} Spalten zugeordnet. "
   },
   "mapping": {
     "usingSavedTemplate": "Gespeicherte Vorlage wird verwendet",
@@ -443,7 +467,19 @@
     "status": "Status",
     "createdSummary": "{{created}} Zeile(n) erstellt, {{errors}} Fehler.",
     "confirmActivities": "{{count}} Aktivitäten bestätigen",
-    "confirmActivitiesEmpty": "Aktivitäten bestätigen"
+    "confirmActivitiesEmpty": "Aktivitäten bestätigen",
+    "readyCount_one": "{{count}} bereit",
+    "readyCount_other": "{{count}} bereit",
+    "rows_one": "Zeile: {{count}}",
+    "rows_other": "Zeilen: {{count}}",
+    "valid_one": "Gültig: {{count}}",
+    "valid_other": "Gültig: {{count}}",
+    "errors_one": "Fehler: {{count}}",
+    "errors_other": "Fehler: {{count}}",
+    "willCreate_one": "Wird erstellt: {{count}}",
+    "willCreate_other": "Wird erstellt: {{count}}",
+    "confirmActivities_one": "{{count}} Aktivität bestätigen",
+    "confirmActivities_other": "{{count}} Aktivitäten bestätigen"
   },
   "recordActivity": {
     "invalidDate": "Ungültiges Datum",

@@ -81,7 +81,13 @@
   },
   "datePicker": {
     "dateLabel": "Datum",
-    "pick": "Datum auswählen"
+    "pick": "Datum auswählen",
+    "previousMonth": "Vorheriger Monat",
+    "nextMonth": "Nächster Monat",
+    "chooseMonth": "Monat auswählen",
+    "chooseYear": "Jahr auswählen",
+    "previousYear": "Vorheriges Jahr",
+    "nextYear": "Nächstes Jahr"
   },
   "dateRange": {
     "pick": "Datumsbereich auswählen",

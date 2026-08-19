@@ -20,7 +20,7 @@ use super::auto_classification::{
     AutoClassificationService, ClassificationInput, ProviderProfileClassification,
 };
 use super::{
-    asset_provider_alias_symbols, parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix,
+    asset_provider_alias_symbols, parse_crypto_pair_symbol, parse_symbol_with_known_exchange,
     AssetResolutionInput, AssetResolutionOutput,
 };
 use crate::errors::{DatabaseError, Error, Result};
@@ -1430,7 +1430,12 @@ impl AssetServiceTrait for AssetService {
                 continue;
             }
 
-            let (base_symbol, suffix_mic) = parse_symbol_with_exchange_suffix(&resolution_symbol);
+            // The venue the caller supplied decides whether a trailing `.X` is an
+            // exchange suffix or part of the ticker. A broker sending `ZAAA.F` with
+            // Cboe Canada means the hedged unit class, not a Frankfurt listing, and
+            // stripping the class resolves quotes for a different fund entirely.
+            let (base_symbol, suffix_mic) =
+                parse_symbol_with_known_exchange(&resolution_symbol, input.exchange_mic.as_deref());
             let has_import_market_hint = input
                 .exchange_mic
                 .as_deref()
@@ -3474,6 +3479,49 @@ mod tests {
             output.quote_ccy_source,
             Some(QuoteCcyResolutionSource::ProviderQuote)
         );
+    }
+
+    #[tokio::test]
+    async fn resolution_keeps_a_share_class_the_venue_contradicts() {
+        // A broker sending `ZAAA.F` on Cboe Canada means BMO's currency-hedged unit
+        // class. `.F` is Yahoo's Frankfurt suffix, so stripping it resolved `ZAAA` —
+        // the unhedged listing, a different fund quoting ~4% away. Observed live in 33
+        // activity records on 2026-07-30. The venue we were handed is the evidence that
+        // `.F` is not a venue.
+        let service = test_asset_service(Vec::new(), TestQuoteService::default());
+        let mut input = import_input("ZAAA.F", "CAD");
+        input.exchange_mic = Some("NEOE".to_string());
+
+        let output = service
+            .resolve_import_asset_inputs(vec![input])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        assert_eq!(output.canonical_symbol.as_deref(), Some("ZAAA.F"));
+        assert_eq!(output.exchange_mic.as_deref(), Some("NEOE"));
+        let draft = output.draft.expect("draft for an unseen instrument");
+        assert_eq!(draft.instrument_symbol.as_deref(), Some("ZAAA.F"));
+        assert_eq!(draft.instrument_exchange_mic.as_deref(), Some("NEOE"));
+    }
+
+    #[tokio::test]
+    async fn resolution_still_strips_a_suffix_the_venue_agrees_with() {
+        // The ordinary case, unchanged: the venue and the suffix say the same thing.
+        let service = test_asset_service(Vec::new(), TestQuoteService::default());
+        let mut input = import_input("SHOP.TO", "CAD");
+        input.exchange_mic = Some("XTSE".to_string());
+
+        let output = service
+            .resolve_import_asset_inputs(vec![input])
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        assert_eq!(output.canonical_symbol.as_deref(), Some("SHOP"));
+        assert_eq!(output.exchange_mic.as_deref(), Some("XTSE"));
     }
 
     #[tokio::test]

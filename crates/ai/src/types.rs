@@ -23,8 +23,8 @@ pub const CHAT_CONTENT_SCHEMA_VERSION: u32 = 1;
 /// Current schema version for thread config snapshot.
 pub const CHAT_CONFIG_SCHEMA_VERSION: u32 = 1;
 
-/// Default tools allowed. Includes read-only tools and safe mutation tools
-/// (`record_activity`/`record_activities` require explicit user confirmation before creating).
+/// Default provider-level tools. Activity tools create editable drafts that
+/// still require explicit user confirmation before persistence.
 pub const DEFAULT_TOOLS_ALLOWLIST: &[&str] = &[
     "get_holdings",
     "get_accounts",
@@ -122,8 +122,9 @@ pub const CHAT_MAX_CONTENT_SIZE_BYTES: usize = 256 * 1024;
 
 /// Per-thread agent configuration snapshot.
 ///
-/// Captures the model, prompt template, and tool allowlist at thread creation.
-/// This enables deterministic replay and debugging of conversations.
+/// Captures the model, built-in live prompt identity, and provider tool
+/// allowlist. The serialized prompt field names are retained for compatibility;
+/// they do not select an alternate prompt path.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatThreadConfig {
@@ -136,10 +137,10 @@ pub struct ChatThreadConfig {
     /// Model ID (e.g., "gpt-4o", "claude-3-sonnet").
     pub model_id: String,
 
-    /// Prompt template ID.
+    /// Built-in live prompt ID (legacy serialized name: `promptTemplateId`).
     pub prompt_template_id: String,
 
-    /// Prompt template version.
+    /// Built-in live prompt version.
     pub prompt_version: String,
 
     /// Locale for formatting and language.
@@ -151,32 +152,27 @@ pub struct ChatThreadConfig {
     pub detail_level: Option<String>,
 
     /// Allowlist of tool names that can be used in this thread.
-    /// If None, uses default read-only tools.
+    /// If None, uses the provider-level default tools.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tools_allowlist: Option<Vec<String>>,
 }
 
 impl ChatThreadConfig {
     /// Create a new config with default settings.
-    pub fn new(
-        provider_id: &str,
-        model_id: &str,
-        template_id: &str,
-        template_version: &str,
-    ) -> Self {
+    pub fn new(provider_id: &str, model_id: &str, prompt_id: &str, prompt_version: &str) -> Self {
         Self {
             schema_version: CHAT_CONFIG_SCHEMA_VERSION,
             provider_id: provider_id.to_string(),
             model_id: model_id.to_string(),
-            prompt_template_id: template_id.to_string(),
-            prompt_version: template_version.to_string(),
+            prompt_template_id: prompt_id.to_string(),
+            prompt_version: prompt_version.to_string(),
             locale: None,
             detail_level: None,
             tools_allowlist: None,
         }
     }
 
-    /// Create config with default read-only tools allowlist.
+    /// Create config with the provider-level default tools allowlist.
     pub fn with_default_tools(mut self) -> Self {
         self.tools_allowlist = Some(
             DEFAULT_TOOLS_ALLOWLIST
@@ -214,8 +210,8 @@ impl Default for ChatThreadConfig {
             schema_version: CHAT_CONFIG_SCHEMA_VERSION,
             provider_id: String::new(),
             model_id: String::new(),
-            prompt_template_id: "wealthfolio-assistant-v1".to_string(),
-            prompt_version: "1.0.0".to_string(),
+            prompt_template_id: crate::LIVE_PROMPT_ID.to_string(),
+            prompt_version: crate::LIVE_PROMPT_VERSION.to_string(),
             locale: None,
             detail_level: None,
             tools_allowlist: Some(
@@ -1046,6 +1042,13 @@ mod tests {
         let thread = ChatThread::new();
         assert!(!thread.id.is_empty());
         assert!(thread.title.is_none());
+    }
+
+    #[test]
+    fn default_thread_config_identifies_the_live_prompt() {
+        let config = ChatThreadConfig::default();
+        assert_eq!(config.prompt_template_id, crate::LIVE_PROMPT_ID);
+        assert_eq!(config.prompt_version, crate::LIVE_PROMPT_VERSION);
     }
 
     #[test]

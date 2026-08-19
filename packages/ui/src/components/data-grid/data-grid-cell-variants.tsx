@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Skeleton } from "../ui/skeleton";
 import { Textarea } from "../ui/textarea";
 import { Icons } from "../ui/icons";
+import { fromDate, getLocalTimeZone, toCalendarDateTime } from "@internationalized/date";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -25,10 +26,12 @@ import { useBadgeOverflow } from "../../hooks/use-badge-overflow";
 import { useDebouncedCallback } from "../../hooks/use-debounced-callback";
 import { quoteCurrencies } from "../../lib/currencies";
 import { generateId } from "../../lib/id";
+import { parseDateTimeInTimezone, parseLocalizedDecimalString } from "../../lib/formatting";
 import { cn } from "../../lib/utils";
 import { DataGridCellWrapper } from "./data-grid-cell-wrapper";
 import type { DataGridCellProps, FileCellData, SymbolSearchResult } from "./data-grid-types";
 import { getCellKey, getLineCount } from "./data-grid-utils";
+import { useDateFormatting, useLocalizationSettings, useNumberFormatting } from "../formatting-provider";
 
 export function ShortTextCell<TData>({
   cell,
@@ -357,10 +360,14 @@ export function NumberCell<TData>({
   readOnly,
   cellState,
 }: DataGridCellProps<TData>) {
+  const formatting = useNumberFormatting();
+  const { locale } = useLocalizationSettings();
   const initialValue = cell.getValue() as number | string | null;
-  const [value, setValue] = React.useState(String(initialValue ?? ""));
+  const initialInputValue = String(initialValue ?? "");
+  const [value, setValue] = React.useState(initialInputValue);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const cancelEditRef = React.useRef(false);
   const cellOpts = cell.column.columnDef.meta?.cell;
   const numberCellOpts = cellOpts?.variant === "number" ? cellOpts : null;
   const min = numberCellOpts?.min;
@@ -368,6 +375,32 @@ export function NumberCell<TData>({
   const step = numberCellOpts?.step;
   const valueType = numberCellOpts?.valueType ?? "number";
   const valueRenderer = numberCellOpts?.valueRenderer;
+  const initialComparable =
+    valueType === "number"
+      ? initialValue == null || initialValue === ""
+        ? null
+        : Number(initialValue)
+      : initialValue == null
+        ? null
+        : String(initialValue);
+
+  const parseCellValue = React.useCallback(
+    (rawValue: string) => {
+      if (rawValue === initialInputValue) {
+        return { valid: true, value: initialComparable } as const;
+      }
+      const trimmed = rawValue.trim();
+      if (trimmed === "") return { valid: true, value: null } as const;
+      if (valueType !== "number") {
+        const parsed = parseLocalizedDecimalString(trimmed, locale);
+        return parsed === undefined ? ({ valid: false } as const) : ({ valid: true, value: parsed } as const);
+      }
+
+      const parsed = formatting.parseNumber(trimmed);
+      return parsed === undefined ? ({ valid: false } as const) : ({ valid: true, value: parsed } as const);
+    },
+    [formatting, initialComparable, initialInputValue, locale, valueType],
+  );
 
   const prevInitialValueRef = React.useRef(initialValue);
   if (initialValue !== prevInitialValueRef.current) {
@@ -376,28 +409,19 @@ export function NumberCell<TData>({
   }
 
   const onBlur = React.useCallback(() => {
-    const trimmed = value.trim();
-    const nextValue =
-      trimmed === ""
-        ? null
-        : valueType === "number"
-          ? Number.isFinite(Number(trimmed))
-            ? Number(trimmed)
-            : null
-          : trimmed;
-    const initialComparable =
-      valueType === "number"
-        ? initialValue == null || initialValue === ""
-          ? null
-          : Number(initialValue)
-        : initialValue == null
-          ? null
-          : String(initialValue);
-    if (!readOnly && nextValue !== initialComparable) {
-      tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: nextValue });
+    if (cancelEditRef.current) {
+      setValue(String(initialValue ?? ""));
+      tableMeta?.onCellEditingStop?.();
+      return;
+    }
+    const parsed = parseCellValue(value);
+    if (!parsed.valid) {
+      setValue(String(initialValue ?? ""));
+    } else if (!readOnly && parsed.value !== initialComparable) {
+      tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: parsed.value });
     }
     tableMeta?.onCellEditingStop?.();
-  }, [tableMeta, rowIndex, columnId, initialValue, value, readOnly, valueType]);
+  }, [tableMeta, rowIndex, columnId, initialValue, initialComparable, value, readOnly, parseCellValue]);
 
   const onChange = React.useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     setValue(event.target.value);
@@ -408,54 +432,27 @@ export function NumberCell<TData>({
       if (isEditing) {
         if (event.key === "Enter") {
           event.preventDefault();
-          const trimmed = value.trim();
-          const nextValue =
-            trimmed === ""
-              ? null
-              : valueType === "number"
-                ? Number.isFinite(Number(trimmed))
-                  ? Number(trimmed)
-                  : null
-                : trimmed;
-          const initialComparable =
-            valueType === "number"
-              ? initialValue == null || initialValue === ""
-                ? null
-                : Number(initialValue)
-              : initialValue == null
-                ? null
-                : String(initialValue);
-          if (nextValue !== initialComparable) {
-            tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: nextValue });
+          const parsed = parseCellValue(value);
+          if (!parsed.valid) {
+            setValue(String(initialValue ?? ""));
+          } else if (parsed.value !== initialComparable) {
+            tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: parsed.value });
           }
           tableMeta?.onCellEditingStop?.({ moveToNextRow: true });
         } else if (event.key === "Tab") {
           event.preventDefault();
-          const trimmed = value.trim();
-          const nextValue =
-            trimmed === ""
-              ? null
-              : valueType === "number"
-                ? Number.isFinite(Number(trimmed))
-                  ? Number(trimmed)
-                  : null
-                : trimmed;
-          const initialComparable =
-            valueType === "number"
-              ? initialValue == null || initialValue === ""
-                ? null
-                : Number(initialValue)
-              : initialValue == null
-                ? null
-                : String(initialValue);
-          if (nextValue !== initialComparable) {
-            tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: nextValue });
+          const parsed = parseCellValue(value);
+          if (!parsed.valid) {
+            setValue(String(initialValue ?? ""));
+          } else if (parsed.value !== initialComparable) {
+            tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: parsed.value });
           }
           tableMeta?.onCellEditingStop?.({
             direction: event.shiftKey ? "left" : "right",
           });
         } else if (event.key === "Escape") {
           event.preventDefault();
+          cancelEditRef.current = true;
           setValue(String(initialValue ?? ""));
           inputRef.current?.blur();
         }
@@ -471,7 +468,7 @@ export function NumberCell<TData>({
         }
       }
     },
-    [isEditing, isFocused, initialValue, tableMeta, rowIndex, columnId, value, valueType],
+    [isEditing, isFocused, initialValue, initialComparable, tableMeta, rowIndex, columnId, value, parseCellValue],
   );
 
   // Track if editing was started by typing (vs double-click/Enter)
@@ -485,31 +482,22 @@ export function NumberCell<TData>({
   React.useEffect(() => {
     // When editing stops (transitions from true to false), save the value
     if (wasEditingRef.current && !isEditing) {
-      const currentValue = valueRef.current;
-      const trimmed = currentValue.trim();
-      const nextValue =
-        trimmed === ""
-          ? null
-          : valueType === "number"
-            ? Number.isFinite(Number(trimmed))
-              ? Number(trimmed)
-              : null
-            : trimmed;
-      const initialComparable =
-        valueType === "number"
-          ? initialValue == null || initialValue === ""
-            ? null
-            : Number(initialValue)
-          : initialValue == null
-            ? null
-            : String(initialValue);
-      if (!readOnly && nextValue !== initialComparable) {
-        tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: nextValue });
+      if (cancelEditRef.current) {
+        cancelEditRef.current = false;
+        setValue(String(initialValue ?? ""));
+      } else {
+        const currentValue = valueRef.current;
+        const parsed = parseCellValue(currentValue);
+        if (!parsed.valid) {
+          setValue(String(initialValue ?? ""));
+        } else if (!readOnly && parsed.value !== initialComparable) {
+          tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: parsed.value });
+        }
       }
       startedByTypingRef.current = false;
     }
     wasEditingRef.current = isEditing;
-  }, [isEditing, initialValue, readOnly, tableMeta, rowIndex, columnId, valueType]);
+  }, [isEditing, initialValue, initialComparable, readOnly, tableMeta, rowIndex, columnId, parseCellValue]);
 
   React.useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -548,7 +536,8 @@ export function NumberCell<TData>({
       {isEditing ? (
         <input
           ref={inputRef}
-          type="number"
+          type="text"
+          inputMode="decimal"
           value={value}
           min={min}
           max={max}
@@ -559,7 +548,11 @@ export function NumberCell<TData>({
         />
       ) : (
         <span data-slot="grid-cell-content">
-          {valueRenderer ? valueRenderer(initialValue, cell.row.original) : value}
+          {valueRenderer
+            ? valueRenderer(initialValue, cell.row.original)
+            : value === "" || formatting.parseNumber(value) === undefined
+              ? value
+              : formatting.formatDecimal(value, { maximumFractionDigits: 8 })}
         </span>
       )}
     </DataGridCellWrapper>
@@ -1314,12 +1307,6 @@ export function MultiSelectCell<TData>({
   );
 }
 
-function formatDateForDisplay(dateStr: string) {
-  if (!dateStr) return "";
-  const date = new Date(dateStr);
-  return date.toLocaleDateString();
-}
-
 export function DateCell<TData>({
   cell,
   tableMeta,
@@ -1334,6 +1321,7 @@ export function DateCell<TData>({
   readOnly,
   cellState,
 }: DataGridCellProps<TData>) {
+  const formatting = useDateFormatting();
   const initialValue = cell.getValue() as string;
   const [value, setValue] = React.useState(initialValue ?? "");
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -1344,13 +1332,13 @@ export function DateCell<TData>({
     setValue(initialValue ?? "");
   }
 
-  const selectedDate = value ? new Date(value) : undefined;
+  const selectedDate = value ? parseDateLocal(value) : undefined;
 
   const onDateSelect = React.useCallback(
     (date: Date | undefined) => {
       if (!date || readOnly) return;
 
-      const formattedDate = date.toISOString().split("T")[0] ?? "";
+      const formattedDate = toDateInputString(date);
       setValue(formattedDate);
       tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: formattedDate });
       tableMeta?.onCellEditingStop?.();
@@ -1404,7 +1392,9 @@ export function DateCell<TData>({
     >
       <Popover open={isEditing} onOpenChange={onOpenChange}>
         <PopoverAnchor asChild>
-          <span data-slot="grid-cell-content">{formatDateForDisplay(value)}</span>
+          <span data-slot="grid-cell-content">
+            {value ? formatting.formatCalendarDate(value, { dateStyle: "short" }) : ""}
+          </span>
         </PopoverAnchor>
         {isEditing && (
           <PopoverContent data-grid-cell-editor="" align="start" alignOffset={-8} className="w-auto p-0">
@@ -1433,16 +1423,6 @@ function parseDateLocal(value: string): Date {
 }
 
 // Helper functions for date-input variant
-function formatDateInputForDisplay(date: Date | string | undefined): string {
-  if (!date) return "";
-  const d = date instanceof Date ? date : parseDateLocal(date);
-  if (Number.isNaN(d.getTime())) return "";
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function toDateInputString(date: Date | string | undefined): string {
   if (!date) return "";
   const d = date instanceof Date ? date : parseDateLocal(date);
@@ -1477,6 +1457,7 @@ export function DateInputCell<TData>({
   readOnly,
   cellState,
 }: DataGridCellProps<TData>) {
+  const formatting = useDateFormatting();
   const initialValue = cell.getValue() as Date | string | undefined;
   const [value, setValue] = React.useState(() => toDateInputString(initialValue));
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -1622,38 +1603,25 @@ export function DateInputCell<TData>({
           className="w-full border-none bg-transparent p-0 text-sm outline-none"
         />
       ) : (
-        <span data-slot="grid-cell-content">{formatDateInputForDisplay(value)}</span>
+        <span data-slot="grid-cell-content">
+          {value ? formatting.formatCalendarDate(value, { dateStyle: "short" }) : ""}
+        </span>
       )}
     </DataGridCellWrapper>
   );
 }
 
-function formatDateTimeForDisplay(date: Date | string | undefined): string {
+function toDateTimeLocalString(date: Date | string | undefined, timezone: string): string {
   if (!date) return "";
   const d = date instanceof Date ? date : new Date(date);
   if (Number.isNaN(d.getTime())) return "";
-  // Format: YYYY-MM-DD, HH:MM AM/PM (matches datetime-local visual style)
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const hours = d.getHours();
-  const minutes = String(d.getMinutes()).padStart(2, "0");
-  const ampm = hours >= 12 ? "PM" : "AM";
-  const hour12 = hours % 12 || 12;
-  const hourStr = String(hour12).padStart(2, "0");
-  return `${year}-${month}-${day}, ${hourStr}:${minutes} ${ampm}`;
-}
-
-function toDateTimeLocalString(date: Date | string | undefined): string {
-  if (!date) return "";
-  const d = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(d.getTime())) return "";
+  const local = toCalendarDateTime(fromDate(d, timezone));
   // Format: YYYY-MM-DDTHH:mm (required format for datetime-local input)
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const hours = String(d.getHours()).padStart(2, "0");
-  const minutes = String(d.getMinutes()).padStart(2, "0");
+  const year = local.year;
+  const month = String(local.month).padStart(2, "0");
+  const day = String(local.day).padStart(2, "0");
+  const hours = String(local.hour).padStart(2, "0");
+  const minutes = String(local.minute).padStart(2, "0");
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
@@ -1679,17 +1647,21 @@ export function DateTimeCell<TData>({
   readOnly,
   cellState,
 }: DataGridCellProps<TData>) {
+  const formatting = useDateFormatting();
+  const { timezone } = useLocalizationSettings();
+  const effectiveTimezone = timezone ?? getLocalTimeZone();
   const initialValue = cell.getValue() as Date | string | undefined;
-  const [value, setValue] = React.useState(() => toDateTimeLocalString(initialValue));
+  const [value, setValue] = React.useState(() => toDateTimeLocalString(initialValue, effectiveTimezone));
   const inputRef = React.useRef<HTMLInputElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   // Compare by timestamp instead of reference for Date objects
-  const prevTimestampRef = React.useRef(getDateTimestamp(initialValue));
+  const prevTimestampRef = React.useRef(`${getDateTimestamp(initialValue) ?? ""}:${effectiveTimezone}`);
   const currentTimestamp = getDateTimestamp(initialValue);
-  if (currentTimestamp !== prevTimestampRef.current) {
-    prevTimestampRef.current = currentTimestamp;
-    setValue(toDateTimeLocalString(initialValue));
+  const currentValueKey = `${currentTimestamp ?? ""}:${effectiveTimezone}`;
+  if (currentValueKey !== prevTimestampRef.current) {
+    prevTimestampRef.current = currentValueKey;
+    setValue(toDateTimeLocalString(initialValue, effectiveTimezone));
   }
 
   const onBlur = React.useCallback(() => {
@@ -1697,7 +1669,7 @@ export function DateTimeCell<TData>({
       tableMeta?.onCellEditingStop?.();
       return;
     }
-    const date = value ? new Date(value) : undefined;
+    const date = value ? parseDateTimeInTimezone(value, effectiveTimezone) : undefined;
     const initialDate = initialValue
       ? initialValue instanceof Date
         ? initialValue
@@ -1709,7 +1681,7 @@ export function DateTimeCell<TData>({
       tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: date });
     }
     tableMeta?.onCellEditingStop?.();
-  }, [tableMeta, rowIndex, columnId, value, initialValue, readOnly]);
+  }, [tableMeta, rowIndex, columnId, value, initialValue, readOnly, effectiveTimezone]);
 
   const onChange = React.useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     setValue(event.target.value);
@@ -1724,11 +1696,11 @@ export function DateTimeCell<TData>({
     // When editing stops (transitions from true to false), save the value
     if (wasEditingRef.current && !isEditing) {
       const currentValue = valueRef.current;
-      const date = currentValue ? parseDateLocal(currentValue) : undefined;
+      const date = currentValue ? parseDateTimeInTimezone(currentValue, effectiveTimezone) : undefined;
       const initialDate = initialValue
         ? initialValue instanceof Date
           ? initialValue
-          : parseDateLocal(initialValue)
+          : new Date(initialValue)
         : undefined;
 
       if (!readOnly && date?.getTime() !== initialDate?.getTime()) {
@@ -1736,18 +1708,18 @@ export function DateTimeCell<TData>({
       }
     }
     wasEditingRef.current = isEditing;
-  }, [isEditing, initialValue, readOnly, tableMeta, rowIndex, columnId]);
+  }, [isEditing, initialValue, readOnly, tableMeta, rowIndex, columnId, effectiveTimezone]);
 
   const onWrapperKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (isEditing) {
         if (event.key === "Enter") {
           event.preventDefault();
-          const date = value ? parseDateLocal(value) : undefined;
+          const date = value ? parseDateTimeInTimezone(value, effectiveTimezone) : undefined;
           const initialDate = initialValue
             ? initialValue instanceof Date
               ? initialValue
-              : parseDateLocal(initialValue)
+              : new Date(initialValue)
             : undefined;
           if (date?.getTime() !== initialDate?.getTime()) {
             tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: date });
@@ -1755,11 +1727,11 @@ export function DateTimeCell<TData>({
           tableMeta?.onCellEditingStop?.({ moveToNextRow: true });
         } else if (event.key === "Tab") {
           event.preventDefault();
-          const date = value ? parseDateLocal(value) : undefined;
+          const date = value ? parseDateTimeInTimezone(value, effectiveTimezone) : undefined;
           const initialDate = initialValue
             ? initialValue instanceof Date
               ? initialValue
-              : parseDateLocal(initialValue)
+              : new Date(initialValue)
             : undefined;
           if (date?.getTime() !== initialDate?.getTime()) {
             tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: date });
@@ -1769,7 +1741,7 @@ export function DateTimeCell<TData>({
           });
         } else if (event.key === "Escape") {
           event.preventDefault();
-          setValue(toDateTimeLocalString(initialValue));
+          setValue(toDateTimeLocalString(initialValue, effectiveTimezone));
           tableMeta?.onCellEditingStop?.();
         }
       } else if (isFocused && event.key === "Tab") {
@@ -1779,7 +1751,7 @@ export function DateTimeCell<TData>({
         });
       }
     },
-    [isEditing, isFocused, initialValue, tableMeta, rowIndex, columnId, value],
+    [isEditing, isFocused, initialValue, tableMeta, rowIndex, columnId, value, effectiveTimezone],
   );
 
   React.useEffect(() => {
@@ -1816,7 +1788,14 @@ export function DateTimeCell<TData>({
           className="w-full border-none bg-transparent p-0 text-sm outline-none"
         />
       ) : (
-        <span data-slot="grid-cell-content">{formatDateTimeForDisplay(value)}</span>
+        <span data-slot="grid-cell-content">
+          {value
+            ? formatting.formatDateTime(parseDateTimeInTimezone(value, effectiveTimezone) ?? "", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })
+            : ""}
+        </span>
       )}
     </DataGridCellWrapper>
   );

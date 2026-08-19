@@ -23,7 +23,7 @@ use crate::models::{
     SplitEvent,
 };
 use crate::provider::MarketDataProvider;
-use crate::resolver::SymbolResolver;
+use crate::resolver::{check_profile, SymbolResolver};
 
 /// Provider registry for orchestrating market data fetching.
 pub struct ProviderRegistry {
@@ -735,7 +735,25 @@ impl ProviderRegistry {
 
             match provider.get_profile(&symbol).await {
                 Ok(profile) => {
+                    // The provider answered, so it is healthy either way.
                     self.circuit_breaker.record_success(&provider_id);
+
+                    // ...but a bare-ticker fallback may have answered for a
+                    // different listing entirely. Discard rather than store it.
+                    if let Err(mismatch) = check_profile(context, resolved.source, &profile) {
+                        warn!(
+                            "Discarding {} profile for '{}': it {}",
+                            provider_id, symbol, mismatch
+                        );
+                        last_error = Some(MarketDataError::ValidationFailed {
+                            message: format!(
+                                "{} profile for '{}' {}",
+                                provider_id, symbol, mismatch
+                            ),
+                        });
+                        continue;
+                    }
+
                     return Ok(profile);
                 }
                 Err(MarketDataError::NotSupported { .. }) => {
@@ -1802,6 +1820,116 @@ mod tests {
         assert_eq!(
             dividends.iter().map(|d| d.date).collect::<Vec<_>>(),
             vec![1, 2]
+        );
+    }
+
+    /// The measured P10C case, end to end: an unknown MIC resolves to the bare
+    /// ticker, the provider answers for a US listing, and the registry must
+    /// throw that answer away instead of handing it to the classifier.
+    #[tokio::test]
+    async fn test_get_profile_discards_an_unconfirmed_fallback_match() {
+        struct WrongListingProvider;
+
+        #[async_trait::async_trait]
+        impl MarketDataProvider for WrongListingProvider {
+            fn id(&self) -> &'static str {
+                "WRONG_LISTING"
+            }
+
+            fn priority(&self) -> u8 {
+                10
+            }
+
+            fn capabilities(&self) -> ProviderCapabilities {
+                ProviderCapabilities {
+                    instrument_kinds: &[InstrumentKind::Equity],
+                    coverage: Coverage::global_best_effort(),
+                    supports_latest: false,
+                    supports_historical: false,
+                    supports_search: false,
+                    supports_profile: true,
+                    supports_dividends: false,
+                }
+            }
+
+            fn rate_limit(&self) -> RateLimit {
+                RateLimit::default()
+            }
+
+            async fn get_latest_quote(
+                &self,
+                _: &QuoteContext,
+                _: ProviderInstrument,
+            ) -> Result<Quote, MarketDataError> {
+                unreachable!()
+            }
+
+            async fn get_historical_quotes(
+                &self,
+                _: &QuoteContext,
+                _: ProviderInstrument,
+                _: DateTime<Utc>,
+                _: DateTime<Utc>,
+            ) -> Result<Vec<Quote>, MarketDataError> {
+                unreachable!()
+            }
+
+            async fn get_profile(&self, _: &str) -> Result<AssetProfile, MarketDataError> {
+                Ok(AssetProfile {
+                    name: Some("First Equities Corp".to_string()),
+                    quote_type: Some("MUTUALFUND".to_string()),
+                    currency: Some("USD".to_string()),
+                    ..Default::default()
+                })
+            }
+        }
+
+        struct FallbackResolver;
+
+        impl SymbolResolver for FallbackResolver {
+            fn resolve(
+                &self,
+                _provider: &ProviderId,
+                _context: &QuoteContext,
+            ) -> Result<ResolvedInstrument, MarketDataError> {
+                Ok(ResolvedInstrument {
+                    instrument: ProviderInstrument::EquitySymbol {
+                        symbol: Arc::from("FEQT"),
+                    },
+                    source: ResolutionSource::RulesFallback,
+                })
+            }
+
+            fn get_currency(
+                &self,
+                _provider: &ProviderId,
+                _context: &QuoteContext,
+            ) -> Option<Currency> {
+                None
+            }
+        }
+
+        let providers: Vec<Arc<dyn MarketDataProvider>> = vec![Arc::new(WrongListingProvider)];
+        let registry = ProviderRegistry::new(providers, Arc::new(FallbackResolver));
+
+        let context = QuoteContext {
+            instrument: InstrumentId::Equity {
+                ticker: Arc::from("FEQT"),
+                mic: Some(Cow::Borrowed("NEOE")),
+            },
+            identifiers: Default::default(),
+            overrides: None,
+            currency_hint: Some(Cow::Borrowed("CAD")),
+            preferred_provider: None,
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+
+        let error = registry.get_profile(&context).await.unwrap_err();
+
+        assert!(
+            matches!(error, MarketDataError::ValidationFailed { .. }),
+            "expected a validation failure, got {error:?}"
         );
     }
 }

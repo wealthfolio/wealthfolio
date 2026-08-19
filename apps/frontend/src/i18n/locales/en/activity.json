@@ -100,6 +100,7 @@
   "delete_selected_confirm": "Are you sure you want to delete {{count}} selected activities?",
   "cash_balance_checking": "Checking account balance...",
   "cash_balance_insufficient": "Insufficient Funds:",
+  "cash_balance_warning": "Insufficient cash balance. Required: {{required}}, available: {{available}}, shortfall: {{shortfall}}",
   "cash_balance_shortfall_hint": "Record cash deposits to cover the shortfall, or use \"Add Holding\" (bypasses cash tracking).",
   "cash_balance_transaction_cost": "Transaction cost: {{amount}} - Sufficient funds available",
   "edit_activity": "Edit Activity",
@@ -303,7 +304,9 @@
     "add_activities": "Add Activities",
     "ask_ai_categorize": "Ask AI to categorize",
     "investments": "Investments",
-    "spending": "Spending"
+    "spending": "Spending",
+    "health_filter_single": "Showing the transaction flagged by Health Center",
+    "health_filter_multiple": "Showing transactions flagged by Health Center"
   },
   "delete_modal": {
     "title": "Delete activity?",
@@ -321,7 +324,9 @@
   },
   "date_sheet": {
     "title": "Activities on {{date}}",
-    "count": "{{count}} activities recorded on this date"
+    "count": "{{count}} activities recorded on this date",
+    "count_one": "{{count}} activity recorded on this date",
+    "count_other": "{{count}} activities recorded on this date"
   },
   "picker": {
     "transfer": "Transfer",
@@ -449,7 +454,9 @@
     "warning_stale_link": "Existing stale transfer link will be replaced.",
     "error_load_suggestions": "Could not load suggested matches.",
     "error_load_pair": "Could not load the linked transfer pair.",
-    "error_search": "Could not search activities."
+    "error_search": "Could not search activities.",
+    "within_days_one": "Within {{count}} day",
+    "within_days_other": "Within {{count}} days"
   },
   "form": {
     "section_asset_account": "Asset & Account",
@@ -676,7 +683,9 @@
       "first_page": "Go to first page",
       "previous_page": "Previous page",
       "next_page": "Next page",
-      "last_page": "Go to last page"
+      "last_page": "Go to last page",
+      "jump_hint_one": "Enter a page number between 1 and {{count}}",
+      "jump_hint_other": "Enter a page number between 1 and {{count}}"
     },
     "duplicated_comment": "Duplicated",
     "save_edits_first": "Save edits first",
@@ -729,7 +738,11 @@
     "select_all_rows": "Select all rows",
     "select_row": "Select row",
     "instrument_auto": "Auto",
-    "unit_price_help": "For buys and sells, enter the trade price. For staking rewards and in-kind dividends, enter the fair market value per unit at receipt; it sets income amount and cost basis."
+    "unit_price_help": "For buys and sells, enter the trade price. For staking rewards and in-kind dividends, enter the fair market value per unit at receipt; it sets income amount and cost basis.",
+    "warn_dates_differ_one": "Dates differ by {{count}} day.",
+    "warn_dates_differ_other": "Dates differ by {{count}} days.",
+    "approve_count_one": "Approve {{count}}",
+    "approve_count_other": "Approve {{count}}"
   },
   "table": {
     "cash": "Cash",
@@ -855,7 +868,11 @@
       "valueComma": "Comma",
       "valueSemicolon": "Semicolon",
       "valueTab": "Tab",
-      "valuePeriod": "Period"
+      "valuePeriod": "Period",
+      "summarySkipTop_one": "Skip top: {{count}}",
+      "summarySkipTop_other": "Skip top: {{count}}",
+      "summarySkipBottom_one": "Skip bottom: {{count}}",
+      "summarySkipBottom_other": "Skip bottom: {{count}}"
     },
     "template": {
       "label": "Template",
@@ -914,7 +931,9 @@
       "mapType": "Map type",
       "mapSymbol": "Map symbol",
       "missingAccount": "Missing account",
-      "emptySymbol": "Empty symbol"
+      "emptySymbol": "Empty symbol",
+      "accountAssignmentBlankRows_one": "Map every CSV row to an account. {{count}} row is still blank, so choose a default account in Upload or fill the account column.",
+      "accountAssignmentBlankRows_other": "Map every CSV row to an account. {{count}} rows are still blank, so choose a default account in Upload or fill the account column."
     },
     "csvViewer": {
       "status": "Status",
@@ -928,7 +947,9 @@
       "emptyFile": "Empty file",
       "emptyLine": "empty line",
       "noContentFound": "No content found",
-      "empty": "empty"
+      "empty": "empty",
+      "lines_one": "{{count}} line",
+      "lines_other": "{{count}} lines"
     },
     "columns": {
       "dateTime": "Date & Time",
@@ -1020,7 +1041,11 @@
       "statusDuplicates": "Duplicates",
       "statusSkipped": "Skipped",
       "statusValid": "Valid",
-      "skipReason": "Skipped"
+      "skipReason": "Skipped",
+      "willBeImportedTitle_one": "{{count}} of {{all}} activities will be imported",
+      "willBeImportedTitle_other": "{{count}} of {{all}} activities will be imported",
+      "activitiesCount_one": "{{count}} activity",
+      "activitiesCount_other": "{{count}} activities"
     },
     "status": {
       "valid": "Valid",
@@ -1069,7 +1094,11 @@
       "typeSplit": "Split",
       "typeUnknown": "Unknown",
       "skipReasonManual": "Manual",
-      "validationError": "Validation Error"
+      "validationError": "Validation Error",
+      "readyTitle_one": "{{count}} activity ready to import",
+      "readyTitle_other": "{{count}} activities ready to import",
+      "warningsDescription_one": "{{count}} activity has warnings but will still be imported.",
+      "warningsDescription_other": "{{count}} activities have warnings but will still be imported."
     },
     "result": {
       "loading": "Loading import results...",
@@ -1167,7 +1196,11 @@
       "importing": "Importing...",
       "importSnapshots_one": "Import {{count}} Snapshot",
       "importSnapshots_other": "Import {{count}} Snapshots",
-      "failedToPrepareAssets": "Failed to prepare assets for import."
+      "failedToPrepareAssets": "Failed to prepare assets for import.",
+      "positionsCount_one": "{{count}} holding",
+      "positionsCount_other": "{{count}} holdings",
+      "readyRows_one": "{{count}} row",
+      "readyRows_other": "{{count}} rows"
     },
     "symbolPanel": {
       "unrecognized_one": "{{count}} unrecognized symbol",
@@ -1180,7 +1213,9 @@
       "searchFor": "Search for {{symbol}}...",
       "markCustom": "Mark Custom",
       "applyMappings_one": "Apply {{count}} mapping",
-      "applyMappings_other": "Apply {{count}} mappings"
+      "applyMappings_other": "Apply {{count}} mappings",
+      "affectingRows_one": " affecting {{count}} row",
+      "affectingRows_other": " affecting {{count}} rows"
     },
     "help": {
       "button": "How to Import CSV?",
@@ -1278,7 +1313,9 @@
       "allValidDescriptionSuffix": " to proceed with the import.",
       "confirmImport": "Confirm Import",
       "cancel": "Cancel",
-      "importing": "Importing..."
+      "importing": "Importing...",
+      "issuesTitle_one": "There are issues with {{count}} activity entry.",
+      "issuesTitle_other": "There are issues with {{count}} activity entries."
     }
   }
 }

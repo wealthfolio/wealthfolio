@@ -56,7 +56,9 @@ pub struct RecordActivitiesOutput {
 }
 
 const RECORD_ACTIVITIES_DESCRIPTION: &str = "Record multiple investment transactions from natural \
-    language. Returns a read-only batch draft preview for single confirmation. If the user has \
+    language. Use when the user supplies the transaction details they want drafted, whether \
+    planned or completed; never invent BUY/SELL rows from assistant analysis. Returns a \
+    read-only batch draft preview for single confirmation. If the user has \
     multiple accounts and did not specify which account to use, ask which account before calling \
     this tool.";
 

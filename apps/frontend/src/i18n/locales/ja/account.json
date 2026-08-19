@@ -151,5 +151,6 @@
     "period_irr": "期間IRR",
     "twr_hover_hint": " 数値にカーソルを合わせると累積TWRを表示します。",
     "irr_hover_hint": " 数値にカーソルを合わせると選択期間のIRRを表示します。"
-  }
+  },
+  "more_count_other": "他{{count}}件"
 }

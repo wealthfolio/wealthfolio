@@ -14,11 +14,14 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  useDateFormatting,
+  useNumberFormatting,
+  type FormattingApi,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import type { TFunction } from "i18next";
 import { memo, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 import { useRuntimeContext } from "../../hooks/use-runtime-context";
 import type {
   AssetClassificationAssignmentPreview,
@@ -367,6 +370,7 @@ function ClassificationComparisonTable({
   onDraftPercentValueChange: (categoryId: string, value: string) => void;
   onNewWeightChange: (row: ClassificationComparisonRow, weightBasisPoints: number) => void;
 }) {
+  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const rows = buildComparisonRows(currentRows, proposedRows);
   const currentTotalBasisPoints = currentRows.reduce((sum, row) => sum + row.weightBasisPoints, 0);
@@ -413,7 +417,7 @@ function ClassificationComparisonTable({
                     row.currentWeightBasisPoints === 0 && "text-muted-foreground",
                   )}
                 >
-                  {formatBasisPoints(row.currentWeightBasisPoints)}
+                  {formatBasisPoints(row.currentWeightBasisPoints, formatting)}
                 </span>
               </div>
               <div className="text-right">
@@ -469,10 +473,10 @@ function ClassificationComparisonTable({
               {t("ai:assetClassification.total")}
             </div>
             <div className="text-right text-sm font-semibold">
-              {formatBasisPoints(currentTotalBasisPoints)}
+              {formatBasisPoints(currentTotalBasisPoints, formatting)}
             </div>
             <div className="text-primary text-right text-sm font-semibold">
-              {formatBasisPoints(proposedTotalBasisPoints)}
+              {formatBasisPoints(proposedTotalBasisPoints, formatting)}
             </div>
           </div>
         ) : null}
@@ -481,13 +485,17 @@ function ClassificationComparisonTable({
   );
 }
 
-function formatExistingAllocation(rows: AssetClassificationAssignmentPreview[], t: TFunction) {
+function formatExistingAllocation(
+  rows: AssetClassificationAssignmentPreview[],
+  t: TFunction,
+  formatting: Pick<FormattingApi, "formatDecimal">,
+) {
   if (rows.length === 0) return t("ai:assetClassification.noExistingAllocation");
 
   const totalBasisPoints = rows.reduce((sum, row) => sum + row.weightBasisPoints, 0);
   return t("ai:assetClassification.existingAllocation", {
     count: rows.length,
-    total: formatBasisPoints(totalBasisPoints),
+    total: formatBasisPoints(totalBasisPoints, formatting),
   });
 }
 
@@ -496,6 +504,8 @@ export function AssetClassificationToolUIContentImpl({
   status,
   toolCallId,
 }: AssetClassificationToolUIContentProps) {
+  const numberFormatting = useNumberFormatting();
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   const runtime = useRuntimeContext();
   const threadId = runtime.currentThreadId;
@@ -556,7 +566,7 @@ export function AssetClassificationToolUIContentImpl({
   const canConfirm =
     Boolean(selectedAsset) && !isApplied && !isSubmitting && isValid && plan.hasChanges;
   const appliedAt = parsedResult.appliedAt
-    ? new Date(parsedResult.appliedAt).toLocaleString()
+    ? formatting.formatDateTime(parsedResult.appliedAt)
     : null;
   const appliedCategoryCount = proposedAssignments.filter(
     (assignment) => assignment.weightBasisPoints > 0,
@@ -726,7 +736,7 @@ export function AssetClassificationToolUIContentImpl({
                 const subtitle = [
                   candidate.exchangeMic,
                   candidate.currency,
-                  formatExistingAllocation(candidateAssignments, t),
+                  formatExistingAllocation(candidateAssignments, t, numberFormatting),
                 ]
                   .filter(Boolean)
                   .join(" · ");
@@ -785,7 +795,7 @@ export function AssetClassificationToolUIContentImpl({
           <DiffStat label={t("ai:assetClassification.same")} value={plan.changes.unchangedCount} />
           <DiffStat
             label={t("ai:assetClassification.unallocated")}
-            value={formatBasisPoints(Math.max(unallocated, 0))}
+            value={formatBasisPoints(Math.max(unallocated, 0), numberFormatting)}
             className={unallocated > 0 ? "text-warning" : undefined}
           />
         </div>

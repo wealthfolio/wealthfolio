@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import { PrivacyAmount, Skeleton } from "@wealthfolio/ui";
+import { PrivacyAmount, Skeleton, useNumberFormatting } from "@wealthfolio/ui";
 import type { TaxonomyCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -105,6 +105,7 @@ function ChangeColumn({
   currency: string;
 }) {
   const { t } = useTranslation();
+  const numberFormatting = useNumberFormatting();
   if (rows.length === 0) {
     return (
       <div>
@@ -144,7 +145,7 @@ function ChangeColumn({
                 {arrow} <PrivacyAmount value={Math.abs(r.delta)} currency={currency} />
                 {r.pct != null && (
                   <span className="text-muted-foreground/60 ml-1 text-[10px] font-normal">
-                    ({Math.round(Math.abs(r.pct) * 100)}%)
+                    ({numberFormatting.formatPercent(Math.abs(r.pct), { digits: 0 })})
                   </span>
                 )}
               </span>

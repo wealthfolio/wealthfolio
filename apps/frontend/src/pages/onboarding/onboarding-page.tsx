@@ -4,6 +4,7 @@ import { usePlatform } from "@/hooks/use-platform";
 import { useSettings } from "@/hooks/use-settings";
 import { WEALTHFOLIO_CONNECT_PORTAL_URL } from "@/lib/constants";
 import { useSettingsContext } from "@/lib/settings-provider";
+import { cn } from "@/lib/utils";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { AnimatePresence, motion } from "motion/react";
@@ -37,6 +38,7 @@ const OnboardingPage = () => {
   const maxSteps = isMobile ? MOBILE_MAX_STEPS : DESKTOP_MAX_STEPS;
   const completionRoute = isMobile ? "/settings" : "/settings/accounts";
   const isFinalStep = currentStep === maxSteps;
+  const isAppearanceStep = currentStep === 3;
 
   if (isSettingsLoading) return null;
   if (isSettingsError) {
@@ -73,15 +75,15 @@ const OnboardingPage = () => {
   return (
     <div
       data-testid="onboarding-page"
-      className="bg-background flex h-screen flex-col pt-[env(safe-area-inset-top)]"
+      className="bg-background flex min-h-full flex-col pt-[env(safe-area-inset-top)]"
     >
       {/* Fixed Header with Logo and Steppers */}
-      <header className="flex-none px-4 pt-8 sm:px-6 sm:pt-12">
+      <header className={cn("flex-none px-4 sm:px-6", isAppearanceStep ? "pt-4" : "pt-8 sm:pt-8")}>
         <div className="flex flex-col items-center">
           {/* Logo */}
           <img
             alt="Wealthfolio"
-            className="mb-3 h-16 w-16 sm:h-20 sm:w-20"
+            className={cn(isAppearanceStep ? "mb-2 h-12 w-12" : "mb-3 h-16 w-16 sm:h-16 sm:w-16")}
             src="/logo-vantage.png"
           />
 
@@ -104,7 +106,7 @@ const OnboardingPage = () => {
       </header>
 
       {/* Main content - centered vertically in remaining space */}
-      <main className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 sm:px-6">
+      <main className="flex flex-1 flex-col items-center justify-center px-4 sm:px-6">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={currentStep}
@@ -136,7 +138,12 @@ const OnboardingPage = () => {
 
       {/* Fixed Footer */}
       <footer className="flex-none pb-[env(safe-area-inset-bottom)]">
-        <div className="sm:pb-18 mx-auto max-w-4xl px-4 pb-8 pt-6 sm:px-6">
+        <div
+          className={cn(
+            "mx-auto max-w-4xl px-4 sm:px-6",
+            isAppearanceStep ? "pb-4 pt-2" : "pb-8 pt-6 sm:pb-8 sm:pt-4",
+          )}
+        >
           {isFinalStep ? (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="order-2 sm:order-1">
@@ -148,11 +155,7 @@ const OnboardingPage = () => {
               <div className="order-1 flex flex-col gap-2 sm:order-2 sm:flex-row sm:gap-3">
                 {!isMobile && (
                   <Button asChild variant="outline" className="order-2 sm:order-1">
-                    <ExternalLink
-                      href={WEALTHFOLIO_CONNECT_PORTAL_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
+                    <ExternalLink href={WEALTHFOLIO_CONNECT_PORTAL_URL}>
                       {t("onboarding:buttons.subscribeConnect")}
                       <Icons.ExternalLink className="ml-1.5 h-4 w-4" />
                     </ExternalLink>

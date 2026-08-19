@@ -5,26 +5,29 @@
 import { useEffect, useMemo, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import type { Activity } from "@/lib/types";
+import { cn, parseLocalDate } from "@/lib/utils";
 import {
   Button,
+  calendarDateFromLocalDate,
   Icons,
   PrivacyAmount,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-  formatCompactAmount,
+  useAmountFormatting,
+  useDateFormatting,
+  type FormattingApi,
 } from "@wealthfolio/ui";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import type { Activity } from "@/lib/types";
-import { cn, parseLocalDate } from "@/lib/utils";
 
-import { useEventDialog } from "../../event-dialog-provider";
 import { useEventsAggregate } from "../../../hooks/use-events-aggregate";
 import { getActivitySpendingAmount } from "../../../lib/constants";
 import { inclusiveDays } from "../../../lib/date-utils";
 import type { EventSpendingSummary } from "../../../types/event";
+import { useEventDialog } from "../../event-dialog-provider";
 import { getEventColors } from "./event-colors";
-import { CARD_CLASS, LABEL_CLASS, MONTH_LABELS } from "./insights-shared";
+import { CARD_CLASS, LABEL_CLASS } from "./insights-shared";
 
 export interface EventsTimelineCardProps {
   events: EventSpendingSummary[];
@@ -57,6 +60,8 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
   onPrevWindow,
   onNextWindow,
 }) => {
+  const amountFormatting = useAmountFormatting();
+  const dateFormatting = useDateFormatting();
   const { t: tr } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const { openEventDialog } = useEventDialog();
@@ -314,7 +319,11 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
           {/* Month gridlines + labels */}
           {months.map((m, i) => {
             const x = padL + m.idx * dayW;
-            const showYear = m.label === "JAN" || i === 0;
+            const showYear = m.date.getMonth() === 0 || i === 0;
+            const label = dateFormatting.formatCalendarDate(calendarDateFromLocalDate(m.date), {
+              month: "short",
+              ...(showYear ? { year: "numeric" } : {}),
+            });
             return (
               <g key={i}>
                 <line
@@ -333,8 +342,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
                   fontSize={10}
                   letterSpacing={0.5}
                 >
-                  {m.label}
-                  {showYear ? ` ${m.year}` : ""}
+                  {label}
                 </text>
               </g>
             );
@@ -358,7 +366,10 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
                 fontSize={9}
                 className="fill-muted-foreground"
               >
-                {isBalanceHidden ? "••••" : formatCompactAmount(computed.normalPace, currency)}/d
+                {isBalanceHidden
+                  ? "••••"
+                  : amountFormatting.formatCompactAmount(computed.normalPace, currency)}
+                {tr("spending:eventDetail.perDayShort")}
               </text>
             </>
           )}
@@ -486,10 +497,12 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
                       className={lift >= 0 ? "fill-destructive" : "fill-success"}
                     >
                       {lift >= 0 ? "+" : "−"}
-                      {isBalanceHidden ? "••••" : formatCompactAmount(Math.abs(lift), currency)}
+                      {isBalanceHidden
+                        ? "••••"
+                        : amountFormatting.formatCompactAmount(Math.abs(lift), currency)}
                     </text>
                     <text x={x1 + 8} y={bandY + 46} fontSize={9} className="fill-muted-foreground">
-                      {days}D · {kindLabel}
+                      {tr("spending:timeline.daysUpper", { count: days })} · {kindLabel}
                     </text>
                   </>
                 ) : (
@@ -541,7 +554,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
 
           {/* Bookend dates */}
           <text x={padL} y={axisTop + 14} fontSize={9.5} className="fill-muted-foreground">
-            {formatBookendDate(rangeStart)}
+            {formatBookendDate(rangeStart, dateFormatting)}
           </text>
           <text
             x={padL + innerW}
@@ -550,7 +563,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
             textAnchor="end"
             className="fill-muted-foreground"
           >
-            {formatBookendDate(rangeEnd)} ·{" "}
+            {formatBookendDate(rangeEnd, dateFormatting)} ·{" "}
             {tr("spending:timeline.daysUpper", { count: periodDays })}
           </text>
           <text
@@ -620,9 +633,15 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
               {formatSelectedRange(
                 parseLocalDate(selected.startDate),
                 parseLocalDate(selected.endDate),
+                dateFormatting,
               )}{" "}
               ·{" "}
-              {inclusiveDays(parseLocalDate(selected.startDate), parseLocalDate(selected.endDate))}D
+              {tr("spending:timeline.daysUpper", {
+                count: inclusiveDays(
+                  parseLocalDate(selected.startDate),
+                  parseLocalDate(selected.endDate),
+                ),
+              })}
             </div>
           </SummaryCell>
         )}
@@ -689,8 +708,7 @@ function buildDailySeries(
 
 interface MonthMarker {
   idx: number;
-  label: string;
-  year: number;
+  date: Date;
 }
 
 function buildMonthMarkers(rangeStart: Date, rangeEnd: Date): MonthMarker[] {
@@ -698,17 +716,28 @@ function buildMonthMarkers(rangeStart: Date, rangeEnd: Date): MonthMarker[] {
   const cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1, 12, 0, 0, 0);
   while (cursor <= rangeEnd) {
     const idx = Math.round((cursor.getTime() - rangeStart.getTime()) / 86_400_000);
-    out.push({ idx, label: MONTH_LABELS[cursor.getMonth()], year: cursor.getFullYear() });
+    out.push({ idx, date: new Date(cursor) });
     cursor.setMonth(cursor.getMonth() + 1);
   }
   return out;
 }
 
-function formatBookendDate(d: Date): string {
-  return `${MONTH_LABELS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+function formatBookendDate(d: Date, formatting: Pick<FormattingApi, "formatCalendarDate">): string {
+  return formatting.formatCalendarDate(calendarDateFromLocalDate(d), {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
-function formatSelectedRange(start: Date, end: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(start.getMonth() + 1)}/${pad(start.getDate())} – ${pad(end.getMonth() + 1)}/${pad(end.getDate())}`;
+function formatSelectedRange(
+  start: Date,
+  end: Date,
+  formatting: Pick<FormattingApi, "formatCalendarDateRange">,
+): string {
+  return formatting.formatCalendarDateRange(
+    calendarDateFromLocalDate(start),
+    calendarDateFromLocalDate(end),
+    { month: "2-digit", day: "2-digit" },
+  );
 }

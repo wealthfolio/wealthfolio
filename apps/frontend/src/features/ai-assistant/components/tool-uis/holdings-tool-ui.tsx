@@ -1,14 +1,16 @@
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import { useSettingsContext } from "@/lib/settings-provider";
+import { cn } from "@/lib/utils";
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import {
+  AnimatedToggleGroup,
   Badge,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-  formatAmount,
-  formatPercent,
   Skeleton,
   Table,
   TableBody,
@@ -16,14 +18,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  useAmountFormatting,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { memo, useMemo, type FC } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { ResponsiveContainer, Treemap, Tooltip as ChartTooltip } from "recharts";
-import { useSettingsContext } from "@/lib/settings-provider";
-import { AnimatedToggleGroup } from "@wealthfolio/ui";
+import { Tooltip as ChartTooltip, ResponsiveContainer, Treemap } from "recharts";
 import { CompactToolCard } from "./shared";
 import {
   calculateBasePortfolioPerformance,
@@ -253,6 +253,7 @@ const TreemapContent: FC<TreemapContentProps> = ({
   maxGain = 0,
   minGain = 0,
 }) => {
+  const formatting = useNumberFormatting();
   const fontSize = Math.min(width, height) < 60 ? Math.min(width, height) * 0.18 : 11;
   const fontSize2 = Math.min(width, height) < 60 ? Math.min(width, height) * 0.14 : 10;
   const colorScale = getColorScale(gain, maxGain, minGain);
@@ -294,7 +295,7 @@ const TreemapContent: FC<TreemapContentProps> = ({
             className="font-light"
             style={{ fontSize: fontSize2 }}
           >
-            {gain > 0 ? "+" + formatPercent(gain) : formatPercent(gain)}
+            {gain > 0 ? "+" + formatting.formatPercent(gain) : formatting.formatPercent(gain)}
           </text>
         </>
       )}
@@ -316,6 +317,9 @@ interface TreemapTooltipProps {
 }
 
 const TreemapTooltip: FC<TreemapTooltipProps> = ({ active, payload, currency = "USD" }) => {
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+
   const { t } = useTranslation();
   if (!active || !payload?.length) return null;
   const data = payload[0].payload;
@@ -333,13 +337,13 @@ const TreemapTooltip: FC<TreemapTooltipProps> = ({ active, payload, currency = "
         <div className="border-t pt-2">
           <div className="flex items-center justify-between gap-4 text-xs">
             <span className="text-muted-foreground">{t("ai:holdings.value")}</span>
-            <span className="font-medium">{formatAmount(value, currency)}</span>
+            <span className="font-medium">{amountFormatting.formatAmount(value, currency)}</span>
           </div>
           <div className="flex items-center justify-between gap-4 text-xs">
             <span className="text-muted-foreground">{t("ai:holdings.today")}</span>
             <span className={cn("font-medium", isPositive ? "text-success" : "text-destructive")}>
               {isPositive ? "+" : ""}
-              {formatPercent(gain)}
+              {numberFormatting.formatPercent(gain)}
             </span>
           </div>
         </div>
@@ -364,6 +368,9 @@ export const HoldingsToolUI = makeAssistantToolUI<GetHoldingsArgs, GetHoldingsOu
 type HoldingsContentProps = ToolCallMessagePartProps<GetHoldingsArgs, GetHoldingsOutput>;
 
 function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -465,7 +472,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
     if (isBalanceHidden) {
       return "******";
     }
-    return formatAmount(value, currency);
+    return amountFormatting.formatAmount(value, currency);
   };
 
   // Loading skeleton
@@ -592,7 +599,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
               ) : (
                 <>
                   {portfolioChange > 0 ? "+" : ""}
-                  {formatPercent(portfolioChange)}{" "}
+                  {numberFormatting.formatPercent(portfolioChange)}{" "}
                   {returnType === "daily"
                     ? t("ai:holdings.todaySuffix")
                     : returnType === "return"
@@ -657,13 +664,13 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
                   )}
                 >
                   {gainAmount > 0 ? "+" : ""}
-                  {formatAmount(gainAmount, currency)} (
+                  {amountFormatting.formatAmount(gainAmount, currency)} (
                   {gainPct == null ? (
                     "-"
                   ) : (
                     <>
                       {gainPct > 0 ? "+" : ""}
-                      {formatPercent(gainPct)}
+                      {numberFormatting.formatPercent(gainPct)}
                     </>
                   )}
                   )
@@ -726,7 +733,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
                           )}
                         >
                           {tableGainPct > 0 ? "+" : ""}
-                          {formatPercent(tableGainPct)}
+                          {numberFormatting.formatPercent(tableGainPct)}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">-</span>

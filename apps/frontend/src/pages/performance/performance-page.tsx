@@ -14,7 +14,6 @@ import { PerformanceChart } from "@/components/performance-chart";
 import { PerformanceChartMobile } from "@/components/performance-chart-mobile";
 
 import { PERFORMANCE_CHART_COLORS } from "@/components/performance-chart-colors";
-import { EmptyPlaceholder } from "@wealthfolio/ui/components/ui/empty-placeholder";
 import { useAccounts } from "@/hooks/use-accounts";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useIsMobileViewport } from "@/hooks/use-platform";
@@ -26,7 +25,7 @@ import {
 } from "@/lib/performance";
 import { getPerformanceDateRangeForRequest } from "@/lib/performance-date-range";
 import { DateRange, PerformanceResult, TrackedItem } from "@/lib/types";
-import { cn, formatAmount } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   AlertFeedback,
   Badge,
@@ -44,7 +43,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  formatPercent,
   GainPercent,
   Icons,
   Popover,
@@ -58,7 +56,11 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
+  useAmountFormatting,
+  useNumberFormatting,
+  type FormattingApi,
 } from "@wealthfolio/ui";
+import { EmptyPlaceholder } from "@wealthfolio/ui/components/ui/empty-placeholder";
 import { isSameDay, subDays, subMonths } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -289,21 +291,29 @@ function humanizeAccountIds(text: string, namesById: Map<string, string>): strin
 }
 
 /** Trim long raw decimals (e.g. "95.50000000") in warnings to readable amounts. */
-function formatWarningNumbers(text: string): string {
-  return text.replace(DECIMAL_RE, (value) => formatAmount(Number(value), "USD", false));
+function formatWarningNumbers(
+  text: string,
+  formatting: Pick<FormattingApi, "formatAmount">,
+): string {
+  return text.replace(DECIMAL_RE, (value) => formatting.formatAmount(Number(value), "USD", false));
 }
 
 /** Make a data-quality warning user-facing: real account names + tidy numbers. */
-function presentWarning(text: string, namesById: Map<string, string>): string {
-  return formatWarningNumbers(humanizeAccountIds(text, namesById));
+function presentWarning(
+  text: string,
+  namesById: Map<string, string>,
+  formatting: Pick<FormattingApi, "formatAmount">,
+): string {
+  return formatWarningNumbers(humanizeAccountIds(text, namesById), formatting);
 }
 
 function presentMoneyWeightedWarning(
   text: string,
   namesById: Map<string, string>,
   t: TFunction,
+  formatting: Pick<FormattingApi, "formatAmount">,
 ): string {
-  return presentWarning(text, namesById)
+  return presentWarning(text, namesById, formatting)
     .replace(/\bXIRR\b/gi, t("performance:metric.annualized_mwr"))
     .replace(/\bIRR\b/g, "MWR");
 }
@@ -317,6 +327,7 @@ function MetricValue({
   className?: string;
   tone?: "gain" | "neutral";
 }) {
+  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   if (value == null) {
     return (
@@ -328,7 +339,9 @@ function MetricValue({
 
   if (tone === "neutral") {
     return (
-      <span className={cn("text-foreground font-medium", className)}>{formatPercent(value)}</span>
+      <span className={cn("text-foreground font-medium", className)}>
+        {formatting.formatPercent(value)}
+      </span>
     );
   }
 
@@ -972,6 +985,8 @@ const SelectedItemBadge = ({
 };
 
 export default function PerformancePage() {
+  const amountFormatting = useAmountFormatting();
+
   const { t } = useTranslation();
   const isMobile = useIsMobileViewport();
   const [storedSelectedItems, setSelectedItems] = usePersistentState<TrackedItem[]>(
@@ -1199,9 +1214,9 @@ export default function PerformancePage() {
     const rawMoneyWeightedWarnings = rawWarnings.filter(isMoneyWeightedMessage);
     const visibleWarnings = rawWarnings
       .filter((warning) => !isMoneyWeightedMessage(warning))
-      .map((warning) => presentWarning(warning, accountNamesById));
+      .map((warning) => presentWarning(warning, accountNamesById, amountFormatting));
     const moneyWeightedWarnings = rawMoneyWeightedWarnings.map((warning) =>
-      presentMoneyWeightedWarning(warning, accountNamesById, t),
+      presentMoneyWeightedWarning(warning, accountNamesById, t, amountFormatting),
     );
     const rawReason = selectedMetricValue == null ? firstNotApplicableReason(found) : undefined;
     const showAnnualizedMoneyWeightedReturn =
@@ -1212,7 +1227,7 @@ export default function PerformancePage() {
     const rawMoneyWeightedReason =
       moneyWeightedReturn == null ? firstMoneyWeightedReason(found) : undefined;
     const presentedMoneyWeightedReason = rawMoneyWeightedReason
-      ? presentMoneyWeightedWarning(rawMoneyWeightedReason, accountNamesById, t)
+      ? presentMoneyWeightedWarning(rawMoneyWeightedReason, accountNamesById, t, amountFormatting)
       : undefined;
     const moneyWeightedReason =
       presentedMoneyWeightedReason ??
@@ -1274,7 +1289,9 @@ export default function PerformancePage() {
       result: found,
       chartMetric: selectedMetric,
       selectedMetricValue,
-      selectedMetricReason: rawReason ? presentWarning(rawReason, accountNamesById) : undefined,
+      selectedMetricReason: rawReason
+        ? presentWarning(rawReason, accountNamesById, amountFormatting)
+        : undefined,
       warningTerms: Array.from(accountNamesById.values()),
       annualizedReturn: annualizedDisplayMetricValue(found, selectedMetric),
       annualizedReturnLabel:
@@ -1298,7 +1315,7 @@ export default function PerformancePage() {
       warnings: visibleWarnings,
       notApplicableReasons: found.dataQuality.notApplicableReasons ?? [],
     };
-  }, [selectedPerformanceData, accountNamesById, t]);
+  }, [selectedPerformanceData, accountNamesById, amountFormatting, t]);
 
   const preserveCurrentChartAnchor = (fallbackId: string) => {
     setSelectedItemId(

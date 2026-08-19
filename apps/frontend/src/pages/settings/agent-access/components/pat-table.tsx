@@ -1,9 +1,11 @@
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
-import { format, formatDistanceToNowStrict } from "date-fns";
 import type { AgentAccessToken } from "@/adapters";
 import { cn } from "@/lib/utils";
+import {
+  dateFnsLocaleFor,
+  useDateFormatting,
+  useLocalizationSettings,
+  type DateFormatting,
+} from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +28,10 @@ import {
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
+import { formatDistanceToNowStrict, type Locale } from "date-fns";
+import type { TFunction } from "i18next";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAccessTokens } from "../hooks/use-access-tokens";
 import { matchPreset, presetLabel, scopeLabel } from "../scopes";
 import { PatCreateDialog } from "./pat-create-dialog";
@@ -45,23 +51,34 @@ function tokenStatus(token: AgentAccessToken): TokenStatus {
 }
 
 /** "Created Mar 12, 2026". */
-const formatCreated = (t: TFunction, value: string) =>
-  t("settings:agentAccess.pat_created", { date: format(new Date(value), "MMM dd, yyyy") });
+const formatCreated = (t: TFunction, value: string, formatting: DateFormatting) =>
+  t("settings:agentAccess.pat_created", {
+    date: formatting.formatDate(new Date(value)),
+  });
 
 /** "Expires in 78 days" / "No expiration" / "Expired Apr 1". */
-function formatExpiry(t: TFunction, expiresAt: string | null): string {
+function formatExpiry(
+  t: TFunction,
+  expiresAt: string | null,
+  formatting: DateFormatting,
+  locale: Locale,
+): string {
   if (!expiresAt) return t("settings:agentAccess.pat_no_expiration");
   const date = new Date(expiresAt);
   if (date < new Date())
-    return t("settings:agentAccess.pat_expired_on", { date: format(date, "MMM d") });
-  return t("settings:agentAccess.pat_expires_in", { duration: formatDistanceToNowStrict(date) });
+    return t("settings:agentAccess.pat_expired_on", {
+      date: formatting.formatDate(date),
+    });
+  return t("settings:agentAccess.pat_expires_in", {
+    duration: formatDistanceToNowStrict(date, { locale }),
+  });
 }
 
 /** "Last used 2 hours ago" / "Never used". */
-const formatLastUsed = (t: TFunction, lastUsedAt: string | null) =>
+const formatLastUsed = (t: TFunction, lastUsedAt: string | null, locale: Locale) =>
   lastUsedAt
     ? t("settings:agentAccess.pat_last_used", {
-        time: formatDistanceToNowStrict(new Date(lastUsedAt), { addSuffix: true }),
+        time: formatDistanceToNowStrict(new Date(lastUsedAt), { addSuffix: true, locale }),
       })
     : t("settings:agentAccess.pat_never_used");
 
@@ -95,6 +112,9 @@ function ScopeBadge({ scopes }: { scopes: string[] }) {
 }
 
 export function PatTable({ serverUrl }: { serverUrl?: string } = {}) {
+  const formatting = useDateFormatting();
+  const { uiLocale } = useLocalizationSettings();
+  const dateFnsLocale = dateFnsLocaleFor(uiLocale);
   const { t } = useTranslation();
   const { tokens, isLoading, createMutation, deleteMutation } = useAccessTokens();
   const [createOpen, setCreateOpen] = useState(false);
@@ -159,8 +179,9 @@ export function PatTable({ serverUrl }: { serverUrl?: string } = {}) {
                       </Badge>
                     </div>
                     <p className="text-muted-foreground text-xs">
-                      {formatCreated(t, token.createdAt)} · {formatExpiry(t, token.expiresAt)} ·{" "}
-                      {formatLastUsed(t, token.lastUsedAt)}
+                      {formatCreated(t, token.createdAt, formatting)} ·{" "}
+                      {formatExpiry(t, token.expiresAt, formatting, dateFnsLocale)} ·{" "}
+                      {formatLastUsed(t, token.lastUsedAt, dateFnsLocale)}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">

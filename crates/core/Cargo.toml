@@ -35,7 +35,6 @@ reqwest = { workspace = true, features = ["cookies"] }
 wealthfolio-market-data = { path = "../market-data" }
 
 # Additional dependencies not in workspace
-yahoo_finance_api = "4.1"
 regex = "1.10"
 rand = { workspace = true }
 rand_distr = "0.4"

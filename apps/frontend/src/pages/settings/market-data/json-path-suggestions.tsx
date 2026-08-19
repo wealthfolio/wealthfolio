@@ -1,3 +1,4 @@
+import type { FormattingApi } from "@wealthfolio/ui";
 /** Utilities for extracting numeric values from JSON and HTML responses. */
 
 // ---------------------------------------------------------------------------
@@ -51,12 +52,12 @@ export function friendlyPath(path: string): string {
   return path.replace(/^\$\.?/, "") || "$";
 }
 
-export function formatNumber(n: number): string {
+export function formatNumber(n: number, formatting: Pick<FormattingApi, "formatDecimal">): string {
   if (Math.abs(n) >= 1000) {
-    return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    return formatting.formatDecimal(n, { maximumFractionDigits: 2 });
   }
   if (n !== Math.floor(n)) {
-    return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
+    return formatting.formatDecimal(n, { maximumFractionDigits: 6 });
   }
   return String(n);
 }

@@ -1,9 +1,10 @@
 import { SyncStatusIcon } from "@/features/wealthfolio-connect/components/sync-status-icon";
 import { useAggregatedSyncStatus } from "@/features/wealthfolio-connect/hooks";
+import { formatDistanceToNow } from "@/lib/utils";
+import { useLocalizationSettings } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import { cn } from "@wealthfolio/ui/lib/utils";
-import { formatDistanceToNow } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router-dom";
 import { isPathActive } from "./app-navigation";
@@ -13,6 +14,8 @@ interface ConnectNavItemProps {
 }
 
 export function ConnectNavItem({ collapsed }: ConnectNavItemProps) {
+  const localizationSettings = useLocalizationSettings();
+
   const { t } = useTranslation();
   const location = useLocation();
   const { status, lastSyncTime } = useAggregatedSyncStatus();
@@ -20,7 +23,9 @@ export function ConnectNavItem({ collapsed }: ConnectNavItemProps) {
 
   const tooltipContent = lastSyncTime
     ? t("common:layout.connect_last_synced", {
-        time: formatDistanceToNow(new Date(lastSyncTime), { addSuffix: true }),
+        time: formatDistanceToNow(new Date(lastSyncTime), localizationSettings, {
+          addSuffix: true,
+        }),
       })
     : t("common:connect");
 

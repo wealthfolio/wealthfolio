@@ -1,18 +1,19 @@
-import { ReactNode } from "react";
-import { useTranslation } from "react-i18next";
+import {
+  useRecalculatePortfolioMutation,
+  useUpdatePortfolioMutation,
+} from "@/hooks/use-calculate-portfolio";
+import { formatDateTime } from "@/lib/utils";
+import { useDateFormatting } from "@wealthfolio/ui";
+import { Badge } from "@wealthfolio/ui/components/ui/badge";
+import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@wealthfolio/ui/components/ui/hover-card";
-import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import {
-  useUpdatePortfolioMutation,
-  useRecalculatePortfolioMutation,
-} from "@/hooks/use-calculate-portfolio";
-import { formatDateTime } from "@/lib/utils";
+import { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 // Rename interface
 interface PortfolioUpdateTriggerProps {
@@ -28,11 +29,15 @@ export function PortfolioUpdateTrigger({
   children,
   notices = [],
 }: PortfolioUpdateTriggerProps) {
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   // Instantiate the mutation hooks inside the component
   const updatePortfolioMutation = useUpdatePortfolioMutation();
   const recalculatePortfolioMutation = useRecalculatePortfolioMutation();
-  const formattedLastCalculatedAt = lastCalculatedAt ? formatDateTime(lastCalculatedAt) : null;
+  const formattedLastCalculatedAt = lastCalculatedAt
+    ? formatDateTime(lastCalculatedAt, dateFormatting)
+    : null;
 
   // Define handlers internally
   const handleUpdate = () => {

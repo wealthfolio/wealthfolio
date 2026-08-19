@@ -12,8 +12,8 @@ import {
   YAxis,
 } from "recharts";
 
-import { PrivacyAmount, Skeleton, formatCompactAmount } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { PrivacyAmount, Skeleton, useAmountFormatting } from "@wealthfolio/ui";
 
 import type { MonthBucket } from "../../types/report";
 
@@ -35,6 +35,7 @@ interface CashflowDatum {
  *  see both magnitudes; the Net line tells the saved-vs-overspent story directly.
  */
 export function CashflowAreaChart({ months, currency, isLoading }: CashflowAreaChartProps) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const data: CashflowDatum[] = useMemo(
@@ -81,7 +82,7 @@ export function CashflowAreaChart({ months, currency, isLoading }: CashflowAreaC
             axisLine={false}
             tickLine={false}
             tickFormatter={(v: number) =>
-              isBalanceHidden ? "••" : formatCompactAmount(v, currency)
+              isBalanceHidden ? "••" : formatting.formatCompactAmount(v, currency)
             }
             tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
             width={56}

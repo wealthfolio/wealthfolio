@@ -1,5 +1,5 @@
 import type { SaveUpProjectionPointDTO } from "@/lib/types";
-import { formatCompactAmount } from "@wealthfolio/ui";
+import { useAmountFormatting, useDateFormatting, useNumberFormatting } from "@wealthfolio/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { useTranslation } from "react-i18next";
 import {
@@ -19,22 +19,11 @@ type ProjectionPoint = SaveUpProjectionPointDTO;
 // Keep in sync with the +/- range used by crates/core/src/planning/save_up.rs.
 const RANGE_RATE_DELTA = 0.02;
 
-function formatRate(rate: number) {
-  return `${(rate * 100).toFixed(1)}%`;
-}
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
 const COLORS = {
   nominal: { fill: "hsl(92, 24%, 70%)", stroke: "var(--success)" },
   range: { stroke: "hsl(91, 24%, 46%)" },
   target: "var(--muted-foreground)",
 };
-
-function formatDateLabel(v: string) {
-  const [y, m] = v.split("-");
-  return `${MONTHS[Number(m) - 1]} ${y.slice(2)}`;
-}
 
 function ProjectionTooltip({
   active,
@@ -50,14 +39,20 @@ function ProjectionTooltip({
   isHidden: boolean;
   annualReturn: number;
 }) {
+  const formatting = useAmountFormatting();
+  const dateFormatting = useDateFormatting();
+  const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
   if (!active || !payload?.length) return null;
   const point = payload[0]?.payload as ProjectionPoint | undefined;
   if (!point) return null;
 
-  const [y, m] = point.date.split("-");
-  const label = `${MONTHS[Number(m) - 1]} ${y}`;
-  const fmt = (v: number) => (isHidden ? "***" : formatCompactAmount(v, currency));
+  const label = dateFormatting.formatCalendarDate(`${point.date}-01`, {
+    calendar: "gregory",
+    month: "short",
+    year: "numeric",
+  });
+  const fmt = (v: number) => (isHidden ? "***" : formatting.formatCompactAmount(v, currency));
 
   const highRate = annualReturn + RANGE_RATE_DELTA;
   const lowRate = Math.max(0, annualReturn - RANGE_RATE_DELTA);
@@ -76,13 +71,17 @@ function ProjectionTooltip({
       style: "dashed",
     },
     {
-      label: t("goals:projection.high_range", { rate: formatRate(highRate) }),
+      label: t("goals:projection.high_range", {
+        rate: numberFormatting.formatPercent(highRate, { digits: 1 }),
+      }),
       value: point.optimistic,
       color: COLORS.range.stroke,
       style: "band",
     },
     {
-      label: t("goals:projection.low_range", { rate: formatRate(lowRate) }),
+      label: t("goals:projection.low_range", {
+        rate: numberFormatting.formatPercent(lowRate, { digits: 1 }),
+      }),
       value: point.pessimistic,
       color: COLORS.range.stroke,
       style: "band",
@@ -125,12 +124,21 @@ function ProjectionChart({
   isHidden: boolean;
   annualReturn: number;
 }) {
+  const formatting = useAmountFormatting();
+  const dateFormatting = useDateFormatting();
   const target = data[0]?.target ?? 0;
   const last = data.length > 0 ? data[data.length - 1] : null;
   const finalTarget = last?.target ?? 0;
   const finalProjected = last?.nominal ?? 0;
   const finalDate = last?.date;
-  const fmtCompact = (v: number) => (isHidden ? "***" : formatCompactAmount(v, currency));
+  const fmtCompact = (v: number) =>
+    isHidden ? "***" : formatting.formatCompactAmount(v, currency);
+  const formatDateLabel = (value: string) =>
+    dateFormatting.formatCalendarDate(`${value}-01`, {
+      calendar: "gregory",
+      month: "short",
+      year: "2-digit",
+    });
 
   return (
     <ResponsiveContainer width="100%" height={300}>
@@ -278,6 +286,7 @@ export function SaveUpProjectionCard({
   annualReturn: number;
 }) {
   const { t } = useTranslation();
+  const numberFormatting = useNumberFormatting();
   return (
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-4">
@@ -310,7 +319,7 @@ export function SaveUpProjectionCard({
               style={{ backgroundColor: COLORS.range.stroke, opacity: 0.18 }}
             />
             {t("goals:projection.legend_range", {
-              pct: (RANGE_RATE_DELTA * 100).toFixed(0),
+              pct: numberFormatting.formatPercent(RANGE_RATE_DELTA, { digits: 0 }),
             })}
           </span>
         </div>

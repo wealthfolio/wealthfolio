@@ -13,7 +13,7 @@ use rust_decimal::Decimal;
 
 use super::models::AccountUniversalActivity;
 use wealthfolio_core::activities::{self, AssetResolutionInput, NewActivity};
-use wealthfolio_core::assets::parse_symbol_with_exchange_suffix;
+use wealthfolio_core::assets::{parse_crypto_pair_symbol, parse_symbol_with_known_exchange};
 use wealthfolio_core::fx::currency::{get_normalization_rule, normalize_amount, resolve_currency};
 
 /// Minimum confidence score to consider a mapping reliable
@@ -286,6 +286,97 @@ fn is_broker_bond(code: Option<&str>) -> bool {
     )
 }
 
+/// The instrument identity a broker payload names: its ticker and its venue.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedBrokerSymbol {
+    pub symbol: String,
+    pub exchange_mic: Option<String>,
+}
+
+/// The venue a broker labelled an instrument with, if it labelled one at all.
+///
+/// `mic_code` is asked first because it is the field meant to hold a MIC. `code` is
+/// a provider-flavoured abbreviation (`NEO`, `NMS`) that only sometimes is one, so
+/// it is a last resort — but still better than nothing when the symbol carries no
+/// suffix to read.
+pub fn broker_exchange_mic(mic_code: Option<&str>, code: Option<&str>) -> Option<String> {
+    [mic_code, code]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .find(|c| !c.is_empty())
+        .map(str::to_string)
+}
+
+/// Resolve a broker instrument's ticker and venue from every identity field the
+/// payload carries.
+///
+/// Both sync paths go through here — activities via [`map_broker_activity`],
+/// positions via `save_broker_holdings` — because the two endpoints describe the
+/// same instrument, so any difference in how we read them files that instrument
+/// under two asset rows. Verified live 2026-07-29: the divergence was entirely
+/// ours.
+///
+/// The venue is resolved first, because it is what tells a trailing `.X` apart from
+/// a share class:
+///
+/// - **Venue**: `symbol`'s exchange suffix, then `raw_symbol`'s, then the broker's
+///   own exchange label. `symbol` leads because it is the field the provider
+///   decorates — `ZAAA.F` arrives as `symbol: "ZAAA.F.NE"`, so reading the raw
+///   ticker first would call Frankfurt (`.F`) the venue. Brokers that decorate the
+///   raw ticker instead (`VOD.L`) still resolve through the fallback.
+/// - **Ticker**: `raw_symbol`, then `symbol`, each read against that venue (see
+///   [`parse_symbol_with_known_exchange`]) so a suffix the venue contradicts stays
+///   on the ticker. `ZAAA.F` on Cboe Canada is BMO's currency-hedged unit class,
+///   not a Frankfurt listing, and stripping the `.F` resolves quotes for the
+///   unhedged fund instead.
+///
+/// Crypto has no venue: the ticker is the raw one, or the base of the provider's
+/// pair (`BTC-USD` → `BTC`).
+///
+/// Returns `None` when the payload names no symbol at all.
+pub fn normalize_broker_symbol(
+    symbol: Option<&str>,
+    raw_symbol: Option<&str>,
+    exchange_mic: Option<&str>,
+    is_crypto: bool,
+) -> Option<NormalizedBrokerSymbol> {
+    let symbol = symbol.map(str::trim).filter(|s| !s.is_empty());
+    let raw_symbol = raw_symbol.map(str::trim).filter(|s| !s.is_empty());
+
+    if is_crypto {
+        let ticker = raw_symbol.map(str::to_string).or_else(|| {
+            symbol.map(|sym| {
+                parse_crypto_pair_symbol(sym)
+                    .map(|(base, _)| base)
+                    .unwrap_or_else(|| sym.to_string())
+            })
+        })?;
+        return Some(NormalizedBrokerSymbol {
+            symbol: ticker,
+            exchange_mic: None,
+        });
+    }
+
+    let broker_mic = exchange_mic.map(str::trim).filter(|c| !c.is_empty());
+    let venue = symbol
+        .and_then(|sym| parse_symbol_with_known_exchange(sym, broker_mic).1)
+        .or_else(|| raw_symbol.and_then(|sym| parse_symbol_with_known_exchange(sym, broker_mic).1))
+        .map(str::to_string)
+        .or_else(|| broker_mic.map(str::to_string));
+
+    let ticker = raw_symbol.or(symbol).map(|sym| {
+        parse_symbol_with_known_exchange(sym, venue.as_deref())
+            .0
+            .to_string()
+    })?;
+
+    Some(NormalizedBrokerSymbol {
+        symbol: ticker,
+        exchange_mic: venue,
+    })
+}
+
 fn normalized_trade_amount(
     activity_type: &str,
     quantity: Option<Decimal>,
@@ -384,25 +475,28 @@ pub fn map_broker_activity(
     let is_crypto = is_broker_crypto(symbol_type_code);
     let is_bond = is_broker_bond(symbol_type_code);
 
-    // Extract exchange MIC from broker data (prefer mic_code over code)
-    let exchange_mic_from_symbol = symbol_ref.and_then(|s| s.exchange.as_ref()).and_then(|e| {
-        e.mic_code
-            .clone()
-            .filter(|c| !c.trim().is_empty())
-            .or_else(|| e.code.clone().filter(|c| !c.trim().is_empty()))
-    });
+    // Ticker and venue come from the same normalization the holdings path uses, so
+    // one instrument cannot land under two asset identities depending on which
+    // endpoint reported it. See `normalize_broker_symbol`.
+    let normalized_symbol = normalize_broker_symbol(
+        symbol_ref.and_then(|s| s.symbol.as_deref()),
+        symbol_ref.and_then(|s| s.raw_symbol.as_deref()),
+        symbol_ref
+            .and_then(|s| s.exchange.as_ref())
+            .and_then(|e| broker_exchange_mic(e.mic_code.as_deref(), e.code.as_deref()))
+            .as_deref(),
+        is_crypto,
+    );
     let exchange_mic_from_underlying = activity
         .option_symbol
         .as_ref()
         .and_then(|o| o.underlying_symbol.as_ref())
         .and_then(|u| u.exchange.as_ref())
-        .and_then(|e| {
-            e.mic_code
-                .clone()
-                .filter(|c| !c.trim().is_empty())
-                .or_else(|| e.code.clone().filter(|c| !c.trim().is_empty()))
-        });
-    let exchange_mic = exchange_mic_from_symbol.or(exchange_mic_from_underlying);
+        .and_then(|e| broker_exchange_mic(e.mic_code.as_deref(), e.code.as_deref()));
+    let exchange_mic = normalized_symbol
+        .as_ref()
+        .and_then(|normalized| normalized.exchange_mic.clone())
+        .or(exchange_mic_from_underlying);
 
     // Get the symbol's currency
     let symbol_currency = symbol_ref
@@ -417,31 +511,7 @@ pub fn map_broker_activity(
         base_currency.unwrap_or(""),
     ]);
 
-    // Determine the display symbol based on asset type
-    let display_symbol: Option<String> = if is_crypto {
-        // For crypto: raw_symbol > extract base from symbol field
-        symbol_ref
-            .and_then(|s| s.raw_symbol.clone())
-            .filter(|r| !r.trim().is_empty())
-            .or_else(|| {
-                symbol_ref
-                    .and_then(|s| s.symbol.clone())
-                    .filter(|sym| !sym.trim().is_empty())
-                    .map(|sym| sym.split('-').next().unwrap_or(&sym).to_string())
-            })
-    } else {
-        // For securities: raw_symbol > symbol normalized via Yahoo suffix parser.
-        // This preserves valid share-class symbols like BRK.B while trimming real exchange suffixes.
-        symbol_ref
-            .and_then(|s| s.raw_symbol.clone())
-            .filter(|r| !r.trim().is_empty())
-            .or_else(|| {
-                symbol_ref
-                    .and_then(|s| s.symbol.clone())
-                    .filter(|sym| !sym.trim().is_empty())
-                    .map(|sym| parse_symbol_with_exchange_suffix(&sym).0.to_string())
-            })
-    };
+    let display_symbol: Option<String> = normalized_symbol.map(|normalized| normalized.symbol);
 
     // Also get option symbol if present. SnapTrade/Connect sometimes returns
     // OCC tickers in space-padded form ("BA    260116C00200000"); normalize
@@ -823,6 +893,222 @@ mod tests {
         assert_eq!(symbol.kind.as_deref(), Some("OPTION"));
         assert_eq!(symbol.exchange_mic, None);
         assert_eq!(mapped.subtype.as_deref(), Some("POSITION_OPEN"));
+    }
+
+    /// The live Wealthsimple/SnapTrade shape for a Cboe Canada ETF: the exchange
+    /// object says `NEOE` and `symbol` carries the `.NE` suffix, which now resolves
+    /// to that same MIC. Both endpoints therefore agree, where before the registry
+    /// spelled the venue `XNEO` and one instrument landed under two asset
+    /// identities — activities under NEOE, positions under XNEO.
+    #[test]
+    fn test_map_broker_activity_agrees_with_the_broker_mic_for_cboe_canada() {
+        let activity = AccountUniversalActivity {
+            id: Some("act-neo".to_string()),
+            activity_type: Some("BUY".to_string()),
+            symbol: Some(crate::broker::models::AccountUniversalActivitySymbol {
+                symbol: Some("VBU.NE".to_string()),
+                raw_symbol: Some("VBU".to_string()),
+                exchange: Some(AccountUniversalActivityExchange {
+                    code: Some("NEO".to_string()),
+                    mic_code: Some("NEOE".to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            units: Some(1.0),
+            price: Some(20.0),
+            ..Default::default()
+        };
+
+        let mapped = map_broker_activity(&activity, "acct-1", Some("CAD"), Some("CAD")).unwrap();
+        let symbol = mapped.asset.expect("buy activities should produce symbol");
+
+        assert_eq!(symbol.symbol.as_deref(), Some("VBU"));
+        assert_eq!(symbol.exchange_mic.as_deref(), Some("NEOE"));
+    }
+
+    /// A dot in the raw ticker is part of the ticker, not an exchange suffix.
+    /// `ZAAA.F` is a real holding whose raw symbol ends `.F` — Yahoo's suffix for
+    /// Frankfurt — while the decorated symbol `ZAAA.F.NE` names the actual venue.
+    /// Reading the raw ticker first would file a Canadian ETF under XFRA.
+    #[test]
+    fn test_map_broker_activity_ignores_ticker_dot_that_looks_like_an_exchange_suffix() {
+        let activity = AccountUniversalActivity {
+            id: Some("act-zaaa".to_string()),
+            activity_type: Some("BUY".to_string()),
+            symbol: Some(crate::broker::models::AccountUniversalActivitySymbol {
+                symbol: Some("ZAAA.F.NE".to_string()),
+                raw_symbol: Some("ZAAA.F".to_string()),
+                exchange: Some(AccountUniversalActivityExchange {
+                    code: Some("NEO".to_string()),
+                    mic_code: Some("NEOE".to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            units: Some(1.0),
+            price: Some(50.0),
+            ..Default::default()
+        };
+
+        let mapped = map_broker_activity(&activity, "acct-1", Some("CAD"), Some("CAD")).unwrap();
+        let symbol = mapped.asset.expect("buy activities should produce symbol");
+
+        assert_eq!(symbol.symbol.as_deref(), Some("ZAAA.F"));
+        assert_eq!(symbol.exchange_mic.as_deref(), Some("NEOE"));
+    }
+
+    /// The same instrument as above, but the broker sends only the raw ticker —
+    /// there is no decorated `symbol` whose `.NE` names the venue. The exchange
+    /// metadata is then the only evidence, and it is enough: `.F` is Frankfurt
+    /// (EUR), Cboe Canada trades in CAD, so the `.F` belongs to the ticker. Before
+    /// the exchange object was consulted, this resolved to XFRA.
+    #[test]
+    fn test_map_broker_activity_uses_exchange_metadata_when_only_raw_symbol_is_sent() {
+        let activity = AccountUniversalActivity {
+            id: Some("act-zaaa-raw".to_string()),
+            activity_type: Some("BUY".to_string()),
+            symbol: Some(crate::broker::models::AccountUniversalActivitySymbol {
+                symbol: None,
+                raw_symbol: Some("ZAAA.F".to_string()),
+                exchange: Some(AccountUniversalActivityExchange {
+                    code: Some("NEO".to_string()),
+                    mic_code: Some("NEOE".to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            units: Some(1.0),
+            price: Some(50.0),
+            ..Default::default()
+        };
+
+        let mapped = map_broker_activity(&activity, "acct-1", Some("CAD"), Some("CAD")).unwrap();
+        let symbol = mapped.asset.expect("buy activities should produce symbol");
+
+        assert_eq!(symbol.symbol.as_deref(), Some("ZAAA.F"));
+        assert_eq!(symbol.exchange_mic.as_deref(), Some("NEOE"));
+    }
+
+    /// A broker MIC is still the answer when the symbol carries no suffix to read.
+    #[test]
+    fn test_map_broker_activity_falls_back_to_broker_mic_without_symbol_suffix() {
+        let activity = AccountUniversalActivity {
+            id: Some("act-plain".to_string()),
+            activity_type: Some("BUY".to_string()),
+            symbol: Some(crate::broker::models::AccountUniversalActivitySymbol {
+                symbol: Some("AAPL".to_string()),
+                raw_symbol: Some("AAPL".to_string()),
+                exchange: Some(AccountUniversalActivityExchange {
+                    mic_code: Some("XNAS".to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            units: Some(1.0),
+            price: Some(200.0),
+            ..Default::default()
+        };
+
+        let mapped = map_broker_activity(&activity, "acct-1", Some("USD"), Some("USD")).unwrap();
+        let symbol = mapped.asset.expect("buy activities should produce symbol");
+
+        assert_eq!(symbol.exchange_mic.as_deref(), Some("XNAS"));
+    }
+
+    fn normalized(symbol: &str, exchange_mic: Option<&str>) -> Option<NormalizedBrokerSymbol> {
+        Some(NormalizedBrokerSymbol {
+            symbol: symbol.to_string(),
+            exchange_mic: exchange_mic.map(str::to_string),
+        })
+    }
+
+    /// The provider decorates `symbol`, so that is where the venue is read from.
+    #[test]
+    fn normalize_broker_symbol_reads_the_venue_from_the_decorated_symbol() {
+        assert_eq!(
+            normalize_broker_symbol(Some("SHOP.TO"), Some("SHOP"), None, false),
+            normalized("SHOP", Some("XTSE"))
+        );
+    }
+
+    /// Some brokers decorate the raw ticker instead, so it stays a fallback.
+    #[test]
+    fn normalize_broker_symbol_reads_the_venue_from_a_decorated_raw_ticker() {
+        assert_eq!(
+            normalize_broker_symbol(Some("VOD"), Some("VOD.L"), None, false),
+            normalized("VOD", Some("XLON"))
+        );
+    }
+
+    /// Both payload shapes for BMO's currency-hedged unit class on Cboe Canada, and
+    /// the reason the two sync paths share this function: they have to agree.
+    #[test]
+    fn normalize_broker_symbol_keeps_a_share_class_the_venue_contradicts() {
+        // `.NE` names the venue; the `.F` before it is the share class.
+        assert_eq!(
+            normalize_broker_symbol(Some("ZAAA.F.NE"), Some("ZAAA.F"), Some("NEOE"), false),
+            normalized("ZAAA.F", Some("NEOE"))
+        );
+        // No decorated symbol at all — the exchange metadata carries the venue, and
+        // `.F` (Frankfurt, EUR) cannot be a CAD venue.
+        assert_eq!(
+            normalize_broker_symbol(None, Some("ZAAA.F"), Some("NEOE"), false),
+            normalized("ZAAA.F", Some("NEOE"))
+        );
+    }
+
+    /// Nothing to read the venue from leaves the suffix as the only evidence.
+    #[test]
+    fn normalize_broker_symbol_trusts_a_lone_suffix() {
+        assert_eq!(
+            normalize_broker_symbol(None, Some("ZAAA.F"), None, false),
+            normalized("ZAAA", Some("XFRA"))
+        );
+    }
+
+    /// `.B` is not a Yahoo exchange suffix, so no venue rule reaches it.
+    #[test]
+    fn normalize_broker_symbol_leaves_an_unknown_dotted_suffix_alone() {
+        assert_eq!(
+            normalize_broker_symbol(Some("BRK.B"), Some("BRK.B"), Some("XNYS"), false),
+            normalized("BRK.B", Some("XNYS"))
+        );
+    }
+
+    #[test]
+    fn normalize_broker_symbol_collapses_crypto_pairs_and_reports_no_venue() {
+        assert_eq!(
+            normalize_broker_symbol(Some("BTC-USD"), None, None, true),
+            normalized("BTC", None)
+        );
+        // A raw crypto ticker is already the base asset, and no exchange metadata
+        // makes a coin trade on a venue.
+        assert_eq!(
+            normalize_broker_symbol(Some("BTC-USD"), Some("BTC"), Some("XNAS"), true),
+            normalized("BTC", None)
+        );
+    }
+
+    #[test]
+    fn normalize_broker_symbol_needs_a_symbol() {
+        assert_eq!(
+            normalize_broker_symbol(Some("  "), Some(""), Some("XNAS"), false),
+            None
+        );
+    }
+
+    #[test]
+    fn broker_exchange_mic_prefers_the_mic_field_but_accepts_a_blank_one() {
+        assert_eq!(
+            broker_exchange_mic(Some("NEOE"), Some("NEO")).as_deref(),
+            Some("NEOE")
+        );
+        assert_eq!(
+            broker_exchange_mic(Some("   "), Some("NEO")).as_deref(),
+            Some("NEO")
+        );
+        assert_eq!(broker_exchange_mic(None, None), None);
     }
 
     #[test]

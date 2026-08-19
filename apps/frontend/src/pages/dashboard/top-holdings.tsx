@@ -1,18 +1,26 @@
 import { DashboardCard } from "@/components/dashboard-card";
 import { HoldingPerformancePercent } from "@/components/holding-performance-percent";
 import { TickerAvatar } from "@/components/ticker-avatar";
-import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { HoldingType, isAlternativeAssetKind } from "@/lib/constants";
 import { getBaseHoldingPerformancePercentForMode } from "@/lib/holding-performance";
-import { parseOccSymbol } from "@/lib/occ-symbol";
+import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
 import { Holding } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { AmountDisplay, Button, GainAmount, Icons, usePersistentState } from "@wealthfolio/ui";
+import {
+  AmountDisplay,
+  Button,
+  GainAmount,
+  Icons,
+  useNumberFormatting,
+  usePersistentState,
+  useDateFormatting,
+} from "@wealthfolio/ui";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
+import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 
 const MAX_DISPLAYED_HOLDINGS = 7;
 const MAX_STACKED_AVATARS = 5;
@@ -42,6 +50,9 @@ function HoldingRow({
   showName,
   onClick,
 }: HoldingRowProps) {
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const symbol = holding.instrument?.symbol ?? holding.id;
   const parsedOption = parseOccSymbol(symbol);
@@ -49,10 +60,12 @@ function HoldingRow({
   const nameLabel = holding.instrument?.name?.trim() || symbolLabel;
   const title = showName ? nameLabel : symbolLabel;
   const subtitle = parsedOption
-    ? `${new Date(parsedOption.expiration + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} $${parsedOption.strikePrice} ${parsedOption.optionType}`
+    ? formatOptionSubtitle(parsedOption, { ...numberFormatting, ...dateFormatting })
     : t("dashboard:holdings.shares", {
         count: holding.quantity ?? 0,
-        formatted: (holding.quantity ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 }),
+        formatted: formatting.formatDecimal(holding.quantity ?? 0, {
+          maximumFractionDigits: 3,
+        }),
       });
   const avatarSymbol = parsedOption ? parsedOption.underlying : symbol;
   const marketValue = holding.marketValue?.base ?? 0;

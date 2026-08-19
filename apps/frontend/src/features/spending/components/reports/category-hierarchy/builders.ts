@@ -5,6 +5,7 @@
  * on render / state and these pure transforms become unit-testable.
  */
 import type { TaxonomyCategory } from "@/lib/types";
+import type { FormattingApi } from "@wealthfolio/ui";
 
 import type { BudgetCategoryRow, BudgetGroupRow } from "../../../types/budget";
 import type { CategoryBreakdownRow } from "../../../types/report";
@@ -220,11 +221,14 @@ export function buildGroupWeights({
   );
 }
 
-export function formatDelta(delta: number, baseline: number): string {
+export function formatDelta(
+  delta: number,
+  baseline: number,
+  formatting: Pick<FormattingApi, "formatPercent">,
+): string {
   if (delta === 0) return "—";
   // No prior period spend — label as "new" instead of restating current amount.
   if (baseline === 0) return delta > 0 ? "new" : "—";
-  const pct = (Math.abs(delta) / baseline) * 100;
   const arrow = delta > 0 ? "↑" : "↓";
-  return `${arrow} ${pct.toFixed(0)}%`;
+  return `${arrow} ${formatting.formatPercent(Math.abs(delta) / baseline, { digits: 0 })}`;
 }

@@ -49,7 +49,10 @@
       "noTimezonesFound": "시간대를 찾을 수 없습니다",
       "currencyRequired": "기준 통화를 선택해 주세요.",
       "timezoneRequired": "시간대를 선택해 주세요.",
-      "languageLabel": "언어"
+      "languageLabel": "언어",
+      "formattingRegionLabel": "지역 및 표시 형식",
+      "searchRegionsPlaceholder": "지역 검색...",
+      "noRegionsFound": "지역을 찾을 수 없습니다"
     }
   },
   "appearance": {

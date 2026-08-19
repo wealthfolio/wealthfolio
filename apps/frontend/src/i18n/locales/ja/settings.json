@@ -32,6 +32,10 @@
   "save_settings": "設定を保存",
   "settings_saved": "設定を保存しました",
   "settings_error": "設定の保存に失敗しました",
+  "settings_updated_title": "設定を更新しました",
+  "settings_updated_description": "設定が正常に更新されました。",
+  "settings_update_error_title": "エラーが発生しました。",
+  "settings_update_error_description": "設定の更新中に問題が発生しました。",
   "nav_general_subtitle": "通貨と一般設定",
   "nav_appearance_subtitle": "テーマ、フォント、表示密度",
   "nav_accounts_subtitle": "投資口座と貯蓄口座",
@@ -958,7 +962,19 @@
     "placeholders": "プレースホルダー:",
     "empty_response_before": "URLを入力してから ",
     "empty_response_after": " を押してテストしてください。",
-    "retry": "再試行"
+    "retry": "再試行",
+    "table_click_column_to_map_field_other": "{{count}}行 · 列見出しをクリックして{{field}}に対応付け",
+    "table_click_column_to_map_other": "{{count}}行 · 列見出しをクリックして対応付け",
+    "csv_rows_detected_field_other": "{{count}}行を検出しました。列見出しをクリックして{{field}}に対応付けてください。",
+    "csv_rows_detected_other": "{{count}}行を検出しました。列見出しをクリックして対応付けてください。",
+    "elements_detected_field_other": "{{count}}件の要素を検出しました。クリックしてセレクターを{{field}}に割り当ててください。",
+    "elements_detected_other": "{{count}}件の要素を検出しました。クリックしてセレクターを割り当ててください。",
+    "show_more_elements_other": "さらに{{count}}件の要素を表示",
+    "preview_data_rows_other": "データのプレビュー ({{count}}行)",
+    "review_first_rows_other": "CSVデータの先頭{{count}}行を確認してください",
+    "import_quotes_count_other": "{{count}}件の価格をインポート",
+    "imported_count_other": "{{count}}件インポート",
+    "failed_count_other": "{{count}}件失敗"
   },
   "addon_permission_none_detected": "データへのアクセス権限は検出されませんでした。このアドオンのシステムアクセスは最小限のようです。",
   "addon_permission_list_title": "権限",
@@ -1011,7 +1027,8 @@
       "stat_budget_groups": "予算グループ",
       "stat_active": "有効",
       "no_rules_prompt": "分類ルールがまだありません — 取引名のパターンで自動的にタグを付けられます。",
-      "setup_rules": "ルールを設定"
+      "setup_rules": "ルールを設定",
+      "stat_accounts_unit_other": "現金口座{{count}}件中"
     },
     "accounts": {
       "title": "支出管理の口座",
@@ -1091,7 +1108,8 @@
       "manage": "管理",
       "error_title": "読み込めませんでした",
       "error_description": "管理ページから再度お試しください。",
-      "more": "他{{count}}件"
+      "more": "他{{count}}件",
+      "more_other": "他{{count}}件"
     },
     "setup": {
       "title": "毎月の基本予算プラン",
@@ -1112,7 +1130,10 @@
       "updated": "カテゴリを更新しました。",
       "update_error": "カテゴリの更新に失敗しました。",
       "created": "カテゴリを作成しました。",
-      "create_error": "カテゴリの作成に失敗しました。"
+      "create_error": "カテゴリの作成に失敗しました。",
+      "tab_expense_other": "支出 ({{count}})",
+      "tab_income_other": "収入 ({{count}})",
+      "tab_savings_other": "貯蓄 ({{count}})"
     },
     "events": {
       "heading": "支出イベント",
@@ -1383,7 +1404,8 @@
     },
     "copied_generic": "{{label}}をクリップボードにコピーしました。",
     "hero_aria": "AIエージェントアクセスの状態",
-    "mcp_in_project": "プロジェクト内"
+    "mcp_in_project": "プロジェクト内",
+    "pat_scope_custom_other": "カスタム · {{count}}個のスコープ"
   },
   "tax_add_category": "カテゴリを追加",
   "tax_export": "エクスポート",
@@ -1401,6 +1423,23 @@
   "ai_providers_empty_description": "AIプロバイダーは設定後にここに表示されます。しばらくしてから再度ご確認いただくか、サポートにお問い合わせください。",
   "about_logo_alt": "Wealthfolioのロゴ",
   "language_region_title": "言語と地域",
+  "formattingRegion": {
+    "title": "地域と表示形式",
+    "description": "日付、時刻、数値の区切り、パーセント、通貨の表示形式を設定します。",
+    "options": {
+      "system": "システムの地域",
+      "canada": "カナダ",
+      "unitedStates": "アメリカ合衆国",
+      "unitedKingdom": "イギリス",
+      "france": "フランス",
+      "germany": "ドイツ",
+      "spain": "スペイン",
+      "mexico": "メキシコ",
+      "china": "中国",
+      "japan": "日本",
+      "southKorea": "韓国"
+    }
+  },
   "appearance_navigation_title": "ナビゲーション",
   "appearance_navigation_description": "大きな画面での操作方法を選択します。",
   "addons_pin_to_navigation": "{{name}}をナビゲーションにピン留め",
@@ -1412,5 +1451,11 @@
   "addon_permission_denied": "拒否済み",
   "health_banner_classification": "ヘルスセンターで指摘された分類を表示しています",
   "health_banner_market_data": "ヘルスセンターで指摘された市場データ設定を表示しています",
-  "health_banner_clear": "クリア"
+  "health_banner_clear": "クリア",
+  "tax_categories_count_other": "{{count}}件のカテゴリ",
+  "tax_migration_body_other": "{{count}}件の資産に旧形式のセクター・国データがあります。新しい分類体系に移行すると、整理と分析がしやすくなります。",
+  "addon_rating_characters_other": "{{count}}/500文字",
+  "addon_store_filter_all_other": "すべて ({{count}})",
+  "addon_store_filter_uninstalled_other": "未インストール ({{count}})",
+  "addon_store_showing_other": "全{{total}}件中{{count}}件のアドオンを表示"
 }

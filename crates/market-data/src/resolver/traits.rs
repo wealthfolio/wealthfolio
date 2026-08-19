@@ -25,6 +25,13 @@ pub enum ResolutionSource {
     Override,
     /// From deterministic MIC->suffix rules.
     Rules,
+    /// A venue was requested but the registry has no suffix for it on this
+    /// provider, so the bare ticker was used.
+    ///
+    /// The symbol carries no venue, so the provider is free to answer with a
+    /// different listing under the same ticker. Callers must confirm what came
+    /// back before trusting it - see [`check_profile`](super::check_profile).
+    RulesFallback,
 }
 
 /// Individual resolver in the resolution chain.

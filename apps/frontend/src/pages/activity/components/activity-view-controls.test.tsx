@@ -25,11 +25,18 @@ vi.mock("@wealthfolio/ui", () => ({
   FacetedSearchInput: ({
     value,
     onChange,
+    placeholder,
   }: {
     value: string;
     onChange: (value: string) => void;
+    placeholder?: string;
   }) => (
-    <input aria-label="Search" value={value} onChange={(event) => onChange(event.target.value)} />
+    <input
+      aria-label="Search"
+      value={value}
+      placeholder={placeholder}
+      onChange={(event) => onChange(event.target.value)}
+    />
   ),
   Icons: {
     Close: () => <span data-testid="close-icon" />,
@@ -83,6 +90,10 @@ describe("ActivityViewControls", () => {
 
     await user.click(screen.getByRole("button", { name: /reset/i }));
 
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveAttribute(
+      "placeholder",
+      "Search...",
+    );
     expect(onResetFilters).toHaveBeenCalledTimes(1);
     expect(onSearchQueryChange).not.toHaveBeenCalled();
     expect(onAccountScopeChange).not.toHaveBeenCalled();

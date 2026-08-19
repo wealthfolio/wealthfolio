@@ -12,7 +12,7 @@
 
 mod attachments;
 mod history;
-mod provider_clients;
+pub(crate) mod provider_clients;
 mod streaming;
 mod working_context;
 
@@ -33,8 +33,8 @@ use crate::providers::ProviderService;
 use crate::title_generator::truncate_to_title;
 use crate::tools::constants::MAX_HISTORY_CHARS;
 use crate::types::{
-    AiStreamEvent, ChatMessage, ChatMessagePart, ChatMessageRole, ChatThread, ListThreadsRequest,
-    SendMessageRequest, SimpleChatMessage, ThreadPage,
+    AiStreamEvent, ChatMessage, ChatMessagePart, ChatMessageRole, ChatThread, ChatThreadConfig,
+    ListThreadsRequest, SendMessageRequest, SimpleChatMessage, ThreadPage,
 };
 // Used only by the inline `mod tests` (test-only fixtures + redact tests).
 #[cfg(test)]
@@ -126,8 +126,36 @@ impl<E: AiEnvironment + 'static> ChatService<E> {
 
     /// Create a new chat thread and persist it to the repository.
     pub async fn create_thread(&self) -> Result<ChatThread, AiError> {
-        let thread = ChatThread::new();
+        let provider_service = ProviderService::new(self.env.clone());
+        let settings = provider_service.get_settings()?;
+        let config =
+            Self::thread_config_snapshot(&provider_service, &settings.provider_id, &settings.model);
+        let thread = ChatThread::with_config(config);
         self.env.chat_repository().create_thread(thread).await
+    }
+
+    fn thread_config_snapshot(
+        provider_service: &ProviderService<E>,
+        provider_id: &str,
+        model_id: &str,
+    ) -> ChatThreadConfig {
+        let mut config = ChatThreadConfig::new(
+            provider_id,
+            model_id,
+            crate::LIVE_PROMPT_ID,
+            crate::LIVE_PROMPT_VERSION,
+        );
+        config.tools_allowlist = provider_service
+            .get_tools_allowlist(provider_id)
+            .or_else(|| {
+                Some(
+                    crate::DEFAULT_TOOLS_ALLOWLIST
+                        .iter()
+                        .map(|tool| (*tool).to_string())
+                        .collect(),
+                )
+            });
+        config
     }
 
     /// Get a thread by ID from the repository.
@@ -209,8 +237,23 @@ impl<E: AiEnvironment + 'static> ChatService<E> {
         let incoming_attachments = request.attachments.clone().unwrap_or_default();
         validate_attachments(&incoming_attachments)?;
 
+        // Resolve the provider/model before thread creation so the persisted
+        // snapshot identifies the actual configuration used for the first turn.
+        let provider_service = ProviderService::new(self.env.clone());
+        let settings = provider_service.get_settings()?;
+        let provider_id = request
+            .effective_provider_id()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| settings.provider_id.clone());
+        let model_id = request
+            .effective_model_id()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| settings.model.clone());
+        let config_snapshot =
+            Self::thread_config_snapshot(&provider_service, &provider_id, &model_id);
+
         // Get or create thread
-        let (thread, is_new_thread, initial_title) = match &request.thread_id {
+        let (mut thread, is_new_thread, initial_title) = match &request.thread_id {
             Some(id) => {
                 let thread = repo
                     .get_thread(id)?
@@ -218,7 +261,7 @@ impl<E: AiEnvironment + 'static> ChatService<E> {
                 (thread, false, None)
             }
             None => {
-                let mut new_thread = ChatThread::new();
+                let mut new_thread = ChatThread::with_config(config_snapshot.clone());
                 new_thread.title = derive_initial_thread_title(&request.content);
                 let created = repo.create_thread(new_thread).await?;
                 let initial_title = created.title.clone();
@@ -231,6 +274,16 @@ impl<E: AiEnvironment + 'static> ChatService<E> {
 
         // Load previous messages for context (history)
         let mut previous_messages = repo.get_messages_by_thread(&thread_id)?;
+
+        // An explicitly created empty thread may have been created before a
+        // per-request model override was known. Snapshot the configuration
+        // actually used by its first turn. Also backfill legacy config-less
+        // threads without rewriting established snapshots.
+        if thread.config.is_none() || (!is_new_thread && previous_messages.is_empty()) {
+            thread.config = Some(config_snapshot);
+            thread.updated_at = chrono::Utc::now();
+            thread = repo.update_thread(thread).await?;
+        }
 
         // When editing a message, truncate context to the parent message (inclusive)
         if let Some(ref parent_id) = request.parent_message_id {
@@ -288,19 +341,6 @@ impl<E: AiEnvironment + 'static> ChatService<E> {
         }
         let user_message = ChatMessage::user(&thread_id, &persist_text);
         repo.create_message(user_message).await?;
-
-        // Get provider settings
-        let provider_service = ProviderService::new(self.env.clone());
-        let settings = provider_service.get_settings()?;
-
-        let provider_id = request
-            .effective_provider_id()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| settings.provider_id.clone());
-        let model_id = request
-            .effective_model_id()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| settings.model.clone());
 
         debug!("Using provider {} with model {}", provider_id, model_id);
 
@@ -499,6 +539,11 @@ mod tests {
 
         let thread = service.create_thread().await.unwrap();
         assert!(!thread.id.is_empty());
+        let config = thread.config.expect("new thread config snapshot");
+        assert_eq!(config.prompt_template_id, crate::LIVE_PROMPT_ID);
+        assert_eq!(config.prompt_version, crate::LIVE_PROMPT_VERSION);
+        assert!(!config.provider_id.is_empty());
+        assert!(!config.model_id.is_empty());
     }
 
     #[tokio::test]

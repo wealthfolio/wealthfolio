@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@/test/render";
 import { describe, expect, it } from "vitest";
 
 import type { AssetLotView } from "@/lib/types";
@@ -70,5 +70,39 @@ describe("AssetLotsTable", () => {
     fireEvent.click(screen.getByRole("button", { name: /expand all/i }));
 
     expect(screen.getAllByText("£288.15").length).toBeGreaterThan(0);
+  });
+
+  it("shows disposed cost basis and realized gain for closed lots", () => {
+    render(
+      <AssetLotsTable
+        lots={[
+          {
+            ...ctyLot,
+            id: "closed-cty-lot",
+            quantity: 0,
+            remainingQuantity: 0,
+            costBasis: 0,
+            valuationCostBasis: 0,
+            isClosed: true,
+            closeDate: "2026-04-10",
+            disposalCostBasis: 28395.015,
+            disposalCostBasisBase: 283.95015,
+            realizedPnl: 2604.985,
+            realizedPnlBase: 26.04985,
+            valuationDisposalCostBasis: 283.95015,
+            valuationRealizedPnl: 26.04985,
+          },
+        ]}
+        currency="GBP"
+        marketPrice={5.65}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /expand all/i }));
+
+    expect(screen.getByText("Gain/Loss")).toBeInTheDocument();
+    expect(screen.getAllByText("£283.95").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+26.05").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+9.17%").length).toBeGreaterThan(0);
   });
 });

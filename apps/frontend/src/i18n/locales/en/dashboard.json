@@ -89,7 +89,11 @@
     "shares_one": "{{formatted}} share",
     "shares_other": "{{formatted}} shares",
     "more_holdings": "+{{count}} more holdings",
-    "more": "+{{count}} more"
+    "more": "+{{count}} more",
+    "more_holdings_one": "+{{count}} more holding",
+    "more_holdings_other": "+{{count}} more holdings",
+    "more_one": "+{{count}} more",
+    "more_other": "+{{count}} more"
   },
   "summary": {
     "return_unavailable_holdings": "Return % unavailable - missing cost basis or starting holdings value.",

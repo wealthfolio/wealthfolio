@@ -16,7 +16,9 @@
     "morePreview": "+{{count}} de plus",
     "settingUp": "Configuration...",
     "connectThisDevice": "Connecter cet appareil",
-    "enableDeviceSync": "Activer la synchronisation"
+    "enableDeviceSync": "Activer la synchronisation",
+    "morePreview_one": "+{{count}} de plus",
+    "morePreview_other": "+{{count}} de plus"
   },
   "status": {
     "syncError": "Erreur de synchronisation",
@@ -33,7 +35,13 @@
     "hoursAgo": "il y a {{count}} h",
     "daysAgo": "il y a {{count}} j",
     "thisDevice": "Cet appareil",
-    "thisDeviceSuffix": "· Cet appareil"
+    "thisDeviceSuffix": "· Cet appareil",
+    "minutesAgo_one": "il y a {{count}} min",
+    "minutesAgo_other": "il y a {{count}} min",
+    "hoursAgo_one": "il y a {{count}} h",
+    "hoursAgo_other": "il y a {{count}} h",
+    "daysAgo_one": "il y a {{count}} j",
+    "daysAgo_other": "il y a {{count}} j"
   },
   "engine": {
     "pauseSync": "Suspendre la synchronisation",

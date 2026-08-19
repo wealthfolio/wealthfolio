@@ -850,7 +850,31 @@
     "placeholders": "Platzhalter:",
     "empty_response_before": "Füllen Sie die URL aus und drücken Sie dann ",
     "empty_response_after": ", um zu testen.",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "table_click_column_to_map_field_one": "{{count}} Zeile · klicken Sie auf eine Spaltenüberschrift zum Zuordnen zu {{field}}",
+    "table_click_column_to_map_field_other": "{{count}} Zeilen · klicken Sie auf eine Spaltenüberschrift zum Zuordnen zu {{field}}",
+    "table_click_column_to_map_one": "{{count}} Zeile · klicken Sie auf eine Spaltenüberschrift zum Zuordnen",
+    "table_click_column_to_map_other": "{{count}} Zeilen · klicken Sie auf eine Spaltenüberschrift zum Zuordnen",
+    "csv_rows_detected_field_one": "{{count}} Zeile erkannt. Klicken Sie auf eine Spaltenüberschrift, um sie zu {{field}} zuzuordnen.",
+    "csv_rows_detected_field_other": "{{count}} Zeilen erkannt. Klicken Sie auf eine Spaltenüberschrift, um sie zu {{field}} zuzuordnen.",
+    "csv_rows_detected_one": "{{count}} Zeile erkannt. Klicken Sie auf eine Spaltenüberschrift, um sie zuzuordnen.",
+    "csv_rows_detected_other": "{{count}} Zeilen erkannt. Klicken Sie auf eine Spaltenüberschrift, um sie zuzuordnen.",
+    "elements_detected_field_one": "{{count}} Element erkannt. Klicken Sie darauf, um seinen Selektor zu {{field}} zuzuweisen.",
+    "elements_detected_field_other": "{{count}} Elemente erkannt. Klicken Sie auf eines, um seinen Selektor zu {{field}} zuzuweisen.",
+    "elements_detected_one": "{{count}} Element erkannt. Klicken Sie darauf, um seinen Selektor zuzuweisen.",
+    "elements_detected_other": "{{count}} Elemente erkannt. Klicken Sie auf eines, um seinen Selektor zuzuweisen.",
+    "show_more_elements_one": "{{count}} weiteres Element anzeigen",
+    "show_more_elements_other": "{{count}} weitere Elemente anzeigen",
+    "preview_data_rows_one": "Daten in der Vorschau ({{count}} Zeile)",
+    "preview_data_rows_other": "Daten in der Vorschau ({{count}} Zeilen)",
+    "review_first_rows_one": "Überprüfen Sie die erste Zeile Ihrer CSV-Daten",
+    "review_first_rows_other": "Überprüfen Sie die ersten {{count}} Zeilen Ihrer CSV-Daten",
+    "import_quotes_count_one": "{{count}} Kurs importieren",
+    "import_quotes_count_other": "{{count}} Kurse importieren",
+    "imported_count_one": "{{count}} importiert",
+    "imported_count_other": "{{count}} importiert",
+    "failed_count_one": "{{count}} fehlgeschlagen",
+    "failed_count_other": "{{count}} fehlgeschlagen"
   },
   "addon_permission_none_detected": "Keine Datenzugriffsberechtigungen erkannt. Dieses Add-on scheint minimalen Systemzugriff zu haben.",
   "addon_permission_list_title": "Berechtigungen",
@@ -927,7 +951,9 @@
       "stat_budget_groups": "Budgetgruppen",
       "stat_active": "aktiv",
       "no_rules_prompt": "Noch keine Kategorisierungsregeln — kennzeichnen Sie Transaktionen automatisch nach Namensmuster.",
-      "setup_rules": "Regeln einrichten"
+      "setup_rules": "Regeln einrichten",
+      "stat_accounts_unit_one": "von {{count}} Cash-Konto",
+      "stat_accounts_unit_other": "von {{count}} Cash-Konten"
     },
     "accounts": {
       "title": "Ausgabenkonten",
@@ -1007,7 +1033,9 @@
       "manage": "Verwalten",
       "error_title": "Konnte nicht geladen werden",
       "error_description": "Versuchen Sie es erneut über die Verwaltungsseite.",
-      "more": "+{{count}} weitere"
+      "more": "+{{count}} weitere",
+      "more_one": "+{{count}} weitere",
+      "more_other": "+{{count}} weitere"
     },
     "setup": {
       "title": "Standard-Monatsbudgetplan",
@@ -1028,7 +1056,13 @@
       "updated": "Kategorie aktualisiert.",
       "update_error": "Kategorie konnte nicht aktualisiert werden.",
       "created": "Kategorie erstellt.",
-      "create_error": "Kategorie konnte nicht erstellt werden."
+      "create_error": "Kategorie konnte nicht erstellt werden.",
+      "tab_expense_one": "Ausgaben ({{count}})",
+      "tab_expense_other": "Ausgaben ({{count}})",
+      "tab_income_one": "Einnahmen ({{count}})",
+      "tab_income_other": "Einnahmen ({{count}})",
+      "tab_savings_one": "Ersparnisse ({{count}})",
+      "tab_savings_other": "Ersparnisse ({{count}})"
     },
     "events": {
       "heading": "Ausgabenereignisse",
@@ -1097,6 +1131,10 @@
   "api_keys": "API-Schlüssel",
   "settings_saved": "Einstellungen erfolgreich gespeichert",
   "settings_error": "Fehler beim Speichern der Einstellungen",
+  "settings_updated_title": "Einstellungen aktualisiert",
+  "settings_updated_description": "Ihre Einstellungen wurden erfolgreich aktualisiert.",
+  "settings_update_error_title": "Etwas ist schiefgelaufen.",
+  "settings_update_error_description": "Beim Aktualisieren Ihrer Einstellungen ist ein Problem aufgetreten.",
   "nav_general_subtitle": "Währung und allgemeine Präferenzen",
   "nav_appearance_subtitle": "Design, Typografie und Dichte",
   "nav_limits_subtitle": "Einzahlungsgrenzen und Regeln",
@@ -1383,7 +1421,9 @@
     },
     "copied_generic": "{{label}} in die Zwischenablage kopiert.",
     "hero_aria": "Status des KI-Agenten-Zugriffs",
-    "mcp_in_project": "in Ihrem Projekt"
+    "mcp_in_project": "in Ihrem Projekt",
+    "pat_scope_custom_one": "Benutzerdefiniert · {{count}} Berechtigung",
+    "pat_scope_custom_other": "Benutzerdefiniert · {{count}} Berechtigungen"
   },
   "tax_add_category": "Kategorie hinzufügen",
   "tax_export": "Exportieren",
@@ -1401,6 +1441,23 @@
   "ai_providers_empty_description": "KI-Anbieter erscheinen hier, sobald sie konfiguriert sind. Schauen Sie später noch einmal vorbei oder wenden Sie sich an den Support.",
   "about_logo_alt": "Wealthfolio-Logo",
   "language_region_title": "Sprache & Region",
+  "formattingRegion": {
+    "title": "Region und Formate",
+    "description": "Steuert Datums-, Zeit-, Zahlen-, Prozent- und Währungsformate.",
+    "options": {
+      "system": "Systemregion",
+      "canada": "Kanada",
+      "unitedStates": "Vereinigte Staaten",
+      "unitedKingdom": "Vereinigtes Königreich",
+      "france": "Frankreich",
+      "germany": "Deutschland",
+      "spain": "Spanien",
+      "mexico": "Mexiko",
+      "china": "China",
+      "japan": "Japan",
+      "southKorea": "Südkorea"
+    }
+  },
   "appearance_navigation_title": "Navigation",
   "appearance_navigation_description": "Wählen Sie die Navigation auf großen Bildschirmen.",
   "addons_pin_to_navigation": "{{name}} an Navigation anheften",
@@ -1412,5 +1469,17 @@
   "addon_permission_denied": "Abgelehnt",
   "health_banner_classification": "Vom Health Center markierte Klassifizierungen werden angezeigt",
   "health_banner_market_data": "Vom Health Center markierte Marktdateneinstellungen werden angezeigt",
-  "health_banner_clear": "Löschen"
+  "health_banner_clear": "Löschen",
+  "tax_categories_count_one": "{{count}} Kategorie",
+  "tax_categories_count_other": "{{count}} Kategorien",
+  "tax_migration_body_one": "{{count}} Vermögenswert hat alte Sektor-/Länderdaten, die für bessere Organisation und Analysen in das neue Taxonomiesystem migriert werden können.",
+  "tax_migration_body_other": "{{count}} Vermögenswerte haben alte Sektor-/Länderdaten, die für bessere Organisation und Analysen in das neue Taxonomiesystem migriert werden können.",
+  "addon_rating_characters_one": "{{count}}/500 Zeichen",
+  "addon_rating_characters_other": "{{count}}/500 Zeichen",
+  "addon_store_filter_all_one": "Alle ({{count}})",
+  "addon_store_filter_all_other": "Alle ({{count}})",
+  "addon_store_filter_uninstalled_one": "Nicht installiert ({{count}})",
+  "addon_store_filter_uninstalled_other": "Nicht installiert ({{count}})",
+  "addon_store_showing_one": "{{count}} von {{total}} Add-ons wird angezeigt",
+  "addon_store_showing_other": "{{count}} von {{total}} Add-ons werden angezeigt"
 }

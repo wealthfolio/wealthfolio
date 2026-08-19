@@ -1,13 +1,13 @@
 import { useMemo } from "react";
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import type { Activity } from "@/lib/types";
 import { cn, formatDateISO } from "@/lib/utils";
-import { Icons, PrivacyAmount, Skeleton } from "@wealthfolio/ui";
+import { Icons, PrivacyAmount, Skeleton, useDateFormatting } from "@wealthfolio/ui";
 
-import { getActivitySpendingAmount } from "../lib/constants";
 import { useEventSpendingSummaries } from "../hooks/use-spending-events";
+import { getActivitySpendingAmount } from "../lib/constants";
 import { themeBg, type Palette } from "../lib/theme";
 import { CategoryIcon, type CategoryMetaMap } from "./category-chips";
 import { useEventDialog } from "./event-dialog-provider";
@@ -31,6 +31,7 @@ export function EventsCard({
   periodStartDate: string;
   theme: Palette;
 }) {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   const eventSummaryRequest = useMemo(
     () => ({ startDate: eventSummaryStartDate, endDate: eventSummaryEndDate }),
@@ -218,10 +219,10 @@ export function EventsCard({
     const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
     const sameMonth =
       start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
-    const startStr = start.toLocaleDateString(undefined, opts);
+    const startStr = formatting.formatCalendarDate(formatDateISO(start), opts);
     const endStr = sameMonth
-      ? end.toLocaleDateString(undefined, { day: "numeric" })
-      : end.toLocaleDateString(undefined, opts);
+      ? formatting.formatCalendarDate(formatDateISO(end), { day: "numeric" })
+      : formatting.formatCalendarDate(formatDateISO(end), opts);
     return `${startStr} — ${endStr}`;
   })();
 

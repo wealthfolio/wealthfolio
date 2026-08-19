@@ -32,6 +32,10 @@
   "save_settings": "保存设置",
   "settings_saved": "设置保存成功",
   "settings_error": "保存设置时出错",
+  "settings_updated_title": "设置已更新",
+  "settings_updated_description": "您的设置已成功更新。",
+  "settings_update_error_title": "出现错误。",
+  "settings_update_error_description": "更新设置时出现问题。",
   "nav_general_subtitle": "货币和常规偏好设置",
   "nav_appearance_subtitle": "主题、排版和密度",
   "nav_accounts_subtitle": "投资和储蓄账户",
@@ -958,7 +962,19 @@
     "placeholders": "占位符：",
     "empty_response_before": "填写 URL，然后按 ",
     "empty_response_after": " 进行测试。",
-    "retry": "重试"
+    "retry": "重试",
+    "table_click_column_to_map_field_other": "{{count}} 行 · 点击列标题以映射到 {{field}}",
+    "table_click_column_to_map_other": "{{count}} 行 · 点击列标题进行映射",
+    "csv_rows_detected_field_other": "检测到 {{count}} 行。点击列标题以映射到 {{field}}。",
+    "csv_rows_detected_other": "检测到 {{count}} 行。点击列标题进行映射。",
+    "elements_detected_field_other": "检测到 {{count}} 个元素。点击其中一个以将其选择器分配给 {{field}}。",
+    "elements_detected_other": "检测到 {{count}} 个元素。点击其中一个以分配其选择器。",
+    "show_more_elements_other": "显示另外 {{count}} 个元素",
+    "preview_data_rows_other": "预览数据（{{count}} 行）",
+    "review_first_rows_other": "查看 CSV 数据的前 {{count}} 行",
+    "import_quotes_count_other": "导入 {{count}} 条报价",
+    "imported_count_other": "已导入 {{count}} 条",
+    "failed_count_other": "失败 {{count}} 条"
   },
   "addon_permission_none_detected": "未检测到数据访问权限。此插件似乎对系统的访问权限极少。",
   "addon_permission_list_title": "权限",
@@ -1011,7 +1027,8 @@
       "stat_budget_groups": "预算分组",
       "stat_active": "活跃",
       "no_rules_prompt": "尚无分类规则——按名称模式自动标记交易。",
-      "setup_rules": "设置规则"
+      "setup_rules": "设置规则",
+      "stat_accounts_unit_other": "共 {{count}} 个现金账户"
     },
     "accounts": {
       "title": "支出账户",
@@ -1091,7 +1108,8 @@
       "manage": "管理",
       "error_title": "无法加载",
       "error_description": "请从管理页面重试。",
-      "more": "+{{count}} 更多"
+      "more": "+{{count}} 更多",
+      "more_other": "+{{count}} 更多"
     },
     "setup": {
       "title": "默认月度预算计划",
@@ -1112,7 +1130,10 @@
       "updated": "类别已更新。",
       "update_error": "更新类别失败。",
       "created": "类别已创建。",
-      "create_error": "创建类别失败。"
+      "create_error": "创建类别失败。",
+      "tab_expense_other": "支出（{{count}}）",
+      "tab_income_other": "收入（{{count}}）",
+      "tab_savings_other": "储蓄（{{count}}）"
     },
     "events": {
       "heading": "支出事件",
@@ -1383,7 +1404,8 @@
     },
     "copied_generic": "{{label}} 已复制到剪贴板。",
     "hero_aria": "AI 代理访问状态",
-    "mcp_in_project": "在您的项目中"
+    "mcp_in_project": "在您的项目中",
+    "pat_scope_custom_other": "自定义 · {{count}} 个作用域"
   },
   "tax_add_category": "添加类别",
   "tax_export": "导出",
@@ -1401,6 +1423,23 @@
   "ai_providers_empty_description": "配置完成后，AI 提供商将显示在此处。请稍后再来查看或联系支持。",
   "about_logo_alt": "Wealthfolio 徽标",
   "language_region_title": "语言与地区",
+  "formattingRegion": {
+    "title": "地区与格式",
+    "description": "控制日期、时间、数字分隔符、百分比和货币显示格式。",
+    "options": {
+      "system": "系统地区",
+      "canada": "加拿大",
+      "unitedStates": "美国",
+      "unitedKingdom": "英国",
+      "france": "法国",
+      "germany": "德国",
+      "spain": "西班牙",
+      "mexico": "墨西哥",
+      "china": "中国",
+      "japan": "日本",
+      "southKorea": "韩国"
+    }
+  },
   "appearance_navigation_title": "导航",
   "appearance_navigation_description": "选择在大屏幕上的导航方式。",
   "addons_pin_to_navigation": "将 {{name}} 固定到导航栏",
@@ -1412,5 +1451,11 @@
   "addon_permission_denied": "已拒绝",
   "health_banner_classification": "显示由健康中心标记的分类",
   "health_banner_market_data": "显示由健康中心标记的市场数据设置",
-  "health_banner_clear": "清除"
+  "health_banner_clear": "清除",
+  "tax_categories_count_other": "{{count}} 个类别",
+  "tax_migration_body_other": "{{count}} 项资产具有旧版行业/国家数据，可迁移至新的分类系统，以实现更好的组织和分析。",
+  "addon_rating_characters_other": "{{count}}/500 个字符",
+  "addon_store_filter_all_other": "全部（{{count}}）",
+  "addon_store_filter_uninstalled_other": "未安装（{{count}}）",
+  "addon_store_showing_other": "显示 {{total}} 个插件中的 {{count}} 个"
 }

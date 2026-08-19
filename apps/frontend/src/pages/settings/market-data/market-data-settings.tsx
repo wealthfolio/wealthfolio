@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/compone
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wealthfolio/ui/components/ui/tabs";
-import { useMemo, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -25,7 +25,7 @@ import {
 import { QueryKeys } from "@/lib/query-keys";
 import type { CustomProviderWithSources } from "@/lib/types/custom-provider";
 import { cn } from "@/lib/utils";
-import { ActionConfirm } from "@wealthfolio/ui";
+import { ActionConfirm, useDateFormatting } from "@wealthfolio/ui";
 import {
   Collapsible,
   CollapsibleContent,
@@ -34,13 +34,13 @@ import {
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
+import { CustomProviderForm } from "./custom-provider-form";
 import {
   useDeleteApiKey,
   useMarketDataProviderSettings,
   useSetApiKey,
   useUpdateMarketDataProviderSettings,
 } from "./use-market-data-settings";
-import { CustomProviderForm } from "./custom-provider-form";
 
 interface ProviderSettingsProps {
   provider: MarketDataProviderSetting;
@@ -59,6 +59,7 @@ function ProviderSettings({
   onPrioritySave,
   isLast = false,
 }: ProviderSettingsProps) {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
@@ -474,7 +475,7 @@ function ProviderSettings({
                         {provider.lastSyncedAt && (
                           <p className="text-muted-foreground text-xs">
                             {t("settings:market_data_page.last_sync", {
-                              date: new Date(provider.lastSyncedAt).toLocaleString(),
+                              date: formatting.formatDateTime(provider.lastSyncedAt),
                             })}
                           </p>
                         )}
@@ -492,7 +493,7 @@ function ProviderSettings({
                         <span className="text-muted-foreground text-xs">
                           {provider.lastSyncedAt
                             ? t("settings:market_data_page.last_sync", {
-                                date: new Date(provider.lastSyncedAt).toLocaleString(),
+                                date: formatting.formatDateTime(provider.lastSyncedAt),
                               })
                             : t("settings:market_data_page.pending_sync")}
                         </span>

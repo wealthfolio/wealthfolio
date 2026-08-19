@@ -1,5 +1,6 @@
 import * as React from "react";
-import { cn, formatPercent } from "../../lib/utils";
+import { cn } from "../../lib/utils";
+import { useLocalizationSettings, useNumberFormatting } from "../formatting-provider";
 
 type GainPercentVariant = "text" | "badge";
 
@@ -15,10 +16,19 @@ function normalizeDisplayPercent(value: number) {
   return Math.abs(value) < 0.00005 ? 0 : value;
 }
 
-function AnimatedNumber({ value }: { value: number }) {
-  const [NumberFlow, setNumberFlow] = React.useState<React.ComponentType<any> | null>(null);
+function AnimatedNumber({
+  value,
+  locale,
+  showSign,
+  fallback,
+}: {
+  value: number;
+  locale: string;
+  showSign: boolean;
+  fallback: string;
+}) {
+  const [NumberFlow, setNumberFlow] = React.useState<typeof import("@number-flow/react").default | null>(null);
 
-  const absValue = Math.abs(value * 100);
   React.useEffect(() => {
     import("@number-flow/react").then((module) => {
       setNumberFlow(module.default);
@@ -26,24 +36,20 @@ function AnimatedNumber({ value }: { value: number }) {
   }, []);
 
   if (!NumberFlow) {
-    return (
-      <span>
-        {absValue.toLocaleString(typeof navigator !== "undefined" ? navigator.language : "en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}
-      </span>
-    );
+    return <span>{fallback}</span>;
   }
 
   return (
     <NumberFlow
-      value={absValue}
+      value={value}
       animated={true}
       format={{
+        style: "percent",
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
+        signDisplay: showSign ? "exceptZero" : "never",
       }}
+      locales={locale}
     />
   );
 }
@@ -57,6 +63,8 @@ export function GainPercent({
   className,
   ...props
 }: GainPercentProps) {
+  const { locale } = useLocalizationSettings();
+  const { formatPercent } = useNumberFormatting();
   const displayValue = normalizeDisplayPercent(value);
   const successColor = invertColor ? "text-destructive" : "text-success";
   const destructiveColor = invertColor ? "text-success" : "text-destructive";
@@ -76,15 +84,16 @@ export function GainPercent({
       {...props}
     >
       {animated ? (
-        <>
-          {showSign && (displayValue > 0 ? "+" : displayValue < 0 ? "-" : null)}
-          <AnimatedNumber value={displayValue} />%
-        </>
+        <AnimatedNumber
+          value={displayValue}
+          locale={locale}
+          showSign={showSign}
+          fallback={formatPercent(displayValue, {
+            signDisplay: showSign ? "exceptZero" : "never",
+          })}
+        />
       ) : (
-        <>
-          {showSign && (displayValue > 0 ? "+" : displayValue < 0 ? "-" : null)}
-          {formatPercent(Math.abs(displayValue))}
-        </>
+        formatPercent(displayValue, { signDisplay: showSign ? "exceptZero" : "never" })
       )}
     </div>
   );

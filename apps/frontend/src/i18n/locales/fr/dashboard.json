@@ -89,7 +89,11 @@
     "shares_one": "{{formatted}} action",
     "shares_other": "{{formatted}} actions",
     "more_holdings": "+{{count}} autres positions",
-    "more": "+{{count}} de plus"
+    "more": "+{{count}} de plus",
+    "more_holdings_one": "+{{count}} autre position",
+    "more_holdings_other": "+{{count}} autres positions",
+    "more_one": "+{{count}} de plus",
+    "more_other": "+{{count}} de plus"
   },
   "summary": {
     "return_unavailable_holdings": "% de rendement indisponible - base de coût ou valeur initiale des positions manquante.",

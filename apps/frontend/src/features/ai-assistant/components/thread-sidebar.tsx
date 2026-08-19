@@ -1,17 +1,5 @@
-import React, { useState, useMemo, useCallback } from "react";
-import { useTranslation } from "react-i18next";
-import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Input } from "@wealthfolio/ui/components/ui/input";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { Badge } from "@wealthfolio/ui/components/ui/badge";
-import { InputTags } from "@wealthfolio/ui/components/ui/tag-input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@wealthfolio/ui/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import { useDateFormatting } from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -21,6 +9,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@wealthfolio/ui/components/ui/alert-dialog";
+import { Badge } from "@wealthfolio/ui/components/ui/badge";
+import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -29,8 +19,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@wealthfolio/ui/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@wealthfolio/ui/components/ui/dropdown-menu";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Label } from "@wealthfolio/ui/components/ui/label";
-import { cn } from "@/lib/utils";
+import { InputTags } from "@wealthfolio/ui/components/ui/tag-input";
+import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { ChatThread } from "../types";
 
 interface ThreadSidebarProps {
@@ -60,6 +61,7 @@ export function ThreadSidebar({
   onRemoveTag,
   className,
 }: ThreadSidebarProps) {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterTag, setFilterTag] = useState<string | null>(null);
@@ -190,7 +192,7 @@ export function ThreadSidebar({
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground text-xs">
-            {new Date(thread.updatedAt).toLocaleDateString()}
+            {formatting.formatDate(thread.updatedAt)}
           </span>
           {thread.tags && thread.tags.length > 0 && (
             <div className="flex flex-wrap gap-0.5">

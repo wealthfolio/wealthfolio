@@ -1,9 +1,9 @@
 import { useHapticFeedback } from "@/hooks";
-import { ChartConfig, ChartContainer } from "@wealthfolio/ui/components/ui/chart";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { formatDate } from "@/lib/utils";
-import { AmountDisplay } from "@wealthfolio/ui";
+import { AmountDisplay, useDateFormatting } from "@wealthfolio/ui";
+import { ChartConfig, ChartContainer } from "@wealthfolio/ui/components/ui/chart";
 import { useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Area, AreaChart, ReferenceDot, Tooltip, XAxis, YAxis } from "recharts";
@@ -63,6 +63,8 @@ const CustomTooltip = ({
   isBalanceHidden,
   isChartHovered,
 }: CustomTooltipProps) => {
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   if (!active || !payload?.length) {
     return null;
@@ -89,7 +91,7 @@ const CustomTooltip = ({
 
   return (
     <div className="bg-popover pointer-events-none grid grid-cols-1 gap-1.5 rounded-md border p-2 shadow-md">
-      <p className="text-muted-foreground text-xs">{formatDate(tvPayload.date)}</p>
+      <p className="text-muted-foreground text-xs">{formatDate(tvPayload.date, dateFormatting)}</p>
 
       <div className="flex items-center justify-between space-x-2">
         <div className="flex items-center space-x-1.5">

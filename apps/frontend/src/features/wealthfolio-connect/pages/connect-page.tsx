@@ -1,7 +1,6 @@
 import { openUrlInBrowser, syncTriggerCycle } from "@/adapters";
 import { Page, PageContent, PageHeader } from "@/components/page";
-import { useSyncStatus } from "@/features/devices-sync/hooks";
-import { useDevices } from "@/features/devices-sync/hooks";
+import { useDevices, useSyncStatus } from "@/features/devices-sync/hooks";
 import { ConnectEmptyState } from "@/features/wealthfolio-connect/components/connect-empty-state";
 import {
   useAggregatedSyncStatus,
@@ -13,7 +12,9 @@ import { useWealthfolioConnect } from "@/features/wealthfolio-connect/providers/
 import { useAccounts } from "@/hooks/use-accounts";
 import { WEALTHFOLIO_CONNECT_PORTAL_URL } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
+import { formatDistanceToNow } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocalizationSettings } from "@wealthfolio/ui";
 import { Alert } from "@wealthfolio/ui/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@wealthfolio/ui/components/ui/avatar";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
@@ -27,25 +28,26 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@wealthfolio/ui/components/ui/tooltip";
-import { formatDistanceToNow } from "date-fns";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { listBrokerConnections } from "../services/broker-service";
 import type { BrokerConnection, BrokerSyncState, ImportRun } from "../types";
 
 import type { Device } from "@/features/devices-sync/types";
 import type { Account } from "@/lib/types";
-import { hasBrokerSync } from "../lib/plan-capabilities";
-import { hasReviewableActivityWarnings } from "../lib/import-run-review";
+import { NewAccountsFoundModal } from "../components/new-accounts-found-modal";
 import {
   BROKER_SYNC_RUN_NEEDS_REVIEW_MESSAGE,
   getBrokerSyncIssueMessage,
 } from "../lib/broker-sync-messages";
-import { NewAccountsFoundModal } from "../components/new-accounts-found-modal";
+import { hasReviewableActivityWarnings } from "../lib/import-run-review";
+import { hasBrokerSync } from "../lib/plan-capabilities";
 
 export default function ConnectPage() {
+  const localizationSettings = useLocalizationSettings();
+
   const { t } = useTranslation();
   const { isEnabled, isConnected, isInitializing, userInfo } = useWealthfolioConnect();
   const { status, lastSyncTime, syncStates } = useAggregatedSyncStatus();
@@ -300,7 +302,7 @@ export default function ConnectPage() {
                         <span className="text-muted-foreground text-xs font-normal">
                           ·{" "}
                           {t("connect:page.timeAgo", {
-                            time: formatDistanceToNow(new Date(lastSyncTime)),
+                            time: formatDistanceToNow(new Date(lastSyncTime), localizationSettings),
                           })}
                         </span>
                       )}
@@ -798,8 +800,12 @@ function SyncHistoryItem({
   accountName?: string;
   trackingMode?: Account["trackingMode"];
 }) {
+  const localizationSettings = useLocalizationSettings();
+
   const { t } = useTranslation();
-  const timeAgo = formatDistanceToNow(new Date(run.startedAt), { addSuffix: false });
+  const timeAgo = formatDistanceToNow(new Date(run.startedAt), localizationSettings, {
+    addSuffix: false,
+  });
   const isNeedsReview = run.status === "NEEDS_REVIEW";
   const isFailed = run.status === "FAILED";
   const isRunning = run.status === "RUNNING";

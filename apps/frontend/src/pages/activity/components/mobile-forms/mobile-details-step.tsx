@@ -1,22 +1,7 @@
-import { ScrollArea } from "@wealthfolio/ui/components/ui/scroll-area";
-import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
-import { AnimatedToggleGroup } from "@wealthfolio/ui/components/ui/animated-toggle-group";
+import { restrictionAllowsType } from "@/lib/activity-restrictions";
 import { ACTIVITY_SUBTYPES, ActivityType, QuoteMode } from "@/lib/constants";
 import { useSettingsContext } from "@/lib/settings-provider";
-import {
-  AdvancedOptionsSection,
-  FormSection,
-  SymbolSearch,
-  AssetTypeSelector,
-  OptionContractFields,
-  PositionIntentSelector,
-  StockTradeIntentSelector,
-  type AssetType,
-  type AccountSelectOption,
-} from "../forms/fields";
-import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
-import { Label } from "@wealthfolio/ui/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@wealthfolio/ui/components/ui/radio-group";
+import { roundDecimal } from "@/lib/utils";
 import {
   Button,
   DatePickerInput,
@@ -36,12 +21,28 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
+import { AnimatedToggleGroup } from "@wealthfolio/ui/components/ui/animated-toggle-group";
+import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
+import { Label } from "@wealthfolio/ui/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@wealthfolio/ui/components/ui/radio-group";
+import { ScrollArea } from "@wealthfolio/ui/components/ui/scroll-area";
+import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { useEffect, useMemo, useState } from "react";
 import { useFormContext } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { restrictionAllowsType } from "@/lib/activity-restrictions";
-import { roundDecimal } from "@/lib/utils";
+import {
+  AdvancedOptionsSection,
+  AssetTypeSelector,
+  FormSection,
+  OptionContractFields,
+  PositionIntentSelector,
+  StockTradeIntentSelector,
+  SymbolSearch,
+  type AccountSelectOption,
+  type AssetType,
+} from "../forms/fields";
 import type { NewActivityFormValues } from "../forms/schemas";
 
 interface MobileDetailsStepProps {
@@ -110,6 +111,7 @@ function FmvPerUnitLabel() {
 
 export function MobileDetailsStep({ accounts, activityType, isEditing }: MobileDetailsStepProps) {
   const { t } = useTranslation();
+  const formatting = useNumberFormatting();
   const { control, getFieldState, getValues, watch, setValue, register } =
     useFormContext<NewActivityFormValues>();
   const { settings } = useSettingsContext();
@@ -861,12 +863,12 @@ export function MobileDetailsStep({ accounts, activityType, isEditing }: MobileD
                       </p>
                     </div>
                     <span className="text-lg font-semibold tabular-nums">
-                      {new Intl.NumberFormat("en-US", {
+                      {formatting.formatDecimal(optionTotal, {
                         style: currency ? "currency" : "decimal",
                         currency: currency || undefined,
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
-                      }).format(optionTotal)}
+                      })}
                     </span>
                   </div>
                 </div>

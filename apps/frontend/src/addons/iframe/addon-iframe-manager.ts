@@ -11,6 +11,11 @@ import {
 import { loadAddonAsset, logger } from "@/adapters";
 import { toast } from "sonner";
 import { collectAddonThemeSnapshot, type AddonThemeSnapshot } from "./addon-sandbox-theme";
+import {
+  collectAddonLocalizationSnapshot,
+  subscribeToAddonLocalization,
+  type AddonLocalizationSnapshot,
+} from "./addon-sandbox-localization";
 import { createPermissionGuard, type PermissionGuard } from "../type-bridge";
 import {
   ADDON_SANDBOX_RUNTIME_PROTOCOL_VERSION,
@@ -125,7 +130,12 @@ function createAddonLoadCancelledError(addonId: string, reason = "was unloaded b
   return error;
 }
 
-function createSandboxBootstrapParams(addonId: string, nonce: string, theme: AddonThemeSnapshot) {
+function createSandboxBootstrapParams(
+  addonId: string,
+  nonce: string,
+  theme: AddonThemeSnapshot,
+  localization: AddonLocalizationSnapshot,
+) {
   const basePath = import.meta.env.BASE_URL || "/";
   const params = new URLSearchParams({
     addonId,
@@ -133,11 +143,18 @@ function createSandboxBootstrapParams(addonId: string, nonce: string, theme: Add
     colorScheme: theme.colorScheme,
     foregroundColor: theme.foregroundColor,
     hostBaseUrl: new URL(basePath.replace(/\/?$/, "/"), window.location.href).toString(),
+    locale: localization.locale,
     nonce,
     themeClass: theme.themeClass,
   });
   if (theme.fontClass) {
     params.set("fontClass", theme.fontClass);
+  }
+  if (localization.timezone) {
+    params.set("timezone", localization.timezone);
+  }
+  if (localization.uiLocale) {
+    params.set("uiLocale", localization.uiLocale);
   }
   return params.toString();
 }
@@ -424,6 +441,7 @@ export class AddonIframeManager {
   private layoutListening = false;
   private themeObserver?: MutationObserver;
   private themeUpdateFrame?: number;
+  private localizationUnsubscribe?: () => void;
 
   async startAddon(input: StartAddonInput): Promise<AddonRuntimeHandle> {
     if (input.isCurrent?.() === false) {
@@ -435,10 +453,17 @@ export class AddonIframeManager {
     }
     this.ensureListener();
     this.ensureThemeObserver();
+    this.ensureLocalizationListener();
 
     const nonce = createNonce();
     const initialTheme = collectAddonThemeSnapshot();
-    const sandboxBootstrapParams = createSandboxBootstrapParams(input.addonId, nonce, initialTheme);
+    const initialLocalization = collectAddonLocalizationSnapshot();
+    const sandboxBootstrapParams = createSandboxBootstrapParams(
+      input.addonId,
+      nonce,
+      initialTheme,
+      initialLocalization,
+    );
 
     const iframe = document.createElement("iframe");
     iframe.title = `${input.manifest.name || input.addonId} add-on sandbox`;
@@ -680,6 +705,7 @@ export class AddonIframeManager {
     }
     this.stopLayoutListenerIfIdle();
     this.stopThemeObserverIfIdle();
+    this.stopLocalizationListenerIfIdle();
   }
 
   private waitForDisable(runtime: Runtime) {
@@ -861,6 +887,7 @@ export class AddonIframeManager {
             assets: Array.from(runtime.assets.values()),
             code: runtime.code,
             files: runtime.files,
+            localization: collectAddonLocalizationSnapshot(),
             theme: collectAddonThemeSnapshot(),
           });
           break;
@@ -1204,6 +1231,22 @@ export class AddonIframeManager {
     for (const runtime of this.runtimes.values()) {
       this.post(runtime, "themeUpdate", { theme });
     }
+  }
+
+  private ensureLocalizationListener() {
+    this.localizationUnsubscribe ??= subscribeToAddonLocalization((localization) => {
+      for (const runtime of this.runtimes.values()) {
+        this.post(runtime, "localizationUpdate", { localization });
+      }
+    });
+  }
+
+  private stopLocalizationListenerIfIdle() {
+    if (this.runtimes.size > 0) {
+      return;
+    }
+    this.localizationUnsubscribe?.();
+    this.localizationUnsubscribe = undefined;
   }
 
   private renderActiveRoute(runtime: Runtime) {

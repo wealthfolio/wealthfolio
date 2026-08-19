@@ -1,6 +1,6 @@
 import { localizeActivitySubtypeName, localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
-import { parseOccSymbol } from "@/lib/occ-symbol";
+import { formatOptionExpiration, parseOccSymbol } from "@/lib/occ-symbol";
 import type { ActivityDetails } from "@/lib/types";
 import {
   Badge,
@@ -12,9 +12,10 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  useDateFormatting,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { AmountDisplay } from "@wealthfolio/ui/components/financial/amount-display";
-import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 
 interface ActivityDetailSheetProps {
@@ -72,6 +73,9 @@ function DetailSection({ title, icon, children }: DetailSectionProps) {
 
 export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDetailSheetProps) {
   const { t } = useTranslation();
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
   if (!activity) return null;
 
   const statusConfig = activity.status
@@ -88,13 +92,13 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
   const formatDate = (date: Date | string | undefined) => {
     if (!date) return "—";
     const d = typeof date === "string" ? new Date(date) : date;
-    return format(d, "PPpp");
+    return dateFormatting.formatDateTime(d);
   };
 
   const formatShortDate = (date: Date | string | undefined) => {
     if (!date) return "—";
     const d = typeof date === "string" ? new Date(date) : date;
-    return format(d, "PP");
+    return dateFormatting.formatDate(d);
   };
 
   // Parse OCC symbol for option activities
@@ -103,7 +107,7 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
 
   // Format option expiration for display (YYYY-MM-DD → "Mar 29, 2025")
   const optionExpirationDisplay = parsedOption?.expiration
-    ? format(new Date(parsedOption.expiration + "T12:00:00"), "PP")
+    ? formatOptionExpiration(parsedOption.expiration, dateFormatting)
     : undefined;
 
   return (
@@ -227,9 +231,7 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
             {Number(activity.quantity) !== 0 && (
               <DetailRow
                 label={isOption ? t("activity:detail.contracts") : t("activity:activity_quantity")}
-                value={Number(activity.quantity).toLocaleString(undefined, {
-                  maximumFractionDigits: 8,
-                })}
+                value={numberFormatting.formatQuantity(Number(activity.quantity))}
               />
             )}
             {Number(activity.unitPrice) !== 0 && (
@@ -267,7 +269,7 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
             {activity.fxRate && (
               <DetailRow
                 label={t("activity:detail.fx_rate")}
-                value={Number(activity.fxRate).toLocaleString(undefined, {
+                value={numberFormatting.formatDecimal(Number(activity.fxRate), {
                   maximumFractionDigits: 8,
                 })}
               />

@@ -1,8 +1,9 @@
 "use client";
 
-import { format } from "date-fns";
+import { format, type Locale } from "date-fns";
 import * as React from "react";
 import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
+import { useTranslation } from "react-i18next";
 
 import { useDateFnsLocale } from "../../hooks/use-date-fns-locale";
 import { cn } from "../../lib/utils";
@@ -17,6 +18,7 @@ function Calendar({
   captionLayout = "label",
   buttonVariant = "ghost",
   formatters,
+  labels,
   components,
   locale: localeProp,
   ...props
@@ -24,6 +26,7 @@ function Calendar({
   buttonVariant?: React.ComponentProps<typeof Button>["variant"];
 }) {
   const defaultClassNames = getDefaultClassNames();
+  const { t } = useTranslation();
   const fallbackLocale = useDateFnsLocale();
   const locale = localeProp ?? fallbackLocale;
 
@@ -39,8 +42,15 @@ function Calendar({
       )}
       captionLayout={captionLayout}
       formatters={{
-        formatMonthDropdown: (date) => format(date, "LLL", { locale: fallbackLocale }),
+        formatMonthDropdown: (date) => format(date, "LLL", { locale: locale as Locale }),
         ...formatters,
+      }}
+      labels={{
+        labelPrevious: () => t("ui:datePicker.previousMonth", "Previous month"),
+        labelNext: () => t("ui:datePicker.nextMonth", "Next month"),
+        labelMonthDropdown: () => t("ui:datePicker.chooseMonth", "Choose month"),
+        labelYearDropdown: () => t("ui:datePicker.chooseYear", "Choose year"),
+        ...labels,
       }}
       classNames={{
         root: cn("w-fit", defaultClassNames.root),
@@ -134,6 +144,7 @@ function Calendar({
 
 function CalendarDayButton({ className, day, modifiers, ...props }: React.ComponentProps<typeof DayButton>) {
   const defaultClassNames = getDefaultClassNames();
+  const dayKey = `${day.date.getFullYear()}-${String(day.date.getMonth() + 1).padStart(2, "0")}-${String(day.date.getDate()).padStart(2, "0")}`;
 
   const ref = React.useRef<HTMLButtonElement>(null);
   React.useEffect(() => {
@@ -145,7 +156,7 @@ function CalendarDayButton({ className, day, modifiers, ...props }: React.Compon
       ref={ref}
       variant="ghost"
       size="icon"
-      data-day={day.date.toLocaleDateString()}
+      data-day={dayKey}
       data-selected-single={
         modifiers.selected && !modifiers.range_start && !modifiers.range_end && !modifiers.range_middle
       }

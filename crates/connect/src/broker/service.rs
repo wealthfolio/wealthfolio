@@ -28,8 +28,8 @@ use wealthfolio_core::activities::{
     NewActivity, ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_SELL,
 };
 use wealthfolio_core::assets::{
-    build_option_metadata, parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix, Asset,
-    AssetServiceTrait, AssetSpec, InstrumentType, OptionSpec, CONTRACT_MULTIPLIER_METADATA_KEY,
+    build_option_metadata, Asset, AssetServiceTrait, AssetSpec, InstrumentType, OptionSpec,
+    CONTRACT_MULTIPLIER_METADATA_KEY,
 };
 use wealthfolio_core::errors::Result;
 use wealthfolio_core::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
@@ -871,13 +871,21 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
                 .and_then(|s| s.symbol.clone())
                 .filter(|s| !s.trim().is_empty());
 
-            let normalized_symbol = Self::normalize_holdings_symbol(
-                raw_symbol.as_deref(),
+            // Same normalization as the activity path, so a position and a trade in
+            // the same instrument resolve to one asset. See `normalize_broker_symbol`.
+            let normalized_symbol = mapping::normalize_broker_symbol(
                 api_symbol.as_deref(),
+                raw_symbol.as_deref(),
+                symbol_info
+                    .and_then(|s| s.exchange.as_ref())
+                    .and_then(|e| {
+                        mapping::broker_exchange_mic(e.mic_code.as_deref(), e.code.as_deref())
+                    })
+                    .as_deref(),
                 is_crypto_asset,
             );
-            let (symbol, mut exchange_mic) = match normalized_symbol {
-                Some(pair) => pair,
+            let (symbol, exchange_mic) = match normalized_symbol {
+                Some(normalized) => (normalized.symbol, normalized.exchange_mic),
                 None if is_crypto_asset => {
                     debug!("Skipping crypto position without symbol");
                     continue;
@@ -887,16 +895,6 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
                     continue;
                 }
             };
-
-            // Fallback: use exchange MIC from broker API data when suffix parsing didn't yield one
-            if exchange_mic.is_none() && !is_crypto_asset {
-                exchange_mic = symbol_info.and_then(|s| s.exchange.as_ref()).and_then(|e| {
-                    e.mic_code
-                        .clone()
-                        .filter(|c| !c.trim().is_empty())
-                        .or_else(|| e.code.clone().filter(|c| !c.trim().is_empty()))
-                });
-            }
 
             let units = pos.units.unwrap_or(0.0);
             if units == 0.0 {
@@ -1519,46 +1517,6 @@ impl BrokerSyncService {
                 == b.contract_multiplier.round_dp(HOLDINGS_DECIMAL_PRECISION)
     }
 
-    fn normalize_holdings_symbol(
-        raw_symbol: Option<&str>,
-        api_symbol: Option<&str>,
-        is_crypto: bool,
-    ) -> Option<(String, Option<String>)> {
-        let raw_symbol = raw_symbol.map(str::trim).filter(|s| !s.is_empty());
-        let api_symbol = api_symbol.map(str::trim).filter(|s| !s.is_empty());
-
-        if is_crypto {
-            let symbol = raw_symbol.map(str::to_string).or_else(|| {
-                api_symbol.map(|sym| {
-                    parse_crypto_pair_symbol(sym)
-                        .map(|(base, _)| base)
-                        .unwrap_or_else(|| sym.to_string())
-                })
-            })?;
-            return Some((symbol, None));
-        }
-
-        let raw_parsed = raw_symbol.map(|sym| {
-            let (base, mic) = parse_symbol_with_exchange_suffix(sym);
-            (base.to_string(), mic.map(|m| m.to_string()))
-        });
-        let api_parsed = api_symbol.map(|sym| {
-            let (base, mic) = parse_symbol_with_exchange_suffix(sym);
-            (base.to_string(), mic.map(|m| m.to_string()))
-        });
-
-        let symbol = raw_parsed
-            .as_ref()
-            .map(|(base, _)| base.clone())
-            .or_else(|| api_parsed.as_ref().map(|(base, _)| base.clone()))?;
-        let exchange_mic = raw_parsed
-            .as_ref()
-            .and_then(|(_, mic)| mic.clone())
-            .or_else(|| api_parsed.as_ref().and_then(|(_, mic)| mic.clone()));
-
-        Some((symbol, exchange_mic))
-    }
-
     /// Find the platform ID for a broker account using institution/broker metadata.
     fn find_platform_for_account(&self, broker_account: &BrokerAccount) -> Result<Option<String>> {
         let platforms = self.platform_repository.list()?;
@@ -2032,35 +1990,6 @@ mod tests {
             default_tracking_mode_for_broker_account_type(account_types::SECURITIES),
             TrackingMode::Holdings
         );
-    }
-
-    #[test]
-    fn normalize_holdings_symbol_uses_api_suffix_when_raw_has_no_suffix() {
-        let normalized =
-            BrokerSyncService::normalize_holdings_symbol(Some("SHOP"), Some("SHOP.TO"), false)
-                .unwrap();
-
-        assert_eq!(normalized.0, "SHOP");
-        assert_eq!(normalized.1.as_deref(), Some("XTSE"));
-    }
-
-    #[test]
-    fn normalize_holdings_symbol_parses_suffix_from_raw_symbol() {
-        let normalized =
-            BrokerSyncService::normalize_holdings_symbol(Some("VOD.L"), Some("VOD"), false)
-                .unwrap();
-
-        assert_eq!(normalized.0, "VOD");
-        assert_eq!(normalized.1.as_deref(), Some("XLON"));
-    }
-
-    #[test]
-    fn normalize_holdings_symbol_normalizes_crypto_pairs() {
-        let normalized =
-            BrokerSyncService::normalize_holdings_symbol(None, Some("BTC-USD"), true).unwrap();
-
-        assert_eq!(normalized.0, "BTC");
-        assert_eq!(normalized.1, None);
     }
 
     #[test]

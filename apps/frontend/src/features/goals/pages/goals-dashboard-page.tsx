@@ -7,8 +7,8 @@ import {
   PageContent,
   PageHeader,
   Skeleton,
-  formatCompactAmount,
-  formatPercent,
+  useAmountFormatting,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useState } from "react";
@@ -29,6 +29,9 @@ function StatBlock({ label, value }: { label: string; value: React.ReactNode }) 
 }
 
 function SummaryStats({ goals }: { goals: Goal[] }) {
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const { settings } = useSettingsContext();
@@ -41,14 +44,21 @@ function SummaryStats({ goals }: { goals: Goal[] }) {
     (g) => g.statusHealth === "on_track" || g.statusLifecycle === "achieved",
   ).length;
 
-  const savedDisplay = isBalanceHidden ? "••••" : formatCompactAmount(saved, currency);
-  const targetDisplay = isBalanceHidden ? "••••" : formatCompactAmount(target, currency);
+  const savedDisplay = isBalanceHidden
+    ? "••••"
+    : amountFormatting.formatCompactAmount(saved, currency);
+  const targetDisplay = isBalanceHidden
+    ? "••••"
+    : amountFormatting.formatCompactAmount(target, currency);
 
   return (
     <div className="mb-6 flex flex-wrap items-baseline gap-x-8 gap-y-2">
       <StatBlock label={t("goals:dashboard.stat_saved")} value={savedDisplay} />
       <StatBlock label={t("goals:dashboard.stat_target")} value={targetDisplay} />
-      <StatBlock label={t("goals:dashboard.stat_overall")} value={formatPercent(overall)} />
+      <StatBlock
+        label={t("goals:dashboard.stat_overall")}
+        value={numberFormatting.formatPercent(overall)}
+      />
       <StatBlock
         label={t("goals:dashboard.stat_on_track")}
         value={`${onTrackCount}/${goals.length}`}

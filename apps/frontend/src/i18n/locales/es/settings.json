@@ -32,6 +32,10 @@
   "save_settings": "Guardar ajustes",
   "settings_saved": "Ajustes guardados correctamente",
   "settings_error": "Error al guardar los ajustes",
+  "settings_updated_title": "Ajustes actualizados",
+  "settings_updated_description": "Tus ajustes se han actualizado correctamente.",
+  "settings_update_error_title": "Algo salió mal.",
+  "settings_update_error_description": "Se produjo un problema al actualizar tus ajustes.",
   "nav_general_subtitle": "Divisa y preferencias generales",
   "nav_appearance_subtitle": "Tema, tipografía y densidad",
   "nav_accounts_subtitle": "Cuentas de inversión y ahorro",
@@ -958,7 +962,31 @@
     "placeholders": "Marcadores:",
     "empty_response_before": "Rellena la URL y luego pulsa ",
     "empty_response_after": " para probar.",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "table_click_column_to_map_field_one": "{{count}} fila · haz clic en el encabezado de una columna para asignarla a {{field}}",
+    "table_click_column_to_map_field_other": "{{count}} filas · haz clic en el encabezado de una columna para asignarla a {{field}}",
+    "table_click_column_to_map_one": "{{count}} fila · haz clic en el encabezado de una columna para asignarla",
+    "table_click_column_to_map_other": "{{count}} filas · haz clic en el encabezado de una columna para asignarla",
+    "csv_rows_detected_field_one": "{{count}} fila detectada. Haz clic en el encabezado de una columna para asignarla a {{field}}.",
+    "csv_rows_detected_field_other": "{{count}} filas detectadas. Haz clic en el encabezado de una columna para asignarla a {{field}}.",
+    "csv_rows_detected_one": "{{count}} fila detectada. Haz clic en el encabezado de una columna para asignarla.",
+    "csv_rows_detected_other": "{{count}} filas detectadas. Haz clic en el encabezado de una columna para asignarla.",
+    "elements_detected_field_one": "{{count}} elemento detectado. Haz clic en él para asignar su selector a {{field}}.",
+    "elements_detected_field_other": "{{count}} elementos detectados. Haz clic en uno para asignar su selector a {{field}}.",
+    "elements_detected_one": "{{count}} elemento detectado. Haz clic en él para asignar su selector.",
+    "elements_detected_other": "{{count}} elementos detectados. Haz clic en uno para asignar su selector.",
+    "show_more_elements_one": "Mostrar {{count}} elemento más",
+    "show_more_elements_other": "Mostrar {{count}} elementos más",
+    "preview_data_rows_one": "Vista previa de datos ({{count}} fila)",
+    "preview_data_rows_other": "Vista previa de datos ({{count}} filas)",
+    "review_first_rows_one": "Revisa la primera fila de tus datos CSV",
+    "review_first_rows_other": "Revisa las primeras {{count}} filas de tus datos CSV",
+    "import_quotes_count_one": "Importar {{count}} cotización",
+    "import_quotes_count_other": "Importar {{count}} cotizaciones",
+    "imported_count_one": "{{count}} importada",
+    "imported_count_other": "{{count}} importadas",
+    "failed_count_one": "{{count}} fallida",
+    "failed_count_other": "{{count}} fallidas"
   },
   "addon_permission_none_detected": "No se detectaron permisos de acceso a datos. Este complemento parece tener un acceso mínimo al sistema.",
   "addon_permission_list_title": "Permisos",
@@ -1011,7 +1039,9 @@
       "stat_budget_groups": "Grupos de presupuesto",
       "stat_active": "activos",
       "no_rules_prompt": "Aún no hay reglas de categorización: etiqueta automáticamente las transacciones por patrón de nombre.",
-      "setup_rules": "Configurar reglas"
+      "setup_rules": "Configurar reglas",
+      "stat_accounts_unit_one": "de {{count}} cuenta de efectivo",
+      "stat_accounts_unit_other": "de {{count}} cuentas de efectivo"
     },
     "accounts": {
       "title": "Cuentas de gasto",
@@ -1091,7 +1121,9 @@
       "manage": "Gestionar",
       "error_title": "No se pudo cargar",
       "error_description": "Inténtalo de nuevo desde la página de gestión.",
-      "more": "+{{count}} más"
+      "more": "+{{count}} más",
+      "more_one": "+{{count}} más",
+      "more_other": "+{{count}} más"
     },
     "setup": {
       "title": "Plan de presupuesto mensual predeterminado",
@@ -1112,7 +1144,13 @@
       "updated": "Categoría actualizada.",
       "update_error": "No se pudo actualizar la categoría.",
       "created": "Categoría creada.",
-      "create_error": "No se pudo crear la categoría."
+      "create_error": "No se pudo crear la categoría.",
+      "tab_expense_one": "Gasto ({{count}})",
+      "tab_expense_other": "Gasto ({{count}})",
+      "tab_income_one": "Ingresos ({{count}})",
+      "tab_income_other": "Ingresos ({{count}})",
+      "tab_savings_one": "Ahorro ({{count}})",
+      "tab_savings_other": "Ahorro ({{count}})"
     },
     "events": {
       "heading": "Eventos de gasto",
@@ -1383,7 +1421,9 @@
     },
     "copied_generic": "{{label}} copiado al portapapeles.",
     "hero_aria": "Estado del acceso de agentes de IA",
-    "mcp_in_project": "en tu proyecto"
+    "mcp_in_project": "en tu proyecto",
+    "pat_scope_custom_one": "Personalizado · {{count}} ámbito",
+    "pat_scope_custom_other": "Personalizado · {{count}} ámbitos"
   },
   "tax_add_category": "Añadir categoría",
   "tax_export": "Exportar",
@@ -1401,6 +1441,23 @@
   "ai_providers_empty_description": "Los proveedores de IA aparecerán aquí una vez configurados. Vuelve más tarde o contacta con el soporte.",
   "about_logo_alt": "Logotipo de Wealthfolio",
   "language_region_title": "Idioma y región",
+  "formattingRegion": {
+    "title": "Región y formatos",
+    "description": "Controla fechas, horas, separadores numéricos, porcentajes y la presentación de monedas.",
+    "options": {
+      "system": "Región del sistema",
+      "canada": "Canadá",
+      "unitedStates": "Estados Unidos",
+      "unitedKingdom": "Reino Unido",
+      "france": "Francia",
+      "germany": "Alemania",
+      "spain": "España",
+      "mexico": "México",
+      "china": "China",
+      "japan": "Japón",
+      "southKorea": "Corea del Sur"
+    }
+  },
   "appearance_navigation_title": "Navegación",
   "appearance_navigation_description": "Elige cómo navegas en pantallas grandes.",
   "addons_pin_to_navigation": "Fijar {{name}} en la navegación",
@@ -1412,5 +1469,17 @@
   "addon_permission_denied": "Denegado",
   "health_banner_classification": "Mostrando clasificaciones marcadas por el Centro de salud",
   "health_banner_market_data": "Mostrando ajustes de datos de mercado marcados por el Centro de salud",
-  "health_banner_clear": "Borrar"
+  "health_banner_clear": "Borrar",
+  "tax_categories_count_one": "{{count}} categoría",
+  "tax_categories_count_other": "{{count}} categorías",
+  "tax_migration_body_one": "{{count}} activo tiene datos antiguos de sector/país que pueden migrarse al nuevo sistema de taxonomía para una mejor organización y análisis.",
+  "tax_migration_body_other": "{{count}} activos tienen datos antiguos de sector/país que pueden migrarse al nuevo sistema de taxonomía para una mejor organización y análisis.",
+  "addon_rating_characters_one": "{{count}}/500 carácter",
+  "addon_rating_characters_other": "{{count}}/500 caracteres",
+  "addon_store_filter_all_one": "Todos ({{count}})",
+  "addon_store_filter_all_other": "Todos ({{count}})",
+  "addon_store_filter_uninstalled_one": "No instalado ({{count}})",
+  "addon_store_filter_uninstalled_other": "No instalados ({{count}})",
+  "addon_store_showing_one": "Mostrando {{count}} de {{total}} complementos",
+  "addon_store_showing_other": "Mostrando {{count}} de {{total}} complementos"
 }

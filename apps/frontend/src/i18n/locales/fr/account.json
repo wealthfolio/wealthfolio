@@ -151,5 +151,7 @@
     "period_irr": "TRI de la période",
     "twr_hover_hint": " Survolez la valeur pour voir le TWR cumulé.",
     "irr_hover_hint": " Survolez la valeur pour voir le TRI de la période sélectionnée."
-  }
+  },
+  "more_count_one": "+{{count}} de plus",
+  "more_count_other": "+{{count}} de plus"
 }

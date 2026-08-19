@@ -3,6 +3,7 @@ import { NumericFormat } from "react-number-format";
 import { DECIMAL_PRECISION } from "../../lib/constants";
 import { cn } from "../../lib/utils";
 import { Input } from "../ui/input";
+import { useNumberFormatting } from "../formatting-provider";
 
 export interface MoneyInputProps {
   /** Current numeric value */
@@ -20,6 +21,8 @@ export interface MoneyInputProps {
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   /** Maximum decimal places (default: 8) */
   maxDecimalPlaces?: number;
+  /** Always display the configured number of decimal places */
+  fixedDecimalScale?: boolean;
   /** Use thousand separators (default: false) */
   thousandSeparator?: boolean;
   /** Placeholder text */
@@ -34,6 +37,12 @@ export interface MoneyInputProps {
   readOnly?: boolean;
   /** Aria label for accessibility */
   "aria-label"?: string;
+  /** ID used to associate the input with its form label */
+  id?: string;
+  /** IDs of elements describing the input */
+  "aria-describedby"?: string;
+  /** Whether the input currently has a validation error */
+  "aria-invalid"?: React.AriaAttributes["aria-invalid"];
   /** Test ID for e2e testing */
   "data-testid"?: string;
   /** Auto focus on mount */
@@ -49,19 +58,31 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
       onValueChange,
       onChange,
       maxDecimalPlaces = DECIMAL_PRECISION,
+      fixedDecimalScale = false,
       thousandSeparator = false,
-      placeholder = "0.00",
+      placeholder,
       className,
       name,
       disabled,
       readOnly,
       "aria-label": ariaLabel,
+      id,
+      "aria-describedby": ariaDescribedBy,
+      "aria-invalid": ariaInvalid,
       "data-testid": testId,
       autoFocus,
       onKeyDown,
     },
     ref,
   ) => {
+    const formatting = useNumberFormatting();
+    const resolvedPlaceholder =
+      placeholder ??
+      formatting.formatDecimal(0, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+        useGrouping: false,
+      });
     // Normalize value to number or empty string
     const numericValue = value === null || value === undefined || value === "" ? "" : Number(value);
 
@@ -71,17 +92,22 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
         getInputRef={ref}
         name={name}
         className={cn("text-right", className)}
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         disabled={disabled}
         readOnly={readOnly}
         aria-label={ariaLabel}
+        id={id}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
         data-testid={testId}
         autoFocus={autoFocus}
         onKeyDown={onKeyDown}
         allowNegative={false}
         decimalScale={maxDecimalPlaces}
-        thousandSeparator={thousandSeparator}
-        allowedDecimalSeparators={[".", ","]}
+        fixedDecimalScale={fixedDecimalScale}
+        thousandSeparator={thousandSeparator ? formatting.groupSeparator : false}
+        decimalSeparator={formatting.decimalSeparator}
+        allowedDecimalSeparators={Array.from(new Set([formatting.decimalSeparator, ".", ","]))}
         valueIsNumericString={false}
         value={numericValue}
         onValueChange={(values) => {
@@ -99,17 +125,26 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
           }
         }}
         inputMode="decimal"
-        onPaste={
-          !thousandSeparator
-            ? (e) => {
-                const text = e.clipboardData.getData("text");
-                if ((text.match(/,/g) || []).length === 1) {
-                  e.preventDefault();
-                  document.execCommand("insertText", false, text.replace(",", "."));
-                }
-              }
-            : undefined
-        }
+        onPaste={(event) => {
+          const clipboardValue = event.clipboardData.getData("text");
+          const input = event.currentTarget;
+          const hasSelection =
+            input.selectionStart !== null &&
+            input.selectionEnd !== null &&
+            (input.selectionStart > 0 || input.selectionEnd < input.value.length);
+          const plainFragmentPattern = new RegExp(
+            `^[0-9${formatting.decimalSeparator.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}]*$`,
+          );
+          if (hasSelection && plainFragmentPattern.test(clipboardValue)) return;
+
+          event.preventDefault();
+          const parsed = formatting.parseNumber(clipboardValue);
+          if (parsed === undefined || parsed < 0) return;
+          onValueChange?.(parsed);
+          if (!onValueChange && onChange) {
+            onChange({ target: { name, value: parsed } } as unknown as React.ChangeEvent<HTMLInputElement>);
+          }
+        }}
       />
     );
   },

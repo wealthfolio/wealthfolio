@@ -295,7 +295,9 @@ pub(crate) fn record_activity_schema() -> serde_json::Value {
 
 const RECORD_ACTIVITY_DESCRIPTION: &str = "Record investment transactions from natural language. \
     Creates an editable draft preview for user confirmation — every field can be adjusted before \
-    save. Supports all activity types: BUY, SELL, DIVIDEND, DEPOSIT, WITHDRAWAL, TRANSFER_IN, \
+    save. Use when the user supplies the transaction details they want drafted, whether planned \
+    or completed; never invent a BUY/SELL from assistant analysis. Supports all \
+    activity types: BUY, SELL, DIVIDEND, DEPOSIT, WITHDRAWAL, TRANSFER_IN, \
     TRANSFER_OUT, INTEREST, FEE, SPLIT, TAX, CREDIT, ADJUSTMENT. \
     \n\nResolve all relative date phrases (\"yesterday\", \"last Monday\", \"2 days ago\") to ISO \
     8601 yourself before calling. \

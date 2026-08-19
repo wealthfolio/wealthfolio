@@ -4,6 +4,7 @@
  * while not focused, so a parent refetch doesn't clobber in-progress typing.
  */
 import { useState } from "react";
+import { useNumberFormatting } from "@wealthfolio/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -14,17 +15,22 @@ export interface AmountInputProps {
 }
 
 export function AmountInput({ value, onCommit, variant = "default" }: AmountInputProps) {
-  const [draft, setDraft] = useState(String(value || ""));
+  const formatting = useNumberFormatting();
+  const formatDraft = (nextValue: number) =>
+    nextValue
+      ? formatting.formatDecimal(nextValue, { maximumFractionDigits: 20, useGrouping: false })
+      : "";
+  const [draft, setDraft] = useState(() => formatDraft(value));
   const [focused, setFocused] = useState(false);
   const [lastValue, setLastValue] = useState(value);
-  const isEmpty = !focused && (!draft || Number.parseFloat(draft) === 0);
+  const isEmpty = !focused && (!draft || formatting.parseNumber(draft) === 0);
 
   // Adjust draft when the parent commits a new value externally — but only while
   // the user isn't actively editing. Done during render per React docs guidance
   // (avoids the extra mount-time render of an Effect).
   if (!focused && value !== lastValue) {
     setLastValue(value);
-    setDraft(String(value || ""));
+    setDraft(formatDraft(value));
   }
 
   return (
@@ -49,8 +55,8 @@ export function AmountInput({ value, onCommit, variant = "default" }: AmountInpu
         }}
         onBlur={() => {
           setFocused(false);
-          const next = Number.parseFloat(draft || "0");
-          if (Number.isFinite(next) && Math.abs(next - value) > 0.000001) {
+          const next = formatting.parseNumber(draft || "0");
+          if (next !== undefined && Math.abs(next - value) > 0.000001) {
             onCommit(String(next));
           }
         }}

@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CustomProviderForm } from "./custom-provider-form";
 import type { NewCustomProvider } from "@/lib/types/custom-provider";
+import { CustomProviderForm } from "./custom-provider-form";
 
 const createProvider = vi.fn();
 const updateProvider = vi.fn();
@@ -13,7 +13,8 @@ function setInputValue(input: HTMLElement, value: string) {
   fireEvent.change(input, { target: { value } });
 }
 
-vi.mock("@wealthfolio/ui", () => ({
+vi.mock("@wealthfolio/ui", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@wealthfolio/ui")>()),
   Dialog: ({ open, children }: { open: boolean; children: ReactNode }) =>
     open ? <div>{children}</div> : null,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,

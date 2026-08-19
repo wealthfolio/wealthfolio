@@ -136,7 +136,10 @@ struct ProfileResponse {
     market_capitalization: Option<f64>,
     /// Number of employees
     employee_total: Option<i64>,
-    // Note: exchange, currency, ipo, share_outstanding, phone fields exist but not mapped to AssetProfile
+    /// Trading currency of the listing - used to confirm the provider answered
+    /// for the instrument that was asked for.
+    currency: Option<String>,
+    // Note: exchange, ipo, share_outstanding, phone fields exist but not mapped to AssetProfile
 }
 
 /// Error response from Finnhub
@@ -530,6 +533,8 @@ impl FinnhubProvider {
             source: Some(PROVIDER_ID.to_string()),
             name: response.name,
             quote_type: Some("EQUITY".to_string()), // Finnhub only supports equities
+            currency: response.currency,
+            exchange: None, // Finnhub reports exchange long names, not MIC-mappable codes
             sector: response.finnhub_industry.clone(),
             sectors: None, // Finnhub doesn't provide weighted sectors
             asset_allocation: None,

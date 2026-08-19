@@ -1,8 +1,8 @@
 import {
-  getAssetHoldings,
-  getSnapshots,
-  getSnapshotByDate,
   deleteSnapshot,
+  getAssetHoldings,
+  getSnapshotByDate,
+  getSnapshots,
   saveManualHoldings,
 } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -11,18 +11,15 @@ import { useIsMobileViewport } from "@/hooks/use-platform";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, Holding, SnapshotInfo } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
-import { AmountDisplay, GainAmount, GainPercent, QuantityDisplay } from "@wealthfolio/ui";
-import { Badge } from "@wealthfolio/ui/components/ui/badge";
-import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { HoldingsEditMode } from "@/pages/holdings/components/holdings-edit-mode";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@wealthfolio/ui/components/ui/table";
+  AmountDisplay,
+  GainAmount,
+  GainPercent,
+  QuantityDisplay,
+  useDateFormatting,
+} from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,12 +30,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@wealthfolio/ui/components/ui/alert-dialog";
+import { Badge } from "@wealthfolio/ui/components/ui/badge";
+import { Button } from "@wealthfolio/ui/components/ui/button";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
-import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@wealthfolio/ui/components/ui/table";
+import type { TFunction } from "i18next";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
-import { HoldingsEditMode } from "@/pages/holdings/components/holdings-edit-mode";
 
 interface AssetAccountHoldingsProps {
   assetId: string;
@@ -222,6 +228,8 @@ export function AssetSnapshotHistory({
   assetId: string;
   baseCurrency: string;
 }) {
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const queryClient = useQueryClient();
@@ -400,7 +408,9 @@ export function AssetSnapshotHistory({
               className="flex items-center gap-3 rounded-lg border p-3"
             >
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">{formatDate(snap.snapshotDate)}</p>
+                <p className="text-sm font-medium">
+                  {formatDate(snap.snapshotDate, dateFormatting)}
+                </p>
                 <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
                   <span className="truncate">{snap.accountName}</span>
                   <Badge variant="outline" className="shrink-0 px-1 py-0 text-[10px]">
@@ -473,7 +483,9 @@ export function AssetSnapshotHistory({
             <TableBody>
               {enrichedSnapshots.map((snap) => (
                 <TableRow key={`${snap.accountId}-${snap.snapshotDate}`}>
-                  <TableCell className="font-medium">{formatDate(snap.snapshotDate)}</TableCell>
+                  <TableCell className="font-medium">
+                    {formatDate(snap.snapshotDate, dateFormatting)}
+                  </TableCell>
                   <TableCell>{snap.accountName}</TableCell>
                   <TableCell className="text-right">
                     {snap.isDetailLoading ? (
@@ -562,7 +574,9 @@ export function AssetSnapshotHistory({
             <AlertDialogDescription>
               {t("asset:accountHoldings.remove_position_description", {
                 accountName: deletingSnapshot?.accountName ?? "",
-                date: deletingSnapshot?.date ? formatDate(deletingSnapshot.date) : "",
+                date: deletingSnapshot?.date
+                  ? formatDate(deletingSnapshot.date, dateFormatting)
+                  : "",
               })}
             </AlertDialogDescription>
           </AlertDialogHeader>

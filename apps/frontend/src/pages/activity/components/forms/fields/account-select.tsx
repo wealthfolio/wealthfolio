@@ -11,8 +11,8 @@ import {
   SelectValue,
 } from "@wealthfolio/ui";
 import { useEffect } from "react";
-import { useTranslation } from "react-i18next";
 import { useFormContext, type FieldPath, type FieldValues, type PathValue } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 
 export interface AccountSelectOption {
   value: string;
@@ -94,12 +94,12 @@ export function AccountSelect<TFieldValues extends FieldValues = FieldValues>({
                   );
                 }
               }}
-              defaultValue={field.value}
+              value={field.value ?? ""}
             >
               <SelectTrigger aria-label={resolvedLabel} data-testid="account-select">
                 <SelectValue placeholder={resolvedPlaceholder} />
               </SelectTrigger>
-              <SelectContent className="max-h-[500px] overflow-y-auto">
+              <SelectContent className="max-h-125 overflow-y-auto">
                 {accounts.map((account) => (
                   <SelectItem
                     value={account.value}

@@ -129,7 +129,9 @@
     "andMore": "... und {{count}} weitere",
     "reviewActivities": "Aktivitäten prüfen",
     "duration": "Dauer:",
-    "inProgress": "In Bearbeitung..."
+    "inProgress": "In Bearbeitung...",
+    "andMore_one": "... und {{count}} weitere",
+    "andMore_other": "... und {{count}} weitere"
   },
   "syncHistory": {
     "title": "Synchronisierungsverlauf",
@@ -146,7 +148,9 @@
     "skipped": "übersprungen",
     "warningsCount_one": "{{count}} Warnung",
     "warningsCount_other": "{{count}} Warnungen",
-    "andMore": "+{{count}} weitere"
+    "andMore": "+{{count}} weitere",
+    "andMore_one": "+{{count}} weitere",
+    "andMore_other": "+{{count}} weitere"
   },
   "activity": {
     "syncingData": "Ihre Daten werden synchronisiert...",

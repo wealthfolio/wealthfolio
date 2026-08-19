@@ -126,7 +126,8 @@
     "splitTransaction": "拆分交易",
     "duplicate": "复制",
     "unlinkTransfer": "取消关联转账",
-    "linkTransfer": "关联转账……"
+    "linkTransfer": "关联转账……",
+    "deleteConfirmMany_other": "确定要删除 {{count}} 笔交易吗？"
   },
   "cashFlow": {
     "income": "收入",
@@ -165,7 +166,8 @@
     "viewAllToTag": "查看全部 · {{count}} 项待标记 →",
     "noRecentActivity": "没有近期活动。",
     "noPayee": "无收款方",
-    "uncategorized": "未归类"
+    "uncategorized": "未归类",
+    "viewAllToTag_other": "查看全部 · {{count}} 项待标记 →"
   },
   "filters": {
     "statusNeedsReview": "需要审核",
@@ -173,6 +175,7 @@
     "statusCategorized": "已归类",
     "countLabel": "{{visible}} / {{total}} 笔交易",
     "countLabel_one": "{{visible}} / {{total}} 笔交易",
+    "countLabel_other": "{{visible}} / {{total}} 笔交易",
     "countZero": "0 笔交易",
     "category": "类别",
     "subcategory": "子类别",
@@ -209,7 +212,9 @@
     "removeKeptEdited_one": "您已编辑的 {{count}} 条规则将作为独立规则保留。",
     "removeKeptEdited_other": "您已编辑的 {{count}} 条规则将作为独立规则保留。",
     "removeGeneric": "将移除此预设中的规则。您的编辑将被保留。",
-    "remove": "移除"
+    "remove": "移除",
+    "reimportLabel_other": "重新导入 {{name}} 预设（{{count}} 条规则）",
+    "importLabel_other": "导入 {{name}} 预设（{{count}} 条规则）"
   },
   "budgetBars": {
     "statusOver": "超支",
@@ -345,7 +350,10 @@
     "loadError": "无法加载交易。",
     "noTransactions": "此周期内没有交易。",
     "loadMore": "再加载 {{count}} 笔",
-    "openInTransactions": "在交易中打开"
+    "openInTransactions": "在交易中打开",
+    "outflowsCount_other": "{{count}} 笔支出",
+    "totalCount_other": "共 {{count}} 笔",
+    "loadMore_other": "再加载 {{count}} 笔"
   },
   "heatmapSheet": {
     "eyebrow": "何时消费",
@@ -588,6 +596,16 @@
   },
   "whatChanged": {
     "headlineMeta": "要点 · {{label}}",
+    "headlineNoActivity": "此期间没有记录任何支出。",
+    "headlineLeadPrefix": "支出为",
+    "headlineNoPriorSuffix": "。没有可供比较的上期数据。",
+    "headlineMoreSuffix": "，比{{priorLabel}}多。",
+    "headlineLessSuffix": "，比{{priorLabel}}少。",
+    "headlineSeveralDrivers": "多个类别的支出均有变化，没有任何单一类别主导本次变化。",
+    "headlineRiseDriverPrefix": " 增长主要来自",
+    "headlineDropDriverPrefix": " 下降主要来自",
+    "headlineSentenceEnd": "。",
+    "headlineOppositeSuffix": "的变化方向相反。",
     "categoryDetails": "类别详情",
     "categoryTrends": "类别趋势",
     "showMore": "再显示 {{count}} 项 →",
@@ -604,7 +622,8 @@
     "impact": "影响",
     "deltaPct": "Δ %",
     "combinedVs": "{{current}} 对比 {{prior}}",
-    "combinedMonths": "{{months}} 个月 对比 上一 {{months}} 个月"
+    "combinedMonths": "{{months}} 个月 对比 上一 {{months}} 个月",
+    "showMore_other": "再显示 {{count}} 项 →"
   },
   "whereIAm": {
     "statusOverBudget": "超出预算",
@@ -666,7 +685,8 @@
     "sortByLabel": "按 {{label}} 排序",
     "categoriesShown_one": "显示 {{shown}} 个类别，共 {{total}} 个",
     "categoriesShown_other": "显示 {{shown}} 个类别，共 {{total}} 个",
-    "openTransactions": "打开交易 →"
+    "openTransactions": "打开交易 →",
+    "moreCount_other": "+{{count}} 项"
   },
   "budgetChart": {
     "overBudget": "超出预算",
@@ -774,7 +794,8 @@
     "selectAllVisible": "选择所有可见交易",
     "nameNotes": "名称 / 备注",
     "loading": "正在加载……",
-    "loadMore": "加载更多（剩余 {{count}} 项）"
+    "loadMore": "加载更多（剩余 {{count}} 项）",
+    "loadMore_other": "加载更多（剩余 {{count}} 项）"
   },
   "tabContent": {
     "stageWhereLabel": "我的现状",
@@ -827,7 +848,8 @@
     "interval3M": "过去 3 个月",
     "interval6M": "过去 6 个月",
     "intervalYtd": "年初至今",
-    "interval1Y": "过去一年"
+    "interval1Y": "过去一年",
+    "plusMore_other": "+ {{count}} 项"
   },
   "budgetEditor": {
     "newGroup": "新分组",
@@ -906,6 +928,8 @@
     "unassigned": "未分配",
     "rolloverIn": "结转流入",
     "dataUnavailable": "预算数据不可用",
-    "migrationNeeded": "当前的本地数据库是在更新后的支出迁移之前创建的。"
+    "migrationNeeded": "当前的本地数据库是在更新后的支出迁移之前创建的。",
+    "addSource_other": "添加来源（{{count}} 个可用）",
+    "overridesTitle_other": "覆盖设置 · {{count}}"
   }
 }

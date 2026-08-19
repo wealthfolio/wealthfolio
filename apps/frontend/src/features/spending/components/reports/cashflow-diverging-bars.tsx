@@ -13,8 +13,8 @@ import {
   YAxis,
 } from "recharts";
 
-import { PrivacyAmount, Skeleton, formatCompactAmount } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { PrivacyAmount, Skeleton, useAmountFormatting } from "@wealthfolio/ui";
 
 /** Generic cashflow datum — caller supplies one per bucket (month, week, or day). */
 export interface CashflowPoint {
@@ -51,6 +51,7 @@ interface CashflowDatum {
  * chart would draw via splines).
  */
 export function CashflowDivergingBars({ points, currency, isLoading }: CashflowDivergingBarsProps) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const data: CashflowDatum[] = useMemo(
@@ -105,7 +106,7 @@ export function CashflowDivergingBars({ points, currency, isLoading }: CashflowD
             axisLine={false}
             tickLine={false}
             tickFormatter={(v: number) =>
-              isBalanceHidden ? "••" : formatCompactAmount(Math.abs(v), currency)
+              isBalanceHidden ? "••" : formatting.formatCompactAmount(Math.abs(v), currency)
             }
             tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
             width={56}

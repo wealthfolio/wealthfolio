@@ -16,12 +16,22 @@ import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { ActivityDetails, AssetKind, AssetLotView, Holding, Quote } from "@/lib/types";
 import { normalizeCurrency } from "@/lib/utils";
+import { ActivityDeleteModal } from "@/pages/activity/components/activity-delete-modal";
+import { ActivityForm, type AccountSelectOption } from "@/pages/activity/components/activity-form";
+import ActivityTable from "@/pages/activity/components/activity-table/activity-table";
+import ActivityTableMobile from "@/pages/activity/components/activity-table/activity-table-mobile";
+import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
+import { useActivityActionDialogs } from "@/pages/activity/hooks/use-activity-action-dialogs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AnimatedToggleGroup, Page, PageContent, PageHeader, SwipableView } from "@wealthfolio/ui";
-import { Badge } from "@wealthfolio/ui/components/ui/badge";
-import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
+import {
+  AnimatedToggleGroup,
+  Page,
+  PageContent,
+  PageHeader,
+  SwipableView,
+  useDateFormatting,
+  type FormattingApi,
+} from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,29 +42,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@wealthfolio/ui/components/ui/alert-dialog";
+import { Badge } from "@wealthfolio/ui/components/ui/badge";
+import { Button } from "@wealthfolio/ui/components/ui/button";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tabs, TabsContent } from "@wealthfolio/ui/components/ui/tabs";
-import { useCallback, useMemo, useState } from "react";
 import type { TFunction } from "i18next";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AlternativeAssetContent, useAlternativeAssetActions } from "./alternative-asset-content";
+import { AssetSnapshotHistory, useHasManualSnapshots } from "./asset-account-holdings";
 import AssetDetailCard from "./asset-detail-card";
 import { AssetEditSheet } from "./asset-edit-sheet";
 import AssetHistoryCard from "./asset-history-card";
-import { AssetSnapshotHistory, useHasManualSnapshots } from "./asset-account-holdings";
 import AssetLotsTable from "./asset-lots-table";
-import { ActivityDeleteModal } from "@/pages/activity/components/activity-delete-modal";
-import { ActivityForm, type AccountSelectOption } from "@/pages/activity/components/activity-form";
-import ActivityTable from "@/pages/activity/components/activity-table/activity-table";
-import ActivityTableMobile from "@/pages/activity/components/activity-table/activity-table-mobile";
-import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
-import { useActivityActionDialogs } from "@/pages/activity/hooks/use-activity-action-dialogs";
 import { useAssetProfile } from "./hooks/use-asset-profile";
 import { useAssetProfileMutations } from "./hooks/use-asset-profile-mutations";
-import { RefreshQuotesConfirmDialog } from "./refresh-quotes-confirm-dialog";
 import { useQuoteMutations } from "./hooks/use-quote-mutations";
 import { QuoteHistoryDataGrid } from "./quote-history-data-grid";
+import { RefreshQuotesConfirmDialog } from "./refresh-quotes-confirm-dialog";
 
 // Alternative asset kinds that should use ValueHistoryDataGrid
 const ALTERNATIVE_ASSET_KINDS: AssetKind[] = [
@@ -155,16 +163,19 @@ const parseHealthContext = (value: string | null): AssetHealthContext | null => 
   return null;
 };
 
-const formatHealthDate = (value: string | null): string | null => {
+const formatHealthDate = (
+  value: string | null,
+  formatting: Pick<FormattingApi, "formatDate">,
+): string | null => {
   if (!value) return null;
   const date = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, {
+  return formatting.formatDate(date, {
     month: "short",
     day: "numeric",
     year: "numeric",
     timeZone: "UTC",
-  }).format(date);
+  });
 };
 
 function AssetHealthBanner({
@@ -184,33 +195,38 @@ function AssetHealthBanner({
   onRefreshPrices: () => void;
   onClear: () => void;
 }) {
+  const formatting = useDateFormatting();
+  const { t } = useTranslation();
   if (!context) return null;
 
-  const dateLabel = formatHealthDate(date);
+  const dateLabel = formatHealthDate(date, formatting);
   const copy =
     context === "price"
       ? isManualPricingMode
         ? {
-            title: dateLabel ? `Add a price for ${dateLabel}` : "Manual prices need review",
+            title: dateLabel
+              ? t("asset:profile.health.add_price_for_date", { date: dateLabel })
+              : t("asset:profile.health.manual_prices_need_review"),
             description: dateLabel
-              ? "Wealthfolio is carrying forward the last price. Add this date only if it needs its own value."
-              : "Review the missing dates. Add prices that need their own value; carried-forward prices are still used between entries.",
+              ? t("asset:profile.health.carrying_forward_add_date")
+              : t("asset:profile.health.review_missing_dates"),
           }
         : {
-            title: dateLabel ? `Price missing for ${dateLabel}` : "Price history needs review",
+            title: dateLabel
+              ? t("asset:profile.health.price_missing_for_date", { date: dateLabel })
+              : t("asset:profile.health.price_history_needs_review"),
             description: dateLabel
-              ? "Wealthfolio is carrying forward the last available price. Refetch prices if this was a trading day."
-              : "Refetch provider history to restore missing or stale prices. Carried-forward prices are used until exact prices are available.",
+              ? t("asset:profile.health.carrying_forward_refetch")
+              : t("asset:profile.health.refetch_history"),
           }
       : context === "basis"
         ? {
-            title: "Cost basis needs review",
-            description:
-              "Update what you paid for this holding so Wealthfolio can calculate gain/loss.",
+            title: t("asset:profile.health.cost_basis_needs_review"),
+            description: t("asset:profile.health.cost_basis_description"),
           }
         : {
-            title: "Transactions need review",
-            description: "Review the transactions Health Center flagged for this investment.",
+            title: t("asset:profile.health.transactions_need_review"),
+            description: t("asset:profile.health.transactions_description"),
           };
 
   return (
@@ -237,11 +253,11 @@ function AssetHealthBanner({
               ) : (
                 <Icons.Refresh className="mr-2 h-4 w-4" />
               )}
-              Refetch Prices
+              {t("asset:profile.health.refetch_prices")}
             </Button>
           )}
           <Button type="button" variant="ghost" size="sm" onClick={onClear}>
-            Clear
+            {t("common:clear")}
           </Button>
         </div>
       </div>

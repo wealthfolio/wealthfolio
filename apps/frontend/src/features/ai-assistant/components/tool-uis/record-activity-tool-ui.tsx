@@ -1,3 +1,18 @@
+import { updateToolResult } from "@/adapters";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { localizeActivitySubtypeName, localizeActivityTypeName } from "@/lib/activity-utils";
+import { ActivityType, QuoteMode } from "@/lib/constants";
+import { useSettingsContext } from "@/lib/settings-provider";
+import type { ActivityDetails } from "@/lib/types";
+import type { AccountSelectOption } from "@/pages/activity/components/forms/fields";
+import type { NewActivityFormValues } from "@/pages/activity/components/forms/schemas";
+import type { TransferFormValues } from "@/pages/activity/components/forms/transfer-form";
+import {
+  ACTIVITY_FORM_CONFIG,
+  type ActivityFormValues,
+  type PickerActivityType,
+} from "@/pages/activity/config/activity-form-config";
+import { useActivityMutations } from "@/pages/activity/hooks/use-activity-mutations";
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import {
@@ -7,30 +22,17 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  formatPrice,
   Skeleton,
+  useAmountFormatting,
+  useDateFormatting,
+  type FormattingApi,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { parse as dateFnsParse } from "date-fns";
+import type { TFunction } from "i18next";
 import { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 import { Link } from "react-router-dom";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { useSettingsContext } from "@/lib/settings-provider";
-import { updateToolResult } from "@/adapters";
-import { localizeActivitySubtypeName, localizeActivityTypeName } from "@/lib/activity-utils";
-import { ActivityType, QuoteMode } from "@/lib/constants";
-import type { ActivityDetails } from "@/lib/types";
-import { parse as dateFnsParse } from "date-fns";
-import {
-  ACTIVITY_FORM_CONFIG,
-  type ActivityFormValues,
-  type PickerActivityType,
-} from "@/pages/activity/config/activity-form-config";
-import type { AccountSelectOption } from "@/pages/activity/components/forms/fields";
-import type { NewActivityFormValues } from "@/pages/activity/components/forms/schemas";
-import type { TransferFormValues } from "@/pages/activity/components/forms/transfer-form";
-import { useActivityMutations } from "@/pages/activity/hooks/use-activity-mutations";
 import { useRuntimeContext } from "../../hooks/use-runtime-context";
 
 // ============================================================================
@@ -147,10 +149,19 @@ function finiteNumberValue(value: unknown): number | undefined {
   return Number.isFinite(numberValue) ? numberValue : undefined;
 }
 
-function formatActivityDate(dateString: string, t: TFunction): string {
-  return (
-    parseActivityDateToLocal(dateString)?.toLocaleDateString() ?? t("ai:recordActivity.invalidDate")
-  );
+function formatActivityDate(
+  dateString: string,
+  t: TFunction,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+): string {
+  const date = parseActivityDateToLocal(dateString);
+  return date
+    ? formatting.formatCalendarDate({
+        year: date.getFullYear(),
+        month: date.getMonth() + 1,
+        day: date.getDate(),
+      })
+    : t("ai:recordActivity.invalidDate");
 }
 
 function displayPart(value: string | undefined): string | undefined {
@@ -387,19 +398,22 @@ interface SuccessStateProps {
 }
 
 function SuccessState({ draft, createdActivityId, currency }: SuccessStateProps) {
+  const amountFormatting = useAmountFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
+  const dateFormatting = useDateFormatting();
+
+  const formatting = { ...dateFormatting, ...amountFormatting };
+
+  const { formatAmount: formatLocalizedAmount } = formatting;
 
   const formatAmount = useCallback(
     (value: number | undefined) => {
       if (value === undefined) return "-";
       if (isBalanceHidden) return "\u2022\u2022\u2022\u2022\u2022";
-      return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency,
-      }).format(value);
+      return formatLocalizedAmount(value, currency);
     },
-    [currency, isBalanceHidden],
+    [currency, formatLocalizedAmount, isBalanceHidden],
   );
 
   const activityTypeDisplay = localizeActivityTypeName(t, draft.activityType);
@@ -420,7 +434,9 @@ function SuccessState({ draft, createdActivityId, currency }: SuccessStateProps)
           </div>
           <div>
             <span className="text-muted-foreground">{t("ai:recordActivity.dateLabel")}</span>{" "}
-            <span className="font-medium">{formatActivityDate(draft.activityDate, t)}</span>
+            <span className="font-medium">
+              {formatActivityDate(draft.activityDate, t, dateFormatting)}
+            </span>
           </div>
           {draft.symbol && (
             <div>
@@ -629,18 +645,21 @@ function DraftReview({
   onConfirm,
   onEdit,
 }: DraftReviewProps) {
+  const amountFormatting = useAmountFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
+  const dateFormatting = useDateFormatting();
+
+  const formatting = { ...dateFormatting, ...amountFormatting };
+
+  const { formatAmount: formatLocalizedAmount } = formatting;
   const formatAmount = useCallback(
     (value: number | undefined) => {
       if (value === undefined) return "-";
       if (isBalanceHidden) return "\u2022\u2022\u2022\u2022\u2022";
-      return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: draft.currency,
-      }).format(value);
+      return formatLocalizedAmount(value, draft.currency);
     },
-    [draft.currency, isBalanceHidden],
+    [draft.currency, formatLocalizedAmount, isBalanceHidden],
   );
 
   const assetSummary = getAssetSummary(draft, resolvedAsset, t);
@@ -667,7 +686,7 @@ function DraftReview({
         <ReviewField label={t("ai:recordActivity.type")} value={activityTypeDisplay} />
         <ReviewField
           label={t("ai:recordActivity.date")}
-          value={formatActivityDate(draft.activityDate, t)}
+          value={formatActivityDate(draft.activityDate, t, dateFormatting)}
         />
         <ReviewField
           label={t("ai:recordActivity.account")}
@@ -682,7 +701,7 @@ function DraftReview({
             value={
               isBalanceHidden
                 ? "\u2022\u2022\u2022\u2022\u2022"
-                : formatPrice(draft.unitPrice, draft.currency)
+                : amountFormatting.formatPrice(draft.unitPrice, draft.currency)
             }
           />
         )}
@@ -749,6 +768,7 @@ function DraftForm({
   const runtime = useRuntimeContext();
   const threadId = runtime.currentThreadId;
   const { isBalanceHidden } = useBalancePrivacy();
+  const { formatAmount } = useAmountFormatting();
   const [isEditing, setIsEditing] = useState(false);
 
   const pickerType = useMemo(() => toPickerActivityType(draft.activityType), [draft.activityType]);
@@ -865,10 +885,7 @@ function DraftForm({
     headerAmount !== undefined
       ? isBalanceHidden
         ? "\u2022\u2022\u2022\u2022\u2022"
-        : new Intl.NumberFormat("en-US", {
-            style: "currency",
-            currency: draft.currency,
-          }).format(headerAmount)
+        : formatAmount(headerAmount, draft.currency)
       : undefined;
 
   return (

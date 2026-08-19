@@ -1,9 +1,17 @@
 import { logger } from "@/adapters";
-import { type ClassValue, clsx } from "clsx";
-import { format, isValid, parse, parseISO } from "date-fns";
-import { twMerge } from "tailwind-merge";
+import { dateFnsLocaleFor } from "@wealthfolio/ui/hooks/use-date-fns-locale";
 import { getQuoteUnitCurrency } from "@wealthfolio/ui/lib/currencies";
-import { DECIMAL_PRECISION, DISPLAY_DECIMAL_PRECISION } from "./constants";
+import type { FormattingApi } from "@wealthfolio/ui/lib/formatting";
+import { type ClassValue, clsx } from "clsx";
+import {
+  format,
+  formatDistanceToNow as formatDistanceToNowDateFns,
+  isValid,
+  parse,
+  parseISO,
+} from "date-fns";
+import { twMerge } from "tailwind-merge";
+import { DECIMAL_PRECISION } from "./constants";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -118,7 +126,10 @@ function isDateInRange(date: Date): boolean {
   return year >= 1900 && year <= 2100;
 }
 
-export function formatDate(input: string | number | Date | null | undefined): string {
+export function formatDate(
+  input: string | number | Date | null | undefined,
+  formatting: Pick<FormattingApi, "formatDate" | "formatCalendarDate">,
+): string {
   if (input === null || input === undefined) {
     return "-";
   }
@@ -128,8 +139,16 @@ export function formatDate(input: string | number | Date | null | undefined): st
   if (input instanceof Date) {
     date = input;
   } else if (typeof input === "string") {
-    if (input.trim() === "") {
+    const trimmedInput = input.trim();
+    if (trimmedInput === "") {
       return "-";
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmedInput)) {
+      try {
+        return formatting.formatCalendarDate(trimmedInput);
+      } catch {
+        // Fall through to the existing invalid-input behavior.
+      }
     }
     date = tryParseDate(input);
   } else if (typeof input === "number") {
@@ -141,7 +160,7 @@ export function formatDate(input: string | number | Date | null | undefined): st
   }
 
   if (date && isValid(date)) {
-    return format(date, "MMM d, yyyy");
+    return formatting.formatDate(date);
   }
 
   logger.warn(`Failed to format invalid date input: ${String(input)}`);
@@ -166,17 +185,35 @@ export function formatDateISO(date: Date): string {
  * Formats a time as "h:mm a" (e.g. "12:00 AM"). Use when only the time of day
  * is meaningful and the seconds-bearing formatDateTime would be too verbose.
  */
-export function formatTime(input: string | number | Date | null | undefined): string {
+export function formatTime(
+  input: string | number | Date | null | undefined,
+  formatting: Pick<FormattingApi, "formatTime">,
+): string {
   if (input === null || input === undefined) return "-";
   let date: Date | null = null;
   if (input instanceof Date) date = input;
   else if (typeof input === "string") date = tryParseDate(input) ?? new Date(input);
   else if (typeof input === "number") date = Number.isFinite(input) ? new Date(input) : null;
-  if (date && isValid(date)) return format(date, "h:mm a");
+  if (date && isValid(date)) return formatting.formatTime(date);
   return "-";
 }
 
-export const formatDateTime = (date: string | Date, timezone?: string) => {
+export function formatDistanceToNow(
+  date: Date | number,
+  localization: { locale: string; uiLocale: string },
+  options?: Parameters<typeof formatDistanceToNowDateFns>[1],
+): string {
+  return formatDistanceToNowDateFns(date, {
+    ...options,
+    locale: dateFnsLocaleFor(localization.uiLocale),
+  });
+}
+
+export const formatDateTime = (
+  date: string | Date,
+  formatting: Pick<FormattingApi, "formatDate" | "formatTime">,
+  timezone?: string,
+) => {
   if (!date) return { date: "-", time: "-" };
 
   let dateObj: Date | null = null;
@@ -198,30 +235,25 @@ export const formatDateTime = (date: string | Date, timezone?: string) => {
     return { date: "-", time: "-" };
   }
 
-  // Determine the effective timezone: use configured app timezone when valid,
-  // otherwise fall back to the browser timezone.
-  const effectiveTimezone = resolveDisplayTimezone(timezone);
+  const explicitTimezone = timezone?.trim();
+  const effectiveTimezone = explicitTimezone ? resolveDisplayTimezone(explicitTimezone) : undefined;
 
   const dateOptions: Intl.DateTimeFormatOptions = {
     year: "numeric",
     month: "short",
     day: "numeric",
-    timeZone: effectiveTimezone,
+    ...(effectiveTimezone ? { timeZone: effectiveTimezone } : {}),
   };
 
   const timeOptions: Intl.DateTimeFormatOptions = {
     hour: "numeric",
     minute: "numeric",
     second: "numeric",
-    timeZone: effectiveTimezone,
+    ...(effectiveTimezone ? { timeZone: effectiveTimezone } : {}),
   };
-
-  const dateFormatter = new Intl.DateTimeFormat("en-US", dateOptions);
-  const timeFormatter = new Intl.DateTimeFormat("en-US", timeOptions);
-
   return {
-    date: dateFormatter.format(dateObj),
-    time: timeFormatter.format(dateObj),
+    date: formatting.formatDate(dateObj, dateOptions),
+    time: formatting.formatTime(dateObj, timeOptions),
   };
 };
 
@@ -261,43 +293,21 @@ export function formatDateTimeLocal(date: Date | string | undefined): string {
  * @param date Date string, Date object, or undefined
  * @returns Formatted string for display, or empty string if invalid
  */
-export function formatDateTimeDisplay(date: Date | string | undefined): string {
+export function formatDateTimeDisplay(
+  date: Date | string | undefined,
+  formatting: Pick<FormattingApi, "formatDateTime">,
+): string {
   if (!date) return "";
   const value = typeof date === "string" ? new Date(date) : date;
   if (!isValid(value)) return "";
-  // Display format: YYYY/MM/DD HH:mm
-  return format(value, "yyyy/MM/dd HH:mm");
+  return formatting.formatDateTime(value, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
-const DECIMAL_FORMAT_OPTIONS: Intl.NumberFormatOptions = {
-  minimumFractionDigits: DISPLAY_DECIMAL_PRECISION,
-  maximumFractionDigits: DISPLAY_DECIMAL_PRECISION,
-};
-
-const decimalFormatter = new Intl.NumberFormat("en-US", DECIMAL_FORMAT_OPTIONS);
-const currencyFormatterCache = new Map<string, Intl.NumberFormat>();
-
-const getCurrencyFormatter = (currency: string) => {
-  const normalizedCurrency = currency?.toUpperCase?.() ?? "USD";
-  const cacheKey = normalizedCurrency;
-
-  if (currencyFormatterCache.has(cacheKey)) {
-    return currencyFormatterCache.get(cacheKey)!;
-  }
-
-  let formatter: Intl.NumberFormat;
-  try {
-    formatter = new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: normalizedCurrency,
-      ...DECIMAL_FORMAT_OPTIONS,
-    });
-  } catch {
-    formatter = decimalFormatter;
-  }
-
-  currencyFormatterCache.set(cacheKey, formatter);
-  return formatter;
-};
 
 /**
  * Normalizes a minor currency code to its major equivalent.
@@ -310,68 +320,11 @@ export function normalizeCurrency(currency: string | undefined): string | undefi
   return getQuoteUnitCurrency(trimmed)?.major ?? trimmed.toUpperCase();
 }
 
-export function formatAmount(
-  amount: number | string | null | undefined,
-  currency: string,
-  displayCurrency = true,
-) {
-  if (amount == null) return "-";
-  const numericAmount = typeof amount === "string" ? Number(amount) : amount;
-  if (!Number.isFinite(numericAmount)) return "-";
-  const displayAmount = Math.abs(numericAmount) < 0.005 ? 0 : numericAmount;
-  const rawCurrency = currency ?? "USD";
-  const quoteUnit = getQuoteUnitCurrency(rawCurrency);
-
-  if (quoteUnit) {
-    const formattedNumber = decimalFormatter.format(displayAmount);
-    return displayCurrency ? `${formattedNumber}${quoteUnit.symbol}` : formattedNumber;
-  }
-
-  if (!displayCurrency) {
-    return decimalFormatter.format(displayAmount);
-  }
-
-  return getCurrencyFormatter(rawCurrency).format(displayAmount);
-}
-
-export function formatPercent(
-  value: number | null | undefined,
-  options: { digits?: number; signDisplay?: "auto" | "always" | "never" } = {},
-) {
-  if (value == null) return "-";
-  const digits = options.digits ?? 2;
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "percent",
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits,
-      signDisplay: options.signDisplay ?? "auto",
-    }).format(value);
-  } catch (error) {
-    logger.error(`Error formatting percent ${value}: ${error}`);
-    return `${value}%`;
-  }
-}
-
 export function toPascalCase(input: string) {
   return input
     .split(" ")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join("");
-}
-
-export function formatQuantity(quantity: number | string | null | undefined): string {
-  if (quantity === null || quantity === undefined) {
-    return "-";
-  }
-  const numQuantity = typeof quantity === "string" ? parseFloat(quantity) : quantity;
-  if (!Number.isFinite(numQuantity)) return "-";
-
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
-    useGrouping: true,
-  }).format(numQuantity);
 }
 
 /**

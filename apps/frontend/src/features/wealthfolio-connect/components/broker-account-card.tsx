@@ -1,9 +1,16 @@
-import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
-import { Badge } from "@wealthfolio/ui/components/ui/badge";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { formatDate } from "@/lib/utils";
-import { useTranslation } from "react-i18next";
+import {
+  useAmountFormatting,
+  useDateFormatting,
+  useLocalizationSettings,
+  useNumberFormatting,
+  type FormattingApi,
+} from "@wealthfolio/ui";
+import { Badge } from "@wealthfolio/ui/components/ui/badge";
+import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import type { BrokerAccount } from "../types";
 
 interface BrokerAccountCardProps {
@@ -36,12 +43,28 @@ function getLastSyncDate(account: BrokerAccount): string | null {
 /**
  * Format the last sync date for display
  */
-function formatLastSyncDate(dateStr: string | null, t: TFunction): string {
+function formatLastSyncDate(
+  dateStr: string | null,
+  t: TFunction,
+  formatting: FormattingApi,
+): string {
   if (!dateStr) return t("connect:accounts.noDataYet");
-  return t("connect:accounts.dataAsOf", { date: formatDate(dateStr) });
+  return t("connect:accounts.dataAsOf", { date: formatDate(dateStr, formatting) });
 }
 
 export function BrokerAccountCard({ account }: BrokerAccountCardProps) {
+  const localizationSettings = useLocalizationSettings();
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
+  const formatting = {
+    ...localizationSettings,
+    ...numberFormatting,
+    ...amountFormatting,
+    ...dateFormatting,
+  };
+
   const { t } = useTranslation();
   const lastSyncDate = getLastSyncDate(account);
   const isShared = account.owner && !account.owner.is_own_account;
@@ -97,7 +120,7 @@ export function BrokerAccountCard({ account }: BrokerAccountCardProps) {
 
         <div className="flex items-center gap-3">
           <span className="text-muted-foreground text-sm">
-            {formatLastSyncDate(lastSyncDate, t)}
+            {formatLastSyncDate(lastSyncDate, t, formatting)}
           </span>
 
           {/* Sync enabled indicator */}

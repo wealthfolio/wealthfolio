@@ -1,6 +1,6 @@
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
-import { AmountDisplay, Card, formatPercent, Skeleton } from "@wealthfolio/ui";
+import { AmountDisplay, Card, Skeleton, useNumberFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 import { paletteColor, type ValueStripData } from "./allocation-derivations";
 
@@ -37,12 +37,13 @@ function CurrencyExposurePill({
   percentage: number;
   color: string;
 }) {
+  const formatting = useNumberFormatting();
   return (
     <span className="bg-muted/45 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5">
       <span className="h-2 w-1 rounded-sm" style={{ background: color }} />
       <span className="text-muted-foreground">{currency}</span>
       <span className="text-foreground font-semibold tabular-nums">
-        {formatPercent(percentage / 100)}
+        {formatting.formatPercent(percentage / 100)}
       </span>
     </span>
   );
@@ -75,6 +76,7 @@ function CurrencyValuePill({
 }
 
 export function ValueStrip({ data, currency, isLoading, compact }: ValueStripProps) {
+  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const holdingsAccountsLabel = `${t("insights:insights.value_strip.holdings_count", {
@@ -147,7 +149,7 @@ export function ValueStrip({ data, currency, isLoading, compact }: ValueStripPro
             ) : (
               <div className="text-muted-foreground leading-3.5 text-[10px] tabular-nums">
                 {t("insights:insights.value_strip.of_portfolio", {
-                  percent: formatPercent(cashRatio),
+                  percent: formatting.formatPercent(cashRatio),
                 })}
               </div>
             )}
@@ -160,7 +162,7 @@ export function ValueStrip({ data, currency, isLoading, compact }: ValueStripPro
             </div>
             <div className="text-muted-foreground leading-3.5 text-[10px] tabular-nums">
               {t("insights:insights.value_strip.of_portfolio", {
-                percent: formatPercent(data.investedPercent / 100),
+                percent: formatting.formatPercent(data.investedPercent / 100),
               })}
             </div>
           </div>
@@ -172,7 +174,7 @@ export function ValueStrip({ data, currency, isLoading, compact }: ValueStripPro
             </div>
             <div className="text-muted-foreground leading-3.5 text-[10px] tabular-nums">
               {t("insights:insights.value_strip.of_portfolio", {
-                percent: formatPercent(bookCostRatio),
+                percent: formatting.formatPercent(bookCostRatio),
               })}
             </div>
           </div>
@@ -239,7 +241,7 @@ export function ValueStrip({ data, currency, isLoading, compact }: ValueStripPro
           </div>
           <div className={cn("text-muted-foreground tabular-nums", subSize)}>
             {t("insights:insights.value_strip.of_portfolio", {
-              percent: formatPercent(data.investedPercent / 100),
+              percent: formatting.formatPercent(data.investedPercent / 100),
             })}
           </div>
         </div>
@@ -265,7 +267,7 @@ export function ValueStrip({ data, currency, isLoading, compact }: ValueStripPro
           ) : (
             <div className={cn("text-muted-foreground tabular-nums", subSize)}>
               {t("insights:insights.value_strip.of_portfolio", {
-                percent: formatPercent(bookCostRatio),
+                percent: formatting.formatPercent(bookCostRatio),
               })}
             </div>
           )}

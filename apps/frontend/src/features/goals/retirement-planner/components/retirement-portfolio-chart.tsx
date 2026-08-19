@@ -1,4 +1,4 @@
-import { formatCompactAmount } from "@wealthfolio/ui";
+import { useAmountFormatting } from "@wealthfolio/ui";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -124,6 +124,7 @@ function RetirementChartTooltip({
   valueMode: ChartValueMode;
   projectedStroke: string;
 }) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   if (!active || !payload?.length) return null;
   const point = payload[0]?.payload as ChartPoint | undefined;
@@ -155,7 +156,7 @@ function RetirementChartTooltip({
           </span>
         </div>
         <span className="text-xs font-semibold tabular-nums">
-          {formatCompactAmount(point.portfolioStart, currency)}
+          {formatting.formatCompactAmount(point.portfolioStart, currency)}
         </span>
       </div>
       <div className="flex items-center justify-between space-x-4">
@@ -163,7 +164,7 @@ function RetirementChartTooltip({
           {t("goals:portfolio_chart.end_portfolio")}
         </span>
         <span className="text-xs font-semibold tabular-nums">
-          {formatCompactAmount(point.portfolioEnd, currency)}
+          {formatting.formatCompactAmount(point.portfolioEnd, currency)}
         </span>
       </div>
       {point.target != null && (
@@ -175,7 +176,7 @@ function RetirementChartTooltip({
             </span>
           </div>
           <span className="text-xs font-semibold tabular-nums">
-            {formatCompactAmount(point.target, currency)}
+            {formatting.formatCompactAmount(point.target, currency)}
           </span>
         </div>
       )}
@@ -185,7 +186,7 @@ function RetirementChartTooltip({
             {t("goals:portfolio_chart.contribution_yr")}
           </span>
           <span className="text-xs font-semibold tabular-nums">
-            {formatCompactAmount(point.annualContribution, currency)}
+            {formatting.formatCompactAmount(point.annualContribution, currency)}
           </span>
         </div>
       )}
@@ -195,7 +196,7 @@ function RetirementChartTooltip({
             {t("goals:portfolio_chart.income_yr")}
           </span>
           <span className="text-xs font-semibold tabular-nums">
-            {formatCompactAmount(point.annualIncome, currency)}
+            {formatting.formatCompactAmount(point.annualIncome, currency)}
           </span>
         </div>
       )}
@@ -204,7 +205,7 @@ function RetirementChartTooltip({
           {t("goals:coverage_chart.planned_spending_yr")}
         </span>
         <span className="text-xs font-semibold tabular-nums">
-          {formatCompactAmount(point.annualExpenses, currency)}
+          {formatting.formatCompactAmount(point.annualExpenses, currency)}
         </span>
       </div>
       {point.withdrawal > 0 && (
@@ -216,7 +217,7 @@ function RetirementChartTooltip({
             </span>
           </div>
           <span className="text-destructive text-xs font-semibold tabular-nums">
-            -{formatCompactAmount(point.withdrawal, currency)}
+            -{formatting.formatCompactAmount(point.withdrawal, currency)}
           </span>
         </div>
       )}
@@ -230,7 +231,7 @@ function RetirementChartTooltip({
           }`}
         >
           {point.netChange >= 0 ? "+" : "-"}
-          {formatCompactAmount(Math.abs(point.netChange), currency)}
+          {formatting.formatCompactAmount(Math.abs(point.netChange), currency)}
         </span>
       </div>
     </div>
@@ -254,6 +255,7 @@ export function RetirementChart({
   plannerMode: PlannerMode;
   projectedIsOnTrack: boolean;
 }) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const retirementLabel = `Age ${retirementAge}`;
   const isFireMode = plannerMode === "fire";
@@ -266,7 +268,7 @@ export function RetirementChart({
   const retirementPoint = data.find((point) => point.age === retirementAge);
   const retirementPortfolioValueLabel =
     retirementPoint && retirementPoint.portfolio > 0
-      ? formatCompactAmount(retirementPoint.portfolio, currency)
+      ? formatting.formatCompactAmount(retirementPoint.portfolio, currency)
       : null;
   const projectedPalette = projectedIsOnTrack
     ? PROJECTED_CHART_COLORS.onTrack
@@ -275,7 +277,7 @@ export function RetirementChart({
     retirementPoint && typeof retirementPoint.target === "number" ? retirementPoint.target : null;
   const retirementTargetValueLabel =
     retirementTargetValue != null && retirementTargetValue > 0
-      ? formatCompactAmount(retirementTargetValue, currency)
+      ? formatting.formatCompactAmount(retirementTargetValue, currency)
       : null;
   const retirementIndex = data.findIndex((point) => point.age === retirementAge);
   const calloutElbowLabel =
@@ -363,7 +365,7 @@ export function RetirementChart({
           />
           <YAxis
             tick={{ fontSize: 10, fill: CHART_COLORS.muted }}
-            tickFormatter={(v: number) => formatCompactAmount(v, currency)}
+            tickFormatter={(v: number) => formatting.formatCompactAmount(v, currency)}
             width={48}
             axisLine={false}
             tickLine={false}

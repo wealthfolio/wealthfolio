@@ -9,7 +9,7 @@ use rust_decimal::{prelude::FromPrimitive, Decimal};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::asset_id::{parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix};
+use super::asset_id::{parse_crypto_pair_symbol, parse_symbol_with_known_exchange};
 use crate::errors::Result;
 use crate::errors::ValidationError;
 use crate::fx::currency::normalize_currency_code;
@@ -1045,7 +1045,10 @@ pub fn canonicalize_market_identity(
         | Some(InstrumentType::Option)
         | Some(InstrumentType::Metal) => {
             if let Some(raw) = instrument_symbol.as_deref() {
-                let (base, suffix_mic) = parse_symbol_with_exchange_suffix(raw);
+                // The known venue decides whether a trailing `.X` is an exchange
+                // suffix or part of the ticker — see `parse_symbol_with_known_exchange`.
+                let (base, suffix_mic) =
+                    parse_symbol_with_known_exchange(raw, instrument_exchange_mic.as_deref());
                 instrument_symbol = Some(base.to_uppercase());
                 if instrument_exchange_mic.is_none() {
                     instrument_exchange_mic = suffix_mic.map(str::to_string);
@@ -1330,6 +1333,57 @@ mod tests {
             bond.coupon_frequency, None,
             "Corporate bond coupon_frequency should be None"
         );
+    }
+
+    #[test]
+    fn a_share_class_suffix_survives_when_the_venue_contradicts_it() {
+        // `ZAAA.F` on Cboe Canada is BMO's currency-hedged unit class, and `.F` is
+        // Yahoo's Frankfurt suffix. Stripping it stored the holding under `ZAAA`, the
+        // unhedged listing — a different security. Observed live 2026-07-30.
+        let result = canonicalize_market_identity(
+            Some(InstrumentType::Equity),
+            Some("ZAAA.F"),
+            Some("NEOE"),
+            None,
+        );
+
+        assert_eq!(result.instrument_symbol.as_deref(), Some("ZAAA.F"));
+        assert_eq!(result.instrument_exchange_mic.as_deref(), Some("NEOE"));
+        assert_eq!(result.display_code.as_deref(), Some("ZAAA.F"));
+    }
+
+    #[test]
+    fn an_exchange_suffix_is_still_stripped_when_the_venue_agrees_or_is_absent() {
+        // The ordinary paths, unchanged: no venue to check against, and a venue that
+        // says the same thing the suffix does.
+        let inferred =
+            canonicalize_market_identity(Some(InstrumentType::Equity), Some("SHOP.TO"), None, None);
+        assert_eq!(inferred.instrument_symbol.as_deref(), Some("SHOP"));
+        assert_eq!(inferred.instrument_exchange_mic.as_deref(), Some("XTSE"));
+
+        let agreeing = canonicalize_market_identity(
+            Some(InstrumentType::Equity),
+            Some("SHOP.TO"),
+            Some("XTSE"),
+            None,
+        );
+        assert_eq!(agreeing.instrument_symbol.as_deref(), Some("SHOP"));
+        assert_eq!(agreeing.instrument_exchange_mic.as_deref(), Some("XTSE"));
+    }
+
+    #[test]
+    fn a_share_class_that_is_not_a_known_venue_suffix_is_untouched_either_way() {
+        // `.B` is not in the Yahoo suffix table, so this never depended on the rule
+        // above — pinned so a widened table cannot silently mangle a share class.
+        for mic in [Some("XNYS"), None] {
+            let result = canonicalize_market_identity(
+                Some(InstrumentType::Equity),
+                Some("BRK.B"),
+                mic,
+                None,
+            );
+            assert_eq!(result.instrument_symbol.as_deref(), Some("BRK.B"));
+        }
     }
 
     #[test]

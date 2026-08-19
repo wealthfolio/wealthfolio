@@ -1,14 +1,8 @@
 import { useSettings } from "@/hooks/use-settings";
 import { isSecuritiesTransfer } from "@/lib/activity-utils";
 import { ActivityType, isLiabilityAccountType, QuoteMode } from "@/lib/constants";
-import { formatAmount } from "@/lib/utils";
+import {} from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AnimatedToggleGroup } from "@wealthfolio/ui/components/ui/animated-toggle-group";
-import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { Label } from "@wealthfolio/ui/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@wealthfolio/ui/components/ui/radio-group";
 import {
   FormControl,
   FormField,
@@ -16,12 +10,19 @@ import {
   FormLabel,
   FormMessage,
   MoneyInput,
+  useAmountFormatting,
 } from "@wealthfolio/ui";
-import { useEffect, useMemo } from "react";
-import { useTranslation } from "react-i18next";
-import { FormProvider, useForm, type Resolver } from "react-hook-form";
-import { z } from "zod";
+import { AnimatedToggleGroup } from "@wealthfolio/ui/components/ui/animated-toggle-group";
+import { Button } from "@wealthfolio/ui/components/ui/button";
+import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { Label } from "@wealthfolio/ui/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@wealthfolio/ui/components/ui/radio-group";
 import type { TFunction } from "i18next";
+import { useEffect, useMemo } from "react";
+import { FormProvider, useForm, type Resolver } from "react-hook-form";
+import { useTranslation } from "react-i18next";
+import { z } from "zod";
 import {
   AccountSelect,
   AdvancedOptionsSection,
@@ -353,6 +354,7 @@ export function TransferForm({
   isEditing = false,
   assetCurrency,
 }: TransferFormProps) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation(["activity"]);
   const { data: settings } = useSettings();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -634,7 +636,7 @@ export function TransferForm({
     const displayAmount = isInternalCashTransfer ? sourceAmount : amount;
     if (isCashMode && displayAmount && displayAmount > 0) {
       const displayCurrency = initialCurrency || accountCurrency || baseCurrency;
-      return `${actionPrefix} ${formatAmount(displayAmount, displayCurrency, false)}`;
+      return `${actionPrefix} ${formatting.formatAmount(displayAmount, displayCurrency, false)}`;
     }
 
     if (!isCashMode && assetId && quantity && quantity > 0) {
@@ -716,7 +718,7 @@ export function TransferForm({
           {/* Account Selection - conditional based on external flag */}
           {isExternal ? (
             <AccountSelect
-              key={`external-${transferMode}-${direction}-${accountId || "none"}`}
+              key={`external-${transferMode}-${direction}`}
               name="accountId"
               accounts={externalAccountOptions}
               currencyName="currency"
@@ -740,7 +742,7 @@ export function TransferForm({
 
               {/* To Account Selection */}
               <AccountSelect
-                key={`to-${transferMode}-${fromAccountId || "none"}-${toAccountId || "none"}`}
+                key={`to-${transferMode}-${fromAccountId || "none"}`}
                 name="toAccountId"
                 accounts={toAccountOptions}
                 label={t("activity:form.label_to_account")}
@@ -812,7 +814,6 @@ export function TransferForm({
                               name={field.name}
                               value={field.value}
                               onValueChange={handleSourceAmountChange}
-                              placeholder="0.00"
                               aria-label={t("activity:form.sent_amount")}
                               data-testid="sent-amount-input"
                             />
@@ -837,7 +838,6 @@ export function TransferForm({
                               name={field.name}
                               value={field.value}
                               onValueChange={handleDestinationAmountChange}
-                              placeholder="0.00"
                               aria-label={t("activity:form.received_amount")}
                               data-testid="received-amount-input"
                             />
@@ -860,7 +860,6 @@ export function TransferForm({
                             name={field.name}
                             value={field.value}
                             onValueChange={handleSourceAmountChange}
-                            placeholder="0.00"
                             aria-label={t("activity:form.label_amount")}
                             data-testid="input-amount"
                           />

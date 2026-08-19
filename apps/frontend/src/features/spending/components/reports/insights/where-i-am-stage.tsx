@@ -1,8 +1,11 @@
-import { useMemo, useState, type FC, type ReactNode } from "react";
-import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { useMemo, useState, type FC, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import type { TaxonomyCategory } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,18 +14,19 @@ import {
   Icons,
   PrivacyAmount,
   Skeleton,
-  formatCompactAmount,
+  useAmountFormatting,
+  useDateFormatting,
+  useNumberFormatting,
+  type FormattingApi,
+  useLocalizationSettings,
 } from "@wealthfolio/ui";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import type { TaxonomyCategory } from "@/lib/types";
-import { cn, formatAmount } from "@/lib/utils";
 
-import { CategoryIcon } from "../../category-chips";
 import { rollUpToTopLevel, topCategoryId } from "../../../lib/category-rollup";
 import type { ReportsRange } from "../../../lib/reports-period";
 import type { BudgetCategoryRow, BudgetSnapshot } from "../../../types/budget";
 import type { PaceState } from "../../../types/insight";
 import type { CategoryBreakdownRow, MonthBucket, MonthlyReport } from "../../../types/report";
+import { CategoryIcon } from "../../category-chips";
 import { CategoryHierarchyTable, type CategorySort } from "../category-hierarchy-table";
 import { formatMonthDay, formatMonthName, formatPercentValue } from "./format";
 
@@ -145,6 +149,20 @@ const PaceCard: FC<PaceCardProps> = ({
   isLoading,
   reconciledPace,
 }) => {
+  const localizationSettings = useLocalizationSettings();
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+  const formatting = useMemo<FormattingApi>(
+    () => ({
+      ...localizationSettings,
+      ...amountFormatting,
+      ...numberFormatting,
+      ...dateFormatting,
+    }),
+    [localizationSettings, amountFormatting, numberFormatting, dateFormatting],
+  );
+
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   // `spendingPlanned` is the period-level target straight from the insight
@@ -152,8 +170,9 @@ const PaceCard: FC<PaceCardProps> = ({
   const target = budget?.computed.totals.spendingPlanned ?? 0;
 
   const pace = useMemo(
-    () => computePace(range, spent, target, currency, isBalanceHidden, t, reconciledPace),
-    [range, spent, target, currency, isBalanceHidden, t, reconciledPace],
+    () =>
+      computePace(range, spent, target, currency, isBalanceHidden, t, formatting, reconciledPace),
+    [range, spent, target, currency, isBalanceHidden, t, formatting, reconciledPace],
   );
 
   if (isLoading) {
@@ -237,7 +256,7 @@ const PaceCard: FC<PaceCardProps> = ({
           style={{ left: `${Math.min(100, pace.percentPace * 100)}%` }}
           aria-hidden
           title={t("spending:whereIAm.paceTitle", {
-            pct: formatPercentValue(pace.percentPace * 100, { digits: 0 }),
+            pct: formatPercentValue(pace.percentPace * 100, numberFormatting, { digits: 0 }),
           })}
         />
       </div>
@@ -265,6 +284,7 @@ function computePace(
   currency: string,
   isBalanceHidden: boolean,
   t: TFunction,
+  formatting: FormattingApi,
   reconciledPace?: PaceState,
 ): PaceComputed {
   // Determine elapsed fraction of the active range. For periods that include
@@ -324,7 +344,7 @@ function computePace(
           days: t("spending:whereIAm.daysCount", { count: daysRemaining }),
           scope:
             range.months <= 1
-              ? t("spending:whereIAm.inMonth", { month: formatMonthName(range.end) })
+              ? t("spending:whereIAm.inMonth", { month: formatMonthName(range.end, formatting) })
               : t("spending:whereIAm.inPeriod"),
         });
 
@@ -334,7 +354,14 @@ function computePace(
   const closeLabel =
     range.months <= 1 ? t("spending:whereIAm.monthEnd") : t("spending:whereIAm.periodClose");
   const narrative = isComplete
-    ? buildClosedNarrative({ spent, target, currency, isBalanceHidden, t })
+    ? buildClosedNarrative({
+        spent,
+        target,
+        currency,
+        isBalanceHidden,
+        t,
+        formatting,
+      })
     : buildLiveNarrative({
         diffFromPace,
         projection,
@@ -343,6 +370,7 @@ function computePace(
         closeLabel,
         isBalanceHidden,
         t,
+        formatting,
       });
 
   return {
@@ -366,6 +394,7 @@ function buildLiveNarrative({
   closeLabel,
   isBalanceHidden,
   t,
+  formatting,
 }: {
   diffFromPace: number;
   projection: number;
@@ -374,6 +403,7 @@ function buildLiveNarrative({
   closeLabel: string;
   isBalanceHidden: boolean;
   t: TFunction;
+  formatting: FormattingApi;
 }): ReactNode {
   const direction =
     diffFromPace > 0 ? t("spending:whereIAm.overPace") : t("spending:whereIAm.underPace");
@@ -387,20 +417,22 @@ function buildLiveNarrative({
         className={cn("text-lg font-medium leading-tight tracking-tight md:text-xl", colorClass)}
       >
         <span className="tabular-nums">
-          {isBalanceHidden ? "••••" : formatCompactAmount(Math.abs(diffFromPace), currency)}
+          {isBalanceHidden
+            ? "••••"
+            : formatting.formatCompactAmount(Math.abs(diffFromPace), currency)}
         </span>{" "}
         <span className="font-serif">{direction}</span>
       </div>
       <div className="text-foreground/90 text-sm">
         {t("spending:whereIAm.projectedPrefix")}{" "}
         <span className={cn("font-medium tabular-nums", projColorClass)}>
-          {isBalanceHidden ? "••••" : formatCompactAmount(projection, currency)}
+          {isBalanceHidden ? "••••" : formatting.formatCompactAmount(projection, currency)}
         </span>{" "}
         {t("spending:whereIAm.byClose", { close: closeLabel })}
       </div>
       <div className="text-muted-foreground/80 text-xs tabular-nums">
         {t("spending:whereIAm.ofBudget", {
-          pct: formatPercentValue(pctOfBudget, { digits: 0 }),
+          pct: formatPercentValue(pctOfBudget, formatting, { digits: 0 }),
         })}
       </div>
     </div>
@@ -413,12 +445,14 @@ function buildClosedNarrative({
   currency,
   isBalanceHidden,
   t,
+  formatting,
 }: {
   spent: number;
   target: number;
   currency: string;
   isBalanceHidden: boolean;
   t: TFunction;
+  formatting: FormattingApi;
 }): ReactNode {
   const diff = spent - target;
   const colorClass = diff > 0 ? "text-destructive" : "text-success";
@@ -429,21 +463,21 @@ function buildClosedNarrative({
         className={cn("text-xl font-semibold tabular-nums tracking-tight md:text-2xl", colorClass)}
       >
         {t("spending:whereIAm.amountSpent", {
-          amount: isBalanceHidden ? "••••" : formatCompactAmount(spent, currency),
+          amount: isBalanceHidden ? "••••" : formatting.formatCompactAmount(spent, currency),
         })}
       </div>
       <div className="text-foreground/90 text-sm">
         {t("spending:whereIAm.againstTarget", {
-          target: isBalanceHidden ? "••••" : formatCompactAmount(target, currency),
+          target: isBalanceHidden ? "••••" : formatting.formatCompactAmount(target, currency),
         })}{" "}
         <span className={cn("font-medium", colorClass)}>
           {diff > 0 ? t("spending:whereIAm.overBy") : t("spending:whereIAm.underBy")}{" "}
-          {isBalanceHidden ? "••••" : formatCompactAmount(Math.abs(diff), currency)}
+          {isBalanceHidden ? "••••" : formatting.formatCompactAmount(Math.abs(diff), currency)}
         </span>
       </div>
       <div className="text-muted-foreground/80 text-xs tabular-nums">
         {t("spending:whereIAm.ofBudget", {
-          pct: formatPercentValue(pctOfBudget, { digits: 0 }),
+          pct: formatPercentValue(pctOfBudget, formatting, { digits: 0 }),
         })}
       </div>
     </div>
@@ -473,6 +507,9 @@ const SpentThisPeriodCard: FC<SpentThisPeriodCardProps> = ({
   currency,
   isLoading,
 }) => {
+  const numberFormatting = useNumberFormatting();
+  const formatting = useAmountFormatting();
+  const dateFormatting = useDateFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const segments = useMemo(
@@ -494,10 +531,12 @@ const SpentThisPeriodCard: FC<SpentThisPeriodCardProps> = ({
     if (range.months <= 1) {
       const prev = new Date(range.start);
       prev.setMonth(prev.getMonth() - 1);
-      return t("spending:whereIAm.vsMonth", { month: formatMonthName(prev).slice(0, 3) });
+      return t("spending:whereIAm.vsMonth", {
+        month: formatMonthName(prev, dateFormatting).slice(0, 3),
+      });
     }
     return t("spending:whereIAm.vsPrior");
-  }, [range, t]);
+  }, [dateFormatting, range, t]);
 
   if (isLoading) {
     return (
@@ -528,7 +567,8 @@ const SpentThisPeriodCard: FC<SpentThisPeriodCardProps> = ({
                   : "bg-success/15 text-success",
             )}
           >
-            {formatPercentValue(deltaPct, { digits: 0, signDisplay: "always" })} {priorLabel}
+            {formatPercentValue(deltaPct, numberFormatting, { digits: 0, signDisplay: "always" })}{" "}
+            {priorLabel}
           </span>
         )}
       </div>
@@ -547,8 +587,8 @@ const SpentThisPeriodCard: FC<SpentThisPeriodCardProps> = ({
                   borderRight: i < segments.length - 1 ? "1px solid var(--card)" : undefined,
                 }}
                 title={`${s.name} · ${
-                  isBalanceHidden ? "••••" : formatAmount(s.amount, currency)
-                } (${s.share.toFixed(1)}%)`}
+                  isBalanceHidden ? "••••" : formatting.formatAmount(s.amount, currency)
+                } (${formatPercentValue(s.share, numberFormatting, { digits: 1 })})`}
               />
             ))}
           </div>
@@ -561,7 +601,7 @@ const SpentThisPeriodCard: FC<SpentThisPeriodCardProps> = ({
                 />
                 <span className="text-foreground/80">{s.name}</span>
                 <span className="text-muted-foreground/70 tabular-nums">
-                  {Math.round(s.share)}%
+                  {formatPercentValue(s.share, numberFormatting, { digits: 0 })}
                 </span>
               </span>
             ))}
@@ -644,6 +684,7 @@ interface NetCashflowCardProps {
 }
 
 const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading }) => {
+  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const totals = useMemo(() => {
     let income = 0;
@@ -707,13 +748,13 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
               const ratePct = Math.abs(totals.surplusRate) * 100;
               if (totals.net >= 0) {
                 return t("spending:whereIAm.leftOver", {
-                  pct: formatPercentValue(Math.min(100, ratePct), { digits: 0 }),
+                  pct: formatPercentValue(Math.min(100, ratePct), formatting, { digits: 0 }),
                 });
               }
               return ratePct >= 100
                 ? t("spending:whereIAm.overspentCapped")
                 : t("spending:whereIAm.overspentBy", {
-                    pct: formatPercentValue(ratePct, { digits: 0 }),
+                    pct: formatPercentValue(ratePct, formatting, { digits: 0 }),
                   });
             })()}
           </span>
@@ -796,8 +837,13 @@ function CashflowOverview({
   currency,
   isLoading,
 }: CashflowOverviewProps) {
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
-  const periodLabel = useMemo(() => buildPeriodSubtitle(range), [range]);
+  const periodLabel = useMemo(
+    () => buildPeriodSubtitle(range, dateFormatting),
+    [range, dateFormatting],
+  );
   const incomeRows = useMemo(
     () => buildCashflowRows(currentReport?.incomeBreakdown ?? [], incomeCategories, t),
     [currentReport?.incomeBreakdown, incomeCategories, t],
@@ -873,6 +919,7 @@ interface CashflowGroupProps {
 
 function CashflowGroup({ label, sublabel, rows, currency }: CashflowGroupProps) {
   const { t } = useTranslation();
+  const numberFormatting = useNumberFormatting();
   const visibleRows = rows.slice(0, 4);
   const hiddenCount = Math.max(0, rows.length - visibleRows.length);
 
@@ -914,7 +961,7 @@ function CashflowGroup({ label, sublabel, rows, currency }: CashflowGroupProps) 
                   />
                 </div>
                 <span className="text-muted-foreground/70 w-9 text-right text-[11px] tabular-nums">
-                  {Math.round(row.share)}%
+                  {formatPercentValue(row.share, numberFormatting, { digits: 0 })}
                 </span>
               </div>
             )}
@@ -1012,6 +1059,8 @@ function BreakdownCanvas({
   isLoading,
   onCategoryClick,
 }: BreakdownCanvasProps) {
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const [filter, setFilter] = useState<BreakdownFilter>("all");
   const [sort, setSort] = useState<BreakdownSort>("spent");
@@ -1055,7 +1104,10 @@ function BreakdownCanvas({
     [filteredBreakdown, taxonomyCategories],
   );
 
-  const periodLabel = useMemo(() => buildPeriodSubtitle(range), [range]);
+  const periodLabel = useMemo(
+    () => buildPeriodSubtitle(range, dateFormatting),
+    [range, dateFormatting],
+  );
 
   const filterChips = useMemo<{ id: BreakdownFilter; label: string; count: number }[]>(
     () => [
@@ -1151,7 +1203,11 @@ function BreakdownCanvas({
         {/* Desktop footer: count + link */}
         <div className="text-muted-foreground/80 border-border/40 hidden items-center justify-between border-t px-4 py-3 text-xs md:flex">
           <span className="tabular-nums">
-            {t("spending:whereIAm.categoriesShown", { shown: shownCats, total: totalCats })}
+            {t("spending:whereIAm.categoriesShown", {
+              shown: shownCats,
+              total: totalCats,
+              count: totalCats,
+            })}
           </span>
           <Link
             to="/activities?tab=spending"
@@ -1163,7 +1219,11 @@ function BreakdownCanvas({
         {/* Mobile footer: count + low-emphasis link */}
         <div className="text-muted-foreground/80 mt-3 flex items-center justify-between gap-3 px-1 text-xs md:hidden">
           <span className="tabular-nums">
-            {t("spending:whereIAm.categoriesShown", { shown: shownCats, total: totalCats })}
+            {t("spending:whereIAm.categoriesShown", {
+              shown: shownCats,
+              total: totalCats,
+              count: totalCats,
+            })}
           </span>
           <Link
             to="/activities?tab=spending"
@@ -1260,7 +1320,10 @@ function filterBreakdown({
 }
 
 /** Subtitle copy that reflects the active range, not just the start month. */
-function buildPeriodSubtitle(range: ReportsRange): string {
+function buildPeriodSubtitle(
+  range: ReportsRange,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+): string {
   const sameMonth =
     range.start.getFullYear() === range.end.getFullYear() &&
     range.start.getMonth() === range.end.getMonth();
@@ -1271,10 +1334,11 @@ function buildPeriodSubtitle(range: ReportsRange): string {
   ).getDate();
   const isFullCalendarMonth =
     sameMonth && range.start.getDate() === 1 && range.end.getDate() === lastDayOfMonth;
-  if (isFullCalendarMonth) return formatMonthName(range.start);
-  if (range.days <= 45) return `${formatMonthDay(range.start)} → ${formatMonthDay(range.end)}`;
-  const start = formatMonthName(range.start);
-  const end = formatMonthName(range.end);
+  if (isFullCalendarMonth) return formatMonthName(range.start, formatting);
+  if (range.days <= 45)
+    return `${formatMonthDay(range.start, formatting)} → ${formatMonthDay(range.end, formatting)}`;
+  const start = formatMonthName(range.start, formatting);
+  const end = formatMonthName(range.end, formatting);
   const sameYear = range.start.getFullYear() === range.end.getFullYear();
   return sameYear
     ? `${start} → ${end}`

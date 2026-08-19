@@ -1,6 +1,6 @@
+import type { TFunction } from "i18next";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 
 import {
   findTransferMatchCandidates,
@@ -17,7 +17,6 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-  formatAmount,
   Icons,
   Input,
   ScrollArea,
@@ -33,11 +32,13 @@ import {
   SheetHeader,
   SheetTitle,
   Skeleton,
+  useAmountFormatting,
+  useDateFormatting,
 } from "@wealthfolio/ui";
+import { useActivityMutations } from "../hooks/use-activity-mutations";
 import { ActivityTypeBadge } from "./activity-type-badge";
 import type { NewActivityFormValues } from "./forms/schemas";
 import { isSameAccountCashFxConversion, nonCashTransferAssetKey } from "./transfer-link-utils";
-import { useActivityMutations } from "../hooks/use-activity-mutations";
 
 export type TransferDialogActivity = Activity | ActivityDetails;
 
@@ -309,9 +310,11 @@ function ActivitySummaryRow({
   accountMap: Map<string, Account>;
   className?: string;
 }) {
+  const dateFormatting = useDateFormatting();
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const normalized = normalizeActivity(activity, accountMap);
-  const date = formatDateTime(normalized.date).date;
+  const date = formatDateTime(normalized.date, dateFormatting).date;
   const amount = amountValue(normalized);
   const quantity = parseNumber(normalized.quantity);
   const symbol = normalized.assetSymbol || normalized.assetId || t("activity:date_list.cash");
@@ -326,7 +329,7 @@ function ActivitySummaryRow({
         <span className="min-w-0 truncate font-medium">{normalized.accountName}</span>
         <span className="shrink-0 font-medium tabular-nums">
           {amount != null
-            ? formatAmount(Math.abs(amount), normalized.currency)
+            ? formatting.formatAmount(Math.abs(amount), normalized.currency)
             : normalized.currency}
         </span>
       </div>

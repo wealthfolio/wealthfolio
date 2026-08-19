@@ -1,13 +1,13 @@
-import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import { DashboardCard } from "@/components/dashboard-card";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Activity } from "@/lib/types";
 import { cn, formatDateISO } from "@/lib/utils";
-import { PrivacyAmount } from "@wealthfolio/ui";
+import { PrivacyAmount, useDateFormatting } from "@wealthfolio/ui";
 
 import { getActivityAssignments } from "../adapters/cash-activities";
 import {
@@ -32,6 +32,7 @@ export function RecentActivityCard({
   currency: string;
   uncategorizedCount?: number;
 }) {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   const recent = useMemo(() => {
     return activities
@@ -103,7 +104,7 @@ export function RecentActivityCard({
     const yestKey = formatDateISO(yest);
     if (key === todayKey) return t("spending:dashboard.today");
     if (key === yestKey) return t("spending:dashboard.yesterday");
-    return new Date(key + "T00:00:00").toLocaleDateString(undefined, {
+    return formatting.formatCalendarDate(key, {
       weekday: "short",
       month: "short",
       day: "numeric",

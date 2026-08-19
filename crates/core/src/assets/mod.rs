@@ -26,8 +26,8 @@ pub use alternative_assets_traits::{
     AlternativeAssetRepositoryTrait, AlternativeAssetServiceTrait,
 };
 pub use asset_id::{
-    parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix, symbol_resolution_candidates,
-    unknown_dotted_suffix_fallback,
+    parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix, parse_symbol_with_known_exchange,
+    symbol_resolution_candidates, unknown_dotted_suffix_fallback,
 };
 pub(crate) use asset_resolution::asset_provider_alias_symbols;
 pub use asset_resolution::{AssetResolutionInput, AssetResolutionOutput};

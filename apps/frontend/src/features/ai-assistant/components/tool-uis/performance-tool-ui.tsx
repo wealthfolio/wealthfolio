@@ -1,18 +1,27 @@
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useSettingsContext } from "@/lib/settings-provider";
+import { cn } from "@/lib/utils";
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
-import { Badge, Card, CardContent, CardHeader, CardTitle, Skeleton } from "@wealthfolio/ui";
+import {
+  Badge,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Skeleton,
+  useDateFormatting,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { useSettingsContext } from "@/lib/settings-provider";
-import { CompactToolCard } from "./shared";
 import {
   normalizePerformanceToolResult,
   performanceToolPeriodPnl,
   type PerformanceToolResult as PerformanceResult,
 } from "./performance-tool-semantics";
+import { CompactToolCard } from "./shared";
 
 // ============================================================================
 // Types
@@ -120,6 +129,9 @@ type PerformanceToolUIContentProps = ToolCallMessagePartProps<
 >;
 
 function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolUIContentProps) {
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -139,47 +151,37 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
       formatCurrency: (value: number) =>
         isBalanceHidden
           ? "\u2022\u2022\u2022\u2022\u2022"
-          : new Intl.NumberFormat(undefined, {
+          : numberFormatting.formatDecimal(value, {
               style: "currency",
               currency,
               minimumFractionDigits: 0,
               maximumFractionDigits: 0,
-            }).format(value),
-      formatPercent: (value: number) =>
-        new Intl.NumberFormat(undefined, {
-          style: "percent",
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        }).format(value),
+            }),
+      formatPercent: (value: number) => numberFormatting.formatPercent(value),
       formatPercentSigned: (value: number) =>
-        new Intl.NumberFormat(undefined, {
-          style: "percent",
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-          signDisplay: "exceptZero",
-        }).format(value),
+        numberFormatting.formatPercent(value, { signDisplay: "exceptZero" }),
     };
-  }, [parsed?.currency, isBalanceHidden, baseCurrency]);
+  }, [parsed?.currency, isBalanceHidden, baseCurrency, numberFormatting]);
 
   // Format date range
   const periodLabel = useMemo(() => {
     if (!parsed?.periodStartDate && !parsed?.periodEndDate) return null;
     const start = parsed.periodStartDate
-      ? new Date(parsed.periodStartDate).toLocaleDateString(undefined, {
+      ? dateFormatting.formatCalendarDate(parsed.periodStartDate.slice(0, 10), {
           month: "short",
           day: "numeric",
           year: "numeric",
         })
       : t("ai:performance.start");
     const end = parsed.periodEndDate
-      ? new Date(parsed.periodEndDate).toLocaleDateString(undefined, {
+      ? dateFormatting.formatCalendarDate(parsed.periodEndDate.slice(0, 10), {
           month: "short",
           day: "numeric",
           year: "numeric",
         })
       : t("ai:performance.today");
     return `${start} - ${end}`;
-  }, [parsed?.periodStartDate, parsed?.periodEndDate, t]);
+  }, [parsed?.periodStartDate, parsed?.periodEndDate, dateFormatting, t]);
 
   // Compact mode — just show a one-liner when used as a prerequisite
   if (args?.displayMode === "compact" && parsed && !isLoading) {

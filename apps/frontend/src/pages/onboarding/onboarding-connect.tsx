@@ -84,8 +84,6 @@ export const OnboardingConnect: React.FC = () => {
       <div className="flex justify-center">
         <ExternalLink
           href="https://wealthfolio.app/connect/"
-          target="_blank"
-          rel="noopener noreferrer"
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm transition-colors"
         >
           {t("onboarding:connect.learnMore")}

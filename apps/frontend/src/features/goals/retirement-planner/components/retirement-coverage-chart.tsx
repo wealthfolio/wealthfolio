@@ -1,4 +1,4 @@
-import { formatCompactAmount } from "@wealthfolio/ui";
+import { useAmountFormatting, useNumberFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 import {
   Area,
@@ -42,6 +42,8 @@ function CoverageProjectionTooltip({
   currency: string;
   valueMode: ChartValueMode;
 }) {
+  const formatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
   if (!active || !payload?.length) return null;
   const point = payload[0]?.payload as CoverageProjectionPoint | undefined;
@@ -65,7 +67,7 @@ function CoverageProjectionTooltip({
           </span>
         </div>
         <span className="text-xs font-semibold tabular-nums">
-          {formatCompactAmount(point.plannedSpending, currency)}
+          {formatting.formatCompactAmount(point.plannedSpending, currency)}
         </span>
       </div>
       <div className="flex items-center justify-between gap-5">
@@ -79,7 +81,7 @@ function CoverageProjectionTooltip({
           </span>
         </div>
         <span className="text-xs font-semibold tabular-nums">
-          {formatCompactAmount(point.retirementIncome, currency)}
+          {formatting.formatCompactAmount(point.retirementIncome, currency)}
         </span>
       </div>
       <div className="flex items-center justify-between gap-5">
@@ -93,7 +95,7 @@ function CoverageProjectionTooltip({
           </span>
         </div>
         <span className="text-xs font-semibold tabular-nums">
-          {formatCompactAmount(point.portfolioWithdrawal, currency)}
+          {formatting.formatCompactAmount(point.portfolioWithdrawal, currency)}
         </span>
       </div>
       {point.shortfall > 0 && (
@@ -108,7 +110,7 @@ function CoverageProjectionTooltip({
             </span>
           </div>
           <span className="text-xs font-semibold tabular-nums text-red-500">
-            {formatCompactAmount(point.shortfall, currency)}
+            {formatting.formatCompactAmount(point.shortfall, currency)}
           </span>
         </div>
       )}
@@ -118,7 +120,7 @@ function CoverageProjectionTooltip({
             {t("goals:coverage_chart.withdrawal_taxes_yr")}
           </span>
           <span className="text-xs font-semibold tabular-nums">
-            +{formatCompactAmount(point.taxes, currency)}
+            +{formatting.formatCompactAmount(point.taxes, currency)}
           </span>
         </div>
       )}
@@ -135,7 +137,7 @@ function CoverageProjectionTooltip({
                 : "text-red-500"
           }`}
         >
-          {coveragePct.toFixed(0)}%
+          {numberFormatting.formatPercent(coveragePct / 100, { digits: 0 })}
         </span>
       </div>
     </div>
@@ -157,6 +159,7 @@ export function RetirementCoverageChart({
   fireAgeForBudget: number;
   referenceLabelPrefix: string;
 }) {
+  const formatting = useAmountFormatting();
   return (
     <ResponsiveContainer width="100%" height={280}>
       <AreaChart data={data} margin={{ top: 16, right: 28, left: 0, bottom: 0 }}>
@@ -187,7 +190,7 @@ export function RetirementCoverageChart({
         />
         <YAxis
           tick={{ fontSize: 10 }}
-          tickFormatter={(v: number) => formatCompactAmount(v, currency)}
+          tickFormatter={(v: number) => formatting.formatCompactAmount(v, currency)}
           width={60}
           axisLine={false}
           tickLine={false}

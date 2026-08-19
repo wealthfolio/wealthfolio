@@ -1,3 +1,4 @@
+import { createFormatter } from "@wealthfolio/ui";
 import { describe, expect, it } from "vitest";
 import type { AssetClassificationAssignmentPreview } from "../../types";
 import {
@@ -91,7 +92,8 @@ describe("buildAssetClassificationApplyPlan", () => {
 
 describe("formatBasisPoints", () => {
   it("formats whole and fractional percentages", () => {
-    expect(formatBasisPoints(10000)).toBe("100%");
-    expect(formatBasisPoints(3333)).toBe("33.33%");
+    const formatting = createFormatter("en-US");
+    expect(formatBasisPoints(10000, formatting)).toBe("100%");
+    expect(formatBasisPoints(3333, formatting)).toBe("33.33%");
   });
 });

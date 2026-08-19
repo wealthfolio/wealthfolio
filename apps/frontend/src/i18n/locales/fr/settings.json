@@ -32,6 +32,10 @@
   "save_settings": "Enregistrer les paramètres",
   "settings_saved": "Paramètres enregistrés avec succès",
   "settings_error": "Erreur lors de l'enregistrement des paramètres",
+  "settings_updated_title": "Paramètres mis à jour",
+  "settings_updated_description": "Vos paramètres ont été mis à jour.",
+  "settings_update_error_title": "Une erreur est survenue.",
+  "settings_update_error_description": "Un problème est survenu lors de la mise à jour de vos paramètres.",
   "nav_general_subtitle": "Devise et préférences générales",
   "nav_appearance_subtitle": "Thème, typographie et densité",
   "nav_accounts_subtitle": "Comptes d'investissement et d'épargne",
@@ -959,7 +963,31 @@
     "placeholders": "Espaces réservés :",
     "empty_response_before": "Remplissez l'URL, puis appuyez sur ",
     "empty_response_after": " pour tester.",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "table_click_column_to_map_field_one": "{{count}} ligne · cliquez sur un en-tête de colonne pour mapper vers {{field}}",
+    "table_click_column_to_map_field_other": "{{count}} lignes · cliquez sur un en-tête de colonne pour mapper vers {{field}}",
+    "table_click_column_to_map_one": "{{count}} ligne · cliquez sur un en-tête de colonne pour mapper",
+    "table_click_column_to_map_other": "{{count}} lignes · cliquez sur un en-tête de colonne pour mapper",
+    "csv_rows_detected_field_one": "{{count}} ligne détectée. Cliquez sur un en-tête de colonne pour la mapper vers {{field}}.",
+    "csv_rows_detected_field_other": "{{count}} lignes détectées. Cliquez sur un en-tête de colonne pour la mapper vers {{field}}.",
+    "csv_rows_detected_one": "{{count}} ligne détectée. Cliquez sur un en-tête de colonne pour la mapper.",
+    "csv_rows_detected_other": "{{count}} lignes détectées. Cliquez sur un en-tête de colonne pour la mapper.",
+    "elements_detected_field_one": "{{count}} élément détecté. Cliquez dessus pour assigner son sélecteur vers {{field}}.",
+    "elements_detected_field_other": "{{count}} éléments détectés. Cliquez sur l'un d'eux pour assigner son sélecteur vers {{field}}.",
+    "elements_detected_one": "{{count}} élément détecté. Cliquez dessus pour assigner son sélecteur.",
+    "elements_detected_other": "{{count}} éléments détectés. Cliquez sur l'un d'eux pour assigner son sélecteur.",
+    "show_more_elements_one": "Afficher {{count}} élément de plus",
+    "show_more_elements_other": "Afficher {{count}} éléments de plus",
+    "preview_data_rows_one": "Aperçu des données ({{count}} ligne)",
+    "preview_data_rows_other": "Aperçu des données ({{count}} lignes)",
+    "review_first_rows_one": "Examinez la première ligne de vos données CSV",
+    "review_first_rows_other": "Examinez les {{count}} premières lignes de vos données CSV",
+    "import_quotes_count_one": "Importer {{count}} cotation",
+    "import_quotes_count_other": "Importer {{count}} cotations",
+    "imported_count_one": "{{count}} importée",
+    "imported_count_other": "{{count}} importées",
+    "failed_count_one": "{{count}} échouée",
+    "failed_count_other": "{{count}} échouées"
   },
   "addon_permission_none_detected": "Aucune permission d’accès aux données détectée. Cette extension semble avoir un accès système minimal.",
   "addon_permission_list_title": "Permissions",
@@ -1013,7 +1041,9 @@
       "stat_budget_groups": "Groupes de budget",
       "stat_active": "actif",
       "no_rules_prompt": "Aucune règle de catégorisation — étiquetez automatiquement les transactions par motif de nom.",
-      "setup_rules": "Configurer les règles"
+      "setup_rules": "Configurer les règles",
+      "stat_accounts_unit_one": "sur {{count}} compte de trésorerie",
+      "stat_accounts_unit_other": "sur {{count}} comptes de trésorerie"
     },
     "accounts": {
       "title": "Comptes de dépenses",
@@ -1093,7 +1123,9 @@
       "manage": "Gérer",
       "error_title": "Chargement impossible",
       "error_description": "Réessayez depuis la page de gestion.",
-      "more": "+{{count}} de plus"
+      "more": "+{{count}} de plus",
+      "more_one": "+{{count}} de plus",
+      "more_other": "+{{count}} de plus"
     },
     "setup": {
       "title": "Plan budgétaire mensuel par défaut",
@@ -1114,7 +1146,13 @@
       "updated": "Catégorie mise à jour.",
       "update_error": "Échec de la mise à jour de la catégorie.",
       "created": "Catégorie créée.",
-      "create_error": "Échec de la création de la catégorie."
+      "create_error": "Échec de la création de la catégorie.",
+      "tab_expense_one": "Dépenses ({{count}})",
+      "tab_expense_other": "Dépenses ({{count}})",
+      "tab_income_one": "Revenus ({{count}})",
+      "tab_income_other": "Revenus ({{count}})",
+      "tab_savings_one": "Épargne ({{count}})",
+      "tab_savings_other": "Épargne ({{count}})"
     },
     "events": {
       "heading": "Événements de dépenses",
@@ -1383,7 +1421,9 @@
     },
     "copied_generic": "{{label}} copié dans le presse-papiers.",
     "hero_aria": "État de l'accès des agents IA",
-    "mcp_in_project": "dans votre projet"
+    "mcp_in_project": "dans votre projet",
+    "pat_scope_custom_one": "Personnalisé · {{count}} portée",
+    "pat_scope_custom_other": "Personnalisé · {{count}} portées"
   },
   "tax_add_category": "Ajouter une catégorie",
   "tax_export": "Exporter",
@@ -1401,6 +1441,23 @@
   "ai_providers_empty_description": "Les fournisseurs d'IA apparaîtront ici une fois configurés. Revenez plus tard ou contactez le support.",
   "about_logo_alt": "Logo Wealthfolio",
   "language_region_title": "Langue et région",
+  "formattingRegion": {
+    "title": "Région et formats",
+    "description": "Contrôle les dates, les heures, les séparateurs de nombres, les pourcentages et l’affichage des devises.",
+    "options": {
+      "system": "Région du système",
+      "canada": "Canada",
+      "unitedStates": "États-Unis",
+      "unitedKingdom": "Royaume-Uni",
+      "france": "France",
+      "germany": "Allemagne",
+      "spain": "Espagne",
+      "mexico": "Mexique",
+      "china": "Chine",
+      "japan": "Japon",
+      "southKorea": "Corée du Sud"
+    }
+  },
   "appearance_navigation_title": "Navigation",
   "appearance_navigation_description": "Choisissez votre mode de navigation sur grand écran.",
   "addons_pin_to_navigation": "Épingler {{name}} à la navigation",
@@ -1412,5 +1469,17 @@
   "addon_permission_denied": "Refusé",
   "health_banner_classification": "Affichage des classifications signalées par le Centre de santé",
   "health_banner_market_data": "Affichage des paramètres de données de marché signalés par le Centre de santé",
-  "health_banner_clear": "Effacer"
+  "health_banner_clear": "Effacer",
+  "tax_categories_count_one": "{{count}} catégorie",
+  "tax_categories_count_other": "{{count}} catégories",
+  "tax_migration_body_one": "{{count}} actif a des données de secteur/pays héritées qui peuvent être migrées vers le nouveau système de taxonomie pour une meilleure organisation et de meilleures analyses.",
+  "tax_migration_body_other": "{{count}} actifs ont des données de secteur/pays héritées qui peuvent être migrées vers le nouveau système de taxonomie pour une meilleure organisation et de meilleures analyses.",
+  "addon_rating_characters_one": "{{count}}/500 caractère",
+  "addon_rating_characters_other": "{{count}}/500 caractères",
+  "addon_store_filter_all_one": "Toutes ({{count}})",
+  "addon_store_filter_all_other": "Toutes ({{count}})",
+  "addon_store_filter_uninstalled_one": "Non installée ({{count}})",
+  "addon_store_filter_uninstalled_other": "Non installées ({{count}})",
+  "addon_store_showing_one": "Affichage de {{count}} sur {{total}} extensions",
+  "addon_store_showing_other": "Affichage de {{count}} sur {{total}} extensions"
 }

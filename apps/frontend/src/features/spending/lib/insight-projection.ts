@@ -1,3 +1,4 @@
+import type { FormattingApi } from "@wealthfolio/ui";
 /**
  * Project a SpendingInsight payload into MonthlyReport + BudgetSnapshot
  * shapes consumed by the WhereIAmStage children (PaceCard, SpentThisPeriodCard,
@@ -30,7 +31,10 @@ export interface InsightReportProjection {
   months: MonthBucket[];
 }
 
-export function insightToReportProjection(insight: SpendingInsight): InsightReportProjection {
+export function insightToReportProjection(
+  insight: SpendingInsight,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+): InsightReportProjection {
   const currentSpendingBreakdown = projectSpendingBreakdown(insight, "current");
   const priorSpendingBreakdown = projectSpendingBreakdown(insight, "prior");
   const dayCategoryBuckets = insight.byDayByCategory ?? [];
@@ -95,7 +99,7 @@ export function insightToReportProjection(insight: SpendingInsight): InsightRepo
   };
 
   const budget = projectBudget(insight);
-  const months = projectMonths(insight);
+  const months = projectMonths(insight, formatting);
 
   return { currentReport, priorReport, budget, months };
 }
@@ -207,7 +211,10 @@ function projectBudget(insight: SpendingInsight): BudgetSnapshot {
   };
 }
 
-function projectMonths(insight: SpendingInsight): MonthBucket[] {
+function projectMonths(
+  insight: SpendingInsight,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+): MonthBucket[] {
   const dayCategoryBuckets = insight.byDayByCategory ?? [];
   const breakdownByMonth = new Map<string, Map<string, CategoryBreakdownRow>>();
   for (const b of dayCategoryBuckets) {
@@ -228,7 +235,7 @@ function projectMonths(insight: SpendingInsight): MonthBucket[] {
 
   return insight.byMonth.map((m) => ({
     iso: `${m.month}-01`,
-    label: monthShortLabel(m.month),
+    label: monthShortLabel(m.month, formatting),
     report: {
       current: {
         income: m.income,
@@ -248,10 +255,16 @@ function projectMonths(insight: SpendingInsight): MonthBucket[] {
   }));
 }
 
-function monthShortLabel(monthKey: string): string {
+function monthShortLabel(
+  monthKey: string,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+): string {
   const [yearStr, monthStr] = monthKey.split("-");
   const year = Number(yearStr);
   const month = Number(monthStr) - 1;
   if (Number.isNaN(year) || Number.isNaN(month)) return monthKey;
-  return new Date(year, month, 1).toLocaleString(undefined, { month: "short" });
+  return formatting.formatCalendarDate(
+    { year, month: month + 1, day: 1 },
+    { calendar: "gregory", month: "short" },
+  );
 }

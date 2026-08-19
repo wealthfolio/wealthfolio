@@ -126,7 +126,8 @@
     "splitTransaction": "取引を分割",
     "duplicate": "複製",
     "unlinkTransfer": "振替のリンクを解除",
-    "linkTransfer": "振替をリンク..."
+    "linkTransfer": "振替をリンク...",
+    "deleteConfirmMany_other": "{{count}}件の取引を削除してもよろしいですか?"
   },
   "cashFlow": {
     "income": "収入",
@@ -165,7 +166,8 @@
     "viewAllToTag": "すべて表示 · 未タグ{{count}}件 →",
     "noRecentActivity": "最近の取引はありません。",
     "noPayee": "支払先なし",
-    "uncategorized": "未分類"
+    "uncategorized": "未分類",
+    "viewAllToTag_other": "すべて表示 · 未タグ{{count}}件 →"
   },
   "filters": {
     "statusNeedsReview": "要確認",
@@ -173,6 +175,7 @@
     "statusCategorized": "分類済み",
     "countLabel": "取引 {{visible}} / {{total}}件",
     "countLabel_one": "取引 {{visible}} / {{total}}件",
+    "countLabel_other": "取引 {{visible}} / {{total}}件",
     "countZero": "取引0件",
     "category": "カテゴリ",
     "subcategory": "サブカテゴリ",
@@ -209,7 +212,9 @@
     "removeKeptEdited_one": "編集済みのルール{{count}}件は単独のルールとして保持されます。",
     "removeKeptEdited_other": "編集済みのルール{{count}}件は単独のルールとして保持されます。",
     "removeGeneric": "このプリセットのルールが削除されます。編集内容は保持されます。",
-    "remove": "削除"
+    "remove": "削除",
+    "reimportLabel_other": "{{name}}プリセットを再インポート(ルール{{count}}件)",
+    "importLabel_other": "{{name}}プリセットをインポート(ルール{{count}}件)"
   },
   "budgetBars": {
     "statusOver": "超過",
@@ -345,7 +350,10 @@
     "loadError": "取引を読み込めませんでした。",
     "noTransactions": "この期間に取引はありません。",
     "loadMore": "さらに{{count}}件読み込む",
-    "openInTransactions": "取引一覧で開く"
+    "openInTransactions": "取引一覧で開く",
+    "outflowsCount_other": "出金{{count}}件",
+    "totalCount_other": "合計{{count}}件",
+    "loadMore_other": "さらに{{count}}件読み込む"
   },
   "heatmapSheet": {
     "eyebrow": "支出のタイミング",
@@ -588,6 +596,16 @@
   },
   "whatChanged": {
     "headlineMeta": "ハイライト · {{label}}",
+    "headlineNoActivity": "この期間に記録された支出はありません。",
+    "headlineLeadPrefix": "支出額は",
+    "headlineNoPriorSuffix": "でした。比較できる前期間のデータはありません。",
+    "headlineMoreSuffix": "で、{{priorLabel}}より多くなりました。",
+    "headlineLessSuffix": "で、{{priorLabel}}より少なくなりました。",
+    "headlineSeveralDrivers": "複数のカテゴリで支出が変動し、特定のカテゴリだけが主な要因ではありませんでした。",
+    "headlineRiseDriverPrefix": " 増加の主な要因は",
+    "headlineDropDriverPrefix": " 減少の主な要因は",
+    "headlineSentenceEnd": "です。",
+    "headlineOppositeSuffix": "は反対方向に変動しました。",
     "categoryDetails": "カテゴリの詳細",
     "categoryTrends": "カテゴリの推移",
     "showMore": "さらに{{count}}件表示 →",
@@ -604,7 +622,8 @@
     "impact": "影響度",
     "deltaPct": "Δ %",
     "combinedVs": "{{current}} vs {{prior}}",
-    "combinedMonths": "{{months}}ヶ月 vs 前{{months}}ヶ月"
+    "combinedMonths": "{{months}}ヶ月 vs 前{{months}}ヶ月",
+    "showMore_other": "さらに{{count}}件表示 →"
   },
   "whereIAm": {
     "statusOverBudget": "予算超過",
@@ -666,7 +685,8 @@
     "sortByLabel": "{{label}}で並び替え",
     "categoriesShown_one": "{{total}}カテゴリ中{{shown}}件を表示",
     "categoriesShown_other": "{{total}}カテゴリ中{{shown}}件を表示",
-    "openTransactions": "取引一覧を開く →"
+    "openTransactions": "取引一覧を開く →",
+    "moreCount_other": "他{{count}}件"
   },
   "budgetChart": {
     "overBudget": "予算超過",
@@ -774,7 +794,8 @@
     "selectAllVisible": "表示中の取引をすべて選択",
     "nameNotes": "名前 / メモ",
     "loading": "読み込み中…",
-    "loadMore": "さらに読み込む(残り{{count}}件)"
+    "loadMore": "さらに読み込む(残り{{count}}件)",
+    "loadMore_other": "さらに読み込む(残り{{count}}件)"
   },
   "tabContent": {
     "stageWhereLabel": "現状",
@@ -827,7 +848,8 @@
     "interval3M": "直近3ヶ月",
     "interval6M": "直近6ヶ月",
     "intervalYtd": "年初来",
-    "interval1Y": "直近1年"
+    "interval1Y": "直近1年",
+    "plusMore_other": "+ 他{{count}}件"
   },
   "budgetEditor": {
     "newGroup": "新しいグループ",
@@ -906,6 +928,8 @@
     "unassigned": "未割当",
     "rolloverIn": "繰越受入",
     "dataUnavailable": "予算データを利用できません",
-    "migrationNeeded": "現在のローカルデータベースは、支出機能の更新マイグレーション適用前に作成されています。"
+    "migrationNeeded": "現在のローカルデータベースは、支出機能の更新マイグレーション適用前に作成されています。",
+    "addSource_other": "収入源を追加({{count}}件利用可能)",
+    "overridesTitle_other": "個別設定 · {{count}}"
   }
 }

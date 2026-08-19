@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "./button";
 import { cn } from "../../lib/utils";
+import { useDateFormatting } from "../formatting-provider";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -37,6 +39,8 @@ interface MonthYearPickerProps {
 }
 
 function MonthYearPicker({ value, onChange, minDate, maxDate, className }: MonthYearPickerProps) {
+  const formatting = useDateFormatting();
+  const { t } = useTranslation();
   const [selectedYear, selectedMonth] = React.useMemo(() => {
     if (value) {
       const [year, month] = value.split("-").map(Number);
@@ -71,6 +75,21 @@ function MonthYearPicker({ value, onChange, minDate, maxDate, className }: Month
 
   const canGoPrevYear = viewYear > minYear;
   const canGoNextYear = viewYear < maxYear;
+  const monthLabels = React.useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, index) => {
+        const date = { year: 2020, month: index + 1, day: 1 };
+        return {
+          short: formatting.formatCalendarDate(date, { calendar: "gregory", month: "short" }),
+          long: formatting.formatCalendarDate(date, { calendar: "gregory", month: "long" }),
+        };
+      }),
+    [formatting],
+  );
+  const yearLabel = formatting.formatCalendarDate(
+    { year: viewYear, month: 1, day: 1 },
+    { calendar: "gregory", year: "numeric" },
+  );
 
   const handlePrevYear = () => {
     if (canGoPrevYear) setViewYear((y) => y - 1);
@@ -101,21 +120,35 @@ function MonthYearPicker({ value, onChange, minDate, maxDate, className }: Month
   return (
     <div className={cn("w-[240px] p-3", className)} data-slot="month-year-picker">
       <div className="mb-3 flex items-center justify-between">
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handlePrevYear} disabled={!canGoPrevYear}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          aria-label={t("ui:datePicker.previousYear", "Previous year")}
+          onClick={handlePrevYear}
+          disabled={!canGoPrevYear}
+        >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span className="text-sm font-medium">{viewYear}</span>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNextYear} disabled={!canGoNextYear}>
+        <span className="text-sm font-medium">{yearLabel}</span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          aria-label={t("ui:datePicker.nextYear", "Next year")}
+          onClick={handleNextYear}
+          disabled={!canGoNextYear}
+        >
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        {MONTHS.map((month, index) => {
+        {monthLabels.map((month, index) => {
           const disabled = isMonthDisabled(index);
           const selected = isMonthSelected(index);
           return (
             <Button
-              key={month}
+              key={index}
               variant={selected ? "default" : "ghost"}
               size="sm"
               className={cn(
@@ -125,8 +158,9 @@ function MonthYearPicker({ value, onChange, minDate, maxDate, className }: Month
               )}
               onClick={() => !disabled && handleMonthClick(index)}
               disabled={disabled}
+              aria-label={month.long}
             >
-              {month}
+              {month.short}
             </Button>
           );
         })}

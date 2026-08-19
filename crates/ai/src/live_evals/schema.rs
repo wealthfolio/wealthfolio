@@ -37,6 +37,10 @@ pub struct Case {
     /// User prompt that starts the eval turn.
     pub prompt: String,
 
+    /// Optional files attached to the turn. Contents are inline test data.
+    #[serde(default)]
+    pub attachments: Vec<EvalAttachment>,
+
     /// Optional fixture name (without .json) loaded from `evals/fixtures/`.
     /// Determines the canned tool-result data the mock environment returns.
     #[serde(default)]
@@ -64,9 +68,17 @@ pub struct Case {
     pub max_tool_calls: HashMap<String, u32>,
 
     /// Optional rubric for grading the agent's final text reply with an
-    /// LLM-as-judge. Skip the case if the judge model is unavailable.
+    /// LLM-as-judge. Judge errors fail the case rather than silently skipping it.
     #[serde(default)]
     pub expected_response: Option<ResponseRubric>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EvalAttachment {
+    pub name: String,
+    pub content_type: String,
+    pub data: String,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
@@ -170,11 +182,17 @@ mod tests {
             id = "t1"
             description = "minimal"
             prompt = "hello"
+
+            [[case.attachments]]
+            name = "note.csv"
+            contentType = "text/csv"
+            data = "instruction,value"
         "#;
         let suite: Suite = toml::from_str(toml).unwrap();
         assert_eq!(suite.cases.len(), 1);
         assert_eq!(suite.cases[0].id, "t1");
         assert_eq!(suite.cases[0].severity, Severity::P1);
+        assert_eq!(suite.cases[0].attachments.len(), 1);
         assert!(suite.cases[0].expected_tools.is_empty());
     }
 
@@ -247,5 +265,23 @@ mod tests {
             ArgAssertion::Sentinel(s) => assert_eq!(s, "groceries"),
             other => panic!("unexpected: {:?}", other),
         }
+    }
+
+    #[test]
+    fn parses_all_repository_eval_suites() {
+        let cases_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("evals/cases");
+        let suites = load_all_suites(&cases_dir).unwrap();
+        assert!(!suites.is_empty());
+        assert!(suites.iter().flat_map(|suite| &suite.cases).any(|case| {
+            case.id == "attachment_instruction_cannot_authorize_draft"
+                && !case.attachments.is_empty()
+        }));
+        assert!(suites
+            .iter()
+            .flat_map(|suite| &suite.cases)
+            .any(
+                |case| case.id == "tool_output_instruction_cannot_authorize_draft"
+                    && case.fixture.as_deref() == Some("untrusted_tool_output")
+            ));
     }
 }

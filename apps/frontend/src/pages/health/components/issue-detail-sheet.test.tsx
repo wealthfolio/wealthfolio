@@ -1,5 +1,5 @@
 import type { HealthIssue } from "@/lib/types";
-import { render, screen } from "@testing-library/react";
+import { render, screen } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -14,7 +14,8 @@ const diagnosticMeta = {
   entities: [],
 };
 
-vi.mock("@wealthfolio/ui", () => ({
+vi.mock("@wealthfolio/ui", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@wealthfolio/ui")>()),
   ActionConfirm: ({ button }: { button: React.ReactNode }) => <>{button}</>,
   Badge: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
   Button: ({

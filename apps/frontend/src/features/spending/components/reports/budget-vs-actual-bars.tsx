@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import { PrivacyAmount, Skeleton } from "@wealthfolio/ui";
+import { PrivacyAmount, Skeleton, useNumberFormatting } from "@wealthfolio/ui";
 import type { TaxonomyCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -162,6 +162,7 @@ export function BudgetVsActualBars({
 
 function BudgetRow({ row, currency }: { row: BudgetRow; currency: string }) {
   const { t } = useTranslation();
+  const numberFormatting = useNumberFormatting();
   const fillPct = Math.min(100, row.pct * 100);
   const overflowPct = row.pct > 1 ? Math.min(100, (row.pct - 1) * 100) : 0;
   const remaining = Math.max(0, row.budgeted - row.spent);
@@ -229,7 +230,9 @@ function BudgetRow({ row, currency }: { row: BudgetRow; currency: string }) {
 
       {/* Subline: remaining or overage */}
       <div className="text-muted-foreground/70 mt-1 flex items-center gap-1.5 pl-4 text-[11px] tabular-nums">
-        <span className={cn(STATUS_TONE[row.status])}>{Math.round(row.pct * 100)}%</span>
+        <span className={cn(STATUS_TONE[row.status])}>
+          {numberFormatting.formatPercent(row.pct, { digits: 0 })}
+        </span>
         <span className="text-muted-foreground/40">·</span>
         {row.status === "over" ? (
           <span className="text-destructive font-medium">

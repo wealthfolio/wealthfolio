@@ -1,7 +1,11 @@
 import { useMemo } from "react";
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
+import { useAccounts } from "@/hooks/use-accounts";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import type { Account, TaxonomyCategory } from "@/lib/types";
+import { cn, formatDate, formatDateISO } from "@/lib/utils";
 import {
   Button,
   Icons,
@@ -10,16 +14,16 @@ import {
   SheetContent,
   SheetTitle,
   Skeleton,
-  formatCompactAmount,
+  calendarDateFromLocalDate,
+  useAmountFormatting,
+  useDateFormatting,
+  useNumberFormatting,
+  type FormattingApi,
 } from "@wealthfolio/ui";
-import { useAccounts } from "@/hooks/use-accounts";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import type { Account, TaxonomyCategory } from "@/lib/types";
-import { cn, formatDate, formatDateISO } from "@/lib/utils";
 
-import { CategoryIcon } from "../category-chips";
 import { useCashActivitySearch } from "../../hooks/use-cash-activity-search";
 import { getActivitySpendingAmount } from "../../lib/constants";
+import { CategoryIcon } from "../category-chips";
 
 const SPENDING_TAXONOMY = "spending_categories";
 
@@ -63,6 +67,10 @@ export function CategoryTransactionsSheet({
   rangeEnd,
   currency,
 }: CategoryTransactionsSheetProps) {
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const isTopLevel = !!category && !category.parentId;
@@ -236,7 +244,7 @@ export function CategoryTransactionsSheet({
                 {category?.name ?? t("spending:categorySheet.categoryFallback")}
               </SheetTitle>
               <p className="text-muted-foreground mt-0.5 text-xs">
-                {formatRangeLabel(rangeStart, rangeEnd)} ·{" "}
+                {formatRangeLabel(rangeStart, rangeEnd, dateFormatting)} ·{" "}
                 {t("spending:categorySheet.daysCount", { count: stats.days })}
               </p>
             </div>
@@ -251,14 +259,20 @@ export function CategoryTransactionsSheet({
                 ) : isBalanceHidden ? (
                   "••••"
                 ) : (
-                  formatCompactAmount(stats.outflow, currency)
+                  amountFormatting.formatCompactAmount(stats.outflow, currency)
                 )
               }
               hint={isTopLevel ? t("spending:categorySheet.allSubcategories") : null}
             />
             <Stat
               label={t("spending:categorySheet.tx")}
-              value={isLoading ? <Skeleton className="h-5 w-10" /> : totalCount.toLocaleString()}
+              value={
+                isLoading ? (
+                  <Skeleton className="h-5 w-10" />
+                ) : (
+                  numberFormatting.formatDecimal(totalCount)
+                )
+              }
               hint={
                 stats.outflowCount > 0 && stats.outflowCount < totalCount
                   ? t("spending:categorySheet.outflowsCount", { count: stats.outflowCount })
@@ -273,7 +287,7 @@ export function CategoryTransactionsSheet({
                 ) : isBalanceHidden ? (
                   "••••"
                 ) : (
-                  formatCompactAmount(stats.avg, currency)
+                  amountFormatting.formatCompactAmount(stats.avg, currency)
                 )
               }
               hint={t("spending:categorySheet.outflowsOnly")}
@@ -286,7 +300,7 @@ export function CategoryTransactionsSheet({
                 ) : isBalanceHidden ? (
                   "••••"
                 ) : (
-                  formatCompactAmount(stats.dailyPace, currency)
+                  amountFormatting.formatCompactAmount(stats.dailyPace, currency)
                 )
               }
               hint={t("spending:categorySheet.inThisPeriod")}
@@ -333,10 +347,12 @@ export function CategoryTransactionsSheet({
                         />
                       </div>
                       <span className="text-muted-foreground/80 w-10 shrink-0 text-right text-[11px] tabular-nums">
-                        {row.share.toFixed(0)}%
+                        {numberFormatting.formatPercent(row.share / 100, { digits: 0 })}
                       </span>
                       <span className="text-foreground/90 w-16 shrink-0 text-right text-xs font-semibold tabular-nums">
-                        {isBalanceHidden ? "••••" : formatCompactAmount(row.amount, currency)}
+                        {isBalanceHidden
+                          ? "••••"
+                          : amountFormatting.formatCompactAmount(row.amount, currency)}
                       </span>
                     </div>
                   ))
@@ -398,7 +414,7 @@ export function CategoryTransactionsSheet({
                           )}
                         </div>
                         <div className="text-muted-foreground/80 mt-0.5 flex items-center gap-1 text-[10px] leading-tight">
-                          <span>{formatDate(it.activityDate)}</span>
+                          <span>{formatDate(it.activityDate, dateFormatting)}</span>
                           <span aria-hidden>·</span>
                           <span className="truncate">{account?.name ?? it.accountId}</span>
                         </div>
@@ -483,12 +499,17 @@ function Stat({
   );
 }
 
-function formatRangeLabel(start: Date, end: Date): string {
-  const fmt = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+function formatRangeLabel(
+  start: Date,
+  end: Date,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+): string {
   const sameYear = start.getFullYear() === end.getFullYear();
-  const yearFmt = new Intl.DateTimeFormat(undefined, { year: "numeric" });
-  const startStr = fmt.format(start);
-  const endStr = fmt.format(end);
-  const yearStr = sameYear ? `, ${yearFmt.format(end)}` : "";
+  const options = { month: "short", day: "numeric" } as const;
+  const startStr = formatting.formatCalendarDate(calendarDateFromLocalDate(start), options);
+  const endStr = formatting.formatCalendarDate(calendarDateFromLocalDate(end), options);
+  const yearStr = sameYear
+    ? `, ${formatting.formatCalendarDate(calendarDateFromLocalDate(end), { year: "numeric" })}`
+    : "";
   return `${startStr} – ${endStr}${yearStr}`;
 }

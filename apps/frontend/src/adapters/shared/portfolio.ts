@@ -33,8 +33,14 @@ export const getHoldings = async (filter: AccountScope): Promise<Holding[]> => {
   return invoke<Holding[]>("get_holdings", { filter });
 };
 
-export const getHoldingsList = async (filter: AccountScope): Promise<Holding[]> => {
-  return invoke<Holding[]>("get_holdings_list", { filter });
+export const getHoldingsList = async (
+  filter: AccountScope,
+  options: { includeClosed?: boolean } = {},
+): Promise<Holding[]> => {
+  return invoke<Holding[]>("get_holdings_list", {
+    filter,
+    ...(options.includeClosed ? { includeClosed: true } : {}),
+  });
 };
 
 export const getIncomeSummary = async (filter?: AccountScope): Promise<IncomeSummary[]> => {

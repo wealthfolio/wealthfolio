@@ -251,6 +251,8 @@
       "retirement_age": "退休年龄",
       "desired_retirement_age_hint": "您希望实现财务独立的年龄。",
       "retirement_age_hint": "您希望退休的年龄。",
+      "horizon_age_fire": "计划终止年龄",
+      "horizon_age_traditional": "预期寿命",
       "horizon_hint": "计划应覆盖至的年龄。",
       "monthly_contribution": "每月供款",
       "monthly_contribution_hint": "退休前您每月增加的金额。",
@@ -707,7 +709,7 @@
     "low_range": "低区间（{{rate}}）",
     "legend_projected": "预计",
     "legend_target": "目标",
-    "legend_range": "区间（±{{pct}}%）"
+    "legend_range": "区间（±{{pct}}）"
   },
   "milestones": {
     "kicker": "检查点",
@@ -750,7 +752,8 @@
       "gap_at_target_age": "目标年龄时的缺口",
       "money_lasts": "资金充足",
       "paths_count": "{{count}} 条路径",
-      "not_run": "未运行"
+      "not_run": "未运行",
+      "paths_count_other": "{{count}} 条路径"
     },
     "results": {
       "base_plan": "基础计划",
@@ -796,7 +799,8 @@
       "outcome": "结果",
       "fi_age": "财务独立年龄",
       "extra_gap": "额外缺口",
-      "money_left": "剩余资金"
+      "money_left": "剩余资金",
+      "eyebrow_with_count_other": "什么可能破坏此计划？ · {{count}} 个情景"
     },
     "montecarlo": {
       "eyebrow": "市场路径",
@@ -829,7 +833,8 @@
       "median_fi_age": "中位数财务独立年龄",
       "market_paths_count": "{{count}} 条市场路径",
       "retire": "退休",
-      "goal": "目标"
+      "goal": "目标",
+      "market_paths_count_other": "{{count}} 条市场路径"
     },
     "moves": {
       "eyebrow": "什么对计划影响最大？",

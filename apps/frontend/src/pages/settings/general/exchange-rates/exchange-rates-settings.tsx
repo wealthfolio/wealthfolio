@@ -1,3 +1,7 @@
+import { ExchangeRate } from "@/lib/types";
+import { formatDate } from "@/lib/utils";
+import { ColumnDef } from "@tanstack/react-table";
+import { ActionConfirm, useDateFormatting } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Card,
@@ -10,10 +14,6 @@ import { DataTable } from "@wealthfolio/ui/components/ui/data-table";
 import { Dialog, DialogContent, DialogTrigger } from "@wealthfolio/ui/components/ui/dialog";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import { ExchangeRate } from "@/lib/types";
-import { formatDate } from "@/lib/utils";
-import { ColumnDef } from "@tanstack/react-table";
-import { ActionConfirm } from "@wealthfolio/ui";
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -22,6 +22,8 @@ import { RateCell } from "./rate-cell";
 import { useExchangeRates } from "./use-exchange-rate";
 
 export function ExchangeRatesSettings() {
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const {
     exchangeRates,
@@ -88,7 +90,9 @@ export function ExchangeRatesSettings() {
       header: t("settings:fx_col_updated"),
       enableHiding: false,
       cell: ({ row }) => (
-        <div className="text-muted-foreground text-sm">{formatDate(row.original.timestamp)}</div>
+        <div className="text-muted-foreground text-sm">
+          {formatDate(row.original.timestamp, dateFormatting)}
+        </div>
       ),
     },
     {

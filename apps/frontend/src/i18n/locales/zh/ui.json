@@ -81,7 +81,13 @@
   },
   "datePicker": {
     "dateLabel": "日期",
-    "pick": "选择日期"
+    "pick": "选择日期",
+    "previousMonth": "上个月",
+    "nextMonth": "下个月",
+    "chooseMonth": "选择月份",
+    "chooseYear": "选择年份",
+    "previousYear": "上一年",
+    "nextYear": "下一年"
   },
   "dateRange": {
     "pick": "选择日期范围",

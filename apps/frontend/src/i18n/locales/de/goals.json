@@ -251,6 +251,8 @@
       "retirement_age": "Ruhestandsalter",
       "desired_retirement_age_hint": "Alter, in dem Sie finanziell unabhängig werden möchten.",
       "retirement_age_hint": "Alter, in dem Sie in Rente gehen möchten.",
+      "horizon_age_fire": "Planhorizont (Alter)",
+      "horizon_age_traditional": "Lebenserwartung",
       "horizon_hint": "Alter, bis zu dem der Plan reichen soll.",
       "monthly_contribution": "Monatlicher Beitrag",
       "monthly_contribution_hint": "Wie viel Sie jeden Monat bis zum Ruhestand hinzufügen.",
@@ -707,7 +709,7 @@
     "low_range": "Unterer Bereich ({{rate}})",
     "legend_projected": "Projiziert",
     "legend_target": "Ziel",
-    "legend_range": "Bereich (±{{pct}} %)"
+    "legend_range": "Bereich (±{{pct}})"
   },
   "milestones": {
     "kicker": "Kontrollpunkte",
@@ -750,7 +752,9 @@
       "gap_at_target_age": "Lücke im Zielalter",
       "money_lasts": "Geld reicht",
       "paths_count": "{{count}} Pfade",
-      "not_run": "nicht ausgeführt"
+      "not_run": "nicht ausgeführt",
+      "paths_count_one": "{{count}} Pfad",
+      "paths_count_other": "{{count}} Pfade"
     },
     "results": {
       "base_plan": "Basisplan",
@@ -796,7 +800,9 @@
       "outcome": "Ergebnis",
       "fi_age": "FU-Alter",
       "extra_gap": "Zusätzliche Lücke",
-      "money_left": "Verbleibendes Geld"
+      "money_left": "Verbleibendes Geld",
+      "eyebrow_with_count_one": "Was könnte diesen Plan gefährden? · {{count}} Szenario",
+      "eyebrow_with_count_other": "Was könnte diesen Plan gefährden? · {{count}} Szenarien"
     },
     "montecarlo": {
       "eyebrow": "Marktpfade",
@@ -829,7 +835,9 @@
       "median_fi_age": "Median-FU-Alter",
       "market_paths_count": "{{count}} Marktpfade",
       "retire": "Rente",
-      "goal": "Ziel"
+      "goal": "Ziel",
+      "market_paths_count_one": "{{count}} Marktpfad",
+      "market_paths_count_other": "{{count}} Marktpfade"
     },
     "moves": {
       "eyebrow": "Was verändert den Plan am meisten?",

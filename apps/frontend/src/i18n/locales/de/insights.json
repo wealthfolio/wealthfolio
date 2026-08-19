@@ -50,7 +50,9 @@
       "target": "Ziel",
       "no_target_yet": "Noch keine Zielaufteilung",
       "compare_weights": "Vergleichen Sie die aktuellen Gewichtungen mit Ihrem gewünschten Portfolio.",
-      "set_target_allocation": "Zielaufteilung festlegen"
+      "set_target_allocation": "Zielaufteilung festlegen",
+      "outside_range_one": "{{count}} außerhalb des Bereichs · größte Abweichung {{gap}}",
+      "outside_range_other": "{{count}} außerhalb des Bereichs · größte Abweichung {{gap}}"
     },
     "value_strip": {
       "portfolio_value": "Portfoliowert",
@@ -114,11 +116,13 @@
       "over_months_one": "über {{count}} Monat",
       "over_months_other": "über {{count}} Monate",
       "trailing_pace": " · {{multiple}}× Tempo der letzten 12 Monate",
-      "drivers_of_change": "Treiber der Veränderung über {{period}}",
+      "drivers_of_change": "Treiber der Veränderung",
       "market_returns": "Marktrenditen",
       "contributions": "Einzahlungen",
       "equity_built": "Aufgebautes Eigenkapital",
       "per_month": "/Mon."
-    }
+    },
+    "days_ago_one": "vor {{count}} T",
+    "days_ago_other": "vor {{count}} T"
   }
 }

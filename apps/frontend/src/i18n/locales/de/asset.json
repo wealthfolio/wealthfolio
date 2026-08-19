@@ -196,6 +196,21 @@
     "holding_fetch_error": "Fehler beim Abrufen der Position.",
     "quote_fetch_error": "Fehler beim Abrufen des Kurses.",
     "asset_profile_fetch_error": "Fehler beim Abrufen des Anlageprofils.",
+    "health": {
+      "add_price_for_date": "Preis für {{date}} hinzufügen",
+      "manual_prices_need_review": "Manuelle Preise müssen geprüft werden",
+      "carrying_forward_add_date": "Wealthfolio übernimmt den letzten Preis. Fügen Sie dieses Datum nur hinzu, wenn es einen eigenen Wert benötigt.",
+      "review_missing_dates": "Prüfen Sie die fehlenden Daten. Fügen Sie Preise mit eigenem Wert hinzu; zwischen den Einträgen werden weiterhin übernommene Preise verwendet.",
+      "price_missing_for_date": "Preis für {{date}} fehlt",
+      "price_history_needs_review": "Der Preisverlauf muss geprüft werden",
+      "carrying_forward_refetch": "Wealthfolio übernimmt den letzten verfügbaren Preis. Laden Sie die Preise neu, wenn dies ein Handelstag war.",
+      "refetch_history": "Laden Sie den Anbieterverlauf neu, um fehlende oder veraltete Preise wiederherzustellen. Bis genaue Preise verfügbar sind, werden übernommene Preise verwendet.",
+      "cost_basis_needs_review": "Die Kostenbasis muss geprüft werden",
+      "cost_basis_description": "Aktualisieren Sie den gezahlten Betrag, damit Wealthfolio Gewinn oder Verlust berechnen kann.",
+      "transactions_need_review": "Transaktionen müssen geprüft werden",
+      "transactions_description": "Prüfen Sie die Transaktionen, die das Health Center für diese Anlage markiert hat.",
+      "refetch_prices": "Preise neu laden"
+    },
     "confirm_option_expiry_title": "Optionsverfall bestätigen",
     "confirm_option_expiry_description": "Dadurch wird die Option als wertlos verfallen erfasst und die Position ohne Zahlungswirkung entfernt. Diese Aktion kann nicht leicht rückgängig gemacht werden.",
     "kind": {
@@ -385,7 +400,9 @@
     "to_auto_warning": "Ihre manuell eingegebenen historischen Daten können verloren gehen.",
     "to_manual_description": "Der Wechsel zur manuellen Verfolgung stoppt den automatischen Datenabruf vom Marktdatenanbieter. Sie müssen die Preisdaten manuell eingeben und pflegen.",
     "to_manual_warning": "Automatische Preisaktualisierungen werden deaktiviert.",
-    "confirm_change": "Änderung bestätigen"
+    "confirm_change": "Änderung bestätigen",
+    "delete_count_one": "Löschen ({{count}})",
+    "delete_count_other": "Löschen ({{count}})"
   },
   "quoteTable": {
     "date": "Datum",
@@ -637,7 +654,6 @@
     "select_mortgage_to_link": "Hypothek zum Verknüpfen auswählen",
     "link_mortgage": "Hypothek verknüpfen",
     "link_mortgage_description": "Wählen Sie eine Hypothek zum Verknüpfen mit dieser Immobilie",
-    "cancel": "Abbrechen",
     "link": "Verknüpfen",
     "sectionTitle": {
       "property": "Immobilie",
@@ -666,7 +682,12 @@
     "date": "Datum",
     "balance": "Saldo",
     "value": "Wert",
-    "notes": "Notizen"
+    "notes": "Notizen",
+    "edit_entry_aria": "Eintrag vom {{date}} bearbeiten, {{value}}",
+    "delete_entry_aria": "Eintrag vom {{date}} löschen, {{value}}",
+    "delete_title": "Verlaufseintrag löschen?",
+    "delete_description": "Dieser Verlaufseintrag wird dauerhaft gelöscht.",
+    "duplicate_date_error": "Jeder Verlaufseintrag muss ein eindeutiges Datum haben."
   },
   "valueToolbar": {
     "add_balance": "Saldo hinzufügen",
@@ -675,6 +696,12 @@
     "modified": "{{count}} geändert",
     "to_delete": "{{count}} zu löschen",
     "cancel": "Abbrechen",
-    "save_changes": "Änderungen speichern"
+    "save_changes": "Änderungen speichern",
+    "delete_count_one": "Löschen ({{count}})",
+    "delete_count_other": "Löschen ({{count}})",
+    "modified_one": "{{count}} geändert",
+    "modified_other": "{{count}} geändert",
+    "to_delete_one": "{{count}} zu löschen",
+    "to_delete_other": "{{count}} zu löschen"
   }
 }

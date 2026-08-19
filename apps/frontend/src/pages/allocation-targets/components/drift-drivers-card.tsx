@@ -1,9 +1,18 @@
-import { useMemo } from "react";
-import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription } from "@wealthfolio/ui";
-import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
-import { cn } from "@/lib/utils";
 import type { DriftReport, DriftRow } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  useAmountFormatting,
+  type FormattingApi,
+} from "@wealthfolio/ui";
+import type { TFunction } from "i18next";
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   allocationTargetColorForRow,
   buildAllocationTargetColorMap,
@@ -23,11 +32,16 @@ function formatPercent(bps: number, decimals = 1): string {
   return Number.isInteger(pct) ? pct.toFixed(0) : pct.toFixed(decimals);
 }
 
-function buildDriver(row: DriftRow, currency: string, t: TFunction) {
+function buildDriver(
+  row: DriftRow,
+  currency: string,
+  t: TFunction,
+  formatting: Pick<FormattingApi, "formatRoundedAmount">,
+) {
   const current = formatPercent(row.currentBps);
   const target = formatPercent(row.targetBps);
   const absDelta = Math.abs(row.valueDelta);
-  const amount = formatRoundedCurrency(absDelta, currency);
+  const amount = formatRoundedCurrency(absDelta, currency, formatting);
   const drift = formatPp(row.driftBps);
 
   if (row.status === "not_targeted") {
@@ -71,6 +85,8 @@ export function DriftDriversCard({
   bandLabel,
   onRebalanceClick,
 }: DriftDriversCardProps) {
+  const amountFormatting = useAmountFormatting();
+
   const { t } = useTranslation();
   const colorByCategory = useMemo(() => buildAllocationTargetColorMap(report.rows), [report.rows]);
   const oobRows = report.rows
@@ -102,7 +118,7 @@ export function DriftDriversCard({
         ) : (
           <ul className="space-y-3">
             {visibleRows.map((row, index) => {
-              const driver = buildDriver(row, report.baseCurrency, t);
+              const driver = buildDriver(row, report.baseCurrency, t, amountFormatting);
               const rowColor = allocationTargetColorForRow(row, colorByCategory, index);
               return (
                 <li key={row.categoryId} className="bg-muted/35 rounded-lg px-3.5 py-3">

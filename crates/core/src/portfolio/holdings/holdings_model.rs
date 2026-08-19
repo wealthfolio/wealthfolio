@@ -82,6 +82,11 @@ pub struct Holding {
 
     // Position type and instrument info
     pub holding_type: HoldingType,
+    /// Whether the underlying account position has been fully closed.
+    /// This cannot be inferred from the aggregate quantity because open long
+    /// and short positions across accounts may net to zero.
+    #[serde(default)]
+    pub is_closed: bool,
     pub instrument: Option<Instrument>,
 
     /// The asset kind classification (Security, Crypto, Property, Vehicle, etc.)
@@ -168,6 +173,7 @@ pub struct HoldingListItem {
     pub id: String,
     pub account_id: String,
     pub holding_type: HoldingType,
+    pub is_closed: bool,
     pub instrument: Option<HoldingListInstrument>,
     pub asset_kind: Option<AssetKind>,
     pub quantity: Decimal,
@@ -229,6 +235,7 @@ impl From<Holding> for HoldingListItem {
             id: holding.id,
             account_id: holding.account_id,
             holding_type: holding.holding_type,
+            is_closed: holding.is_closed,
             instrument,
             asset_kind: holding.asset_kind,
             quantity: holding.quantity,

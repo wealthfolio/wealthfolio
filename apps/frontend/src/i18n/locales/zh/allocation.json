@@ -68,7 +68,10 @@
     "colCurrent": "当前",
     "colTarget": "目标",
     "colDrift": "偏离",
-    "colAccount": "账户"
+    "colAccount": "账户",
+    "accountCount_other": "{{count}} 个账户",
+    "summary_other": "{{count}} 项持仓 · {{currency}}",
+    "summaryUpdated_other": "{{count}} 项持仓 · {{currency}} · 更新于 {{updatedAt}}"
   },
   "presets": {
     "currentAllocation": "当前配置",

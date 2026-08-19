@@ -19,13 +19,17 @@ vi.mock("@wealthfolio/ui", () => ({
   FormMessage: () => null,
   Select: ({
     children,
-    defaultValue: _defaultValue,
+    value,
     onValueChange: _onValueChange,
   }: {
     children: React.ReactNode;
-    defaultValue?: string;
+    value?: string;
     onValueChange?: (value: string) => void;
-  }) => <div data-testid="account-select">{children}</div>,
+  }) => (
+    <div data-testid="account-select" data-value={value}>
+      {children}
+    </div>
+  ),
   SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => (
     <div data-value={value}>{children}</div>
@@ -52,6 +56,9 @@ function TestHarness({ defaultValues, accounts }: TestHarnessProps) {
     <FormProvider {...form}>
       <AccountSelect<FormValues> name="accountId" accounts={accounts} currencyName="currency" />
       <div data-testid="currency-value">{currency}</div>
+      <button type="button" onClick={() => form.setValue("accountId", "acc-usd")}>
+        Select USD account
+      </button>
     </FormProvider>
   );
 }
@@ -91,6 +98,26 @@ describe("AccountSelect", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("currency-value")).toHaveTextContent("EUR");
+    });
+  });
+
+  it("reflects programmatic account changes", async () => {
+    render(
+      <TestHarness
+        accounts={accounts}
+        defaultValues={{
+          accountId: "acc-eur",
+          currency: "EUR",
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("account-select")).toHaveAttribute("data-value", "acc-eur");
+
+    screen.getByRole("button", { name: "Select USD account" }).click();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("account-select")).toHaveAttribute("data-value", "acc-usd");
     });
   });
 });

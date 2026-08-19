@@ -1,19 +1,21 @@
-import { useState, useMemo, useEffect, useRef } from "react";
-import { useTranslation } from "react-i18next";
 import { ExternalLink } from "@/components/external-link";
+import type { ConnectionField } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import {
+  useAmountFormatting,
+  useDateFormatting,
+  useLocalizationSettings,
+  useNumberFormatting,
+  type FormattingApi,
+} from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { Input } from "@wealthfolio/ui/components/ui/input";
-import { Label } from "@wealthfolio/ui/components/ui/label";
-import { Switch } from "@wealthfolio/ui/components/ui/switch";
 import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@wealthfolio/ui/components/ui/collapsible";
-import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
 import {
   Command,
   CommandEmpty,
@@ -22,16 +24,21 @@ import {
   CommandItem,
   CommandList,
 } from "@wealthfolio/ui/components/ui/command";
-import { cn } from "@/lib/utils";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { Input } from "@wealthfolio/ui/components/ui/input";
+import { Label } from "@wealthfolio/ui/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
+import { Switch } from "@wealthfolio/ui/components/ui/switch";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type {
-  MergedProvider,
-  MergedModel,
   FetchedModel,
+  MergedModel,
+  MergedProvider,
   ModelCapabilityOverrides,
   ProviderTuning,
   ProviderTuningOverrides,
 } from "../types";
-import type { ConnectionField } from "@/lib/types";
 import { ProviderIcon } from "./provider-icons";
 
 interface ProviderSettingsCardProps {
@@ -851,7 +858,7 @@ interface PrimaryFieldMeta {
   descriptionKey: string;
   group: TuningFieldGroup;
   bounds: { min: number; max: number; step: number };
-  format: (v: number) => string;
+  format: (v: number, formatting: FormattingApi) => string;
 }
 
 /**
@@ -872,14 +879,14 @@ const PRIMARY_FIELDS: Record<"temperature" | "maxTokens" | "maxTokensThinking", 
       descriptionKey: "ai:providerSettings.field.maxTokensDescription",
       group: "limits",
       bounds: { min: 256, max: 131_072, step: 256 },
-      format: (v) => v.toLocaleString(),
+      format: (v, formatting) => formatting.formatDecimal(v),
     },
     maxTokensThinking: {
       labelKey: "ai:providerSettings.field.maxTokensThinking",
       descriptionKey: "ai:providerSettings.field.maxTokensThinkingDescription",
       group: "limits",
       bounds: { min: 256, max: 131_072, step: 256 },
-      format: (v) => v.toLocaleString(),
+      format: (v, formatting) => formatting.formatDecimal(v),
     },
   };
 
@@ -972,9 +979,12 @@ interface TuningFieldDescriptor {
   formatValue: (v: PrimitiveExtraValue) => string;
 }
 
-function defaultFormat(v: PrimitiveExtraValue): string {
+function defaultFormat(
+  v: PrimitiveExtraValue,
+  formatting: Pick<FormattingApi, "formatDecimal">,
+): string {
   if (typeof v === "number") {
-    return Number.isInteger(v) ? v.toLocaleString() : String(v);
+    return Number.isInteger(v) ? formatting.formatDecimal(v) : String(v);
   }
   return String(v);
 }
@@ -989,6 +999,21 @@ function AdvancedTuningSection({
   supportsCustomUrl,
 }: AdvancedTuningSectionProps) {
   const { t } = useTranslation();
+  const localizationSettings = useLocalizationSettings();
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
+  const formatting = useMemo<FormattingApi>(
+    () => ({
+      ...localizationSettings,
+      ...numberFormatting,
+      ...amountFormatting,
+      ...dateFormatting,
+    }),
+    [localizationSettings, numberFormatting, amountFormatting, dateFormatting],
+  );
+
   const [open, setOpen] = useState(false);
 
   const catalog: ProviderTuning = provider.catalogTuning ?? {};
@@ -1032,7 +1057,7 @@ function AdvancedTuningSection({
         overrideValue,
         effectiveValue: resolved[key],
         bounds: meta.bounds,
-        formatValue: (v) => (typeof v === "number" ? meta.format(v) : String(v)),
+        formatValue: (v) => (typeof v === "number" ? meta.format(v, formatting) : String(v)),
       });
     }
 
@@ -1057,13 +1082,22 @@ function AdvancedTuningSection({
               ? extraOverrides[key]
               : value,
           bounds: typeof value === "number" ? KNOWN_NUMERIC_BOUNDS[key] : undefined,
-          formatValue: defaultFormat,
+          formatValue: (v) => defaultFormat(v, numberFormatting),
         });
       }
     }
 
     return list;
-  }, [catalog, overrides, resolved, extraOverrides, supportsThinking, t]);
+  }, [
+    catalog,
+    overrides,
+    resolved,
+    extraOverrides,
+    supportsThinking,
+    t,
+    formatting,
+    numberFormatting,
+  ]);
 
   // Bucket by group and preserve insertion order inside each.
   const grouped = useMemo(() => {

@@ -16,12 +16,13 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  useDateFormatting,
 } from "@wealthfolio/ui";
 import { cn } from "@wealthfolio/ui/lib/utils";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { translateIssueText } from "./translate-issue";
 import { IssueDetailSheet } from "./components/issue-detail-sheet";
+import { translateIssueText } from "./translate-issue";
 
 const SEVERITY_LABEL_KEYS: Record<HealthSeverity, string> = {
   INFO: "severity.info",
@@ -263,6 +264,7 @@ function HealthyState() {
 }
 
 export default function HealthPage() {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   const [selectedSeverity, setSelectedSeverity] = useState<HealthSeverity | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<HealthIssue | null>(null);
@@ -354,14 +356,14 @@ export default function HealthPage() {
                     <span className="text-muted-foreground flex cursor-default items-center gap-1.5 text-xs">
                       {status.isStale && <Icons.AlertCircle className="h-3 w-3 text-amber-500" />}
                       {t("health:updatedAt", {
-                        time: new Date(status.checkedAt).toLocaleTimeString([], {
+                        time: formatting.formatTime(status.checkedAt, {
                           hour: "2-digit",
                           minute: "2-digit",
                         }),
                       })}
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>{new Date(status.checkedAt).toLocaleString()}</TooltipContent>
+                  <TooltipContent>{formatting.formatDateTime(status.checkedAt)}</TooltipContent>
                 </Tooltip>
               )}
             </div>

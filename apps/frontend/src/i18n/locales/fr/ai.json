@@ -140,7 +140,11 @@
     "emptyHint": "Ajoutez des comptes dans les Paramètres pour suivre vos investissements.",
     "error": "Échec du chargement des comptes",
     "currencyCount": "{{count}} {{currency}}",
-    "unknown": "Inconnu"
+    "unknown": "Inconnu",
+    "currencyCount_one": "{{count}} {{currency}}",
+    "currencyCount_other": "{{count}} {{currency}}",
+    "of_one": "sur {{count}}",
+    "of_other": "sur {{count}}"
   },
   "activities": {
     "fetched_one": "{{count}} activité récupérée",
@@ -242,7 +246,15 @@
     "loadedTaxonomies": "{{count}} taxonomies d'actifs chargées",
     "loadingClassifications": "Chargement des classifications...",
     "couldNotLoadClassifications": "Impossible de charger les classifications.",
-    "loadedClassifications": "{{count}} classifications chargées pour {{asset}}"
+    "loadedClassifications": "{{count}} classifications chargées pour {{asset}}",
+    "loadedCategoriesTotal_one": "{{count}} catégorie chargée pour {{taxonomy}} · {{total}} au total",
+    "loadedCategoriesTotal_other": "{{count}} catégories chargées pour {{taxonomy}} · {{total}} au total",
+    "loadedCategories_one": "{{count}} catégorie chargée pour {{taxonomy}}",
+    "loadedCategories_other": "{{count}} catégories chargées pour {{taxonomy}}",
+    "loadedTaxonomies_one": "{{count}} taxonomie d'actifs chargée",
+    "loadedTaxonomies_other": "{{count}} taxonomies d'actifs chargées",
+    "loadedClassifications_one": "{{count}} classification chargée pour {{asset}}",
+    "loadedClassifications_other": "{{count}} classifications chargées pour {{asset}}"
   },
   "categorization": {
     "categorizing": "Catégorisation de vos transactions…",
@@ -269,7 +281,13 @@
     "transactionsCategorized_other": "{{count}} transactions catégorisées",
     "categoriesSaved": "Catégories enregistrées dans vos transactions.",
     "apply": "Appliquer",
-    "applySelected": "Appliquer {{count}} sélectionnées"
+    "applySelected": "Appliquer {{count}} sélectionnées",
+    "selected_one": "{{count}} sélectionnée",
+    "selected_other": "{{count}} sélectionnées",
+    "needsManualChoice_one": "Nécessite un choix manuel ({{count}})",
+    "needsManualChoice_other": "Nécessite un choix manuel ({{count}})",
+    "applySelected_one": "Appliquer {{count}} sélectionnée",
+    "applySelected_other": "Appliquer {{count}} sélectionnées"
   },
   "importReview": {
     "all": "Tout",
@@ -310,7 +328,11 @@
     "count_one": "{{count}} objectif",
     "count_other": "{{count}} objectifs",
     "of": "sur {{count}}",
-    "achieved": "{{count}} atteints"
+    "achieved": "{{count}} atteints",
+    "of_one": "sur {{count}}",
+    "of_other": "sur {{count}}",
+    "achieved_one": "{{count}} atteint",
+    "achieved_other": "{{count}} atteints"
   },
   "holdings": {
     "fetched_one": "{{count}} position récupérée",
@@ -358,7 +380,9 @@
     "statsSummary": "{{valid}} valides · {{warning}} avertissements · {{errors}} erreurs · {{duplicates}} doublons",
     "revalidate": "Revalider",
     "import_one": "Importer {{count}} activité",
-    "import_other": "Importer {{count}} activités"
+    "import_other": "Importer {{count}} activités",
+    "mappedColumns_one": "{{count}} colonne mappée. ",
+    "mappedColumns_other": "{{count}} colonnes mappées. "
   },
   "mapping": {
     "usingSavedTemplate": "Utilisation du modèle enregistré",
@@ -443,7 +467,19 @@
     "status": "Statut",
     "createdSummary": "{{created}} ligne(s) créée(s), {{errors}} erreurs.",
     "confirmActivities": "Confirmer {{count}} activités",
-    "confirmActivitiesEmpty": "Confirmer les activités"
+    "confirmActivitiesEmpty": "Confirmer les activités",
+    "readyCount_one": "{{count}} prête",
+    "readyCount_other": "{{count}} prêtes",
+    "rows_one": "Ligne : {{count}}",
+    "rows_other": "Lignes : {{count}}",
+    "valid_one": "Valide : {{count}}",
+    "valid_other": "Valides : {{count}}",
+    "errors_one": "Erreur : {{count}}",
+    "errors_other": "Erreurs : {{count}}",
+    "willCreate_one": "À créer : {{count}}",
+    "willCreate_other": "À créer : {{count}}",
+    "confirmActivities_one": "Confirmer {{count}} activité",
+    "confirmActivities_other": "Confirmer {{count}} activités"
   },
   "recordActivity": {
     "invalidDate": "Date invalide",

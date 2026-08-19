@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
 import type { AccountValuation, PerformanceResult } from "@/lib/types";
+import { render, screen } from "@/test/render";
+import { describe, expect, it, vi } from "vitest";
 import AccountMetrics from "./account-metrics";
 
 vi.mock("@/pages/account/performance-grid", () => ({
@@ -14,11 +14,13 @@ vi.mock("./use-balance-update", () => ({
   }),
 }));
 
-vi.mock("@wealthfolio/ui", () => {
+vi.mock("@wealthfolio/ui", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@wealthfolio/ui")>();
   const Passthrough = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
   const Icon = () => <span>icon</span>;
 
   return {
+    ...actual,
     Button: ({ children }: { children?: React.ReactNode }) => <button>{children}</button>,
     Card: Passthrough,
     CardContent: Passthrough,

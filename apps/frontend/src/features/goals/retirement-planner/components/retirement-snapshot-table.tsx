@@ -6,8 +6,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  formatAmount,
-  formatCompactAmount,
+  useAmountFormatting,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useState } from "react";
@@ -30,9 +29,12 @@ function SnapshotAmount({
   compact?: boolean;
   empty?: string;
 }) {
+  const formatting = useAmountFormatting();
   if (value <= 0) return empty;
   const scaledValue = scaleForModeAtAge(value, age);
-  return compact ? formatCompactAmount(scaledValue, currency) : formatAmount(scaledValue, currency);
+  return compact
+    ? formatting.formatCompactAmount(scaledValue, currency)
+    : formatting.formatAmount(scaledValue, currency);
 }
 
 export function RetirementSnapshotTable({
@@ -52,6 +54,7 @@ export function RetirementSnapshotTable({
   currency: string;
   scaleForModeAtAge: (value: number, age: number) => number;
 }) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const [tablePage, setTablePage] = useState(0);
   const totalPages = Math.ceil(snapshots.length / PAGE_SIZE);
@@ -224,7 +227,10 @@ export function RetirementSnapshotTable({
                       </Badge>
                     </td>
                     <td className="py-1.5 text-right">
-                      {formatAmount(scaleForModeAtAge(snap.portfolioEnd, snap.age), currency)}
+                      {formatting.formatAmount(
+                        scaleForModeAtAge(snap.portfolioEnd, snap.age),
+                        currency,
+                      )}
                     </td>
                     {hasPensionFunds && (
                       <td className="py-1.5 text-right">

@@ -1,3 +1,6 @@
+import type { DatabaseBackup } from "@/adapters";
+import { useDateFormatting, type FormattingApi } from "@wealthfolio/ui";
+import { DeleteConfirm } from "@wealthfolio/ui/components/common";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Card,
@@ -6,10 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@wealthfolio/ui/components/ui/card";
-import { DeleteConfirm } from "@wealthfolio/ui/components/common";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
-import type { DatabaseBackup } from "@/adapters";
 import { Trans, useTranslation } from "react-i18next";
 import { useBackupRestore } from "./use-backup-restore";
 
@@ -154,13 +155,17 @@ const formatBackupSize = (sizeBytes: number): string => {
   return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
 };
 
-const formatBackupDate = (modifiedAt: string, t: TFunction): string => {
+const formatBackupDate = (
+  modifiedAt: string,
+  t: TFunction,
+  formatting: Pick<FormattingApi, "formatDateTime">,
+): string => {
   const date = new Date(modifiedAt);
   if (Number.isNaN(date.getTime())) {
     return t("settings:backup_unknown_date");
   }
 
-  return date.toLocaleString(undefined, {
+  return formatting.formatDateTime(date, {
     dateStyle: "medium",
     timeStyle: "short",
   });
@@ -176,6 +181,7 @@ const WebBackupPanel = ({
   onDeleteBackup,
   getDownloadUrl,
 }: WebPanelProps) => {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   const webNotes = [
     t("settings:backup_web_note_1"),
@@ -248,7 +254,7 @@ const WebBackupPanel = ({
                     <p className="truncate text-sm font-medium leading-5">{backup.filename}</p>
                     <p className="text-muted-foreground text-xs">
                       {formatBackupSize(backup.sizeBytes)} -{" "}
-                      {formatBackupDate(backup.modifiedAt, t)}
+                      {formatBackupDate(backup.modifiedAt, t, formatting)}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">

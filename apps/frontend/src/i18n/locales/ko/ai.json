@@ -140,7 +140,9 @@
     "emptyHint": "설정에서 계좌를 추가하여 투자 내역을 추적하세요.",
     "error": "계좌를 불러오지 못했습니다",
     "currencyCount": "{{currency}} {{count}}개",
-    "unknown": "알 수 없음"
+    "unknown": "알 수 없음",
+    "currencyCount_other": "{{currency}} {{count}}개",
+    "of_other": "{{count}}개 중"
   },
   "activities": {
     "fetched_one": "활동 {{count}}건을 가져왔습니다",
@@ -242,7 +244,11 @@
     "loadedTaxonomies": "자산 분류 체계 {{count}}개를 불러왔습니다",
     "loadingClassifications": "분류를 불러오는 중...",
     "couldNotLoadClassifications": "분류를 불러오지 못했습니다.",
-    "loadedClassifications": "{{asset}}의 분류 {{count}}개를 불러왔습니다"
+    "loadedClassifications": "{{asset}}의 분류 {{count}}개를 불러왔습니다",
+    "loadedCategoriesTotal_other": "{{taxonomy}}의 카테고리 {{count}}개를 불러왔습니다 · 전체 {{total}}개",
+    "loadedCategories_other": "{{taxonomy}}의 카테고리 {{count}}개를 불러왔습니다",
+    "loadedTaxonomies_other": "자산 분류 체계 {{count}}개를 불러왔습니다",
+    "loadedClassifications_other": "{{asset}}의 분류 {{count}}개를 불러왔습니다"
   },
   "categorization": {
     "categorizing": "거래를 분류하는 중…",
@@ -269,7 +275,10 @@
     "transactionsCategorized_other": "거래 {{count}}건 분류됨",
     "categoriesSaved": "카테고리가 거래 내역에 저장되었습니다.",
     "apply": "적용",
-    "applySelected": "선택한 {{count}}건 적용"
+    "applySelected": "선택한 {{count}}건 적용",
+    "selected_other": "{{count}}건 선택됨",
+    "needsManualChoice_other": "수동 선택 필요 ({{count}}건)",
+    "applySelected_other": "선택한 {{count}}건 적용"
   },
   "importReview": {
     "all": "전체",
@@ -310,7 +319,9 @@
     "count_one": "목표 {{count}}개",
     "count_other": "목표 {{count}}개",
     "of": "{{count}}개 중",
-    "achieved": "{{count}}개 달성"
+    "achieved": "{{count}}개 달성",
+    "of_other": "{{count}}개 중",
+    "achieved_other": "{{count}}개 달성"
   },
   "holdings": {
     "fetched_one": "보유 종목 {{count}}개를 가져왔습니다",
@@ -358,7 +369,8 @@
     "statsSummary": "유효 {{valid}}건 · 경고 {{warning}}건 · 오류 {{errors}}건 · 중복 {{duplicates}}건",
     "revalidate": "다시 검증",
     "import_one": "활동 {{count}}건 가져오기",
-    "import_other": "활동 {{count}}건 가져오기"
+    "import_other": "활동 {{count}}건 가져오기",
+    "mappedColumns_other": "{{count}}개 열이 매핑되었습니다. "
   },
   "mapping": {
     "usingSavedTemplate": "저장된 템플릿 사용 중",
@@ -443,7 +455,13 @@
     "status": "상태",
     "createdSummary": "{{created}}행 생성됨, 오류 {{errors}}건.",
     "confirmActivities": "활동 {{count}}건 확인",
-    "confirmActivitiesEmpty": "활동 확인"
+    "confirmActivitiesEmpty": "활동 확인",
+    "readyCount_other": "{{count}}건 준비됨",
+    "rows_other": "행: {{count}}",
+    "valid_other": "유효: {{count}}",
+    "errors_other": "오류: {{count}}",
+    "willCreate_other": "생성 예정: {{count}}",
+    "confirmActivities_other": "활동 {{count}}건 확인"
   },
   "recordActivity": {
     "invalidDate": "유효하지 않은 날짜",

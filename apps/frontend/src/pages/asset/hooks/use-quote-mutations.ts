@@ -4,15 +4,31 @@ import { QueryKeys } from "@/lib/query-keys";
 import { invalidatePerformanceCaches } from "@/lib/performance-cache";
 import { Quote } from "@/lib/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 
-export const useQuoteMutations = (assetId: string) => {
+interface UseQuoteMutationsOptions {
+  invalidateOnSuccess?: boolean;
+}
+
+export const useQuoteMutations = (
+  assetId: string,
+  { invalidateOnSuccess = true }: UseQuoteMutationsOptions = {},
+) => {
   const queryClient = useQueryClient();
 
-  const handleSuccess = (message: string) => {
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA, assetId] });
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.QUOTE_HISTORY, assetId] });
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.LATEST_QUOTES] });
+  const invalidateQuoteQueries = useCallback(async () => {
     invalidatePerformanceCaches(queryClient);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA, assetId] }),
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.QUOTE_HISTORY, assetId] }),
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.LATEST_QUOTES] }),
+    ]);
+  }, [assetId, queryClient]);
+
+  const handleSuccess = (message: string) => {
+    if (invalidateOnSuccess) {
+      void invalidateQuoteQueries();
+    }
     toast({
       title: message,
       variant: "success",
@@ -59,5 +75,6 @@ export const useQuoteMutations = (assetId: string) => {
   return {
     saveQuoteMutation,
     deleteQuoteMutation,
+    invalidateQuoteQueries,
   };
 };

@@ -68,7 +68,13 @@
     "colCurrent": "Actuel",
     "colTarget": "Cible",
     "colDrift": "Écart",
-    "colAccount": "Compte"
+    "colAccount": "Compte",
+    "accountCount_one": "{{count}} compte",
+    "accountCount_other": "{{count}} comptes",
+    "summary_one": "{{count}} position · {{currency}}",
+    "summary_other": "{{count}} positions · {{currency}}",
+    "summaryUpdated_one": "{{count}} position · {{currency}} · Mise à jour {{updatedAt}}",
+    "summaryUpdated_other": "{{count}} positions · {{currency}} · Mis à jour {{updatedAt}}"
   },
   "presets": {
     "currentAllocation": "Allocation actuelle",

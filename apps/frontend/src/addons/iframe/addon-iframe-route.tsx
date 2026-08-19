@@ -3,6 +3,7 @@ import { useLocation, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { activationCoordinator } from "@/addons/activation-coordinator";
 import { addonIframeManager, type AddonRouteRenderStatus } from "./addon-iframe-manager";
+import { useTranslation } from "react-i18next";
 
 interface AddonIframeRouteProps {
   addonId: string;
@@ -10,6 +11,7 @@ interface AddonIframeRouteProps {
 }
 
 export function AddonIframeRoute({ addonId, routeId }: AddonIframeRouteProps) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const params = useParams();
@@ -49,7 +51,7 @@ export function AddonIframeRoute({ addonId, routeId }: AddonIframeRouteProps) {
           return;
         }
         if (!activated) {
-          setActivationError(`Failed to start add-on '${addonId}'`);
+          setActivationError(t("common:addon_start_failed", { id: addonId }));
           return;
         }
         unsubscribe = addonIframeManager.subscribeRouteStatus(addonId, setRouteStatus);
@@ -60,7 +62,7 @@ export function AddonIframeRoute({ addonId, routeId }: AddonIframeRouteProps) {
         if (cancelled) {
           return;
         }
-        setActivationError(`Failed to start add-on '${addonId}'`);
+        setActivationError(t("common:addon_start_failed", { id: addonId }));
       });
 
     return () => {
@@ -69,7 +71,7 @@ export function AddonIframeRoute({ addonId, routeId }: AddonIframeRouteProps) {
       unsubscribe?.();
       addonIframeManager.detachRoute(addonId, container);
     };
-  }, [addonId, retryNonce, activationEpoch]);
+  }, [addonId, retryNonce, activationEpoch, t]);
 
   // Render the active route on location change. No-op until the runtime is
   // ready; runs once `ready` flips true to perform the initial render.
@@ -142,10 +144,11 @@ export function AddonIframeRoute({ addonId, routeId }: AddonIframeRouteProps) {
 }
 
 function AddonRouteSkeleton() {
+  const { t } = useTranslation();
   return (
     <div
       className="bg-background text-foreground absolute inset-0 px-6 py-5"
-      aria-label="Loading add-on"
+      aria-label={t("common:addon_loading")}
       aria-live="polite"
     >
       <div className="space-y-6">
@@ -171,10 +174,11 @@ function AddonRouteError({
   error: string;
   onRetry: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="bg-background/95 text-foreground absolute inset-0 px-6 py-5">
       <div className="border-border bg-card max-w-xl rounded-md border p-4 shadow-sm">
-        <h2 className="text-lg font-semibold">Add-on view failed to load</h2>
+        <h2 className="text-lg font-semibold">{t("common:addon_load_failed")}</h2>
         <p className="text-muted-foreground mt-1 text-xs">{addonId}</p>
         <p className="text-muted-foreground mt-2 whitespace-pre-line text-sm">{error}</p>
         <button
@@ -182,7 +186,7 @@ function AddonRouteError({
           className="bg-primary text-primary-foreground hover:bg-primary/90 mt-4 rounded-md px-3 py-2 text-sm font-medium"
           onClick={onRetry}
         >
-          Retry
+          {t("common:retry")}
         </button>
       </div>
     </div>

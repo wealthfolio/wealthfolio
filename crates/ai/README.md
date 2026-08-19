@@ -23,7 +23,7 @@ crates/ai/
 │   │   ├── mod.rs               Trait surface (~95 lines)
 │   │   └── test_env.rs          MockEnvironment (test-utils gated)
 │   ├── providers.rs             Provider catalog + ProviderService
-│   ├── system_prompt.txt        Global agent persona / tool-pair / display rules
+│   ├── system_prompt.txt        Authoritative versioned live policy + agent rules
 │   ├── live_evals/              Live-model eval harness (test-utils gated)
 │   └── bin/eval.rs              Runner binary (eval feature gated)
 ├── tests/                       Cross-module integration tests (no LLM)
@@ -193,6 +193,7 @@ pub use providers::ProviderService;
 pub use tools::{ToolSet, /* individual tools */};
 pub use types::{/* DTOs, events, allowlist constants */};
 pub const SYSTEM_PROMPT: &str;     // raw system_prompt.txt content
+pub const FINANCIAL_SAFETY_POLICY_VERSION: &str;
 ```
 
 `MockEnvironment` is exposed under the `test-utils` feature flag; the
@@ -210,7 +211,7 @@ SendMessageRequest
        └→ spawn_chat_stream (chat::streaming)
             ├→ provider client construction (chat::provider_clients)
             ├→ system_prompt + dynamic context preamble
-            ├→ tool allowlist filter (types::normalize_tools_allowlist)
+            ├→ provider tool allowlist filter
             ├→ rig agent.stream_completion
             ├→ stream_agent_response: rig events → AiStreamEvent
             └→ post-stream: title generation

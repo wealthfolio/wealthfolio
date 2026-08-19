@@ -1,8 +1,8 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useQueryClient } from "@tanstack/react-query";
 import * as z from "zod";
 
 import {
@@ -34,10 +34,11 @@ import {
   PopoverTrigger,
   PrivacyAmount,
   Textarea,
+  useDateFormatting,
 } from "@wealthfolio/ui";
 
-import type { Activity } from "@/lib/types";
 import { QueryKeys } from "@/lib/query-keys";
+import type { Activity } from "@/lib/types";
 import { formatDateISO, parseLocalDate } from "@/lib/utils";
 
 import { useCashActivities, useSetActivityEvent } from "../hooks/use-cash-activities";
@@ -46,8 +47,8 @@ import {
   useEventTypes,
   useSpendingEventMutations,
 } from "../hooks/use-spending-events";
-import type { EventDialogPrefill } from "./event-dialog-provider";
 import type { NewSpendingEvent, SpendingEvent } from "../types/event";
+import type { EventDialogPrefill } from "./event-dialog-provider";
 
 interface EventFormValues {
   name: string;
@@ -625,6 +626,7 @@ function SuggestedTransactions({
   onClearAll,
   selectedCount,
 }: SuggestedTransactionsProps) {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   if (isFetching && candidates.length === 0) {
     return (
@@ -681,7 +683,10 @@ function SuggestedTransactions({
           const date = new Date(c.activityDate);
           const dateLabel = isNaN(date.getTime())
             ? c.activityDate.slice(0, 10)
-            : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+            : formatting.formatCalendarDate(c.activityDate.slice(0, 10), {
+                month: "short",
+                day: "numeric",
+              });
           return (
             <li key={c.id}>
               <label className="hover:bg-muted/30 flex cursor-pointer items-center gap-3 px-3 py-2">

@@ -68,7 +68,13 @@
     "colCurrent": "Actual",
     "colTarget": "Objetivo",
     "colDrift": "Desviación",
-    "colAccount": "Cuenta"
+    "colAccount": "Cuenta",
+    "accountCount_one": "{{count}} cuenta",
+    "accountCount_other": "{{count}} cuentas",
+    "summary_one": "{{count}} posición · {{currency}}",
+    "summary_other": "{{count}} posiciones · {{currency}}",
+    "summaryUpdated_one": "{{count}} posición · {{currency}} · Actualizada {{updatedAt}}",
+    "summaryUpdated_other": "{{count}} posiciones · {{currency}} · Actualizado {{updatedAt}}"
   },
   "presets": {
     "currentAllocation": "Asignación actual",

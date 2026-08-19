@@ -5,18 +5,3 @@ export const CARD_CLASS = "border-border/60 bg-card/40 rounded-2xl border p-5 ba
 
 export const LABEL_CLASS =
   "text-muted-foreground/70 text-[10px] font-normal uppercase tracking-[0.12em]";
-
-export const MONTH_LABELS = [
-  "JAN",
-  "FEB",
-  "MAR",
-  "APR",
-  "MAY",
-  "JUN",
-  "JUL",
-  "AUG",
-  "SEP",
-  "OCT",
-  "NOV",
-  "DEC",
-];

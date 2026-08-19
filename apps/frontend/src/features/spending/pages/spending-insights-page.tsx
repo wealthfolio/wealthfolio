@@ -1,33 +1,41 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { useSettingsContext } from "@/lib/settings-provider";
 
-import { Page, PageContent, PageHeader, useIsMobile, usePersistentState } from "@wealthfolio/ui";
+import {
+  Page,
+  PageContent,
+  PageHeader,
+  useDateFormatting,
+  useIsMobile,
+  useNumberFormatting,
+  usePersistentState,
+} from "@wealthfolio/ui";
 
 import { CategoryTransactionsSheet } from "../components/reports/category-transactions-sheet";
 import { HeatmapCellSheet } from "../components/reports/heatmap-cell-sheet";
-import { SpendingPeriodSelector } from "../components/spending-period-toggle";
 import { StageNav, type InsightsStage } from "../components/reports/insights/stage-nav";
 import { WhatChangedStage } from "../components/reports/insights/what-changed-stage";
 import { WhenWhereStage } from "../components/reports/insights/when-where-stage";
 import { WhereIAmStage } from "../components/reports/insights/where-i-am-stage";
+import { SpendingPeriodSelector } from "../components/spending-period-toggle";
 import { useCashActivities } from "../hooks/use-cash-activities";
 import { useEventSpendingSummaries } from "../hooks/use-spending-events";
 import { useSpendingInsight } from "../hooks/use-spending-insight";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import { insightToReportProjection, UNCATEGORIZED_CATEGORY_ID } from "../lib/insight-projection";
 import {
-  SPENDING_MONTH_PARAM,
-  SPENDING_MONTH_STORAGE_KEY,
   addMonthsToMonthKey,
   currentMonthKey,
   monthReportsRange,
   parseMonthKey,
+  SPENDING_MONTH_PARAM,
+  SPENDING_MONTH_STORAGE_KEY,
 } from "../lib/month-period";
 import {
   INSIGHTS_PERIOD_STORAGE_KEY,
@@ -115,6 +123,8 @@ function previousMonthMatchingRange(range: ReportsRange, timezone?: string | nul
 const VALID_STAGES: InsightsStage[] = ["where", "changed", "when"];
 
 export default function SpendingInsightsPage() {
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -297,13 +307,14 @@ export default function SpendingInsightsPage() {
   // Project the reconciled insight into the presentation shapes used by the
   // existing child cards. Every number still flows from one server query.
   const insightProjection = useMemo(
-    () => (insight ? insightToReportProjection(insight) : null),
-    [insight],
+    () => (insight ? insightToReportProjection(insight, dateFormatting) : null),
+    [insight, dateFormatting],
   );
   const whatChangedInsight = whatChangedRequest ? mtdComparisonInsight : insight;
   const whatChangedProjection = useMemo(
-    () => (whatChangedInsight ? insightToReportProjection(whatChangedInsight) : null),
-    [whatChangedInsight],
+    () =>
+      whatChangedInsight ? insightToReportProjection(whatChangedInsight, dateFormatting) : null,
+    [whatChangedInsight, dateFormatting],
   );
   const isWhatChangedLoading = whatChangedRequest ? isMtdComparisonLoading : isInsightLoading;
   const whatChangedRange = whatChangedWindow?.current ?? range;
@@ -353,7 +364,7 @@ export default function SpendingInsightsPage() {
       heatmapInsight
         ? new Map(heatmapInsight.byDay.map((day) => [day.date, day.spent] as const))
         : undefined,
-    [heatmapInsight?.byDay],
+    [heatmapInsight],
   );
 
   const eventsRequest = useMemo(
@@ -619,6 +630,9 @@ function ForeignCurrencyBanner({
   nativeTotals: Record<string, number>;
   asOf: string; // RFC3339
 }) {
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const fmtNative = (ccy: string) => {
@@ -626,17 +640,17 @@ function ForeignCurrencyBanner({
     const v = nativeTotals[ccy];
     if (v == null) return ccy;
     try {
-      return new Intl.NumberFormat(undefined, {
+      return numberFormatting.formatDecimal(Math.abs(v), {
         style: "currency",
         currency: ccy,
         maximumFractionDigits: 0,
-      }).format(Math.abs(v));
+      });
     } catch {
       // Unknown ISO code → fall back to bare magnitude + code.
       return `${Math.abs(v).toFixed(0)} ${ccy}`;
     }
   };
-  const asOfDate = new Date(asOf).toLocaleDateString(undefined, {
+  const asOfDate = dateFormatting.formatDate(asOf, {
     year: "numeric",
     month: "short",
     day: "numeric",

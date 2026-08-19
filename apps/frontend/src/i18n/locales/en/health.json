@@ -242,6 +242,8 @@
       "title": "Dismiss this issue?",
       "message": "This will hide the issue from your health center. It will reappear if the underlying data changes.",
       "pendingText": "Dismissing..."
-    }
+    },
+    "affectedItems_one": "Affected Item ({{count}})",
+    "affectedItems_other": "Affected Items ({{count}})"
   }
 }

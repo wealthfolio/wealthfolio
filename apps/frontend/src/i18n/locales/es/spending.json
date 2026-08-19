@@ -126,7 +126,9 @@
     "splitTransaction": "Dividir transacción",
     "duplicate": "Duplicar",
     "unlinkTransfer": "Desvincular transferencia",
-    "linkTransfer": "Vincular transferencia..."
+    "linkTransfer": "Vincular transferencia...",
+    "deleteConfirmMany_one": "¿Seguro que quieres eliminar {{count}} transacción?",
+    "deleteConfirmMany_other": "¿Seguro que quieres eliminar {{count}} transacciones?"
   },
   "cashFlow": {
     "income": "Ingresos",
@@ -165,7 +167,9 @@
     "viewAllToTag": "Ver todo · {{count}} por etiquetar →",
     "noRecentActivity": "Sin actividad reciente.",
     "noPayee": "Sin beneficiario",
-    "uncategorized": "Sin categorizar"
+    "uncategorized": "Sin categorizar",
+    "viewAllToTag_one": "Ver todo · {{count}} por etiquetar →",
+    "viewAllToTag_other": "Ver todo · {{count}} por etiquetar →"
   },
   "filters": {
     "statusNeedsReview": "Necesita revisión",
@@ -173,6 +177,7 @@
     "statusCategorized": "Categorizadas",
     "countLabel": "{{visible}} / {{total}} transacciones",
     "countLabel_one": "{{visible}} / {{total}} transacción",
+    "countLabel_other": "{{visible}} / {{total}} transacciones",
     "countZero": "0 transacciones",
     "category": "Categoría",
     "subcategory": "Subcategoría",
@@ -209,7 +214,11 @@
     "removeKeptEdited_one": "Tu {{count}} regla editada se conservará como regla independiente.",
     "removeKeptEdited_other": "Tus {{count}} reglas editadas se conservarán como reglas independientes.",
     "removeGeneric": "Se eliminarán las reglas de este conjunto predefinido. Tus ediciones se conservan.",
-    "remove": "Quitar"
+    "remove": "Quitar",
+    "reimportLabel_one": "Reimportar el conjunto predefinido {{name}} ({{count}} regla)",
+    "reimportLabel_other": "Reimportar el conjunto predefinido {{name}} ({{count}} reglas)",
+    "importLabel_one": "Importar el conjunto predefinido {{name}} ({{count}} regla)",
+    "importLabel_other": "Importar el conjunto predefinido {{name}} ({{count}} reglas)"
   },
   "budgetBars": {
     "statusOver": "Excedido",
@@ -345,7 +354,13 @@
     "loadError": "No se pudieron cargar las transacciones.",
     "noTransactions": "No hay transacciones en este periodo.",
     "loadMore": "Cargar {{count}} más",
-    "openInTransactions": "Abrir en Transacciones"
+    "openInTransactions": "Abrir en Transacciones",
+    "outflowsCount_one": "{{count}} salida",
+    "outflowsCount_other": "{{count}} salidas",
+    "totalCount_one": "{{count}} en total",
+    "totalCount_other": "{{count}} en total",
+    "loadMore_one": "Cargar {{count}} más",
+    "loadMore_other": "Cargar {{count}} más"
   },
   "heatmapSheet": {
     "eyebrow": "Cuándo gastas",
@@ -588,6 +603,16 @@
   },
   "whatChanged": {
     "headlineMeta": "TITULAR · {{label}}",
+    "headlineNoActivity": "No se registraron gastos en este período.",
+    "headlineLeadPrefix": "Gastaste ",
+    "headlineNoPriorSuffix": " en este período. No hay datos anteriores para comparar.",
+    "headlineMoreSuffix": " más que {{priorLabel}}.",
+    "headlineLessSuffix": " menos que {{priorLabel}}.",
+    "headlineSeveralDrivers": "El gasto cambió en varias categorías; ninguna categoría impulsó el cambio por sí sola.",
+    "headlineRiseDriverPrefix": " La mayor parte del aumento provino de ",
+    "headlineDropDriverPrefix": " La mayor parte de la reducción provino de ",
+    "headlineSentenceEnd": ".",
+    "headlineOppositeSuffix": " se movió en la dirección opuesta.",
     "categoryDetails": "Detalles de categoría",
     "categoryTrends": "Tendencias de categoría",
     "showMore": "Mostrar {{count}} más →",
@@ -604,7 +629,9 @@
     "impact": "Impacto",
     "deltaPct": "Δ %",
     "combinedVs": "{{current}} VS {{prior}}",
-    "combinedMonths": "{{months}}M VS {{months}}M ANTERIORES"
+    "combinedMonths": "{{months}}M VS {{months}}M ANTERIORES",
+    "showMore_one": "Mostrar {{count}} más →",
+    "showMore_other": "Mostrar {{count}} más →"
   },
   "whereIAm": {
     "statusOverBudget": "PRESUPUESTO EXCEDIDO",
@@ -666,7 +693,9 @@
     "sortByLabel": "Ordenar por {{label}}",
     "categoriesShown_one": "{{shown}} de {{total}} categoría mostrada",
     "categoriesShown_other": "{{shown}} de {{total}} categorías mostradas",
-    "openTransactions": "Abrir transacciones →"
+    "openTransactions": "Abrir transacciones →",
+    "moreCount_one": "+{{count}} más",
+    "moreCount_other": "+{{count}} más"
   },
   "budgetChart": {
     "overBudget": "Presupuesto excedido",
@@ -774,7 +803,9 @@
     "selectAllVisible": "Seleccionar todas las transacciones visibles",
     "nameNotes": "Nombre / Notas",
     "loading": "Cargando…",
-    "loadMore": "Cargar más ({{count}} restantes)"
+    "loadMore": "Cargar más ({{count}} restantes)",
+    "loadMore_one": "Cargar más ({{count}} restante)",
+    "loadMore_other": "Cargar más ({{count}} restantes)"
   },
   "tabContent": {
     "stageWhereLabel": "Dónde estoy",
@@ -827,7 +858,9 @@
     "interval3M": "últimos 3 meses",
     "interval6M": "últimos 6 meses",
     "intervalYtd": "en lo que va de año",
-    "interval1Y": "último año"
+    "interval1Y": "último año",
+    "plusMore_one": "+ {{count}} más",
+    "plusMore_other": "+ {{count}} más"
   },
   "budgetEditor": {
     "newGroup": "Nuevo grupo",
@@ -906,6 +939,10 @@
     "unassigned": "Sin asignar",
     "rolloverIn": "Traspaso entrante",
     "dataUnavailable": "Los datos de presupuesto no están disponibles",
-    "migrationNeeded": "La base de datos local actual se creó antes de la migración de gastos actualizada."
+    "migrationNeeded": "La base de datos local actual se creó antes de la migración de gastos actualizada.",
+    "addSource_one": "Añadir fuente ({{count}} disponible)",
+    "addSource_other": "Añadir fuente ({{count}} disponibles)",
+    "overridesTitle_one": "Excepción · {{count}}",
+    "overridesTitle_other": "Excepciones · {{count}}"
   }
 }

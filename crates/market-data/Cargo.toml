@@ -17,7 +17,7 @@ time = "0.3"
 tokio = { version = "1", features = ["sync", "time"] }
 tracing = "0.1"
 urlencoding = "2"
-yahoo_finance_api = "=4.1.0"
+yahoo_finance_api = "4.2"
 lazy_static = "1.4"
 
 [dev-dependencies]

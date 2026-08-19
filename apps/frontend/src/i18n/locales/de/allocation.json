@@ -68,7 +68,13 @@
     "colCurrent": "Aktuell",
     "colTarget": "Ziel",
     "colDrift": "Abweichung",
-    "colAccount": "Konto"
+    "colAccount": "Konto",
+    "accountCount_one": "{{count}} Konto",
+    "accountCount_other": "{{count}} Konten",
+    "summary_one": "{{count}} Bestand · {{currency}}",
+    "summary_other": "{{count}} Bestände · {{currency}}",
+    "summaryUpdated_one": "{{count}} Bestand · {{currency}} · Aktualisiert {{updatedAt}}",
+    "summaryUpdated_other": "{{count}} Bestände · {{currency}} · Aktualisiert {{updatedAt}}"
   },
   "presets": {
     "currentAllocation": "Aktuelle Allokation",

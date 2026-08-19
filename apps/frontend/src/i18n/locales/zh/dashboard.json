@@ -89,7 +89,9 @@
     "shares_one": "{{formatted}} 股",
     "shares_other": "{{formatted}} 股",
     "more_holdings": "还有 {{count}} 项持仓",
-    "more": "还有 {{count}} 项"
+    "more": "还有 {{count}} 项",
+    "more_holdings_other": "还有 {{count}} 项持仓",
+    "more_other": "还有 {{count}} 项"
   },
   "summary": {
     "return_unavailable_holdings": "收益率不可用——缺少成本基础或期初持仓价值。",

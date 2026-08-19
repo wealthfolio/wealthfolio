@@ -100,6 +100,7 @@
   "delete_selected_confirm": "您确定要删除所选的 {{count}} 条活动吗？",
   "cash_balance_checking": "正在检查账户余额……",
   "cash_balance_insufficient": "资金不足：",
+  "cash_balance_warning": "现金余额不足。所需：{{required}}，可用：{{available}}，缺口：{{shortfall}}",
   "cash_balance_shortfall_hint": "请记录现金存入以弥补差额，或使用“添加持仓”（绕过现金跟踪）。",
   "cash_balance_transaction_cost": "交易成本：{{amount}} - 资金充足",
   "edit_activity": "编辑活动",
@@ -303,7 +304,9 @@
     "add_activities": "添加活动",
     "ask_ai_categorize": "让 AI 分类",
     "investments": "投资",
-    "spending": "支出"
+    "spending": "支出",
+    "health_filter_single": "正在显示健康中心标记的交易",
+    "health_filter_multiple": "正在显示健康中心标记的交易"
   },
   "delete_modal": {
     "title": "删除活动？",
@@ -321,7 +324,8 @@
   },
   "date_sheet": {
     "title": "{{date}} 的活动",
-    "count": "此日期记录了 {{count}} 条活动"
+    "count": "此日期记录了 {{count}} 条活动",
+    "count_other": "此日期记录了 {{count}} 条活动"
   },
   "picker": {
     "transfer": "转账",
@@ -449,7 +453,8 @@
     "warning_stale_link": "现有的失效转账关联将被替换。",
     "error_load_suggestions": "无法加载建议匹配项。",
     "error_load_pair": "无法加载关联的转账对。",
-    "error_search": "无法搜索活动。"
+    "error_search": "无法搜索活动。",
+    "within_days_other": "{{count}} 天内"
   },
   "form": {
     "section_asset_account": "资产与账户",
@@ -676,7 +681,8 @@
       "first_page": "转到首页",
       "previous_page": "上一页",
       "next_page": "下一页",
-      "last_page": "转到末页"
+      "last_page": "转到末页",
+      "jump_hint_other": "输入介于 1 和 {{count}} 之间的页码"
     },
     "duplicated_comment": "已复制",
     "save_edits_first": "请先保存编辑",
@@ -729,7 +735,9 @@
     "select_all_rows": "选择所有行",
     "select_row": "选择行",
     "instrument_auto": "自动",
-    "unit_price_help": "对于买入和卖出，请输入交易价格。对于质押奖励和实物股息，请输入收到时每单位的公允市值；它决定收入金额和成本基础。"
+    "unit_price_help": "对于买入和卖出，请输入交易价格。对于质押奖励和实物股息，请输入收到时每单位的公允市值；它决定收入金额和成本基础。",
+    "warn_dates_differ_other": "日期相差 {{count}} 天。",
+    "approve_count_other": "批准 {{count}}"
   },
   "table": {
     "cash": "现金",
@@ -855,7 +863,9 @@
       "valueComma": "逗号",
       "valueSemicolon": "分号",
       "valueTab": "制表符",
-      "valuePeriod": "句点"
+      "valuePeriod": "句点",
+      "summarySkipTop_other": "跳过顶部：{{count}}",
+      "summarySkipBottom_other": "跳过底部：{{count}}"
     },
     "template": {
       "label": "模板",
@@ -914,7 +924,8 @@
       "mapType": "映射类型",
       "mapSymbol": "映射代码",
       "missingAccount": "缺少账户",
-      "emptySymbol": "空代码"
+      "emptySymbol": "空代码",
+      "accountAssignmentBlankRows_other": "请将每一行 CSV 映射到一个账户。仍有 {{count}} 行为空，请在“上传”中选择默认账户或填写账户列。"
     },
     "csvViewer": {
       "status": "状态",
@@ -928,7 +939,8 @@
       "emptyFile": "空文件",
       "emptyLine": "空行",
       "noContentFound": "未找到内容",
-      "empty": "空"
+      "empty": "空",
+      "lines_other": "{{count}} 行"
     },
     "columns": {
       "dateTime": "日期与时间",
@@ -1020,7 +1032,9 @@
       "statusDuplicates": "重复",
       "statusSkipped": "已跳过",
       "statusValid": "有效",
-      "skipReason": "已跳过"
+      "skipReason": "已跳过",
+      "willBeImportedTitle_other": "共 {{all}} 条活动中将导入 {{count}} 条",
+      "activitiesCount_other": "{{count}} 条活动"
     },
     "status": {
       "valid": "有效",
@@ -1069,7 +1083,9 @@
       "typeSplit": "拆股",
       "typeUnknown": "未知",
       "skipReasonManual": "手动",
-      "validationError": "校验错误"
+      "validationError": "校验错误",
+      "readyTitle_other": "{{count}} 条活动已准备好导入",
+      "warningsDescription_other": "有 {{count}} 条活动存在警告，但仍将被导入。"
     },
     "result": {
       "loading": "正在加载导入结果……",
@@ -1167,7 +1183,9 @@
       "importing": "正在导入……",
       "importSnapshots_one": "导入 {{count}} 个快照",
       "importSnapshots_other": "导入 {{count}} 个快照",
-      "failedToPrepareAssets": "为导入准备资产失败。"
+      "failedToPrepareAssets": "为导入准备资产失败。",
+      "positionsCount_other": "{{count}} 项持仓",
+      "readyRows_other": "{{count}} 行"
     },
     "symbolPanel": {
       "unrecognized_one": "{{count}} 个无法识别的代码",
@@ -1180,7 +1198,8 @@
       "searchFor": "搜索 {{symbol}}……",
       "markCustom": "标记为自定义",
       "applyMappings_one": "应用 {{count}} 项映射",
-      "applyMappings_other": "应用 {{count}} 项映射"
+      "applyMappings_other": "应用 {{count}} 项映射",
+      "affectingRows_other": " 影响 {{count}} 行"
     },
     "help": {
       "button": "如何导入 CSV？",
@@ -1278,7 +1297,8 @@
       "allValidDescriptionSuffix": " 以继续导入。",
       "confirmImport": "确认导入",
       "cancel": "取消",
-      "importing": "正在导入……"
+      "importing": "正在导入……",
+      "issuesTitle_other": "{{count}} 条活动条目存在问题。"
     }
   }
 }

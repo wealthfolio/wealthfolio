@@ -1,3 +1,7 @@
+import { ActivityType } from "@/lib/constants";
+import type { ActivityDetails } from "@/lib/types";
+import { formatDateTime } from "@/lib/utils";
+import { Button, Icons, useAmountFormatting, useDateFormatting } from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -7,10 +11,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@wealthfolio/ui/components/ui/alert-dialog";
-import { Button, formatAmount, Icons } from "@wealthfolio/ui";
-import { ActivityType } from "@/lib/constants";
-import type { ActivityDetails } from "@/lib/types";
-import { formatDateTime } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 
 interface LinkTransferModalProps {
@@ -25,8 +25,10 @@ interface LinkTransferModalProps {
 }
 
 function ActivityRow({ activity, label }: { activity: ActivityDetails; label: string }) {
+  const dateFormatting = useDateFormatting();
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
-  const date = formatDateTime(activity.date).date;
+  const date = formatDateTime(activity.date, dateFormatting).date;
   const value = activity.amount ?? activity.unitPrice;
   return (
     <div className="bg-muted/30 flex flex-col gap-1 rounded-md border px-3 py-2 text-sm">
@@ -45,7 +47,9 @@ function ActivityRow({ activity, label }: { activity: ActivityDetails; label: st
       <div className="text-muted-foreground flex items-center justify-between text-xs">
         <span>{activity.assetSymbol || t("activity:date_list.cash")}</span>
         <span>
-          {value != null ? formatAmount(Number(value), activity.currency) : activity.currency}
+          {value != null
+            ? formatting.formatAmount(Number(value), activity.currency)
+            : activity.currency}
         </span>
       </div>
     </div>

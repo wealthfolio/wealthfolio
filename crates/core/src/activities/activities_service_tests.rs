@@ -5277,6 +5277,155 @@ mod tests {
         assert_eq!(asset_service.get_assets().unwrap().len(), 1);
     }
 
+    /// The save path is where a synced activity's asset identity is really decided,
+    /// so the share-class rule has to hold here and not only in canonicalization.
+    /// `ZAAA.F` on Cboe Canada is BMO's currency-hedged unit class and `.F` is
+    /// Yahoo's Frankfurt suffix; both candidate rows are seeded, and the unhedged
+    /// `ZAAA` is the one this used to bind to.
+    #[tokio::test]
+    async fn test_create_keeps_a_share_class_the_supplied_venue_contradicts() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        account_service.add_account(create_test_account("acc-1", "CAD"));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "SEC:ZAAA.F:NEOE",
+            "ZAAA.F",
+            Some("NEOE"),
+            Some(InstrumentType::Equity),
+            "CAD",
+        ));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "SEC:ZAAA:NEOE",
+            "ZAAA",
+            Some("NEOE"),
+            Some(InstrumentType::Equity),
+            "CAD",
+        ));
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let new_activity = NewActivity {
+            id: Some("activity-zaaa".to_string()),
+            account_id: "acc-1".to_string(),
+            asset: Some(AssetResolutionInput {
+                symbol: Some("ZAAA.F".to_string()),
+                exchange_mic: Some("NEOE".to_string()),
+                quote_ccy: Some("CAD".to_string()),
+                instrument_type: Some("EQUITY".to_string()),
+                ..Default::default()
+            }),
+            activity_type: "BUY".to_string(),
+            subtype: None,
+            activity_date: "2026-07-30".to_string(),
+            quantity: Some(dec!(10)),
+            unit_price: Some(dec!(29.48)),
+            currency: "CAD".to_string(),
+            fee: Some(dec!(0)),
+            tax: None,
+            amount: Some(dec!(294.8)),
+            status: None,
+            notes: None,
+            fx_rate: None,
+            metadata: None,
+            needs_review: None,
+            source_system: None,
+            source_record_id: None,
+            source_group_id: None,
+            idempotency_key: None,
+            import_run_id: None,
+        };
+
+        let created = activity_service
+            .create_activity(new_activity)
+            .await
+            .expect("hedged unit class should save");
+
+        assert_eq!(created.asset_id.as_deref(), Some("SEC:ZAAA.F:NEOE"));
+    }
+
+    /// The same path, on the venue the suffix agrees with: `SHOP.TO` with XTSE is an
+    /// ordinary exchange suffix and must still be stripped off the ticker.
+    #[tokio::test]
+    async fn test_create_still_strips_a_suffix_the_supplied_venue_agrees_with() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        account_service.add_account(create_test_account("acc-1", "CAD"));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "SEC:SHOP:XTSE",
+            "SHOP",
+            Some("XTSE"),
+            Some(InstrumentType::Equity),
+            "CAD",
+        ));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "SEC:SHOP.TO:XTSE",
+            "SHOP.TO",
+            Some("XTSE"),
+            Some(InstrumentType::Equity),
+            "CAD",
+        ));
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let new_activity = NewActivity {
+            id: Some("activity-shop".to_string()),
+            account_id: "acc-1".to_string(),
+            asset: Some(AssetResolutionInput {
+                symbol: Some("SHOP.TO".to_string()),
+                exchange_mic: Some("XTSE".to_string()),
+                quote_ccy: Some("CAD".to_string()),
+                instrument_type: Some("EQUITY".to_string()),
+                ..Default::default()
+            }),
+            activity_type: "BUY".to_string(),
+            subtype: None,
+            activity_date: "2026-07-30".to_string(),
+            quantity: Some(dec!(1)),
+            unit_price: Some(dec!(100)),
+            currency: "CAD".to_string(),
+            fee: Some(dec!(0)),
+            tax: None,
+            amount: Some(dec!(100)),
+            status: None,
+            notes: None,
+            fx_rate: None,
+            metadata: None,
+            needs_review: None,
+            source_system: None,
+            source_record_id: None,
+            source_group_id: None,
+            idempotency_key: None,
+            import_run_id: None,
+        };
+
+        let created = activity_service
+            .create_activity(new_activity)
+            .await
+            .expect("suffixed symbol on its own venue should save");
+
+        assert_eq!(created.asset_id.as_deref(), Some("SEC:SHOP:XTSE"));
+    }
+
     #[tokio::test]
     async fn test_create_id_lookup_transient_error_is_not_swallowed() {
         let account_service = Arc::new(MockAccountService::new());

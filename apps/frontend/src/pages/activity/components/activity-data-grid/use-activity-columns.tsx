@@ -10,15 +10,21 @@ import {
 import {
   ActivityStatus,
   ActivityType,
-  INSTRUMENT_TYPE_OPTIONS,
   getExchangeDisplayName,
+  INSTRUMENT_TYPE_OPTIONS,
   SUBTYPES_BY_ACTIVITY_TYPE,
 } from "@/lib/constants";
-import { parseOccSymbol } from "@/lib/occ-symbol";
+import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
 import type { Account, ActivityDetails } from "@/lib/types";
-import type { TFunction } from "i18next";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Badge, Checkbox, type SymbolSearchResult } from "@wealthfolio/ui";
+import {
+  Badge,
+  Checkbox,
+  type SymbolSearchResult,
+  useDateFormatting,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
+import type { TFunction } from "i18next";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityOperations } from "../activity-operations";
@@ -92,6 +98,11 @@ export function useActivityColumns({
   onSymbolSelect,
   onCreateCustomAsset,
 }: UseActivityColumnsOptions) {
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
+  const formatting = { ...dateFormatting, ...numberFormatting };
+
   const { t } = useTranslation();
 
   const activityTypeOptions = useMemo(
@@ -295,11 +306,7 @@ export function useActivityColumns({
               // Show contract description for options
               const parsed = row.instrumentType === "OPTION" ? parseOccSymbol(symbol) : null;
               if (parsed) {
-                const expDisplay = new Date(parsed.expiration + "T12:00:00").toLocaleDateString(
-                  "en-US",
-                  { month: "short", day: "numeric" },
-                );
-                return `${expDisplay} $${parsed.strikePrice} ${parsed.optionType}`;
+                return formatOptionSubtitle(parsed, formatting);
               }
               return getExchangeDisplayName(row.exchangeMic);
             },
@@ -457,6 +464,7 @@ export function useActivityColumns({
     [
       accountOptions,
       activityTypeOptions,
+      formatting,
       handleSymbolSearch,
       onCreateCustomAsset,
       onDelete,

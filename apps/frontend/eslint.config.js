@@ -26,4 +26,29 @@ export default [
     includeReactRefresh: true,
     tsconfigPath: ["./tsconfig.json", "./tsconfig.node.json"],
   }),
+
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/lib/utils.ts", "src/**/*.test.{ts,tsx}", "src/**/*.spec.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/lib/utils",
+              importNames: [
+                "formatAmount",
+                "formatCompactAmount",
+                "formatPercent",
+                "formatQuantity",
+                "getGlobalFormatting",
+              ],
+              message: "Use @wealthfolio/ui formatting hooks or semantic display components.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];

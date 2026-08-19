@@ -6,6 +6,8 @@
 
 use std::sync::Arc;
 
+use log::warn;
+
 use crate::errors::MarketDataError;
 use crate::models::{Currency, InstrumentId, ProviderId, ProviderInstrument, QuoteContext};
 
@@ -56,17 +58,24 @@ impl RulesResolver {
     }
 
     /// Resolve an equity instrument.
+    ///
+    /// Returns the instrument alongside the source describing how much the
+    /// symbol can be trusted: [`ResolutionSource::RulesFallback`] means a venue
+    /// was asked for and the symbol does not encode it.
     fn resolve_equity(
         &self,
         ticker: &Arc<str>,
         mic: &Option<std::borrow::Cow<'static, str>>,
         provider: &ProviderId,
-    ) -> Option<ProviderInstrument> {
+    ) -> Option<(ProviderInstrument, ResolutionSource)> {
         if provider.as_ref() == "BOERSE_FRANKFURT" {
             let mic = mic.as_deref().unwrap_or("XETR");
-            return Some(ProviderInstrument::EquitySymbol {
-                symbol: Arc::from(format!("{}:{}", mic, ticker)),
-            });
+            return Some((
+                ProviderInstrument::EquitySymbol {
+                    symbol: Arc::from(format!("{}:{}", mic, ticker)),
+                },
+                ResolutionSource::Rules,
+            ));
         }
 
         let provider_ticker = if provider.as_ref() == "YAHOO" {
@@ -75,13 +84,24 @@ impl RulesResolver {
             ticker.to_string()
         };
 
+        let mut source = ResolutionSource::Rules;
         let symbol = match mic {
             Some(mic) => {
                 // Look up suffix for this MIC and provider, fallback to ticker only if not found
                 match self.exchange_map.get_suffix(mic, provider) {
                     Some(suffix) => Arc::from(format!("{}{}", provider_ticker, suffix)),
                     None => {
-                        // No mapping found - try ticker only (works for many US/global symbols)
+                        // The registry has no suffix for this venue on this
+                        // provider, so the bare ticker is a guess rather than a
+                        // resolution: it addresses whichever listing the
+                        // provider indexes under that ticker, which is
+                        // routinely a different instrument on a different
+                        // exchange. Report it and mark the result untrusted.
+                        warn!(
+                            "No {} symbol mapping for MIC '{}' - falling back to the bare ticker '{}', which is unverified and may be a different listing",
+                            provider, mic, provider_ticker
+                        );
+                        source = ResolutionSource::RulesFallback;
                         Arc::from(provider_ticker)
                     }
                 }
@@ -92,7 +112,7 @@ impl RulesResolver {
             }
         };
 
-        Some(ProviderInstrument::EquitySymbol { symbol })
+        Some((ProviderInstrument::EquitySymbol { symbol }, source))
     }
 
     /// Resolve a crypto instrument.
@@ -234,24 +254,35 @@ impl Resolver for RulesResolver {
             }));
         }
 
-        let instrument = match &context.instrument {
+        let (instrument, source) = match &context.instrument {
             InstrumentId::Equity { ticker, mic } => self.resolve_equity(ticker, mic, provider)?,
 
-            InstrumentId::Crypto { base, quote } => self.resolve_crypto(base, quote, provider)?,
+            InstrumentId::Crypto { base, quote } => (
+                self.resolve_crypto(base, quote, provider)?,
+                ResolutionSource::Rules,
+            ),
 
-            InstrumentId::Fx { base, quote } => self.resolve_fx(base, quote, provider)?,
+            InstrumentId::Fx { base, quote } => (
+                self.resolve_fx(base, quote, provider)?,
+                ResolutionSource::Rules,
+            ),
 
-            InstrumentId::Metal { code, quote } => self.resolve_metal(code, quote, provider)?,
+            InstrumentId::Metal { code, quote } => (
+                self.resolve_metal(code, quote, provider)?,
+                ResolutionSource::Rules,
+            ),
 
-            InstrumentId::Option { occ_symbol } => self.resolve_option(occ_symbol, provider)?,
+            InstrumentId::Option { occ_symbol } => (
+                self.resolve_option(occ_symbol, provider)?,
+                ResolutionSource::Rules,
+            ),
 
-            InstrumentId::Bond { isin } => self.resolve_bond(isin, provider)?,
+            InstrumentId::Bond { isin } => {
+                (self.resolve_bond(isin, provider)?, ResolutionSource::Rules)
+            }
         };
 
-        Some(Ok(ResolvedInstrument {
-            instrument,
-            source: ResolutionSource::Rules,
-        }))
+        Some(Ok(ResolvedInstrument { instrument, source }))
     }
 }
 
@@ -351,6 +382,27 @@ mod tests {
         match resolved.instrument {
             ProviderInstrument::EquitySymbol { symbol } => {
                 assert_eq!(symbol.as_ref(), "SHOP.TO");
+            }
+            _ => panic!("Expected EquitySymbol"),
+        }
+    }
+
+    /// Cboe Canada is NEOE in ISO 10383 and `.NE` at Yahoo. Pinned because the
+    /// registry used to spell the venue `XNEO`, which is not a MIC at all, so a
+    /// broker reporting the real one resolved nothing.
+    #[test]
+    fn test_resolve_cboe_canada_equity_yahoo() {
+        let resolver = RulesResolver::new();
+        let context = make_equity_context("ZAAA.F", Some("NEOE"));
+
+        let result = resolver.resolve(&"YAHOO".into(), &context);
+
+        assert!(result.is_some());
+        let resolved = result.unwrap().unwrap();
+
+        match resolved.instrument {
+            ProviderInstrument::EquitySymbol { symbol } => {
+                assert_eq!(symbol.as_ref(), "ZAAA-F.NE");
             }
             _ => panic!("Expected EquitySymbol"),
         }
@@ -575,8 +627,60 @@ mod tests {
 
         let result = resolver.resolve(&"YAHOO".into(), &context);
 
-        // Unknown MICs fall back to bare ticker
-        assert!(result.is_some());
+        // Unknown MICs still fall back to the bare ticker so pricing keeps
+        // working, but the result says so rather than passing as a resolution.
+        let resolved = result.unwrap().unwrap();
+        assert_eq!(resolved.source, ResolutionSource::RulesFallback);
+        match resolved.instrument {
+            ProviderInstrument::EquitySymbol { symbol } => assert_eq!(symbol.as_ref(), "TEST"),
+            _ => panic!("Expected EquitySymbol"),
+        }
+    }
+
+    /// A US venue resolves to the bare ticker by design - the registry holds an
+    /// empty suffix for it - so it must not be confused with a missing mapping.
+    #[test]
+    fn test_resolve_us_equity_is_not_a_fallback() {
+        let resolver = RulesResolver::new();
+        let context = make_equity_context("AAPL", Some("XNAS"));
+
+        let resolved = resolver
+            .resolve(&"YAHOO".into(), &context)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(resolved.source, ResolutionSource::Rules);
+    }
+
+    /// No MIC means no venue was claimed, so the bare ticker is the whole
+    /// answer rather than a degraded one.
+    #[test]
+    fn test_resolve_without_mic_is_not_a_fallback() {
+        let resolver = RulesResolver::new();
+        let context = make_equity_context("AAPL", None);
+
+        let resolved = resolver
+            .resolve(&"YAHOO".into(), &context)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(resolved.source, ResolutionSource::Rules);
+    }
+
+    /// The registry has no Alpha Vantage suffix for the Korea Exchange - 42 of
+    /// its 75 venues carry a Yahoo entry only - so an AV lookup there is a guess
+    /// even though the MIC itself is known.
+    #[test]
+    fn test_resolve_known_mic_without_provider_mapping_is_a_fallback() {
+        let resolver = RulesResolver::new();
+        let context = make_equity_context("005930", Some("XKRX"));
+
+        let resolved = resolver
+            .resolve(&"ALPHA_VANTAGE".into(), &context)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(resolved.source, ResolutionSource::RulesFallback);
     }
 
     #[test]

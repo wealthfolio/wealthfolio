@@ -10,6 +10,7 @@ interface ValueHistoryToolbarProps {
   onDeleteSelected: () => void;
   onSave: () => void;
   onCancel: () => void;
+  isSaving?: boolean;
   isLiability?: boolean;
 }
 
@@ -22,6 +23,7 @@ export function ValueHistoryToolbar({
   onDeleteSelected,
   onSave,
   onCancel,
+  isSaving = false,
   isLiability = false,
 }: ValueHistoryToolbarProps) {
   const { t } = useTranslation();
@@ -29,13 +31,13 @@ export function ValueHistoryToolbar({
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <Button variant="default" size="sm" onClick={onAddRow}>
+        <Button variant="default" size="sm" onClick={onAddRow} disabled={isSaving}>
           <Icons.Plus className="mr-2 h-4 w-4" />
           {isLiability ? t("asset:valueToolbar.add_balance") : t("asset:valueToolbar.add_value")}
         </Button>
 
         {selectedRowCount > 0 && (
-          <Button variant="outline" size="sm" onClick={onDeleteSelected}>
+          <Button variant="outline" size="sm" onClick={onDeleteSelected} disabled={isSaving}>
             <Icons.Trash className="mr-2 h-4 w-4" />
             {t("asset:valueToolbar.delete_count", { count: selectedRowCount })}
           </Button>
@@ -50,10 +52,10 @@ export function ValueHistoryToolbar({
               {dirtyCount > 0 && deletedCount > 0 && ", "}
               {deletedCount > 0 && t("asset:valueToolbar.to_delete", { count: deletedCount })}
             </span>
-            <Button variant="ghost" size="sm" onClick={onCancel}>
+            <Button variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
               {t("common:cancel")}
             </Button>
-            <Button variant="default" size="sm" onClick={onSave}>
+            <Button variant="default" size="sm" onClick={onSave} disabled={isSaving}>
               <Icons.Save className="mr-2 h-4 w-4" />
               {t("asset:valueToolbar.save_changes")}
             </Button>

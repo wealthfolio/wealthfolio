@@ -7,33 +7,38 @@
  * component is consumed by `WhenWhereStage` on both desktop (paired with the
  * timeline card) and phone (paired with the calendar card).
  */
-import { useMemo, type FC } from "react";
-import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { useMemo, type FC } from "react";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useIsMobileViewport } from "@/hooks/use-platform";
+import type { Activity, TaxonomyCategory } from "@/lib/types";
+import { cn, parseLocalDate } from "@/lib/utils";
 import {
   Button,
+  calendarDateFromLocalDate,
   Icons,
   PrivacyAmount,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-  formatCompactAmount,
+  useAmountFormatting,
+  type FormattingApi,
+  useLocalizationSettings,
+  useNumberFormatting,
+  useDateFormatting,
 } from "@wealthfolio/ui";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { useIsMobileViewport } from "@/hooks/use-platform";
-import type { Activity, TaxonomyCategory } from "@/lib/types";
-import { cn, formatAmount, parseLocalDate } from "@/lib/utils";
 
-import { useEventDialog } from "../../event-dialog-provider";
 import { useEventChartData } from "../../../hooks/use-event-chart-data";
-import { useSpendingEvents, useSpendingEventMutations } from "../../../hooks/use-spending-events";
+import { useSpendingEventMutations, useSpendingEvents } from "../../../hooks/use-spending-events";
 import { buildCashflowUrl } from "../../../lib/navigation";
 import type { EventSpendingSummary } from "../../../types/event";
+import { useEventDialog } from "../../event-dialog-provider";
 import { getEventColors } from "./event-colors";
 import { formatMonthDay } from "./format";
-import { CARD_CLASS, LABEL_CLASS, MONTH_LABELS } from "./insights-shared";
+import { CARD_CLASS, LABEL_CLASS } from "./insights-shared";
 
 export interface EventDetailPanelProps {
   event: EventSpendingSummary;
@@ -56,6 +61,11 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
   dailySpendByDate,
   onSelect,
 }) => {
+  const localizationSettings = useLocalizationSettings();
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+  const formatting = amountFormatting;
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const isPhone = useIsMobileViewport();
@@ -96,8 +106,33 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
   const nextEvent = canNav ? events[(currentIdx + 1) % events.length] : null;
 
   const caption = useMemo(
-    () => buildEventCaption({ days, lift, currency, top: categories, isBalanceHidden, t }),
-    [days, lift, currency, categories, isBalanceHidden, t],
+    () =>
+      buildEventCaption({
+        days,
+        lift,
+        currency,
+        top: categories,
+        isBalanceHidden,
+        t,
+        formatting: {
+          ...localizationSettings,
+          ...amountFormatting,
+          ...numberFormatting,
+          ...dateFormatting,
+        },
+      }),
+    [
+      days,
+      lift,
+      currency,
+      categories,
+      isBalanceHidden,
+      t,
+      localizationSettings,
+      amountFormatting,
+      numberFormatting,
+      dateFormatting,
+    ],
   );
 
   const { update } = useSpendingEventMutations();
@@ -208,8 +243,9 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
           </div>
         </div>
         <div className="text-muted-foreground/80 mt-1 text-[11px]">
-          {formatRange(startDate, endDate)} · {t("spending:eventDetail.daysCount", { count: days })}{" "}
-          · {t("spending:eventDetail.transactionCount", { count: event.transactionCount })}
+          {formatRange(startDate, endDate, dateFormatting)} ·{" "}
+          {t("spending:eventDetail.daysCount", { count: days })} ·{" "}
+          {t("spending:eventDetail.transactionCount", { count: event.transactionCount })}
           {event.eventTypeName ? ` · ${event.eventTypeName.toLowerCase()}` : ""}
         </div>
       </div>
@@ -219,9 +255,9 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
           <span className="text-foreground/90">
             {t("spending:eventDetail.taggedOutside", { count: outOfRange.length })}
             <span className="text-muted-foreground/80 ml-1 tabular-nums">
-              ({formatOutOfRangeDate(outOfRange[0])}
+              ({formatOutOfRangeDate(outOfRange[0], dateFormatting)}
               {outOfRange.length > 1
-                ? `–${formatOutOfRangeDate(outOfRange[outOfRange.length - 1])}`
+                ? `–${formatOutOfRangeDate(outOfRange[outOfRange.length - 1], dateFormatting)}`
                 : ""}
               )
             </span>
@@ -284,7 +320,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
               ? t("spending:eventDetail.dailyDeltaVs", {
                   sign: dailyDeltaPct >= 0 ? "+" : "−",
                   pct: Math.abs(dailyDeltaPct),
-                  baseline: isBalanceHidden ? "••••" : formatAmount(baseline, currency),
+                  baseline: isBalanceHidden ? "••••" : formatting.formatAmount(baseline, currency),
                 })
               : t("spending:eventDetail.noBaseline")}
           </div>
@@ -294,7 +330,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
             {peak ? <PrivacyAmount value={peak.amount} currency={currency} /> : "—"}
           </div>
           <div className="text-muted-foreground/80 mt-1 text-[10px]">
-            {peak ? formatPeakDay(peak.date, t) : ""}
+            {peak ? formatPeakDay(peak.date, dateFormatting) : ""}
           </div>
         </StatCell>
       </div>
@@ -317,10 +353,10 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
               {isBalanceHidden
                 ? `${t("spending:eventDetail.baseline")} ••••${peak ? ` · ${t("spending:eventDetail.peak")} ••••` : ""}`
                 : isPhone
-                  ? `${t("spending:eventDetail.baseline")} ${formatCompactAmount(baseline, currency)}`
+                  ? `${t("spending:eventDetail.baseline")} ${formatting.formatCompactAmount(baseline, currency)}`
                   : peak
-                    ? `${t("spending:eventDetail.peak")} ${formatAmount(peak.amount, currency)} · ${t("spending:eventDetail.baseline")} ${formatAmount(baseline, currency)}`
-                    : `${t("spending:eventDetail.baseline")} ${formatAmount(baseline, currency)}`}
+                    ? `${t("spending:eventDetail.peak")} ${formatting.formatAmount(peak.amount, currency)} · ${t("spending:eventDetail.baseline")} ${formatting.formatAmount(baseline, currency)}`
+                    : `${t("spending:eventDetail.baseline")} ${formatting.formatAmount(baseline, currency)}`}
             </div>
           </div>
           <DailyBars
@@ -353,7 +389,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
                     key={c.id}
                     className="rounded-full"
                     title={`${c.name} · ${
-                      isBalanceHidden ? "••••" : formatAmount(c.amount, currency)
+                      isBalanceHidden ? "••••" : formatting.formatAmount(c.amount, currency)
                     }`}
                     style={{ flex: `${c.amount} 0 0`, background: c.color }}
                   />
@@ -376,7 +412,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
                         {c.name}
                       </span>
                       <span className="text-muted-foreground/80 text-[11px] tabular-nums">
-                        {pct.toFixed(1)}%
+                        {numberFormatting.formatPercent(pct / 100, { digits: 1 })}
                       </span>
                       <span className="text-foreground/90 text-right text-[12px] font-medium tabular-nums">
                         <PrivacyAmount value={c.amount} currency={currency} />
@@ -457,7 +493,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
               />
               {ev.eventName}
               <span className="text-muted-foreground/80 ml-1">
-                · {formatChipDate(parseLocalDate(ev.startDate))}
+                · {formatChipDate(parseLocalDate(ev.startDate), dateFormatting)}
               </span>
             </button>
           );
@@ -522,6 +558,8 @@ function DailyBars({
   compact?: boolean;
   t: TFunction;
 }) {
+  const formatting = useAmountFormatting();
+  const dateFormatting = useDateFormatting();
   const max = Math.max(1, baseline, ...series);
   const hasOutOfWindow = inWindow.some((v) => !v);
 
@@ -546,7 +584,7 @@ function DailyBars({
               )}
               style={{ height: `${(Math.max(v, 0) / max) * 100}%` }}
               title={
-                (isBalanceHidden ? "••••" : formatAmount(v, currency)) +
+                (isBalanceHidden ? "••••" : formatting.formatAmount(v, currency)) +
                 (isOut ? ` · ${t("spending:eventDetail.outsideWindow")}` : "")
               }
             />
@@ -563,12 +601,12 @@ function DailyBars({
         })}
       </div>
       <div className="text-muted-foreground/80 mt-2 flex items-center justify-between text-[10px] tracking-wide">
-        <span className="tabular-nums">{formatPeakDay(chartStartDate, t)}</span>
+        <span className="tabular-nums">{formatPeakDay(chartStartDate, dateFormatting)}</span>
         <span className="text-muted-foreground/60">
           {t("spending:eventDetail.daysCount", { count: eventDays })}
           {hasOutOfWindow ? ` · ${t("spending:eventDetail.inclOutside")}` : ""}
         </span>
-        <span className="tabular-nums">{formatPeakDay(chartEndDate, t)}</span>
+        <span className="tabular-nums">{formatPeakDay(chartEndDate, dateFormatting)}</span>
       </div>
     </div>
   );
@@ -686,22 +724,16 @@ function Sparkline({
 
 // ─── Formatters / text builders ──────────────────────────────────────────
 
-const PEAK_DAY_KEYS = [
-  "spending:eventDetail.daySun",
-  "spending:eventDetail.dayMon",
-  "spending:eventDetail.dayTue",
-  "spending:eventDetail.dayWed",
-  "spending:eventDetail.dayThu",
-  "spending:eventDetail.dayFri",
-  "spending:eventDetail.daySat",
-];
-
-function formatPeakDay(d: Date, t: TFunction): string {
-  return `${t(PEAK_DAY_KEYS[d.getDay()])}, ${MONTH_LABELS[d.getMonth()]} ${d.getDate()}`;
+function formatPeakDay(d: Date, formatting: Pick<FormattingApi, "formatCalendarDate">): string {
+  return formatting.formatCalendarDate(calendarDateFromLocalDate(d), {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
 
-function formatChipDate(d: Date): string {
-  return `${MONTH_LABELS[d.getMonth()]} ${d.getDate()}`;
+function formatChipDate(d: Date, formatting: Pick<FormattingApi, "formatCalendarDate">): string {
+  return formatMonthDay(d, formatting);
 }
 
 function buildEventCaption({
@@ -711,6 +743,7 @@ function buildEventCaption({
   top,
   isBalanceHidden,
   t,
+  formatting,
 }: {
   days: number;
   lift: number;
@@ -718,8 +751,9 @@ function buildEventCaption({
   top: readonly { readonly name: string }[];
   isBalanceHidden: boolean;
   t: TFunction;
+  formatting: FormattingApi;
 }): string {
-  const amt = (v: number) => (isBalanceHidden ? "••••" : formatAmount(v, currency));
+  const amt = (v: number) => (isBalanceHidden ? "••••" : formatting.formatAmount(v, currency));
   if (top.length === 0) {
     return lift > 0
       ? t("spending:eventDetail.captionLift", { amount: `+${amt(lift)}`, days })
@@ -743,15 +777,22 @@ function buildEventCaption({
   });
 }
 
-function formatRange(start: Date, end: Date): string {
-  const sameMonth =
-    start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
-  return sameMonth
-    ? `${formatMonthDay(start)}–${end.getDate()}`.toUpperCase()
-    : `${formatMonthDay(start)} – ${formatMonthDay(end)}`.toUpperCase();
+function formatRange(
+  start: Date,
+  end: Date,
+  formatting: Pick<FormattingApi, "formatCalendarDateRange">,
+): string {
+  return formatting.formatCalendarDateRange(
+    calendarDateFromLocalDate(start),
+    calendarDateFromLocalDate(end),
+    { month: "short", day: "numeric" },
+  );
 }
 
 /** "2026-05-08" → "May 8" (parsed at noon to avoid UTC drift). */
-function formatOutOfRangeDate(dateKey: string): string {
-  return formatMonthDay(new Date(`${dateKey.slice(0, 10)}T12:00:00`));
+function formatOutOfRangeDate(
+  dateKey: string,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+): string {
+  return formatMonthDay(new Date(`${dateKey.slice(0, 10)}T12:00:00`), formatting);
 }

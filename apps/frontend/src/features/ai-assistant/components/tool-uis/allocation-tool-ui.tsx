@@ -1,3 +1,5 @@
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useSettingsContext } from "@/lib/settings-provider";
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import {
@@ -11,12 +13,10 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-  formatPercent,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { useSettingsContext } from "@/lib/settings-provider";
 import { CompactToolCard } from "./shared";
 
 // ============================================================================
@@ -168,6 +168,7 @@ type AllocationContentProps = ToolCallMessagePartProps<
 const AllocationContent = memo(AllocationContentImpl);
 
 function AllocationContentImpl({ args, result, status }: AllocationContentProps) {
+  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const typedArgs = args as GetAssetAllocationArgs | undefined;
   const { settings } = useSettingsContext();
@@ -194,15 +195,22 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
   const totalValue = parsed?.totalValue ?? 0;
 
   const formatter = useMemo(
-    () =>
-      new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }),
-    [currency],
+    () => ({
+      format: (value: number) =>
+        formatting.formatDecimal(value, {
+          style: "currency",
+          currency,
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }),
+    }),
+    [currency, formatting],
   );
+
+  // Calculate total for percentages before any conditional return so hook order is stable.
+  const computedTotal = useMemo(() => {
+    return sortedCategories.reduce((sum, c) => sum + c.value, 0);
+  }, [sortedCategories]);
 
   const taxonomyName = parsed?.taxonomyName ?? t("ai:allocation.defaultTitle");
   const categoryName = parsed?.categoryName;
@@ -224,11 +232,6 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
     }
     return formatter.format(value);
   };
-
-  // Calculate total for percentages
-  const computedTotal = useMemo(() => {
-    return sortedCategories.reduce((sum, c) => sum + c.value, 0);
-  }, [sortedCategories]);
 
   // Loading skeleton
   if (isLoading) {
@@ -329,7 +332,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
                     <td className="text-muted-foreground truncate py-2">{holding.name ?? "-"}</td>
                     <td className="py-2 text-right tabular-nums">{formatValue(holding.value)}</td>
                     <td className="text-muted-foreground py-2 text-right tabular-nums">
-                      {formatPercent(holding.weight / 100)}
+                      {formatting.formatPercent(holding.weight / 100)}
                     </td>
                   </tr>
                 ))}
@@ -385,7 +388,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
                     >
                       {widthPercent > 12 && (
                         <span className="text-background truncate px-1 text-[10px] font-medium">
-                          {formatPercent(percent)}
+                          {formatting.formatPercent(percent)}
                         </span>
                       )}
                     </div>
@@ -395,7 +398,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
                       <span className="text-muted-foreground text-[0.70rem] uppercase">
                         {category.categoryName}
                       </span>
-                      <div className="font-medium">{formatPercent(percent)}</div>
+                      <div className="font-medium">{formatting.formatPercent(percent)}</div>
                       {!isBalanceHidden && (
                         <div className="text-muted-foreground text-xs">
                           {formatValue(category.value)}
@@ -429,7 +432,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-3 tabular-nums">
                     <span className="text-muted-foreground w-12 text-right">
-                      {formatPercent(percent)}
+                      {formatting.formatPercent(percent)}
                     </span>
                     <span className="text-foreground w-20 text-right font-medium">
                       {formatValue(category.value)}

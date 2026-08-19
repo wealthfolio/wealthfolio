@@ -249,25 +249,13 @@ test.describe("FX Cash Balance - Cross-currency Buy", () => {
     await expect(accountLink).toBeVisible({ timeout: 10000 });
     await accountLink.click();
 
-    // Wait for account page to load - look for "Cash Balance" card title
-    await expect(page.getByText("Cash Balance")).toBeVisible({ timeout: 15000 });
+    // Wait for the account metrics and read the cash balance value directly
+    const cashBalance = page.getByTestId("account-cash-balance-value");
+    await expect(cashBalance).toBeVisible({ timeout: 15000 });
+    const balanceText = await cashBalance.textContent();
 
-    // Wait for data to settle
-    await page.waitForTimeout(2000);
-
-    // Read the cash balance value from the card header
-    // DOM structure: parent div > "Cash Balance" text + sibling div with the value
-    // Find the parent of "Cash Balance" title text, then get full text content
-    const cashBalanceTitle = page.getByText("Cash Balance", { exact: true });
-    const cashBalanceSection = cashBalanceTitle.locator("..");
-    const balanceText = await cashBalanceSection.textContent();
-
-    // Extract numeric value from the text (e.g., "Cash Balance€8,915.22")
-    // Remove "Cash Balance" prefix and any non-numeric characters except decimal point, minus, comma
-    const numericPart = balanceText
-      ?.replace("Cash Balance", "")
-      .replace(/,/g, "")
-      .replace(/[^0-9.\-]/g, "");
+    // Extract the numeric value (e.g., "€8,915.22")
+    const numericPart = balanceText?.replace(/,/g, "").replace(/[^0-9.\-]/g, "");
     const actualCashBalance = parseFloat(numericPart || "0");
 
     // Log values for debugging

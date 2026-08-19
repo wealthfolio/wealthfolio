@@ -129,7 +129,8 @@
     "andMore": "...외 {{count}}건",
     "reviewActivities": "활동 검토",
     "duration": "소요 시간:",
-    "inProgress": "진행 중..."
+    "inProgress": "진행 중...",
+    "andMore_other": "...외 {{count}}건"
   },
   "syncHistory": {
     "title": "동기화 기록",
@@ -146,7 +147,8 @@
     "skipped": "건너뜀",
     "warningsCount_one": "경고 {{count}}건",
     "warningsCount_other": "경고 {{count}}건",
-    "andMore": "외 {{count}}건"
+    "andMore": "외 {{count}}건",
+    "andMore_other": "외 {{count}}건"
   },
   "activity": {
     "syncingData": "데이터를 동기화하는 중...",

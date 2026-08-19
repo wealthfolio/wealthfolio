@@ -2,17 +2,17 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import { Icons, Switch } from "@wealthfolio/ui";
+import { Icons, Switch, useAmountFormatting } from "@wealthfolio/ui";
 
-import {
-  useSpendingSettings,
-  useSpendingSettingsMutation,
-} from "@/features/spending/hooks/use-spending-settings";
 import { useBudget } from "@/features/spending/hooks/use-budget";
 import {
   useCategorizationRules,
   useRulePresets,
 } from "@/features/spending/hooks/use-categorization-rules";
+import {
+  useSpendingSettings,
+  useSpendingSettingsMutation,
+} from "@/features/spending/hooks/use-spending-settings";
 import { isSpendingAccountType } from "@/features/spending/lib/constants";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -22,11 +22,12 @@ import { cn } from "@/lib/utils";
 import { formatAmountWhole } from "./format";
 
 export function ModuleCard() {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const { settings, isLoading } = useSpendingSettings();
   const { isBalanceHidden } = useBalancePrivacy();
   const fmt = (amount: number, currency: string) =>
-    isBalanceHidden ? "••••" : formatAmountWhole(amount, currency);
+    isBalanceHidden ? "••••" : formatAmountWhole(amount, currency, formatting);
   const mutation = useSpendingSettingsMutation();
   const { accounts } = useAccounts({ filterActive: true });
   const { data: budget } = useBudget();

@@ -50,7 +50,8 @@
       "target": "목표",
       "no_target_yet": "아직 목표 배분이 없습니다",
       "compare_weights": "현재 비중을 원하는 포트폴리오와 비교하세요.",
-      "set_target_allocation": "목표 배분 설정"
+      "set_target_allocation": "목표 배분 설정",
+      "outside_range_other": "{{count}}개 범위 초과 · 최대 격차 {{gap}}"
     },
     "value_strip": {
       "portfolio_value": "포트폴리오 가치",
@@ -114,11 +115,12 @@
       "over_months_one": "{{count}}개월 동안",
       "over_months_other": "{{count}}개월 동안",
       "trailing_pace": " · 최근 12개월 평균 대비 {{multiple}}배",
-      "drivers_of_change": "{{period}} 변화 요인",
+      "drivers_of_change": "변화 요인",
       "market_returns": "시장 수익률",
       "contributions": "납입금",
       "equity_built": "축적된 자본",
       "per_month": "/월"
-    }
+    },
+    "days_ago_other": "{{count}}일 전"
   }
 }

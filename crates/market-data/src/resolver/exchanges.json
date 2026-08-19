@@ -90,7 +90,7 @@
       "alpha_vantage": { "suffix": ".CNQ", "currency": "CAD" }
     },
     {
-      "mic": "XNEO",
+      "mic": "NEOE",
       "name": "Cboe Canada",
       "long_name": "Cboe Canada",
       "currency": "CAD",
@@ -707,7 +707,7 @@
   ],
   "currency_priority": {
     "USD": ["XNYS", "XNAS", "ARCX", "BATS", "XASE", "OTCM"],
-    "CAD": ["XTSE", "XTSX", "XCNQ", "XNEO"],
+    "CAD": ["XTSE", "XTSX", "XCNQ", "NEOE"],
     "GBP": ["XLON"],
     "GBX": ["XLON"],
     "GBp": ["XLON"],

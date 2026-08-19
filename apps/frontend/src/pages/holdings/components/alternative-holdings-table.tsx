@@ -1,12 +1,8 @@
-import { DataTable } from "@wealthfolio/ui/components/ui/data-table";
-import { DataTableColumnHeader } from "@wealthfolio/ui/components/ui/data-table/data-table-column-header";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@wealthfolio/ui/components/ui/dropdown-menu";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import type { AlternativeAssetHolding } from "@/lib/types";
+import { ALTERNATIVE_ASSET_KIND_DISPLAY_NAMES } from "@/lib/types";
+import type { ColumnDef } from "@tanstack/react-table";
+import { AmountDisplay, EmptyPlaceholder, GainPercent, useDateFormatting } from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,15 +13,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@wealthfolio/ui/components/ui/alert-dialog";
+import { DataTable } from "@wealthfolio/ui/components/ui/data-table";
+import { DataTableColumnHeader } from "@wealthfolio/ui/components/ui/data-table/data-table-column-header";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@wealthfolio/ui/components/ui/dropdown-menu";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import { EmptyPlaceholder, GainPercent, AmountDisplay } from "@wealthfolio/ui";
-import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import type { AlternativeAssetHolding } from "@/lib/types";
-import { ALTERNATIVE_ASSET_KIND_DISPLAY_NAMES } from "@/lib/types";
 
 interface AlternativeHoldingsTableProps {
   holdings: AlternativeAssetHolding[];
@@ -52,6 +52,7 @@ export function AlternativeHoldingsTable({
   onRowClick,
   isDeleting = false,
 }: AlternativeHoldingsTableProps) {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   const resolvedEmptyTitle = emptyTitle ?? t("holdings:empty_no_assets_yet");
   const resolvedEmptyDescription = emptyDescription ?? t("holdings:empty_add_first_asset_button");
@@ -205,8 +206,7 @@ export function AlternativeHoldingsTable({
         ),
         cell: ({ row }) => {
           const holding = row.original;
-          const date = new Date(holding.valuationDate);
-          const formatted = date.toLocaleDateString(undefined, {
+          const formatted = formatting.formatDate(holding.valuationDate, {
             year: "numeric",
             month: "short",
             day: "numeric",
@@ -272,7 +272,7 @@ export function AlternativeHoldingsTable({
         },
       },
     ],
-    [isBalanceHidden, onEdit, onUpdateValue, onViewHistory, onDelete, onRowClick, t],
+    [formatting, isBalanceHidden, onEdit, onUpdateValue, onViewHistory, onDelete, onRowClick, t],
   );
 
   if (isLoading) {

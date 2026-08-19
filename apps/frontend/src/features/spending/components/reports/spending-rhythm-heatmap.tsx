@@ -1,11 +1,11 @@
+import type { TFunction } from "i18next";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 
-import { PrivacyAmount } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import type { Activity } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
+import { PrivacyAmount, useDateFormatting } from "@wealthfolio/ui";
 
 import { getActivitySpendingAmount } from "../../lib/constants";
 
@@ -113,6 +113,7 @@ function RhythmRow({
   weekLabel: string;
   noSpendLabel: string;
 }) {
+  const formatting = useDateFormatting();
   return (
     <>
       <div className="text-muted-foreground/70 self-center pr-1 text-right text-[10px]">
@@ -126,7 +127,11 @@ function RhythmRow({
             key={i}
             className="aspect-square rounded-md transition-opacity"
             style={{ backgroundColor: accent, opacity }}
-            title={`${cell.date.toLocaleDateString()} · ${
+            title={`${formatting.formatCalendarDate({
+              year: cell.date.getFullYear(),
+              month: cell.date.getMonth() + 1,
+              day: cell.date.getDate(),
+            })} · ${
               cell.amount > 0 ? (isBalanceHidden ? "••••" : cell.amount.toFixed(2)) : noSpendLabel
             }`}
           />

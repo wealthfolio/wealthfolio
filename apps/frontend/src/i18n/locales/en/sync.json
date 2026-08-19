@@ -16,7 +16,9 @@
     "morePreview": "+{{count}} more",
     "settingUp": "Setting up...",
     "connectThisDevice": "Connect This Device",
-    "enableDeviceSync": "Enable Device Sync"
+    "enableDeviceSync": "Enable Device Sync",
+    "morePreview_one": "+{{count}} more",
+    "morePreview_other": "+{{count}} more"
   },
   "status": {
     "syncError": "Sync error",
@@ -33,7 +35,13 @@
     "hoursAgo": "{{count}}h ago",
     "daysAgo": "{{count}}d ago",
     "thisDevice": "This device",
-    "thisDeviceSuffix": "· This device"
+    "thisDeviceSuffix": "· This device",
+    "minutesAgo_one": "{{count}}m ago",
+    "minutesAgo_other": "{{count}}m ago",
+    "hoursAgo_one": "{{count}}h ago",
+    "hoursAgo_other": "{{count}}h ago",
+    "daysAgo_one": "{{count}}d ago",
+    "daysAgo_other": "{{count}}d ago"
   },
   "engine": {
     "pauseSync": "Pause Sync",

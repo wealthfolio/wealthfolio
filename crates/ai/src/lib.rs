@@ -22,7 +22,6 @@
 //!   `eval` binary against Ollama / cloud providers (feature `test-utils`).
 //! - `provider_model`: AI provider domain models (catalog, settings, merged views).
 //! - `provider_service`: AI provider service for settings management.
-//! - `prompt_template` + `prompt_template_service`: Versioned prompt templates.
 //!
 //! # Running tests vs evals
 //!
@@ -67,8 +66,6 @@ pub mod error;
 pub mod eval;
 #[cfg(feature = "test-utils")]
 pub mod live_evals;
-pub mod prompt_template;
-pub mod prompt_template_service;
 pub mod provider_model;
 pub mod provider_service;
 mod provider_urls;
@@ -81,6 +78,13 @@ pub mod types;
 /// The chat agent's system prompt, baked at compile time. Exposed for
 /// integration tests in `tests/system_prompt.rs` to assert content invariants.
 pub const SYSTEM_PROMPT: &str = include_str!("system_prompt.txt");
+
+/// Version marker embedded in the one authoritative live system prompt.
+pub const FINANCIAL_SAFETY_POLICY_VERSION: &str = "2026-08-18.p0";
+
+/// Stable identity persisted in new chat configuration snapshots.
+pub const LIVE_PROMPT_ID: &str = "wealthfolio-system-prompt";
+pub const LIVE_PROMPT_VERSION: &str = FINANCIAL_SAFETY_POLICY_VERSION;
 
 // Re-export main types for convenience
 pub use chat::{ChatConfig, ChatService};
@@ -159,16 +163,3 @@ pub use provider_model::{
 
 // Provider service
 pub use provider_service::{AiProviderService, AiProviderServiceTrait};
-
-// Prompt template types
-pub use prompt_template::{
-    ChatRunConfig, DetailLevel, KnobType, PromptTemplate, PromptTemplateCatalog,
-    TemplateCatalogMetadata, TemplateKnob, TemplateSection, TemplateSections,
-    PROMPT_TEMPLATE_SCHEMA_VERSION,
-};
-
-// Prompt template service
-pub use prompt_template_service::{
-    build_run_config_from_context, PromptTemplateInfo, PromptTemplateService,
-    PromptTemplateServiceTrait,
-};

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import { Button, Icons } from "@wealthfolio/ui";
+import { Button, Icons, useAmountFormatting } from "@wealthfolio/ui";
 
 import { useBudget } from "@/features/spending/hooks/use-budget";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -11,11 +11,12 @@ import { cn } from "@/lib/utils";
 import { formatAmountWhole } from "./format";
 
 export function BudgetOverviewCard() {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const { data: budget, isLoading } = useBudget();
   const { isBalanceHidden } = useBalancePrivacy();
   const fmt = (amount: number, currency: string) =>
-    isBalanceHidden ? "••••" : formatAmountWhole(amount, currency);
+    isBalanceHidden ? "••••" : formatAmountWhole(amount, currency, formatting);
 
   const spendingPlanned = budget?.computed.totals.spendingPlanned ?? 0;
   const incomePlanned = budget?.computed.totals.incomePlanned ?? 0;

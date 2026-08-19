@@ -196,6 +196,21 @@
     "holding_fetch_error": "보유 종목을 불러오는 중 오류가 발생했습니다.",
     "quote_fetch_error": "시세를 불러오는 중 오류가 발생했습니다.",
     "asset_profile_fetch_error": "자산 프로필을 불러오는 중 오류가 발생했습니다.",
+    "health": {
+      "add_price_for_date": "{{date}} 가격 추가",
+      "manual_prices_need_review": "수동 가격을 검토해야 합니다",
+      "carrying_forward_add_date": "Wealthfolio가 마지막 가격을 이어서 사용하고 있습니다. 이 날짜에 별도 값이 필요한 경우에만 추가하세요.",
+      "review_missing_dates": "누락된 날짜를 검토하세요. 별도 값이 필요한 가격을 추가하며, 항목 사이에는 이어진 가격이 계속 사용됩니다.",
+      "price_missing_for_date": "{{date}} 가격 누락",
+      "price_history_needs_review": "가격 내역을 검토해야 합니다",
+      "carrying_forward_refetch": "Wealthfolio가 마지막으로 사용 가능한 가격을 이어서 사용하고 있습니다. 거래일이었다면 가격을 다시 가져오세요.",
+      "refetch_history": "공급자 내역을 다시 가져와 누락되거나 오래된 가격을 복원하세요. 정확한 가격이 제공될 때까지 이어진 가격이 사용됩니다.",
+      "cost_basis_needs_review": "원가 기준을 검토해야 합니다",
+      "cost_basis_description": "Wealthfolio가 손익을 계산할 수 있도록 이 보유 자산의 매입 금액을 업데이트하세요.",
+      "transactions_need_review": "거래를 검토해야 합니다",
+      "transactions_description": "건강 센터가 이 투자에 대해 표시한 거래를 검토하세요.",
+      "refetch_prices": "가격 다시 가져오기"
+    },
     "confirm_option_expiry_title": "옵션 만료 확인",
     "confirm_option_expiry_description": "옵션을 무가치로 만료 처리하고 현금 영향 없이 포지션을 제거합니다. 이 작업은 쉽게 되돌릴 수 없습니다.",
     "kind": {
@@ -385,7 +400,8 @@
     "to_auto_warning": "수동으로 입력한 과거 데이터가 사라질 수 있습니다.",
     "to_manual_description": "수동 추적으로 전환하면 시장 데이터 제공업체로부터의 자동 데이터 수집이 중지됩니다. 가격 데이터를 직접 입력하고 관리해야 합니다.",
     "to_manual_warning": "자동 가격 업데이트가 비활성화됩니다.",
-    "confirm_change": "변경 확인"
+    "confirm_change": "변경 확인",
+    "delete_count_other": "삭제 ({{count}})"
   },
   "quoteTable": {
     "date": "날짜",
@@ -637,7 +653,6 @@
     "select_mortgage_to_link": "연결할 담보대출 선택",
     "link_mortgage": "담보대출 연결",
     "link_mortgage_description": "이 부동산에 연결할 담보대출을 선택하세요",
-    "cancel": "취소",
     "link": "연결",
     "sectionTitle": {
       "property": "부동산",
@@ -666,7 +681,12 @@
     "date": "날짜",
     "balance": "잔액",
     "value": "가치",
-    "notes": "메모"
+    "notes": "메모",
+    "edit_entry_aria": "{{date}}, {{value}} 기록 편집",
+    "delete_entry_aria": "{{date}}, {{value}} 기록 삭제",
+    "delete_title": "기록 항목을 삭제할까요?",
+    "delete_description": "이 기록 항목은 영구적으로 삭제됩니다.",
+    "duplicate_date_error": "각 기록 항목에는 중복되지 않는 날짜를 사용해야 합니다."
   },
   "valueToolbar": {
     "add_balance": "잔액 추가",
@@ -675,6 +695,9 @@
     "modified": "{{count}}개 수정됨",
     "to_delete": "{{count}}개 삭제 예정",
     "cancel": "취소",
-    "save_changes": "변경사항 저장"
+    "save_changes": "변경사항 저장",
+    "delete_count_other": "삭제 ({{count}})",
+    "modified_other": "{{count}}개 수정됨",
+    "to_delete_other": "{{count}}개 삭제 예정"
   }
 }

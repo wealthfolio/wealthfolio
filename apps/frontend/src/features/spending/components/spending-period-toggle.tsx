@@ -31,6 +31,7 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
+  useDateFormatting,
   useIsMobile,
 } from "@wealthfolio/ui";
 
@@ -166,9 +167,10 @@ function MonthPickerButton({
   onClear?: () => void;
 }) {
   const { t } = useTranslation();
+  const formatting = useDateFormatting();
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
-  const label = value ? compactMonthLabel(value) : null;
+  const label = value ? compactMonthLabel(value, formatting) : null;
   const trigger = (
     <button
       type="button"

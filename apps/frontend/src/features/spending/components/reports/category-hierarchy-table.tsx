@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Icons, PrivacyAmount, Skeleton } from "@wealthfolio/ui";
+import { Icons, PrivacyAmount, Skeleton, useNumberFormatting } from "@wealthfolio/ui";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import type { TaxonomyCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -65,6 +65,7 @@ export function CategoryHierarchyTable({
   onCategoryClick,
 }: CategoryHierarchyTableProps) {
   const { t: tr } = useTranslation();
+  const numberFormatting = useNumberFormatting();
   const isMobile = useIsMobileViewport();
   const tree = useMemo(
     () => buildTree({ breakdown, priorBreakdown, budgetRows, taxonomyCategories, sort }),
@@ -306,7 +307,7 @@ export function CategoryHierarchyTable({
                     : "text-success",
               )}
             >
-              {formatDelta(totals.spent - totals.priorSpent, totals.priorSpent)}
+              {formatDelta(totals.spent - totals.priorSpent, totals.priorSpent, numberFormatting)}
             </td>
           </tr>
         </tfoot>
@@ -316,6 +317,7 @@ export function CategoryHierarchyTable({
 }
 
 function ProgressBar({ spent, budget }: { spent: number; budget: number }) {
+  const numberFormatting = useNumberFormatting();
   if (budget <= 0) return null;
   const pct = (spent / budget) * 100;
   const isOver = pct > 100;
@@ -339,7 +341,7 @@ function ProgressBar({ spent, budget }: { spent: number; budget: number }) {
           isOver ? "text-destructive font-medium" : "text-muted-foreground/80",
         )}
       >
-        {pct.toFixed(0)}%
+        {numberFormatting.formatPercent(pct / 100, { digits: 0 })}
       </span>
     </div>
   );
@@ -364,6 +366,7 @@ const GroupRow = memo(function GroupRow({
   expandedById: Record<string, boolean>;
   onChildToggle: (id: string, value: boolean) => void;
 }) {
+  const numberFormatting = useNumberFormatting();
   const hasChildren = group.children.length > 0;
   const delta = group.spent - group.priorSpent;
   const sharePct = totalSpent > 0 ? (group.spent / totalSpent) * 100 : 0;
@@ -395,7 +398,7 @@ const GroupRow = memo(function GroupRow({
               {group.name}
             </span>
             <span className="text-muted-foreground/70 text-[11px] font-medium tabular-nums">
-              {sharePct.toFixed(1)}%
+              {numberFormatting.formatPercent(sharePct / 100, { digits: 1 })}
             </span>
           </div>
         </td>
@@ -424,7 +427,7 @@ const GroupRow = memo(function GroupRow({
                 : "text-success",
           )}
         >
-          {formatDelta(delta, group.priorSpent)}
+          {formatDelta(delta, group.priorSpent, numberFormatting)}
         </td>
       </tr>
       {expanded &&
@@ -460,6 +463,7 @@ const ParentRow = memo(function ParentRow({
   onToggle: () => void;
 }) {
   const { t } = useTranslation();
+  const numberFormatting = useNumberFormatting();
   const hasChildren = node.children.length > 0;
   const delta = node.spent - node.priorSpent;
   const accent = node.color ?? "var(--muted-foreground)";
@@ -534,7 +538,7 @@ const ParentRow = memo(function ParentRow({
                 : "text-success",
           )}
         >
-          {formatDelta(delta, node.priorSpent)}
+          {formatDelta(delta, node.priorSpent, numberFormatting)}
         </td>
       </tr>
       {expanded &&
@@ -565,6 +569,7 @@ const ChildRow = memo(function ChildRow({
   onCategoryClick?: (categoryId: string) => void;
   indented?: boolean;
 }) {
+  const numberFormatting = useNumberFormatting();
   const delta = node.spent - node.priorSpent;
   const clickable = !!onCategoryClick;
   return (
@@ -598,17 +603,18 @@ const ChildRow = memo(function ChildRow({
               : "text-success",
         )}
       >
-        {formatDelta(delta, node.priorSpent)}
+        {formatDelta(delta, node.priorSpent, numberFormatting)}
       </td>
     </tr>
   );
 });
 
 function DeltaPill({ delta, priorSpent }: { delta: number; priorSpent: number }) {
+  const numberFormatting = useNumberFormatting();
   if (priorSpent === 0 || delta === 0) {
     return (
       <span className="text-muted-foreground/60 shrink-0 text-[11px] tabular-nums">
-        {formatDelta(delta, priorSpent)}
+        {formatDelta(delta, priorSpent, numberFormatting)}
       </span>
     );
   }
@@ -620,7 +626,7 @@ function DeltaPill({ delta, priorSpent }: { delta: number; priorSpent: number })
         up ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success",
       )}
     >
-      {formatDelta(delta, priorSpent)}
+      {formatDelta(delta, priorSpent, numberFormatting)}
     </span>
   );
 }
@@ -744,6 +750,7 @@ const MobileCategoryRow = memo(function MobileCategoryRow({
   standalone?: boolean;
 }) {
   const { t } = useTranslation();
+  const numberFormatting = useNumberFormatting();
   const hasChildren = node.children.length > 0;
   const hasBudget = node.budgeted > 0;
   const delta = node.spent - node.priorSpent;
@@ -755,7 +762,7 @@ const MobileCategoryRow = memo(function MobileCategoryRow({
   const subtitle = hasBudget ? (
     <>
       <span className={cn("tabular-nums", pct > 100 ? "text-destructive" : undefined)}>
-        {pct.toFixed(0)}%
+        {numberFormatting.formatPercent(pct / 100, { digits: 0 })}
       </span>
       <span className="text-muted-foreground/50"> · {t("spending:hierarchy.of")} </span>
       <PrivacyAmount value={node.budgeted} currency={currency} />

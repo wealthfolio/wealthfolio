@@ -1,17 +1,39 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
-import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { LanguageSelector } from "@/components/language-selector";
 import { DEFAULT_LOCALE } from "@/i18n/locales";
 import { useSettingsContext } from "@/lib/settings-provider";
+import { createFormatter, resolveFormattingLocale } from "@wealthfolio/ui";
+import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@wealthfolio/ui/components/ui/select";
+import { Separator } from "@wealthfolio/ui/components/ui/separator";
+import { TimezoneInput } from "./timezone-input";
 import {
   detectBrowserTimezone,
   getSupportedTimezones,
   resolveInitialTimezone,
 } from "./timezone-settings";
-import { TimezoneInput } from "./timezone-input";
+
+const FORMATTING_REGION_OPTIONS = [
+  ["system", "system"],
+  ["CA", "canada"],
+  ["US", "unitedStates"],
+  ["GB", "unitedKingdom"],
+  ["FR", "france"],
+  ["DE", "germany"],
+  ["ES", "spain"],
+  ["MX", "mexico"],
+  ["CN", "china"],
+  ["JP", "japan"],
+  ["KR", "southKorea"],
+] as const;
 
 export function LanguageRegionSettings() {
   const { t } = useTranslation();
@@ -19,6 +41,7 @@ export function LanguageRegionSettings() {
 
   const language = settings?.language || DEFAULT_LOCALE;
   const timezone = resolveInitialTimezone(settings?.timezone);
+  const formattingRegion = settings?.formattingRegion || "system";
 
   const browserTimezone = useMemo(() => detectBrowserTimezone(), []);
   const timezones = useMemo(() => {
@@ -34,6 +57,17 @@ export function LanguageRegionSettings() {
   const handleTimezoneChange = async (nextTimezone: string) => {
     await updateSettings({ timezone: nextTimezone });
   };
+
+  const preview = useMemo(() => {
+    const formatter = createFormatter(resolveFormattingLocale(formattingRegion), timezone);
+    const sample = new Date(2026, 6, 10, 14, 30);
+    return [
+      formatter.formatDate(sample, { dateStyle: "short" }),
+      formatter.formatDecimal(1234.56, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      formatter.formatAmount(1234.56, "CAD"),
+      formatter.formatTime(sample, { timeStyle: "short" }),
+    ].join(" · ");
+  }, [formattingRegion, timezone]);
 
   return (
     <Card>
@@ -53,6 +87,45 @@ export function LanguageRegionSettings() {
             onChange={handleLanguageChange}
             className="w-full max-w-[360px]"
           />
+        </section>
+
+        <Separator />
+
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-sm font-medium">
+              {t("settings:formattingRegion.title", "Region & formats")}
+            </h3>
+            <p className="text-muted-foreground text-sm">
+              {t(
+                "settings:formattingRegion.description",
+                "Controls dates, times, number separators, percentages, and currency presentation.",
+              )}
+            </p>
+          </div>
+          <Select
+            value={formattingRegion}
+            onValueChange={(value) => updateSettings({ formattingRegion: value })}
+          >
+            <SelectTrigger className="w-full max-w-[360px]" data-testid="formatting-locale-select">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FORMATTING_REGION_OPTIONS.map(([value, labelKey]) => (
+                <SelectItem key={value} value={value}>
+                  {value === "system"
+                    ? `${t(`settings:formattingRegion.options.${labelKey}`)} (${resolveFormattingLocale(value)})`
+                    : t(`settings:formattingRegion.options.${labelKey}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p
+            className="text-muted-foreground text-sm tabular-nums"
+            data-testid="formatting-locale-preview"
+          >
+            {preview}
+          </p>
         </section>
 
         <Separator />

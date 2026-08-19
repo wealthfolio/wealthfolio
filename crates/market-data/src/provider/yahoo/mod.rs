@@ -727,6 +727,8 @@ impl YahooProvider {
                 symbol,
             )),
             quote_type: Some(item.quote_type.to_uppercase()),
+            // Search carries no currency, but it does name the exchange.
+            exchange: Some(item.exchange.clone()),
             ..Default::default()
         })
     }
@@ -806,6 +808,10 @@ impl YahooProvider {
             quote_type: price
                 .and_then(|p| p.quote_type.clone())
                 .map(|t| t.to_uppercase()),
+            // Which listing Yahoo actually matched. Carried so the caller can
+            // check it against the instrument that was requested.
+            currency: price.and_then(|p| p.currency.clone()),
+            exchange: price.and_then(|p| p.exchange.clone()),
             sector,
             sectors,
             asset_allocation,

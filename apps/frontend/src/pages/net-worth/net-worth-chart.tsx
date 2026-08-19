@@ -1,14 +1,14 @@
 import { useHapticFeedback } from "@/hooks";
-import { ChartConfig, ChartContainer } from "@wealthfolio/ui/components/ui/chart";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useIsMobileViewport } from "@/hooks/use-platform";
+import type { NetWorthHistoryPoint } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
-import { AmountDisplay } from "@wealthfolio/ui";
+import { AmountDisplay, useDateFormatting } from "@wealthfolio/ui";
+import { ChartConfig, ChartContainer } from "@wealthfolio/ui/components/ui/chart";
+import type { TFunction } from "i18next";
 import { useId, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 import { Area, AreaChart, Tooltip, YAxis } from "recharts";
-import type { NetWorthHistoryPoint } from "@/lib/types";
 import type { MouseHandlerDataParam } from "recharts/types/synchronisation/types";
 
 // Goldish orange for net worth chart (consistent across light/dark modes)
@@ -40,6 +40,8 @@ interface CustomTooltipProps extends TooltipBaseProps {
 }
 
 const CustomTooltip = ({ active, payload, isBalanceHidden, t }: CustomTooltipProps) => {
+  const dateFormatting = useDateFormatting();
+
   if (!active || !payload?.length) {
     return null;
   }
@@ -54,7 +56,7 @@ const CustomTooltip = ({ active, payload, isBalanceHidden, t }: CustomTooltipPro
 
   return (
     <div className="bg-popover grid grid-cols-1 gap-1.5 rounded-md border p-2 shadow-md">
-      <p className="text-muted-foreground text-xs">{formatDate(entry.date)}</p>
+      <p className="text-muted-foreground text-xs">{formatDate(entry.date, dateFormatting)}</p>
 
       {/* Net Worth - primary value */}
       <div className="flex items-center justify-between space-x-4">

@@ -50,7 +50,9 @@
       "target": "Objetivo",
       "no_target_yet": "Aún no hay asignación objetivo",
       "compare_weights": "Compara los pesos actuales con tu cartera prevista.",
-      "set_target_allocation": "Establecer asignación objetivo"
+      "set_target_allocation": "Establecer asignación objetivo",
+      "outside_range_one": "{{count}} fuera de rango · mayor diferencia {{gap}}",
+      "outside_range_other": "{{count}} fuera de rango · mayor diferencia {{gap}}"
     },
     "value_strip": {
       "portfolio_value": "Valor de la cartera",
@@ -114,11 +116,13 @@
       "over_months_one": "en {{count}} mes",
       "over_months_other": "en {{count}} meses",
       "trailing_pace": " · {{multiple}}× del ritmo de los últimos 12 meses",
-      "drivers_of_change": "Factores del cambio de {{period}}",
+      "drivers_of_change": "Factores del cambio",
       "market_returns": "Rentabilidades del mercado",
       "contributions": "Aportaciones",
       "equity_built": "Capital acumulado",
       "per_month": "/mes"
-    }
+    },
+    "days_ago_one": "hace {{count}} d",
+    "days_ago_other": "hace {{count}} d"
   }
 }

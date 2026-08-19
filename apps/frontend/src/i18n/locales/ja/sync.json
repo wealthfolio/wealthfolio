@@ -16,7 +16,8 @@
     "morePreview": "他{{count}}件",
     "settingUp": "設定中...",
     "connectThisDevice": "このデバイスを接続",
-    "enableDeviceSync": "デバイス同期を有効化"
+    "enableDeviceSync": "デバイス同期を有効化",
+    "morePreview_other": "他{{count}}件"
   },
   "status": {
     "syncError": "同期エラー",
@@ -33,7 +34,10 @@
     "hoursAgo": "{{count}}時間前",
     "daysAgo": "{{count}}日前",
     "thisDevice": "このデバイス",
-    "thisDeviceSuffix": "· このデバイス"
+    "thisDeviceSuffix": "· このデバイス",
+    "minutesAgo_other": "{{count}}分前",
+    "hoursAgo_other": "{{count}}時間前",
+    "daysAgo_other": "{{count}}日前"
   },
   "engine": {
     "pauseSync": "同期を一時停止",

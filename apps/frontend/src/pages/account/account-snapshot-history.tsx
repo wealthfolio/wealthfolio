@@ -2,9 +2,10 @@ import { deleteSnapshot, getSnapshots } from "@/adapters";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, SnapshotInfo } from "@/lib/types";
-import { cn, formatAmount, formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { HoldingsEditMode } from "@/pages/holdings/components/holdings-edit-mode";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAmountFormatting, type FormattingApi, useDateFormatting } from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +58,8 @@ export function AccountSnapshotHistory({
   invalidSnapshotContext = false,
   onInvalidSnapshotRemediated,
 }: AccountSnapshotHistoryProps) {
+  const dateFormatting = useDateFormatting();
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const isMobile = useIsMobileViewport();
@@ -213,14 +216,14 @@ export function AccountSnapshotHistory({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <p className="truncate text-sm font-medium">
-                    {formatDate(snapshot.snapshotDate)}
+                    {formatDate(snapshot.snapshotDate, dateFormatting)}
                   </p>
                   <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">
                     {formatSnapshotSource(snapshot.source, t)}
                   </Badge>
                 </div>
                 <p className="text-muted-foreground text-xs">
-                  {formatSnapshotSummary(snapshot, account.currency, t)}
+                  {formatSnapshotSummary(snapshot, account.currency, t, formatting)}
                 </p>
               </div>
               {(canEditSnapshot(snapshot) || canDeleteSnapshot(snapshot)) && (
@@ -231,7 +234,7 @@ export function AccountSnapshotHistory({
                       size="icon"
                       className="size-8"
                       aria-label={t("account:snapshot.edit_aria", {
-                        date: formatDate(snapshot.snapshotDate),
+                        date: formatDate(snapshot.snapshotDate, dateFormatting),
                       })}
                       onClick={() => setEditingDate(snapshot.snapshotDate)}
                     >
@@ -244,7 +247,7 @@ export function AccountSnapshotHistory({
                       size="icon"
                       className="text-destructive size-8"
                       aria-label={t("account:snapshot.delete_aria", {
-                        date: formatDate(snapshot.snapshotDate),
+                        date: formatDate(snapshot.snapshotDate, dateFormatting),
                       })}
                       onClick={() => setDeletingSnapshot(snapshot)}
                     >
@@ -281,7 +284,9 @@ export function AccountSnapshotHistory({
                       "bg-destructive/5 ring-destructive/20 ring-2 ring-inset",
                   )}
                 >
-                  <TableCell className="font-medium">{formatDate(snapshot.snapshotDate)}</TableCell>
+                  <TableCell className="font-medium">
+                    {formatDate(snapshot.snapshotDate, dateFormatting)}
+                  </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
                       {formatSnapshotSource(snapshot.source, t)}
@@ -289,7 +294,7 @@ export function AccountSnapshotHistory({
                   </TableCell>
                   <TableCell className="text-right">{snapshot.positionCount}</TableCell>
                   <TableCell className="text-right">
-                    {formatAmount(snapshot.cashTotalAccountCurrency, account.currency)}
+                    {formatting.formatAmount(snapshot.cashTotalAccountCurrency, account.currency)}
                   </TableCell>
                   <TableCell className="text-right">
                     {(canEditSnapshot(snapshot) || canDeleteSnapshot(snapshot)) && (
@@ -300,7 +305,7 @@ export function AccountSnapshotHistory({
                             size="icon"
                             className="size-8"
                             aria-label={t("account:snapshot.edit_aria", {
-                              date: formatDate(snapshot.snapshotDate),
+                              date: formatDate(snapshot.snapshotDate, dateFormatting),
                             })}
                             onClick={() => setEditingDate(snapshot.snapshotDate)}
                           >
@@ -313,7 +318,7 @@ export function AccountSnapshotHistory({
                             size="icon"
                             className="text-destructive size-8"
                             aria-label={t("account:snapshot.delete_aria", {
-                              date: formatDate(snapshot.snapshotDate),
+                              date: formatDate(snapshot.snapshotDate, dateFormatting),
                             })}
                             onClick={() => setDeletingSnapshot(snapshot)}
                           >
@@ -355,7 +360,9 @@ export function AccountSnapshotHistory({
             <AlertDialogTitle>{t("account:snapshot.delete_title")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("account:snapshot.delete_desc", {
-                date: deletingSnapshot ? formatDate(deletingSnapshot.snapshotDate) : "",
+                date: deletingSnapshot
+                  ? formatDate(deletingSnapshot.snapshotDate, dateFormatting)
+                  : "",
               })}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -394,10 +401,11 @@ function formatSnapshotSummary(
   snapshot: SnapshotInfo,
   accountCurrency: string,
   t: TFunction,
+  formatting: Pick<FormattingApi, "formatAmount">,
 ): string {
   return t("account:snapshot.summary", {
     count: snapshot.positionCount,
-    cash: formatAmount(snapshot.cashTotalAccountCurrency, accountCurrency),
+    cash: formatting.formatAmount(snapshot.cashTotalAccountCurrency, accountCurrency),
   });
 }
 

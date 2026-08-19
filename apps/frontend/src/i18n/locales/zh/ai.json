@@ -140,7 +140,9 @@
     "emptyHint": "在设置中添加账户以跟踪您的投资。",
     "error": "加载账户失败",
     "currencyCount": "{{count}} {{currency}}",
-    "unknown": "未知"
+    "unknown": "未知",
+    "currencyCount_other": "{{count}} {{currency}}",
+    "of_other": "共 {{count}}"
   },
   "activities": {
     "fetched_one": "已获取 {{count}} 项活动",
@@ -242,7 +244,11 @@
     "loadedTaxonomies": "已加载 {{count}} 个资产分类体系",
     "loadingClassifications": "正在加载分类...",
     "couldNotLoadClassifications": "无法加载分类。",
-    "loadedClassifications": "已为 {{asset}} 加载 {{count}} 项分类"
+    "loadedClassifications": "已为 {{asset}} 加载 {{count}} 项分类",
+    "loadedCategoriesTotal_other": "已为 {{taxonomy}} 加载 {{count}} 个类别 · 共 {{total}}",
+    "loadedCategories_other": "已为 {{taxonomy}} 加载 {{count}} 个类别",
+    "loadedTaxonomies_other": "已加载 {{count}} 个资产分类体系",
+    "loadedClassifications_other": "已为 {{asset}} 加载 {{count}} 项分类"
   },
   "categorization": {
     "categorizing": "正在归类您的交易…",
@@ -269,7 +275,10 @@
     "transactionsCategorized_other": "已归类 {{count}} 笔交易",
     "categoriesSaved": "类别已保存至您的交易。",
     "apply": "应用",
-    "applySelected": "应用所选 {{count}} 项"
+    "applySelected": "应用所选 {{count}} 项",
+    "selected_other": "已选 {{count}} 项",
+    "needsManualChoice_other": "需手动选择（{{count}}）",
+    "applySelected_other": "应用所选 {{count}} 项"
   },
   "importReview": {
     "all": "全部",
@@ -310,7 +319,9 @@
     "count_one": "{{count}} 个目标",
     "count_other": "{{count}} 个目标",
     "of": "共 {{count}}",
-    "achieved": "已达成 {{count}} 个"
+    "achieved": "已达成 {{count}} 个",
+    "of_other": "共 {{count}}",
+    "achieved_other": "已达成 {{count}} 个"
   },
   "holdings": {
     "fetched_one": "已获取 {{count}} 项持仓",
@@ -358,7 +369,8 @@
     "statsSummary": "{{valid}} 有效 · {{warning}} 警告 · {{errors}} 错误 · {{duplicates}} 重复",
     "revalidate": "重新验证",
     "import_one": "导入 {{count}} 项活动",
-    "import_other": "导入 {{count}} 项活动"
+    "import_other": "导入 {{count}} 项活动",
+    "mappedColumns_other": "已映射 {{count}} 列。"
   },
   "mapping": {
     "usingSavedTemplate": "使用已保存的模板",
@@ -443,7 +455,13 @@
     "status": "状态",
     "createdSummary": "已创建 {{created}} 行，错误 {{errors}} 项。",
     "confirmActivities": "确认 {{count}} 项活动",
-    "confirmActivitiesEmpty": "确认活动"
+    "confirmActivitiesEmpty": "确认活动",
+    "readyCount_other": "{{count}} 项就绪",
+    "rows_other": "行数：{{count}}",
+    "valid_other": "有效：{{count}}",
+    "errors_other": "错误：{{count}}",
+    "willCreate_other": "将创建：{{count}}",
+    "confirmActivities_other": "确认 {{count}} 项活动"
   },
   "recordActivity": {
     "invalidDate": "无效日期",

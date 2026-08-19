@@ -50,7 +50,8 @@
       "target": "目標",
       "no_target_yet": "目標資産配分が未設定です",
       "compare_weights": "現在の比率と目指すポートフォリオを比較できます。",
-      "set_target_allocation": "目標資産配分を設定"
+      "set_target_allocation": "目標資産配分を設定",
+      "outside_range_other": "{{count}}件が範囲外 · 最大乖離 {{gap}}"
     },
     "value_strip": {
       "portfolio_value": "ポートフォリオ評価額",
@@ -114,11 +115,12 @@
       "over_months_one": "{{count}}か月間",
       "over_months_other": "{{count}}か月間",
       "trailing_pace": " · 直近12か月ペースの{{multiple}}倍",
-      "drivers_of_change": "{{period}}の変動要因",
+      "drivers_of_change": "変動要因",
       "market_returns": "市場リターン",
       "contributions": "入金",
       "equity_built": "エクイティ増加",
       "per_month": "/月"
-    }
+    },
+    "days_ago_other": "{{count}}日前"
   }
 }

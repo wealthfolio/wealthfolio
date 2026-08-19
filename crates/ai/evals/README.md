@@ -56,13 +56,14 @@ One file per suite under `cases/`. Each file has zero or more `[[case]]` entries
 | `id` | string | yes | Unique handle for filtering / reports. |
 | `description` | string | yes | One-line human description. |
 | `prompt` | string | yes | The user message that drives the turn. |
+| `attachments` | array | no | Inline test attachments with `name`, `contentType`, and `data`. |
 | `severity` | `"P0"` / `"P1"` / `"P2"` | no, default `P1` | P0 fails the run; P1/P2 only log. |
 | `tags` | array of strings | no | Free-form tags for filtering (`"smoke"`, `"regression"`). |
 | `fixture` | string | no | (Reserved) name of a fixture under `evals/fixtures/`. |
 | `expected_tools` | array | no | Tools that MUST fire, in order, with optional arg assertions. |
 | `forbidden_tools` | table | no | Tools that MUST NOT fire. Map value = reason for failure message. |
 | `max_tool_calls` | table | no | Per-tool max occurrence cap. |
-| `expected_response.rubric` | string | no | LLM-judge criteria for the agent's final text. *(not yet implemented)* |
+| `expected_response.rubric` | string | no | LLM-judge criteria for the agent's final text. Judge failures or unavailable judge models fail the case. |
 
 ### Argument assertions
 
@@ -123,9 +124,6 @@ crates/ai/evals/
   `MockEnvironment` returns empty results for most services. Adding canned
   fixture data is on the roadmap (`evals/fixtures/*.json` + a fixture loader
   that overrides specific service mocks).
-- **LLM-as-judge** for `expected_response.rubric` — the schema is in place;
-  the runner currently logs a warning and skips. Wiring up a judge model is
-  next on the runner's TODO.
 - **Spending-tool evals** that need real `cash_activity_service` /
   `taxonomy_service` data. The mock currently `unimplemented!()`s those —
   cases that hit them will fail until the mock is extended.

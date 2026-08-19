@@ -89,7 +89,11 @@
     "shares_one": "{{formatted}} Anteil",
     "shares_other": "{{formatted}} Anteile",
     "more_holdings": "+{{count}} weitere Bestände",
-    "more": "+{{count}} weitere"
+    "more": "+{{count}} weitere",
+    "more_holdings_one": "+{{count}} weiterer Bestand",
+    "more_holdings_other": "+{{count}} weitere Bestände",
+    "more_one": "+{{count}} weitere",
+    "more_other": "+{{count}} weitere"
   },
   "summary": {
     "return_unavailable_holdings": "Rendite % nicht verfügbar - fehlende Kostenbasis oder Anfangswert der Bestände.",

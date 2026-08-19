@@ -58,9 +58,11 @@ export * from "./components/ui/tree-view";
 
 // Export data grid components
 export * from "./components/data-grid";
+export * from "./components/formatting-provider";
 
 // Export utilities
 export * from "./lib/utils";
+export * from "./lib/formatting";
 
 // Export currencies data
 export * from "./lib/currencies";

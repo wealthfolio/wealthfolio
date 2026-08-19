@@ -4,9 +4,20 @@ import resourcesToBackend from "i18next-resources-to-backend";
 
 import { DEFAULT_LOCALE, DEFAULT_NAMESPACE, NAMESPACES, SUPPORTED_LOCALE_CODES } from "./locales";
 
+export const LANGUAGE_STORAGE_KEY = "wealthfolio-language";
+
+function getCachedLanguage() {
+  try {
+    const language = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    return SUPPORTED_LOCALE_CODES.find((supported) => supported === language) ?? DEFAULT_LOCALE;
+  } catch {
+    return DEFAULT_LOCALE;
+  }
+}
+
 // Language is an explicit, stored user setting (see settings-provider). We do NOT
-// auto-detect from the browser/OS. i18next initializes in the default locale and
-// the settings provider calls `i18n.changeLanguage(settings.language)` once loaded.
+// auto-detect from the browser/OS. The local cache avoids a default-language flash;
+// the settings provider remains authoritative and refreshes it once settings load.
 i18n
   .use(
     // Lazy-load `locales/<lng>/<ns>.json` on demand so we don't bundle every
@@ -17,7 +28,7 @@ i18n
   )
   .use(initReactI18next)
   .init({
-    lng: DEFAULT_LOCALE,
+    lng: getCachedLanguage(),
     fallbackLng: DEFAULT_LOCALE,
     supportedLngs: SUPPORTED_LOCALE_CODES,
     // Map regional codes (e.g. `fr-CA`) to the base language.

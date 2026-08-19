@@ -1,6 +1,7 @@
-import { cn } from "@/lib/utils";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useSettingsContext } from "@/lib/settings-provider";
+import { cn } from "@/lib/utils";
+import { useAmountFormatting, useNumberFormatting } from "@wealthfolio/ui";
 
 export interface PrivacyNumberProps {
   value: number;
@@ -19,6 +20,9 @@ export function PrivacyNumber({
 }: PrivacyNumberProps) {
   const { isBalanceHidden } = useBalancePrivacy();
   const { settings } = useSettingsContext();
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const effectiveCurrency = currency ?? baseCurrency;
 
@@ -28,17 +32,8 @@ export function PrivacyNumber({
 
   const formatted =
     type === "percent"
-      ? new Intl.NumberFormat("en-US", {
-          style: "percent",
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        }).format(value)
-      : new Intl.NumberFormat("en-US", {
-          style: "currency",
-          currency: effectiveCurrency,
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        }).format(value);
+      ? numberFormatting.formatPercent(value)
+      : amountFormatting.formatAmount(value, effectiveCurrency);
 
   return <span className={cn(className)}>{formatted}</span>;
 }

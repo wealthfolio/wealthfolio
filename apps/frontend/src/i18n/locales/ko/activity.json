@@ -100,6 +100,7 @@
   "delete_selected_confirm": "선택한 활동 {{count}}건을 삭제하시겠습니까?",
   "cash_balance_checking": "계좌 잔액을 확인하는 중...",
   "cash_balance_insufficient": "잔액 부족:",
+  "cash_balance_warning": "현금 잔액이 부족합니다. 필요 금액: {{required}}, 사용 가능 금액: {{available}}, 부족 금액: {{shortfall}}",
   "cash_balance_shortfall_hint": "부족한 금액을 채우기 위해 입금을 기록하거나, \"보유 종목 추가\"(현금 추적을 거치지 않음)를 사용하세요.",
   "cash_balance_transaction_cost": "거래 비용: {{amount}} - 충분한 자금 보유",
   "edit_activity": "활동 편집",
@@ -303,7 +304,9 @@
     "add_activities": "활동 추가",
     "ask_ai_categorize": "AI에게 분류 요청",
     "investments": "투자",
-    "spending": "지출"
+    "spending": "지출",
+    "health_filter_single": "건강 센터가 표시한 거래를 표시하고 있습니다",
+    "health_filter_multiple": "건강 센터가 표시한 거래를 표시하고 있습니다"
   },
   "delete_modal": {
     "title": "활동을 삭제하시겠습니까?",
@@ -321,7 +324,8 @@
   },
   "date_sheet": {
     "title": "{{date}}의 활동",
-    "count": "이 날짜에 기록된 활동 {{count}}건"
+    "count": "이 날짜에 기록된 활동 {{count}}건",
+    "count_other": "이 날짜에 기록된 활동 {{count}}건"
   },
   "picker": {
     "transfer": "이체",
@@ -449,7 +453,8 @@
     "warning_stale_link": "기존의 오래된 이체 연결이 교체됩니다.",
     "error_load_suggestions": "제안된 일치 항목을 불러올 수 없습니다.",
     "error_load_pair": "연결된 이체 쌍을 불러올 수 없습니다.",
-    "error_search": "활동을 검색할 수 없습니다."
+    "error_search": "활동을 검색할 수 없습니다.",
+    "within_days_other": "{{count}}일 이내"
   },
   "form": {
     "section_asset_account": "자산 및 계좌",
@@ -676,7 +681,8 @@
       "first_page": "첫 페이지로 이동",
       "previous_page": "이전 페이지",
       "next_page": "다음 페이지",
-      "last_page": "마지막 페이지로 이동"
+      "last_page": "마지막 페이지로 이동",
+      "jump_hint_other": "1에서 {{count}} 사이의 페이지 번호를 입력하세요"
     },
     "duplicated_comment": "중복됨",
     "save_edits_first": "먼저 편집 내용을 저장하세요",
@@ -729,7 +735,9 @@
     "select_all_rows": "모든 행 선택",
     "select_row": "행 선택",
     "instrument_auto": "자동",
-    "unit_price_help": "매수·매도의 경우 거래 가격을 입력하세요. 스테이킹 보상과 현물 배당의 경우 수령 시점의 단위당 공정시장가치를 입력하세요. 이 값이 수익 금액과 취득원가를 결정합니다."
+    "unit_price_help": "매수·매도의 경우 거래 가격을 입력하세요. 스테이킹 보상과 현물 배당의 경우 수령 시점의 단위당 공정시장가치를 입력하세요. 이 값이 수익 금액과 취득원가를 결정합니다.",
+    "warn_dates_differ_other": "날짜가 {{count}}일 차이 납니다.",
+    "approve_count_other": "{{count}}건 승인"
   },
   "table": {
     "cash": "현금",
@@ -855,7 +863,9 @@
       "valueComma": "쉼표",
       "valueSemicolon": "세미콜론",
       "valueTab": "탭",
-      "valuePeriod": "마침표"
+      "valuePeriod": "마침표",
+      "summarySkipTop_other": "위쪽 건너뛰기: {{count}}",
+      "summarySkipBottom_other": "아래쪽 건너뛰기: {{count}}"
     },
     "template": {
       "label": "템플릿",
@@ -914,7 +924,8 @@
       "mapType": "유형 매핑",
       "mapSymbol": "종목 코드 매핑",
       "missingAccount": "계좌 없음",
-      "emptySymbol": "종목 코드 없음"
+      "emptySymbol": "종목 코드 없음",
+      "accountAssignmentBlankRows_other": "모든 CSV 행을 계좌에 매핑하세요. {{count}}개 행이 아직 비어 있습니다. 업로드에서 기본 계좌를 선택하거나 계좌 열을 채워 주세요."
     },
     "csvViewer": {
       "status": "상태",
@@ -928,7 +939,8 @@
       "emptyFile": "빈 파일",
       "emptyLine": "빈 줄",
       "noContentFound": "내용을 찾을 수 없습니다",
-      "empty": "비어 있음"
+      "empty": "비어 있음",
+      "lines_other": "{{count}}줄"
     },
     "columns": {
       "dateTime": "날짜 및 시간",
@@ -1020,7 +1032,9 @@
       "statusDuplicates": "중복",
       "statusSkipped": "건너뜀",
       "statusValid": "유효함",
-      "skipReason": "건너뜀"
+      "skipReason": "건너뜀",
+      "willBeImportedTitle_other": "전체 {{all}}건 중 {{count}}건의 활동을 가져옵니다",
+      "activitiesCount_other": "활동 {{count}}건"
     },
     "status": {
       "valid": "유효함",
@@ -1069,7 +1083,9 @@
       "typeSplit": "액면분할",
       "typeUnknown": "알 수 없음",
       "skipReasonManual": "수동",
-      "validationError": "검증 오류"
+      "validationError": "검증 오류",
+      "readyTitle_other": "가져올 준비가 된 활동 {{count}}건",
+      "warningsDescription_other": "활동 {{count}}건에 경고가 있지만 그대로 가져옵니다."
     },
     "result": {
       "loading": "가져오기 결과를 불러오는 중...",
@@ -1167,7 +1183,9 @@
       "importing": "가져오는 중...",
       "importSnapshots_one": "스냅샷 {{count}}개 가져오기",
       "importSnapshots_other": "스냅샷 {{count}}개 가져오기",
-      "failedToPrepareAssets": "가져오기용 자산 준비에 실패했습니다."
+      "failedToPrepareAssets": "가져오기용 자산 준비에 실패했습니다.",
+      "positionsCount_other": "보유 종목 {{count}}개",
+      "readyRows_other": "{{count}}행"
     },
     "symbolPanel": {
       "unrecognized_one": "인식되지 않은 종목 코드 {{count}}개",
@@ -1180,7 +1198,8 @@
       "searchFor": "{{symbol}} 검색...",
       "markCustom": "사용자 지정으로 표시",
       "applyMappings_one": "매핑 {{count}}개 적용",
-      "applyMappings_other": "매핑 {{count}}개 적용"
+      "applyMappings_other": "매핑 {{count}}개 적용",
+      "affectingRows_other": " ({{count}}개 행에 영향)"
     },
     "help": {
       "button": "CSV를 가져오는 방법은?",
@@ -1278,7 +1297,8 @@
       "allValidDescriptionSuffix": "을 클릭하여 가져오기를 진행하세요.",
       "confirmImport": "가져오기 확인",
       "cancel": "취소",
-      "importing": "가져오는 중..."
+      "importing": "가져오는 중...",
+      "issuesTitle_other": "활동 항목 {{count}}건에 문제가 있습니다."
     }
   }
 }

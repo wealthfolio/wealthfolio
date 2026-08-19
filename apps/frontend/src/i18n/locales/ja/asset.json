@@ -196,6 +196,21 @@
     "holding_fetch_error": "保有銘柄の取得エラー。",
     "quote_fetch_error": "価格の取得エラー。",
     "asset_profile_fetch_error": "資産情報の取得エラー。",
+    "health": {
+      "add_price_for_date": "{{date}}の価格を追加",
+      "manual_prices_need_review": "手動価格の確認が必要です",
+      "carrying_forward_add_date": "Wealthfolio は直前の価格を引き継いでいます。この日に固有の値が必要な場合のみ追加してください。",
+      "review_missing_dates": "欠落している日付を確認してください。固有の値が必要な価格を追加し、入力の間では引き続き引き継ぎ価格が使用されます。",
+      "price_missing_for_date": "{{date}}の価格がありません",
+      "price_history_needs_review": "価格履歴の確認が必要です",
+      "carrying_forward_refetch": "Wealthfolio は直近の利用可能な価格を引き継いでいます。取引日だった場合は価格を再取得してください。",
+      "refetch_history": "プロバイダーの履歴を再取得して、欠落または古い価格を復元してください。正確な価格が利用可能になるまで引き継ぎ価格が使用されます。",
+      "cost_basis_needs_review": "取得原価の確認が必要です",
+      "cost_basis_description": "Wealthfolio が損益を計算できるよう、この保有資産の購入額を更新してください。",
+      "transactions_need_review": "取引の確認が必要です",
+      "transactions_description": "ヘルスセンターがこの投資について指摘した取引を確認してください。",
+      "refetch_prices": "価格を再取得"
+    },
     "confirm_option_expiry_title": "オプションの満期を確定",
     "confirm_option_expiry_description": "このオプションを無価値のまま満期として記録し、現金の増減なしにポジションを消去します。この操作は簡単には元に戻せません。",
     "kind": {
@@ -385,7 +400,8 @@
     "to_auto_warning": "手動入力した過去データが失われる可能性があります。",
     "to_manual_description": "手動トラッキングに切り替えると、市場データプロバイダーからの自動取得が停止します。価格データはご自身で入力・管理する必要があります。",
     "to_manual_warning": "自動的な価格更新が無効になります。",
-    "confirm_change": "変更を確定"
+    "confirm_change": "変更を確定",
+    "delete_count_other": "削除({{count}})"
   },
   "quoteTable": {
     "date": "日付",
@@ -665,7 +681,12 @@
     "date": "日付",
     "balance": "残高",
     "value": "評価額",
-    "notes": "メモ"
+    "notes": "メモ",
+    "edit_entry_aria": "{{date}}、{{value}}の履歴を編集",
+    "delete_entry_aria": "{{date}}、{{value}}の履歴を削除",
+    "delete_title": "履歴エントリを削除しますか？",
+    "delete_description": "この履歴エントリは完全に削除されます。",
+    "duplicate_date_error": "各履歴エントリには重複しない日付を使用してください。"
   },
   "valueToolbar": {
     "add_balance": "残高を追加",
@@ -674,6 +695,9 @@
     "modified": "{{count}}件変更",
     "to_delete": "{{count}}件削除予定",
     "cancel": "キャンセル",
-    "save_changes": "変更を保存"
+    "save_changes": "変更を保存",
+    "delete_count_other": "削除({{count}})",
+    "modified_other": "{{count}}件変更",
+    "to_delete_other": "{{count}}件削除予定"
   }
 }

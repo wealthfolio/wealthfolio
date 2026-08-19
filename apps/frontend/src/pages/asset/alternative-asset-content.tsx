@@ -1,10 +1,17 @@
-import React, { useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
-import { format } from "date-fns";
-import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
-import { Separator } from "@wealthfolio/ui/components/ui/separator";
-import { Badge } from "@wealthfolio/ui/components/ui/badge";
+import HistoryChart from "@/components/history-chart-symbol";
+import { useAlternativeHoldings, useLinkedLiabilities } from "@/hooks/use-alternative-assets";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import type { AlternativeAssetHolding, Asset, DateRange, Quote, TimePeriod } from "@/lib/types";
+import { AlternativeAssetKind } from "@/lib/types";
+import {
+  AmountDisplay,
+  EmptyPlaceholder,
+  type FormattingApi,
+  Icons,
+  IntervalSelector,
+  useDateFormatting,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,29 +22,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@wealthfolio/ui/components/ui/alert-dialog";
+import { Badge } from "@wealthfolio/ui/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
+import { Separator } from "@wealthfolio/ui/components/ui/separator";
+import type { TFunction } from "i18next";
+import React, { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
-  Icons,
-  IntervalSelector,
-  EmptyPlaceholder,
-  AmountDisplay,
-  formatPercent,
-} from "@wealthfolio/ui";
-import HistoryChart from "@/components/history-chart-symbol";
-import { ValueHistoryDataGrid } from "./alternative-assets";
-import {
+  AlternativeAssetQuickAddModal,
   AssetDetailsSheet,
   type AssetDetailsSheetAsset,
   UpdateValuationModal,
-  AlternativeAssetQuickAddModal,
+  ValueHistoryDataGrid,
 } from "./alternative-assets";
 import { useAlternativeAssetMutations } from "./alternative-assets/hooks/use-alternative-asset-mutations";
-import { LinkedLiabilitiesSection, LinkedAssetSection } from "./linked-liabilities-card";
 import { useQuoteMutations } from "./hooks/use-quote-mutations";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { useLinkedLiabilities, useAlternativeHoldings } from "@/hooks/use-alternative-assets";
-import type { AlternativeAssetHolding, Quote, Asset, TimePeriod, DateRange } from "@/lib/types";
-import { AlternativeAssetKind } from "@/lib/types";
-import { parseLocalDate } from "@/lib/utils";
+import { LinkedAssetSection, LinkedLiabilitiesSection } from "./linked-liabilities-card";
 
 interface AlternativeAssetContentProps {
   assetId: string;
@@ -59,6 +59,7 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
   quoteHistory,
   activeTab,
 }) => {
+  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
 
@@ -83,7 +84,10 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
   }, [holding.linkedAssetId, allHoldings]);
 
   // Quote mutations for history grid
-  const { saveQuoteMutation, deleteQuoteMutation } = useQuoteMutations(assetId);
+  const { saveQuoteMutation, deleteQuoteMutation, invalidateQuoteQueries } = useQuoteMutations(
+    assetId,
+    { invalidateOnSuccess: false },
+  );
 
   // Filter chart data by date range
   const filteredChartData = useMemo(() => {
@@ -210,7 +214,7 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
                             currency={holding.currency}
                             isHidden={isBalanceHidden}
                           />{" "}
-                          ({formatPercent(Math.abs(gainPercent))}) {selectedIntervalDesc}
+                          ({formatting.formatPercent(Math.abs(gainPercent))}) {selectedIntervalDesc}
                         </>
                       ) : (
                         <>
@@ -219,7 +223,7 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
                             currency={holding.currency}
                             isHidden={isBalanceHidden}
                           />{" "}
-                          ({formatPercent(gainPercent)}) {selectedIntervalDesc}
+                          ({formatting.formatPercent(gainPercent)}) {selectedIntervalDesc}
                         </>
                       )}
                     </p>
@@ -317,11 +321,14 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
   // History tab
   return (
     <ValueHistoryDataGrid
+      key={assetId}
       data={quoteHistory}
+      assetId={assetId}
       currency={holding.currency}
       isLiability={isLiability}
-      onSaveQuote={(quote: Quote) => saveQuoteMutation.mutate(quote)}
-      onDeleteQuote={(id: string) => deleteQuoteMutation.mutate(id)}
+      onSaveQuote={(quote: Quote) => saveQuoteMutation.mutateAsync(quote)}
+      onDeleteQuote={(id: string) => deleteQuoteMutation.mutateAsync(id)}
+      onPersistComplete={invalidateQuoteQueries}
     />
   );
 };
@@ -454,6 +461,9 @@ const AlternativeAssetDetailCard: React.FC<AlternativeAssetDetailCardProps> = ({
   isLiability,
   className,
 }) => {
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
 
@@ -461,7 +471,7 @@ const AlternativeAssetDetailCard: React.FC<AlternativeAssetDetailCardProps> = ({
   const kind = holding.kind.toLowerCase();
 
   // Build detail rows based on asset type
-  const detailRows = getDetailRows(kind, metadata, holding, isBalanceHidden, t);
+  const detailRows = getDetailRows(kind, metadata, holding, isBalanceHidden, t, dateFormatting);
 
   // Calculate liability progress
   const liabilityProgress = useMemo(() => {
@@ -533,7 +543,7 @@ const AlternativeAssetDetailCard: React.FC<AlternativeAssetDetailCardProps> = ({
               {liabilityProgress.percentPaid !== null && (
                 <div className="text-muted-foreground text-xs font-normal">
                   {t("asset:altContent.percent_of_original", {
-                    percent: formatPercent(liabilityProgress.percentPaid),
+                    percent: numberFormatting.formatPercent(liabilityProgress.percentPaid),
                   })}
                 </div>
               )}
@@ -584,7 +594,7 @@ const AlternativeAssetDetailCard: React.FC<AlternativeAssetDetailCardProps> = ({
             <div className="flex justify-between">
               <span className="text-muted-foreground">{t("asset:altContent.purchase_date")}</span>
               <span className="font-medium">
-                {format(parseLocalDate(holding.purchaseDate), "MMM d, yyyy")}
+                {dateFormatting.formatCalendarDate(holding.purchaseDate)}
               </span>
             </div>
           )}
@@ -593,7 +603,7 @@ const AlternativeAssetDetailCard: React.FC<AlternativeAssetDetailCardProps> = ({
             <div className="flex justify-between">
               <span className="text-muted-foreground">{t("asset:altContent.last_updated")}</span>
               <span className="font-medium">
-                {format(parseLocalDate(holding.valuationDate), "MMM d, yyyy")}
+                {dateFormatting.formatCalendarDate(holding.valuationDate)}
               </span>
             </div>
           )}
@@ -648,6 +658,7 @@ function getDetailRows(
   holding: AlternativeAssetHolding,
   isBalanceHidden: boolean,
   t: TFunction,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
 ): DetailRow[] {
   const rows: DetailRow[] = [];
 
@@ -759,7 +770,7 @@ function getDetailRows(
       if (originationDate) {
         rows.push({
           label: t("asset:altContent.origination_date"),
-          value: format(parseLocalDate(originationDate), "MMM d, yyyy"),
+          value: formatting.formatCalendarDate(originationDate),
         });
       }
       break;

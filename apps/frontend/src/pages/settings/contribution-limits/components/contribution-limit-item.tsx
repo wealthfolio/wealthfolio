@@ -8,7 +8,8 @@ import {
   Icons,
   Progress,
   Skeleton,
-  formatAmount,
+  useAmountFormatting,
+  useDateFormatting,
 } from "@wealthfolio/ui";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,6 +30,9 @@ export function ContributionLimitItem({
   onEdit,
   onDelete,
 }: ContributionLimitItemProps) {
+  const amountFormatting = useAmountFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -92,10 +96,10 @@ export function ContributionLimitItem({
                     isOverLimit ? "text-destructive" : isComplete ? "text-success" : ""
                   }`}
                 >
-                  {formatAmount(progressValue, baseCurrency)}
+                  {amountFormatting.formatAmount(progressValue, baseCurrency)}
                 </span>
                 <span className="text-muted-foreground text-sm">
-                  / {formatAmount(limit.limitAmount, baseCurrency)}
+                  / {amountFormatting.formatAmount(limit.limitAmount, baseCurrency)}
                 </span>
               </div>
               {isComplete && (
@@ -104,14 +108,14 @@ export function ContributionLimitItem({
               {isOverLimit && (
                 <span className="text-destructive text-xs">
                   {t("settings:limits_over_limit", {
-                    amount: formatAmount(overLimitAmount, baseCurrency),
+                    amount: amountFormatting.formatAmount(overLimitAmount, baseCurrency),
                   })}
                 </span>
               )}
               {!isComplete && !isOverLimit && (
                 <span className="text-muted-foreground text-xs">
                   {t("settings:limits_remaining", {
-                    amount: formatAmount(remainingAmount, baseCurrency),
+                    amount: amountFormatting.formatAmount(remainingAmount, baseCurrency),
                   })}
                 </span>
               )}
@@ -123,12 +127,12 @@ export function ContributionLimitItem({
             <div className="text-muted-foreground flex items-center gap-2 text-xs">
               <Icons.Calendar className="h-3 w-3 shrink-0" />
               <span>
-                {new Date(limit.startDate).toLocaleDateString(undefined, {
+                {dateFormatting.formatCalendarDate(limit.startDate.slice(0, 10), {
                   month: "short",
                   day: "numeric",
                 })}{" "}
                 →{" "}
-                {new Date(limit.endDate).toLocaleDateString(undefined, {
+                {dateFormatting.formatCalendarDate(limit.endDate.slice(0, 10), {
                   month: "short",
                   day: "numeric",
                   year: "numeric",
@@ -160,8 +164,8 @@ export function ContributionLimitItem({
               <div className="text-muted-foreground flex items-center text-xs">
                 <Icons.Calendar className="mr-1 h-3 w-3" />
                 <span>
-                  {new Date(limit.startDate).toLocaleDateString()} →{" "}
-                  {new Date(limit.endDate).toLocaleDateString()}
+                  {dateFormatting.formatCalendarDate(limit.startDate.slice(0, 10))} →{" "}
+                  {dateFormatting.formatCalendarDate(limit.endDate.slice(0, 10))}
                 </span>
                 {daysRemaining !== null && daysRemaining > 0 && daysRemaining <= 60 && (
                   <span
@@ -188,13 +192,13 @@ export function ContributionLimitItem({
                     }`}
                   >
                     {isComplete
-                      ? formatAmount(limit.limitAmount, baseCurrency)
+                      ? amountFormatting.formatAmount(limit.limitAmount, baseCurrency)
                       : isOverLimit
-                        ? `${formatAmount(progressValue, baseCurrency)}`
-                        : `${formatAmount(progressValue, baseCurrency)}`}
+                        ? `${amountFormatting.formatAmount(progressValue, baseCurrency)}`
+                        : `${amountFormatting.formatAmount(progressValue, baseCurrency)}`}
                   </span>
                   <span className="text-muted-foreground text-xs">
-                    / {formatAmount(limit.limitAmount, baseCurrency)}
+                    / {amountFormatting.formatAmount(limit.limitAmount, baseCurrency)}
                   </span>
                 </div>
                 <span className="text-muted-foreground text-right text-xs">
@@ -202,7 +206,7 @@ export function ContributionLimitItem({
                     ? t("settings:limits_completed")
                     : isOverLimit
                       ? t("settings:limits_over_limit", {
-                          amount: formatAmount(overLimitAmount, baseCurrency),
+                          amount: amountFormatting.formatAmount(overLimitAmount, baseCurrency),
                         })
                       : `${limit.contributionYear}`}
                 </span>

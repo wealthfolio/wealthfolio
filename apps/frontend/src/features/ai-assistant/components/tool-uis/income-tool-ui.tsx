@@ -1,3 +1,4 @@
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import {
@@ -13,13 +14,12 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-  formatPercent,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
+import type { TFunction } from "i18next";
 import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { Bar, BarChart, ResponsiveContainer, Tooltip as ChartTooltip, XAxis } from "recharts";
+import { Bar, BarChart, Tooltip as ChartTooltip, ResponsiveContainer, XAxis } from "recharts";
 import { CompactToolCard } from "./shared";
 
 // ============================================================================
@@ -202,6 +202,7 @@ type IncomeContentProps = ToolCallMessagePartProps<GetIncomeArgs, GetIncomeOutpu
 const IncomeContent = memo(IncomeContentImpl);
 
 function IncomeContentImpl({ args, result, status }: IncomeContentProps) {
+  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const parsed = normalizeResult(result);
@@ -209,14 +210,16 @@ function IncomeContentImpl({ args, result, status }: IncomeContentProps) {
   const currency = parsed?.currency ?? "USD";
 
   const formatter = useMemo(
-    () =>
-      new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }),
-    [currency],
+    () => ({
+      format: (value: number) =>
+        formatting.formatDecimal(value, {
+          style: "currency",
+          currency,
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }),
+    }),
+    [currency, formatting],
   );
 
   // Calculate type percentages
@@ -461,7 +464,8 @@ function IncomeContentImpl({ args, result, status }: IncomeContentProps) {
                         <div className="text-center">
                           <div className="font-medium">{asset.symbol}</div>
                           <div className="text-muted-foreground text-xs">
-                            {formatValue(asset.income)} ({formatPercent(asset.percentage / 100)})
+                            {formatValue(asset.income)} (
+                            {formatting.formatPercent(asset.percentage / 100)})
                           </div>
                         </div>
                       </TooltipContent>
@@ -486,7 +490,7 @@ function IncomeContentImpl({ args, result, status }: IncomeContentProps) {
                       <span className="text-muted-foreground truncate">{asset.name}</span>
                     </div>
                     <span className="text-muted-foreground flex-shrink-0 tabular-nums">
-                      {formatPercent(asset.percentage / 100)}
+                      {formatting.formatPercent(asset.percentage / 100)}
                     </span>
                     <span className="flex-shrink-0 font-medium tabular-nums">
                       {formatValue(asset.income)}

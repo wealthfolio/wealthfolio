@@ -151,5 +151,6 @@
     "period_irr": "기간 IRR",
     "twr_hover_hint": " 값 위에 마우스를 올리면 누적 TWR을 볼 수 있습니다.",
     "irr_hover_hint": " 값 위에 마우스를 올리면 선택한 기간의 IRR을 볼 수 있습니다."
-  }
+  },
+  "more_count_other": "+{{count}}개 더보기"
 }

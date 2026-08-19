@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render } from "@/test/render";
 import { describe, expect, it } from "vitest";
 
 import type { DriftRow } from "@/lib/types";

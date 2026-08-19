@@ -126,7 +126,9 @@
     "splitTransaction": "Split transaction",
     "duplicate": "Duplicate",
     "unlinkTransfer": "Unlink transfer",
-    "linkTransfer": "Link transfer..."
+    "linkTransfer": "Link transfer...",
+    "deleteConfirmMany_one": "Are you sure you want to delete {{count}} transaction?",
+    "deleteConfirmMany_other": "Are you sure you want to delete {{count}} transactions?"
   },
   "cashFlow": {
     "income": "Income",
@@ -165,7 +167,9 @@
     "viewAllToTag": "View all · {{count}} to tag →",
     "noRecentActivity": "No recent activity.",
     "noPayee": "No payee",
-    "uncategorized": "Uncategorized"
+    "uncategorized": "Uncategorized",
+    "viewAllToTag_one": "View all · {{count}} to tag →",
+    "viewAllToTag_other": "View all · {{count}} to tag →"
   },
   "filters": {
     "statusNeedsReview": "Needs review",
@@ -173,6 +177,7 @@
     "statusCategorized": "Categorized",
     "countLabel": "{{visible}} / {{total}} transactions",
     "countLabel_one": "{{visible}} / {{total}} transaction",
+    "countLabel_other": "{{visible}} / {{total}} transactions",
     "countZero": "0 transactions",
     "category": "Category",
     "subcategory": "Subcategory",
@@ -209,7 +214,11 @@
     "removeKeptEdited_one": "Your {{count}} edited rule will be kept as a standalone rule.",
     "removeKeptEdited_other": "Your {{count}} edited rules will be kept as standalone rules.",
     "removeGeneric": "Rules from this preset will be removed. Your edits are kept.",
-    "remove": "Remove"
+    "remove": "Remove",
+    "reimportLabel_one": "Re-import {{name}} preset ({{count}} rule)",
+    "reimportLabel_other": "Re-import {{name}} preset ({{count}} rules)",
+    "importLabel_one": "Import {{name}} preset ({{count}} rule)",
+    "importLabel_other": "Import {{name}} preset ({{count}} rules)"
   },
   "budgetBars": {
     "statusOver": "Over",
@@ -345,7 +354,13 @@
     "loadError": "Transactions could not load.",
     "noTransactions": "No transactions in this period.",
     "loadMore": "Load {{count}} more",
-    "openInTransactions": "Open in Transactions"
+    "openInTransactions": "Open in Transactions",
+    "outflowsCount_one": "{{count}} outflow",
+    "outflowsCount_other": "{{count}} outflows",
+    "totalCount_one": "{{count}} total",
+    "totalCount_other": "{{count}} total",
+    "loadMore_one": "Load {{count}} more",
+    "loadMore_other": "Load {{count}} more"
   },
   "heatmapSheet": {
     "eyebrow": "When you spend",
@@ -588,6 +603,16 @@
   },
   "whatChanged": {
     "headlineMeta": "HEADLINE · {{label}}",
+    "headlineNoActivity": "No spending recorded in this window.",
+    "headlineLeadPrefix": "You spent ",
+    "headlineNoPriorSuffix": " this period. No prior data to compare against.",
+    "headlineMoreSuffix": " more than {{priorLabel}}.",
+    "headlineLessSuffix": " less than {{priorLabel}}.",
+    "headlineSeveralDrivers": "Spending shifted across several categories; no single category drove the change.",
+    "headlineRiseDriverPrefix": " Most of the rise came from ",
+    "headlineDropDriverPrefix": " Most of the drop came from ",
+    "headlineSentenceEnd": ".",
+    "headlineOppositeSuffix": " went the other way.",
     "categoryDetails": "Category details",
     "categoryTrends": "Category trends",
     "showMore": "Show {{count}} more →",
@@ -604,7 +629,9 @@
     "impact": "Impact",
     "deltaPct": "Δ %",
     "combinedVs": "{{current}} VS {{prior}}",
-    "combinedMonths": "{{months}}M VS PRIOR {{months}}M"
+    "combinedMonths": "{{months}}M VS PRIOR {{months}}M",
+    "showMore_one": "Show {{count}} more →",
+    "showMore_other": "Show {{count}} more →"
   },
   "whereIAm": {
     "statusOverBudget": "OVER BUDGET",
@@ -666,7 +693,9 @@
     "sortByLabel": "Sort by {{label}}",
     "categoriesShown_one": "{{shown}} of {{total}} category shown",
     "categoriesShown_other": "{{shown}} of {{total}} categories shown",
-    "openTransactions": "Open transactions →"
+    "openTransactions": "Open transactions →",
+    "moreCount_one": "+{{count}} more",
+    "moreCount_other": "+{{count}} more"
   },
   "budgetChart": {
     "overBudget": "Over budget",
@@ -774,7 +803,9 @@
     "selectAllVisible": "Select all visible transactions",
     "nameNotes": "Name / Notes",
     "loading": "Loading…",
-    "loadMore": "Load more ({{count}} remaining)"
+    "loadMore": "Load more ({{count}} remaining)",
+    "loadMore_one": "Load more ({{count}} remaining)",
+    "loadMore_other": "Load more ({{count}} remaining)"
   },
   "tabContent": {
     "stageWhereLabel": "Where I am",
@@ -827,7 +858,9 @@
     "interval3M": "past 3 months",
     "interval6M": "past 6 months",
     "intervalYtd": "year to date",
-    "interval1Y": "past year"
+    "interval1Y": "past year",
+    "plusMore_one": "+ {{count}} more",
+    "plusMore_other": "+ {{count}} more"
   },
   "budgetEditor": {
     "newGroup": "New group",
@@ -906,6 +939,10 @@
     "unassigned": "Unassigned",
     "rolloverIn": "Rollover in",
     "dataUnavailable": "Budget data is not available",
-    "migrationNeeded": "The current local database was created before the updated spending migration."
+    "migrationNeeded": "The current local database was created before the updated spending migration.",
+    "addSource_one": "Add source ({{count}} available)",
+    "addSource_other": "Add source ({{count}} available)",
+    "overridesTitle_one": "Override · {{count}}",
+    "overridesTitle_other": "Overrides · {{count}}"
   }
 }

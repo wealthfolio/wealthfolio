@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+import { GainAmount, GainPercent, useNumberFormatting } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
@@ -7,8 +9,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@wealthfolio/ui/components/ui/tooltip";
-import { cn } from "@/lib/utils";
-import { formatPercent, GainAmount, GainPercent } from "@wealthfolio/ui";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -70,6 +70,7 @@ export const MetricDisplay: React.FC<MetricDisplayProps> = ({
   emptyReason,
   tone = "gain",
 }) => {
+  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const [mobilePopoverOpen, setMobilePopoverOpen] = useState(false);
 
@@ -78,7 +79,7 @@ export const MetricDisplay: React.FC<MetricDisplayProps> = ({
       <span className={cn("text-muted-foreground text-base font-medium", valueClassName)}>N/A</span>
     ) : isPercentage && tone === "neutral" ? (
       <span className={cn("text-foreground text-base font-medium", valueClassName)}>
-        {formatPercent(value)}
+        {formatting.formatPercent(value)}
       </span>
     ) : isPercentage ? (
       <GainPercent

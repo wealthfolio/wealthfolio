@@ -1,6 +1,6 @@
-import { cn } from "@/lib/utils";
 import type { IncomeByAccount } from "@/lib/types";
-import { AnimatedToggleGroup, formatAmount } from "@wealthfolio/ui";
+import { cn } from "@/lib/utils";
+import { AnimatedToggleGroup, useAmountFormatting, useDateFormatting } from "@wealthfolio/ui";
 import {
   Card,
   CardContent,
@@ -17,7 +17,6 @@ import {
 } from "@wealthfolio/ui/components/ui/chart";
 import { EmptyPlaceholder } from "@wealthfolio/ui/components/ui/empty-placeholder";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { format, parseISO } from "date-fns";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Area, Bar, BarChart, CartesianGrid, ComposedChart, XAxis, YAxis } from "recharts";
@@ -52,15 +51,6 @@ function getAlignedTicks(maxValue: number, tickCount: number): number[] {
   return Array.from({ length: tickCount }, (_, i) => i * step);
 }
 
-function formatK(value: number): string {
-  if (value === 0) return "0";
-  if (Math.abs(value) >= 1000) {
-    const k = value / 1000;
-    return `${Number.isInteger(k) ? k : k.toFixed(1)}k`;
-  }
-  return value.toString();
-}
-
 interface IncomeHistoryChartProps {
   monthlyIncomeData: [string, number][];
   previousMonthlyIncomeData: [string, number][];
@@ -78,7 +68,11 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
   isBalanceHidden,
   byAccount,
 }) => {
+  const amountFormatting = useAmountFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
+  const { formatCompactAmount } = useAmountFormatting();
   const [isMobile, setIsMobile] = React.useState(false);
   const [viewMode, setViewMode] = useState<"combined" | "byAccount">("combined");
 
@@ -171,8 +165,11 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
     interval: 0 as const,
     tick: { fontSize: isMobile ? 11 : 12 },
     tickFormatter: (value: string) => {
-      const date = parseISO(`${value}-01`);
-      return isMobile ? format(date, "MMM") : format(date, "MMM yy");
+      return dateFormatting.formatCalendarDate(`${value}-01`, {
+        calendar: "gregory",
+        month: "short",
+        ...(isMobile ? {} : { year: "2-digit" as const }),
+      });
     },
   };
 
@@ -201,12 +198,16 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
     width: isMobile ? 45 : 60,
     ticks: yTicks,
     domain: [0, yTicks[yTicks.length - 1] || 0] as [number, number],
-    tickFormatter: formatK,
+    tickFormatter: (value: number) => formatCompactAmount(value, currency, false),
   };
 
   const tooltipLabelFormatter = (label: unknown) => {
     if (typeof label !== "string") return "";
-    return format(parseISO(`${label}-01`), isMobile ? "MMM yyyy" : "MMMM yyyy");
+    return dateFormatting.formatCalendarDate(`${label}-01`, {
+      calendar: "gregory",
+      month: isMobile ? "short" : "long",
+      year: "numeric",
+    });
   };
 
   return (
@@ -275,7 +276,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
                     formatter={(value, name, entry) => {
                       const formattedValue = isBalanceHidden
                         ? "••••"
-                        : formatAmount(Number(value), currency);
+                        : amountFormatting.formatAmount(Number(value), currency);
                       const label = accountChartConfig[name as string]?.label ?? String(name);
                       return (
                         <>
@@ -358,7 +359,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
                 ticks={rightTicks}
                 domain={[0, rightTicks[rightTicks.length - 1] || 0]}
                 tick={{ fontSize: 12, fill: "var(--chart-2)" }}
-                tickFormatter={formatK}
+                tickFormatter={(value: number) => formatCompactAmount(value, currency, false)}
               />
               <ChartTooltip
                 content={
@@ -367,7 +368,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
                     formatter={(value, name, entry) => {
                       const formattedValue = isBalanceHidden
                         ? "••••"
-                        : formatAmount(Number(value), currency);
+                        : amountFormatting.formatAmount(Number(value), currency);
                       return (
                         <>
                           <div

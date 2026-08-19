@@ -196,6 +196,21 @@
     "holding_fetch_error": "Error al obtener la posición.",
     "quote_fetch_error": "Error al obtener la cotización.",
     "asset_profile_fetch_error": "Error al obtener el perfil del activo.",
+    "health": {
+      "add_price_for_date": "Añadir un precio para el {{date}}",
+      "manual_prices_need_review": "Los precios manuales necesitan revisión",
+      "carrying_forward_add_date": "Wealthfolio está trasladando el último precio. Añade esta fecha solo si necesita su propio valor.",
+      "review_missing_dates": "Revisa las fechas que faltan. Añade los precios que necesiten su propio valor; los precios trasladados se siguen usando entre entradas.",
+      "price_missing_for_date": "Falta el precio del {{date}}",
+      "price_history_needs_review": "El historial de precios necesita revisión",
+      "carrying_forward_refetch": "Wealthfolio está trasladando el último precio disponible. Vuelve a obtener los precios si era un día de mercado.",
+      "refetch_history": "Vuelve a obtener el historial del proveedor para restaurar precios ausentes u obsoletos. Se usan precios trasladados hasta disponer de precios exactos.",
+      "cost_basis_needs_review": "La base de coste necesita revisión",
+      "cost_basis_description": "Actualiza lo que pagaste para que Wealthfolio pueda calcular la ganancia o pérdida.",
+      "transactions_need_review": "Las transacciones necesitan revisión",
+      "transactions_description": "Revisa las transacciones que el Centro de salud marcó para esta inversión.",
+      "refetch_prices": "Volver a obtener precios"
+    },
     "confirm_option_expiry_title": "Confirmar vencimiento de la opción",
     "confirm_option_expiry_description": "Esto registrará la opción como vencida sin valor, eliminando la posición sin efecto en el efectivo. Esta acción no se puede deshacer fácilmente.",
     "kind": {
@@ -385,7 +400,9 @@
     "to_auto_warning": "Los datos históricos introducidos manualmente podrían perderse.",
     "to_manual_description": "Al cambiar al seguimiento manual se detendrá la obtención automática de datos desde el proveedor de datos de mercado. Tendrás que introducir y mantener los datos de precios manualmente.",
     "to_manual_warning": "Las actualizaciones automáticas de precios se desactivarán.",
-    "confirm_change": "Confirmar cambio"
+    "confirm_change": "Confirmar cambio",
+    "delete_count_one": "Eliminar ({{count}})",
+    "delete_count_other": "Eliminar ({{count}})"
   },
   "quoteTable": {
     "date": "Fecha",
@@ -637,7 +654,6 @@
     "select_mortgage_to_link": "Selecciona una hipoteca a vincular",
     "link_mortgage": "Vincular hipoteca",
     "link_mortgage_description": "Selecciona una hipoteca a vincular con este inmueble",
-    "cancel": "Cancelar",
     "link": "Vincular",
     "sectionTitle": {
       "property": "Inmueble",
@@ -666,7 +682,12 @@
     "date": "Fecha",
     "balance": "Saldo",
     "value": "Valor",
-    "notes": "Notas"
+    "notes": "Notas",
+    "edit_entry_aria": "Editar la entrada del {{date}}, {{value}}",
+    "delete_entry_aria": "Eliminar la entrada del {{date}}, {{value}}",
+    "delete_title": "¿Eliminar entrada del historial?",
+    "delete_description": "Esta entrada del historial se eliminará de forma permanente.",
+    "duplicate_date_error": "Cada entrada del historial debe usar una fecha única."
   },
   "valueToolbar": {
     "add_balance": "Añadir saldo",
@@ -675,6 +696,12 @@
     "modified": "{{count}} modificados",
     "to_delete": "{{count}} para eliminar",
     "cancel": "Cancelar",
-    "save_changes": "Guardar cambios"
+    "save_changes": "Guardar cambios",
+    "delete_count_one": "Eliminar ({{count}})",
+    "delete_count_other": "Eliminar ({{count}})",
+    "modified_one": "{{count}} modificado",
+    "modified_other": "{{count}} modificados",
+    "to_delete_one": "{{count}} para eliminar",
+    "to_delete_other": "{{count}} para eliminar"
   }
 }

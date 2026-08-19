@@ -8,22 +8,30 @@ import type {
   SaveUpProjectionPointDTO,
 } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
-import { AmountDisplay, Button, DatePickerInput, formatCurrencySymbol } from "@wealthfolio/ui";
+import {
+  AmountDisplay,
+  Button,
+  DatePickerInput,
+  useAmountFormatting,
+  useDateFormatting,
+  useNumberFormatting,
+  type FormattingApi,
+} from "@wealthfolio/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { GoalFundingEditor } from "../../components/goal-funding-editor";
+import {
+  DEFAULT_RETURN_SLIDER_MAX,
+  highReturnWarning,
+  RATE_SLIDER_INCREMENT,
+} from "../../components/goal-lever-constants";
 import {
   GoalLeverRow as LeverRow,
   rateSliderMaxFor,
   sliderMaxFor,
 } from "../../components/goal-lever-row";
-import {
-  DEFAULT_RETURN_SLIDER_MAX,
-  RATE_SLIDER_INCREMENT,
-  highReturnWarning,
-} from "../../components/goal-lever-constants";
-import { GoalFundingEditor } from "../../components/goal-funding-editor";
 import { useGoalPlanMutations, useSaveUpPreview } from "../../hooks/use-goal-detail";
 import { useGoalMutations } from "../../hooks/use-goals";
 import { SaveUpProjectionCard } from "./save-up-projection-card";
@@ -88,6 +96,10 @@ interface Props {
 }
 
 export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const { settings } = useSettingsContext();
@@ -97,7 +109,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
   const progress = overview?.progress ?? goal.summaryProgress ?? 0;
   const currentValue = overview?.currentValue ?? goal.summaryCurrentValue ?? 0;
   const currency = settings?.baseCurrency ?? goal.currency ?? "USD";
-  const moneyPrefix = formatCurrencySymbol(currency);
+  const moneyPrefix = amountFormatting.formatCurrencySymbol(currency);
   const initialTargetAmount = goal.targetAmount ?? 0;
   const initialTargetDate = existingSettings.targetDate ?? goal.targetDate ?? "";
   const initialMonthlyContribution =
@@ -235,6 +247,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
       projection,
     },
     t,
+    dateFormatting,
   );
   const projectedGap = projection ? projection.projectedValueAtTargetDate - targetAmount : null;
   const monthlyDifference = projection
@@ -259,10 +272,14 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
         ? t("goals:save_up.surplus")
         : t("goals:save_up.gap");
   const gapMetricValue = projectedGap === null ? remainingNow : Math.abs(projectedGap);
-  const targetDateLabel = formatGoalDate(targetDate);
+  const targetDateLabel = formatGoalDate(targetDate, dateFormatting);
   const savingsMilestones = useMemo(
-    () => buildSavingsMilestones(chartData, targetAmount, currentValue, t),
-    [chartData, targetAmount, currentValue, t],
+    () =>
+      buildSavingsMilestones(chartData, targetAmount, currentValue, t, {
+        ...dateFormatting,
+        ...numberFormatting,
+      }),
+    [chartData, targetAmount, currentValue, t, dateFormatting, numberFormatting],
   );
 
   return (
@@ -443,7 +460,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
                 </span>
               </SidebarRow>
               <SidebarRow label={t("goals:save_up.field_expected_return")}>
-                {(annualReturn * 100).toFixed(1)}%
+                {numberFormatting.formatPercent(annualReturn, { digits: 1 })}
               </SidebarRow>
             </div>
           }
@@ -460,7 +477,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
                 inputMax={SAVE_UP_MAX_TARGET_AMOUNT}
                 step={100}
                 prefix={moneyPrefix}
-                format={(v) => Math.round(v).toLocaleString()}
+                format={(v) => numberFormatting.formatDecimal(Math.round(v))}
               />
               <DateRow
                 label={t("goals:save_up.field_target_date")}
@@ -479,7 +496,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
                 inputMax={SAVE_UP_MAX_MONTHLY_CONTRIBUTION}
                 step={25}
                 prefix={moneyPrefix}
-                format={(v) => Math.round(v).toLocaleString()}
+                format={(v) => numberFormatting.formatDecimal(Math.round(v))}
               />
               <LeverRow
                 label={t("goals:save_up.field_expected_annual_return")}
@@ -537,8 +554,9 @@ function getSaveUpStatus(
     projection: SaveUpOverviewDTO | null;
   },
   t: TFn,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
 ): SaveUpStatus {
-  const dateLabel = formatGoalDate(targetDate) ?? t("goals:save_up.your_target_date");
+  const dateLabel = formatGoalDate(targetDate, formatting) ?? t("goals:save_up.your_target_date");
 
   if (!targetAmount || !targetDate) {
     return {
@@ -605,14 +623,20 @@ function getSaveUpStatus(
   };
 }
 
-function formatGoalDate(value?: string | null) {
+function formatGoalDate(
+  value: string | null | undefined,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+) {
   if (!value) return null;
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month) return null;
-  return new Date(year, month - 1, day || 1).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-  });
+  return formatting.formatCalendarDate(
+    { year, month, day: day || 1 },
+    {
+      year: "numeric",
+      month: "short",
+    },
+  );
 }
 
 function HeroMetric({ label, children }: { label: string; children: React.ReactNode }) {
@@ -645,6 +669,7 @@ function MonthlyPlanCallout({
   currency: string;
   isHidden: boolean;
 }) {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   return (
     <Card>
@@ -684,7 +709,7 @@ function MonthlyPlanCallout({
               </span>
             </CalloutMetric>
             <CalloutMetric label={t("goals:save_up.finish")}>
-              {formatGoalDate(completionDate) ?? t("goals:save_up.not_reached")}
+              {formatGoalDate(completionDate, formatting) ?? t("goals:save_up.not_reached")}
             </CalloutMetric>
           </div>
         </div>

@@ -1,3 +1,6 @@
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useSettingsContext } from "@/lib/settings-provider";
+import { cn } from "@/lib/utils";
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import {
@@ -6,15 +9,18 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  parseDateTimeInTimezone,
   Progress,
   Skeleton,
+  useAmountFormatting,
+  useDateFormatting,
+  useLocalizationSettings,
+  useNumberFormatting,
+  type FormattingApi,
 } from "@wealthfolio/ui";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { useSettingsContext } from "@/lib/settings-provider";
 import { CompactToolCard } from "./shared";
 
 // ============================================================================
@@ -153,14 +159,18 @@ function normalizeGoalsResult(candidate: Record<string, unknown>): GetGoalsResul
  * Green if on track (>= 80% of expected progress), yellow if behind (50-80%), red if far behind (<50%).
  * If deadline is not available, we only use the raw progress percent.
  */
-function getProgressColor(progressPercent: number, deadline?: string | null): string {
+function getProgressColor(
+  progressPercent: number,
+  deadline?: string | null,
+  timezone?: string,
+): string {
   // If there's a deadline, calculate expected progress
   if (deadline) {
     const now = new Date();
-    const deadlineDate = new Date(deadline);
+    const deadlineDate = parseDateTimeInTimezone(`${deadline.slice(0, 10)}T23:59:59.999`, timezone);
     const startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()); // Assume 1 year goal if no start date
 
-    const totalDuration = deadlineDate.getTime() - startDate.getTime();
+    const totalDuration = (deadlineDate?.getTime() ?? 0) - startDate.getTime();
     const elapsed = now.getTime() - startDate.getTime();
 
     if (totalDuration > 0 && elapsed > 0) {
@@ -191,17 +201,15 @@ function getProgressColor(progressPercent: number, deadline?: string | null): st
 /**
  * Formats a date string for display.
  */
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr);
-    return new Intl.DateTimeFormat(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    }).format(date);
-  } catch {
-    return dateStr;
-  }
+function formatDate(
+  dateStr: string,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+): string {
+  return formatting.formatCalendarDate(dateStr.slice(0, 10), {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 // ============================================================================
@@ -238,21 +246,23 @@ function GoalsLoadingSkeleton() {
 
 function GoalCard({
   goal,
-  formatter,
+  formatting,
+  currency,
   isBalanceHidden,
 }: {
   goal: GoalDto;
-  formatter: Intl.NumberFormat;
+  formatting: FormattingApi;
+  currency: string;
   isBalanceHidden: boolean;
 }) {
   const { t } = useTranslation();
-  const progressColor = getProgressColor(goal.progressPercent, goal.deadline);
+  const progressColor = getProgressColor(goal.progressPercent, goal.deadline, formatting.timezone);
 
   const formatValue = (value: number) => {
     if (isBalanceHidden) {
       return "******";
     }
-    return formatter.format(value);
+    return formatting.formatRoundedAmount(value, currency);
   };
 
   return (
@@ -295,7 +305,7 @@ function GoalCard({
         {goal.deadline && (
           <span className="text-muted-foreground flex items-center gap-1">
             <Icons.Calendar className="h-3 w-3" />
-            {formatDate(goal.deadline)}
+            {formatDate(goal.deadline, formatting)}
           </span>
         )}
       </div>
@@ -340,6 +350,18 @@ function ErrorState({ message }: { message?: string }) {
 type GoalsToolUIContentProps = ToolCallMessagePartProps<GetGoalsArgs, GetGoalsResult>;
 
 function GoalsToolUIContentImpl({ args, result, status }: GoalsToolUIContentProps) {
+  const localizationSettings = useLocalizationSettings();
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
+  const formatting = {
+    ...localizationSettings,
+    ...amountFormatting,
+    ...numberFormatting,
+    ...dateFormatting,
+  };
+
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -353,18 +375,6 @@ function GoalsToolUIContentImpl({ args, result, status }: GoalsToolUIContentProp
   if (args?.displayMode === "compact" && parsed && !isLoading) {
     return <CompactToolCard label={t("ai:goals.fetched", { count: parsed.goals.length })} />;
   }
-
-  // Currency formatter - default to base currency
-  const formatter = useMemo(
-    () =>
-      new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency: baseCurrency,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }),
-    [baseCurrency],
-  );
 
   // Show loading skeleton while running
   if (isLoading) {
@@ -410,7 +420,8 @@ function GoalsToolUIContentImpl({ args, result, status }: GoalsToolUIContentProp
           <GoalCard
             key={goal.id}
             goal={goal}
-            formatter={formatter}
+            formatting={formatting}
+            currency={baseCurrency}
             isBalanceHidden={isBalanceHidden}
           />
         ))}

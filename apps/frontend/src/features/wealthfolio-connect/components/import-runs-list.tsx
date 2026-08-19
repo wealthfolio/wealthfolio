@@ -1,18 +1,18 @@
+import { useDateFormatting } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@wealthfolio/ui/components/ui/collapsible";
-import { format } from "date-fns";
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import type { TFunction } from "i18next";
-import type { ImportRun, ImportRunStatus } from "../types";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { BROKER_SYNC_RUN_FAILED_MESSAGE } from "../lib/broker-sync-messages";
+import type { ImportRun, ImportRunStatus } from "../types";
 
 interface ImportRunsListProps {
   runs: ImportRun[];
@@ -79,6 +79,7 @@ export function ImportRunsList({ runs, isLoading }: ImportRunsListProps) {
 }
 
 function ImportRunItem({ run }: { run: ImportRun }) {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const statusConfig = useMemo(() => buildStatusConfig(t), [t]);
@@ -93,7 +94,7 @@ function ImportRunItem({ run }: { run: ImportRun }) {
             <div className="flex items-center gap-3">
               <div className="text-left">
                 <p className="text-sm font-medium">
-                  {format(new Date(run.startedAt), "MMM d, yyyy HH:mm")}
+                  {formatting.formatDateTime(new Date(run.startedAt))}
                 </p>
                 <p className="text-muted-foreground text-xs">
                   {run.sourceSystem} · {run.mode.toLowerCase()}

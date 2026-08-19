@@ -1,12 +1,13 @@
-import { reloadAllAddons } from "@/addons/addons-core";
-import { clearAddonStaging, downloadAddonForReview, installFromStaging } from "@/adapters";
 import type { ExtractedAddon } from "@/adapters";
+import { clearAddonStaging, downloadAddonForReview, installFromStaging } from "@/adapters";
+import { reloadAllAddons } from "@/addons/addons-core";
 import { ExternalLink } from "@/components/external-link";
+import type { AddonUpdateInfo, Permission, RiskLevel } from "@wealthfolio/addon-sdk";
+import { useDateFormatting } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useToast } from "@wealthfolio/ui/components/ui/use-toast";
-import type { AddonUpdateInfo, Permission, RiskLevel } from "@wealthfolio/addon-sdk";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PermissionDialog } from "./addon-permission-dialog";
@@ -30,6 +31,7 @@ export function AddonUpdateCard({
   enableAfterInstall = true,
   approvedNetworkHosts = [],
 }: AddonUpdateCardProps) {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   const [isUpdating, setIsUpdating] = useState(false);
   const [permissionReview, setPermissionReview] = useState<{
@@ -200,7 +202,7 @@ export function AddonUpdateCard({
               {updateInfo.releaseDate && (
                 <p className="text-xs opacity-80">
                   {t("settings:addon_update_released", {
-                    date: new Date(updateInfo.releaseDate).toLocaleDateString(),
+                    date: formatting.formatDate(updateInfo.releaseDate),
                   })}
                 </p>
               )}

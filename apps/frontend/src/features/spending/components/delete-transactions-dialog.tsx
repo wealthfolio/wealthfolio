@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
 
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import {} from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,9 +11,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  useAmountFormatting,
 } from "@wealthfolio/ui";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { formatAmount } from "@/lib/utils";
 
 export interface DeletePreview {
   activityType: string;
@@ -36,11 +37,12 @@ export function DeleteTransactionsDialog({
   onCancel,
   isPending,
 }: DeleteTransactionsDialogProps) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const previewAmount = isBalanceHidden
     ? "••••"
-    : formatAmount(parseFloat(preview?.amount ?? "0") || 0, preview?.currency ?? "USD");
+    : formatting.formatAmount(parseFloat(preview?.amount ?? "0") || 0, preview?.currency ?? "USD");
   const message =
     count === 1 && preview
       ? t("spending:transactions.deleteConfirmSingle", {

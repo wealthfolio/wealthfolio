@@ -1,23 +1,24 @@
+import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { type UseFormReturn } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 
 import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { Input } from "@wealthfolio/ui/components/ui/input";
-import { Label } from "@wealthfolio/ui/components/ui/label";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@wealthfolio/ui/components/ui/collapsible";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { Input } from "@wealthfolio/ui/components/ui/input";
+import { Label } from "@wealthfolio/ui/components/ui/label";
 
 import type { DetectedHtmlTable } from "@/lib/types/custom-provider";
 import { cn } from "@/lib/utils";
 
-import { RawResponseViewer } from "./response-preview";
+import { useNumberFormatting, type FormattingApi } from "@wealthfolio/ui";
 import type { FormValues, SourceKey } from "./custom-provider-form";
+import { RawResponseViewer } from "./response-preview";
 import type { MappingField, SourceRuntime } from "./use-source-runtime";
 
 interface LivePreviewPaneProps {
@@ -426,6 +427,8 @@ function labelForField(f: MappingField, t: TFunction): string {
 }
 
 function HtmlElementsResponse({ runtime }: { runtime: SourceRuntime }) {
+  const numberFormatting = useNumberFormatting();
+
   const { t } = useTranslation();
   const [showAll, setShowAll] = useState(false);
   const max = 10;
@@ -464,7 +467,7 @@ function HtmlElementsResponse({ runtime }: { runtime: SourceRuntime }) {
               )}
             </div>
             <span className="shrink-0 pt-0.5 font-mono text-base font-semibold tabular-nums">
-              {formatNumber(el.value)}
+              {formatNumber(el.value, numberFormatting)}
             </span>
           </button>
         ))}
@@ -484,9 +487,9 @@ function HtmlElementsResponse({ runtime }: { runtime: SourceRuntime }) {
   );
 }
 
-function formatNumber(n: number): string {
-  if (Math.abs(n) >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  if (n !== Math.floor(n)) return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
+function formatNumber(n: number, formatting: Pick<FormattingApi, "formatDecimal">): string {
+  if (Math.abs(n) >= 1000) return formatting.formatDecimal(n, { maximumFractionDigits: 2 });
+  if (n !== Math.floor(n)) return formatting.formatDecimal(n, { maximumFractionDigits: 6 });
   return String(n);
 }
 
@@ -635,6 +638,7 @@ function FieldMappingRow({
 }
 
 export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps) {
+  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const [moreFieldsOpen, setMoreFieldsOpen] = useState(false);
   const format = form.watch(`${prefix}.format`) ?? "json";
@@ -857,7 +861,7 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
                 display={
                   runtime.testResult.price != null ? (
                     <span className="tabular-nums">
-                      {runtime.testResult.price.toLocaleString()}
+                      {formatting.formatDecimal(runtime.testResult.price)}
                       {runtime.testResult.currency && (
                         <span className="text-muted-foreground ml-1.5 text-xs font-normal">
                           {runtime.testResult.currency}
@@ -885,7 +889,7 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
                   display={
                     runtime.testResult.open != null ? (
                       <span className="tabular-nums">
-                        {runtime.testResult.open.toLocaleString()}
+                        {formatting.formatDecimal(runtime.testResult.open)}
                       </span>
                     ) : null
                   }
@@ -898,7 +902,7 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
                   display={
                     runtime.testResult.high != null ? (
                       <span className="tabular-nums">
-                        {runtime.testResult.high.toLocaleString()}
+                        {formatting.formatDecimal(runtime.testResult.high)}
                       </span>
                     ) : null
                   }
@@ -911,7 +915,7 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
                   display={
                     runtime.testResult.low != null ? (
                       <span className="tabular-nums">
-                        {runtime.testResult.low.toLocaleString()}
+                        {formatting.formatDecimal(runtime.testResult.low)}
                       </span>
                     ) : null
                   }
@@ -924,7 +928,7 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
                   display={
                     runtime.testResult.volume != null ? (
                       <span className="tabular-nums">
-                        {runtime.testResult.volume.toLocaleString()}
+                        {formatting.formatDecimal(runtime.testResult.volume)}
                       </span>
                     ) : null
                   }

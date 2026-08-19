@@ -68,7 +68,10 @@
     "colCurrent": "現在",
     "colTarget": "目標",
     "colDrift": "乖離",
-    "colAccount": "口座"
+    "colAccount": "口座",
+    "accountCount_other": "{{count}}口座",
+    "summary_other": "保有銘柄{{count}}件 · {{currency}}",
+    "summaryUpdated_other": "保有銘柄{{count}}件 · {{currency}} · 更新{{updatedAt}}"
   },
   "presets": {
     "currentAllocation": "現在の資産配分",

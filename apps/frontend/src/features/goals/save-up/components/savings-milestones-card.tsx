@@ -1,4 +1,5 @@
 import type { SaveUpProjectionPointDTO } from "@/lib/types";
+import type { FormattingApi } from "@wealthfolio/ui";
 import { AmountDisplay } from "@wealthfolio/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -19,13 +20,16 @@ export interface SavingsMilestone {
 
 const MILESTONE_RATIOS = [0.25, 0.5, 0.75, 1];
 
-function formatMilestoneDate(value: string) {
+function formatMilestoneDate(value: string, formatting: Pick<FormattingApi, "formatCalendarDate">) {
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month) return "-";
-  return new Date(year, month - 1, day || 1).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-  });
+  return formatting.formatCalendarDate(
+    { year, month, day: day || 1 },
+    {
+      year: "numeric",
+      month: "short",
+    },
+  );
 }
 
 export function buildSavingsMilestones(
@@ -33,6 +37,7 @@ export function buildSavingsMilestones(
   targetAmount: number,
   currentValue: number,
   t: TFn,
+  formatting: Pick<FormattingApi, "formatCalendarDate" | "formatPercent">,
 ): SavingsMilestone[] {
   if (targetAmount <= 0 || data.length === 0) return [];
   return MILESTONE_RATIOS.map((ratio) => {
@@ -41,12 +46,12 @@ export function buildSavingsMilestones(
     const projected = reached ? null : data.find((p) => p.nominal >= amount);
     return {
       ratio,
-      label: `${Math.round(ratio * 100)}%`,
+      label: formatting.formatPercent(ratio, { digits: 0 }),
       amount,
       dateLabel: reached
         ? t("goals:milestones.reached")
         : projected
-          ? formatMilestoneDate(projected.date)
+          ? formatMilestoneDate(projected.date, formatting)
           : t("goals:milestones.not_reached"),
       reached,
       isFinal: ratio === 1,

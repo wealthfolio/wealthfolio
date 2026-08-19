@@ -251,6 +251,8 @@
       "retirement_age": "Âge de retraite",
       "desired_retirement_age_hint": "Âge auquel vous voulez devenir financièrement indépendant.",
       "retirement_age_hint": "Âge auquel vous voulez prendre votre retraite.",
+      "horizon_age_fire": "Horizon du plan",
+      "horizon_age_traditional": "Espérance de vie",
       "horizon_hint": "Âge que le plan doit couvrir.",
       "monthly_contribution": "Cotisation mensuelle",
       "monthly_contribution_hint": "Combien vous ajoutez chaque mois jusqu’à la retraite.",
@@ -707,7 +709,7 @@
     "low_range": "Fourchette basse ({{rate}})",
     "legend_projected": "Projeté",
     "legend_target": "Objectif",
-    "legend_range": "Fourchette (±{{pct}} %)"
+    "legend_range": "Fourchette (±{{pct}})"
   },
   "milestones": {
     "kicker": "Points de contrôle",
@@ -750,7 +752,9 @@
       "gap_at_target_age": "Écart à l'âge cible",
       "money_lasts": "L'argent dure",
       "paths_count": "{{count}} trajectoires",
-      "not_run": "non exécuté"
+      "not_run": "non exécuté",
+      "paths_count_one": "{{count}} trajectoire",
+      "paths_count_other": "{{count}} trajectoires"
     },
     "results": {
       "base_plan": "Plan de base",
@@ -796,7 +800,9 @@
       "outcome": "Résultat",
       "fi_age": "Âge IF",
       "extra_gap": "Écart supplémentaire",
-      "money_left": "Argent restant"
+      "money_left": "Argent restant",
+      "eyebrow_with_count_one": "Qu'est-ce qui pourrait compromettre ce plan ? · {{count}} scénario",
+      "eyebrow_with_count_other": "Qu'est-ce qui pourrait compromettre ce plan ? · {{count}} scénarios"
     },
     "montecarlo": {
       "eyebrow": "Trajectoires de marché",
@@ -829,7 +835,9 @@
       "median_fi_age": "Âge IF médian",
       "market_paths_count": "{{count}} trajectoires de marché",
       "retire": "retraite",
-      "goal": "objectif"
+      "goal": "objectif",
+      "market_paths_count_one": "{{count}} trajectoire de marché",
+      "market_paths_count_other": "{{count}} trajectoires de marché"
     },
     "moves": {
       "eyebrow": "Qu'est-ce qui change le plus le plan ?",

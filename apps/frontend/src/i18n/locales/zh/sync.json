@@ -16,7 +16,8 @@
     "morePreview": "+{{count}} 个",
     "settingUp": "正在设置...",
     "connectThisDevice": "连接此设备",
-    "enableDeviceSync": "启用设备同步"
+    "enableDeviceSync": "启用设备同步",
+    "morePreview_other": "+{{count}} 个"
   },
   "status": {
     "syncError": "同步错误",
@@ -33,7 +34,10 @@
     "hoursAgo": "{{count}}小时前",
     "daysAgo": "{{count}}天前",
     "thisDevice": "此设备",
-    "thisDeviceSuffix": "· 此设备"
+    "thisDeviceSuffix": "· 此设备",
+    "minutesAgo_other": "{{count}}分钟前",
+    "hoursAgo_other": "{{count}}小时前",
+    "daysAgo_other": "{{count}}天前"
   },
   "engine": {
     "pauseSync": "暂停同步",

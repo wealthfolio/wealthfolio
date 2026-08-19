@@ -1,3 +1,5 @@
+import type { FormattingApi } from "@wealthfolio/ui";
+
 export function categoryNoun(taxonomyId: string, taxonomyName: string | undefined, count: number) {
   const normalized = `${taxonomyId} ${taxonomyName ?? ""}`.toLowerCase().replace(/[_-]+/g, " ");
   if (normalized.includes("asset classes")) return count === 1 ? "asset class" : "asset classes";
@@ -31,14 +33,10 @@ export function formatTolerance(bps: number) {
   return `±${value}%`;
 }
 
-export function formatRoundedCurrency(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  } catch {
-    return Math.round(amount).toLocaleString("en-US");
-  }
+export function formatRoundedCurrency(
+  amount: number,
+  currency: string,
+  formatting: Pick<FormattingApi, "formatRoundedAmount">,
+) {
+  return formatting.formatRoundedAmount(amount, currency);
 }

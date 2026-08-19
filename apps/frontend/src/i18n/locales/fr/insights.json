@@ -50,7 +50,9 @@
       "target": "Cible",
       "no_target_yet": "Aucune répartition cible pour l'instant",
       "compare_weights": "Comparez les pondérations actuelles avec votre portefeuille souhaité.",
-      "set_target_allocation": "Définir une répartition cible"
+      "set_target_allocation": "Définir une répartition cible",
+      "outside_range_one": "{{count}} hors de la plage · plus grand écart {{gap}}",
+      "outside_range_other": "{{count}} hors de la plage · plus grand écart {{gap}}"
     },
     "value_strip": {
       "portfolio_value": "Valeur du portefeuille",
@@ -114,11 +116,13 @@
       "over_months_one": "sur {{count}} mois",
       "over_months_other": "sur {{count}} mois",
       "trailing_pace": " · {{multiple}}× rythme sur 12 mois glissants",
-      "drivers_of_change": "Facteurs d'évolution sur {{period}}",
+      "drivers_of_change": "Facteurs d'évolution",
       "market_returns": "Rendements du marché",
       "contributions": "Contributions",
       "equity_built": "Capital constitué",
       "per_month": "/mois"
-    }
+    },
+    "days_ago_one": "il y a {{count}}j",
+    "days_ago_other": "il y a {{count}}j"
   }
 }

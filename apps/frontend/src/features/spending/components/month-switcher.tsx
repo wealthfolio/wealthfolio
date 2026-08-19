@@ -1,8 +1,15 @@
-import { format, parse, subMonths, addMonths } from "date-fns";
+import { addMonths, format, parse, subMonths } from "date-fns";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { Button, MonthYearPicker, Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui";
+import {
+  Button,
+  MonthYearPicker,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  useDateFormatting,
+} from "@wealthfolio/ui";
 
 interface MonthSwitcherProps {
   selectedMonth: string; // YYYY-MM
@@ -15,10 +22,19 @@ export function MonthSwitcher({
   onMonthChange,
   availableMonths,
 }: MonthSwitcherProps) {
+  const formatting = useDateFormatting();
   const [open, setOpen] = useState(false);
 
   const selectedDate = useMemo(() => parse(selectedMonth, "yyyy-MM", new Date()), [selectedMonth]);
-  const displayLabel = useMemo(() => format(selectedDate, "MMMM yyyy"), [selectedDate]);
+  const displayLabel = useMemo(
+    () =>
+      formatting.formatCalendarDate(`${selectedMonth}-01`, {
+        calendar: "gregory",
+        month: "long",
+        year: "numeric",
+      }),
+    [formatting, selectedMonth],
+  );
 
   const canGoNext = useMemo(() => {
     const next = format(addMonths(selectedDate, 1), "yyyy-MM");

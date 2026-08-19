@@ -1,14 +1,17 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import {
+  AmountDisplay,
+  GainPercent,
+  PriceDisplay,
+  QuantityDisplay,
+  useDateFormatting,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
-import { formatPercent } from "@wealthfolio/ui";
-import { GainPercent } from "@wealthfolio/ui";
-import { AmountDisplay } from "@wealthfolio/ui";
-import { PriceDisplay } from "@wealthfolio/ui";
-import { QuantityDisplay } from "@wealthfolio/ui";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 
 interface AssetDetail {
   numShares: number;
@@ -65,6 +68,9 @@ const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 );
 
 const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) => {
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
 
@@ -117,7 +123,10 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
       label: averageCostLabel,
       value: <PriceDisplay value={averagePrice} currency={currency} isHidden={isBalanceHidden} />,
     },
-    { label: t("asset:detailCard.percent_of_portfolio"), value: formatPercent(portfolioPercent) },
+    {
+      label: t("asset:detailCard.percent_of_portfolio"),
+      value: numberFormatting.formatPercent(portfolioPercent),
+    },
   ];
 
   const performanceRows: {
@@ -329,7 +338,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
                     {t("asset:detailCard.volume")}
                   </span>
                   <span className="text-sm font-medium">
-                    {new Intl.NumberFormat().format(quote.volume)}
+                    {numberFormatting.formatDecimal(quote.volume)}
                   </span>
                 </div>
               </div>
@@ -362,7 +371,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
                     {t("asset:detailCard.maturity")}
                   </span>
                   <span className="text-sm font-medium">
-                    {new Date(bondSpec.maturityDate + "T00:00:00").toLocaleDateString(undefined, {
+                    {dateFormatting.formatCalendarDate(bondSpec.maturityDate, {
                       year: "numeric",
                       month: "short",
                       day: "numeric",
@@ -406,7 +415,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
                     {t("asset:detailCard.expiry")}
                   </span>
                   <span className="text-sm font-medium">
-                    {new Date(optionSpec.expiration + "T00:00:00").toLocaleDateString(undefined, {
+                    {dateFormatting.formatCalendarDate(optionSpec.expiration, {
                       year: "numeric",
                       month: "short",
                       day: "numeric",

@@ -2,12 +2,19 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
-import { Badge, Card, formatPrice, Input } from "@wealthfolio/ui";
+import {
+  Badge,
+  Card,
+  Input,
+  useAmountFormatting,
+  useNumberFormatting,
+  useDateFormatting,
+} from "@wealthfolio/ui";
 
 import { TickerAvatar } from "@/components/ticker-avatar";
+import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { ASSET_KIND_DISPLAY_NAMES, LatestQuoteSnapshot } from "@/lib/types";
-import { parseOccSymbol } from "@/lib/occ-symbol";
 import { cn, formatDate } from "@/lib/utils";
 import { ScrollArea, Separator } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -58,6 +65,9 @@ export function AssetsTableMobile({
   isUpdatingQuotes,
   isRefetchingQuotes,
 }: AssetsTableMobileProps) {
+  const formatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -221,7 +231,7 @@ export function AssetsTableMobile({
                     ? parsedOption.underlying
                     : (asset.displayCode ?? asset.name ?? t("asset:table.unknown"));
                   const subtitle = parsedOption
-                    ? `${new Date(parsedOption.expiration + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} $${parsedOption.strikePrice} ${parsedOption.optionType}`
+                    ? formatOptionSubtitle(parsedOption, { ...numberFormatting, ...dateFormatting })
                     : (asset.name ?? "-");
                   const avatarSymbol = parsedOption ? parsedOption.underlying : rawSymbol;
                   return (
@@ -256,7 +266,7 @@ export function AssetsTableMobile({
                       return (
                         <>
                           <div className="flex items-center justify-end gap-1 font-semibold">
-                            {formatPrice(
+                            {formatting.formatPrice(
                               quote.close,
                               quote.currency ?? asset.quoteCcy ?? baseCurrency,
                             )}
@@ -275,7 +285,7 @@ export function AssetsTableMobile({
                             ) : null}
                           </div>
                           <p className="text-muted-foreground text-xs">
-                            {formatDate(quote.timestamp)}
+                            {formatDate(quote.timestamp, dateFormatting)}
                           </p>
                         </>
                       );

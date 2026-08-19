@@ -13,10 +13,14 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 
+import { useSettingsContext } from "@/lib/settings-provider";
+import type { Account, ActivityImport } from "@/lib/types";
+import { cn, formatDateTime, toPascalCase } from "@/lib/utils";
+import { useAmountFormatting, type FormattingApi, useDateFormatting } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { DataTableColumnHeader } from "@wealthfolio/ui/components/ui/data-table/data-table-column-header";
 import { DataTableFacetedFilterProps } from "@wealthfolio/ui/components/ui/data-table/data-table-faceted-filter";
@@ -37,10 +41,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@wealthfolio/ui/components/ui/tooltip";
-import type { Account, ActivityImport } from "@/lib/types";
-import { cn, formatDateTime, toPascalCase } from "@/lib/utils";
-import { useSettingsContext } from "@/lib/settings-provider";
-import { formatAmount } from "@wealthfolio/ui";
 import { motion } from "motion/react";
 
 // Helper function to check if a field has errors
@@ -65,12 +65,16 @@ const toNumber = (value: string | number | null | undefined): number | undefined
 };
 
 // Helper function to safely format numbers, handling NaN/null/undefined values
-const safeFormatAmount = (value: string | number | null | undefined, currency: string): string => {
+const safeFormatAmount = (
+  value: string | number | null | undefined,
+  currency: string,
+  formatting: Pick<FormattingApi, "formatAmount">,
+): string => {
   const parsed = toNumber(value);
   if (parsed === undefined) {
     return "-";
   }
-  return formatAmount(parsed, currency);
+  return formatting.formatAmount(parsed, currency);
 };
 
 // Helper function to safely display number values
@@ -89,6 +93,9 @@ export const ImportPreviewTable = ({
   activities: ActivityImport[];
   accounts: Account[];
 }) => {
+  const amountFormatting = useAmountFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -152,7 +159,7 @@ export const ImportPreviewTable = ({
 
   const table = useReactTable({
     data: activities,
-    columns: getColumns(t, accounts, baseCurrency),
+    columns: getColumns(t, accounts, baseCurrency, amountFormatting, dateFormatting),
     state: {
       sorting,
       columnFilters,
@@ -285,6 +292,8 @@ function getColumns(
   t: TFunction,
   accounts: Account[],
   baseCurrency: string,
+  formatting: Pick<FormattingApi, "formatAmount">,
+  dateFormatting: Pick<FormattingApi, "formatDate" | "formatTime">,
 ): ColumnDef<ActivityImport>[] {
   const accountCurrencyLookup = new Map(accounts.map((account) => [account.id, account.currency]));
   return [
@@ -387,7 +396,7 @@ function getColumns(
         <DataTableColumnHeader column={column} title={t("activity:import.preview.date")} />
       ),
       cell: ({ row }) => {
-        const formattedDate = formatDateTime(row.getValue("date"));
+        const formattedDate = formatDateTime(row.getValue("date"), dateFormatting);
         const hasError = hasFieldError(row.original, "date");
         const errorMessages = getFieldErrorMessage(row.original, "date");
 
@@ -511,7 +520,7 @@ function getColumns(
                     const ratio = toNumber(unitPrice);
                     return ratio === undefined ? "-" : `${ratio.toFixed(0)} : 1`;
                   })()
-                : safeFormatAmount(unitPrice, currency)}
+                : safeFormatAmount(unitPrice, currency, formatting)}
             </div>
           </ErrorCell>
         );
@@ -544,7 +553,7 @@ function getColumns(
         return (
           <ErrorCell hasError={hasError} errorMessages={errorMessages}>
             <div className="text-right font-medium tabular-nums">
-              {activityType === "SPLIT" ? "-" : safeFormatAmount(amount, currency)}
+              {activityType === "SPLIT" ? "-" : safeFormatAmount(amount, currency, formatting)}
             </div>
           </ErrorCell>
         );
@@ -577,7 +586,7 @@ function getColumns(
         return (
           <ErrorCell hasError={hasError} errorMessages={errorMessages}>
             <div className="text-muted-foreground text-right tabular-nums">
-              {activityType === "SPLIT" ? "-" : safeFormatAmount(fee, currency)}
+              {activityType === "SPLIT" ? "-" : safeFormatAmount(fee, currency, formatting)}
             </div>
           </ErrorCell>
         );
@@ -610,7 +619,7 @@ function getColumns(
         return (
           <ErrorCell hasError={hasError} errorMessages={errorMessages}>
             <div className="text-muted-foreground text-right tabular-nums">
-              {activityType === "SPLIT" ? "-" : safeFormatAmount(tax, currency)}
+              {activityType === "SPLIT" ? "-" : safeFormatAmount(tax, currency, formatting)}
             </div>
           </ErrorCell>
         );

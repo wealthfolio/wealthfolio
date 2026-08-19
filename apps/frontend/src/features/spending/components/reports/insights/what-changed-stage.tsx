@@ -1,22 +1,22 @@
+import type { TFunction } from "i18next";
 import { memo, useMemo, useState, type FC, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 
-import { PrivacyAmount, Skeleton, formatCompactAmount } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import type { TaxonomyCategory } from "@/lib/types";
-import { cn, formatAmount, resolveDisplayTimezone } from "@/lib/utils";
+import { cn, resolveDisplayTimezone } from "@/lib/utils";
+import {
+  PrivacyAmount,
+  Skeleton,
+  useAmountFormatting,
+  useLocalizationSettings,
+  useNumberFormatting,
+  type FormattingApi,
+} from "@wealthfolio/ui";
+import { createFormatter } from "@wealthfolio/ui/lib/formatting";
 
-import { CategoryIcon } from "../../category-chips";
 import { topCategoryId } from "../../../lib/category-rollup";
-import type { ReportsRange } from "../../../lib/reports-period";
-import type {
-  CategoryBreakdownRow,
-  DayCategoryBucket,
-  MonthBucket,
-  MonthlyReport,
-} from "../../../types/report";
 import {
   MIN_PRIOR_FOR_PCT,
   classifyPeriod,
@@ -26,6 +26,14 @@ import {
 } from "../../../lib/change-descriptor";
 import { buildHeadline, type HeadlineFragment, type HeadlineModel } from "../../../lib/headline";
 import { UNCATEGORIZED_CATEGORY_ID } from "../../../lib/insight-projection";
+import type { ReportsRange } from "../../../lib/reports-period";
+import type {
+  CategoryBreakdownRow,
+  DayCategoryBucket,
+  MonthBucket,
+  MonthlyReport,
+} from "../../../types/report";
+import { CategoryIcon } from "../../category-chips";
 import { formatPercentValue } from "./format";
 
 const CARD_CLASS = "border-border/60 bg-card/40 rounded-2xl border p-5 backdrop-blur-xl";
@@ -66,10 +74,15 @@ export function WhatChangedStage({
   isLoading,
   onCategoryClick,
 }: WhatChangedStageProps) {
+  const formatting = useLocalizationSettings();
   const { t } = useTranslation();
+  const zonedFormatting = useMemo(
+    () => createFormatter(formatting.locale, resolveDisplayTimezone(timezone)),
+    [formatting.locale, timezone],
+  );
   const labels = useMemo(
-    () => buildPeriodLabels(range, priorRange, timezone, t),
-    [range, priorRange, timezone, t],
+    () => buildPeriodLabels(range, priorRange, t, zonedFormatting),
+    [range, priorRange, t, zonedFormatting],
   );
 
   const currentTotal = currentReport?.current.outflow ?? 0;
@@ -110,6 +123,7 @@ export function WhatChangedStage({
         priorTotal,
         priorLabel: labels.prior,
         metaLabel: t("spending:whatChanged.headlineMeta", { label: labels.combined }),
+        t,
       }),
     [periodState, movers, currentTotal, priorTotal, labels, t],
   );
@@ -157,6 +171,11 @@ interface HeadlineCardProps {
 }
 
 const HeadlineCard: FC<HeadlineCardProps> = ({ headline, currency, isLoading }) => {
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+
+  const formatting = { ...amountFormatting, ...numberFormatting };
+
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   if (isLoading) {
@@ -178,7 +197,7 @@ const HeadlineCard: FC<HeadlineCardProps> = ({ headline, currency, isLoading }) 
           headline.metaLabel && "mt-3",
         )}
       >
-        {renderHeadlineFragments(headline.fragments, currency, isBalanceHidden, t)}
+        {renderHeadlineFragments(headline.fragments, currency, isBalanceHidden, t, formatting)}
       </p>
       {headline.summary && (
         <HeadlineSummaryLine
@@ -196,6 +215,7 @@ function renderHeadlineFragments(
   currency: string,
   isBalanceHidden: boolean,
   t: TFunction,
+  formatting: Pick<FormattingApi, "formatAmount" | "formatPercent">,
 ): ReactNode {
   return fragments.map((f, i) => {
     switch (f.type) {
@@ -212,7 +232,7 @@ function renderHeadlineFragments(
         );
       case "mover": {
         const d = f.descriptor.descriptor;
-        const phrase = describeMoverPhrase(d, currency, isBalanceHidden, t);
+        const phrase = describeMoverPhrase(d, currency, isBalanceHidden, t, formatting);
         return (
           <span
             key={i}
@@ -231,8 +251,9 @@ function describeMoverPhrase(
   currency: string,
   isBalanceHidden: boolean,
   t: TFunction,
+  formatting: Pick<FormattingApi, "formatAmount" | "formatPercent">,
 ): string {
-  const amt = (v: number) => (isBalanceHidden ? "••••" : formatAmount(v, currency));
+  const amt = (v: number) => (isBalanceHidden ? "••••" : formatting.formatAmount(v, currency));
   switch (d.kind) {
     case "no_activity":
       return "";
@@ -243,7 +264,7 @@ function describeMoverPhrase(
     case "valid": {
       const verb = d.delta >= 0 ? t("spending:whatChanged.up") : t("spending:whatChanged.down");
       if (d.showPct && d.pct != null) {
-        return `${verb} ${formatPercentValue(Math.abs(d.pct), { digits: 0 })}`;
+        return `${verb} ${formatPercentValue(Math.abs(d.pct), formatting, { digits: 0 })}`;
       }
       return `${verb} ${amt(d.absDelta)}`;
     }
@@ -265,6 +286,7 @@ function HeadlineSummaryLine({
   currency: string;
   isBalanceHidden: boolean;
 }) {
+  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const renderAmt = (value: number) =>
     isBalanceHidden ? <>••••</> : <PrivacyAmount value={value} currency={currency} />;
@@ -296,7 +318,7 @@ function HeadlineSummaryLine({
     const tone = summary.pct === 0 ? "neutral" : summary.pct > 0 ? "up" : "down";
     parts.push(
       <span key="pct" className={cn("font-medium tabular-nums", toneClass(tone))}>
-        {formatPercentValue(summary.pct, { digits: 0, signDisplay: "always" })}
+        {formatPercentValue(summary.pct, formatting, { digits: 0, signDisplay: "always" })}
       </span>,
     );
   }
@@ -554,7 +576,11 @@ interface PillModel {
   tone: "up" | "down" | "neutral";
 }
 
-function describePill(d: ChangeDescriptor, t: TFunction): PillModel | null {
+function describePill(
+  d: ChangeDescriptor,
+  t: TFunction,
+  formatting: Pick<FormattingApi, "formatPercent">,
+): PillModel | null {
   switch (d.kind) {
     case "no_activity":
       return null;
@@ -575,7 +601,7 @@ function describePill(d: ChangeDescriptor, t: TFunction): PillModel | null {
       const arrow = d.delta >= 0 ? "↑" : "↓";
       if (d.showPct && d.pct != null) {
         return {
-          label: `${arrow} ${formatPercentValue(Math.abs(d.pct), { digits: 0 })}`,
+          label: `${arrow} ${formatPercentValue(Math.abs(d.pct), formatting, { digits: 0 })}`,
           tone,
         };
       }
@@ -606,12 +632,15 @@ const SparklineRow = memo(function SparklineRow({
   showPill: boolean;
   onCategoryClick?: (categoryId: string) => void;
 }) {
+  const numberFormatting = useNumberFormatting();
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const color = row.color ?? "var(--muted-foreground)";
   const tintBg = row.color ? `${row.color}14` : "var(--muted)";
   const gradId = `wc-spark-${row.id.replace(/[^a-z0-9]/gi, "_")}`;
-  const pill = showPill && row.descriptor ? describePill(row.descriptor, t) : null;
+  const pill =
+    showPill && row.descriptor ? describePill(row.descriptor, t, numberFormatting) : null;
   const clickable = !!onCategoryClick;
   return (
     <div
@@ -678,7 +707,7 @@ const SparklineRow = memo(function SparklineRow({
         </ResponsiveContainer>
       </div>
       <div className="text-muted-foreground/80 text-xs tabular-nums">
-        {isBalanceHidden ? "••••" : formatCompactAmount(row.total, currency)}
+        {isBalanceHidden ? "••••" : formatting.formatCompactAmount(row.total, currency)}
       </div>
     </div>
   );
@@ -754,6 +783,7 @@ const ComparisonRow = memo(function ComparisonRow({
   hidePct: boolean;
   onCategoryClick?: (categoryId: string) => void;
 }) {
+  const formatting = useNumberFormatting();
   const color = row.color ?? "var(--muted-foreground)";
   const isUp = row.delta > 0;
   const clickable = !!onCategoryClick;
@@ -805,7 +835,9 @@ const ComparisonRow = memo(function ComparisonRow({
         )}
       </td>
       <td className="text-muted-foreground/90 hidden px-3 py-2.5 text-right text-xs tabular-nums md:table-cell">
-        {impactPct == null || impactPct === 0 ? "—" : `${impactPct}%`}
+        {impactPct == null || impactPct === 0
+          ? "—"
+          : formatPercentValue(impactPct, formatting, { digits: 0 })}
       </td>
       {!hidePct && (
         <td
@@ -820,7 +852,7 @@ const ComparisonRow = memo(function ComparisonRow({
         >
           {!row.showPct || row.pct == null
             ? "—"
-            : formatPercentValue(row.pct, { digits: 0, signDisplay: "always" })}
+            : formatPercentValue(row.pct, formatting, { digits: 0, signDisplay: "always" })}
         </td>
       )}
     </tr>
@@ -840,12 +872,12 @@ interface PeriodLabels {
 function buildPeriodLabels(
   range: ReportsRange,
   priorRange: ReportsRange | undefined,
-  timezone: string | null | undefined,
   t: TFunction,
+  formatting: Pick<FormattingApi, "formatDate">,
 ): PeriodLabels {
   if (priorRange) {
-    const current = formatDateSpan(range.start, range.end, timezone);
-    const prior = formatDateSpan(priorRange.start, priorRange.end, timezone);
+    const current = formatDateSpan(range.start, range.end, formatting);
+    const prior = formatDateSpan(priorRange.start, priorRange.end, formatting);
     return {
       current,
       prior,
@@ -859,8 +891,8 @@ function buildPeriodLabels(
   const priorEnd = new Date(range.start.getTime() - 1);
 
   if (range.months <= 1) {
-    const current = formatMonthNameInZone(range.end, timezone);
-    const prior = formatMonthNameInZone(priorEnd, timezone);
+    const current = formatMonthNameInZone(range.end, formatting);
+    const prior = formatMonthNameInZone(priorEnd, formatting);
     return {
       current,
       prior,
@@ -871,13 +903,13 @@ function buildPeriodLabels(
     };
   }
   const priorStart = new Date(priorEnd.getTime() - (range.end.getTime() - range.start.getTime()));
-  const current = `${formatMonthYearInZone(range.start, timezone)} – ${formatMonthYearInZone(
+  const current = `${formatMonthYearInZone(range.start, formatting)} – ${formatMonthYearInZone(
     range.end,
-    timezone,
+    formatting,
   )}`;
-  const prior = `${formatMonthYearInZone(priorStart, timezone)} – ${formatMonthYearInZone(
+  const prior = `${formatMonthYearInZone(priorStart, formatting)} – ${formatMonthYearInZone(
     priorEnd,
-    timezone,
+    formatting,
   )}`;
   return {
     current,
@@ -886,36 +918,31 @@ function buildPeriodLabels(
   };
 }
 
-function formatDateSpan(start: Date, end: Date, timezone?: string | null): string {
-  const timeZone = resolveDisplayTimezone(timezone);
-  const dateKey = new Intl.DateTimeFormat("en-US", {
-    timeZone,
+function formatDateSpan(
+  start: Date,
+  end: Date,
+  formatting: Pick<FormattingApi, "formatDate">,
+): string {
+  const dateKeyOptions = {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  });
-  const monthDay = new Intl.DateTimeFormat(undefined, {
-    timeZone,
-    month: "short",
-    day: "numeric",
-  });
-  if (dateKey.format(start) === dateKey.format(end)) {
-    return monthDay.format(start);
+  } as const;
+  if (formatting.formatDate(start, dateKeyOptions) === formatting.formatDate(end, dateKeyOptions)) {
+    return formatting.formatDate(start, { month: "short", day: "numeric" });
   }
-  return `${monthDay.format(start)}-${monthDay.format(end)}`;
+  return `${formatting.formatDate(start, { month: "short", day: "numeric" })}-${formatting.formatDate(end, { month: "short", day: "numeric" })}`;
 }
 
-function formatMonthNameInZone(date: Date, timezone?: string | null): string {
-  return new Intl.DateTimeFormat(undefined, {
-    timeZone: resolveDisplayTimezone(timezone),
+function formatMonthNameInZone(date: Date, formatting: Pick<FormattingApi, "formatDate">): string {
+  return formatting.formatDate(date, {
     month: "long",
-  }).format(date);
+  });
 }
 
-function formatMonthYearInZone(date: Date, timezone?: string | null): string {
-  return new Intl.DateTimeFormat(undefined, {
-    timeZone: resolveDisplayTimezone(timezone),
+function formatMonthYearInZone(date: Date, formatting: Pick<FormattingApi, "formatDate">): string {
+  return formatting.formatDate(date, {
     month: "short",
     year: "numeric",
-  }).format(date);
+  });
 }

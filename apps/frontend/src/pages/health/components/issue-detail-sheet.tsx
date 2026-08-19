@@ -16,12 +16,14 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  useDateFormatting,
+  type FormattingApi,
 } from "@wealthfolio/ui";
 import { cn } from "@wealthfolio/ui/lib/utils";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import { translateIssueText } from "../translate-issue";
 import { Link } from "react-router-dom";
+import { translateIssueText } from "../translate-issue";
 
 interface IssueDetailSheetProps {
   issue: HealthIssue | null;
@@ -296,15 +298,15 @@ function buildDiagnosticRows(diagnostic: HealthDiagnostic): DiagnosticEvidenceRo
   });
 }
 
-function compactHealthDate(value: string): string {
+function compactHealthDate(value: string, formatting: Pick<FormattingApi, "formatDate">): string {
   const date = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, {
+  return formatting.formatDate(date, {
     month: "short",
     day: "numeric",
     year: "numeric",
     timeZone: "UTC",
-  }).format(date);
+  });
 }
 
 function stripGroupedDateParam(route: string, dates: string[]): string {
@@ -318,29 +320,33 @@ function stripGroupedDateParam(route: string, dates: string[]): string {
   }
 }
 
-function summarizePriceDates(dates: string[], t: TFunction): string {
+function summarizePriceDates(
+  dates: string[],
+  t: TFunction,
+  formatting: Pick<FormattingApi, "formatDate">,
+): string {
   const uniqueDates = Array.from(new Set(dates)).sort();
   if (uniqueDates.length === 0) return t("health:sheet.priceHistoryNeedsReview");
 
   if (uniqueDates.length === 1) {
     return t("health:sheet.missingTradingDay", {
       count: 1,
-      dates: compactHealthDate(uniqueDates[0]),
+      dates: compactHealthDate(uniqueDates[0], formatting),
     });
   }
 
   if (uniqueDates.length <= 3) {
     return t("health:sheet.missingTradingDay", {
       count: uniqueDates.length,
-      dates: uniqueDates.map(compactHealthDate).join(", "),
+      dates: uniqueDates.map((date) => compactHealthDate(date, formatting)).join(", "),
     });
   }
 
   return t("health:sheet.missingTradingDay", {
     count: uniqueDates.length,
     dates: t("health:sheet.dateRange", {
-      from: compactHealthDate(uniqueDates[0]),
-      to: compactHealthDate(uniqueDates[uniqueDates.length - 1]),
+      from: compactHealthDate(uniqueDates[0], formatting),
+      to: compactHealthDate(uniqueDates[uniqueDates.length - 1], formatting),
     }),
   });
 }
@@ -405,6 +411,8 @@ export function IssueDetailSheet({
   isDismissing,
   isFixing,
 }: IssueDetailSheetProps) {
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
 
   if (!issue) return null;
@@ -570,7 +578,7 @@ export function IssueDetailSheet({
                                   <div className="min-w-0">
                                     <p className="truncate text-sm">{assetGroup.label}</p>
                                     <p className="text-muted-foreground mt-0.5 truncate text-xs">
-                                      {summarizePriceDates(assetGroup.dates, t)}
+                                      {summarizePriceDates(assetGroup.dates, t, dateFormatting)}
                                     </p>
                                   </div>
                                   {assetGroup.route && (

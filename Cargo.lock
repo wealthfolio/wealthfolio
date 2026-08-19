@@ -4299,7 +4299,7 @@ version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
 dependencies = [
- "base64 0.21.7",
+ "base64 0.22.1",
  "chrono",
  "getrandom 0.2.17",
  "http 1.4.1",
@@ -5361,6 +5361,7 @@ version = "0.11.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f4bfc015262b9df63c8845072ce59068853ff5872180c2ce2f13038b970e560"
 dependencies = [
+ "aws-lc-rs",
  "bytes",
  "getrandom 0.4.2",
  "lru-slab",
@@ -5701,6 +5702,8 @@ checksum = "219c5811de6525e5416c7d5d53bb656d3afdbc6c5af816e0802bcfa42dbdc1c3"
 dependencies = [
  "base64 0.22.1",
  "bytes",
+ "cookie",
+ "cookie_store",
  "futures-core",
  "futures-util",
  "http 1.4.1",
@@ -5713,6 +5716,7 @@ dependencies = [
  "log",
  "percent-encoding",
  "pin-project-lite",
+ "quinn",
  "rustls",
  "rustls-pki-types",
  "rustls-platform-verifier",
@@ -6047,6 +6051,7 @@ version = "0.23.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef86cd5876211988985292b91c96a8f2d298df24e75989a43a3c73f2d4d8168b"
 dependencies = [
+ "aws-lc-rs",
  "once_cell",
  "ring",
  "rustls-pki-types",
@@ -6110,6 +6115,7 @@ version = "0.103.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
 dependencies = [
+ "aws-lc-rs",
  "ring",
  "rustls-pki-types",
  "untrusted 0.9.0",
@@ -8734,7 +8740,6 @@ dependencies = [
  "urlencoding",
  "uuid",
  "wealthfolio-market-data",
- "yahoo_finance_api",
  "zip 2.4.2",
 ]
 
@@ -9770,14 +9775,15 @@ dependencies = [
 
 [[package]]
 name = "yahoo_finance_api"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc75c0aef2fb5095c7fb103dc2aaec2d0bdeed8c4a34b2cd504f083e29f6f128"
+checksum = "60ce7426ec68c09de6668c627c4d535da983a59dbe6ce3feb3eb96bcd2c32baa"
 dependencies = [
- "reqwest 0.12.28",
+ "reqwest 0.13.4",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "serde_with",
+ "thiserror 2.0.18",
  "time",
 ]
 

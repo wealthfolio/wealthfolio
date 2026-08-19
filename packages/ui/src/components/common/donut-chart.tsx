@@ -4,43 +4,10 @@ import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, Sector, type PieSectorShapeProps } from "recharts";
 import type { NameType, Payload, ValueType } from "recharts/types/component/DefaultTooltipContent";
 import { useBalancePrivacy } from "../../hooks/use-balance-privacy";
-import { formatPercent } from "../../lib/utils";
+import { useAmountFormatting, useNumberFormatting } from "../formatting-provider";
 import { AmountDisplay } from "../financial/amount-display";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "../ui/chart";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
-
-/**
- * Formats a number in compact form (e.g., 437.8K, 1.2M)
- */
-function formatCompactNumber(value: number, currency: string): string {
-  const absValue = Math.abs(value);
-  const sign = value < 0 ? "-" : "";
-
-  // Get currency symbol
-  let symbol = "";
-  try {
-    const formatter = new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    });
-    symbol = formatter.format(0).replace(/[0-9]/g, "").trim();
-  } catch {
-    // Invalid currency code — skip symbol
-  }
-
-  if (absValue >= 1_000_000_000) {
-    return `${sign}${symbol}${(absValue / 1_000_000_000).toFixed(1)}B`;
-  }
-  if (absValue >= 1_000_000) {
-    return `${sign}${symbol}${(absValue / 1_000_000).toFixed(1)}M`;
-  }
-  if (absValue >= 1_000) {
-    return `${sign}${symbol}${(absValue / 1_000).toFixed(1)}K`;
-  }
-  return `${sign}${symbol}${absValue.toFixed(0)}`;
-}
 
 const COLORS = [
   "var(--chart-1)",
@@ -65,12 +32,14 @@ interface ChartCenterLabelProps {
 }
 
 const ChartCenterLabel: React.FC<ChartCenterLabelProps> = ({ activeData, totalValue, isBalanceHidden }) => {
+  const { formatCompactAmount } = useAmountFormatting();
+  const { formatPercent } = useNumberFormatting();
   if (!activeData) {
     return null;
   }
 
   const percent = totalValue > 0 ? activeData.value / totalValue : 0;
-  const compactValue = isBalanceHidden ? "••••" : formatCompactNumber(activeData.value, activeData.currency);
+  const compactValue = isBalanceHidden ? "••••" : formatCompactAmount(activeData.value, activeData.currency);
 
   return (
     <TooltipProvider>

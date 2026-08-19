@@ -1,13 +1,14 @@
+import type { Account, Platform } from "@/lib/types";
+import { formatDistanceToNow } from "@/lib/utils";
+import { useLocalizationSettings } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { formatDistanceToNow } from "date-fns";
+import type { TFunction } from "i18next";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
-import type { Account, Platform } from "@/lib/types";
-import type { BrokerSyncState, SyncStatus } from "../types";
 import { getBrokerSyncIssueMessage } from "../lib/broker-sync-messages";
+import type { BrokerSyncState, SyncStatus } from "../types";
 
 interface BrokerSyncStateCardProps {
   syncState: BrokerSyncState;
@@ -48,6 +49,8 @@ function buildStatusConfig(t: TFunction): Record<
 }
 
 export function BrokerSyncStateCard({ syncState, account, platform }: BrokerSyncStateCardProps) {
+  const localizationSettings = useLocalizationSettings();
+
   const { t } = useTranslation();
   const statusConfig = useMemo(() => buildStatusConfig(t), [t]);
   const config = statusConfig[syncState.syncStatus];
@@ -81,9 +84,13 @@ export function BrokerSyncStateCard({ syncState, account, platform }: BrokerSync
             <p className="text-muted-foreground text-sm">
               {syncState.lastSuccessfulAt
                 ? t("connect:status.lastSynced", {
-                    time: formatDistanceToNow(new Date(syncState.lastSuccessfulAt), {
-                      addSuffix: true,
-                    }),
+                    time: formatDistanceToNow(
+                      new Date(syncState.lastSuccessfulAt),
+                      localizationSettings,
+                      {
+                        addSuffix: true,
+                      },
+                    ),
                   })
                 : t("connect:status.neverSynced")}
             </p>

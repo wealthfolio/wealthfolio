@@ -8,16 +8,24 @@ import {
   isFeeActivity,
   isIncomeActivity,
   isSplitActivity,
+  localizeActivityTypeName,
 } from "@/lib/activity-utils";
-import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityType } from "@/lib/constants";
-import { parseOccSymbol } from "@/lib/occ-symbol";
+import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { ActivityDetails } from "@/lib/types";
-import { cn, formatDateTime, parseLocalDate } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import type { CashAuditReviewTarget } from "@/pages/account/cash-audit";
-import { Button, Card, EmptyPlaceholder, formatAmount, Icons } from "@wealthfolio/ui";
-import { format } from "date-fns";
+import {
+  Button,
+  Card,
+  EmptyPlaceholder,
+  Icons,
+  useAmountFormatting,
+  useDateFormatting,
+  type FormattingApi,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -162,6 +170,9 @@ function ActivityDateListItem({
   currency,
   showCashLedger,
 }: ActivityDateListItemProps) {
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const { activity } = row;
   const symbol = activity.assetSymbol;
@@ -181,9 +192,9 @@ function ActivityDateListItem({
       : symbol;
   const avatarSymbol = isCash ? "$CASH" : symbol;
   const optionSubtitle = parsedOption
-    ? `${new Date(parsedOption.expiration + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} $${parsedOption.strikePrice} ${parsedOption.optionType}`
+    ? formatOptionSubtitle(parsedOption, { ...numberFormatting, ...dateFormatting })
     : null;
-  const formattedDate = formatDateTime(activity.date, appTimezone);
+  const formattedDate = formatDateTime(activity.date, dateFormatting, appTimezone);
   const displayValue = calculateActivityValue(activity);
   const activityTypeLabel = localizeActivityTypeName(t, activity.activityType);
   const activityTone = getActivityTone(activity.activityType);
@@ -205,7 +216,7 @@ function ActivityDateListItem({
           <p className="truncate text-base font-semibold leading-5">{displaySymbol}</p>
           {activity.activityType !== ActivityType.SPLIT ? (
             <p className="text-right text-base font-semibold leading-5">
-              {formatAmount(displayValue, activity.currency)}
+              {formatting.formatAmount(displayValue, activity.currency)}
             </p>
           ) : (
             <span />
@@ -246,6 +257,7 @@ function ActivityDateListItem({
 }
 
 function CashLedgerMeta({ row, currency }: { row: ActivityCashLedgerRow; currency: string }) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const runningBalanceIsNegative = row.runningBalance !== undefined && row.runningBalance < 0;
 
@@ -260,13 +272,15 @@ function CashLedgerMeta({ row, currency }: { row: ActivityCashLedgerRow; currenc
             row.cashImpact < 0 && "text-destructive",
           )}
         >
-          {formatSignedAmount(row.cashImpact, currency)}
+          {formatSignedAmount(row.cashImpact, currency, formatting)}
         </p>
       </div>
       <div>
         <p className="text-muted-foreground">{t("activity:date_list.running_cash")}</p>
         <p className={cn("font-semibold", runningBalanceIsNegative && "text-destructive")}>
-          {row.runningBalance === undefined ? "—" : formatAmount(row.runningBalance, currency)}
+          {row.runningBalance === undefined
+            ? "—"
+            : formatting.formatAmount(row.runningBalance, currency)}
         </p>
       </div>
       {row.crossesNegative ? (
@@ -356,9 +370,10 @@ function CashAuditSummary({
 }
 
 function CashAuditCallout({ cashAuditTarget }: { cashAuditTarget: CashAuditReviewTarget }) {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
-  const valuationDate = formatAuditDate(cashAuditTarget.valuationDate);
-  const activityDate = formatAuditDate(cashAuditTarget.activityDate);
+  const valuationDate = formatAuditDate(cashAuditTarget.valuationDate, formatting);
+  const activityDate = formatAuditDate(cashAuditTarget.activityDate, formatting);
 
   return (
     <div className="border-warning/10 bg-warning/10 rounded-md border p-3">
@@ -390,11 +405,12 @@ function CashAuditAmount({
   value?: number;
   currency: string;
 }) {
+  const formatting = useAmountFormatting();
   return (
     <div>
       <p className="text-muted-foreground">{label}</p>
       <p className={cn("font-semibold", value !== undefined && value < 0 && "text-destructive")}>
-        {value === undefined ? "—" : formatAmount(value, currency)}
+        {value === undefined ? "—" : formatting.formatAmount(value, currency)}
       </p>
     </div>
   );
@@ -494,9 +510,13 @@ function toTimestamp(value: Date | string | undefined) {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-function formatSignedAmount(value: number, currency: string) {
-  if (value > 0) return `+${formatAmount(value, currency)}`;
-  return formatAmount(value, currency);
+function formatSignedAmount(
+  value: number,
+  currency: string,
+  formatting: Pick<FormattingApi, "formatAmount">,
+) {
+  if (value > 0) return `+${formatting.formatAmount(value, currency)}`;
+  return formatting.formatAmount(value, currency);
 }
 
 function buildActivityManagerUrl(
@@ -514,9 +534,9 @@ function buildActivityManagerUrl(
   return `/activities/manage?${params.toString()}`;
 }
 
-function formatAuditDate(date: string) {
+function formatAuditDate(date: string, formatting: Pick<FormattingApi, "formatCalendarDate">) {
   try {
-    return format(parseLocalDate(date), "MMM d, yyyy");
+    return formatting.formatCalendarDate(date);
   } catch {
     return date;
   }

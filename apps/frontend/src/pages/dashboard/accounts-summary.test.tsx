@@ -1,7 +1,3 @@
-import { render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { calculatePerformanceSummaries } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCurrentAccountValuations } from "@/hooks/use-current-account-valuations";
@@ -18,6 +14,10 @@ import type {
 } from "@/lib/types";
 import { AccountType } from "@/lib/types";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountsSummary } from "./accounts-summary";
 
 vi.mock("@/adapters", () => ({
@@ -107,6 +107,7 @@ const mockSettings: Settings = {
   theme: "light",
   font: "font-sans",
   language: "en",
+  formattingRegion: "US",
   baseCurrency: "USD",
   defaultReturnMetric: "twr",
   timezone: "America/Chicago",

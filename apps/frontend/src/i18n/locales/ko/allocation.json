@@ -68,7 +68,10 @@
     "colCurrent": "현재",
     "colTarget": "목표",
     "colDrift": "편차",
-    "colAccount": "계좌"
+    "colAccount": "계좌",
+    "accountCount_other": "계좌 {{count}}개",
+    "summary_other": "보유 종목 {{count}}개 · {{currency}}",
+    "summaryUpdated_other": "보유 종목 {{count}}개 · {{currency}} · {{updatedAt}} 업데이트"
   },
   "presets": {
     "currentAllocation": "현재 배분",

@@ -140,7 +140,11 @@
     "emptyHint": "Add accounts in Settings to track your investments.",
     "error": "Failed to load accounts",
     "currencyCount": "{{count}} {{currency}}",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "currencyCount_one": "{{count}} {{currency}}",
+    "currencyCount_other": "{{count}} {{currency}}",
+    "of_one": "of {{count}}",
+    "of_other": "of {{count}}"
   },
   "activities": {
     "fetched_one": "Fetched {{count}} activity",
@@ -242,7 +246,15 @@
     "loadedTaxonomies": "Loaded {{count}} asset taxonomies",
     "loadingClassifications": "Loading classifications...",
     "couldNotLoadClassifications": "Could not load classifications.",
-    "loadedClassifications": "Loaded {{count}} classifications for {{asset}}"
+    "loadedClassifications": "Loaded {{count}} classifications for {{asset}}",
+    "loadedCategoriesTotal_one": "Loaded {{count}} category for {{taxonomy}} · {{total}} total",
+    "loadedCategoriesTotal_other": "Loaded {{count}} categories for {{taxonomy}} · {{total}} total",
+    "loadedCategories_one": "Loaded {{count}} category for {{taxonomy}}",
+    "loadedCategories_other": "Loaded {{count}} categories for {{taxonomy}}",
+    "loadedTaxonomies_one": "Loaded {{count}} asset taxonomy",
+    "loadedTaxonomies_other": "Loaded {{count}} asset taxonomies",
+    "loadedClassifications_one": "Loaded {{count}} classification for {{asset}}",
+    "loadedClassifications_other": "Loaded {{count}} classifications for {{asset}}"
   },
   "categorization": {
     "categorizing": "Categorizing your transactions…",
@@ -269,7 +281,13 @@
     "transactionsCategorized_other": "{{count}} transactions categorized",
     "categoriesSaved": "Categories saved to your transactions.",
     "apply": "Apply",
-    "applySelected": "Apply {{count}} selected"
+    "applySelected": "Apply {{count}} selected",
+    "selected_one": "{{count}} selected",
+    "selected_other": "{{count}} selected",
+    "needsManualChoice_one": "Needs manual choice ({{count}})",
+    "needsManualChoice_other": "Needs manual choice ({{count}})",
+    "applySelected_one": "Apply {{count}} selected",
+    "applySelected_other": "Apply {{count}} selected"
   },
   "importReview": {
     "all": "All",
@@ -310,7 +328,11 @@
     "count_one": "{{count}} goal",
     "count_other": "{{count}} goals",
     "of": "of {{count}}",
-    "achieved": "{{count}} achieved"
+    "achieved": "{{count}} achieved",
+    "of_one": "of {{count}}",
+    "of_other": "of {{count}}",
+    "achieved_one": "{{count}} achieved",
+    "achieved_other": "{{count}} achieved"
   },
   "holdings": {
     "fetched_one": "Fetched {{count}} holding",
@@ -358,7 +380,9 @@
     "statsSummary": "{{valid}} valid · {{warning}} warnings · {{errors}} errors · {{duplicates}} duplicates",
     "revalidate": "Revalidate",
     "import_one": "Import {{count}} activity",
-    "import_other": "Import {{count}} activities"
+    "import_other": "Import {{count}} activities",
+    "mappedColumns_one": "Mapped {{count}} column. ",
+    "mappedColumns_other": "Mapped {{count}} columns. "
   },
   "mapping": {
     "usingSavedTemplate": "Using saved template",
@@ -443,7 +467,19 @@
     "status": "Status",
     "createdSummary": "Created {{created}} row(s), errors {{errors}}.",
     "confirmActivities": "Confirm {{count}} Activities",
-    "confirmActivitiesEmpty": "Confirm Activities"
+    "confirmActivitiesEmpty": "Confirm Activities",
+    "readyCount_one": "{{count}} ready",
+    "readyCount_other": "{{count}} ready",
+    "rows_one": "Row: {{count}}",
+    "rows_other": "Rows: {{count}}",
+    "valid_one": "Valid: {{count}}",
+    "valid_other": "Valid: {{count}}",
+    "errors_one": "Error: {{count}}",
+    "errors_other": "Errors: {{count}}",
+    "willCreate_one": "Will create: {{count}}",
+    "willCreate_other": "Will create: {{count}}",
+    "confirmActivities_one": "Confirm {{count}} Activity",
+    "confirmActivities_other": "Confirm {{count}} Activities"
   },
   "recordActivity": {
     "invalidDate": "Invalid date",

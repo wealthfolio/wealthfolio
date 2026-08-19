@@ -162,6 +162,7 @@ export function ActivityViewControls({
       <div className="flex flex-1 flex-wrap items-center gap-2">
         <FacetedSearchInput
           value={localSearch}
+          placeholder={t("activity:search_placeholder")}
           onChange={(value) => {
             setLocalSearch(value);
             debouncedSearch(value);

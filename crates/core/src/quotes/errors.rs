@@ -4,7 +4,6 @@ use thiserror::Error;
 
 use crate::errors::DatabaseError;
 use wealthfolio_market_data::errors::MarketDataError as ExternalMarketDataError;
-use yahoo_finance_api::YahooError;
 
 /// Errors that can occur during market data/quote operations.
 ///
@@ -91,17 +90,6 @@ impl MarketDataError {
                 | MarketDataError::NetworkError(_)
                 | MarketDataError::Timeout(_)
         )
-    }
-}
-
-impl From<YahooError> for MarketDataError {
-    fn from(error: YahooError) -> Self {
-        match error {
-            YahooError::FetchFailed(e) => MarketDataError::ProviderError(e),
-            YahooError::NoQuotes => MarketDataError::NotFound("No quotes found".to_string()),
-            YahooError::NoResult => MarketDataError::NotFound("No data found".to_string()),
-            _ => MarketDataError::Unknown(error.to_string()),
-        }
     }
 }
 

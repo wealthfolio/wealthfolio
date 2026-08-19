@@ -9,6 +9,7 @@ import type {
 import type { TooltipProps } from "recharts/types/component/Tooltip";
 
 import { cn } from "../../lib/utils";
+import { useNumberFormatting } from "../formatting-provider";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;
@@ -135,6 +136,7 @@ const ChartTooltipContent = React.forwardRef<HTMLDivElement, ChartTooltipContent
     ref,
   ) => {
     const { config } = useChart();
+    const formatting = useNumberFormatting();
     const resolvedPayload = Array.isArray(payload) ? (payload as TooltipPayload<ValueType, NameType>[]) : [];
 
     const tooltipLabel = React.useMemo(() => {
@@ -224,7 +226,7 @@ const ChartTooltipContent = React.forwardRef<HTMLDivElement, ChartTooltipContent
                       </div>
                       {item.value && (
                         <span className="text-foreground font-mono font-medium tabular-nums">
-                          {item.value.toLocaleString()}
+                          {typeof item.value === "number" ? formatting.formatDecimal(item.value) : item.value}
                         </span>
                       )}
                     </div>

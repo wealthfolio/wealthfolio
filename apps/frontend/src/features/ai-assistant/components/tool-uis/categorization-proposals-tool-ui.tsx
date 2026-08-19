@@ -1,6 +1,6 @@
 import { updateToolResult } from "@/adapters";
-import { useBulkAssignCategories } from "@/features/spending/hooks/use-cash-activities";
 import { QuickCategorizePopover } from "@/features/spending/components/quick-categorize-popover";
+import { useBulkAssignCategories } from "@/features/spending/hooks/use-cash-activities";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,8 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  useDateFormatting,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { memo, useEffect, useMemo, useState } from "react";
@@ -86,13 +88,19 @@ function CategorizationProposalsContentImpl({
   status,
   toolCallId,
 }: CategorizationProposalsToolUIContentProps) {
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const { isBalanceHidden } = useBalancePrivacy();
   const runtime = useRuntimeContext();
   const threadId = runtime.currentThreadId;
-  const amountFormatter = useMemo(() => createActivityAmountFormatter(), []);
+  const amountFormatter = useMemo(
+    () => createActivityAmountFormatter(numberFormatting),
+    [numberFormatting],
+  );
   const bulkAssign = useBulkAssignCategories();
 
   const isLoading = status?.type === "running";
@@ -344,7 +352,7 @@ function CategorizationProposalsContentImpl({
                 aria-label={t("ai:categorization.selectRow")}
               />
               <span className="text-muted-foreground w-24 whitespace-nowrap tabular-nums">
-                {formatActivityDate(row.activityDate)}
+                {formatActivityDate(row.activityDate, dateFormatting)}
               </span>
               <span className="w-24 text-right tabular-nums">
                 {formatActivityAmount(
@@ -403,7 +411,7 @@ function CategorizationProposalsContentImpl({
                 >
                   <span className="w-5" />
                   <span className="text-muted-foreground w-24 whitespace-nowrap tabular-nums">
-                    {formatActivityDate(row.activityDate)}
+                    {formatActivityDate(row.activityDate, dateFormatting)}
                   </span>
                   <span className="w-24 text-right tabular-nums">
                     {formatActivityAmount(

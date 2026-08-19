@@ -49,7 +49,10 @@
       "noTimezonesFound": "No se encontraron zonas horarias",
       "currencyRequired": "Selecciona una divisa base.",
       "timezoneRequired": "Selecciona una zona horaria.",
-      "languageLabel": "Idioma"
+      "languageLabel": "Idioma",
+      "formattingRegionLabel": "Región y formatos",
+      "searchRegionsPlaceholder": "Buscar regiones...",
+      "noRegionsFound": "No se encontraron regiones"
     }
   },
   "appearance": {

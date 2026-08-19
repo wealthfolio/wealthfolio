@@ -1,5 +1,5 @@
 import type { TaxonomyAllocation } from "@/lib/types";
-import { formatPercent, PrivacyAmount } from "@wealthfolio/ui";
+import { PrivacyAmount, useNumberFormatting } from "@wealthfolio/ui";
 import { Card } from "@wealthfolio/ui/components/ui/card";
 import {
   Tooltip,
@@ -63,6 +63,7 @@ export function CompactAllocationStrip({
   variant = "security-types",
   onSegmentClick,
 }: CompactAllocationStripProps) {
+  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const processedCategories = useMemo(() => {
     if (!allocation?.categories?.length) return [];
@@ -201,7 +202,9 @@ export function CompactAllocationStrip({
                       <span className="text-muted-foreground text-[0.70rem] uppercase">
                         {category.name}
                       </span>
-                      <div className="font-medium">{formatPercent(category.percent / 100)}</div>
+                      <div className="font-medium">
+                        {formatting.formatPercent(category.percent / 100)}
+                      </div>
                       <div className="text-muted-foreground text-xs">
                         <PrivacyAmount value={category.value} currency={baseCurrency} />
                       </div>

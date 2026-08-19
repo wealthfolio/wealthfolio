@@ -1,12 +1,22 @@
-import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@wealthfolio/ui";
-import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 import { TickerAvatar } from "@/components/ticker-avatar";
-import { cn, formatAmount } from "@/lib/utils";
 import { useAccounts } from "@/hooks/use-accounts";
 import type { DriftHoldingRow, DriftReport } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  useAmountFormatting,
+  type FormattingApi,
+  useDateFormatting,
+  useNumberFormatting,
+} from "@wealthfolio/ui";
+import type { TFunction } from "i18next";
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { formatPp } from "./drift-copy";
 
 interface HoldingsTableProps {
@@ -60,15 +70,15 @@ function HoldingAvatar({
   );
 }
 
-function formatUpdatedAt(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  })
-    .format(date)
+function formatUpdatedAt(date: Date, formatting: Pick<FormattingApi, "formatDate">): string {
+  return formatting
+    .formatDate(date, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    })
     .replace(/\bE[DS]T\b/, "ET");
 }
 
@@ -90,12 +100,15 @@ function canNavigateToHolding(row: DriftHoldingRow): boolean {
 }
 
 export function HoldingsTable({ report }: HoldingsTableProps) {
+  const dateFormatting = useDateFormatting();
+  const formatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { accounts } = useAccounts();
 
   const accountMap = useMemo(() => new Map(accounts.map((a) => [a.id, a.name])), [accounts]);
-  const updatedAt = useMemo(() => formatUpdatedAt(new Date()), []);
+  const updatedAt = useMemo(() => formatUpdatedAt(new Date(), dateFormatting), [dateFormatting]);
 
   const showAccountCol = report.scopeType !== "account";
   const holdingsReport = report.holdings ?? null;
@@ -159,7 +172,7 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                     <span className="text-muted-foreground truncate text-[12px]">{row.name}</span>
                   </div>
                   <span className="text-foreground text-right text-[12px] font-medium tabular-nums">
-                    {formatAmount(row.value, baseCurrency)}
+                    {formatting.formatAmount(row.value, baseCurrency)}
                   </span>
 
                   <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-[11.5px]">
@@ -270,13 +283,15 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                       </div>
                     </td>
                     <td className="text-foreground pr-3 text-right tabular-nums">
-                      {formatAmount(row.value, baseCurrency)}
+                      {formatting.formatAmount(row.value, baseCurrency)}
                     </td>
                     <td className="text-foreground pr-3 text-right font-medium tabular-nums">
-                      {row.currentPct.toFixed(2)}%
+                      {numberFormatting.formatPercent(row.currentPct / 100, { digits: 2 })}
                     </td>
                     <td className="text-muted-foreground pr-3 text-right tabular-nums">
-                      {row.targetPct != null ? `${row.targetPct.toFixed(2)}%` : "—"}
+                      {row.targetPct != null
+                        ? numberFormatting.formatPercent(row.targetPct / 100, { digits: 2 })
+                        : "—"}
                     </td>
                     <td
                       className={cn(

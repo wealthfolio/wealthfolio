@@ -100,6 +100,7 @@
   "delete_selected_confirm": "¿Seguro que quieres eliminar {{count}} actividades seleccionadas?",
   "cash_balance_checking": "Comprobando el saldo de la cuenta...",
   "cash_balance_insufficient": "Fondos insuficientes:",
+  "cash_balance_warning": "Saldo de efectivo insuficiente. Requerido: {{required}}, disponible: {{available}}, déficit: {{shortfall}}",
   "cash_balance_shortfall_hint": "Registra depósitos de efectivo para cubrir el déficit, o usa \"Añadir posición\" (omite el seguimiento de efectivo).",
   "cash_balance_transaction_cost": "Coste de la transacción: {{amount}} - Fondos suficientes disponibles",
   "edit_activity": "Editar actividad",
@@ -303,7 +304,9 @@
     "add_activities": "Añadir actividades",
     "ask_ai_categorize": "Pedir a la IA que categorice",
     "investments": "Inversiones",
-    "spending": "Gastos"
+    "spending": "Gastos",
+    "health_filter_single": "Se muestra la transacción marcada por el Centro de salud",
+    "health_filter_multiple": "Se muestran las transacciones marcadas por el Centro de salud"
   },
   "delete_modal": {
     "title": "¿Eliminar actividad?",
@@ -321,7 +324,9 @@
   },
   "date_sheet": {
     "title": "Actividades del {{date}}",
-    "count": "{{count}} actividades registradas en esta fecha"
+    "count": "{{count}} actividades registradas en esta fecha",
+    "count_one": "{{count}} actividad registrada en esta fecha",
+    "count_other": "{{count}} actividades registradas en esta fecha"
   },
   "picker": {
     "transfer": "Transferencia",
@@ -449,7 +454,9 @@
     "warning_stale_link": "Se reemplazará el vínculo de transferencia obsoleto existente.",
     "error_load_suggestions": "No se pudieron cargar las coincidencias sugeridas.",
     "error_load_pair": "No se pudo cargar el par de transferencia vinculado.",
-    "error_search": "No se pudieron buscar las actividades."
+    "error_search": "No se pudieron buscar las actividades.",
+    "within_days_one": "Dentro de {{count}} día",
+    "within_days_other": "Dentro de {{count}} días"
   },
   "form": {
     "section_asset_account": "Activo y cuenta",
@@ -676,7 +683,9 @@
       "first_page": "Ir a la primera página",
       "previous_page": "Página anterior",
       "next_page": "Página siguiente",
-      "last_page": "Ir a la última página"
+      "last_page": "Ir a la última página",
+      "jump_hint_one": "Introduce un número de página entre 1 y {{count}}",
+      "jump_hint_other": "Introduce un número de página entre 1 y {{count}}"
     },
     "duplicated_comment": "Duplicada",
     "save_edits_first": "Guarda primero las ediciones",
@@ -729,7 +738,11 @@
     "select_all_rows": "Seleccionar todas las filas",
     "select_row": "Seleccionar fila",
     "instrument_auto": "Automático",
-    "unit_price_help": "Para compras y ventas, introduce el precio de la operación. Para las recompensas de staking y los dividendos en especie, introduce el valor justo de mercado por unidad en el momento de la recepción; determina el importe del ingreso y la base de coste."
+    "unit_price_help": "Para compras y ventas, introduce el precio de la operación. Para las recompensas de staking y los dividendos en especie, introduce el valor justo de mercado por unidad en el momento de la recepción; determina el importe del ingreso y la base de coste.",
+    "warn_dates_differ_one": "Las fechas difieren en {{count}} día.",
+    "warn_dates_differ_other": "Las fechas difieren en {{count}} días.",
+    "approve_count_one": "Aprobar {{count}}",
+    "approve_count_other": "Aprobar {{count}}"
   },
   "table": {
     "cash": "Efectivo",
@@ -855,7 +868,11 @@
       "valueComma": "Coma",
       "valueSemicolon": "Punto y coma",
       "valueTab": "Tabulación",
-      "valuePeriod": "Punto"
+      "valuePeriod": "Punto",
+      "summarySkipTop_one": "Omitir superiores: {{count}}",
+      "summarySkipTop_other": "Omitir superiores: {{count}}",
+      "summarySkipBottom_one": "Omitir inferiores: {{count}}",
+      "summarySkipBottom_other": "Omitir inferiores: {{count}}"
     },
     "template": {
       "label": "Plantilla",
@@ -914,7 +931,9 @@
       "mapType": "Asignar tipo",
       "mapSymbol": "Asignar símbolo",
       "missingAccount": "Cuenta faltante",
-      "emptySymbol": "Símbolo vacío"
+      "emptySymbol": "Símbolo vacío",
+      "accountAssignmentBlankRows_one": "Asigna cada fila del CSV a una cuenta. {{count}} fila sigue en blanco, así que elige una cuenta predeterminada en Subir o completa la columna de cuenta.",
+      "accountAssignmentBlankRows_other": "Asigna cada fila del CSV a una cuenta. {{count}} filas siguen en blanco, así que elige una cuenta predeterminada en Subir o completa la columna de cuenta."
     },
     "csvViewer": {
       "status": "Estado",
@@ -928,7 +947,9 @@
       "emptyFile": "Archivo vacío",
       "emptyLine": "línea vacía",
       "noContentFound": "No se encontró contenido",
-      "empty": "vacío"
+      "empty": "vacío",
+      "lines_one": "{{count}} línea",
+      "lines_other": "{{count}} líneas"
     },
     "columns": {
       "dateTime": "Fecha y hora",
@@ -1020,7 +1041,11 @@
       "statusDuplicates": "Duplicadas",
       "statusSkipped": "Omitidas",
       "statusValid": "Válidas",
-      "skipReason": "Omitida"
+      "skipReason": "Omitida",
+      "willBeImportedTitle_one": "Se importará {{count}} de {{all}} actividades",
+      "willBeImportedTitle_other": "Se importarán {{count}} de {{all}} actividades",
+      "activitiesCount_one": "{{count}} actividad",
+      "activitiesCount_other": "{{count}} actividades"
     },
     "status": {
       "valid": "Válida",
@@ -1069,7 +1094,11 @@
       "typeSplit": "División",
       "typeUnknown": "Desconocido",
       "skipReasonManual": "Manual",
-      "validationError": "Error de validación"
+      "validationError": "Error de validación",
+      "readyTitle_one": "{{count}} actividad lista para importar",
+      "readyTitle_other": "{{count}} actividades listas para importar",
+      "warningsDescription_one": "{{count}} actividad tiene advertencias pero se importará de todos modos.",
+      "warningsDescription_other": "{{count}} actividades tienen advertencias pero se importarán de todos modos."
     },
     "result": {
       "loading": "Cargando los resultados de la importación...",
@@ -1167,7 +1196,11 @@
       "importing": "Importando...",
       "importSnapshots_one": "Importar {{count}} instantánea",
       "importSnapshots_other": "Importar {{count}} instantáneas",
-      "failedToPrepareAssets": "No se pudieron preparar los activos para la importación."
+      "failedToPrepareAssets": "No se pudieron preparar los activos para la importación.",
+      "positionsCount_one": "{{count}} posición",
+      "positionsCount_other": "{{count}} posiciones",
+      "readyRows_one": "{{count}} fila",
+      "readyRows_other": "{{count}} filas"
     },
     "symbolPanel": {
       "unrecognized_one": "{{count}} símbolo no reconocido",
@@ -1180,7 +1213,9 @@
       "searchFor": "Buscar {{symbol}}...",
       "markCustom": "Marcar como personalizado",
       "applyMappings_one": "Aplicar {{count}} asignación",
-      "applyMappings_other": "Aplicar {{count}} asignaciones"
+      "applyMappings_other": "Aplicar {{count}} asignaciones",
+      "affectingRows_one": " que afecta a {{count}} fila",
+      "affectingRows_other": " que afecta a {{count}} filas"
     },
     "help": {
       "button": "¿Cómo importar un CSV?",
@@ -1278,7 +1313,9 @@
       "allValidDescriptionSuffix": " para continuar con la importación.",
       "confirmImport": "Confirmar importación",
       "cancel": "Cancelar",
-      "importing": "Importando..."
+      "importing": "Importando...",
+      "issuesTitle_one": "Hay problemas con {{count}} entrada de actividad.",
+      "issuesTitle_other": "Hay problemas con {{count}} entradas de actividad."
     }
   }
 }

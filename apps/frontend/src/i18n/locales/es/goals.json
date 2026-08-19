@@ -251,6 +251,8 @@
       "retirement_age": "Edad de jubilación",
       "desired_retirement_age_hint": "Edad a la que quieres ser financieramente independiente.",
       "retirement_age_hint": "Edad a la que quieres jubilarte.",
+      "horizon_age_fire": "Horizonte del plan",
+      "horizon_age_traditional": "Esperanza de vida",
       "horizon_hint": "Edad hasta la que debe cubrir el plan.",
       "monthly_contribution": "Aportación mensual",
       "monthly_contribution_hint": "Cuánto añades cada mes hasta la jubilación.",
@@ -707,7 +709,7 @@
     "low_range": "Rango bajo ({{rate}})",
     "legend_projected": "Proyectado",
     "legend_target": "Objetivo",
-    "legend_range": "Rango (±{{pct}}%)"
+    "legend_range": "Rango (±{{pct}})"
   },
   "milestones": {
     "kicker": "Puntos de control",
@@ -750,7 +752,9 @@
       "gap_at_target_age": "Déficit a la edad objetivo",
       "money_lasts": "El dinero dura",
       "paths_count": "{{count}} trayectorias",
-      "not_run": "no ejecutado"
+      "not_run": "no ejecutado",
+      "paths_count_one": "{{count}} trayectoria",
+      "paths_count_other": "{{count}} trayectorias"
     },
     "results": {
       "base_plan": "Plan base",
@@ -796,7 +800,9 @@
       "outcome": "Resultado",
       "fi_age": "Edad de IF",
       "extra_gap": "Déficit extra",
-      "money_left": "Dinero restante"
+      "money_left": "Dinero restante",
+      "eyebrow_with_count_one": "¿Qué podría romper este plan? · {{count}} escenario",
+      "eyebrow_with_count_other": "¿Qué podría romper este plan? · {{count}} escenarios"
     },
     "montecarlo": {
       "eyebrow": "Trayectorias de mercado",
@@ -829,7 +835,9 @@
       "median_fi_age": "Edad mediana de IF",
       "market_paths_count": "{{count}} trayectorias de mercado",
       "retire": "jubilación",
-      "goal": "objetivo"
+      "goal": "objetivo",
+      "market_paths_count_one": "{{count}} trayectoria de mercado",
+      "market_paths_count_other": "{{count}} trayectorias de mercado"
     },
     "moves": {
       "eyebrow": "¿Qué cambia más el plan?",

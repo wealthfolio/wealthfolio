@@ -32,6 +32,10 @@
   "save_settings": "Save Settings",
   "settings_saved": "Settings saved successfully",
   "settings_error": "Error saving settings",
+  "settings_updated_title": "Settings updated",
+  "settings_updated_description": "Your settings have been updated successfully.",
+  "settings_update_error_title": "Uh oh! Something went wrong.",
+  "settings_update_error_description": "There was a problem updating your settings.",
   "nav_general_subtitle": "Currency and general preferences",
   "nav_appearance_subtitle": "Theme, typography, and density",
   "nav_accounts_subtitle": "Investment and savings accounts",
@@ -958,7 +962,31 @@
     "placeholders": "Placeholders:",
     "empty_response_before": "Fill in the URL, then press ",
     "empty_response_after": " to test.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "table_click_column_to_map_field_one": "{{count}} row · click a column header to map to {{field}}",
+    "table_click_column_to_map_field_other": "{{count}} rows · click a column header to map to {{field}}",
+    "table_click_column_to_map_one": "{{count}} row · click a column header to map",
+    "table_click_column_to_map_other": "{{count}} rows · click a column header to map",
+    "csv_rows_detected_field_one": "{{count}} row detected. Click a column header to map it to {{field}}.",
+    "csv_rows_detected_field_other": "{{count}} rows detected. Click a column header to map it to {{field}}.",
+    "csv_rows_detected_one": "{{count}} row detected. Click a column header to map it.",
+    "csv_rows_detected_other": "{{count}} rows detected. Click a column header to map it.",
+    "elements_detected_field_one": "{{count}} element detected. Click it to assign its selector to {{field}}.",
+    "elements_detected_field_other": "{{count}} elements detected. Click one to assign its selector to {{field}}.",
+    "elements_detected_one": "{{count}} element detected. Click it to assign its selector.",
+    "elements_detected_other": "{{count}} elements detected. Click one to assign its selector.",
+    "show_more_elements_one": "Show {{count}} more element",
+    "show_more_elements_other": "Show {{count}} more elements",
+    "preview_data_rows_one": "Preview Data ({{count}} row)",
+    "preview_data_rows_other": "Preview Data ({{count}} rows)",
+    "review_first_rows_one": "Review the first row of your CSV data",
+    "review_first_rows_other": "Review the first {{count}} rows of your CSV data",
+    "import_quotes_count_one": "Import {{count}} Quote",
+    "import_quotes_count_other": "Import {{count}} Quotes",
+    "imported_count_one": "{{count}} imported",
+    "imported_count_other": "{{count}} imported",
+    "failed_count_one": "{{count}} failed",
+    "failed_count_other": "{{count}} failed"
   },
   "addon_permission_none_detected": "No data access permissions detected. This addon appears to have minimal system access.",
   "addon_permission_list_title": "Permissions",
@@ -1011,7 +1039,9 @@
       "stat_budget_groups": "Budget groups",
       "stat_active": "active",
       "no_rules_prompt": "No categorization rules yet — auto-tag transactions by name pattern.",
-      "setup_rules": "Set up rules"
+      "setup_rules": "Set up rules",
+      "stat_accounts_unit_one": "of {{count}} cash account",
+      "stat_accounts_unit_other": "of {{count}} cash accounts"
     },
     "accounts": {
       "title": "Spending accounts",
@@ -1091,7 +1121,9 @@
       "manage": "Manage",
       "error_title": "Could not load",
       "error_description": "Try again from the manage page.",
-      "more": "+{{count}} more"
+      "more": "+{{count}} more",
+      "more_one": "+{{count}} more",
+      "more_other": "+{{count}} more"
     },
     "setup": {
       "title": "Default monthly budget plan",
@@ -1112,7 +1144,13 @@
       "updated": "Category updated.",
       "update_error": "Failed to update category.",
       "created": "Category created.",
-      "create_error": "Failed to create category."
+      "create_error": "Failed to create category.",
+      "tab_expense_one": "Expense ({{count}})",
+      "tab_expense_other": "Expense ({{count}})",
+      "tab_income_one": "Income ({{count}})",
+      "tab_income_other": "Income ({{count}})",
+      "tab_savings_one": "Savings ({{count}})",
+      "tab_savings_other": "Savings ({{count}})"
     },
     "events": {
       "heading": "Spending Events",
@@ -1383,7 +1421,9 @@
     },
     "copied_generic": "{{label}} copied to clipboard.",
     "hero_aria": "AI Agent Access status",
-    "mcp_in_project": "in your project"
+    "mcp_in_project": "in your project",
+    "pat_scope_custom_one": "Custom · {{count}} scope",
+    "pat_scope_custom_other": "Custom · {{count}} scopes"
   },
   "tax_add_category": "Add Category",
   "tax_export": "Export",
@@ -1401,6 +1441,23 @@
   "ai_providers_empty_description": "AI providers will appear here once configured. Check back later or contact support.",
   "about_logo_alt": "Wealthfolio logo",
   "language_region_title": "Language & Region",
+  "formattingRegion": {
+    "title": "Region & formats",
+    "description": "Controls dates, times, number separators, percentages, and currency presentation.",
+    "options": {
+      "system": "System region",
+      "canada": "Canada",
+      "unitedStates": "United States",
+      "unitedKingdom": "United Kingdom",
+      "france": "France",
+      "germany": "Germany",
+      "spain": "Spain",
+      "mexico": "Mexico",
+      "china": "China",
+      "japan": "Japan",
+      "southKorea": "South Korea"
+    }
+  },
   "appearance_navigation_title": "Navigation",
   "appearance_navigation_description": "Choose how you navigate on large screens.",
   "addons_pin_to_navigation": "Pin {{name}} to navigation",
@@ -1412,5 +1469,17 @@
   "addon_permission_denied": "Denied",
   "health_banner_classification": "Showing classifications flagged by Health Center",
   "health_banner_market_data": "Showing market data settings flagged by Health Center",
-  "health_banner_clear": "Clear"
+  "health_banner_clear": "Clear",
+  "tax_categories_count_one": "{{count}} category",
+  "tax_categories_count_other": "{{count}} categories",
+  "tax_migration_body_one": "{{count}} asset has legacy sector/country data that can be migrated to the new taxonomy system for better organization and analytics.",
+  "tax_migration_body_other": "{{count}} assets have legacy sector/country data that can be migrated to the new taxonomy system for better organization and analytics.",
+  "addon_rating_characters_one": "{{count}}/500 character",
+  "addon_rating_characters_other": "{{count}}/500 characters",
+  "addon_store_filter_all_one": "All ({{count}})",
+  "addon_store_filter_all_other": "All ({{count}})",
+  "addon_store_filter_uninstalled_one": "Not Installed ({{count}})",
+  "addon_store_filter_uninstalled_other": "Not Installed ({{count}})",
+  "addon_store_showing_one": "Showing {{count}} of {{total}} addons",
+  "addon_store_showing_other": "Showing {{count}} of {{total}} addons"
 }

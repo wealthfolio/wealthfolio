@@ -100,6 +100,7 @@
   "delete_selected_confirm": "Êtes-vous sûr de vouloir supprimer {{count}} activités sélectionnées ?",
   "cash_balance_checking": "Vérification du solde du compte...",
   "cash_balance_insufficient": "Fonds insuffisants :",
+  "cash_balance_warning": "Solde de trésorerie insuffisant. Requis : {{required}}, disponible : {{available}}, manque : {{shortfall}}",
   "cash_balance_shortfall_hint": "Enregistrez des dépôts en espèces pour couvrir le déficit, ou utilisez \"Ajouter une position\" (contourne le suivi des liquidités).",
   "cash_balance_transaction_cost": "Coût de la transaction : {{amount}} - Fonds suffisants disponibles",
   "edit_activity": "Modifier l'activité",
@@ -303,7 +304,9 @@
     "add_activities": "Ajouter des activités",
     "ask_ai_categorize": "Demander à l'IA de catégoriser",
     "investments": "Investissements",
-    "spending": "Dépenses"
+    "spending": "Dépenses",
+    "health_filter_single": "Affichage de la transaction signalée par le Centre de santé",
+    "health_filter_multiple": "Affichage des transactions signalées par le Centre de santé"
   },
   "delete_modal": {
     "title": "Supprimer l'activité ?",
@@ -321,7 +324,9 @@
   },
   "date_sheet": {
     "title": "Activités du {{date}}",
-    "count": "{{count}} activités enregistrées à cette date"
+    "count": "{{count}} activités enregistrées à cette date",
+    "count_one": "{{count}} activité enregistrée à cette date",
+    "count_other": "{{count}} activités enregistrées à cette date"
   },
   "picker": {
     "transfer": "Transfert",
@@ -449,7 +454,9 @@
     "warning_stale_link": "Le lien de transfert obsolète existant sera remplacé.",
     "error_load_suggestions": "Impossible de charger les correspondances suggérées.",
     "error_load_pair": "Impossible de charger la paire de transfert liée.",
-    "error_search": "Impossible de rechercher les activités."
+    "error_search": "Impossible de rechercher les activités.",
+    "within_days_one": "Dans un délai de {{count}} jour",
+    "within_days_other": "Dans les {{count}} jours"
   },
   "form": {
     "section_asset_account": "Actif et compte",
@@ -676,7 +683,9 @@
       "first_page": "Aller à la première page",
       "previous_page": "Page précédente",
       "next_page": "Page suivante",
-      "last_page": "Aller à la dernière page"
+      "last_page": "Aller à la dernière page",
+      "jump_hint_one": "Saisissez un numéro de page entre 1 et {{count}}",
+      "jump_hint_other": "Saisissez un numéro de page entre 1 et {{count}}"
     },
     "duplicated_comment": "Dupliqué",
     "save_edits_first": "Enregistrez d'abord les modifications",
@@ -729,7 +738,11 @@
     "select_all_rows": "Sélectionner toutes les lignes",
     "select_row": "Sélectionner la ligne",
     "instrument_auto": "Auto",
-    "unit_price_help": "Pour les achats et ventes, saisissez le prix de la transaction. Pour les récompenses de staking et les dividendes en nature, saisissez la juste valeur marchande par unité à la réception ; elle définit le montant du revenu et le prix de revient."
+    "unit_price_help": "Pour les achats et ventes, saisissez le prix de la transaction. Pour les récompenses de staking et les dividendes en nature, saisissez la juste valeur marchande par unité à la réception ; elle définit le montant du revenu et le prix de revient.",
+    "warn_dates_differ_one": "Les dates diffèrent de {{count}} jour.",
+    "warn_dates_differ_other": "Les dates diffèrent de {{count}} jours.",
+    "approve_count_one": "Approuver {{count}}",
+    "approve_count_other": "Approuver {{count}}"
   },
   "table": {
     "cash": "Espèces",
@@ -855,7 +868,11 @@
       "valueComma": "Virgule",
       "valueSemicolon": "Point-virgule",
       "valueTab": "Tabulation",
-      "valuePeriod": "Point"
+      "valuePeriod": "Point",
+      "summarySkipTop_one": "Ignorer en haut : {{count}}",
+      "summarySkipTop_other": "Ignorer en haut : {{count}}",
+      "summarySkipBottom_one": "Ignorer en bas : {{count}}",
+      "summarySkipBottom_other": "Ignorer en bas : {{count}}"
     },
     "template": {
       "label": "Modèle",
@@ -914,7 +931,9 @@
       "mapType": "Associer le type",
       "mapSymbol": "Associer le symbole",
       "missingAccount": "Compte manquant",
-      "emptySymbol": "Symbole vide"
+      "emptySymbol": "Symbole vide",
+      "accountAssignmentBlankRows_one": "Associez chaque ligne du CSV à un compte. {{count}} ligne est encore vide, choisissez donc un compte par défaut à l'étape Téléversement ou remplissez la colonne du compte.",
+      "accountAssignmentBlankRows_other": "Associez chaque ligne du CSV à un compte. {{count}} lignes sont encore vides, choisissez donc un compte par défaut à l'étape Téléversement ou remplissez la colonne du compte."
     },
     "csvViewer": {
       "status": "Statut",
@@ -928,7 +947,9 @@
       "emptyFile": "Fichier vide",
       "emptyLine": "ligne vide",
       "noContentFound": "Aucun contenu trouvé",
-      "empty": "vide"
+      "empty": "vide",
+      "lines_one": "{{count}} ligne",
+      "lines_other": "{{count}} lignes"
     },
     "columns": {
       "dateTime": "Date et heure",
@@ -1020,7 +1041,11 @@
       "statusDuplicates": "Doublons",
       "statusSkipped": "Ignorées",
       "statusValid": "Valides",
-      "skipReason": "Ignoré"
+      "skipReason": "Ignoré",
+      "willBeImportedTitle_one": "{{count}} activité sur {{all}} sera importée",
+      "willBeImportedTitle_other": "{{count}} activités sur {{all}} seront importées",
+      "activitiesCount_one": "{{count}} activité",
+      "activitiesCount_other": "{{count}} activités"
     },
     "status": {
       "valid": "Valide",
@@ -1069,7 +1094,11 @@
       "typeSplit": "Fractionnement",
       "typeUnknown": "Inconnu",
       "skipReasonManual": "Manuel",
-      "validationError": "Erreur de validation"
+      "validationError": "Erreur de validation",
+      "readyTitle_one": "{{count}} activité prête à être importée",
+      "readyTitle_other": "{{count}} activités prêtes à être importées",
+      "warningsDescription_one": "{{count}} activité comporte des avertissements mais sera tout de même importée.",
+      "warningsDescription_other": "{{count}} activités comportent des avertissements mais seront tout de même importées."
     },
     "result": {
       "loading": "Chargement des résultats d'import…",
@@ -1167,7 +1196,11 @@
       "importing": "Import…",
       "importSnapshots_one": "Importer {{count}} instantané",
       "importSnapshots_other": "Importer {{count}} instantanés",
-      "failedToPrepareAssets": "Échec de la préparation des actifs pour l'import."
+      "failedToPrepareAssets": "Échec de la préparation des actifs pour l'import.",
+      "positionsCount_one": "{{count}} position",
+      "positionsCount_other": "{{count}} positions",
+      "readyRows_one": "{{count}} ligne",
+      "readyRows_other": "{{count}} lignes"
     },
     "symbolPanel": {
       "unrecognized_one": "{{count}} symbole non reconnu",
@@ -1180,7 +1213,9 @@
       "searchFor": "Rechercher {{symbol}}…",
       "markCustom": "Marquer personnalisé",
       "applyMappings_one": "Appliquer {{count}} correspondance",
-      "applyMappings_other": "Appliquer {{count}} correspondances"
+      "applyMappings_other": "Appliquer {{count}} correspondances",
+      "affectingRows_one": " affectant {{count}} ligne",
+      "affectingRows_other": " affectant {{count}} lignes"
     },
     "help": {
       "button": "Comment importer un CSV ?",
@@ -1278,7 +1313,9 @@
       "allValidDescriptionSuffix": " pour poursuivre l'import.",
       "confirmImport": "Confirmer l'import",
       "cancel": "Annuler",
-      "importing": "Import…"
+      "importing": "Import…",
+      "issuesTitle_one": "Il y a des problèmes avec {{count}} entrée d'activité.",
+      "issuesTitle_other": "Il y a des problèmes avec {{count}} entrées d'activité."
     }
   }
 }

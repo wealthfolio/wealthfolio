@@ -50,7 +50,8 @@
       "target": "目标",
       "no_target_yet": "尚无目标配置",
       "compare_weights": "将当前权重与您预期的投资组合进行比较。",
-      "set_target_allocation": "设置目标配置"
+      "set_target_allocation": "设置目标配置",
+      "outside_range_other": "{{count}} 项超出区间 · 最大偏差 {{gap}}"
     },
     "value_strip": {
       "portfolio_value": "投资组合价值",
@@ -114,11 +115,12 @@
       "over_months_one": "在 {{count}} 个月内",
       "over_months_other": "在 {{count}} 个月内",
       "trailing_pace": " · 过去 12 个月节奏的 {{multiple}} 倍",
-      "drivers_of_change": "{{period}} 变化的驱动因素",
+      "drivers_of_change": "变化驱动因素",
       "market_returns": "市场回报",
       "contributions": "投入",
       "equity_built": "累积权益",
       "per_month": "/月"
-    }
+    },
+    "days_ago_other": "{{count}} 天前"
   }
 }

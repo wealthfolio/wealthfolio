@@ -12,6 +12,8 @@ import {
   type PeriodState,
 } from "./change-descriptor";
 
+type HeadlineTranslator = (key: string, options?: Record<string, unknown>) => string;
+
 export type HeadlineFragmentTone = "up" | "down" | "neutral";
 
 /** A typed fragment of the narrative — components decide colors/arrows. */
@@ -50,15 +52,17 @@ export interface BuildHeadlineInput {
   priorTotal: number;
   priorLabel: string;
   metaLabel: string;
+  t: HeadlineTranslator;
 }
 
 export function buildHeadline(input: BuildHeadlineInput): HeadlineModel {
-  const { periodState, movers, currentTotal, priorTotal, priorLabel, metaLabel } = input;
+  const { periodState, movers, currentTotal, priorTotal, priorLabel, metaLabel, t } = input;
+  const normalizedPriorLabel = priorLabel.replace(/[.\s]+$/u, "");
 
   if (periodState.kind === "no_activity_either_side") {
     return {
       metaLabel,
-      fragments: [{ type: "text", text: "No spending recorded in this window." }],
+      fragments: [{ type: "text", text: t("spending:whatChanged.headlineNoActivity") }],
       summary: null,
     };
   }
@@ -68,11 +72,11 @@ export function buildHeadline(input: BuildHeadlineInput): HeadlineModel {
       // Suppress the meta label when there's nothing to compare against.
       metaLabel: "",
       fragments: [
-        { type: "text", text: "You spent " },
+        { type: "text", text: t("spending:whatChanged.headlineLeadPrefix") },
         { type: "amount", value: currentTotal, tone: "neutral" },
         {
           type: "text",
-          text: " this period. No prior data to compare against.",
+          text: t("spending:whatChanged.headlineNoPriorSuffix"),
         },
       ],
       // No summary line in this state — the narrative already carries the total.
@@ -83,7 +87,6 @@ export function buildHeadline(input: BuildHeadlineInput): HeadlineModel {
   // valid_comparison from here on.
   const netDelta = currentTotal - priorTotal;
   const direction: HeadlineFragmentTone = netDelta >= 0 ? "up" : "down";
-  const directionWord = netDelta >= 0 ? "more" : "less";
 
   // Total Δ% has its own noise guard (we use the same base threshold as
   // per-category, applied to total spend).
@@ -98,7 +101,7 @@ export function buildHeadline(input: BuildHeadlineInput): HeadlineModel {
 
   // Lead sentence: "You spent CA$X more/less than {priorLabel}."
   const lead: HeadlineFragment[] = [
-    { type: "text", text: "You spent " },
+    { type: "text", text: t("spending:whatChanged.headlineLeadPrefix") },
     {
       type: "amount",
       value: Math.abs(netDelta),
@@ -106,7 +109,12 @@ export function buildHeadline(input: BuildHeadlineInput): HeadlineModel {
     },
     {
       type: "text",
-      text: ` ${directionWord} than ${priorLabel}.`,
+      text: t(
+        netDelta >= 0
+          ? "spending:whatChanged.headlineMoreSuffix"
+          : "spending:whatChanged.headlineLessSuffix",
+        { priorLabel: normalizedPriorLabel },
+      ),
     },
   ];
 
@@ -132,7 +140,7 @@ export function buildHeadline(input: BuildHeadlineInput): HeadlineModel {
         { type: "text", text: " " },
         {
           type: "text",
-          text: "Spending shifted across several categories, no single driver.",
+          text: t("spending:whatChanged.headlineSeveralDrivers"),
         },
       ],
       summary,
@@ -140,14 +148,19 @@ export function buildHeadline(input: BuildHeadlineInput): HeadlineModel {
   }
 
   const topTone: HeadlineFragmentTone = top.delta >= 0 ? "up" : "down";
-  const driverWord = netDelta >= 0 ? "rise" : "drop";
-
   const topMover: HeadlineMover = { id: top.id, name: top.name, descriptor: top };
 
   const driverFragments: HeadlineFragment[] = [
-    { type: "text", text: ` Most of the ${driverWord} came from ` },
+    {
+      type: "text",
+      text: t(
+        netDelta >= 0
+          ? "spending:whatChanged.headlineRiseDriverPrefix"
+          : "spending:whatChanged.headlineDropDriverPrefix",
+      ),
+    },
     { type: "mover", descriptor: topMover, tone: topTone },
-    { type: "text", text: "." },
+    { type: "text", text: t("spending:whatChanged.headlineSentenceEnd") },
   ];
 
   // Optional second mover, only when it moves opposite the net direction and is material.
@@ -167,7 +180,7 @@ export function buildHeadline(input: BuildHeadlineInput): HeadlineModel {
         descriptor: { id: second.id, name: second.name, descriptor: second },
         tone: secondTone,
       },
-      { type: "text", text: " went the other way." },
+      { type: "text", text: t("spending:whatChanged.headlineOppositeSuffix") },
     );
   }
 

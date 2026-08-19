@@ -89,7 +89,9 @@
     "shares_one": "{{formatted}}株",
     "shares_other": "{{formatted}}株",
     "more_holdings": "他{{count}}銘柄",
-    "more": "他{{count}}件"
+    "more": "他{{count}}件",
+    "more_holdings_other": "他{{count}}銘柄",
+    "more_other": "他{{count}}件"
   },
   "summary": {
     "return_unavailable_holdings": "リターン率を算出できません - 取得原価または期初の保有評価額がありません。",

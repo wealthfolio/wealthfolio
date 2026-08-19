@@ -1,12 +1,13 @@
 import { AccountType } from "@/lib/constants";
 import type { Account, AccountScope, PortfolioWithAccounts } from "@/lib/types";
-import { render, screen } from "@testing-library/react";
+import { render, screen } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import type { InputHTMLAttributes, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ActivityMobileFilterSheet } from "./activity-mobile-filter-sheet";
 
-vi.mock("@wealthfolio/ui", () => ({
+vi.mock("@wealthfolio/ui", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@wealthfolio/ui")>()),
   Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,

@@ -34,6 +34,8 @@ pub struct YahooQuoteSummaryResult {
 #[serde(rename_all = "camelCase")]
 pub struct YahooPriceData {
     pub currency: Option<String>,
+    /// Yahoo's short exchange code for the listing that matched ("NEO", "NGM").
+    pub exchange: Option<String>,
     pub short_name: Option<String>,
     pub long_name: Option<String>,
     pub quote_type: Option<String>,

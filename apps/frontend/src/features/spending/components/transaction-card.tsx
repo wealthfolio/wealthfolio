@@ -1,6 +1,8 @@
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { Account } from "@/lib/types";
+import { cn, formatDateTime } from "@/lib/utils";
 import {
   Badge,
   Button,
@@ -11,12 +13,9 @@ import {
   DropdownMenuTrigger,
   Icons,
   PrivacyAmount,
+  useDateFormatting,
 } from "@wealthfolio/ui";
-import type { Account } from "@/lib/types";
-import { cn, formatDateTime } from "@/lib/utils";
 
-import { QuickCategorizePopover } from "./quick-categorize-popover";
-import { QuickEventPopover } from "./quick-event-popover";
 import {
   getCashActivityLabel,
   getEffectiveCashActivityType,
@@ -28,6 +27,8 @@ import {
   isTransferCashActivity,
   type TransactionRowVM,
 } from "../lib/transactions-helpers";
+import { QuickCategorizePopover } from "./quick-categorize-popover";
+import { QuickEventPopover } from "./quick-event-popover";
 
 interface TransactionCardProps {
   row: TransactionRowVM;
@@ -71,6 +72,8 @@ function TransactionCardImpl({
   onLinkTransfer,
   onUnlinkTransfer,
 }: TransactionCardProps) {
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const a = row.activity;
   const { isOutflow, isIncome, isSaving, isNeutral, sign, safeAmount } = getTransactionDisplay(
@@ -83,7 +86,7 @@ function TransactionCardImpl({
   const transferLinkStatus = getTransferLinkStatus(a);
   const canMarkReimbursement =
     isIncome && !isCreditCardAccountType(account?.accountType) && activityType !== "CREDIT";
-  const formattedDate = formatDateTime(a.activityDate, appTimezone);
+  const formattedDate = formatDateTime(a.activityDate, dateFormatting, appTimezone);
 
   return (
     <div

@@ -1,5 +1,6 @@
 import { ComponentProps } from "react";
 import { getLocalTimeZone, today } from "@internationalized/date";
+import { useTranslation } from "react-i18next";
 import { Icons } from "./icons";
 import {
   Button,
@@ -24,10 +25,12 @@ type CalendarProps = ComponentProps<typeof CalendarRac> & BaseCalendarProps;
 type RangeCalendarProps = ComponentProps<typeof RangeCalendarRac> & BaseCalendarProps;
 
 function CalendarHeader() {
+  const { t } = useTranslation();
   return (
     <header className="flex w-full items-center gap-1 pb-1">
       <Button
         slot="previous"
+        aria-label={t("ui:datePicker.previousMonth", "Previous month")}
         className="text-muted-foreground/80 hover:bg-accent hover:text-foreground focus-visible:ring-ring/50 flex size-9 items-center justify-center rounded-md outline-none transition-[color,box-shadow] focus-visible:ring-[3px]"
       >
         <Icons.ChevronLeft size={16} />
@@ -35,6 +38,7 @@ function CalendarHeader() {
       <HeadingRac className="grow text-center text-sm font-medium" />
       <Button
         slot="next"
+        aria-label={t("ui:datePicker.nextMonth", "Next month")}
         className="text-muted-foreground/80 hover:bg-accent hover:text-foreground focus-visible:ring-ring/50 flex size-9 items-center justify-center rounded-md outline-none transition-[color,box-shadow] focus-visible:ring-[3px]"
       >
         <Icons.ChevronRight size={16} />

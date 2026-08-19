@@ -3,8 +3,9 @@ import { ExternalLink } from "@/components/external-link";
 import { DeviceSyncSection } from "@/features/devices-sync";
 import { WEALTHFOLIO_CONNECT_PORTAL_URL } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
+import { formatDate } from "@/lib/utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ActionConfirm } from "@wealthfolio/ui";
+import { ActionConfirm, useDateFormatting } from "@wealthfolio/ui";
 import { Avatar, AvatarFallback, AvatarImage } from "@wealthfolio/ui/components/ui/avatar";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -13,9 +14,9 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
-import { formatDate } from "@/lib/utils";
-import { Trans, useTranslation } from "react-i18next";
 import { useCallback, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
+import { hasBrokerSync } from "../lib/plan-capabilities";
 import { useWealthfolioConnect } from "../providers/wealthfolio-connect-provider";
 import {
   listBrokerAccounts,
@@ -23,7 +24,6 @@ import {
   syncBrokerData,
 } from "../services/broker-service";
 import type { BrokerAccount, BrokerConnection } from "../types";
-import { hasBrokerSync } from "../lib/plan-capabilities";
 import { SubscriptionPlans } from "./subscription-plans";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,6 +136,8 @@ function getLastSyncDate(account: BrokerAccount): string | null {
 }
 
 function BrokerAccountCard({ account, connections }: BrokerAccountCardProps) {
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const lastSyncDate = getLastSyncDate(account);
 
@@ -145,7 +147,7 @@ function BrokerAccountCard({ account, connections }: BrokerAccountCardProps) {
     connection?.brokerage?.aws_s3_square_logo_url ?? connection?.brokerage?.aws_s3_logo_url;
 
   const lastSyncedText = lastSyncDate
-    ? t("connect:accounts.dataAsOf", { date: formatDate(lastSyncDate) })
+    ? t("connect:accounts.dataAsOf", { date: formatDate(lastSyncDate, dateFormatting) })
     : t("connect:accounts.noDataYet");
 
   return (

@@ -1,8 +1,12 @@
-import { useMemo } from "react";
-import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
+import { useAccounts } from "@/hooks/use-accounts";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import type { Account, Activity } from "@/lib/types";
+import { cn, formatDateISO, resolveDisplayTimezone } from "@/lib/utils";
 import {
   Button,
   Icons,
@@ -10,13 +14,14 @@ import {
   Sheet,
   SheetContent,
   SheetTitle,
-  formatCompactAmount,
+  useAmountFormatting,
+  useDateFormatting,
+  useLocalizationSettings,
+  useNumberFormatting,
+  type FormattingApi,
 } from "@wealthfolio/ui";
-import { useAccounts } from "@/hooks/use-accounts";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import type { Account, Activity } from "@/lib/types";
-import { cn, formatDateISO, resolveDisplayTimezone } from "@/lib/utils";
 
+import { createFormatter } from "@wealthfolio/ui/lib/formatting";
 import { isCashActivityOutflow } from "../../lib/constants";
 import { createZonedDayHourFormatter } from "../../lib/timezone";
 
@@ -50,6 +55,15 @@ export function HeatmapCellSheet({
   timezone,
   currency,
 }: HeatmapCellSheetProps) {
+  const localizationSettings = useLocalizationSettings();
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
+  const zonedFormatting = useMemo(
+    () => createFormatter(localizationSettings.locale, resolveDisplayTimezone(timezone)),
+    [localizationSettings.locale, timezone],
+  );
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const { accounts = [] } = useAccounts({ filterActive: false });
@@ -89,9 +103,12 @@ export function HeatmapCellSheet({
   }, [activities, accountById]);
 
   // Group by ISO week (Mon-start) so the dense list breaks into legible chunks.
-  const grouped = useMemo(() => groupByWeek(activities, timezone, t), [activities, timezone, t]);
+  const grouped = useMemo(
+    () => groupByWeek(activities, timezone, t, dateFormatting),
+    [activities, timezone, t, dateFormatting],
+  );
 
-  const hourLabel = hour == null ? "" : formatHourRange(hour, endHour);
+  const hourLabel = hour == null ? "" : formatHourRange(hour, endHour, dateFormatting);
 
   // The transactions page filters can't pin to a specific weekday+hour, but we
   // can deep-link to the same 12-week window so the user keeps context.
@@ -153,22 +170,32 @@ export function HeatmapCellSheet({
           <div className="mt-5 grid grid-cols-4 gap-3">
             <Stat
               label={t("spending:heatmapSheet.total")}
-              value={isBalanceHidden ? "••••" : formatCompactAmount(stats.total, currency)}
+              value={
+                isBalanceHidden
+                  ? "••••"
+                  : amountFormatting.formatCompactAmount(stats.total, currency)
+              }
               hint={null}
             />
             <Stat
               label={t("spending:heatmapSheet.tx")}
-              value={stats.count.toLocaleString()}
+              value={numberFormatting.formatDecimal(stats.count)}
               hint={stats.count === 0 ? t("spending:heatmapSheet.none") : null}
             />
             <Stat
               label={t("spending:heatmapSheet.avgPerTx")}
-              value={isBalanceHidden ? "••••" : formatCompactAmount(stats.avg, currency)}
+              value={
+                isBalanceHidden ? "••••" : amountFormatting.formatCompactAmount(stats.avg, currency)
+              }
               hint={null}
             />
             <Stat
               label={t("spending:heatmapSheet.largest")}
-              value={isBalanceHidden ? "••••" : formatCompactAmount(stats.largest, currency)}
+              value={
+                isBalanceHidden
+                  ? "••••"
+                  : amountFormatting.formatCompactAmount(stats.largest, currency)
+              }
               hint={null}
             />
           </div>
@@ -191,7 +218,9 @@ export function HeatmapCellSheet({
                     </h3>
                     <span className="text-muted-foreground/80 text-[11px] tabular-nums">
                       {group.items.length} ·{" "}
-                      {isBalanceHidden ? "••••" : formatCompactAmount(group.total, currency)}
+                      {isBalanceHidden
+                        ? "••••"
+                        : amountFormatting.formatCompactAmount(group.total, currency)}
                     </span>
                   </header>
                   <ul className="divide-border/40 divide-y">
@@ -227,10 +256,10 @@ export function HeatmapCellSheet({
                             </div>
                             <div className="text-muted-foreground/80 mt-0.5 flex items-center gap-1 text-[10px] leading-tight">
                               <span className="tabular-nums">
-                                {formatZonedTime(it.activityDate, timezone)}
+                                {formatZonedTime(it.activityDate, zonedFormatting)}
                               </span>
                               <span aria-hidden>·</span>
-                              <span>{formatZonedDate(it.activityDate, timezone)}</span>
+                              <span>{formatZonedDate(it.activityDate, zonedFormatting)}</span>
                               <span aria-hidden>·</span>
                               <span className="truncate">{account?.name ?? it.accountId}</span>
                             </div>
@@ -311,6 +340,7 @@ function groupByWeek(
   activities: Activity[],
   timezone: string | null | undefined,
   t: TFunction,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
 ): WeekGroup[] {
   const byKey = new Map<string, { label: string; items: Activity[] }>();
   const getZonedDayHour = createZonedDayHourFormatter(timezone);
@@ -321,7 +351,9 @@ function groupByWeek(
     if (!zoned) continue;
     const key = mondayKeyForDayKey(zoned.dayKey);
     const entry = byKey.get(key) ?? {
-      label: t("spending:heatmapSheet.weekOf", { date: formatDateKeyLabel(key) }),
+      label: t("spending:heatmapSheet.weekOf", {
+        date: formatDateKeyLabel(key, formatting),
+      }),
       items: [],
     };
     entry.items.push(it);
@@ -356,45 +388,55 @@ function formatUtcDateKey(date: Date): string {
   ).padStart(2, "0")}`;
 }
 
-function formatDateKeyLabel(dayKey: string): string {
+function formatDateKeyLabel(
+  dayKey: string,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+): string {
   const [year, month, day] = dayKey.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(year, month - 1, day, 12));
+  return formatting.formatCalendarDate(
+    { year, month, day },
+    {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    },
+  );
 }
 
-function formatZonedTime(value: string, timezone?: string | null): string {
+function formatZonedTime(value: string, formatting: Pick<FormattingApi, "formatTime">): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: resolveDisplayTimezone(timezone),
+  return formatting.formatTime(date, {
     hour: "numeric",
     minute: "2-digit",
-  }).format(date);
+  });
 }
 
-function formatZonedDate(value: string, timezone?: string | null): string {
+function formatZonedDate(value: string, formatting: Pick<FormattingApi, "formatDate">): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: resolveDisplayTimezone(timezone),
+  return formatting.formatDate(date, {
     month: "short",
     day: "numeric",
     year: "numeric",
-  }).format(date);
+  });
 }
 
-function formatHourRange(hour: number, endHour: number | null): string {
-  const start = formatHour(hour);
-  const end = formatHour(endHour ?? hour + 1);
+function formatHourRange(
+  hour: number,
+  endHour: number | null,
+  formatting: Pick<FormattingApi, "formatTimeOfDay">,
+): string {
+  const start = formatHour(hour, formatting);
+  const end = formatHour(endHour ?? hour + 1, formatting);
   return `${start} – ${end}`;
 }
 
-function formatHour(h: number): string {
-  if (h === 0) return "12am";
-  if (h === 12) return "12pm";
-  if (h === 24) return "12am";
-  return h < 12 ? `${h}am` : `${h - 12}pm`;
+function formatHour(h: number, formatting: Pick<FormattingApi, "formatTimeOfDay">): string {
+  return formatting.formatTimeOfDay(
+    { hour: h % 24, minute: 0 },
+    {
+      hour: "numeric",
+    },
+  );
 }

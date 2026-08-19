@@ -537,6 +537,7 @@ mod tests {
             id: "cash".to_string(),
             account_id: "acc".to_string(),
             holding_type: HoldingType::Cash,
+            is_closed: false,
             instrument: None,
             asset_kind: None,
             quantity: amount,

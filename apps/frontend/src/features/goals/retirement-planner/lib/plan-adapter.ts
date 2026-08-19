@@ -92,6 +92,11 @@ export const DEFAULT_RETIREMENT_PLAN: RetirementPlan = {
   currency: "USD",
 };
 
+/** DEFAULT_RETIREMENT_PLAN with its currency placeholder set to the account's base currency. */
+export function createDefaultRetirementPlan(baseCurrency: string): RetirementPlan {
+  return { ...DEFAULT_RETIREMENT_PLAN, currency: baseCurrency };
+}
+
 export function parseSettingsJson(json: string): RetirementPlan {
   try {
     const raw = JSON.parse(json);

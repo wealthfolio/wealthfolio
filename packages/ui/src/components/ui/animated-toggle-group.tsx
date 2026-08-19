@@ -72,10 +72,21 @@ interface AnimatedToggleGroupProps<T extends string = string> extends VariantPro
   value?: T | null;
   onValueChange?: (value: T) => void;
   className?: string;
+  "aria-label"?: string;
 }
 
 export function AnimatedToggleGroup<T extends string = string>(props: AnimatedToggleGroupProps<T>) {
-  const { items, defaultValue, value: controlledValue, onValueChange, variant, size, rounded, className } = props;
+  const {
+    items,
+    defaultValue,
+    value: controlledValue,
+    onValueChange,
+    variant,
+    size,
+    rounded,
+    className,
+    "aria-label": ariaLabel,
+  } = props;
   const [internalValue, setInternalValue] = useState<T | undefined>(defaultValue ?? items[0]?.value);
   const uniqueId = useId();
 
@@ -101,13 +112,18 @@ export function AnimatedToggleGroup<T extends string = string>(props: AnimatedTo
             : "rounded-full";
 
   return (
-    <div className={cn(animatedToggleVariants({ variant, size, rounded }), className)}>
+    <div
+      role="group"
+      aria-label={ariaLabel}
+      className={cn(animatedToggleVariants({ variant, size, rounded }), className)}
+    >
       {items.map((item) => (
         <button
           key={item.value}
           onClick={() => handleSelect(item.value)}
           title={item.title}
           data-testid={item["data-testid"]}
+          aria-pressed={selected === item.value}
           className={cn(
             animatedToggleItemVariants({ size, rounded }),
             selected === item.value ? "text-foreground" : "text-foreground/90 hover:text-foreground/80",

@@ -129,7 +129,9 @@
     "andMore": "... and {{count}} more",
     "reviewActivities": "Review activities",
     "duration": "Duration:",
-    "inProgress": "In progress..."
+    "inProgress": "In progress...",
+    "andMore_one": "... and {{count}} more",
+    "andMore_other": "... and {{count}} more"
   },
   "syncHistory": {
     "title": "Sync History",
@@ -146,7 +148,9 @@
     "skipped": "skipped",
     "warningsCount_one": "{{count}} warning",
     "warningsCount_other": "{{count}} warnings",
-    "andMore": "+{{count}} more"
+    "andMore": "+{{count}} more",
+    "andMore_one": "+{{count}} more",
+    "andMore_other": "+{{count}} more"
   },
   "activity": {
     "syncingData": "Syncing your data...",

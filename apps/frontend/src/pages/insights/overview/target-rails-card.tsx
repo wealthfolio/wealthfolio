@@ -1,9 +1,7 @@
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
+import type { AllocationTarget, DriftReport, DriftRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import type { DriftReport, DriftRow, AllocationTarget } from "@/lib/types";
-import { Button, Card, Icons, Skeleton } from "@wealthfolio/ui";
-import { useTranslation } from "react-i18next";
 import {
   allocationTargetColorForRow,
   buildAllocationTargetColorMap,
@@ -16,6 +14,8 @@ import {
   isOutOfBand,
   rebalanceMove,
 } from "@/pages/allocation-targets/components/drift-row-utils";
+import { Button, Card, Icons, Skeleton, useAmountFormatting } from "@wealthfolio/ui";
+import { useTranslation } from "react-i18next";
 import { formatCompact } from "./allocation-derivations";
 
 interface TargetRailsCardProps {
@@ -44,6 +44,7 @@ export function TargetRailsCard({
   onCreateTarget,
   onViewDetails,
 }: TargetRailsCardProps) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const selectedTarget = targets.find((target) => target.id === selectedTargetId) ?? null;
@@ -101,7 +102,7 @@ export function TargetRailsCard({
     .filter(({ row }) => isOutOfBand(row))
     .sort((a, b) => Math.abs(b.row.valueDelta) - Math.abs(a.row.valueDelta));
   const money = (value: number) =>
-    isBalanceHidden ? "••••" : formatCompact(Math.abs(value), currency);
+    isBalanceHidden ? "••••" : formatCompact(Math.abs(value), currency, formatting);
 
   return (
     <Card className="flex flex-col gap-4 p-5 xl:h-full">

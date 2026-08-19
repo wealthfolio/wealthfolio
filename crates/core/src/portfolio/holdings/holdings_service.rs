@@ -1,6 +1,6 @@
 use crate::activities::{
-    Activity, ActivityRepositoryTrait, ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_DIVIDEND,
-    ACTIVITY_TYPE_INTEREST, ACTIVITY_TYPE_SELL,
+    Activity, ActivityRepositoryTrait, ACTIVITY_SUBTYPE_OPTION_EXPIRY, ACTIVITY_TYPE_ADJUSTMENT,
+    ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_DIVIDEND, ACTIVITY_TYPE_INTEREST, ACTIVITY_TYPE_SELL,
 };
 use crate::assets::{
     Asset, AssetClassificationService, AssetKind, AssetServiceTrait, InstrumentType,
@@ -28,6 +28,15 @@ use super::HoldingsValuationServiceTrait;
 pub trait HoldingsServiceTrait: Send + Sync {
     async fn get_holdings(&self, account_id: &str, base_currency: &str) -> Result<Vec<Holding>>;
 
+    async fn get_holdings_with_options(
+        &self,
+        account_id: &str,
+        base_currency: &str,
+        _include_closed: bool,
+    ) -> Result<Vec<Holding>> {
+        self.get_holdings(account_id, base_currency).await
+    }
+
     /// Aggregates holdings from multiple accounts into a single merged list.
     /// Holdings with the same asset are merged by summing MonetaryValue fields.
     /// Lots are concatenated. Weights are recomputed over the full merged set.
@@ -38,6 +47,17 @@ pub trait HoldingsServiceTrait: Send + Sync {
         base_currency: &str,
         aggregated_account_id: &str,
     ) -> Result<Vec<Holding>>;
+
+    async fn get_holdings_for_accounts_with_options(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+        aggregated_account_id: &str,
+        _include_closed: bool,
+    ) -> Result<Vec<Holding>> {
+        self.get_holdings_for_accounts(account_ids, base_currency, aggregated_account_id)
+            .await
+    }
 
     /// Retrieves a specific holding for an account, calculates its valuation, and includes lot details.
     async fn get_holding(
@@ -236,13 +256,14 @@ impl HoldingsService {
         latest_snapshot: &snapshot::AccountStateSnapshot,
         base_currency: &str,
         lots_asset_id: Option<&str>,
+        include_closed: bool,
         skip_expired_options: bool,
     ) -> Vec<Holding> {
         let today = self.today_in_user_timezone();
         let snapshot_positions: Vec<snapshot::Position> = latest_snapshot
             .positions
             .values()
-            .filter(|p| p.quantity != Decimal::ZERO)
+            .filter(|p| include_closed || p.quantity != Decimal::ZERO)
             .cloned()
             .collect();
         let cash_balances_map: &HashMap<String, Decimal> = &latest_snapshot.cash_balances;
@@ -310,6 +331,7 @@ impl HoldingsService {
             };
 
             if skip_expired_options
+                && snapshot_pos.quantity != Decimal::ZERO
                 && is_expired_option(
                     asset_info.is_option,
                     asset_info.metadata.as_ref(),
@@ -356,6 +378,7 @@ impl HoldingsService {
                 id: format!("{}-{}-{}", id_prefix, account_id, snapshot_pos.asset_id),
                 account_id: account_id.to_string(),
                 holding_type,
+                is_closed: snapshot_pos.quantity == Decimal::ZERO,
                 instrument: Some(asset_info.instrument.clone()),
                 asset_kind: Some(asset_info.kind.clone()),
                 quantity: snapshot_pos.quantity,
@@ -414,6 +437,7 @@ impl HoldingsService {
                 id: format!("CASH-{}-{}", account_id, currency),
                 account_id: account_id.to_string(),
                 holding_type: HoldingType::Cash,
+                is_closed: false,
                 instrument: Some(cash_instrument),
                 asset_kind: None,
                 quantity: amount,
@@ -753,7 +777,13 @@ impl HoldingsService {
                     .filter(|activity| activity.is_posted())
                     .filter(|activity| {
                         let activity_type = activity.effective_type();
-                        activity_type == ACTIVITY_TYPE_SELL || activity_type == ACTIVITY_TYPE_BUY
+                        let is_trade = activity_type == ACTIVITY_TYPE_SELL
+                            || activity_type == ACTIVITY_TYPE_BUY;
+                        let is_option_expiry = activity_type == ACTIVITY_TYPE_ADJUSTMENT
+                            && activity.subtype.as_deref().is_some_and(|subtype| {
+                                subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_OPTION_EXPIRY)
+                            });
+                        is_trade || is_option_expiry
                     })
                     .map(|activity| activity.id)
                     .collect(),
@@ -1231,6 +1261,16 @@ mod expired_option_metadata_tests {
 #[async_trait]
 impl HoldingsServiceTrait for HoldingsService {
     async fn get_holdings(&self, account_id: &str, base_currency: &str) -> Result<Vec<Holding>> {
+        self.get_holdings_with_options(account_id, base_currency, false)
+            .await
+    }
+
+    async fn get_holdings_with_options(
+        &self,
+        account_id: &str,
+        base_currency: &str,
+        include_closed: bool,
+    ) -> Result<Vec<Holding>> {
         debug!(
             "Getting holdings for account {} in base currency {}",
             account_id, base_currency
@@ -1263,6 +1303,7 @@ impl HoldingsServiceTrait for HoldingsService {
                 &latest_snapshot,
                 base_currency,
                 None,
+                include_closed,
                 true,
             )
             .await;
@@ -1316,6 +1357,22 @@ impl HoldingsServiceTrait for HoldingsService {
         base_currency: &str,
         aggregated_account_id: &str,
     ) -> Result<Vec<Holding>> {
+        self.get_holdings_for_accounts_with_options(
+            account_ids,
+            base_currency,
+            aggregated_account_id,
+            false,
+        )
+        .await
+    }
+
+    async fn get_holdings_for_accounts_with_options(
+        &self,
+        account_ids: &[String],
+        base_currency: &str,
+        aggregated_account_id: &str,
+        include_closed: bool,
+    ) -> Result<Vec<Holding>> {
         if account_ids.is_empty() {
             return Ok(Vec::new());
         }
@@ -1323,20 +1380,31 @@ impl HoldingsServiceTrait for HoldingsService {
         // Collect all holdings from each member account.
         let mut all_holdings: Vec<Holding> = Vec::new();
         for account_id in account_ids {
-            let holdings = self.get_holdings(account_id, base_currency).await?;
+            let holdings = self
+                .get_holdings_with_options(account_id, base_currency, include_closed)
+                .await?;
             all_holdings.extend(holdings);
         }
 
-        // Merge by key: securities/alternatives → asset id; cash → local_currency.
+        // Merge by key: securities/alternatives → lifecycle + asset id; cash → local_currency.
+        // Open and closed positions for the same asset must remain distinct, and
+        // open long/short positions across accounts may legitimately net to zero.
         let mut merged: HashMap<String, Holding> = HashMap::new();
         for holding in all_holdings {
             let key = match &holding.holding_type {
                 HoldingType::Cash => format!("CASH-{}", holding.local_currency),
-                _ => holding
-                    .instrument
-                    .as_ref()
-                    .map(|i| i.id.clone())
-                    .unwrap_or_else(|| holding.id.clone()),
+                _ => {
+                    let asset_id = holding
+                        .instrument
+                        .as_ref()
+                        .map(|i| i.id.clone())
+                        .unwrap_or_else(|| holding.id.clone());
+                    if holding.is_closed {
+                        format!("CLOSED-{}", asset_id)
+                    } else {
+                        asset_id
+                    }
+                }
             };
 
             match merged.entry(key.clone()) {
@@ -1485,6 +1553,7 @@ impl HoldingsServiceTrait for HoldingsService {
                 &latest_snapshot,
                 base_currency,
                 Some(asset_id),
+                false,
                 true,
             )
             .await;
@@ -1620,6 +1689,7 @@ impl HoldingsServiceTrait for HoldingsService {
                 ),
                 account_id: snapshot.account_id.clone(),
                 holding_type,
+                is_closed: false,
                 instrument: Some(instrument),
                 asset_kind: Some(asset.kind.clone()),
                 quantity: position.quantity,
@@ -1667,6 +1737,7 @@ impl HoldingsServiceTrait for HoldingsService {
                 id: format!("CASH-{}-{}", snapshot.account_id, currency),
                 account_id: snapshot.account_id.clone(),
                 holding_type: HoldingType::Cash,
+                is_closed: false,
                 instrument: None,
                 asset_kind: None,
                 quantity: amount,
@@ -1851,6 +1922,7 @@ mod tests {
 
     struct MockSnapshotService {
         snapshot: AccountStateSnapshot,
+        snapshots_by_account: HashMap<String, AccountStateSnapshot>,
     }
 
     #[async_trait::async_trait]
@@ -1883,9 +1955,14 @@ mod tests {
 
         fn get_latest_holdings_snapshot(
             &self,
-            _account_id: &str,
+            account_id: &str,
         ) -> Result<Option<AccountStateSnapshot>> {
-            Ok(Some(self.snapshot.clone()))
+            Ok(Some(
+                self.snapshots_by_account
+                    .get(account_id)
+                    .unwrap_or(&self.snapshot)
+                    .clone(),
+            ))
         }
 
         async fn save_manual_snapshot(
@@ -2815,7 +2892,10 @@ mod tests {
     ) -> HoldingsService {
         HoldingsService::new(
             Arc::new(MockAssetService::new(assets)),
-            Arc::new(MockSnapshotService { snapshot }),
+            Arc::new(MockSnapshotService {
+                snapshot,
+                snapshots_by_account: HashMap::new(),
+            }),
             Arc::new(MockValuationService { values }),
             Arc::new(AssetClassificationService::new(Arc::new(
                 EmptyTaxonomyService,
@@ -2873,6 +2953,79 @@ mod tests {
             .unwrap()
             .expect("active holding should exist");
         assert_eq!(holding.weight, dec!(1));
+    }
+
+    #[tokio::test]
+    async fn get_holdings_includes_closed_positions_only_when_requested() {
+        let account_id = "acc-1";
+        let active_asset_id = "AAPL";
+        let closed_asset_id = "MSFT";
+        let mut closed_position = test_position(account_id, closed_asset_id);
+        closed_position.quantity = Decimal::ZERO;
+        closed_position.average_cost = Decimal::ZERO;
+        closed_position.total_cost_basis = Decimal::ZERO;
+
+        let snapshot = AccountStateSnapshot {
+            account_id: account_id.to_string(),
+            currency: "USD".to_string(),
+            positions: HashMap::from([
+                (
+                    active_asset_id.to_string(),
+                    test_position(account_id, active_asset_id),
+                ),
+                (closed_asset_id.to_string(), closed_position),
+            ]),
+            ..Default::default()
+        };
+        let service = test_service(
+            snapshot,
+            vec![
+                test_asset(active_asset_id, active_asset_id, InstrumentType::Equity),
+                test_asset(closed_asset_id, closed_asset_id, InstrumentType::Equity),
+            ],
+            HashMap::from([
+                (active_asset_id.to_string(), dec!(100)),
+                (closed_asset_id.to_string(), Decimal::ZERO),
+            ]),
+        )
+        .with_lot_repository(Arc::new(MockLotRepository::new(Vec::new()).with_disposals(
+            vec![test_lot_disposal(
+                account_id,
+                closed_asset_id,
+                dec!(100),
+                dec!(100),
+                dec!(25),
+                dec!(25),
+            )],
+        )));
+
+        let current_holdings = service.get_holdings(account_id, "USD").await.unwrap();
+        assert_eq!(current_holdings.len(), 1);
+        assert_eq!(
+            current_holdings[0].instrument.as_ref().unwrap().id,
+            active_asset_id
+        );
+
+        let holdings_with_closed = service
+            .get_holdings_with_options(account_id, "USD", true)
+            .await
+            .unwrap();
+        assert_eq!(holdings_with_closed.len(), 2);
+        let closed_holding = holdings_with_closed
+            .iter()
+            .find(|holding| holding.instrument.as_ref().unwrap().id == closed_asset_id)
+            .expect("closed holding should be included");
+        assert!(closed_holding.is_closed);
+        assert_eq!(closed_holding.quantity, Decimal::ZERO);
+        assert_eq!(closed_holding.market_value.base, Decimal::ZERO);
+        assert_eq!(closed_holding.weight, Decimal::ZERO);
+        assert_eq!(
+            closed_holding.realized_gain.as_ref().unwrap().base,
+            dec!(25)
+        );
+        assert_eq!(closed_holding.total_gain.as_ref().unwrap().base, dec!(25));
+        assert_eq!(closed_holding.total_gain_pct, Some(dec!(0.25)));
+        assert_eq!(closed_holding.total_return.as_ref().unwrap().base, dec!(25));
     }
 
     #[tokio::test]
@@ -3476,6 +3629,69 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn closed_option_realized_gain_includes_option_expiry_disposal() {
+        let account_id = "acc-1";
+        let asset_id = "AAPL260821C00200000";
+        let mut position = test_position(account_id, asset_id);
+        position.quantity = Decimal::ZERO;
+        position.average_cost = Decimal::ZERO;
+        position.total_cost_basis = Decimal::ZERO;
+
+        let snapshot = AccountStateSnapshot {
+            account_id: account_id.to_string(),
+            currency: "USD".to_string(),
+            positions: HashMap::from([(asset_id.to_string(), position)]),
+            ..Default::default()
+        };
+
+        let mut expiry_disposal = test_lot_disposal(
+            account_id,
+            asset_id,
+            dec!(100),
+            dec!(100),
+            dec!(-100),
+            dec!(-100),
+        );
+        expiry_disposal.id = "expiry-disposal".to_string();
+        expiry_disposal.disposal_activity_id = "expiry-1".to_string();
+
+        let activity_date = NaiveDate::from_ymd_opt(2026, 8, 21).unwrap();
+        let mut expiry_activity = test_income_activity(
+            "expiry-1",
+            account_id,
+            Some(asset_id),
+            ACTIVITY_TYPE_ADJUSTMENT,
+            Decimal::ZERO,
+            "USD",
+            activity_date,
+        );
+        expiry_activity.subtype = Some(ACTIVITY_SUBTYPE_OPTION_EXPIRY.to_string());
+
+        let mut service = test_service(
+            snapshot,
+            vec![test_asset(asset_id, asset_id, InstrumentType::Option)],
+            HashMap::from([(asset_id.to_string(), Decimal::ZERO)]),
+        )
+        .with_lot_repository(Arc::new(
+            MockLotRepository::new(Vec::new()).with_disposals(vec![expiry_disposal]),
+        ));
+        service.activity_repository =
+            Some(Arc::new(MockActivityRepository::new(vec![expiry_activity])));
+
+        let holdings = service
+            .get_holdings_with_options(account_id, "USD", true)
+            .await
+            .unwrap();
+
+        assert_eq!(holdings.len(), 1);
+        let holding = &holdings[0];
+        assert!(holding.is_closed);
+        assert_eq!(holding.realized_gain.as_ref().unwrap().base, dec!(-100));
+        assert_eq!(holding.realized_gain_pct, Some(dec!(-1)));
+        assert_eq!(holding.total_gain.as_ref().unwrap().base, dec!(-100));
+    }
+
+    #[tokio::test]
     async fn short_holding_percentages_use_absolute_signed_basis() {
         let account_id = "acc-1";
         let asset_id = "AAPL";
@@ -3675,6 +3891,98 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn multi_account_aggregation_keeps_open_and_closed_positions_separate() {
+        let asset_id = "AAPL";
+        let long_account = "long";
+        let short_account = "short";
+        let closed_account = "closed";
+
+        let mut long_position = test_position(long_account, asset_id);
+        long_position.quantity = dec!(5);
+        let mut short_position = test_position(short_account, asset_id);
+        short_position.quantity = dec!(-5);
+        let mut closed_position = test_position(closed_account, asset_id);
+        closed_position.quantity = Decimal::ZERO;
+        closed_position.average_cost = Decimal::ZERO;
+        closed_position.total_cost_basis = Decimal::ZERO;
+
+        let snapshots_by_account = HashMap::from([
+            (
+                long_account.to_string(),
+                AccountStateSnapshot {
+                    account_id: long_account.to_string(),
+                    currency: "USD".to_string(),
+                    positions: HashMap::from([(asset_id.to_string(), long_position)]),
+                    ..Default::default()
+                },
+            ),
+            (
+                short_account.to_string(),
+                AccountStateSnapshot {
+                    account_id: short_account.to_string(),
+                    currency: "USD".to_string(),
+                    positions: HashMap::from([(asset_id.to_string(), short_position)]),
+                    ..Default::default()
+                },
+            ),
+            (
+                closed_account.to_string(),
+                AccountStateSnapshot {
+                    account_id: closed_account.to_string(),
+                    currency: "USD".to_string(),
+                    positions: HashMap::from([(asset_id.to_string(), closed_position)]),
+                    ..Default::default()
+                },
+            ),
+        ]);
+        let service = HoldingsService::new(
+            Arc::new(MockAssetService::new(vec![test_asset(
+                asset_id,
+                asset_id,
+                InstrumentType::Equity,
+            )])),
+            Arc::new(MockSnapshotService {
+                snapshot: snapshots_by_account[long_account].clone(),
+                snapshots_by_account,
+            }),
+            Arc::new(MockValuationService {
+                values: HashMap::new(),
+            }),
+            Arc::new(AssetClassificationService::new(Arc::new(
+                EmptyTaxonomyService,
+            ))),
+        );
+
+        let holdings = service
+            .get_holdings_for_accounts_with_options(
+                &[
+                    long_account.to_string(),
+                    short_account.to_string(),
+                    closed_account.to_string(),
+                ],
+                "USD",
+                "portfolio",
+                true,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(holdings.len(), 2);
+        let open = holdings
+            .iter()
+            .find(|holding| !holding.is_closed)
+            .expect("open aggregate should remain visible");
+        let closed = holdings
+            .iter()
+            .find(|holding| holding.is_closed)
+            .expect("closed aggregate should remain separate");
+        assert_eq!(open.quantity, Decimal::ZERO);
+        assert_eq!(open.source_account_ids.len(), 2);
+        assert_eq!(closed.quantity, Decimal::ZERO);
+        assert_eq!(closed.source_account_ids, vec![closed_account.to_string()]);
+    }
+
+    #[tokio::test]
     async fn multi_account_aggregation_reports_zero_percent_for_zero_basis_and_gain() {
         let account_one = "acc-1";
         let account_two = "acc-2";
@@ -3716,6 +4024,7 @@ mod tests {
             id: "SEC-TEST-GBp".to_string(),
             account_id: "TEST".to_string(),
             holding_type: HoldingType::Security,
+            is_closed: false,
             instrument: Some(Instrument {
                 id: "TEST".to_string(),
                 symbol: "TEST".to_string(),
@@ -3841,6 +4150,7 @@ mod tests {
             id: "CASH-TEST-GBp".to_string(),
             account_id: "TEST".to_string(),
             holding_type: HoldingType::Cash,
+            is_closed: false,
             instrument: None,
             asset_kind: None,
             quantity: dec!(1000),

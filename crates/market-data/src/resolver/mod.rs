@@ -82,6 +82,7 @@ mod chain;
 pub mod exchange_metadata;
 pub(crate) mod exchange_registry;
 mod exchange_suffixes;
+mod profile_check;
 mod rules_resolver;
 mod traits;
 
@@ -98,5 +99,6 @@ pub use exchange_suffixes::{
     yahoo_equity_search_queries, yahoo_exchange_suffixes, yahoo_exchange_to_mic,
     yahoo_suffix_to_mic, ExchangeMap, ExchangeSuffix,
 };
+pub use profile_check::{check_profile, ProfileMismatch};
 pub use rules_resolver::RulesResolver;
 pub use traits::{ResolutionSource, ResolvedInstrument, Resolver, SymbolResolver};

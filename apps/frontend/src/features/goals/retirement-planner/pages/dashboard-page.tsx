@@ -6,31 +6,32 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  formatCompactAmount,
   Skeleton,
+  useAmountFormatting,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  COVERAGE_COLORS,
+  RetirementCoverageChart,
+  type CoverageProjectionPoint,
+} from "../components/retirement-coverage-chart";
+import {
   CHART_COLORS,
   PROJECTED_CHART_COLORS,
   RetirementChart,
   type ChartPoint,
 } from "../components/retirement-portfolio-chart";
-import {
-  COVERAGE_COLORS,
-  RetirementCoverageChart,
-  type CoverageProjectionPoint,
-} from "../components/retirement-coverage-chart";
 import { RetirementSnapshotTable } from "../components/retirement-snapshot-table";
+import { SidebarConfigurator } from "../components/sidebar-configurator";
 import {
   ValueModeToggle,
   ValueModeTooltip,
   type ChartValueMode,
 } from "../components/value-mode-toggle";
-import { SidebarConfigurator } from "../components/sidebar-configurator";
 import {
   boundedInflationFactor,
   coverageTimingLabel,
@@ -189,6 +190,8 @@ export default function DashboardPage({
   goalId,
   dcLinkedAccountIds,
 }: Props) {
+  const formatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
   const L = modeLabel(plannerMode);
   const isTraditionalMode = plannerMode === "traditional";
@@ -536,7 +539,7 @@ export default function DashboardPage({
               retirementOverview.portfolioAtGoalAge;
             const portfolioAtTarget =
               chartValueMode === "nominal" ? portfolioAtTargetNominal : portfolioAtTargetToday;
-            const monthlyContribLabel = `${formatCompactAmount(plan.investment.monthlyContribution, currency)}/mo`;
+            const monthlyContribLabel = `${formatting.formatCompactAmount(plan.investment.monthlyContribution, currency)}/mo`;
             const annualBudgetToday =
               targetReconciliation?.plannedAnnualExpensesTodayValue ?? totalBudget * 12;
             const annualBudgetNominal =
@@ -544,7 +547,7 @@ export default function DashboardPage({
               totalBudget * 12 * inflationFactorToGoal;
             const annualBudget =
               chartValueMode === "nominal" ? annualBudgetNominal : annualBudgetToday;
-            const annualBudgetLabel = formatCompactAmount(annualBudget, currency);
+            const annualBudgetLabel = formatting.formatCompactAmount(annualBudget, currency);
             const coastPct =
               targetAtGoalDisplay > 0
                 ? Math.min(100, (coastAmountDisplay / targetAtGoalDisplay) * 100)
@@ -652,7 +655,7 @@ export default function DashboardPage({
                             age: plan.personal.targetRetirementAge,
                           })}{" "}
                           <span className={`font-medium ${statusAccent} whitespace-nowrap`}>
-                            {formatCompactAmount(goalShortfall, currency)}
+                            {formatting.formatCompactAmount(goalShortfall, currency)}
                           </span>
                           <span className="text-muted-foreground font-sans text-[0.6em] font-normal italic">
                             {" "}
@@ -682,7 +685,7 @@ export default function DashboardPage({
                             age: plan.personal.targetRetirementAge,
                           })}{" "}
                           <span className={`font-medium ${statusAccent} whitespace-nowrap`}>
-                            {formatCompactAmount(goalSurplus, currency)}
+                            {formatting.formatCompactAmount(goalSurplus, currency)}
                           </span>
                           <span className="text-muted-foreground font-sans text-[0.6em] font-normal italic">
                             {" "}
@@ -779,7 +782,7 @@ export default function DashboardPage({
                           nominalValue={portfolioAtTargetNominal}
                         >
                           <span className="text-foreground tabular-nums">
-                            {formatCompactAmount(portfolioAtTarget, currency)}
+                            {formatting.formatCompactAmount(portfolioAtTarget, currency)}
                           </span>
                         </ValueModeTooltip>{" "}
                         {t("goals:dashboard.summary.vs_required_capital_of")}{" "}
@@ -790,7 +793,7 @@ export default function DashboardPage({
                           nominalValue={targetNominalAtGoal}
                         >
                           <span className="text-foreground tabular-nums">
-                            {formatCompactAmount(targetAtGoalDisplay, currency)}
+                            {formatting.formatCompactAmount(targetAtGoalDisplay, currency)}
                           </span>
                         </ValueModeTooltip>{" "}
                         {t("goals:dashboard.summary.at_age", {
@@ -828,7 +831,7 @@ export default function DashboardPage({
                             nominalValue={goalShortfallNominal}
                           >
                             <span className="font-medium tabular-nums text-amber-600">
-                              {formatCompactAmount(goalShortfall, currency)}
+                              {formatting.formatCompactAmount(goalShortfall, currency)}
                             </span>
                           </ValueModeTooltip>{" "}
                           {t("goals:dashboard.summary.at_age", {
@@ -846,7 +849,7 @@ export default function DashboardPage({
                           {t("goals:dashboard.progress.portfolio_today")}
                         </span>
                         <span className="text-sm font-semibold tabular-nums">
-                          {formatCompactAmount(portfolioNow, currency)}
+                          {formatting.formatCompactAmount(portfolioNow, currency)}
                         </span>
                       </div>
                       <div className="flex flex-col items-end gap-0.5">
@@ -880,7 +883,7 @@ export default function DashboardPage({
                             nominalValue={targetNominalAtGoal}
                           >
                             <span className="text-sm font-semibold tabular-nums">
-                              {formatCompactAmount(targetAtGoalDisplay, currency)}
+                              {formatting.formatCompactAmount(targetAtGoalDisplay, currency)}
                             </span>
                           </ValueModeTooltip>
                         ) : (
@@ -909,12 +912,15 @@ export default function DashboardPage({
                     <div className="text-muted-foreground mt-1 flex justify-between text-[10px]">
                       <span className="tabular-nums">
                         {t("goals:dashboard.progress.funded_pct", {
-                          pct: (progress * 100).toFixed(1),
+                          pct: numberFormatting.formatDecimal(progress * 100, {
+                            minimumFractionDigits: 1,
+                            maximumFractionDigits: 1,
+                          }),
                         })}
                       </span>
                       {!isTraditionalMode && (
                         <span className="tabular-nums">
-                          ▲ {L.coast} {formatCompactAmount(coastAmountDisplay, currency)}
+                          ▲ {L.coast} {formatting.formatCompactAmount(coastAmountDisplay, currency)}
                         </span>
                       )}
                     </div>
@@ -1098,7 +1104,7 @@ export default function DashboardPage({
                         )}
                       </div>
                       <div className="text-[17px] font-semibold tabular-nums tracking-tight">
-                        {formatCompactAmount(m.value, currency)}
+                        {formatting.formatCompactAmount(m.value, currency)}
                       </div>
                       <div className="bg-muted/60 mt-2 h-[3px] overflow-hidden rounded-sm">
                         <div
@@ -1134,7 +1140,10 @@ export default function DashboardPage({
                         {t("goals:dashboard.coverage.snapshot_prefix", { age: fireAgeForBudget })}{" "}
                         <span className="text-foreground tabular-nums">
                           {t("goals:dashboard.coverage.amount_per_mo", {
-                            amount: formatCompactAmount(coverageSpendingMonthly, currency),
+                            amount: formatting.formatCompactAmount(
+                              coverageSpendingMonthly,
+                              currency,
+                            ),
                           })}
                         </span>{" "}
                         {t("goals:dashboard.coverage.snapshot_suffix")}
@@ -1182,7 +1191,7 @@ export default function DashboardPage({
                     {t("goals:dashboard.coverage.at_age_dash", { age: fireAgeForBudget })}{" "}
                     <span className="text-foreground font-semibold tabular-nums">
                       {t("goals:dashboard.coverage.amount_per_mo", {
-                        amount: formatCompactAmount(coverageSpendingMonthly, currency),
+                        amount: formatting.formatCompactAmount(coverageSpendingMonthly, currency),
                       })}
                     </span>{" "}
                     {t("goals:dashboard.coverage.planned_spending")}
@@ -1203,7 +1212,9 @@ export default function DashboardPage({
                           }}
                           title={t("goals:dashboard.coverage.stream_title", {
                             label: s.label,
-                            pct: pct.toFixed(0),
+                            pct: numberFormatting.formatDecimal(pct, {
+                              maximumFractionDigits: 0,
+                            }),
                           })}
                         />
                       );
@@ -1213,7 +1224,9 @@ export default function DashboardPage({
                         className="bg-success h-full transition-[width] duration-500"
                         style={{ width: `${coveragePortfolioPct}%` }}
                         title={t("goals:dashboard.coverage.portfolio_withdrawal_title", {
-                          pct: coveragePortfolioPct.toFixed(0),
+                          pct: numberFormatting.formatDecimal(coveragePortfolioPct, {
+                            maximumFractionDigits: 0,
+                          }),
                         })}
                       />
                     )}
@@ -1222,7 +1235,9 @@ export default function DashboardPage({
                         className="h-full bg-red-500/75 transition-[width] duration-500"
                         style={{ width: `${coverageShortfallPct}%` }}
                         title={t("goals:dashboard.coverage.unfunded_title", {
-                          pct: coverageShortfallPct.toFixed(0),
+                          pct: numberFormatting.formatDecimal(coverageShortfallPct, {
+                            maximumFractionDigits: 0,
+                          }),
                         })}
                       />
                     )}
@@ -1235,7 +1250,9 @@ export default function DashboardPage({
                           style={{ background: COVERAGE_COLORS.income }}
                         />
                         {t("goals:dashboard.coverage.income_pct", {
-                          pct: coverageIncomePct.toFixed(0),
+                          pct: numberFormatting.formatDecimal(coverageIncomePct, {
+                            maximumFractionDigits: 0,
+                          }),
                         })}
                       </span>
                     )}
@@ -1243,7 +1260,9 @@ export default function DashboardPage({
                       <span className="flex items-center gap-1.5">
                         <span className="bg-success inline-block h-2 w-2 rounded-sm" />
                         {t("goals:dashboard.coverage.portfolio_pct", {
-                          pct: coveragePortfolioPct.toFixed(0),
+                          pct: numberFormatting.formatDecimal(coveragePortfolioPct, {
+                            maximumFractionDigits: 0,
+                          }),
                         })}
                       </span>
                     )}
@@ -1251,7 +1270,9 @@ export default function DashboardPage({
                       <span className="flex items-center gap-1.5">
                         <span className="inline-block h-2 w-2 rounded-sm bg-red-500/75" />
                         {t("goals:dashboard.coverage.unfunded_pct", {
-                          pct: coverageShortfallPct.toFixed(0),
+                          pct: numberFormatting.formatDecimal(coverageShortfallPct, {
+                            maximumFractionDigits: 0,
+                          }),
                         })}
                       </span>
                     )}
@@ -1296,7 +1317,7 @@ export default function DashboardPage({
                               </span>
                               <span className="text-foreground shrink-0 tabular-nums">
                                 {t("goals:dashboard.coverage.amount_per_mo", {
-                                  amount: formatCompactAmount(r.monthlyAmount, currency),
+                                  amount: formatting.formatCompactAmount(r.monthlyAmount, currency),
                                 })}
                               </span>
                             </div>
@@ -1357,11 +1378,14 @@ export default function DashboardPage({
                               </span>
                               <span className="text-foreground shrink-0 tabular-nums">
                                 {t("goals:dashboard.coverage.amount_per_mo", {
-                                  amount: formatCompactAmount(monthlyAmount, currency),
+                                  amount: formatting.formatCompactAmount(monthlyAmount, currency),
                                 })}{" "}
                                 {isActive && matchedBudgetStream ? (
                                   <span className="text-muted-foreground ml-1 text-[11px]">
-                                    {(matchedBudgetStream.percentageOfBudget * 100).toFixed(0)}%
+                                    {numberFormatting.formatPercent(
+                                      matchedBudgetStream.percentageOfBudget,
+                                      { digits: 0 },
+                                    )}
                                   </span>
                                 ) : null}
                               </span>
@@ -1387,7 +1411,13 @@ export default function DashboardPage({
                                     {t("goals:dashboard.coverage.draw_on_portfolio")}{" "}
                                     <span className="text-foreground tabular-nums">
                                       {t("goals:dashboard.coverage.draw_rate_per_yr", {
-                                        pct: (coveragePortfolioDrawRate * 100).toFixed(1),
+                                        pct: numberFormatting.formatDecimal(
+                                          coveragePortfolioDrawRate * 100,
+                                          {
+                                            minimumFractionDigits: 1,
+                                            maximumFractionDigits: 1,
+                                          },
+                                        ),
                                       })}
                                     </span>
                                     <Icons.Info className="size-3" />
@@ -1410,13 +1440,15 @@ export default function DashboardPage({
                             </span>
                             <span className="text-foreground shrink-0 tabular-nums">
                               {t("goals:dashboard.coverage.amount_per_mo", {
-                                amount: formatCompactAmount(
+                                amount: formatting.formatCompactAmount(
                                   coveragePortfolioAppliedMonthly,
                                   currency,
                                 ),
                               })}{" "}
                               <span className="text-muted-foreground ml-1 text-[11px]">
-                                {coveragePortfolioPct.toFixed(0)}%
+                                {numberFormatting.formatPercent(coveragePortfolioPct / 100, {
+                                  digits: 0,
+                                })}
                               </span>
                             </span>
                           </div>
@@ -1431,10 +1463,15 @@ export default function DashboardPage({
                             </span>
                             <span className="text-foreground shrink-0 tabular-nums">
                               {t("goals:dashboard.coverage.amount_per_mo", {
-                                amount: formatCompactAmount(coverageShortfallMonthly, currency),
+                                amount: formatting.formatCompactAmount(
+                                  coverageShortfallMonthly,
+                                  currency,
+                                ),
                               })}{" "}
                               <span className="text-muted-foreground ml-1 text-[11px]">
-                                {coverageShortfallPct.toFixed(0)}%
+                                {numberFormatting.formatPercent(coverageShortfallPct / 100, {
+                                  digits: 0,
+                                })}
                               </span>
                             </span>
                           </div>
@@ -1445,7 +1482,7 @@ export default function DashboardPage({
                             <span className="tabular-nums">
                               +
                               {t("goals:dashboard.coverage.amount_per_mo", {
-                                amount: formatCompactAmount(
+                                amount: formatting.formatCompactAmount(
                                   coverageEstimatedTaxesMonthly,
                                   currency,
                                 ),

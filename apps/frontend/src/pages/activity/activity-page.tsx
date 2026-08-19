@@ -684,12 +684,12 @@ const ActivityPage = () => {
             <Icons.Info className="text-muted-foreground h-4 w-4 shrink-0" />
             <p className="text-sm">
               {activityUrlFilters.activityId
-                ? "Showing the transaction flagged by Health Center"
-                : "Showing transactions flagged by Health Center"}
+                ? t("activity:page.health_filter_single")
+                : t("activity:page.health_filter_multiple")}
             </p>
           </div>
           <Button variant="ghost" size="sm" onClick={clearActivityUrlFilterParams}>
-            Clear
+            {t("common:clear")}
           </Button>
         </div>
       )}

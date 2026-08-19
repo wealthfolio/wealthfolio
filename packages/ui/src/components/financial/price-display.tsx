@@ -1,4 +1,5 @@
-import { cn, formatPrice } from "../../lib/utils";
+import { cn } from "../../lib/utils";
+import { useAmountFormatting } from "../formatting-provider";
 
 interface PriceDisplayProps {
   value: number;
@@ -15,5 +16,6 @@ export function PriceDisplay({
   displayCurrency = true,
   className,
 }: PriceDisplayProps) {
+  const { formatPrice } = useAmountFormatting();
   return <span className={cn(className)}>{isHidden ? "••••" : formatPrice(value, currency, displayCurrency)}</span>;
 }

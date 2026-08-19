@@ -1,5 +1,5 @@
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { formatCompactAmount } from "@wealthfolio/ui";
+import { useAmountFormatting } from "@wealthfolio/ui";
 
 interface CompactAmountProps extends React.HTMLAttributes<HTMLSpanElement> {
   value: number;
@@ -15,10 +15,11 @@ export function CompactAmount({
   className,
   ...props
 }: CompactAmountProps) {
+  const formatting = useAmountFormatting();
   const { isBalanceHidden } = useBalancePrivacy();
   return (
     <span className={className} {...props}>
-      {isBalanceHidden ? "••••" : formatCompactAmount(value, currency, displayCurrency)}
+      {isBalanceHidden ? "••••" : formatting.formatCompactAmount(value, currency, displayCurrency)}
     </span>
   );
 }

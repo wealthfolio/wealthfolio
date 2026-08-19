@@ -40,6 +40,7 @@ import {
   TooltipTrigger,
   PrivacyAmount,
   useIsMobile,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
 
@@ -299,6 +300,7 @@ function BudgetSummary({
   const overAllocated = income > 0 && planned > income;
   const hasPlan = planned > 0;
   const { t } = useTranslation();
+  const numberFormatting = useNumberFormatting();
   const headingLabel =
     mode === "setup"
       ? t("spending:budgetEditor.defaultMonthlyPlan")
@@ -337,7 +339,9 @@ function BudgetSummary({
           ) : overAllocated ? (
             <Icons.AlertCircle className="h-3 w-3" />
           ) : null}
-          <span className="tabular-nums">{formatPercent(allocatedPct)}</span>
+          <span className="tabular-nums">
+            {numberFormatting.formatPercent(allocatedPct, { digits: 0 })}
+          </span>
         </div>
       </div>
 
@@ -413,6 +417,7 @@ function GroupSummaryCell({
   currency: string;
   denominator: number;
 }) {
+  const numberFormatting = useNumberFormatting();
   const accent = row.group.color ?? FOREST_THEME.deep;
   const pct = safePercent(row.plannedTotal, denominator);
   return (
@@ -424,7 +429,7 @@ function GroupSummaryCell({
       />
       <span className="text-foreground min-w-0 flex-1 truncate text-xs">{row.group.name}</span>
       <span className="text-muted-foreground w-8 shrink-0 text-right text-[10px] tabular-nums">
-        {formatPercent(pct)}
+        {numberFormatting.formatPercent(pct, { digits: 0 })}
       </span>
       <span className="text-foreground shrink-0 text-xs font-medium tabular-nums">
         <PrivacyAmount value={row.plannedTotal} currency={currency} />
@@ -1105,6 +1110,7 @@ function BudgetCategoryLine({
   onToggleRollover: (row: BudgetCategoryRow, enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const numberFormatting = useNumberFormatting();
   const accent = row.color ?? FOREST_THEME.deep;
   const hasOverride = monthMode && !!target;
   const overBudget = row.target > 0 && row.actual > row.target;
@@ -1144,7 +1150,7 @@ function BudgetCategoryLine({
       </div>
 
       <span className="text-muted-foreground hidden w-8 shrink-0 text-right text-[10px] tabular-nums sm:inline">
-        {formatPercent(sharePct)}
+        {numberFormatting.formatPercent(sharePct, { digits: 0 })}
       </span>
 
       <Tooltip>
@@ -1163,7 +1169,9 @@ function BudgetCategoryLine({
           <PrivacyAmount value={row.actual} currency={currency} />{" "}
           {t("spending:budgetEditor.spentOf")}{" "}
           <PrivacyAmount value={row.target} currency={currency} />{" "}
-          {t("spending:budgetEditor.ofGroup", { pct: formatPercent(sharePct) })}
+          {t("spending:budgetEditor.ofGroup", {
+            pct: numberFormatting.formatPercent(sharePct, { digits: 0 }),
+          })}
         </TooltipContent>
       </Tooltip>
 
@@ -1255,6 +1263,7 @@ function GroupBufferLine({
   onDeleteOverride: (target: BudgetTarget | undefined) => void;
 }) {
   const { t } = useTranslation();
+  const numberFormatting = useNumberFormatting();
   const hasOverride = monthMode && !!target;
   const sharePct = safePercent(row.buffer, row.plannedTotal);
   const label =
@@ -1295,7 +1304,7 @@ function GroupBufferLine({
       </div>
 
       <span className="text-muted-foreground hidden w-8 shrink-0 text-right text-[10px] tabular-nums sm:inline">
-        {formatPercent(sharePct)}
+        {numberFormatting.formatPercent(sharePct, { digits: 0 })}
       </span>
       <span className="hidden w-14 shrink-0 sm:block" aria-hidden />
       <span className="w-6 shrink-0" aria-hidden />
@@ -1846,9 +1855,4 @@ function normalizeBalance(value: string) {
 function safePercent(value: number, total: number) {
   if (total <= 0) return 0;
   return value / total;
-}
-
-function formatPercent(value: number) {
-  if (!Number.isFinite(value)) return "0%";
-  return `${Math.round(value * 100)}%`;
 }

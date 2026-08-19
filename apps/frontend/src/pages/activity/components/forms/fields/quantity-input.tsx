@@ -30,7 +30,7 @@ function toInputTestId(name: string) {
 export function QuantityInput<TFieldValues extends FieldValues = FieldValues>({
   name,
   label,
-  placeholder = "0.00",
+  placeholder,
   "data-testid": dataTestId,
   maxDecimalPlaces = 8,
   allowNegative = false,

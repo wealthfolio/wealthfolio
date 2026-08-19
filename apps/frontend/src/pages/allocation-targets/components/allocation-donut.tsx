@@ -1,5 +1,5 @@
 import type { DriftRow } from "@/lib/types";
-import { formatCompactAmount } from "@wealthfolio/ui";
+import { useAmountFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 import { Sector } from "recharts";
 import {
@@ -29,6 +29,7 @@ export function AllocationDonut({
   hoveredId,
   onHoverChange,
 }: AllocationDonutProps) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const thickness = Math.round(size * 0.11);
   const outerR = size / 2 - 8;
@@ -113,7 +114,10 @@ export function AllocationDonut({
               className="text-muted-foreground mt-0.5 tabular-nums"
               style={{ fontSize: Math.round(size * 0.052) }}
             >
-              {formatCompactAmount((hoveredRow.currentBps / 10000) * totalValue, currency)}
+              {formatting.formatCompactAmount(
+                (hoveredRow.currentBps / 10000) * totalValue,
+                currency,
+              )}
             </div>
             {hoveredRow.status !== "in_band" && (
               <div
@@ -140,7 +144,7 @@ export function AllocationDonut({
               className="text-foreground mt-1 font-semibold tabular-nums"
               style={{ fontSize: Math.round(size * 0.09) }}
             >
-              {formatCompactAmount(totalValue, currency)}
+              {formatting.formatCompactAmount(totalValue, currency)}
             </div>
           </>
         )}

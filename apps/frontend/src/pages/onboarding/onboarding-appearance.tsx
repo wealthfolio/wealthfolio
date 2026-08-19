@@ -82,20 +82,22 @@ export const OnboardingAppearance = forwardRef<
   };
 
   return (
-    <div className="w-full max-w-2xl space-y-8">
+    <div className="w-full max-w-2xl space-y-4">
       <div className="text-center">
         <p className="text-muted-foreground">{t("onboarding:appearance.subtitle")}</p>
       </div>
 
-      <Card className="border-none bg-transparent">
-        <CardContent className="space-y-10 p-0 sm:p-6">
+      <Card className="border-none bg-transparent shadow-none">
+        <CardContent className="space-y-3 p-0 sm:p-4">
           {/* Theme Selection */}
           <div>
-            <div className="mb-5 flex items-center gap-3">
-              <div className="bg-muted rounded-lg p-2">
-                <Icons.Palette className="text-muted-foreground h-5 w-5" />
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="bg-muted rounded-md p-1.5">
+                <Icons.Palette className="text-muted-foreground size-4" />
               </div>
-              <span className="text-xl font-semibold">{t("onboarding:appearance.themeLabel")}</span>
+              <span className="text-base font-semibold">
+                {t("onboarding:appearance.themeLabel")}
+              </span>
             </div>
 
             <div className="grid grid-cols-3 gap-3 sm:gap-4">
@@ -111,17 +113,17 @@ export const OnboardingAppearance = forwardRef<
                     : "border-border hover:border-primary/50",
                 )}
               >
-                <div className="overflow-hidden rounded-t-lg">
+                <div className="h-20 overflow-hidden rounded-t-lg sm:h-24">
                   <img
                     src="/themes/theme-light.webp"
                     srcSet="/themes/theme-light.webp 1x, /themes/theme-light@2x.webp 2x"
                     alt={t("onboarding:appearance.themeLightPreviewAlt")}
-                    className="h-auto w-full object-cover"
+                    className="h-full w-full object-cover object-top"
                   />
                 </div>
                 <div
                   className={cn(
-                    "flex items-center justify-center gap-2 py-2.5 sm:py-3",
+                    "flex items-center justify-center gap-2 py-2.5",
                     theme === "light" ? "bg-primary/10" : "bg-muted/50",
                   )}
                 >
@@ -153,17 +155,17 @@ export const OnboardingAppearance = forwardRef<
                     : "border-border hover:border-primary/50",
                 )}
               >
-                <div className="overflow-hidden rounded-t-lg">
+                <div className="h-20 overflow-hidden rounded-t-lg sm:h-24">
                   <img
                     src="/themes/theme-dark.webp"
                     srcSet="/themes/theme-dark.webp 1x, /themes/theme-dark@2x.webp 2x"
                     alt={t("onboarding:appearance.themeDarkPreviewAlt")}
-                    className="h-auto w-full object-cover"
+                    className="h-full w-full object-cover object-top"
                   />
                 </div>
                 <div
                   className={cn(
-                    "flex items-center justify-center gap-2 py-2.5 sm:py-3",
+                    "flex items-center justify-center gap-2 py-2.5",
                     theme === "dark" ? "bg-primary/10" : "bg-muted/50",
                   )}
                 >
@@ -195,17 +197,17 @@ export const OnboardingAppearance = forwardRef<
                     : "border-border hover:border-primary/50",
                 )}
               >
-                <div className="overflow-hidden rounded-t-lg">
+                <div className="h-20 overflow-hidden rounded-t-lg sm:h-24">
                   <img
                     src="/themes/theme-system.webp"
                     srcSet="/themes/theme-system.webp 1x, /themes/theme-system@2x.webp 2x"
                     alt={t("onboarding:appearance.themeSystemPreviewAlt")}
-                    className="h-auto w-full object-cover"
+                    className="h-full w-full object-cover object-top"
                   />
                 </div>
                 <div
                   className={cn(
-                    "flex items-center justify-center gap-2 py-2.5 sm:py-3",
+                    "flex items-center justify-center gap-2 py-2.5",
                     theme === "system" ? "bg-primary/10" : "bg-muted/50",
                   )}
                 >
@@ -228,29 +230,15 @@ export const OnboardingAppearance = forwardRef<
             </div>
           </div>
 
-          {/* Navigation Style — desktop only (mobile always uses the mobile nav) */}
-          {!isMobile && (
-            <div>
-              <div className="mb-5 flex items-center gap-3">
-                <div className="bg-muted rounded-lg p-2">
-                  <Icons.PanelLeft className="text-muted-foreground h-5 w-5" />
-                </div>
-                <span className="text-xl font-semibold">
-                  {t("onboarding:appearance.navigationLabel")}
-                </span>
-              </div>
-
-              <NavigationStyleSelector value={navMode} onChange={setNavMode} />
-            </div>
-          )}
-
           {/* Font Selection */}
           <div>
-            <div className="mb-5 flex items-center gap-3">
-              <div className="bg-muted rounded-lg p-2">
-                <Icons.Type className="text-muted-foreground h-5 w-5" />
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="bg-muted rounded-md p-1.5">
+                <Icons.Type className="text-muted-foreground size-4" />
               </div>
-              <span className="text-xl font-semibold">{t("onboarding:appearance.fontLabel")}</span>
+              <span className="text-base font-semibold">
+                {t("onboarding:appearance.fontLabel")}
+              </span>
             </div>
 
             <div className="grid grid-cols-3 gap-3 sm:gap-4">
@@ -268,18 +256,16 @@ export const OnboardingAppearance = forwardRef<
                   )}
                 >
                   {/* Font preview area */}
-                  <div className="bg-muted/30 flex flex-1 flex-col items-center justify-center px-3 py-3 text-center sm:px-4 sm:py-4">
-                    <div className="w-full space-y-2">
+                  <div className="bg-muted/30 flex flex-1 flex-col items-center justify-center px-3 py-3 text-center">
+                    <div className="w-full space-y-1.5">
                       {/* Font name as hero */}
-                      <div className="text-xl font-medium tracking-tight sm:text-2xl">
-                        {f.label}
-                      </div>
+                      <div className="text-lg font-medium tracking-tight sm:text-xl">{f.label}</div>
                       {/* Sample text paragraph */}
-                      <div className="text-muted-foreground text-[11px] leading-relaxed sm:text-xs">
+                      <div className="text-muted-foreground text-[11px] leading-snug sm:text-xs">
                         {t("onboarding:appearance.fontSample")}
                       </div>
                       {/* Secondary: numbers sample */}
-                      <div className="text-muted-foreground/60 whitespace-nowrap text-[10px] sm:text-xs">
+                      <div className="text-muted-foreground/60 whitespace-nowrap text-[11px] sm:text-xs">
                         12345 · $1,234
                       </div>
                     </div>
@@ -287,11 +273,13 @@ export const OnboardingAppearance = forwardRef<
                   {/* Label area */}
                   <div
                     className={cn(
-                      "w-full px-4 py-2.5 text-center sm:py-3",
+                      "flex min-h-10 w-full items-center justify-center px-3 py-2.5 text-center",
                       font === f.value ? "bg-primary/10" : "bg-muted/50",
                     )}
                   >
-                    <div className="text-muted-foreground text-xs">{f.description}</div>
+                    <div className="text-muted-foreground text-xs leading-tight">
+                      {f.description}
+                    </div>
                   </div>
                   {font === f.value && (
                     <div className="bg-primary absolute right-2 top-2 rounded-full p-0.5">
@@ -302,6 +290,27 @@ export const OnboardingAppearance = forwardRef<
               ))}
             </div>
           </div>
+
+          {/* Navigation Style — desktop only (mobile always uses the mobile nav) */}
+          {!isMobile && (
+            <div>
+              <div className="mb-3 flex items-center gap-2.5">
+                <div className="bg-muted rounded-md p-1.5">
+                  <Icons.PanelLeft className="text-muted-foreground size-4" />
+                </div>
+                <span className="text-base font-semibold">
+                  {t("onboarding:appearance.navigationLabel")}
+                </span>
+              </div>
+
+              <NavigationStyleSelector
+                value={navMode}
+                onChange={setNavMode}
+                className="grid-cols-3 gap-3 sm:gap-4"
+                compact
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -23,8 +23,8 @@ export type {
 
 /**
  * Per-thread agent configuration snapshot.
- * Captures the model, prompt template, and tool allowlist at thread creation.
- * This enables deterministic replay and debugging of conversations.
+ * Captures the model, built-in live prompt identity, and provider tool allowlist.
+ * The prompt property names are retained for persisted-data compatibility.
  */
 export interface AiThreadConfig {
   /** Schema version for backward compatibility */
@@ -33,9 +33,9 @@ export interface AiThreadConfig {
   providerId: string;
   /** Model ID (e.g., "gpt-4o", "claude-3-sonnet") */
   modelId: string;
-  /** Prompt template ID */
+  /** Built-in live prompt ID (legacy property name) */
   promptTemplateId: string;
-  /** Prompt template version */
+  /** Built-in live prompt version */
   promptVersion: string;
   /** Locale for formatting and language */
   locale?: string;

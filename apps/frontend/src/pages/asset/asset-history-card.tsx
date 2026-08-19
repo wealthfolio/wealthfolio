@@ -19,7 +19,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  formatPercent,
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
@@ -30,6 +29,8 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  useDateFormatting,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { format, subMonths } from "date-fns";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -66,6 +67,9 @@ const AssetHistoryCard: React.FC<AssetHistoryProps> = ({
   averageCost,
   className,
 }) => {
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   const syncMarketDataMutation = useSyncMarketDataMutation(true);
   const { isBalanceHidden } = useBalancePrivacy();
@@ -217,8 +221,11 @@ const AssetHistoryCard: React.FC<AssetHistoryProps> = ({
                       currency={currency}
                       isHidden={isBalanceHidden}
                     />{" "}
-                    ({percentage == null ? t("asset:historyCard.na") : formatPercent(percentage)}){" "}
-                    {selectedIntervalDesc}
+                    (
+                    {percentage == null
+                      ? t("asset:historyCard.na")
+                      : numberFormatting.formatPercent(percentage)}
+                    ) {selectedIntervalDesc}
                   </p>
                 </div>
               </HoverCardTrigger>
@@ -229,7 +236,7 @@ const AssetHistoryCard: React.FC<AssetHistoryProps> = ({
                       <Icons.Calendar className="mr-2 h-4 w-4" />
                       {t("asset:historyCard.as_of")}{" "}
                       <Badge className="ml-1 font-medium" variant="secondary">
-                        {calculatedAt ? `${format(new Date(calculatedAt), "PPpp")}` : "-"}
+                        {calculatedAt ? dateFormatting.formatDateTime(new Date(calculatedAt)) : "-"}
                       </Badge>
                     </h4>
                   </div>

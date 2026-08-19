@@ -1,9 +1,10 @@
-import { keepPreviousData, useQueries } from "@tanstack/react-query";
 import { calculatePerformanceHistory } from "@/adapters";
-import { format } from "date-fns";
-import { DateRange } from "react-day-picker";
 import { QueryKeys } from "@/lib/query-keys";
 import { TrackedItem } from "@/lib/types";
+import { keepPreviousData, useQueries } from "@tanstack/react-query";
+import { calendarDateFromLocalDate, useDateFormatting } from "@wealthfolio/ui";
+import { format } from "date-fns";
+import { DateRange } from "react-day-picker";
 
 /**
  * Hook to calculate cumulative returns for a list of comparison items.
@@ -30,6 +31,7 @@ export function useCalculatePerformanceHistory({
   dateRange: DateRange | undefined;
   trackingMode?: "HOLDINGS" | "TRANSACTIONS";
 }) {
+  const formatting = useDateFormatting();
   // Filter out invalid items (defensive: handles stale localStorage data)
   const validItems = selectedItems.filter(
     (item) =>
@@ -99,9 +101,13 @@ export function useCalculatePerformanceHistory({
     })
     .filter(Boolean);
 
-  const displayStartDate = dateRange?.from ? format(dateRange.from, "MMM d, yyyy") : "";
+  const displayStartDate = dateRange?.from
+    ? formatting.formatCalendarDate(calendarDateFromLocalDate(dateRange.from))
+    : "";
 
-  const displayEndDate = dateRange?.to ? format(dateRange.to, "MMM d, yyyy") : "";
+  const displayEndDate = dateRange?.to
+    ? formatting.formatCalendarDate(calendarDateFromLocalDate(dateRange.to))
+    : "";
 
   const displayDateRange =
     dateRange === undefined

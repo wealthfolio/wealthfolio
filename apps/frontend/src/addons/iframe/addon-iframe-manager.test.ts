@@ -18,6 +18,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 import { AddonIframeManager } from "./addon-iframe-manager";
 import { resetAddonSandboxRuntimeAssetsForTest } from "./addon-sandbox-assets";
+import { setAddonLocalizationSnapshot } from "./addon-sandbox-localization";
 import { loadAddonAsset } from "@/adapters";
 
 const input = {
@@ -79,6 +80,10 @@ describe("AddonIframeManager", () => {
   });
 
   afterEach(() => {
+    setAddonLocalizationSnapshot({
+      locale: navigator.language || "en-US",
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
     vi.useRealTimers();
     document.getElementById("addon-sandbox-parking")?.remove();
     vi.unstubAllGlobals();
@@ -92,6 +97,34 @@ describe("AddonIframeManager", () => {
       name: "AddonLoadCancelled",
     });
     expect(isCurrent).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes host localization into the sandbox and broadcasts updates", async () => {
+    setAddonLocalizationSnapshot({ locale: "ja-JP", uiLocale: "en", timezone: "Asia/Tokyo" });
+    const manager = new AddonIframeManager();
+    const starting = manager.startAddon(input);
+    const cancelled = expect(starting).rejects.toMatchObject({ name: "AddonLoadCancelled" });
+    await vi.waitFor(() => expect(document.querySelector("iframe")).not.toBeNull());
+
+    const iframe = getSandboxFrame();
+    const bootstrap = new URLSearchParams(iframe.name);
+    expect(bootstrap.get("locale")).toBe("ja-JP");
+    expect(bootstrap.get("uiLocale")).toBe("en");
+    expect(bootstrap.get("timezone")).toBe("Asia/Tokyo");
+
+    const postMessage = vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation(() => {});
+    setAddonLocalizationSnapshot({ locale: "ko-KR", uiLocale: "fr", timezone: "Asia/Seoul" });
+
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        localization: { locale: "ko-KR", uiLocale: "fr", timezone: "Asia/Seoul" },
+        type: "localizationUpdate",
+      }),
+      "*",
+    );
+
+    await manager.stopAllAddons();
+    await cancelled;
   });
 
   it("allows a longer bootstrap window before applying the execution timeout", async () => {

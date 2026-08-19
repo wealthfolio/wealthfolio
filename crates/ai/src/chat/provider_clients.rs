@@ -15,7 +15,7 @@ use std::time::Duration;
 use crate::error::AiError;
 use crate::provider_urls::ensure_openai_v1_base_url;
 
-pub(super) fn create_anthropic_client(
+pub(crate) fn create_anthropic_client(
     api_key: Option<String>,
     provider_id: &str,
     provider_url: Option<String>,
@@ -30,7 +30,7 @@ pub(super) fn create_anthropic_client(
         .map_err(|e| AiError::Provider(e.to_string()))
 }
 
-pub(super) fn create_gemini_client(
+pub(crate) fn create_gemini_client(
     api_key: Option<String>,
     provider_id: &str,
     provider_url: Option<String>,
@@ -45,7 +45,7 @@ pub(super) fn create_gemini_client(
         .map_err(|e| AiError::Provider(e.to_string()))
 }
 
-pub(super) fn create_groq_client(
+pub(crate) fn create_groq_client(
     api_key: Option<String>,
     provider_id: &str,
     provider_url: Option<String>,
@@ -64,7 +64,7 @@ pub(super) fn create_groq_client(
 /// Create OpenAI client using Completions API (not Responses API).
 /// Responses API has issues with reasoning items in multi-turn conversations.
 /// See: <https://community.openai.com/t/error-badrequesterror-400-item-of-type-reasoning-was-provided-without-its-required-following-item/1303809>
-pub(super) fn create_openai_client(
+pub(crate) fn create_openai_client(
     api_key: Option<String>,
     provider_id: &str,
     provider_url: Option<String>,
@@ -80,7 +80,7 @@ pub(super) fn create_openai_client(
         .map_err(|e| AiError::Provider(e.to_string()))
 }
 
-pub(super) fn create_openrouter_client(
+pub(crate) fn create_openrouter_client(
     api_key: Option<String>,
     provider_id: &str,
     provider_url: Option<String>,
@@ -96,7 +96,7 @@ pub(super) fn create_openrouter_client(
         .map_err(|e| AiError::Provider(e.to_string()))
 }
 
-pub(super) fn create_ollama_client(
+pub(crate) fn create_ollama_client(
     provider_url: Option<String>,
 ) -> Result<ollama::Client<HttpClient>, AiError> {
     let mut builder = ollama::Client::builder().api_key(Nothing);

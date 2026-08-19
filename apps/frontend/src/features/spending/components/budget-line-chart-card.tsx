@@ -1,15 +1,21 @@
 import { useMemo } from "react";
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import { DashboardCard } from "@/components/dashboard-card";
 import { cn } from "@/lib/utils";
-import { formatCompactAmount, Icons, PrivacyAmount, useBalancePrivacy } from "@wealthfolio/ui";
+import {
+  Icons,
+  PrivacyAmount,
+  useAmountFormatting,
+  useBalancePrivacy,
+  useDateFormatting,
+} from "@wealthfolio/ui";
 
-import { CategoryIcon, type CategoryMetaMap } from "./category-chips";
 import { topCategoryId } from "../lib/category-rollup";
 import type { BudgetCategoryRow } from "../types/budget";
 import type { DayBucket } from "../types/report";
+import { CategoryIcon, type CategoryMetaMap } from "./category-chips";
 
 type Status = "ok" | "warn" | "over";
 interface PacePoint {
@@ -98,6 +104,9 @@ export function BudgetLineChartCard({
   monthByDay: DayBucket[];
   historicalByDay: DayBucket[];
 }) {
+  const amountFormatting = useAmountFormatting();
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation();
   // All hooks must run unconditionally — the `target <= 0` early return below
   // sits between hooks otherwise, which trips "Rendered more hooks than during
@@ -108,19 +117,24 @@ export function BudgetLineChartCard({
     const month = parts.month;
     const daysInMonth = new Date(year, month, 0).getDate();
     const dayOfMonth = isCurrentMonth ? Math.min(today.day, daysInMonth) : daysInMonth;
-    const monthDate = new Date(year, month - 1, 1);
     return {
       dayOfMonth,
       daysInMonth,
       daysRemaining: isCurrentMonth ? Math.max(0, daysInMonth - dayOfMonth) : 0,
-      monthLabel: monthDate
-        .toLocaleString("en-US", { month: "long", year: "numeric" })
+      monthLabel: dateFormatting
+        .formatCalendarDate(
+          { year, month, day: 1 },
+          { calendar: "gregory", month: "long", year: "numeric" },
+        )
         .toUpperCase(),
-      shortLabel: monthDate
-        .toLocaleString("en-US", { month: "short", year: "numeric" })
+      shortLabel: dateFormatting
+        .formatCalendarDate(
+          { year, month, day: 1 },
+          { calendar: "gregory", month: "short", year: "numeric" },
+        )
         .toUpperCase(),
     };
-  }, [monthKey, isCurrentMonth, today]);
+  }, [monthKey, isCurrentMonth, dateFormatting, today]);
   const { dayOfMonth, daysInMonth, daysRemaining, monthLabel } = monthMeta;
 
   const cumulative = useMemo(() => {
@@ -281,20 +295,22 @@ export function BudgetLineChartCard({
   const gapLabel = isCurrentMonth
     ? isOver
       ? t("spending:budgetChart.overBudgetAmount", {
-          amount: formatCompactAmount(overBy, currency),
+          amount: amountFormatting.formatCompactAmount(overBy, currency),
         })
       : aheadOfPace
         ? t("spending:budgetChart.underBudgetAmount", {
-            amount: formatCompactAmount(gapAbs, currency),
+            amount: amountFormatting.formatCompactAmount(gapAbs, currency),
           })
         : t("spending:budgetChart.overPaceAmount", {
-            amount: formatCompactAmount(gapAbs, currency),
+            amount: amountFormatting.formatCompactAmount(gapAbs, currency),
           })
     : isOver
       ? t("spending:budgetChart.overBudgetAmount", {
-          amount: formatCompactAmount(overBy, currency),
+          amount: amountFormatting.formatCompactAmount(overBy, currency),
         })
-      : t("spending:budgetChart.leftAmount", { amount: formatCompactAmount(remaining, currency) });
+      : t("spending:budgetChart.leftAmount", {
+          amount: amountFormatting.formatCompactAmount(remaining, currency),
+        });
 
   const pillLeftPctRaw = (endX / chartW) * 100;
   const pillLeftPct = Math.min(78, Math.max(8, pillLeftPctRaw - 4));
@@ -533,7 +549,7 @@ export function BudgetLineChartCard({
         ) : (
           <div
             data-no-swipe-drag
-            className="-mx-1 flex min-w-0 touch-pan-x gap-3 overflow-x-auto overscroll-x-contain px-1 pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="-mx-1 flex min-w-0 touch-pan-x gap-3 !overflow-x-auto overscroll-x-contain px-1 pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             style={{
               maskImage: "linear-gradient(to right, black calc(100% - 32px), transparent 100%)",
               WebkitMaskImage:
@@ -712,6 +728,7 @@ function BudgetRing({
   currency: string;
   activityRange: { from: string; to: string };
 }) {
+  const formatting = useAmountFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const isOver = ring.spent > ring.target;
@@ -764,7 +781,7 @@ function BudgetRing({
         </div>
       </div>
       <div className="text-foreground text-xs font-semibold tabular-nums">
-        {isBalanceHidden ? "••••" : formatCompactAmount(displayAmount, currency)}
+        {isBalanceHidden ? "••••" : formatting.formatCompactAmount(displayAmount, currency)}
       </div>
       <div
         className={cn(

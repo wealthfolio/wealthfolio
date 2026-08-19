@@ -1,5 +1,4 @@
 import { TickerAvatar } from "@/components/ticker-avatar";
-import { Card } from "@wealthfolio/ui/components/ui/card";
 import {
   calculateActivityValue,
   formatSplitRatio,
@@ -10,21 +9,23 @@ import {
   isIncomeActivity,
   isSecuritiesTransfer,
   isSplitActivity,
+  localizeActivityTypeName,
 } from "@/lib/activity-utils";
-import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityType } from "@/lib/constants";
-import { parseOccSymbol } from "@/lib/occ-symbol";
+import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { ActivityDetails } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 import {
   Button,
   EmptyPlaceholder,
-  formatAmount,
-  formatPrice,
   Icons,
   Separator,
+  useAmountFormatting,
+  useNumberFormatting,
+  useDateFormatting,
 } from "@wealthfolio/ui";
+import { Card } from "@wealthfolio/ui/components/ui/card";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ActivityOperations } from "../activity-operations";
@@ -57,6 +58,9 @@ export const ActivityTableMobile = ({
   onAdd,
   onClearFilters,
 }: ActivityTableMobileProps) => {
+  const formatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
+  const dateFormatting = useDateFormatting();
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const appTimezone = settings?.timezone?.trim() || undefined;
@@ -120,9 +124,9 @@ export const ActivityTableMobile = ({
             : symbol;
         const avatarSymbol = isCash ? "$CASH" : symbol;
         const optionSubtitle = parsedOption
-          ? `${new Date(parsedOption.expiration + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} $${parsedOption.strikePrice} ${parsedOption.optionType}`
+          ? formatOptionSubtitle(parsedOption, { ...numberFormatting, ...dateFormatting })
           : null;
-        const formattedDate = formatDateTime(activity.date, appTimezone);
+        const formattedDate = formatDateTime(activity.date, dateFormatting, appTimezone);
         const displayValue = calculateActivityValue(activity);
 
         // Compact View
@@ -140,7 +144,7 @@ export const ActivityTableMobile = ({
                           <p className="truncate font-semibold">{displaySymbol}</p>
                           {activity.activityType !== "SPLIT" && (
                             <span className="shrink-0 text-sm font-semibold">
-                              {formatAmount(displayValue, activity.currency)}
+                              {formatting.formatAmount(displayValue, activity.currency)}
                             </span>
                           )}
                         </div>
@@ -304,8 +308,8 @@ export const ActivityTableMobile = ({
                               )) ||
                             isCashTransfer(activity.activityType, symbol, activity.assetId) ||
                             (isIncomeActivity(activity.activityType) && !isAssetBackedIncome)
-                          ? formatAmount(Number(activity.amount), activity.currency)
-                          : formatPrice(Number(activity.unitPrice), activity.currency)}
+                          ? formatting.formatAmount(Number(activity.amount), activity.currency)
+                          : formatting.formatPrice(Number(activity.unitPrice), activity.currency)}
                   </span>
                 </div>
 
@@ -314,7 +318,7 @@ export const ActivityTableMobile = ({
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">{t("activity:table_fee")}</span>
                     <span className="font-medium">
-                      {formatAmount(Number(activity.fee), activity.currency)}
+                      {formatting.formatAmount(Number(activity.fee), activity.currency)}
                     </span>
                   </div>
                 )}
@@ -322,7 +326,7 @@ export const ActivityTableMobile = ({
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">{t("activity:table.tax")}</span>
                     <span className="font-medium">
-                      {formatAmount(Number(activity.tax), activity.currency)}
+                      {formatting.formatAmount(Number(activity.tax), activity.currency)}
                     </span>
                   </div>
                 )}
@@ -334,7 +338,7 @@ export const ActivityTableMobile = ({
                       {t("activity:table.total_value")}
                     </span>
                     <span className="font-semibold">
-                      {formatAmount(displayValue, activity.currency)}
+                      {formatting.formatAmount(displayValue, activity.currency)}
                     </span>
                   </div>
                 )}

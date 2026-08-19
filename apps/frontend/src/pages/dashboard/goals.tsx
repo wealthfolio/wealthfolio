@@ -1,12 +1,13 @@
 import { getGoals } from "@/adapters";
 import { DashboardCard } from "@/components/dashboard-card";
-import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Goal } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
-import { cn, formatCompactAmount } from "@wealthfolio/ui";
+import { cn, useAmountFormatting, useNumberFormatting } from "@wealthfolio/ui";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
+import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
@@ -44,7 +45,7 @@ function statusDotClass(status: Goal["statusHealth"]) {
   return "bg-muted-foreground/35";
 }
 
-function formatTimeRemaining(t: (key: string) => string, targetDate?: string): string {
+function formatTimeRemaining(t: TFunction, targetDate?: string): string {
   if (!targetDate) return t("dashboard:goals.time_no_deadline");
   const target = new Date(targetDate);
   const now = new Date();
@@ -56,10 +57,11 @@ function formatTimeRemaining(t: (key: string) => string, targetDate?: string): s
   if (months < 0) months = 0;
   const years = Math.floor(months / 12);
   const remMonths = months % 12;
-  // Compact, language-neutral units (Y/M).
-  if (years === 0) return `${Math.max(1, remMonths)}M`;
-  if (remMonths === 0) return `${years}Y`;
-  return `${years}Y ${remMonths}M`;
+  if (years === 0) {
+    return t("goals:card.months_left", { count: Math.max(1, remMonths) });
+  }
+  if (remMonths === 0) return t("goals:card.years_left", { count: years });
+  return t("goals:card.years_months_left", { years, months: remMonths });
 }
 
 function ViewAllLink() {
@@ -76,6 +78,8 @@ function ViewAllLink() {
 }
 
 export function SavingGoals() {
+  const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
 
@@ -133,15 +137,15 @@ export function SavingGoals() {
         const currency = goal.currency ?? "USD";
         const deadline = goal.targetDate ?? goal.projectedCompletionDate;
         const timeStr = formatTimeRemaining(t, deadline);
-        const pctDisplay = Math.round(pct * 100);
+        const pctDisplay = numberFormatting.formatPercent(pct, { digits: 0 });
 
         const currentDisplay = isBalanceHidden
           ? "••••"
-          : formatCompactAmount(currentValue, currency);
+          : amountFormatting.formatCompactAmount(currentValue, currency);
         const targetDisplay = isBalanceHidden
           ? "••••"
           : target > 0
-            ? formatCompactAmount(target, currency)
+            ? amountFormatting.formatCompactAmount(target, currency)
             : "—";
 
         return (
@@ -176,7 +180,6 @@ export function SavingGoals() {
               <div className="shrink-0 text-right">
                 <div className="text-base font-semibold tabular-nums leading-none">
                   {pctDisplay}
-                  <span className="text-[9px] font-medium">%</span>
                 </div>
                 <div className="text-muted-foreground mt-1 text-[10px] tracking-[0.1em]">
                   {timeStr}

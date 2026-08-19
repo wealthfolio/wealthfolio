@@ -89,7 +89,11 @@
     "shares_one": "{{formatted}} acción",
     "shares_other": "{{formatted}} acciones",
     "more_holdings": "+{{count}} posiciones más",
-    "more": "+{{count}} más"
+    "more": "+{{count}} más",
+    "more_holdings_one": "+{{count}} posición más",
+    "more_holdings_other": "+{{count}} posiciones más",
+    "more_one": "+{{count}} más",
+    "more_other": "+{{count}} más"
   },
   "summary": {
     "return_unavailable_holdings": "Rentabilidad % no disponible: falta el coste base o el valor inicial de las posiciones.",

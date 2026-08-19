@@ -140,7 +140,9 @@
     "emptyHint": "設定で口座を追加すると、投資を管理できます。",
     "error": "口座の読み込みに失敗しました",
     "currencyCount": "{{count}}件 {{currency}}",
-    "unknown": "不明"
+    "unknown": "不明",
+    "currencyCount_other": "{{count}}件 {{currency}}",
+    "of_other": "{{count}}件中"
   },
   "activities": {
     "fetched_one": "{{count}}件の取引を取得しました",
@@ -242,7 +244,11 @@
     "loadedTaxonomies": "資産分類体系を{{count}}件読み込みました",
     "loadingClassifications": "分類を読み込み中...",
     "couldNotLoadClassifications": "分類を読み込めませんでした。",
-    "loadedClassifications": "{{asset}}の分類を{{count}}件読み込みました"
+    "loadedClassifications": "{{asset}}の分類を{{count}}件読み込みました",
+    "loadedCategoriesTotal_other": "{{taxonomy}}のカテゴリを{{count}}件読み込みました · 全{{total}}件",
+    "loadedCategories_other": "{{taxonomy}}のカテゴリを{{count}}件読み込みました",
+    "loadedTaxonomies_other": "資産分類体系を{{count}}件読み込みました",
+    "loadedClassifications_other": "{{asset}}の分類を{{count}}件読み込みました"
   },
   "categorization": {
     "categorizing": "取引を分類中…",
@@ -269,7 +275,10 @@
     "transactionsCategorized_other": "{{count}}件の取引を分類しました",
     "categoriesSaved": "取引にカテゴリを保存しました。",
     "apply": "適用",
-    "applySelected": "選択した{{count}}件を適用"
+    "applySelected": "選択した{{count}}件を適用",
+    "selected_other": "{{count}}件を選択中",
+    "needsManualChoice_other": "手動選択が必要({{count}})",
+    "applySelected_other": "選択した{{count}}件を適用"
   },
   "importReview": {
     "all": "すべて",
@@ -310,7 +319,9 @@
     "count_one": "{{count}}件の目標",
     "count_other": "{{count}}件の目標",
     "of": "{{count}}件中",
-    "achieved": "{{count}}件達成"
+    "achieved": "{{count}}件達成",
+    "of_other": "{{count}}件中",
+    "achieved_other": "{{count}}件達成"
   },
   "holdings": {
     "fetched_one": "{{count}}件の保有銘柄を取得しました",
@@ -358,7 +369,8 @@
     "statsSummary": "有効{{valid}}件 · 警告{{warning}}件 · エラー{{errors}}件 · 重複{{duplicates}}件",
     "revalidate": "再検証",
     "import_one": "{{count}}件の取引をインポート",
-    "import_other": "{{count}}件の取引をインポート"
+    "import_other": "{{count}}件の取引をインポート",
+    "mappedColumns_other": "{{count}}列をマッピングしました。 "
   },
   "mapping": {
     "usingSavedTemplate": "保存済みテンプレートを使用中",
@@ -443,7 +455,13 @@
     "status": "ステータス",
     "createdSummary": "{{created}}行を作成しました。エラー{{errors}}件。",
     "confirmActivities": "{{count}}件の取引を確定",
-    "confirmActivitiesEmpty": "取引を確定"
+    "confirmActivitiesEmpty": "取引を確定",
+    "readyCount_other": "{{count}}件準備完了",
+    "rows_other": "行数: {{count}}",
+    "valid_other": "有効: {{count}}",
+    "errors_other": "エラー: {{count}}",
+    "willCreate_other": "作成予定: {{count}}",
+    "confirmActivities_other": "{{count}}件の取引を確定"
   },
   "recordActivity": {
     "invalidDate": "無効な日付",

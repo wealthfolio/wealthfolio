@@ -1,7 +1,15 @@
+import { useDateFormatting, type FormattingApi } from "@wealthfolio/ui";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { isDesktop, openUrlInBrowser } from "@/adapters";
+import {
+  UPDATE_DISMISSED_KEY,
+  useCheckUpdateOnStartup,
+  useClearUpdate,
+  useInstallUpdate,
+} from "@/hooks/use-updater";
+import { Icons } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Carousel,
@@ -12,13 +20,6 @@ import {
 } from "@wealthfolio/ui/components/ui/carousel";
 import { Progress } from "@wealthfolio/ui/components/ui/progress";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
-import {
-  useCheckUpdateOnStartup,
-  useClearUpdate,
-  useInstallUpdate,
-  UPDATE_DISMISSED_KEY,
-} from "@/hooks/use-updater";
-import { Icons } from "@wealthfolio/ui";
 import { usePersistentState } from "@wealthfolio/ui/hooks/use-persistent-state";
 
 interface DismissedUpdate {
@@ -39,7 +40,10 @@ function isDismissed(dismissed: DismissedUpdate | null, version: string): boolea
   return Date.now() - dismissed.dismissedAt < SNOOZE_DURATION_MS;
 }
 
-function formatReleaseDate(pubDate?: string) {
+function formatReleaseDate(
+  pubDate: string | undefined,
+  formatting: Pick<FormattingApi, "formatDate">,
+) {
   if (!pubDate) {
     return null;
   }
@@ -49,7 +53,7 @@ function formatReleaseDate(pubDate?: string) {
     return pubDate;
   }
 
-  return parsed.toLocaleString(undefined, {
+  return formatting.formatDate(parsed, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -57,6 +61,7 @@ function formatReleaseDate(pubDate?: string) {
 }
 
 export function UpdateDialog() {
+  const formatting = useDateFormatting();
   const { t } = useTranslation();
   const { data: updateInfo } = useCheckUpdateOnStartup();
   const clearUpdate = useClearUpdate();
@@ -140,7 +145,7 @@ export function UpdateDialog() {
     }
   };
 
-  const releaseDate = formatReleaseDate(updateInfo?.pubDate);
+  const releaseDate = formatReleaseDate(updateInfo?.pubDate, formatting);
 
   if (!isOpen || !updateInfo) return null;
 

@@ -49,7 +49,10 @@
       "noTimezonesFound": "タイムゾーンが見つかりません",
       "currencyRequired": "基準通貨を選択してください。",
       "timezoneRequired": "タイムゾーンを選択してください。",
-      "languageLabel": "言語"
+      "languageLabel": "言語",
+      "formattingRegionLabel": "地域と表示形式",
+      "searchRegionsPlaceholder": "地域を検索...",
+      "noRegionsFound": "地域が見つかりません"
     }
   },
   "appearance": {

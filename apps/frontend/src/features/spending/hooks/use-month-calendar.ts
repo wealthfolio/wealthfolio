@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { parseLocalDate } from "@/lib/utils";
+import { calendarDateFromLocalDate, useDateFnsLocale, useDateFormatting } from "@wealthfolio/ui";
 
 import type { EventSpendingSummary } from "../types/event";
 
@@ -20,27 +21,13 @@ export interface MonthWeek {
 
 export interface MonthCalendar {
   monthLabel: string;
+  weekStartsOn: number;
   monthStart: Date;
   monthEnd: Date;
   weeks: MonthWeek[];
   /** Subset of `events` that intersect this month. */
   monthEvents: EventSpendingSummary[];
 }
-
-const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
 
 function stripTime(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -54,11 +41,11 @@ function diffDays(a: Date, b: Date): number {
   return Math.round((a.getTime() - b.getTime()) / 86_400_000);
 }
 
-/** Build a Monday-first 6-row × 7-col grid covering the month, including
+/** Build a locale-first 6-row × 7-col grid covering the month, including
  *  leading and trailing days from the neighbouring months. */
-function buildMonthWeeks(monthStart: Date): Date[][] {
-  // JS getDay is Sun=0..Sat=6; convert to Mon=0..Sun=6.
-  const offset = (monthStart.getDay() + 6) % 7;
+function buildMonthWeeks(monthStart: Date, weekStartsOn: number): Date[][] {
+  // JS getDay and date-fns both use Sun=0..Sat=6.
+  const offset = (monthStart.getDay() - weekStartsOn + 7) % 7;
   const gridStart = new Date(monthStart);
   gridStart.setDate(monthStart.getDate() - offset);
 
@@ -115,6 +102,9 @@ function computeWeekBars(events: EventSpendingSummary[], week: Date[]): WeekBar[
  * component just iterates.
  */
 export function useMonthCalendar(events: EventSpendingSummary[], cursor: Date): MonthCalendar {
+  const formatting = useDateFormatting();
+  const dateFnsLocale = useDateFnsLocale();
+  const weekStartsOn = dateFnsLocale.options?.weekStartsOn ?? 0;
   const monthStart = useMemo(() => new Date(cursor.getFullYear(), cursor.getMonth(), 1), [cursor]);
   const monthEnd = useMemo(() => endOfMonth(monthStart), [monthStart]);
 
@@ -130,14 +120,18 @@ export function useMonthCalendar(events: EventSpendingSummary[], cursor: Date): 
 
   const weeks = useMemo<MonthWeek[]>(
     () =>
-      buildMonthWeeks(monthStart).map((days) => ({
+      buildMonthWeeks(monthStart, weekStartsOn).map((days) => ({
         days,
         bars: computeWeekBars(monthEvents, days),
       })),
-    [monthStart, monthEvents],
+    [monthStart, monthEvents, weekStartsOn],
   );
 
-  const monthLabel = `${MONTH_NAMES[cursor.getMonth()]} ${cursor.getFullYear()}`;
+  const monthLabel = formatting.formatCalendarDate(calendarDateFromLocalDate(cursor), {
+    calendar: "gregory",
+    month: "long",
+    year: "numeric",
+  });
 
-  return { monthLabel, monthStart, monthEnd, weeks, monthEvents };
+  return { monthLabel, weekStartsOn, monthStart, monthEnd, weeks, monthEvents };
 }

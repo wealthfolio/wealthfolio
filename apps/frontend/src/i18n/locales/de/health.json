@@ -242,6 +242,8 @@
       "title": "Dieses Problem ausblenden?",
       "message": "Dadurch wird das Problem in Ihrem Zustandscenter ausgeblendet. Es erscheint erneut, wenn sich die zugrunde liegenden Daten ändern.",
       "pendingText": "Wird ausgeblendet..."
-    }
+    },
+    "affectedItems_one": "Betroffenes Element ({{count}})",
+    "affectedItems_other": "Betroffene Elemente ({{count}})"
   }
 }

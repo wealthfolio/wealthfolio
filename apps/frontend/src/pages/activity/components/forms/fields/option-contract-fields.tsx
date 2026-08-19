@@ -1,10 +1,8 @@
+import { resolveSymbolQuote } from "@/adapters";
 import TickerSearchInput from "@/components/ticker-search";
-import { buildOccSymbol, parseOccSymbol } from "@/lib/occ-symbol";
+import { buildOccSymbol, formatOptionExpiration, parseOccSymbol } from "@/lib/occ-symbol";
 import type { SymbolSearchResult } from "@/lib/types";
 import { cn, normalizeCurrency } from "@/lib/utils";
-import { resolveSymbolQuote } from "@/adapters";
-import { motion } from "motion/react";
-import { Input } from "@wealthfolio/ui/components/ui/input";
 import {
   DatePickerInput,
   FormControl,
@@ -12,10 +10,13 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  useDateFormatting,
 } from "@wealthfolio/ui";
+import { Input } from "@wealthfolio/ui/components/ui/input";
+import { motion } from "motion/react";
 import { useEffect, useId, useRef } from "react";
-import { useTranslation } from "react-i18next";
 import { useFormContext, type FieldPath, type FieldValues } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 
 interface OptionContractFieldsProps<TFieldValues extends FieldValues = FieldValues> {
   underlyingName: FieldPath<TFieldValues>;
@@ -42,6 +43,8 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
   quoteCcyName,
   unitPriceName,
 }: OptionContractFieldsProps<TFieldValues>) {
+  const dateFormatting = useDateFormatting();
+
   const { t } = useTranslation(["activity"]);
   const { control, setValue, getValues, watch } = useFormContext<TFieldValues>();
   const optionTypeId = useId();
@@ -57,10 +60,7 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
 
   // Format expiration for summary (YYYY-MM-DD → "Mar 29")
   const expirationDisplay = expirationDate
-    ? new Date(expirationDate + "T12:00:00").toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      })
+    ? formatOptionExpiration(expirationDate, dateFormatting)
     : undefined;
   const hasContractSummary = strikePrice && expirationDate && optionType;
 

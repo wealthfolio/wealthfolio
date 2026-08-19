@@ -1,11 +1,12 @@
+import { formatDistanceToNow } from "@/lib/utils";
+import { useLocalizationSettings } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { formatDistanceToNow } from "date-fns";
+import type { TFunction } from "i18next";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 import type { AggregatedSyncStatus } from "../types";
 
 interface SyncSummaryCardProps {
@@ -39,6 +40,8 @@ export function SyncSummaryCard({
   onSyncAll,
   isSyncing,
 }: SyncSummaryCardProps) {
+  const localizationSettings = useLocalizationSettings();
+
   const { t } = useTranslation();
   const statusConfig = useMemo(() => buildStatusConfig(t), [t]);
   const config = statusConfig[status];
@@ -55,7 +58,9 @@ export function SyncSummaryCard({
             <p className="text-muted-foreground text-sm">
               {lastSyncTime
                 ? t("connect:status.lastSynced", {
-                    time: formatDistanceToNow(new Date(lastSyncTime), { addSuffix: true }),
+                    time: formatDistanceToNow(new Date(lastSyncTime), localizationSettings, {
+                      addSuffix: true,
+                    }),
                   })
                 : t("connect:status.neverSynced")}
             </p>

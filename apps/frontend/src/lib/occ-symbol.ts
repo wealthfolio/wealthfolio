@@ -1,3 +1,5 @@
+import type { FormattingApi } from "@wealthfolio/ui";
+
 /**
  * OCC (Options Clearing Corporation) symbol parser.
  *
@@ -10,6 +12,27 @@ export interface ParsedOccSymbol {
   expiration: string; // ISO date YYYY-MM-DD
   optionType: "CALL" | "PUT";
   strikePrice: number;
+}
+
+export function formatOptionExpiration(
+  expiration: string,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+): string {
+  return formatting.formatCalendarDate(expiration, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+export function formatOptionSubtitle(
+  option: ParsedOccSymbol,
+  formatting: Pick<FormattingApi, "formatCalendarDate" | "formatDecimal">,
+): string {
+  const expiration = formatOptionExpiration(option.expiration, formatting);
+  const strike = formatting.formatDecimal(option.strikePrice, {
+    maximumFractionDigits: 3,
+  });
+  return `${expiration} $${strike} ${option.optionType}`;
 }
 
 /**

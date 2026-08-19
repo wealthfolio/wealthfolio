@@ -23,7 +23,7 @@ use crate::activities::{
 };
 use crate::assets::{
     canonicalize_market_identity, normalize_quote_ccy_code, parse_crypto_pair_symbol,
-    parse_symbol_with_exchange_suffix, resolve_import_quote_ccy_precedence,
+    parse_symbol_with_known_exchange, resolve_import_quote_ccy_precedence,
     resolve_quote_ccy_precedence, AssetKind, AssetResolutionInput as ImportAssetResolutionInput,
     AssetServiceTrait, InstrumentType, QuoteCcyResolutionSource, QuoteMode,
 };
@@ -1993,9 +1993,12 @@ impl ActivityService {
             effective_instrument_type.as_ref(),
             Some(InstrumentType::Crypto | InstrumentType::Fx)
         );
+        // A supplied MIC decides whether a trailing `.X` is a venue or part of the
+        // ticker: `ZAAA.F` on Cboe Canada is a hedged unit class, not a Frankfurt
+        // listing. See `parse_symbol_with_known_exchange`.
         let (base_symbol, suffix_mic) = symbol
             .as_deref()
-            .map(parse_symbol_with_exchange_suffix)
+            .map(|sym| parse_symbol_with_known_exchange(sym, exchange_mic.as_deref()))
             .unwrap_or(("", None));
         let exchange_mic = if is_non_security_instrument {
             None
@@ -2447,9 +2450,12 @@ impl ActivityService {
             effective_instrument_type.as_ref(),
             Some(InstrumentType::Crypto | InstrumentType::Fx)
         );
+        // A supplied MIC decides whether a trailing `.X` is a venue or part of the
+        // ticker: `ZAAA.F` on Cboe Canada is a hedged unit class, not a Frankfurt
+        // listing. See `parse_symbol_with_known_exchange`.
         let (base_symbol, suffix_mic) = symbol
             .as_deref()
-            .map(parse_symbol_with_exchange_suffix)
+            .map(|sym| parse_symbol_with_known_exchange(sym, exchange_mic.as_deref()))
             .unwrap_or(("", None));
         let exchange_mic = if is_non_security_instrument {
             None
@@ -2884,8 +2890,11 @@ impl ActivityService {
             .into());
         }
 
-        // Strip Yahoo suffix from symbol (e.g. GOOG.TO → GOOG + XTSE)
-        let (base_symbol, suffix_mic) = parse_symbol_with_exchange_suffix(&symbol);
+        // Strip Yahoo suffix from symbol (e.g. GOOG.TO → GOOG + XTSE), unless the row
+        // already names a venue the suffix disagrees with — then the suffix is part of
+        // the ticker, as with a `.F` hedged class on Cboe Canada.
+        let (base_symbol, suffix_mic) =
+            parse_symbol_with_known_exchange(&symbol, activity.get_exchange_mic());
 
         // Get exchange MIC: prefer explicit value, then a recognized Yahoo suffix, then live lookup.
         // If a CSV says MSF.DE, the suffix is the user's venue intent and must not be
@@ -3325,7 +3334,11 @@ impl ActivityService {
                 .clone()
                 .or_else(|| asset_resolution.and_then(|output| output.exchange_mic.clone()));
 
-            let (base_symbol, suffix_mic) = parse_symbol_with_exchange_suffix(&symbol);
+            // Same rule as the save paths: a venue on the row is better evidence than
+            // a suffix that resolves elsewhere, so a contradicted suffix stays on the
+            // ticker rather than renaming the instrument.
+            let (base_symbol, suffix_mic) =
+                parse_symbol_with_known_exchange(&symbol, activity.exchange_mic.as_deref());
             let has_import_market_hint = activity
                 .exchange_mic
                 .as_deref()

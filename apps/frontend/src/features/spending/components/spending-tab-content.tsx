@@ -13,25 +13,28 @@ import {
 } from "recharts";
 
 import { DashboardCard } from "@/components/dashboard-card";
-import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { DateRange, TaxonomyCategory } from "@/lib/types";
-import { cn, formatAmount, formatDateISO } from "@/lib/utils";
+import { cn, formatDateISO } from "@/lib/utils";
 import Balance from "@/pages/dashboard/balance";
 
 import {
   Icons,
   PrivacyAmount,
   Skeleton,
-  formatCompactAmount,
+  useAmountFormatting,
   usePersistentState,
+  type FormattingApi,
+  useDateFormatting,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
 
 import { useBudget } from "../hooks/use-budget";
-import { useCategorizationRules } from "../hooks/use-categorization-rules";
 import { useCashActivities, useUncategorizedCount } from "../hooks/use-cash-activities";
+import { useCategorizationRules } from "../hooks/use-categorization-rules";
 import { useSpendingReport } from "../hooks/use-spending-report";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import { SAVINGS_ROW_COLOR, SAVINGS_ROW_ID, buildWhereItWentRows } from "../lib/category-rollup";
@@ -221,11 +224,15 @@ function budgetSelectionSyncKey(selection: SpendingSelection, currentMonthKey: s
   return `period:${selection.code}`;
 }
 
-function selectionData(selection: SpendingSelection, timezone?: string | null) {
+function selectionData(
+  selection: SpendingSelection,
+  formatting: Pick<FormattingApi, "formatCalendarDate">,
+  timezone?: string | null,
+) {
   if (selection.kind === "month") {
     return {
       range: monthRange(selection.monthKey),
-      description: monthLabel(selection.monthKey),
+      description: monthLabel(selection.monthKey, formatting),
       insightPeriod: "LAST_MONTH" as ReportsPeriod,
     };
   }
@@ -293,6 +300,9 @@ function barKeyToRange(
 }
 
 export default function SpendingTabContent() {
+  const dateFormatting = useDateFormatting();
+  const formatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const { settings } = useSettingsContext();
@@ -338,7 +348,10 @@ export default function SpendingTabContent() {
     range: dateRange,
     description: selectedIntervalDescription,
     insightPeriod,
-  } = useMemo(() => selectionData(selection, appTimezone), [selection, appTimezone]);
+  } = useMemo(
+    () => selectionData(selection, dateFormatting, appTimezone),
+    [selection, dateFormatting, appTimezone],
+  );
   const theme: Palette = FOREST_THEME;
 
   const [whereItWentView, setWhereItWentView] = usePersistentState<"list" | "map">(
@@ -478,7 +491,7 @@ export default function SpendingTabContent() {
     const end = { ...endMonth, day: daysInCalendarMonth(endMonth.year, endMonth.month) };
     const days = Math.max(1, calendarDaysBetweenInclusive(start, end));
     return total / days;
-  }, [historyReport?.current.outflow, budgetMonthKey, todayParts]);
+  }, [historyReport, budgetMonthKey, todayParts]);
 
   // Always render in the user's base currency. The backend FX-converts every
   // activity in `report` to base at period end, so labeling by the first
@@ -756,14 +769,18 @@ export default function SpendingTabContent() {
           <>
             {t("spending:tabContent.spendingAbovePrefix")}{" "}
             <span className="font-semibold">
-              {t("spending:tabContent.pctAbove", { pct: (deltaPct * 100).toFixed(0) })}
+              {t("spending:tabContent.pctAbove", {
+                pct: numberFormatting.formatDecimal(deltaPct * 100, {
+                  maximumFractionDigits: 0,
+                }),
+              })}
             </span>{" "}
             {t("spending:tabContent.thePriorPeriod")}
           </>
         ),
         sub: t("spending:tabContent.moreThan", {
-          more: isBalanceHidden ? "••••" : formatAmount(delta, currency),
-          prior: isBalanceHidden ? "••••" : formatAmount(priorSpending, currency),
+          more: isBalanceHidden ? "••••" : formatting.formatAmount(delta, currency),
+          prior: isBalanceHidden ? "••••" : formatting.formatAmount(priorSpending, currency),
         }),
       });
     }
@@ -825,6 +842,8 @@ export default function SpendingTabContent() {
     isBalanceHidden,
     categorizationRules,
     categorizationRulesLoading,
+    formatting,
+    numberFormatting,
     theme.deep,
     t,
   ]);
@@ -948,7 +967,7 @@ export default function SpendingTabContent() {
                               className="inline-block h-px w-3 border-t border-dashed border-current opacity-60"
                             />
                             <span>
-                              {avgLabel} · {formatCompactAmount(avgValue, currency)}
+                              {avgLabel} · {formatting.formatCompactAmount(avgValue, currency)}
                             </span>
                           </div>
                         )}
@@ -1301,6 +1320,7 @@ function CategoryTreemapMono({
   savingsHref?: string;
 }) {
   const { t } = useTranslation();
+  const numberFormatting = useNumberFormatting();
   const navigate = useNavigate();
 
   if (rows.length === 0 || total <= 0) {
@@ -1373,7 +1393,8 @@ function CategoryTreemapMono({
                   <div className="bg-background rounded-md border px-3 py-2 text-xs shadow-sm">
                     <div className="text-foreground font-semibold">{p.name}</div>
                     <div className="text-muted-foreground tabular-nums">
-                      <PrivacyAmount value={p.amount} currency={currency} /> · {p.pct.toFixed(1)}%
+                      <PrivacyAmount value={p.amount} currency={currency} /> ·{" "}
+                      {numberFormatting.formatPercent(p.pct / 100, { digits: 1 })}
                     </div>
                   </div>
                 );
@@ -1401,6 +1422,8 @@ const CategoryTreemapNodeMono: FC<CategoryTreemapNodeMonoProps> = ({
   id,
   onActivate,
 }) => {
+  const formatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   if (depth === 0) return null;
@@ -1416,8 +1439,8 @@ const CategoryTreemapNodeMono: FC<CategoryTreemapNodeMonoProps> = ({
   const dotR = Math.max(2.5, Math.min(4, Math.min(width, height) * 0.04));
   const showDot = accent && width > 40 && height > 28;
 
-  const amountText = isBalanceHidden ? "••••" : formatAmount(amount, currency);
-  const pctText = `${pct.toFixed(1)}%`;
+  const amountText = isBalanceHidden ? "••••" : formatting.formatAmount(amount, currency);
+  const pctText = numberFormatting.formatPercent(pct / 100, { digits: 1 });
   const amountTextW = amountText.length * amountFontSize * 0.58;
   const pctTextW = pctText.length * pctFontSize * 0.6;
   const innerW = Math.max(0, width - padX * 2);
@@ -1528,6 +1551,8 @@ function CategoryRankedBar({
   groupRows?: import("../types/budget").BudgetGroupRow[];
   savingsHref?: string;
 }) {
+  const formatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   // Memoize derivations so we don't rebuild the Map + reduce + slices on every
@@ -1584,8 +1609,8 @@ function CategoryRankedBar({
               borderRight: "1px solid var(--card)",
             }}
             title={`${s.name} — ${
-              isBalanceHidden ? "••••" : formatAmount(s.amount, currency)
-            } (${share.toFixed(1)}%)`}
+              isBalanceHidden ? "••••" : formatting.formatAmount(s.amount, currency)
+            } (${numberFormatting.formatPercent(share / 100, { digits: 1 })})`}
           />
         );
       })}
@@ -1695,7 +1720,7 @@ function CategoryRankedBar({
                 {r.name}
               </span>
               <span className="text-muted-foreground/70 w-12 text-right text-[11px] tabular-nums">
-                {share.toFixed(1)}%
+                {numberFormatting.formatPercent(share / 100, { digits: 1 })}
               </span>
               <span className="text-foreground w-24 text-right text-xs font-semibold tabular-nums">
                 <PrivacyAmount value={r.amount} currency={currency} />
@@ -1713,7 +1738,7 @@ function CategoryRankedBar({
               {t("spending:tabContent.uncategorizedImprove")}
             </span>
             <span className="text-muted-foreground/70 w-12 text-right text-[11px] tabular-nums">
-              {uncategorizedShare.toFixed(1)}%
+              {numberFormatting.formatPercent(uncategorizedShare / 100, { digits: 1 })}
             </span>
             <span className="text-foreground w-24 text-right text-xs font-semibold tabular-nums">
               <PrivacyAmount value={uncategorizedAmount} currency={currency} />
@@ -1750,6 +1775,7 @@ function GroupedCategoryBlock({
   themeColor: string;
   savingsHref?: string;
 }) {
+  const numberFormatting = useNumberFormatting();
   const [expanded, setExpanded] = useState(false);
   const share = total > 0 ? (bucket.total / total) * 100 : 0;
   const accent = bucket.color ?? themeColor;
@@ -1787,7 +1813,7 @@ function GroupedCategoryBlock({
           {bucket.name}
         </span>
         <span className="text-muted-foreground/80 w-12 text-right text-[11px] font-medium tabular-nums">
-          {share.toFixed(1)}%
+          {numberFormatting.formatPercent(share / 100, { digits: 1 })}
         </span>
         <span className="text-foreground w-24 text-right text-xs font-semibold tabular-nums">
           <PrivacyAmount value={bucket.total} currency={currency} />
@@ -1819,7 +1845,7 @@ function GroupedCategoryBlock({
                   {cat.name}
                 </span>
                 <span className="text-muted-foreground/70 w-12 text-right text-[11px] tabular-nums">
-                  {catShare.toFixed(1)}%
+                  {numberFormatting.formatPercent(catShare / 100, { digits: 1 })}
                 </span>
                 <span className="text-foreground w-24 text-right text-xs font-medium tabular-nums">
                   <PrivacyAmount value={cat.amount} currency={currency} />
@@ -1850,6 +1876,7 @@ function SpendingDeltaLine({
   deltaPct: number | null;
 }) {
   const { t } = useTranslation();
+  const numberFormatting = useNumberFormatting();
   const isFlat = Math.abs(delta) < 1;
   const direction = delta < 0 ? t("spending:tabContent.down") : t("spending:tabContent.up");
   const tone = isFlat ? "text-muted-foreground" : delta < 0 ? "text-success" : "text-destructive";
@@ -1862,7 +1889,10 @@ function SpendingDeltaLine({
     );
   }
 
-  const pctSuffix = deltaPct !== null ? ` (${(Math.abs(deltaPct) * 100).toFixed(1)}%)` : "";
+  const pctSuffix =
+    deltaPct !== null
+      ? ` (${numberFormatting.formatPercent(Math.abs(deltaPct), { digits: 1 })})`
+      : "";
 
   return (
     <span className="lg:text-md text-sm font-light">

@@ -151,5 +151,7 @@
   "so_far_in": "bisher in",
   "no_limit_set": "Für dieses Konto ist keine Einzahlungsgrenze festgelegt.",
   "to_this_account_in": "auf dieses Konto in",
-  "your_total_is": "Ihr Gesamtbetrag beträgt"
+  "your_total_is": "Ihr Gesamtbetrag beträgt",
+  "more_count_one": "+{{count}} weitere",
+  "more_count_other": "+{{count}} weitere"
 }

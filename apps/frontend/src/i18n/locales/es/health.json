@@ -242,6 +242,8 @@
       "title": "¿Descartar este problema?",
       "message": "Esto ocultará el problema de tu centro de estado. Reaparecerá si cambian los datos subyacentes.",
       "pendingText": "Descartando..."
-    }
+    },
+    "affectedItems_one": "Elemento afectado ({{count}})",
+    "affectedItems_other": "Elementos afectados ({{count}})"
   }
 }

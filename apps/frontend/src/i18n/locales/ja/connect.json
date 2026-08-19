@@ -129,7 +129,8 @@
     "andMore": "...他{{count}}件",
     "reviewActivities": "取引を確認",
     "duration": "所要時間:",
-    "inProgress": "実行中..."
+    "inProgress": "実行中...",
+    "andMore_other": "...他{{count}}件"
   },
   "syncHistory": {
     "title": "同期履歴",
@@ -146,7 +147,8 @@
     "skipped": "スキップ",
     "warningsCount_one": "{{count}}件の警告",
     "warningsCount_other": "{{count}}件の警告",
-    "andMore": "他{{count}}件"
+    "andMore": "他{{count}}件",
+    "andMore_other": "他{{count}}件"
   },
   "activity": {
     "syncingData": "データを同期しています...",
