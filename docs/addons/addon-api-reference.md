@@ -453,13 +453,17 @@ Save import mapping configuration.
 const savedMapping = await ctx.api.activities.saveImportMapping(mapping);
 ```
 
-#### `getTransferPair(activityId: string): Promise<InternalTransferPairResponse>`
+#### `getTransferPair(activityId: string): Promise<InternalTransferPairResponse | null>`
 
-Get the linked transfer pair (if any) for a given activity.
+Get the linked transfer pair for a given activity. Returns `null` when the
+activity has no pair; rejects only on failure, such as an unknown activity id.
 
 ```typescript
-const { transferOut, transferIn } =
-  await ctx.api.activities.getTransferPair("activity-123");
+const pair = await ctx.api.activities.getTransferPair("activity-123");
+
+if (pair) {
+  const { transferOut, transferIn } = pair;
+}
 ```
 
 #### `findTransferMatchCandidates(request: TransferMatchCandidateRequest): Promise<TransferMatchCandidate[]>`
@@ -478,6 +482,8 @@ const candidates = await ctx.api.activities.findTransferMatchCandidates({
 Create or update an internal transfer pair, linking two activities via a shared
 source group.
 
+Omit both leg ids to create a pair:
+
 ```typescript
 const pair = await ctx.api.activities.saveTransferPair({
   fromAccountId: "account-123",
@@ -489,6 +495,24 @@ const pair = await ctx.api.activities.saveTransferPair({
   destinationCurrency: "USD",
 });
 ```
+
+Pass both to update an existing one:
+
+```typescript
+const updated = await ctx.api.activities.saveTransferPair({
+  transferOutId: pair.transferOut.id,
+  transferInId: pair.transferIn.id,
+  fromAccountId: "account-123",
+  toAccountId: "account-456",
+  activityDate: "2026-01-02",
+  sourceAmount: 750,
+  destinationAmount: 750,
+  sourceCurrency: "USD",
+  destinationCurrency: "USD",
+});
+```
+
+Pass both leg ids or neither. Passing only one is a type error.
 
 #### `linkTransfer(activityAId: string, activityBId: string): Promise<[Activity, Activity]>`
 

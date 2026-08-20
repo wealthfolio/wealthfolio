@@ -14272,7 +14272,7 @@ mod tests {
             event => panic!("expected ActivitiesChanged, got {event:?}"),
         }
     }
-<<<<<<< HEAD
+
     // ───────────────────────────────────────────────────────────────────
     // Import writer-boundary policy — one test per policy-table behavior,
     // through the REAL entry point (`import_activities`), asserting the
