@@ -212,11 +212,12 @@ export interface ActivitiesAPI {
   saveImportMapping(mapping: ImportMappingData): Promise<ImportMappingData>;
 
   /**
-   * Get the linked transfer pair (if any) for a given activity
+   * Get the linked transfer pair for a given activity
    * @param activityId Activity identifier
-   * @returns Promise resolving to the transfer pair response
+   * @returns Promise resolving to the transfer pair, or null when the activity
+   * is not part of one. Rejects if the activity does not exist.
    */
-  getTransferPair(activityId: string): Promise<InternalTransferPairResponse>;
+  getTransferPair(activityId: string): Promise<InternalTransferPairResponse | null>;
 
   /**
    * Find candidate activities that could be the opposite leg of a transfer
@@ -229,6 +230,9 @@ export interface ActivitiesAPI {
 
   /**
    * Create or update an internal transfer pair, linking two activities via a shared source group
+   *
+   * Omit both leg ids to create a pair ({@link CreateInternalTransferPairRequest});
+   * pass both to update an existing one ({@link UpdateInternalTransferPairRequest}).
    * @param request Transfer pair details
    * @returns Promise resolving to the created/updated transfer pair
    */

@@ -363,9 +363,7 @@ export interface ActivityBulkMutationResult {
   errors: ActivityBulkMutationError[];
 }
 
-export interface InternalTransferPairRequest {
-  transferOutId?: string;
-  transferInId?: string;
+interface InternalTransferPairRequestBase {
   sourceGroupId?: string;
   fromAccountId: string;
   toAccountId: string;
@@ -378,6 +376,25 @@ export interface InternalTransferPairRequest {
   notes?: string | null;
   transferMode?: 'cash';
 }
+
+/** Create both legs of a new internal transfer pair. */
+export interface CreateInternalTransferPairRequest extends InternalTransferPairRequestBase {
+  transferOutId?: never;
+  transferInId?: never;
+}
+
+/**
+ * Update an existing internal transfer pair. Both leg ids are required: the host
+ * rejects a request that names one leg without the other.
+ */
+export interface UpdateInternalTransferPairRequest extends InternalTransferPairRequestBase {
+  transferOutId: string;
+  transferInId: string;
+}
+
+export type InternalTransferPairRequest =
+  | CreateInternalTransferPairRequest
+  | UpdateInternalTransferPairRequest;
 
 export interface InternalTransferPairResponse {
   transferOut: Activity;

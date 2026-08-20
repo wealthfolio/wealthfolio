@@ -3,6 +3,7 @@
 import { vi, describe, it, expect } from "vitest";
 import { createPermissionGuard, createSDKHostAPIBridge, type InternalHostAPI } from "./type-bridge";
 import { getPermissionCategory, isBaselineCategory } from "@wealthfolio/addon-sdk";
+import type { InternalTransferPairRequest } from "@wealthfolio/addon-sdk";
 
 describe("Addon Type Bridge", () => {
   describe("createSDKHostAPIBridge", () => {
@@ -373,6 +374,30 @@ describe("Addon Type Bridge", () => {
       );
 
       await expect(sdkAPI.activities.getTransferPair("activity-1")).resolves.toBeNull();
+    });
+
+    it("rejects a half-specified transfer pair update at compile time", () => {
+      const legs = {
+        fromAccountId: "acct-a",
+        toAccountId: "acct-b",
+        activityDate: "2026-01-01",
+        sourceAmount: 100,
+        destinationAmount: 100,
+        sourceCurrency: "USD",
+        destinationCurrency: "USD",
+      };
+
+      const create: InternalTransferPairRequest = legs;
+      const update: InternalTransferPairRequest = {
+        ...legs,
+        transferOutId: "activity-out",
+        transferInId: "activity-in",
+      };
+
+      // @ts-expect-error naming one leg without the other matches neither variant
+      const partial: InternalTransferPairRequest = { ...legs, transferOutId: "activity-out" };
+
+      expect([create, update, partial]).toHaveLength(3);
     });
 
     it("denies activities.* transfer methods without the activities permission", () => {
