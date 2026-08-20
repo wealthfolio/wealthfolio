@@ -39,6 +39,12 @@ import { useSpendingReport } from "../hooks/use-spending-report";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import { SAVINGS_ROW_COLOR, SAVINGS_ROW_ID, buildWhereItWentRows } from "../lib/category-rollup";
 import {
+  SPENDING_RANGE_FROM_PARAM,
+  SPENDING_RANGE_TO_PARAM,
+  spendingRangeFromParams,
+  type SpendingDateRange,
+} from "../lib/date-range-params";
+import {
   SPENDING_MONTH_PARAM,
   SPENDING_MONTH_STORAGE_KEY,
   addMonthsToMonthKey,
@@ -81,7 +87,8 @@ type SpendingDashboardPeriod = "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y"
 
 type SpendingSelection =
   | { kind: "period"; code: SpendingDashboardPeriod }
-  | { kind: "month"; monthKey: string; restoreCode: SpendingDashboardPeriod };
+  | { kind: "month"; monthKey: string; restoreCode: SpendingDashboardPeriod }
+  | { kind: "range"; range: SpendingDateRange; restoreCode: SpendingDashboardPeriod };
 
 const SPENDING_DASHBOARD_PERIODS: SpendingDashboardPeriod[] = [
   "MTD",
@@ -200,6 +207,8 @@ function selectionFromParams(
   const intervalParam = params.get("spendingInterval");
   const monthParam = params.get(SPENDING_MONTH_PARAM);
   const restoreCode = normalizeSpendingDashboardPeriod(intervalParam ?? persistedInterval);
+  const customRange = spendingRangeFromParams(params);
+  if (customRange) return { kind: "range", range: customRange, restoreCode };
   const monthKey = monthParam ?? (intervalParam === null ? persistedMonth : null);
   if (monthKey && parseMonthKey(monthKey)) return { kind: "month", monthKey, restoreCode };
   return { kind: "period", code: restoreCode };
@@ -220,6 +229,9 @@ function budgetMonthStateForSelection(
 
 function budgetSelectionSyncKey(selection: SpendingSelection, currentMonthKey: string): string {
   if (selection.kind === "month") return `month:${selection.monthKey}`;
+  if (selection.kind === "range") {
+    return `range:${formatDateISO(selection.range.from)}:${formatDateISO(selection.range.to)}`;
+  }
   if (selection.code === "LAST_MONTH") return `period:${selection.code}:${currentMonthKey}`;
   return `period:${selection.code}`;
 }
@@ -234,6 +246,24 @@ function selectionData(
       range: monthRange(selection.monthKey),
       description: monthLabel(selection.monthKey, formatting),
       insightPeriod: "LAST_MONTH" as ReportsPeriod,
+    };
+  }
+
+  if (selection.kind === "range") {
+    const { from, to } = selection.range;
+    const days = calendarDaysBetweenInclusive(localDateParts(from), localDateParts(to));
+    const format = (date: Date) =>
+      formatting.formatCalendarDate(localDateParts(date), {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    const insightPeriod: ReportsPeriod =
+      days <= 31 ? "MTD" : days <= 100 ? "3M" : days <= 200 ? "6M" : "1Y";
+    return {
+      range: selection.range,
+      description: `${format(from)} – ${format(to)}`,
+      insightPeriod,
     };
   }
 
@@ -343,7 +373,8 @@ export default function SpendingTabContent() {
   );
   const selectedPeriod = selection.kind === "period" ? selection.code : null;
   const customMonth = selection.kind === "month" ? selection.monthKey : null;
-  const restoreCode = selection.kind === "month" ? selection.restoreCode : selection.code;
+  const customRange = selection.kind === "range" ? selection.range : undefined;
+  const restoreCode = selection.kind === "period" ? selection.code : selection.restoreCode;
   const {
     range: dateRange,
     description: selectedIntervalDescription,
@@ -559,6 +590,8 @@ export default function SpendingTabContent() {
         const p = new URLSearchParams(prev);
         p.set("spendingInterval", code);
         p.delete(SPENDING_MONTH_PARAM);
+        p.delete(SPENDING_RANGE_FROM_PARAM);
+        p.delete(SPENDING_RANGE_TO_PARAM);
         return p;
       },
       { replace: true },
@@ -581,6 +614,8 @@ export default function SpendingTabContent() {
         if (monthKey) {
           p.set("spendingInterval", restoreCode);
           p.set(SPENDING_MONTH_PARAM, monthKey);
+          p.delete(SPENDING_RANGE_FROM_PARAM);
+          p.delete(SPENDING_RANGE_TO_PARAM);
         } else {
           p.set("spendingInterval", restoreCode);
           p.delete(SPENDING_MONTH_PARAM);
@@ -598,8 +633,39 @@ export default function SpendingTabContent() {
     }
   };
 
+  const handleCustomRangeSelect = (range: DateRange | undefined) => {
+    if (range && (!range.from || !range.to)) return;
+    setPersistedMonth(null);
+    setDashboardPeriodUpdatedAt(periodPreferenceTimestamp());
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.set("spendingInterval", restoreCode);
+        p.delete(SPENDING_MONTH_PARAM);
+        if (range?.from && range.to) {
+          p.set(SPENDING_RANGE_FROM_PARAM, formatDateISO(range.from));
+          p.set(SPENDING_RANGE_TO_PARAM, formatDateISO(range.to));
+        } else {
+          p.delete(SPENDING_RANGE_FROM_PARAM);
+          p.delete(SPENDING_RANGE_TO_PARAM);
+        }
+        return p;
+      },
+      { replace: true },
+    );
+    setBudgetMonthKey(currentBudgetMonthKey);
+    setBudgetMonthTouched(false);
+  };
+
   const granularity: "day" | "week" | "month" = useMemo(() => {
     if (selection.kind === "month") return "day";
+    if (selection.kind === "range") {
+      const days = calendarDaysBetweenInclusive(
+        localDateParts(selection.range.from),
+        localDateParts(selection.range.to),
+      );
+      return days <= 45 ? "day" : days <= 180 ? "week" : "month";
+    }
     switch (selection.code) {
       case "MTD":
       case "LAST_MONTH":
@@ -1014,8 +1080,10 @@ export default function SpendingTabContent() {
               value={selectedPeriod}
               onValueChange={handleIntervalSelect}
               customMonth={customMonth}
+              customRange={customRange}
               maxMonth={maxPickerMonth}
               onCustomMonthChange={handleCustomMonthSelect}
+              onCustomRangeChange={handleCustomRangeSelect}
               isLoading={isLoading}
             />
           </div>
