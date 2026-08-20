@@ -348,6 +348,33 @@ describe("Addon Type Bridge", () => {
       expect(mockUnlinkTransfer).toHaveBeenCalledWith("activity-a", "activity-b");
     });
 
+    it("passes a null transfer pair through to the addon unchanged", async () => {
+      const mockGetTransferPair = vi.fn().mockResolvedValue(null);
+
+      const guard = createPermissionGuard("test-addon", [
+        {
+          category: "activities",
+          purpose: "Transfer matching",
+          functions: [{ name: "getTransferPair", isDeclared: true, isDetected: false }],
+        },
+      ]);
+
+      const sdkAPI = createSDKHostAPIBridge(
+        {
+          getTransferPairForActivity: mockGetTransferPair,
+          logError: vi.fn(),
+          logInfo: vi.fn(),
+          logWarn: vi.fn(),
+          logTrace: vi.fn(),
+          logDebug: vi.fn(),
+        } as unknown as InternalHostAPI,
+        "test-addon",
+        guard,
+      );
+
+      await expect(sdkAPI.activities.getTransferPair("activity-1")).resolves.toBeNull();
+    });
+
     it("denies activities.* transfer methods without the activities permission", () => {
       const guard = createPermissionGuard("test-addon", []);
 

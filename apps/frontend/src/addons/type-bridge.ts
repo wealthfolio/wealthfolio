@@ -183,7 +183,7 @@ export interface InternalHostAPI {
   saveAccountImportMapping(mapping: ImportMappingData): Promise<ImportMappingData>;
 
   // Transfer pairing
-  getTransferPairForActivity(activityId: string): Promise<InternalTransferPairResponse>;
+  getTransferPairForActivity(activityId: string): Promise<InternalTransferPairResponse | null>;
   findTransferMatchCandidates(
     request: TransferMatchCandidateRequest,
   ): Promise<TransferMatchCandidate[]>;

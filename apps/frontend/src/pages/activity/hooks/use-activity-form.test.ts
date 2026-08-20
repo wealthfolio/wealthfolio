@@ -449,4 +449,53 @@ describe("useActivityForm", () => {
       mutationMocks.updateMutateAsync.mock.invocationCallOrder[0],
     );
   });
+
+  it("skips the unlink when the grouped transfer has no resolvable pair", async () => {
+    adapterMocks.getTransferPairForActivity.mockResolvedValue(null);
+
+    const { result } = renderHook(() =>
+      useActivityForm({
+        accounts,
+        selectedType: "TRANSFER",
+        activity: {
+          id: "transfer-in-id",
+          activityType: ActivityType.TRANSFER_IN,
+          accountId: "acc-cad",
+          sourceGroupId: "orphan-group",
+        },
+      }),
+    );
+
+    const formData = {
+      isExternal: true,
+      direction: "in",
+      accountId: "acc-cad",
+      fromAccountId: "",
+      toAccountId: "",
+      activityDate: new Date("2026-02-01T10:00:00.000Z"),
+      transferMode: "cash",
+      amount: 250,
+      assetId: null,
+      quantity: null,
+      unitPrice: null,
+      comment: "external transfer",
+      currency: "CAD",
+      fxRate: null,
+      subtype: null,
+      quoteMode: "MARKET",
+    } as ActivityFormValues;
+
+    await act(async () => {
+      await result.current.handleSubmit(formData);
+    });
+
+    expect(adapterMocks.getTransferPairForActivity).toHaveBeenCalledWith("transfer-in-id");
+    expect(mutationMocks.unlinkMutateAsync).not.toHaveBeenCalled();
+    expect(mutationMocks.updateMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "transfer-in-id",
+        metadata: { flow: { is_external: true } },
+      }),
+    );
+  });
 });
