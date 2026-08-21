@@ -18,6 +18,7 @@ describe("activity import profiles", () => {
     expect(profile).toBe(DEFAULT_ACTIVITY_IMPORT_PROFILE);
     expect(profile.assetResolutionEnabled).toBe(true);
     expect(profile.requiredMappingFields).toContain(ImportFormat.SYMBOL);
+    expect(profile.requiredMappingFields).not.toContain(ImportFormat.AMOUNT);
   });
 
   it("uses a transaction profile for cash and credit card accounts", () => {
