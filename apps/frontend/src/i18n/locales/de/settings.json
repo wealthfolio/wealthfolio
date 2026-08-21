@@ -82,6 +82,7 @@
   "accounts_form_name_label": "Kontoname",
   "accounts_form_name_placeholder": "Anzeigename des Kontos",
   "accounts_form_group_label": "Kontogruppe",
+  "accounts_form_interest_rate_label": "Zinssatz",
   "accounts_form_group_placeholder": "Broker, Festgeld, Rente, AHV, …",
   "accounts_form_type_label": "Kontotyp",
   "accounts_form_type_placeholder": "Kontotyp wählen",

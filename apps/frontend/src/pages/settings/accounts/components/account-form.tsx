@@ -291,6 +291,31 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
 
               <FormField
                 control={form.control}
+                name="interestRate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("settings:accounts_form_interest_rate_label")}</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                        <span className="text-muted-foreground pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm">
+                          %
+                        </span>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
                 name="accountType"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">

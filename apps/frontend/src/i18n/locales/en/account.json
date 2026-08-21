@@ -153,5 +153,6 @@
     "irr_hover_hint": " Hover the value to see the selected-period IRR."
   },
   "more_count_one": "+{{count}} more",
-  "more_count_other": "+{{count}} more"
+  "more_count_other": "+{{count}} more",
+  "interest_rate": "Interest Rate"
 }

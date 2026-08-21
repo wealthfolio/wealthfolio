@@ -118,6 +118,7 @@
   "accounts_form_name_label": "口座名",
   "accounts_form_name_placeholder": "表示する口座名",
   "accounts_form_group_label": "口座グループ",
+  "accounts_form_interest_rate_label": "金利",
   "accounts_form_group_placeholder": "退職資金、401K、RRSP、TFSAなど",
   "accounts_form_type_label": "口座タイプ",
   "accounts_form_type_placeholder": "口座タイプを選択",

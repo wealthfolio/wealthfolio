@@ -102,6 +102,7 @@ export const newAccountSchema = z
     currency: z.string({ required_error: "Please select a currency." }),
     trackingMode: trackingModeSchema.optional().default("NOT_SET"),
     meta: z.string().nullable().optional(),
+    interestRate: z.string().optional(),
   })
   .refine(
     (data) => data.accountType !== AccountType.CREDIT_CARD || data.trackingMode !== "HOLDINGS",

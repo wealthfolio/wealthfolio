@@ -981,11 +981,17 @@ const AccountPage = () => {
                 </Sheet>
               </div>
             </div>
-            {!account?.group && account?.currency && (
-              <p className="text-muted-foreground text-xs leading-tight md:text-sm">
-                {account?.currency}
-              </p>
-            )}
+            <p className="text-muted-foreground flex items-center gap-1.5 text-xs leading-tight md:text-sm">
+              {!account?.group && account?.currency && <span>{account.currency}</span>}
+              {account?.interestRate && (
+                <span className="text-muted-foreground text-xs">
+                  {t("account:interest_rate")}:{" "}
+                  <span className="bg-primary/10 text-primary rounded-sm px-1.5 py-px font-medium">
+                    {parseFloat(account.interestRate).toFixed(2)}%
+                  </span>
+                </span>
+              )}
+            </p>
           </div>
         </div>
       </PageHeader>

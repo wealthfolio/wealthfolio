@@ -118,6 +118,7 @@
   "accounts_form_name_label": "Nombre de la cuenta",
   "accounts_form_name_placeholder": "Nombre visible de la cuenta",
   "accounts_form_group_label": "Grupo de cuentas",
+  "accounts_form_interest_rate_label": "Tasa de interés",
   "accounts_form_group_placeholder": "Jubilación, 401K, RRSP, TFSA,...",
   "accounts_form_type_label": "Tipo de cuenta",
   "accounts_form_type_placeholder": "Selecciona un tipo de cuenta",

@@ -248,6 +248,8 @@ pub struct Account {
     pub is_archived: bool,
     /// Tracking mode for the account
     pub tracking_mode: TrackingMode,
+    /// Annual interest rate (e.g. "1.7" for 1.7%)
+    pub interest_rate: Option<String>,
 }
 
 impl Account {
@@ -287,6 +289,7 @@ pub struct NewAccount {
     pub is_archived: bool,
     #[serde(default)]
     pub tracking_mode: TrackingMode,
+    pub interest_rate: Option<String>,
 }
 
 impl NewAccount {
@@ -330,6 +333,7 @@ pub struct AccountUpdate {
     pub provider_account_id: Option<String>,
     pub is_archived: Option<bool>,
     pub tracking_mode: Option<TrackingMode>,
+    pub interest_rate: Option<String>,
 }
 
 impl AccountUpdate {

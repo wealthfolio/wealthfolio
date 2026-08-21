@@ -433,6 +433,7 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
                 provider_account_id: Some(provider_account_id.clone()),
                 is_archived: false,
                 tracking_mode,
+                interest_rate: None,
             };
 
             // Create the account via AccountService (handles FX rate registration)

@@ -118,6 +118,7 @@
   "accounts_form_name_label": "账户名称",
   "accounts_form_name_placeholder": "账户显示名称",
   "accounts_form_group_label": "账户分组",
+  "accounts_form_interest_rate_label": "利率",
   "accounts_form_group_placeholder": "退休、401K、RRSP、TFSA……",
   "accounts_form_type_label": "账户类型",
   "accounts_form_type_placeholder": "选择账户类型",

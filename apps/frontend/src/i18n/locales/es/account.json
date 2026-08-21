@@ -153,5 +153,6 @@
     "irr_hover_hint": " Pasa el cursor sobre el valor para ver la IRR del periodo seleccionado."
   },
   "more_count_one": "+{{count}} más",
-  "more_count_other": "+{{count}} más"
+  "more_count_other": "+{{count}} más",
+  "interest_rate": "Tasa de interés"
 }

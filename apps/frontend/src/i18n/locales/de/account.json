@@ -153,5 +153,6 @@
   "to_this_account_in": "auf dieses Konto in",
   "your_total_is": "Ihr Gesamtbetrag beträgt",
   "more_count_one": "+{{count}} weitere",
-  "more_count_other": "+{{count}} weitere"
+  "more_count_other": "+{{count}} weitere",
+  "interest_rate": "Zinssatz"
 }

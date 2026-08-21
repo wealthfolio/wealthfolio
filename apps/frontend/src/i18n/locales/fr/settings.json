@@ -118,6 +118,7 @@
   "accounts_form_name_label": "Nom du compte",
   "accounts_form_name_placeholder": "Nom d'affichage du compte",
   "accounts_form_group_label": "Groupe de compte",
+  "accounts_form_interest_rate_label": "Taux d'intérêt",
   "accounts_form_group_placeholder": "Retraite, 401K, REER, CELI,...",
   "accounts_form_type_label": "Type de compte",
   "accounts_form_type_placeholder": "Sélectionner un type de compte",

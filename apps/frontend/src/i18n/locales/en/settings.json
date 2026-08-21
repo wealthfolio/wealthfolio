@@ -118,6 +118,7 @@
   "accounts_form_name_label": "Account Name",
   "accounts_form_name_placeholder": "Account display name",
   "accounts_form_group_label": "Account Group",
+  "accounts_form_interest_rate_label": "Interest Rate",
   "accounts_form_group_placeholder": "Retirement, 401K, RRSP, TFSA,...",
   "accounts_form_type_label": "Account Type",
   "accounts_form_type_placeholder": "Select an account type",

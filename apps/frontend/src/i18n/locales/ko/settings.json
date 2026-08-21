@@ -118,6 +118,7 @@
   "accounts_form_name_label": "계좌 이름",
   "accounts_form_name_placeholder": "계좌 표시 이름",
   "accounts_form_group_label": "계좌 그룹",
+  "accounts_form_interest_rate_label": "이자율",
   "accounts_form_group_placeholder": "퇴직연금, 401K, RRSP, TFSA 등",
   "accounts_form_type_label": "계좌 유형",
   "accounts_form_type_placeholder": "계좌 유형을 선택하세요",

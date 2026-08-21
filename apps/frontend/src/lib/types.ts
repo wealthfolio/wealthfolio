@@ -91,6 +91,7 @@ export interface Account {
   meta?: string; // Optional - additional metadata as JSON string
   provider?: string; // Optional - sync provider (e.g., 'SNAPTRADE', 'PLAID', 'MANUAL')
   providerAccountId?: string; // Optional - account ID in the provider's system
+  interestRate?: string; // Optional - annual interest rate (e.g. "1.7" for 1.7%)
 }
 
 /**
