@@ -58,6 +58,7 @@ fn fixture_account(id: &str, name: &str, account_type: &str, currency: &str) -> 
         provider_account_id: None,
         is_archived: false,
         tracking_mode: TrackingMode::Transactions,
+        interest_rate: None,
     }
 }
 
