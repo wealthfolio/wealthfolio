@@ -78,6 +78,7 @@
     "react": "^19.2.8",
     "react-day-picker": "^9.13.2",
     "react-dom": "^19.2.8",
+    "react-easy-crop": "^6.2.3",
     "react-hook-form": "^7.71.1",
     "react-i18next": "^16.0.0",
     "react-router-dom": "^7.18.2",

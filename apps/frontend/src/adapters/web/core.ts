@@ -74,6 +74,8 @@ export const COMMANDS: CommandMap = {
   create_goal: { method: "POST", path: "/goals" },
   update_goal: { method: "PUT", path: "/goals" },
   delete_goal: { method: "DELETE", path: "/goals" },
+  save_goal_cover_image: { method: "POST", path: "/goals" },
+  remove_goal_cover_image: { method: "DELETE", path: "/goals" },
   get_goal_funding: { method: "GET", path: "/goals" },
   save_goal_funding: { method: "PUT", path: "/goals" },
   get_goal_plan: { method: "GET", path: "/goals" },
@@ -763,6 +765,21 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     case "delete_goal": {
       const { goalId } = payload as { goalId: string };
       url += `/${encodeURIComponent(goalId)}`;
+      break;
+    }
+    case "save_goal_cover_image": {
+      const { goalId, contentBase64, fileExtension } = payload as {
+        goalId: string;
+        contentBase64: string;
+        fileExtension: string;
+      };
+      url += `/${encodeURIComponent(goalId)}/cover-image`;
+      body = JSON.stringify({ contentBase64, fileExtension });
+      break;
+    }
+    case "remove_goal_cover_image": {
+      const { goalId } = payload as { goalId: string };
+      url += `/${encodeURIComponent(goalId)}/cover-image`;
       break;
     }
     case "get_goal_funding": {

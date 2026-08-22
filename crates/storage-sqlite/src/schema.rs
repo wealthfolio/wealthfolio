@@ -243,6 +243,7 @@ diesel::table! {
         created_at -> Text,
         updated_at -> Text,
         summary_target_amount -> Nullable<Double>,
+        cover_image_path -> Nullable<Text>,
     }
 }
 

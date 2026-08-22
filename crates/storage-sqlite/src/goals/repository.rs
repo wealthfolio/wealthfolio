@@ -206,6 +206,7 @@ impl GoalRepositoryTrait for GoalRepository {
             created_at: goal_update.created_at,
             updated_at: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
             summary_target_amount: goal_update.summary_target_amount,
+            cover_image_path: goal_update.cover_image_path,
         };
 
         self.writer

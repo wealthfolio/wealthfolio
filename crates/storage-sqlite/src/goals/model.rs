@@ -40,6 +40,7 @@ pub struct GoalDB {
     pub created_at: String,
     pub updated_at: String,
     pub summary_target_amount: Option<f64>,
+    pub cover_image_path: Option<String>,
 }
 
 /// Database model for creating a new goal
@@ -192,6 +193,7 @@ impl From<GoalDB> for wealthfolio_core::goals::Goal {
             created_at: db.created_at,
             updated_at: db.updated_at,
             summary_target_amount: db.summary_target_amount,
+            cover_image_path: db.cover_image_path,
         }
     }
 }

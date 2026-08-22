@@ -949,6 +949,7 @@ mod tests {
             created_at: String::new(),
             updated_at: String::new(),
             summary_target_amount: None,
+            cover_image_path: None,
         }
     }
 
@@ -1023,6 +1024,7 @@ mod tests {
             created_at: String::new(),
             updated_at: String::new(),
             summary_target_amount: None,
+            cover_image_path: None,
         }
     }
 
@@ -1094,6 +1096,7 @@ mod tests {
                 created_at: new_goal.created_at.unwrap_or_default(),
                 updated_at: new_goal.updated_at.unwrap_or_default(),
                 summary_target_amount: None,
+                cover_image_path: None,
             };
             self.goals
                 .lock()

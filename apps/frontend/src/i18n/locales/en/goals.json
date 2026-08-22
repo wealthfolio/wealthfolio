@@ -410,6 +410,21 @@
     "saving": "Saving...",
     "save_changes": "Save changes"
   },
+  "cover_image": {
+    "label": "Cover image",
+    "upload": "Upload image",
+    "change": "Change image",
+    "crop_title": "Adjust cover image",
+    "aspect_label": "Dimensions",
+    "aspect_card": "Card (recommended)",
+    "aspect_wide": "Wide",
+    "aspect_tall": "Tall",
+    "zoom_label": "Zoom",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving...",
+    "resize_failed": "Failed to process that image. Please try a different file."
+  },
   "new": {
     "create_goal": "Create Goal",
     "subtitle": "Choose what you want to plan for",

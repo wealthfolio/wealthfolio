@@ -27,6 +27,10 @@ pub struct Goal {
     pub created_at: String,
     pub updated_at: String,
     pub summary_target_amount: Option<f64>,
+    /// Path to a user-uploaded custom cover image file (custom_save_up goals
+    /// only). Set/cleared via dedicated cover-image commands, not the
+    /// regular goal edit form.
+    pub cover_image_path: Option<String>,
 }
 
 /// Input model for creating a new goal
