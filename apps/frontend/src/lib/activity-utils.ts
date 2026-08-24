@@ -426,10 +426,17 @@ export const calculateActivityValue = (activity: ActivityDetails): number => {
     Number(quantity) * Number(unitPrice) * getContractMultiplier(activity),
   );
 
-  // Securities transfers imported without a unit price (legacy / some broker
-  // exports) carry their monetary value on `amount`. Fall back to it so those
-  // rows don't render as 0 just because we no longer trust `amount` by default.
-  if (isSecTransfer && activityAmount === 0) {
+  // Bond prices are quoted as percent-of-par, not a literal per-unit dollar
+  // price, so quantity * unitPrice isn't the trade value. The backend always
+  // trusts the broker-reported `amount` for bonds (see
+  // should_use_activity_amount in holdings_calculator/economics.rs) --
+  // mirror that here instead of computing our own (wrong) total.
+  if (activity.instrumentType === InstrumentType.BOND) {
+    activityAmount = roundCurrency(getAmount(activity));
+  } else if (isSecTransfer && activityAmount === 0) {
+    // Securities transfers imported without a unit price (legacy / some broker
+    // exports) carry their monetary value on `amount`. Fall back to it so those
+    // rows don't render as 0 just because we no longer trust `amount` by default.
     const storedAmount = getAmount(activity);
     if (storedAmount !== 0) {
       activityAmount = roundCurrency(storedAmount);
