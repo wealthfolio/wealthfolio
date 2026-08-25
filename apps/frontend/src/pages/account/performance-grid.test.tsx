@@ -8,9 +8,11 @@ import { PerformanceGrid } from "./performance-grid";
 
 vi.mock("@/components/metric-display", () => ({
   HOLDINGS_MODE_MAX_DRAWDOWN_INFO: "holdings max drawdown",
+  HOLDINGS_MODE_PROFIT_LOSS_INFO: "holdings profit loss",
   HOLDINGS_MODE_VOLATILITY_INFO: "holdings volatility",
   IRR_RETURN_INFO: "irr",
   MAX_DRAWDOWN_INFO: "max drawdown",
+  RETURN_TO_BREAK_EVEN_INFO: "return to break even",
   TIME_WEIGHTED_RETURN_INFO: "twr",
   VALUE_RETURN_INFO: "value return",
   VOLATILITY_INFO: "volatility",
@@ -148,5 +150,53 @@ describe("PerformanceGrid", () => {
       "Time Weighted Return:0.12::=",
     );
     expect(screen.getByTestId("metric-IRR")).toHaveTextContent("IRR:0.14::=");
+  });
+
+  it("shows the return needed to break even for a holdings loss, and the decline that would erase a holdings gain", () => {
+    const { rerender } = render(
+      <PerformanceGrid
+        performance={performanceResult({
+          summary: {
+            amount: -2000,
+            percent: -0.2,
+            method: "valueReturn",
+            basis: "marketValue",
+            quality: "ok",
+            amountStatus: "complete",
+            percentStatus: "complete",
+            basisStatus: "complete",
+            reasons: [],
+          },
+          dataQuality: { status: "ok", warnings: [], notApplicableReasons: [] },
+        })}
+        isHoldingsMode
+      />,
+    );
+    expect(screen.getByTestId("metric-Return to Break-Even")).toHaveTextContent(
+      "Return to Break-Even:0.25",
+    );
+
+    rerender(
+      <PerformanceGrid
+        performance={performanceResult({
+          summary: {
+            amount: 2500,
+            percent: 0.25,
+            method: "valueReturn",
+            basis: "marketValue",
+            quality: "ok",
+            amountStatus: "complete",
+            percentStatus: "complete",
+            basisStatus: "complete",
+            reasons: [],
+          },
+          dataQuality: { status: "ok", warnings: [], notApplicableReasons: [] },
+        })}
+        isHoldingsMode
+      />,
+    );
+    expect(screen.getByTestId("metric-Return to Break-Even")).toHaveTextContent(
+      "Return to Break-Even:-0.19999999999999996",
+    );
   });
 });

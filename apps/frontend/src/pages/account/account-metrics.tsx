@@ -1,4 +1,9 @@
-import { performancePeriodPnl, performanceSummaryReturn } from "@/lib/performance";
+import {
+  performancePeriodPnl,
+  performanceSummaryReturn,
+  returnToBreakEven,
+  unrealizedPnlPercent,
+} from "@/lib/performance";
 import { AccountValuation, CurrentValuationSplit, PerformanceResult } from "@/lib/types";
 import { cn, formatDate } from "@/lib/utils";
 import { PerformanceGrid } from "@/pages/account/performance-grid";
@@ -195,6 +200,14 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
   );
   const unrealizedPnl = valuation.investmentMarketValue - valuation.costBasis;
   const canShowUnrealizedPnl = valuation.basisStatus === "complete";
+
+  const profitLossPercent = canShowUnrealizedPnl
+    ? unrealizedPnlPercent(unrealizedPnl, valuation.costBasis)
+    : null;
+
+  const breakEvenReturn = canShowUnrealizedPnl
+    ? returnToBreakEven(valuation.investmentMarketValue, valuation.costBasis)
+    : null;
   const unrealizedPnlValue = canShowUnrealizedPnl ? (
     <GainAmount value={unrealizedPnl} currency={displayCurrency} className="text-sm" />
   ) : (
@@ -352,6 +365,8 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
           isLoading={isPerformanceLoading}
           performanceError={performanceError}
           isHoldingsMode={isHoldingsMode}
+          profitLossPercent={profitLossPercent}
+          breakEvenReturn={breakEvenReturn}
         />
       </CardContent>
       <CardFooter className="mt-auto flex flex-col items-start gap-1 px-3 pb-3 pt-0">

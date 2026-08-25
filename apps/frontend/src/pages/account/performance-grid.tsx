@@ -1,24 +1,26 @@
 import {
   HOLDINGS_MODE_MAX_DRAWDOWN_INFO,
+  HOLDINGS_MODE_PROFIT_LOSS_INFO,
   HOLDINGS_MODE_VOLATILITY_INFO,
   IRR_RETURN_INFO,
   MAX_DRAWDOWN_INFO,
   MetricDisplay,
+  RETURN_TO_BREAK_EVEN_INFO,
   TIME_WEIGHTED_RETURN_INFO,
   VALUE_RETURN_INFO,
   VOLATILITY_INFO,
 } from "@/components/metric-display";
-import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
-import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import { Icons } from "@wealthfolio/ui";
-import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
-import { PerformanceResult } from "@/lib/types";
 import {
   performancePeriodPnl,
   performanceSummaryReturn,
   shouldDisplayAnnualizedPerformanceReturn,
 } from "@/lib/performance";
+import { PerformanceResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { Icons } from "@wealthfolio/ui";
+import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
+import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
+import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -29,6 +31,8 @@ export interface PerformanceGridProps {
   className?: string;
   /** If true, shows holdings-mode return cards instead of transaction return cards. */
   isHoldingsMode?: boolean;
+  profitLossPercent?: number | null;
+  breakEvenReturn?: number | null;
 }
 
 export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
@@ -37,6 +41,8 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
   performanceError,
   className,
   isHoldingsMode = false,
+  profitLossPercent,
+  breakEvenReturn,
 }) => {
   const { t } = useTranslation();
   if (performanceError) {
@@ -59,7 +65,7 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
         <Card className="border-none p-0 shadow-none">
           <CardContent className="p-0">
             <div className="grid grid-cols-2 gap-3">
-              {Array.from({ length: 4 }, (_, index) => (
+              {Array.from({ length: isHoldingsMode ? 6 : 4 }, (_, index) => (
                 <div
                   key={index}
                   className="border-muted/30 bg-muted/30 flex min-h-16 flex-col items-center justify-center space-y-1 rounded-md border p-2.5"
@@ -195,6 +201,23 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
               emptyReason={unavailableReason}
               infoText={MAX_DRAWDOWN_INFO}
               isPercentage={true}
+              className="border-muted/30 bg-muted/30 min-h-16 rounded-md border p-2.5"
+            />
+            <MetricDisplay
+              label={t("account:metric.profit_loss_percent")}
+              value={profitLossPercent ?? undefined}
+              emptyReason={unavailableReason}
+              infoText={HOLDINGS_MODE_PROFIT_LOSS_INFO}
+              isPercentage={true}
+              className="border-muted/30 bg-muted/30 min-h-16 rounded-md border p-2.5"
+            />
+            <MetricDisplay
+              label={t("account:metric.return_to_break_even")}
+              value={breakEvenReturn ?? undefined}
+              emptyReason={unavailableReason}
+              infoText={RETURN_TO_BREAK_EVEN_INFO}
+              isPercentage={true}
+              tone="neutral"
               className="border-muted/30 bg-muted/30 min-h-16 rounded-md border p-2.5"
             />
           </div>

@@ -149,6 +149,8 @@
     "irr": "IRR",
     "cumulative_twr": "累计 TWR",
     "period_irr": "期间 IRR",
+    "profit_loss_percent": "盈亏百分比",
+    "return_to_break_even": "回本所需收益率",
     "twr_hover_hint": " 将鼠标悬停在该值上以查看累计 TWR。",
     "irr_hover_hint": " 将鼠标悬停在该值上以查看所选期间的 IRR。"
   },
