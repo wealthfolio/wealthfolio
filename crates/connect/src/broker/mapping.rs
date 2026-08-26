@@ -897,7 +897,9 @@ mod tests {
 
         let mapped = map_test_activity(&activity);
 
-        let asset = mapped.asset.expect("equity activity should produce an asset");
+        let asset = mapped
+            .asset
+            .expect("equity activity should produce an asset");
         assert_ne!(asset.instrument_type.as_deref(), Some("BOND"));
     }
 
