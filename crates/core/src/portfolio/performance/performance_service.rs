@@ -8637,6 +8637,29 @@ mod tests {
         );
     }
 
+    /// The other half of the sign convention: market value above cost basis
+    /// (a gain) must produce a negative result — the decline that would
+    /// erase the gain — not just the positive/at-a-loss case covered above.
+    #[test]
+    fn perf_return_to_break_even_is_negative_when_account_is_at_a_gain() {
+        let mut history = fixture_small_seed_then_large_deposit();
+        let end = history.last_mut().unwrap();
+        end.investment_market_value = dec!(2000.00);
+        end.investment_market_value_base = dec!(2000.00);
+        end.cost_basis = dec!(1600.00);
+        end.cost_basis_base = dec!(1600.00);
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("should compute");
+
+        assert_eq!(result.returns.return_to_break_even, Some(dec!(-0.2)));
+    }
+
     /// Must match the account-currency Investments/Cost Basis figures shown
     /// alongside it on the account page, not a base-currency conversion —
     /// otherwise FX drift between when the cost basis was accumulated and
