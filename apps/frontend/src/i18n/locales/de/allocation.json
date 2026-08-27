@@ -110,6 +110,29 @@
     "modeVerbHybrid": "Bargeld und Verkäufe",
     "modeVerbCashFlow": "Cashflow-Käufe"
   },
+  "eligibleHoldings": {
+    "label": "Geeignete Bestände",
+    "triggerLabel": "{{label}}: {{summary}}",
+    "rowLabel": "{{symbol}} {{name}} {{details}} — {{state}}",
+    "selected": "ausgewählt",
+    "notSelected": "nicht ausgewählt",
+    "allSelected": "Alle Bestände ausgewählt",
+    "selectedCount": "{{selected}} von {{total}} ausgewählt",
+    "searchPlaceholder": "Bestände suchen",
+    "noMatches": "Keine passenden Bestände.",
+    "selectAll": "Alle auswählen",
+    "clear": "Leeren",
+    "emptyGuidance": "Wählen Sie mindestens einen Bestand aus, um einen Plan zu berechnen.",
+    "groups": {
+      "equity": "Aktien",
+      "bond": "Anleihen",
+      "crypto": "Krypto",
+      "option": "Optionen",
+      "metal": "Metalle",
+      "fx": "Devisen",
+      "other": "Sonstige"
+    }
+  },
   "narrative": {
     "liftAndShrink": "{{verb}} führen {{lifted}} näher an das Ziel und verringern die Übergewichtung von {{shrank}} von {{before}} auf {{after}}.",
     "lift": "{{verb}} führen {{lifted}} näher an das Ziel.",

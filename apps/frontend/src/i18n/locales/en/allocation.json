@@ -110,6 +110,29 @@
     "modeVerbHybrid": "Cash and sells",
     "modeVerbCashFlow": "Cash-flow buys"
   },
+  "eligibleHoldings": {
+    "label": "Eligible holdings",
+    "triggerLabel": "{{label}}: {{summary}}",
+    "rowLabel": "{{symbol}} {{name}} {{details}} — {{state}}",
+    "selected": "selected",
+    "notSelected": "not selected",
+    "allSelected": "All holdings selected",
+    "selectedCount": "{{selected}} of {{total}} selected",
+    "searchPlaceholder": "Search holdings",
+    "noMatches": "No holding matches.",
+    "selectAll": "Select all",
+    "clear": "Clear",
+    "emptyGuidance": "Select at least one holding to calculate a plan.",
+    "groups": {
+      "equity": "Equity",
+      "bond": "Bond",
+      "crypto": "Crypto",
+      "option": "Option",
+      "metal": "Metal",
+      "fx": "FX",
+      "other": "Other"
+    }
+  },
   "narrative": {
     "liftAndShrink": "{{verb}} lift {{lifted}} toward target and shrink the {{shrank}} overweight from {{before}} to {{after}}.",
     "lift": "{{verb}} lift {{lifted}} toward target.",

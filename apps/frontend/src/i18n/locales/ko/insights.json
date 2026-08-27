@@ -91,6 +91,7 @@
       "category": "카테고리",
       "value": "가치",
       "delta_period": "Δ {{period}}",
+      "new": "신규",
       "liabilities": "부채",
       "net_worth": "순자산"
     },

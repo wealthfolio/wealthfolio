@@ -91,6 +91,7 @@
       "category": "カテゴリ",
       "value": "評価額",
       "delta_period": "Δ {{period}}",
+      "new": "新規",
       "liabilities": "負債",
       "net_worth": "純資産"
     },

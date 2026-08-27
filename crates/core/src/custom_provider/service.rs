@@ -129,14 +129,11 @@ impl CustomProviderService {
         let tctx = TemplateContext {
             symbol: &payload.symbol,
             currency,
-            isin: None,
-            mic: None,
+            isin: payload.isin.as_deref(),
+            mic: payload.mic.as_deref(),
             from: payload.from.as_deref(),
             to: payload.to.as_deref(),
         };
-        let url = expand_template(&payload.url, &tctx);
-
-        validate_url(&url).map_err(|e| crate::Error::Unexpected(e.to_string()))?;
 
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(15))
@@ -145,40 +142,37 @@ impl CustomProviderService {
             .build()
             .map_err(|e| crate::Error::Unexpected(format!("HTTP client error: {}", e)))?;
 
-        // Default browser-like headers. Many data APIs sit behind bot-protection
-        // (Akamai/Cloudflare) that serves placebo responses to clients lacking the
-        // typical browser header set. User-supplied headers below override these.
-        let mut headers = build_browser_like_headers(&payload.format, &url);
-
-        if let Some(headers_json) = &payload.headers {
-            if let Ok(map) =
-                serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(headers_json)
-            {
-                for (k, v) in map {
-                    if let Some(val_str) = v.as_str() {
-                        let resolved = if let Some(key) = val_str.strip_prefix("__SECRET__") {
-                            self.secret_store
-                                .get_secret(key)
-                                .ok()
-                                .flatten()
-                                .ok_or_else(|| {
-                                    crate::Error::Unexpected(format!("Secret '{}' not found", key))
-                                })?
-                        } else {
-                            val_str.to_string()
-                        };
-                        if let (Ok(name), Ok(value)) = (
-                            reqwest::header::HeaderName::from_bytes(k.as_bytes()),
-                            reqwest::header::HeaderValue::from_str(&resolved),
-                        ) {
-                            headers.insert(name, value);
-                        }
-                    }
+        let request = prepare_custom_provider_request(
+            &payload.method,
+            &payload.format,
+            &payload.url,
+            payload.headers.as_deref(),
+            payload.body.as_deref(),
+            &tctx,
+            |value| {
+                if let Some(key) = value.strip_prefix("__SECRET__") {
+                    self.secret_store
+                        .get_secret(key)
+                        .ok()
+                        .flatten()
+                        .ok_or_else(|| {
+                            crate::Error::Unexpected(format!("Secret '{}' not found", key))
+                        })
+                } else {
+                    Ok(value.to_string())
                 }
+            },
+        )
+        .map_err(|error| match error {
+            PrepareRequestError::Template(error) => {
+                crate::Error::Validation(ValidationError::InvalidInput(error.to_string()))
             }
-        }
+            PrepareRequestError::Header(error) => error,
+        })?;
 
-        let response = match client.get(&url).headers(headers).send().await {
+        validate_url(&request.url).map_err(|e| crate::Error::Unexpected(e.to_string()))?;
+
+        let response = match request.request_builder(&client).send().await {
             Ok(resp) => resp,
             Err(e) => {
                 return Ok(TestSourceResult {
@@ -267,44 +261,54 @@ impl CustomProviderService {
             });
         }
 
-        let expand_path = |p: &str| -> String { expand_template(p, &tctx) };
+        let expand_path = |p: &str| {
+            expand_template(p, &tctx).map_err(|error| {
+                crate::Error::Validation(ValidationError::InvalidInput(error.to_string()))
+            })
+        };
 
         match payload.format.as_str() {
             "json" => {
-                let price_path = expand_path(&payload.price_path);
+                let price_path = expand_path(&payload.price_path)?;
                 let price = extract_json_value(&body, &price_path);
                 let currency = payload
                     .currency_path
                     .as_ref()
                     .map(|cp| expand_path(cp))
+                    .transpose()?
                     .and_then(|cp| extract_json_string(&body, &cp));
                 let date = payload
                     .date_path
                     .as_ref()
                     .map(|dp| expand_path(dp))
+                    .transpose()?
                     .and_then(|dp| extract_json_string(&body, &dp));
                 let open = payload
                     .open_path
                     .as_ref()
                     .map(|op| expand_path(op))
+                    .transpose()?
                     .and_then(|op| extract_json_value(&body, &op))
                     .map(|v| apply_test_factor_invert(v, &payload));
                 let high = payload
                     .high_path
                     .as_ref()
                     .map(|hp| expand_path(hp))
+                    .transpose()?
                     .and_then(|hp| extract_json_value(&body, &hp))
                     .map(|v| apply_test_factor_invert(v, &payload));
                 let low = payload
                     .low_path
                     .as_ref()
                     .map(|lp| expand_path(lp))
+                    .transpose()?
                     .and_then(|lp| extract_json_value(&body, &lp))
                     .map(|v| apply_test_factor_invert(v, &payload));
                 let volume = payload
                     .volume_path
                     .as_ref()
                     .map(|vp| expand_path(vp))
+                    .transpose()?
                     .and_then(|vp| extract_json_value(&body, &vp));
 
                 match price {

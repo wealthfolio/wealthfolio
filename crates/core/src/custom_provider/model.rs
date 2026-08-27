@@ -1,13 +1,59 @@
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 /// Valid source kinds.
 pub const VALID_SOURCE_KINDS: &[&str] = &["latest", "historical"];
 /// Valid source formats.
 pub const VALID_SOURCE_FORMATS: &[&str] = &["json", "html", "html_table", "csv"];
+/// Valid HTTP methods.
+pub const VALID_HTTP_METHODS: &[&str] = &["GET", "POST"];
 
-/// Cached regex for `{DATE:...}` template expansion.
+/// HTTP method for custom provider requests.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum HttpMethod {
+    #[default]
+    Get,
+    Post,
+}
+
+impl HttpMethod {
+    /// Convert to uppercase string for use in reqwest.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            HttpMethod::Get => "GET",
+            HttpMethod::Post => "POST",
+        }
+    }
+}
+
+/// Fully expanded request data shared by custom-provider testing and runtime fetching.
+pub(crate) struct PreparedCustomProviderRequest {
+    pub(crate) url: String,
+    method: HttpMethod,
+    headers: reqwest::header::HeaderMap,
+    body: Option<String>,
+}
+
+impl PreparedCustomProviderRequest {
+    pub(crate) fn request_builder(&self, client: &reqwest::Client) -> reqwest::RequestBuilder {
+        match self.method {
+            HttpMethod::Post => {
+                let builder = client.post(&self.url).headers(self.headers.clone());
+                match &self.body {
+                    Some(body) => builder.body(body.clone()),
+                    None => builder,
+                }
+            }
+            HttpMethod::Get => client.get(&self.url).headers(self.headers.clone()),
+        }
+    }
+}
+
+/// Cached regex for formatted date templates: `{DATE:...}`, `{FROM:...}`,
+/// `{TO:...}`, `{TODAY:...}`.
 pub static DATE_TEMPLATE_RE: std::sync::LazyLock<regex::Regex> =
-    std::sync::LazyLock::new(|| regex::Regex::new(r"\{DATE:([^}]+)\}").unwrap());
+    std::sync::LazyLock::new(|| regex::Regex::new(r"\{(DATE|FROM|TO|TODAY):([^}]+)\}").unwrap());
 
 /// Maximum HTTP response body size (10 MB).
 pub const MAX_RESPONSE_BYTES: usize = 10 * 1024 * 1024;
@@ -27,11 +73,61 @@ pub struct TemplateContext<'a> {
     pub to: Option<&'a str>,
 }
 
+#[derive(Debug, Error)]
+#[error("Invalid date format '{format}' in {{{variable}:{format}}}")]
+pub struct TemplateExpansionError {
+    variable: String,
+    format: String,
+}
+
+fn has_unsupported_date_directive(variable: &str, format: &str) -> bool {
+    // DATE historically accepted every valid Chrono directive because it is
+    // formatted from a full DateTime<Utc>. Keep that compatibility while the
+    // date-only placeholders remain limited to directives they can represent.
+    if variable == "DATE" {
+        return false;
+    }
+
+    let mut chars = format.chars();
+    while let Some(character) = chars.next() {
+        if character == '%' && !matches!(chars.next(), Some('Y' | 'm' | 'd')) {
+            return true;
+        }
+    }
+    false
+}
+
+#[derive(Debug)]
+pub(crate) enum PrepareRequestError<E> {
+    Template(TemplateExpansionError),
+    Header(E),
+}
+
 /// Expand template variables in a string (URL or path).
 ///
 /// Supported variables: `{SYMBOL}`, `{currency}`, `{CURRENCY}`, `{TODAY}`,
-/// `{FROM}`, `{TO}`, `{ISIN}`, `{MIC}`, `{DATE:format}`.
-pub fn expand_template(template: &str, ctx: &TemplateContext<'_>) -> String {
+/// `{FROM}`, `{TO}`, `{ISIN}`, `{MIC}`, `{DATE:format}`,
+/// `{FROM:format}`, `{TO:format}`, `{TODAY:format}`. `DATE` accepts any
+/// valid Chrono directive; the date-only variables support `%Y`, `%m`, and
+/// `%d`.
+pub fn expand_template(
+    template: &str,
+    ctx: &TemplateContext<'_>,
+) -> Result<String, TemplateExpansionError> {
+    for captures in DATE_TEMPLATE_RE.captures_iter(template) {
+        let variable = &captures[1];
+        let format = &captures[2];
+        if has_unsupported_date_directive(variable, format)
+            || chrono::format::StrftimeItems::new(format)
+                .any(|item| matches!(item, chrono::format::Item::Error))
+        {
+            return Err(TemplateExpansionError {
+                variable: variable.to_string(),
+                format: format.to_string(),
+            });
+        }
+    }
+
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let mut out = template
         .replace("{SYMBOL}", ctx.symbol)
@@ -47,14 +143,36 @@ pub fn expand_template(template: &str, ctx: &TemplateContext<'_>) -> String {
     if out.contains("{MIC}") {
         out = out.replace("{MIC}", ctx.mic.unwrap_or(""));
     }
-    if out.contains("{DATE:") {
+    // Formatted date templates:
+    //   {DATE:format}                 - current instant (all valid Chrono directives)
+    //   {FROM/TO/TODAY:format}        - the corresponding date, reformatted
+    if out.contains("{DATE:")
+        || out.contains("{FROM:")
+        || out.contains("{TO:")
+        || out.contains("{TODAY:")
+    {
         out = DATE_TEMPLATE_RE
             .replace_all(&out, |caps: &regex::Captures| {
-                chrono::Utc::now().format(&caps[1]).to_string()
+                let var = &caps[1]; // DATE, FROM, TO, or TODAY
+                let format = &caps[2];
+                // DATE uses the current instant directly so time components work.
+                if var == "DATE" {
+                    return chrono::Utc::now().format(format).to_string();
+                }
+                let date_str = match var {
+                    "FROM" => ctx.from.unwrap_or(&today),
+                    "TO" => ctx.to.unwrap_or(&today),
+                    _ => &today, // TODAY
+                };
+                // Parse the ISO date and reformat; fall back to the raw string.
+                match chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                    Ok(parsed) => parsed.format(format).to_string(),
+                    Err(_) => date_str.to_string(),
+                }
             })
             .to_string();
     }
-    out
+    Ok(out)
 }
 
 /// Validate that a URL parses and uses an http(s) scheme.
@@ -127,6 +245,59 @@ pub fn build_browser_like_headers(format: &str, url: &str) -> reqwest::header::H
     headers
 }
 
+/// Expand templates and prepare a custom-provider HTTP request.
+///
+/// User headers override defaults. POST requests receive a JSON content type only
+/// when the user did not configure one explicitly.
+pub(crate) fn prepare_custom_provider_request<E>(
+    method: &HttpMethod,
+    format: &str,
+    url_template: &str,
+    headers_json: Option<&str>,
+    body_template: Option<&str>,
+    ctx: &TemplateContext<'_>,
+    resolve_header_value: impl Fn(&str) -> Result<String, E>,
+) -> Result<PreparedCustomProviderRequest, PrepareRequestError<E>> {
+    let url = expand_template(url_template, ctx).map_err(PrepareRequestError::Template)?;
+    let mut headers = build_browser_like_headers(format, &url);
+
+    if matches!(method, HttpMethod::Post) {
+        headers.insert(
+            reqwest::header::CONTENT_TYPE,
+            reqwest::header::HeaderValue::from_static("application/json"),
+        );
+    }
+
+    if let Some(headers_json) = headers_json {
+        if let Ok(map) =
+            serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(headers_json)
+        {
+            for (key, value) in map {
+                if let Some(value) = value.as_str() {
+                    let resolved =
+                        resolve_header_value(value).map_err(PrepareRequestError::Header)?;
+                    if let (Ok(name), Ok(value)) = (
+                        reqwest::header::HeaderName::from_bytes(key.as_bytes()),
+                        reqwest::header::HeaderValue::from_str(&resolved),
+                    ) {
+                        headers.insert(name, value);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(PreparedCustomProviderRequest {
+        url,
+        method: method.clone(),
+        headers,
+        body: body_template
+            .map(|body| expand_template(body, ctx))
+            .transpose()
+            .map_err(PrepareRequestError::Template)?,
+    })
+}
+
 /// Extract a numeric value from HTML using a CSS selector.
 ///
 /// Shared between `custom_provider::service` (test_source) and
@@ -160,6 +331,12 @@ pub struct CustomProviderSource {
     pub locale: Option<String>,
     /// JSON object string of extra HTTP headers
     pub headers: Option<String>,
+    /// HTTP method: "GET" or "POST"
+    #[serde(default)]
+    pub method: HttpMethod,
+    /// Request body for POST requests (JSON string)
+    #[serde(default)]
+    pub body: Option<String>,
     #[serde(default)]
     pub open_path: Option<String>,
     pub high_path: Option<String>,
@@ -221,6 +398,12 @@ pub struct NewCustomProviderSource {
     pub invert: Option<bool>,
     pub locale: Option<String>,
     pub headers: Option<String>,
+    /// HTTP method: "GET" or "POST"
+    #[serde(default)]
+    pub method: HttpMethod,
+    /// Request body for POST requests (JSON string)
+    #[serde(default)]
+    pub body: Option<String>,
     #[serde(default)]
     pub open_path: Option<String>,
     pub high_path: Option<String>,
@@ -244,8 +427,20 @@ pub struct TestSourceRequest {
     pub invert: Option<bool>,
     pub locale: Option<String>,
     pub headers: Option<String>,
+    /// HTTP method: "GET" or "POST"
+    #[serde(default)]
+    pub method: HttpMethod,
+    /// Request body for POST requests (JSON string)
+    #[serde(default)]
+    pub body: Option<String>,
     /// Symbol to substitute in template variables
     pub symbol: String,
+    /// ISIN to substitute in template variables.
+    #[serde(default)]
+    pub isin: Option<String>,
+    /// MIC to substitute in template variables.
+    #[serde(default)]
+    pub mic: Option<String>,
     /// Currency for {currency}/{CURRENCY} placeholders (defaults to "usd")
     pub currency: Option<String>,
     /// Start date for {FROM} placeholders while testing historical sources.
@@ -316,4 +511,210 @@ pub struct TestSourceResult {
     pub detected_elements: Option<Vec<DetectedHtmlElement>>,
     /// Detected HTML tables (html_table format).
     pub detected_tables: Option<Vec<DetectedHtmlTable>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ctx<'a>(from: Option<&'a str>, to: Option<&'a str>) -> TemplateContext<'a> {
+        TemplateContext {
+            symbol: "AAPL",
+            currency: "usd",
+            isin: None,
+            mic: None,
+            from,
+            to,
+        }
+    }
+
+    #[test]
+    fn http_method_default_and_as_str() {
+        assert_eq!(HttpMethod::default(), HttpMethod::Get);
+        assert_eq!(HttpMethod::Get.as_str(), "GET");
+        assert_eq!(HttpMethod::Post.as_str(), "POST");
+    }
+
+    #[test]
+    fn http_method_serde_is_uppercase() {
+        assert_eq!(
+            serde_json::to_string(&HttpMethod::Post).unwrap(),
+            "\"POST\""
+        );
+        let m: HttpMethod = serde_json::from_str("\"GET\"").unwrap();
+        assert_eq!(m, HttpMethod::Get);
+    }
+
+    #[test]
+    fn expands_basic_placeholders() {
+        let c = ctx(Some("2024-01-01"), Some("2024-12-31"));
+        let out = expand_template(
+            "https://x.test/{SYMBOL}?ccy={currency}&CCY={CURRENCY}&from={FROM}&to={TO}",
+            &c,
+        )
+        .unwrap();
+        assert_eq!(
+            out,
+            "https://x.test/AAPL?ccy=usd&CCY=USD&from=2024-01-01&to=2024-12-31"
+        );
+    }
+
+    #[test]
+    fn from_to_fall_back_to_today_when_absent() {
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let out = expand_template("{FROM}..{TO}", &ctx(None, None)).unwrap();
+        assert_eq!(out, format!("{today}..{today}"));
+    }
+
+    #[test]
+    fn expands_formatted_from_and_to() {
+        let c = ctx(Some("2024-01-02"), Some("2024-03-04"));
+        let out = expand_template("{FROM:%Y%m%d}-{TO:%d/%m/%Y}", &c).unwrap();
+        assert_eq!(out, "20240102-04/03/2024");
+    }
+
+    #[test]
+    fn formatted_date_falls_back_on_unparseable_input() {
+        // A non-ISO {FROM} value can't be reparsed, so the raw string is kept.
+        let c = ctx(Some("not-a-date"), None);
+        let out = expand_template("{FROM:%Y}", &c).unwrap();
+        assert_eq!(out, "not-a-date");
+    }
+
+    #[test]
+    fn today_formatted_uses_current_date() {
+        let expected = chrono::Utc::now().format("%Y/%m/%d").to_string();
+        let out = expand_template("{TODAY:%Y/%m/%d}", &ctx(None, None)).unwrap();
+        assert_eq!(out, expected);
+    }
+
+    #[test]
+    fn plain_today_not_clobbered_by_formatted_variant() {
+        // `{TODAY}` and `{TODAY:...}` must both expand independently.
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let year = chrono::Utc::now().format("%Y").to_string();
+        let out = expand_template("{TODAY} / {TODAY:%Y}", &ctx(None, None)).unwrap();
+        assert_eq!(out, format!("{today} / {year}"));
+    }
+
+    #[test]
+    fn expands_post_body_json() {
+        // POST bodies go through the same expander as URLs.
+        let c = ctx(Some("2024-01-01"), Some("2024-06-30"));
+        let body = r#"{"symbol":"{SYMBOL}","from":"{FROM}","to":"{TO:%Y%m%d}"}"#;
+        let out = expand_template(body, &c).unwrap();
+        assert_eq!(
+            out,
+            r#"{"symbol":"AAPL","from":"2024-01-01","to":"20240630"}"#
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_formatted_date_without_panicking() {
+        let error = expand_template("https://example.test/{FROM:%Q}", &ctx(None, None))
+            .expect_err("invalid chrono directives should be rejected");
+        assert!(error.to_string().contains("%Q"));
+
+        let prepared = prepare_custom_provider_request(
+            &HttpMethod::Post,
+            "json",
+            "https://example.test/quotes",
+            None,
+            Some(r#"{"from":"{FROM:%Q}"}"#),
+            &ctx(None, None),
+            |value| Ok::<_, ()>(value.to_string()),
+        );
+        assert!(prepared.is_err());
+    }
+
+    #[test]
+    fn rejects_unsupported_formatted_date_directive() {
+        let error = expand_template("https://example.test/{FROM:%H}", &ctx(None, None))
+            .expect_err("time directives should be rejected");
+        assert!(error.to_string().contains("%H"));
+    }
+
+    #[test]
+    fn preserves_valid_legacy_date_directives() {
+        let out = expand_template("{DATE:%H}|{DATE:%j}|{DATE:%%}", &ctx(None, None)).unwrap();
+        let parts: Vec<_> = out.split('|').collect();
+
+        assert_eq!(parts.len(), 3);
+        assert_eq!(parts[0].len(), 2);
+        assert!(parts[0].chars().all(|character| character.is_ascii_digit()));
+        assert_eq!(parts[1].len(), 3);
+        assert!(parts[1].chars().all(|character| character.is_ascii_digit()));
+        assert_eq!(parts[2], "%");
+    }
+
+    #[test]
+    fn prepares_post_with_expanded_identity_body_and_default_content_type() {
+        let context = TemplateContext {
+            symbol: "AAPL",
+            currency: "usd",
+            isin: Some("US0378331005"),
+            mic: Some("XNAS"),
+            from: Some("2024-01-01"),
+            to: Some("2024-06-30"),
+        };
+        let prepared = prepare_custom_provider_request(
+            &HttpMethod::Post,
+            "json",
+            "https://example.test/quotes",
+            None,
+            Some(r#"{"symbol":"{SYMBOL}","isin":"{ISIN}","mic":"{MIC}","currency":"{CURRENCY}","from":"{FROM}","to":"{TO}"}"#),
+            &context,
+            |value| Ok::<_, ()>(value.to_string()),
+        )
+        .unwrap();
+        let request = prepared
+            .request_builder(&reqwest::Client::new())
+            .build()
+            .unwrap();
+
+        assert_eq!(request.method(), reqwest::Method::POST);
+        assert_eq!(
+            request
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .unwrap(),
+            "application/json"
+        );
+        assert_eq!(
+            request.body().and_then(|body| body.as_bytes()),
+            Some(
+                br#"{"symbol":"AAPL","isin":"US0378331005","mic":"XNAS","currency":"USD","from":"2024-01-01","to":"2024-06-30"}"#
+                    .as_slice()
+            )
+        );
+    }
+
+    #[test]
+    fn prepared_request_preserves_explicit_content_type_for_post_and_get() {
+        let headers = Some(r#"{"Content-Type":"application/vnd.test+json"}"#);
+        for method in [HttpMethod::Post, HttpMethod::Get] {
+            let prepared = prepare_custom_provider_request(
+                &method,
+                "json",
+                "https://example.test/quotes/{SYMBOL}",
+                headers,
+                None,
+                &ctx(None, None),
+                |value| Ok::<_, ()>(value.to_string()),
+            )
+            .unwrap();
+            let request = prepared
+                .request_builder(&reqwest::Client::new())
+                .build()
+                .unwrap();
+
+            assert_eq!(
+                request
+                    .headers()
+                    .get(reqwest::header::CONTENT_TYPE)
+                    .unwrap(),
+                "application/vnd.test+json"
+            );
+        }
+    }
 }

@@ -19,6 +19,11 @@ import { cn } from "@/lib/utils";
 import { useNumberFormatting, type FormattingApi } from "@wealthfolio/ui";
 import type { FormValues, SourceKey } from "./custom-provider-form";
 import { RawResponseViewer } from "./response-preview";
+import {
+  expandTemplatePlaceholders,
+  resolveTemplatePlaceholder,
+  type TemplatePlaceholderValues,
+} from "./template-placeholders";
 import type { MappingField, SourceRuntime } from "./use-source-runtime";
 
 interface LivePreviewPaneProps {
@@ -78,19 +83,30 @@ const MAPPING_META: {
 ];
 
 /** Inline chips replacing placeholders in the preview URL. */
-function PreviewUrl({ template, values }: { template: string; values: Record<string, string> }) {
+function PreviewUrl({
+  template,
+  values,
+  multiline,
+  placeholder,
+}: {
+  template: string;
+  values: TemplatePlaceholderValues;
+  multiline?: boolean;
+  placeholder?: string;
+}) {
   const { t } = useTranslation();
   const segments = useMemo(() => {
     if (!template) return [];
-    const re = /\{([A-Za-z:%\-_]+)\}/g;
+    const re = /\{([A-Za-z]+)(?::([^}]+))?\}/g;
     const out: { kind: "text" | "chip"; text: string; value?: string }[] = [];
     let last = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(template))) {
       if (m.index > last) out.push({ kind: "text", text: template.slice(last, m.index) });
       const key = m[1];
-      const value = values[key] || values[key.toUpperCase()];
-      out.push({ kind: "chip", text: key, value });
+      const format = m[2];
+      const value = resolveTemplatePlaceholder(key, format, values);
+      out.push({ kind: "chip", text: format ? `${key}:${format}` : key, value });
       last = m.index + m[0].length;
     }
     if (last < template.length) out.push({ kind: "text", text: template.slice(last) });
@@ -100,13 +116,13 @@ function PreviewUrl({ template, values }: { template: string; values: Record<str
   if (!template) {
     return (
       <span className="text-muted-foreground/60 font-mono text-xs italic">
-        {t("settings:market_data_page.enter_url_to_preview")}
+        {placeholder ?? t("settings:market_data_page.enter_url_to_preview")}
       </span>
     );
   }
 
   return (
-    <span className="break-all font-mono text-xs">
+    <span className={cn("break-all font-mono text-xs", multiline && "whitespace-pre-wrap")}>
       {segments.map((seg, i) =>
         seg.kind === "text" ? (
           <span key={i}>{seg.text}</span>
@@ -663,7 +679,7 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
   const { inputs, setInputs, extraPlaceholders, isHistorical } = runtime;
   const previewCurrency = inputs.currency.trim() || "USD";
 
-  const previewValues: Record<string, string> = {
+  const previewValues: TemplatePlaceholderValues = {
     SYMBOL: inputs.symbol,
     ISIN: inputs.isin,
     MIC: inputs.mic,
@@ -673,6 +689,10 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
     FROM: inputs.from,
     TO: inputs.to,
   };
+
+  const method = form.watch(`${prefix}.method`) ?? "GET";
+  const bodyTemplate = form.watch(`${prefix}.body`) ?? "";
+  const expandedBody = expandTemplatePlaceholders(bodyTemplate, previewValues);
 
   const missingRange = isHistorical && (!inputs.from || !inputs.to);
   const fetchDisabled =
@@ -706,9 +726,11 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
             {t("settings:market_data_page.request_url_preview")}
           </Label>
           <span className="text-muted-foreground text-[11px]">
+            {form.watch(`${prefix}.method`) === "POST" ? "POST" : "GET"}
+            &nbsp;·&nbsp;
             {isHistorical
-              ? t("settings:market_data_page.get_historical")
-              : t("settings:market_data_page.get_latest")}
+              ? t("settings:market_data_page.method_historical")
+              : t("settings:market_data_page.method_latest")}
           </span>
         </div>
         <div className="bg-background relative min-h-[40px] rounded-lg border px-3 py-2 pr-10">
@@ -716,6 +738,24 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
           <CopyButton text={runtime.expandedUrl} disabled={!runtime.urlTemplate} />
         </div>
       </section>
+
+      {/* Request body preview (POST only) */}
+      {method === "POST" && (
+        <section className="space-y-2">
+          <Label className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+            {t("settings:market_data_page.request_body_preview")}
+          </Label>
+          <div className="bg-background relative min-h-[40px] rounded-lg border px-3 py-2 pr-10">
+            <PreviewUrl
+              template={bodyTemplate}
+              values={previewValues}
+              multiline
+              placeholder={t("settings:market_data_page.enter_body_to_preview")}
+            />
+            <CopyButton text={expandedBody} disabled={!bodyTemplate} />
+          </div>
+        </section>
+      )}
 
       {/* Test inputs */}
       <section className="space-y-2">

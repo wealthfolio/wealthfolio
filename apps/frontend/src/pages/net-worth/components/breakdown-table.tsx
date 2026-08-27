@@ -29,6 +29,7 @@ const ROW_GRID =
 
 function ChangeCell({ change, currency }: { change: Change; currency: string }) {
   const formatting = useNumberFormatting();
+  const { t } = useTranslation();
   const isZero = Math.abs(change.amount) < 0.005;
   const color = isZero
     ? "text-muted-foreground/60"
@@ -45,7 +46,7 @@ function ChangeCell({ change, currency }: { change: Change; currency: string }) 
         <CompactAmount value={Math.abs(change.amount)} currency={currency} />
       </span>
       <span className="text-muted-foreground/60 hidden w-12 shrink-0 text-right text-sm tabular-nums md:block">
-        {formatChangePercent(change.percent, formatting)}
+        {formatChangePercent(change, t("insights:networth.breakdown_table.new"), formatting)}
       </span>
     </div>
   );

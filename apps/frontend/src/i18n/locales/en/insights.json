@@ -92,6 +92,7 @@
       "category": "Category",
       "value": "Value",
       "delta_period": "Δ {{period}}",
+      "new": "New",
       "liabilities": "Liabilities",
       "net_worth": "Net Worth"
     },

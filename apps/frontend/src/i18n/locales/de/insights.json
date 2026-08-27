@@ -92,6 +92,7 @@
       "category": "Kategorie",
       "value": "Wert",
       "delta_period": "Δ {{period}}",
+      "new": "Neu",
       "liabilities": "Verbindlichkeiten",
       "net_worth": "Nettovermögen"
     },

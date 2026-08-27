@@ -12,6 +12,10 @@ export interface CustomProviderSource {
   invert?: boolean;
   locale?: string;
   headers?: string;
+  /** HTTP method: "GET" or "POST" */
+  method?: "GET" | "POST";
+  /** Request body for POST requests (JSON string) */
+  body?: string;
   openPath?: string;
   highPath?: string;
   lowPath?: string;
@@ -57,6 +61,10 @@ export interface NewCustomProviderSource {
   invert?: boolean;
   locale?: string;
   headers?: string;
+  /** HTTP method: "GET" or "POST" */
+  method?: "GET" | "POST";
+  /** Request body for POST requests (JSON string) */
+  body?: string;
   openPath?: string;
   highPath?: string;
   lowPath?: string;
@@ -76,7 +84,13 @@ export interface TestSourceRequest {
   invert?: boolean;
   locale?: string;
   headers?: string;
+  /** HTTP method: "GET" or "POST" */
+  method?: "GET" | "POST";
+  /** Request body for POST requests (JSON string) */
+  body?: string;
   symbol: string;
+  isin?: string;
+  mic?: string;
   currency?: string;
   from?: string;
   to?: string;

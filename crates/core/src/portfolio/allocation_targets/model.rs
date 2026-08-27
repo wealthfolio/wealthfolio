@@ -408,6 +408,10 @@ pub struct CalculateRebalancePlanInput {
     pub aggregated_account_id: String,
     #[serde(default)]
     pub scenario_mode: ScenarioMode,
+    /// Optional instrument-level allowlist for buy candidates in CashFlowOnly mode.
+    /// `None` preserves the legacy behavior; an empty list is invalid in that mode.
+    #[serde(default)]
+    pub eligible_asset_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

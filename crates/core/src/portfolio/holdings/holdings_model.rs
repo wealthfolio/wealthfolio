@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::collections::VecDeque;
 
 // Import Lot from its definition
-use crate::assets::{AssetClassifications, AssetKind};
+use crate::assets::{AssetClassifications, AssetKind, InstrumentType};
 use crate::portfolio::snapshot::Lot;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -30,6 +30,8 @@ pub struct Instrument {
     pub pricing_mode: String,
     pub preferred_provider: Option<String>,
     pub exchange_mic: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instrument_type: Option<InstrumentType>,
 
     // Taxonomy-based classifications
     pub classifications: Option<AssetClassifications>,
@@ -162,6 +164,8 @@ pub struct HoldingListInstrument {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exchange_mic: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub instrument_type: Option<InstrumentType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub classifications: Option<AssetClassifications>,
 }
 
@@ -227,6 +231,7 @@ impl From<Holding> for HoldingListItem {
                 quote_mode: instrument.pricing_mode,
                 isin,
                 exchange_mic: instrument.exchange_mic,
+                instrument_type: instrument.instrument_type,
                 classifications,
             }
         });

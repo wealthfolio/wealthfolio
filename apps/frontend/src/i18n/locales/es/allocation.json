@@ -110,6 +110,29 @@
     "modeVerbHybrid": "Efectivo y ventas",
     "modeVerbCashFlow": "Compras con flujo de efectivo"
   },
+  "eligibleHoldings": {
+    "label": "Posiciones elegibles",
+    "triggerLabel": "{{label}}: {{summary}}",
+    "rowLabel": "{{symbol}} {{name}} {{details}} — {{state}}",
+    "selected": "seleccionada",
+    "notSelected": "no seleccionada",
+    "allSelected": "Todas las posiciones seleccionadas",
+    "selectedCount": "{{selected}} de {{total}} seleccionadas",
+    "searchPlaceholder": "Buscar posiciones",
+    "noMatches": "No hay coincidencias.",
+    "selectAll": "Seleccionar todo",
+    "clear": "Limpiar",
+    "emptyGuidance": "Selecciona al menos una posición para calcular un plan.",
+    "groups": {
+      "equity": "Renta variable",
+      "bond": "Bonos",
+      "crypto": "Cripto",
+      "option": "Opciones",
+      "metal": "Metales",
+      "fx": "Divisas",
+      "other": "Otros"
+    }
+  },
   "narrative": {
     "liftAndShrink": "{{verb}} elevar {{lifted}} hacia el objetivo y reducir el sobrepeso de {{shrank}} de {{before}} a {{after}}.",
     "lift": "{{verb}} elevar {{lifted}} hacia el objetivo.",

@@ -107,6 +107,29 @@
     "modeVerbHybrid": "現金と売却",
     "modeVerbCashFlow": "新規資金での買付"
   },
+  "eligibleHoldings": {
+    "label": "購入対象の保有銘柄",
+    "triggerLabel": "{{label}}：{{summary}}",
+    "rowLabel": "{{symbol}} {{name}} {{details}} — {{state}}",
+    "selected": "選択中",
+    "notSelected": "未選択",
+    "allSelected": "すべての保有銘柄を選択中",
+    "selectedCount": "{{total}}件中{{selected}}件を選択中",
+    "searchPlaceholder": "保有銘柄を検索",
+    "noMatches": "一致する保有銘柄がありません。",
+    "selectAll": "すべて選択",
+    "clear": "クリア",
+    "emptyGuidance": "プランを計算するには、少なくとも1件を選択してください。",
+    "groups": {
+      "equity": "株式",
+      "bond": "債券",
+      "crypto": "暗号資産",
+      "option": "オプション",
+      "metal": "金属",
+      "fx": "為替",
+      "other": "その他"
+    }
+  },
   "narrative": {
     "liftAndShrink": "{{verb}}により{{lifted}}を目標に近づけ、{{shrank}}の超過を{{before}}から{{after}}に縮小します。",
     "lift": "{{verb}}により{{lifted}}を目標に近づけます。",

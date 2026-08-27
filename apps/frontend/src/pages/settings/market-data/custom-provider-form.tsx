@@ -51,6 +51,10 @@ const sourceSchema = z.object({
   invert: z.boolean().optional(),
   locale: z.string().optional(),
   headers: z.string().optional(),
+  /** HTTP method: "GET" or "POST" */
+  method: z.enum(["GET", "POST"]).default("GET"),
+  /** Request body for POST requests (JSON string) */
+  body: z.string().optional(),
   openPath: z.string().optional(),
   highPath: z.string().optional(),
   lowPath: z.string().optional(),
@@ -106,6 +110,8 @@ function emptySource(dateTimezoneDefault = ""): SourceFormValues {
     currencyPath: "",
     locale: "",
     headers: "",
+    method: "GET",
+    body: "",
     openPath: "",
     highPath: "",
     lowPath: "",
@@ -130,6 +136,8 @@ function sourceDefaults(
         invert: source.invert ?? false,
         locale: source.locale ?? "",
         headers: source.headers ?? "",
+        method: source.method ?? "GET",
+        body: source.body ?? "",
         openPath: source.openPath ?? "",
         highPath: source.highPath ?? "",
         lowPath: source.lowPath ?? "",
@@ -180,6 +188,24 @@ function validateSource(
         "headers",
         t("settings:market_data_page.validation_headers_json"),
       );
+    }
+  }
+  // Validate POST body
+  if (source.method === "POST") {
+    const body = source.body?.trim();
+    if (!body) {
+      addSourceIssue(
+        ctx,
+        sourceKey,
+        "body",
+        t("settings:market_data_page.validation_body_required"),
+      );
+    } else {
+      try {
+        JSON.parse(body);
+      } catch {
+        addSourceIssue(ctx, sourceKey, "body", t("settings:market_data_page.validation_body_json"));
+      }
     }
   }
 }
@@ -407,6 +433,8 @@ function CustomProviderFormContent({
         invert: src.invert ?? undefined,
         locale: src.locale || undefined,
         headers: src.headers || undefined,
+        method: src.method ?? "GET",
+        body: src.body || undefined,
         openPath: src.openPath || undefined,
         highPath: src.highPath || undefined,
         lowPath: src.lowPath || undefined,

@@ -10,6 +10,7 @@ import type {
 
 import type { FormValues, SourceKey } from "./custom-provider-form";
 import type { ProviderTemplate } from "./provider-templates";
+import { expandTemplatePlaceholders } from "./template-placeholders";
 
 export type MappingField =
   | "pricePath"
@@ -129,41 +130,30 @@ export function useSourceRuntime({
   }, []);
 
   const urlTemplate = form.watch(`${prefix}.url`) ?? "";
+  const bodyTemplate = form.watch(`${prefix}.body`) ?? "";
+  const method = form.watch(`${prefix}.method`) ?? "GET";
 
-  const extraPlaceholders = useMemo(
-    () => ({
-      isin: urlTemplate.includes("{ISIN}"),
-      mic: urlTemplate.includes("{MIC}"),
-      currency: urlTemplate.includes("{CURRENCY}") || urlTemplate.includes("{currency}"),
-    }),
-    [urlTemplate],
-  );
-
-  const expandTestUrl = useCallback(
-    (url: string) => {
-      let expanded = url;
-      if (extraPlaceholders.isin) expanded = expanded.replaceAll("{ISIN}", inputsState.isin);
-      if (extraPlaceholders.mic) expanded = expanded.replaceAll("{MIC}", inputsState.mic);
-      if (extraPlaceholders.currency) {
-        const currency = normalizedCurrencyInput(inputsState.currency);
-        expanded = expanded.replaceAll("{currency}", currency.toLowerCase());
-        expanded = expanded.replaceAll("{CURRENCY}", currency.toUpperCase());
-      }
-      return expanded;
-    },
-    [extraPlaceholders, inputsState.isin, inputsState.mic, inputsState.currency],
-  );
+  const extraPlaceholders = useMemo(() => {
+    const templates = `${urlTemplate}\n${method === "POST" ? bodyTemplate : ""}`;
+    return {
+      isin: templates.includes("{ISIN}"),
+      mic: templates.includes("{MIC}"),
+      currency: templates.includes("{CURRENCY}") || templates.includes("{currency}"),
+    };
+  }, [urlTemplate, bodyTemplate, method]);
 
   const expandedUrl = useMemo(() => {
-    let u = urlTemplate.replaceAll("{SYMBOL}", inputsState.symbol || "{SYMBOL}");
-    u = expandTestUrl(u);
-    const today = todayDateString();
-    u = u
-      .replaceAll("{TODAY}", today)
-      .replaceAll("{FROM}", inputsState.from)
-      .replaceAll("{TO}", inputsState.to);
-    return u;
-  }, [urlTemplate, expandTestUrl, inputsState.symbol, inputsState.from, inputsState.to]);
+    return expandTemplatePlaceholders(urlTemplate, {
+      SYMBOL: inputsState.symbol || "{SYMBOL}",
+      ISIN: inputsState.isin,
+      MIC: inputsState.mic,
+      CURRENCY: normalizedCurrencyInput(inputsState.currency).toUpperCase(),
+      currency: normalizedCurrencyInput(inputsState.currency).toLowerCase(),
+      TODAY: todayDateString(),
+      FROM: inputsState.from,
+      TO: inputsState.to,
+    });
+  }, [urlTemplate, inputsState]);
 
   const resetFetchState = useCallback(() => {
     setRawResponse(null);
@@ -179,9 +169,10 @@ export function useSourceRuntime({
     const symbol = inputsState.symbol;
     if (!rawUrl || !symbol) return;
     const format = form.getValues(`${prefix}.format`) ?? "json";
-    const url = expandTestUrl(rawUrl);
     const headers = form.getValues(`${prefix}.headers`);
     const pricePathCurrent = form.getValues(`${prefix}.pricePath`);
+    const method = form.getValues(`${prefix}.method`) ?? "GET";
+    const body = form.getValues(`${prefix}.body`);
 
     setTestResult(null);
     setFetchError(null);
@@ -191,13 +182,17 @@ export function useSourceRuntime({
     testSource(
       {
         format,
-        url,
+        url: rawUrl,
         pricePath: dummyPath,
         symbol,
         currency: normalizedCurrencyInput(inputsState.currency),
         from: isHistorical ? inputsState.from : undefined,
         to: isHistorical ? inputsState.to : undefined,
         headers: headers || undefined,
+        method,
+        body: body || undefined,
+        isin: inputsState.isin || undefined,
+        mic: inputsState.mic || undefined,
       },
       {
         onSuccess: (result) => {
@@ -253,7 +248,7 @@ export function useSourceRuntime({
         },
       },
     );
-  }, [form, prefix, inputsState, expandTestUrl, testSource, isHistorical, onAdvancedOpen]);
+  }, [form, prefix, inputsState, testSource, isHistorical, onAdvancedOpen]);
 
   const scheduleVerify = useCallback(
     (path: string) => {
@@ -270,12 +265,11 @@ export function useSourceRuntime({
         const rawUrl = form.getValues(`${prefix}.url`);
         const symbol = inputsState.symbol;
         if (!rawUrl || !symbol) return;
-        const url = expandTestUrl(rawUrl);
         const values = form.getValues(prefix);
         testSource(
           {
             format: values?.format ?? "json",
-            url,
+            url: rawUrl,
             pricePath: path,
             datePath: values?.datePath || undefined,
             dateFormat: values?.dateFormat || undefined,
@@ -284,6 +278,10 @@ export function useSourceRuntime({
             invert: values?.invert ?? undefined,
             locale: values?.locale || undefined,
             headers: values?.headers || undefined,
+            method: values?.method ?? "GET",
+            body: values?.body || undefined,
+            isin: inputsState.isin || undefined,
+            mic: inputsState.mic || undefined,
             openPath: values?.openPath || undefined,
             highPath: values?.highPath || undefined,
             lowPath: values?.lowPath || undefined,
@@ -307,7 +305,6 @@ export function useSourceRuntime({
       detectedElements,
       detectedTables,
       inputsState,
-      expandTestUrl,
       testSource,
       isHistorical,
     ],
@@ -383,6 +380,8 @@ export function useSourceRuntime({
       form.setValue(`${prefix}.lowPath`, t.lowPath ?? "");
       form.setValue(`${prefix}.volumePath`, t.volumePath ?? "");
       form.setValue(`${prefix}.headers`, t.headers ?? "");
+      form.setValue(`${prefix}.method`, "GET");
+      form.setValue(`${prefix}.body`, "");
       form.setValue(`${prefix}.currencyPath`, t.currencyPath ?? "");
       form.setValue(`${prefix}.locale`, "");
       form.setValue(`${prefix}.factor`, undefined);

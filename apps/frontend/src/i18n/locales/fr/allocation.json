@@ -110,6 +110,29 @@
     "modeVerbHybrid": "La trésorerie et les ventes",
     "modeVerbCashFlow": "Les achats par flux de trésorerie"
   },
+  "eligibleHoldings": {
+    "label": "Titres éligibles",
+    "triggerLabel": "{{label}} : {{summary}}",
+    "rowLabel": "{{symbol}} {{name}} {{details}} — {{state}}",
+    "selected": "sélectionné",
+    "notSelected": "non sélectionné",
+    "allSelected": "Tous les titres sélectionnés",
+    "selectedCount": "{{selected}} sur {{total}} sélectionnés",
+    "searchPlaceholder": "Rechercher des titres",
+    "noMatches": "Aucun titre correspondant.",
+    "selectAll": "Tout sélectionner",
+    "clear": "Effacer",
+    "emptyGuidance": "Sélectionnez au moins un titre pour calculer un plan.",
+    "groups": {
+      "equity": "Actions",
+      "bond": "Obligations",
+      "crypto": "Crypto",
+      "option": "Options",
+      "metal": "Métaux",
+      "fx": "Devises",
+      "other": "Autres"
+    }
+  },
   "narrative": {
     "liftAndShrink": "{{verb}} rapprochent {{lifted}} de la cible et réduisent la surpondération de {{shrank}} de {{before}} à {{after}}.",
     "lift": "{{verb}} rapprochent {{lifted}} de la cible.",

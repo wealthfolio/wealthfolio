@@ -57,6 +57,20 @@ pub struct FireProjection {
     pub coast_fire_amount: f64,
     pub coast_fire_reached: bool,
     pub year_by_year: Vec<YearlySnapshot>,
+    /// Drawdown funds that empty before the horizon, earliest first. Always empty
+    /// for a plan whose funds all annuitise, which is every plan by default.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub income_stream_exhaustion: Vec<IncomeStreamExhaustion>,
+}
+
+/// A fund drawn down faster than it grows, and the age its balance reaches zero.
+/// Income from the stream stops after that age.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct IncomeStreamExhaustion {
+    pub stream_id: String,
+    pub label: String,
+    pub exhausted_age: u32,
 }
 
 /// Type alias for clarity; `FireProjection` is the canonical name for backward compatibility.
@@ -287,6 +301,11 @@ pub struct RetirementOverview {
     pub funded_through_age: Option<u32>,
     pub failure_age: Option<u32>,
     pub spending_shortfall_age: Option<u32>,
+    /// Drawdown funds that run out before the horizon. A fund emptying at 79 is a
+    /// planning problem in its own right, so it is reported beside portfolio
+    /// failure rather than left in the year-by-year table.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub income_stream_exhaustion: Vec<IncomeStreamExhaustion>,
     pub required_additional_monthly_contribution: f64,
     pub suggested_goal_age_if_unchanged: Option<u32>,
     pub coast_amount_today: f64,
@@ -872,6 +891,7 @@ pub fn compute_retirement_overview_with_mode(
         funded_through_age,
         failure_age,
         spending_shortfall_age,
+        income_stream_exhaustion: projection.income_stream_exhaustion.clone(),
         required_additional_monthly_contribution: required_additional,
         suggested_goal_age_if_unchanged: suggested_age,
         coast_amount_today: coast,
@@ -1040,6 +1060,8 @@ mod tests {
             monthly_contribution: None,
             accumulation_return: None,
             payout_rate: None,
+            payout_mode: None,
+            post_payout_return: None,
         });
 
         let budget = compute_budget_breakdown(&plan, 65);

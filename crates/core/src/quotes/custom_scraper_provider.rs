@@ -9,8 +9,8 @@ use log::debug;
 use rust_decimal::Decimal;
 
 use crate::custom_provider::model::{
-    build_browser_like_headers, expand_template, extract_html_value, validate_url, TemplateContext,
-    CUSTOM_PROVIDER_USER_AGENT, MAX_RESPONSE_BYTES,
+    expand_template, extract_html_value, prepare_custom_provider_request, validate_url,
+    PreparedCustomProviderRequest, TemplateContext, CUSTOM_PROVIDER_USER_AGENT, MAX_RESPONSE_BYTES,
 };
 use crate::custom_provider::service::{
     detect_html_locale, parse_csv_records, parse_number_string, resolve_csv_column,
@@ -51,17 +51,8 @@ impl CustomScraperProvider {
         }
     }
 
-    /// Expand URL template variables using the shared template engine.
-    fn expand_url(
-        url: &str,
-        symbol: &str,
-        context: Option<&QuoteContext>,
-        from: Option<&str>,
-        to: Option<&str>,
-    ) -> String {
-        let isin_owned: Option<String> = context.and_then(|ctx| {
-            // Prefer explicit identifiers so equity ISINs can be used without changing the
-            // canonical instrument; bonds fall back to their instrument ISIN.
+    fn template_identifiers(context: Option<&QuoteContext>) -> (Option<String>, Option<String>) {
+        let isin = context.and_then(|ctx| {
             ctx.identifiers
                 .isin
                 .as_deref()
@@ -73,13 +64,25 @@ impl CustomScraperProvider {
                     _ => None,
                 })
         });
-
-        let mic_owned: Option<String> = context.and_then(|ctx| match &ctx.instrument {
+        let mic = context.and_then(|ctx| match &ctx.instrument {
             wealthfolio_market_data::InstrumentId::Equity { mic, .. } => {
-                mic.as_ref().map(|m| m.as_ref().to_string())
+                mic.as_ref().map(|mic| mic.as_ref().to_string())
             }
             _ => None,
         });
+        (isin, mic)
+    }
+
+    /// Expand URL template variables using the shared template engine.
+    #[cfg(test)]
+    fn expand_url(
+        url: &str,
+        symbol: &str,
+        context: Option<&QuoteContext>,
+        from: Option<&str>,
+        to: Option<&str>,
+    ) -> String {
+        let (isin_owned, mic_owned) = Self::template_identifiers(context);
 
         let currency = context
             .and_then(|ctx| ctx.currency_hint.as_deref())
@@ -94,59 +97,36 @@ impl CustomScraperProvider {
             to,
         };
 
-        expand_template(url, &tctx)
+        expand_template(url, &tctx).expect("test URL template should be valid")
     }
 
-    fn source_url_has_identity_placeholder(url: &str) -> bool {
-        url.contains("{SYMBOL}") || url.contains("{ISIN}")
-    }
-
-    /// Build HTTP headers from source config, resolving secrets.
-    fn build_headers(
-        &self,
-        source: &CustomProviderSource,
-        url: &str,
-    ) -> Result<reqwest::header::HeaderMap, MarketDataError> {
-        let mut headers = build_browser_like_headers(&source.format, url);
-        if let Some(headers_json) = &source.headers {
-            if let Ok(map) =
-                serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(headers_json)
-            {
-                for (k, v) in map {
-                    if let Some(val_str) = v.as_str() {
-                        let resolved = self.resolve_secret(val_str)?;
-                        if let (Ok(name), Ok(value)) = (
-                            reqwest::header::HeaderName::from_bytes(k.as_bytes()),
-                            reqwest::header::HeaderValue::from_str(&resolved),
-                        ) {
-                            headers.insert(name, value);
-                        }
-                    }
-                }
-            }
-        }
-        Ok(headers)
+    fn source_has_identity_placeholder(source: &CustomProviderSource) -> bool {
+        let has_identity =
+            |template: &str| template.contains("{SYMBOL}") || template.contains("{ISIN}");
+        has_identity(&source.url)
+            || (matches!(source.method, crate::custom_provider::HttpMethod::Post)
+                && source.body.as_deref().is_some_and(has_identity))
     }
 
     /// Fetch body from URL with simple 1-retry on 5xx/network errors.
     async fn fetch_body(
         &self,
-        url: &str,
-        headers: reqwest::header::HeaderMap,
+        request: &PreparedCustomProviderRequest,
     ) -> Result<String, MarketDataError> {
-        let do_fetch = |hdrs: reqwest::header::HeaderMap| self.client.get(url).headers(hdrs).send();
+        let url = &request.url;
+        let do_fetch = || request.request_builder(&self.client).send();
 
-        let response = match do_fetch(headers.clone()).await {
+        let response = match do_fetch().await {
             Ok(resp) if resp.status().is_server_error() => {
                 debug!("CustomScraper: 5xx from {}, retrying once", url);
                 tokio::time::sleep(Duration::from_secs(1)).await;
-                do_fetch(headers).await.map_err(MarketDataError::Network)?
+                do_fetch().await.map_err(MarketDataError::Network)?
             }
             Ok(resp) => resp,
             Err(_e) => {
                 debug!("CustomScraper: network error from {}, retrying once", url);
                 tokio::time::sleep(Duration::from_secs(1)).await;
-                do_fetch(headers).await.map_err(MarketDataError::Network)?
+                do_fetch().await.map_err(MarketDataError::Network)?
             }
         };
 
@@ -294,18 +274,45 @@ impl CustomScraperProvider {
             });
         }
 
-        let url = Self::expand_url(&source.url, symbol, context, from, to);
+        let (isin, mic) = Self::template_identifiers(context);
+        let tctx = TemplateContext {
+            symbol,
+            currency: currency_hint.unwrap_or("USD"),
+            isin: isin.as_deref(),
+            mic: mic.as_deref(),
+            from,
+            to,
+        };
 
-        validate_url(&url).map_err(|e| MarketDataError::ProviderError {
+        let request = prepare_custom_provider_request(
+            &source.method,
+            &source.format,
+            &source.url,
+            source.headers.as_deref(),
+            source.body.as_deref(),
+            &tctx,
+            |value| self.resolve_secret(value),
+        )
+        .map_err(|error| match error {
+            crate::custom_provider::model::PrepareRequestError::Template(error) => {
+                MarketDataError::ValidationFailed {
+                    message: error.to_string(),
+                }
+            }
+            crate::custom_provider::model::PrepareRequestError::Header(error) => error,
+        })?;
+
+        validate_url(&request.url).map_err(|e| MarketDataError::ProviderError {
             provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
             message: e.to_string(),
         })?;
 
-        let headers = self.build_headers(source, &url)?;
+        debug!(
+            "CustomScraper: fetching {} for symbol '{}'",
+            request.url, symbol
+        );
 
-        debug!("CustomScraper: fetching {} for symbol '{}'", url, symbol);
-
-        let body = match self.fetch_body(&url, headers).await {
+        let body = match self.fetch_body(&request).await {
             Ok(b) => b,
             Err(e) => {
                 // Fall back to default_price on fetch failure
@@ -319,7 +326,7 @@ impl CustomScraperProvider {
             }
         };
 
-        let currency = resolve_currency(source, symbol, currency_hint, &body, from, to);
+        let currency = resolve_currency(source, &body, &tctx)?;
 
         // Auto-detect locale from HTML lang if not explicitly set
         let locale = source.locale.as_deref().map(|s| s.to_string()).or_else(|| {
@@ -356,8 +363,7 @@ impl CustomScraperProvider {
                 Ok(rows_to_quotes(rows, source, &currency))
             }
             "json" => {
-                let rows =
-                    extract_json_rows(&body, source, symbol, currency_hint, locale_ref, from, to);
+                let rows = extract_json_rows(&body, source, &tctx, locale_ref)?;
                 if rows.is_empty() {
                     return Err(MarketDataError::ProviderError {
                         provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
@@ -647,8 +653,8 @@ impl CustomScraperProvider {
             return Ok(vec![source]);
         }
 
-        // No explicit code — collect general-purpose sources (URL contains an identity placeholder)
-        // from all enabled custom providers, tried in priority order.
+        // No explicit code — collect general-purpose sources whose URL or body contains an
+        // identity placeholder from all enabled custom providers, tried in priority order.
         let providers = self
             .repo
             .get_all()
@@ -661,7 +667,7 @@ impl CustomScraperProvider {
             .into_iter()
             .filter(|p| p.enabled)
             .flat_map(|p| p.sources.into_iter().filter(|s| s.kind == kind))
-            .filter(|s| Self::source_url_has_identity_placeholder(&s.url))
+            .filter(Self::source_has_identity_placeholder)
             .collect();
 
         if sources.is_empty() {
@@ -730,35 +736,23 @@ fn apply_factor_invert(mut price: f64, source: &CustomProviderSource) -> f64 {
 
 fn resolve_currency(
     source: &CustomProviderSource,
-    symbol: &str,
-    currency_hint: Option<&str>,
     body: &str,
-    from: Option<&str>,
-    to: Option<&str>,
-) -> String {
+    tctx: &TemplateContext<'_>,
+) -> Result<String, MarketDataError> {
     if source.format == "json" {
-        let currency = currency_hint.unwrap_or("USD");
-        let tctx = TemplateContext {
-            symbol,
-            currency,
-            isin: None,
-            mic: None,
-            from,
-            to,
-        };
-        source
+        let extracted = source
             .currency_path
             .as_ref()
-            .and_then(|cp| {
-                let cp = expand_template(cp, &tctx);
-                extract_json_string(body, &cp)
+            .map(|cp| {
+                expand_template(cp, tctx).map_err(|error| MarketDataError::ValidationFailed {
+                    message: error.to_string(),
+                })
             })
-            .or_else(|| currency_hint.map(|s| s.to_string()))
-            .unwrap_or_else(|| "USD".to_string())
+            .transpose()?
+            .and_then(|cp| extract_json_string(body, &cp));
+        Ok(extracted.unwrap_or_else(|| tctx.currency.to_string()))
     } else {
-        currency_hint
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "USD".to_string())
+        Ok(tctx.currency.to_string())
     }
 }
 
@@ -1075,57 +1069,56 @@ fn extract_csv_rows(
 fn extract_json_rows(
     body: &str,
     source: &CustomProviderSource,
-    symbol: &str,
-    currency_hint: Option<&str>,
+    tctx: &TemplateContext<'_>,
     locale: Option<&str>,
-    from: Option<&str>,
-    to: Option<&str>,
-) -> Vec<ExtractedRow> {
+) -> Result<Vec<ExtractedRow>, MarketDataError> {
     use jsonpath_rust::JsonPathQuery;
 
     let json: serde_json::Value = match serde_json::from_str(body) {
         Ok(j) => j,
-        Err(_) => return Vec::new(),
+        Err(_) => return Ok(Vec::new()),
     };
 
-    let currency = currency_hint.unwrap_or("USD");
-    let tctx = TemplateContext {
-        symbol,
-        currency,
-        isin: None,
-        mic: None,
-        from,
-        to,
+    let expand_path = |p: &str| {
+        expand_template(p, tctx).map_err(|error| MarketDataError::ValidationFailed {
+            message: error.to_string(),
+        })
     };
-    let expand_path = |p: &str| -> String { expand_template(p, &tctx) };
 
     const MAX_JSON_ROWS: usize = 10_000;
 
-    let price_path = expand_path(&source.price_path);
+    let price_path = expand_path(&source.price_path)?;
     let prices: Vec<serde_json::Value> = match json.clone().path(&price_path) {
         Ok(serde_json::Value::Array(arr)) => arr.into_iter().take(MAX_JSON_ROWS).collect(),
         Ok(val) => vec![val],
-        Err(_) => return Vec::new(),
+        Err(_) => return Ok(Vec::new()),
     };
 
     let dates: Vec<Option<String>> = source
         .date_path
         .as_ref()
-        .and_then(|dp| {
-            let dp = expand_path(dp);
-            json.clone().path(&dp).ok().map(|v| match v {
-                serde_json::Value::Array(arr) => {
-                    arr.into_iter().map(|v| json_val_to_string(&v)).collect()
-                }
-                other => vec![json_val_to_string(&other)],
-            })
+        .map(|dp| {
+            let dp = expand_path(dp)?;
+            Ok::<Vec<Option<String>>, MarketDataError>(
+                json.clone()
+                    .path(&dp)
+                    .ok()
+                    .map(|v| match v {
+                        serde_json::Value::Array(arr) => {
+                            arr.into_iter().map(|v| json_val_to_string(&v)).collect()
+                        }
+                        other => vec![json_val_to_string(&other)],
+                    })
+                    .unwrap_or_default(),
+            )
         })
+        .transpose()?
         .unwrap_or_default();
 
-    let open_path = source.open_path.as_deref().map(expand_path);
-    let high_path = source.high_path.as_deref().map(expand_path);
-    let low_path = source.low_path.as_deref().map(expand_path);
-    let volume_path = source.volume_path.as_deref().map(expand_path);
+    let open_path = source.open_path.as_deref().map(expand_path).transpose()?;
+    let high_path = source.high_path.as_deref().map(expand_path).transpose()?;
+    let low_path = source.low_path.as_deref().map(expand_path).transpose()?;
+    let volume_path = source.volume_path.as_deref().map(expand_path).transpose()?;
     let opens = extract_json_f64_array(&json, open_path.as_deref(), locale);
     let highs = extract_json_f64_array(&json, high_path.as_deref(), locale);
     let lows = extract_json_f64_array(&json, low_path.as_deref(), locale);
@@ -1142,7 +1135,7 @@ fn extract_json_rows(
         source.date_path,
     );
 
-    prices
+    Ok(prices
         .into_iter()
         .enumerate()
         .filter_map(|(i, val)| {
@@ -1160,7 +1153,7 @@ fn extract_json_rows(
                 volume: volumes.get(i).copied().flatten(),
             })
         })
-        .collect()
+        .collect::<Vec<_>>())
 }
 
 fn extract_json_f64_array(
@@ -1220,6 +1213,7 @@ fn extract_json_string(body: &str, path: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::custom_provider::model::HttpMethod;
     use std::borrow::Cow;
     use std::sync::Arc;
     use wealthfolio_market_data::{InstrumentId, ProviderOverrides, QuoteIdentifiers};
@@ -1243,6 +1237,8 @@ mod tests {
             invert: None,
             locale: None,
             headers: None,
+            method: HttpMethod::Get,
+            body: None,
             open_path: None,
             high_path: None,
             low_path: None,
@@ -1411,6 +1407,44 @@ mod tests {
     }
 
     #[test]
+    fn find_sources_includes_body_only_identity_sources() {
+        let mut body_source =
+            source_with_url("body-source", "latest", "https://example.test/quotes");
+        body_source.method = crate::custom_provider::HttpMethod::Post;
+        body_source.body = Some(r#"{"isin":"{ISIN}"}"#.to_string());
+        let repo = Arc::new(MockCustomProviderRepository {
+            providers: vec![crate::custom_provider::CustomProviderWithSources {
+                id: "body-source".to_string(),
+                name: "Body Source".to_string(),
+                description: String::new(),
+                enabled: true,
+                priority: 1,
+                sources: vec![body_source],
+            }],
+        });
+        let provider = CustomScraperProvider::new(repo, Arc::new(MockSecretStore));
+        let context = QuoteContext {
+            instrument: InstrumentId::Equity {
+                ticker: Arc::from("LKPG"),
+                mic: None,
+            },
+            identifiers: QuoteIdentifiers {
+                isin: Some(Cow::Borrowed("SI0031101346")),
+            },
+            overrides: None,
+            currency_hint: Some(Cow::Borrowed("EUR")),
+            preferred_provider: None,
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+
+        let sources = provider.find_sources(&context, "latest").unwrap();
+
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].provider_id, "body-source");
+    }
+
+    #[test]
     fn resolve_symbol_uses_legacy_bond_custom_provider_mapping() {
         let overrides = ProviderOverrides::from_json(&serde_json::json!({
             "CUSTOM:single-point": {
@@ -1444,6 +1478,8 @@ mod tests {
             invert: None,
             locale: None,
             headers: None,
+            method: HttpMethod::Get,
+            body: None,
             open_path: None,
             high_path: None,
             low_path: None,
@@ -1473,29 +1509,22 @@ mod tests {
         source.date_path = Some("$.series.{TO}[*].date".to_string());
         source.open_path = Some("$.series.{TO}[*].open".to_string());
         source.currency_path = Some("$.meta.currencyByTo.{TO}".to_string());
+        let tctx = TemplateContext {
+            symbol: "ABC",
+            currency: "USD",
+            isin: None,
+            mic: None,
+            from: Some("2026-01-01"),
+            to: Some("2026-02-01"),
+        };
 
-        let rows = extract_json_rows(
-            body,
-            &source,
-            "ABC",
-            Some("USD"),
-            None,
-            Some("2026-01-01"),
-            Some("2026-02-01"),
-        );
+        let rows = extract_json_rows(body, &source, &tctx, None).unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].date, Some(ymd(2026, 2, 1)));
         assert_eq!(rows[0].close, 12.5);
         assert_eq!(rows[0].open, Some(12.0));
 
-        let currency = resolve_currency(
-            &source,
-            "ABC",
-            Some("USD"),
-            body,
-            Some("2026-01-01"),
-            Some("2026-02-01"),
-        );
+        let currency = resolve_currency(&source, body, &tctx).unwrap();
         assert_eq!(currency, "CAD");
     }
 
@@ -1507,14 +1536,48 @@ mod tests {
         ]"#;
         let mut source = json_source(r#"$[*]["单位净值"]"#);
         source.date_path = Some(r#"$[*]["净值日期"]"#.to_string());
+        let tctx = TemplateContext {
+            symbol: "001097",
+            currency: "CNY",
+            isin: None,
+            mic: None,
+            from: None,
+            to: None,
+        };
 
-        let rows = extract_json_rows(body, &source, "001097", Some("CNY"), None, None, None);
+        let rows = extract_json_rows(body, &source, &tctx, None).unwrap();
 
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].date, Some(ymd(2026, 7, 10)));
         assert_eq!(rows[0].close, 1.4018);
         assert_eq!(rows[1].date, Some(ymd(2026, 7, 11)));
         assert_eq!(rows[1].close, 1.4026);
+    }
+
+    #[test]
+    fn json_mapping_paths_reuse_request_identity_context() {
+        let body = r#"{
+            "US0378331005": {
+                "XNAS": { "price": 123.45, "currency": "USD" }
+            }
+        }"#;
+        let mut source = json_source("$.{ISIN}.{MIC}.price");
+        source.currency_path = Some("$.{ISIN}.{MIC}.currency".to_string());
+        let tctx = TemplateContext {
+            symbol: "AAPL",
+            currency: "CAD",
+            isin: Some("US0378331005"),
+            mic: Some("XNAS"),
+            from: None,
+            to: None,
+        };
+
+        let rows = extract_json_rows(body, &source, &tctx, None).unwrap();
+        let currency = resolve_currency(&source, body, &tctx).unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].close, 123.45);
+        assert_eq!(currency, "USD");
     }
 
     #[test]

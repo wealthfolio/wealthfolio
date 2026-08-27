@@ -147,6 +147,7 @@ impl RebalanceService {
         price_by_asset: &HashMap<String, Decimal>,
         quantity_by_asset: &HashMap<String, Decimal>,
         whole_shares_only: bool,
+        eligible_asset_ids: Option<&HashSet<String>>,
     ) -> (Vec<AssetCandidate>, Vec<RebalanceWarning>) {
         // Group contributions by asset_id (instrument ID).
         let mut by_asset: HashMap<&str, Vec<&HoldingAllocationContribution>> = HashMap::new();
@@ -161,6 +162,10 @@ impl RebalanceService {
         asset_ids.sort_unstable();
 
         for asset_id in asset_ids {
+            if eligible_asset_ids.is_some_and(|eligible| !eligible.contains(asset_id)) {
+                continue;
+            }
+
             let contribs = &by_asset[asset_id];
             // Skip cash holdings.
             if contribs.iter().all(|c| c.holding_type == HoldingType::Cash) {
@@ -367,6 +372,26 @@ impl RebalanceServiceTrait for RebalanceService {
             ));
         }
 
+        let eligible_asset_ids = if matches!(
+            input.scenario_mode,
+            crate::portfolio::allocation_targets::ScenarioMode::CashFlowOnly
+        ) {
+            match input.eligible_asset_ids.as_ref() {
+                Some(ids) if ids.is_empty() => {
+                    return Err(CoreError::Validation(
+                        crate::errors::ValidationError::InvalidInput(
+                            "eligible_asset_ids must contain at least one asset in cash-flow-only mode"
+                                .to_string(),
+                        ),
+                    ));
+                }
+                Some(ids) => Some(ids.iter().cloned().collect::<HashSet<_>>()),
+                None => None,
+            }
+        } else {
+            None
+        };
+
         // Load profile early — needed for taxonomy_id before cash calculation.
         let profile = self
             .allocation_target_service
@@ -517,6 +542,7 @@ impl RebalanceServiceTrait for RebalanceService {
             &price_by_asset,
             &quantity_by_asset,
             profile.whole_shares_only,
+            eligible_asset_ids.as_ref(),
         );
         classification_warnings.extend(Self::tagged_cash_warnings(
             &profile.taxonomy_id,
@@ -719,6 +745,7 @@ mod tests {
                 pricing_mode: "auto".to_string(),
                 preferred_provider: None,
                 exchange_mic: None,
+                instrument_type: None,
                 classifications: None,
             }),
             asset_kind: None,
@@ -1151,6 +1178,7 @@ mod tests {
             base_currency: "USD".to_string(),
             aggregated_account_id: "agg".to_string(),
             scenario_mode: ScenarioMode::CashFlowOnly,
+            eligible_asset_ids: None,
         }
     }
 
@@ -1184,6 +1212,7 @@ mod tests {
             &price_by_asset,
             &quantity_by_asset,
             false,
+            None,
         );
 
         assert!(warnings.is_empty());
@@ -1216,6 +1245,7 @@ mod tests {
             &price_by_asset,
             &quantity_by_asset,
             false,
+            None,
         );
 
         assert!(warnings.is_empty());
@@ -1530,6 +1560,176 @@ mod tests {
             plan.trades.iter().any(|t| t.category_id == "equity"),
             "should suggest buying equity"
         );
+    }
+
+    #[tokio::test]
+    async fn eligible_asset_ids_limit_cash_flow_buy_candidates_without_changing_drift_inputs() {
+        let total = dec!(10000);
+        let h_vti = make_holding("asset-vti", "VTI", dec!(50), dec!(5000));
+        let h_bnd = make_holding("asset-bnd", "BND", dec!(100), dec!(5000));
+        let h_unclassified = make_holding("asset-unclassified", "XYZ", dec!(10), dec!(1000));
+        let rows = vec![
+            make_drift_row("equity", 5000, 7000, total),
+            make_drift_row("bond", 5000, 3000, total),
+        ];
+        let svc = make_service(
+            make_profile(RebalanceGoal::ExactTarget, false),
+            make_report(rows, total),
+            make_contributions(vec![
+                make_contribution(&h_vti, "equity", dec!(5000)),
+                make_contribution(&h_bnd, "bond", dec!(5000)),
+                make_contribution(&h_unclassified, "__UNKNOWN__", dec!(1000)),
+            ]),
+            vec![
+                make_cash_holding(dec!(200), "USD"),
+                h_vti,
+                h_bnd,
+                h_unclassified,
+            ],
+        );
+
+        let legacy_plan = svc.calculate_plan(make_input(dec!(200))).await.unwrap();
+        let mut full_allowlist_input = make_input(dec!(200));
+        full_allowlist_input.eligible_asset_ids = Some(vec![
+            "asset-vti".to_string(),
+            "asset-bnd".to_string(),
+            "asset-unclassified".to_string(),
+        ]);
+        let full_allowlist_plan = svc.calculate_plan(full_allowlist_input).await.unwrap();
+        assert_eq!(
+            serde_json::to_value(legacy_plan).unwrap(),
+            serde_json::to_value(full_allowlist_plan).unwrap(),
+            "omitting eligibility must preserve the legacy plan",
+        );
+
+        let mut input = make_input(dec!(200));
+        input.eligible_asset_ids = Some(vec![
+            "asset-vti".to_string(),
+            "asset-vti".to_string(),
+            "unknown-asset".to_string(),
+        ]);
+        let plan = svc.calculate_plan(input).await.unwrap();
+
+        assert!(plan.trades.iter().all(|trade| {
+            trade.action != "buy" || trade.asset_id.as_deref() == Some("asset-vti")
+        }));
+        assert!(plan.trades.iter().any(|trade| {
+            trade.action == "buy" && trade.asset_id.as_deref() == Some("asset-vti")
+        }));
+        assert_eq!(
+            plan.trades
+                .iter()
+                .filter(|trade| {
+                    trade.action == "buy" && trade.asset_id.as_deref() == Some("asset-vti")
+                })
+                .count(),
+            1,
+            "duplicate allowlist IDs must not duplicate trades",
+        );
+        assert!(plan
+            .warnings
+            .iter()
+            .all(|warning| warning.kind != RebalanceWarningKind::UnclassifiedAsset));
+        assert_eq!(plan.max_drift_bps_before, 2000);
+    }
+
+    #[tokio::test]
+    async fn eligible_allowlist_without_category_candidate_keeps_no_buy_candidate_warning() {
+        let total = dec!(10000);
+        let holding = make_holding("asset-vti", "VTI", dec!(50), dec!(5000));
+        let svc = make_service(
+            make_profile(RebalanceGoal::ExactTarget, false),
+            make_report(vec![make_drift_row("equity", 5000, 7000, total)], total),
+            make_contributions(vec![make_contribution(&holding, "equity", dec!(5000))]),
+            vec![make_cash_holding(dec!(500), "USD"), holding],
+        );
+        let mut input = make_input(dec!(500));
+        input.eligible_asset_ids = Some(vec!["asset-not-held".to_string()]);
+
+        let plan = svc.calculate_plan(input).await.unwrap();
+
+        assert!(plan
+            .warnings
+            .iter()
+            .any(|warning| warning.kind == RebalanceWarningKind::NoBuyCandidate));
+    }
+
+    #[tokio::test]
+    async fn empty_cash_flow_allowlist_is_rejected() {
+        let mut input = make_input(dec!(0));
+        input.eligible_asset_ids = Some(vec![]);
+        let err = make_service(
+            make_profile(RebalanceGoal::ExactTarget, false),
+            make_report(vec![], Decimal::ZERO),
+            make_contributions(vec![]),
+            vec![],
+        )
+        .calculate_plan(input)
+        .await
+        .unwrap_err();
+
+        assert!(err.to_string().contains("eligible_asset_ids"));
+    }
+
+    #[tokio::test]
+    async fn allowlist_is_ignored_for_sell_to_rebalance() {
+        let total = dec!(10000);
+        let h_vti = make_holding("asset-vti", "VTI", dec!(40), dec!(4000));
+        let h_bnd = make_holding("asset-bnd", "BND", dec!(60), dec!(6000));
+        let svc = make_service(
+            make_sell_profile(RebalanceGoal::ExactTarget),
+            make_report(
+                vec![
+                    make_drift_row("equity", 4000, 7000, total),
+                    make_drift_row("bond", 6000, 3000, total),
+                ],
+                total,
+            ),
+            make_contributions(vec![
+                make_contribution(&h_vti, "equity", dec!(4000)),
+                make_contribution(&h_bnd, "bond", dec!(6000)),
+            ]),
+            vec![make_cash_holding(dec!(0), "USD"), h_vti, h_bnd],
+        );
+
+        let mut input = make_input_with_mode(dec!(0), ScenarioMode::SellToRebalance);
+        input.eligible_asset_ids = Some(vec!["asset-vti".to_string()]);
+        let plan = svc.calculate_plan(input).await.unwrap();
+
+        assert!(plan
+            .trades
+            .iter()
+            .any(|trade| trade.action == "sell" && trade.asset_id.as_deref() == Some("asset-bnd")));
+    }
+
+    #[tokio::test]
+    async fn allowlist_is_ignored_for_hybrid_mode() {
+        let total = dec!(10000);
+        let h_vti = make_holding("asset-vti", "VTI", dec!(40), dec!(4000));
+        let h_bnd = make_holding("asset-bnd", "BND", dec!(60), dec!(6000));
+        let svc = make_service(
+            make_sell_profile(RebalanceGoal::ExactTarget),
+            make_report(
+                vec![
+                    make_drift_row("equity", 4000, 7000, total),
+                    make_drift_row("bond", 6000, 3000, total),
+                ],
+                total,
+            ),
+            make_contributions(vec![
+                make_contribution(&h_vti, "equity", dec!(4000)),
+                make_contribution(&h_bnd, "bond", dec!(6000)),
+            ]),
+            vec![make_cash_holding(dec!(500), "USD"), h_vti, h_bnd],
+        );
+
+        let mut input = make_input_with_mode(dec!(500), ScenarioMode::Hybrid);
+        input.eligible_asset_ids = Some(vec!["asset-bnd".to_string()]);
+        let plan = svc.calculate_plan(input).await.unwrap();
+
+        assert!(plan.trades.iter().any(|trade| {
+            trade.action == "buy" && trade.asset_id.as_deref() == Some("asset-vti")
+        }));
     }
 
     #[tokio::test]

@@ -117,8 +117,12 @@ export function CategoryDetailSheet({
                     <CompactAmount value={Math.abs(change.amount)} currency={currency} />
                   </span>
                   <span>
-                    {sign}
-                    {formatChangePercent(change.percent, formatting)}
+                    {change.percent !== null && sign}
+                    {formatChangePercent(
+                      change,
+                      t("insights:networth.breakdown_table.new"),
+                      formatting,
+                    )}
                   </span>
                   <span className="text-muted-foreground font-normal">
                     {t("insights:networth.category_sheet.over_period", { period: periodLabel })}

@@ -459,6 +459,7 @@ mod tests {
                 quote_mode: "MARKET".to_string(),
                 isin: Some("US0378331005".to_string()),
                 exchange_mic: Some("XNAS".to_string()),
+                instrument_type: None,
                 classifications: None,
             }),
             asset_kind: Some(AssetKind::Investment),

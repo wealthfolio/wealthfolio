@@ -1690,6 +1690,7 @@ pub async fn get_snapshot_by_date(
             pricing_mode: asset.quote_mode.as_db_str().to_string(),
             preferred_provider: asset.preferred_provider(),
             exchange_mic: asset.instrument_exchange_mic.clone(),
+            instrument_type: asset.instrument_type.clone(),
             classifications: None,
         };
 

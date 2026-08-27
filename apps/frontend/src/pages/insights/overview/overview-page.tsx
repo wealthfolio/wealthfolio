@@ -351,6 +351,7 @@ export function OverviewPage({
           profile={effectiveTarget ?? null}
           driftReport={driftReport ?? null}
           accountScope={accountFilter}
+          holdings={holdings}
           availableCash={availableCash}
           sourceVersion={rebalanceSourceVersion}
           isSourceLoading={holdingsLoading || driftLoading || !driftReport}

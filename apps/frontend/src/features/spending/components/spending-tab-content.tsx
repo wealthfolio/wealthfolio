@@ -1076,7 +1076,6 @@ export default function SpendingTabContent() {
                   activities={activities}
                   accountTypeById={accountTypeById}
                   categoriesMeta={categoriesMeta}
-                  currency={currency}
                   uncategorizedCount={uncategorizedCount}
                 />
               </div>

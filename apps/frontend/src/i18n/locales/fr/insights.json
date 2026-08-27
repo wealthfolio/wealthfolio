@@ -92,6 +92,7 @@
       "category": "Catégorie",
       "value": "Valeur",
       "delta_period": "Δ {{period}}",
+      "new": "Nouveau",
       "liabilities": "Passifs",
       "net_worth": "Valeur nette"
     },

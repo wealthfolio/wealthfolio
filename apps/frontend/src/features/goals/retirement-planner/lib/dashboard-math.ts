@@ -22,6 +22,44 @@ export function boundedInflationFactor(rate: number, years: number) {
   return Math.max(0.01, Math.pow(1 + rate, Math.max(0, years)));
 }
 
+/** Mirror of the engine's `net_annual_return`: the fee comes off the assumption. */
+export function netAnnualReturn(grossReturn: number, annualFeeRate: number) {
+  return Math.max(-0.99, grossReturn - annualFeeRate);
+}
+
+/**
+ * Mirror of the engine's `plan_accumulation_return`, and the rate a fund with no
+ * `accumulationReturn` of its own grows at. The plan's stated return is gross of
+ * the investment fee everywhere the engine consumes it.
+ */
+export function planAccumulationReturn(plan: RetirementPlan) {
+  return netAnnualReturn(
+    plan.investment.preRetirementAnnualReturn,
+    plan.investment.annualInvestmentFeeRate,
+  );
+}
+
+/** Mirror of the engine's `plan_retirement_return`. */
+export function planRetirementReturn(plan: RetirementPlan) {
+  return netAnnualReturn(
+    plan.investment.retirementAnnualReturn,
+    plan.investment.annualInvestmentFeeRate,
+  );
+}
+
+/**
+ * The return a drawdown fund's remaining balance earns during its payout phase, and
+ * the rate a fund with no `postPayoutReturn` of its own draws against. Showing the
+ * gross assumption instead would make touching the control save a higher number than
+ * the projection had been using.
+ */
+export function payoutPhaseReturn(
+  stream: Pick<RetirementIncomeStream, "postPayoutReturn">,
+  plan: RetirementPlan,
+) {
+  return stream.postPayoutReturn ?? planRetirementReturn(plan);
+}
+
 export function projectedAnnualExpenseNominalAtAge(plan: RetirementPlan, age: number) {
   const yearsFromNow = Math.max(0, age - plan.personal.currentAge);
   return activeExpenseItems(plan.expenses, age).reduce((sum, item) => {
@@ -55,7 +93,7 @@ function projectedDcMonthlyPayout(
       ? monthly * 12
       : (monthly * (Math.pow(monthlyGrowth, 12) - 1)) / monthlyReturn;
   const fvAnnuityAtStop =
-    r > 1e-9
+    Math.abs(r) > 1e-9
       ? (annualContributionEndValue * (Math.pow(1 + r, contribYears) - 1)) / r
       : monthly * 12 * contribYears;
   const fvAnnuity = fvAnnuityAtStop * Math.pow(1 + r, growthOnlyYears);
@@ -72,22 +110,27 @@ export function projectedAnnualIncomeNominalAtAge(
   return plan.incomeStreams.reduce((sum, stream) => {
     if (age < stream.startAge) return sum;
 
+    const growthYears =
+      stream.streamType === "dc" && stream.payoutMode === "drawdown"
+        ? Math.max(0, age - Math.max(stream.startAge, plan.personal.currentAge))
+        : yearsFromNow;
+
     const baseMonthly =
       stream.streamType === "dc"
         ? projectedDcMonthlyPayout(
             stream,
             plan.personal.currentAge,
             retirementAge,
-            plan.investment.preRetirementAnnualReturn,
+            planAccumulationReturn(plan),
           )
         : (stream.monthlyAmount ?? 0);
     const annual = baseMonthly * 12;
 
     if (stream.annualGrowthRate !== undefined) {
-      return sum + annual * Math.pow(1 + stream.annualGrowthRate, yearsFromNow);
+      return sum + annual * Math.pow(1 + stream.annualGrowthRate, growthYears);
     }
     if (stream.adjustForInflation) {
-      return sum + annual * Math.pow(1 + plan.investment.inflationRate, yearsFromNow);
+      return sum + annual * Math.pow(1 + plan.investment.inflationRate, growthYears);
     }
     return sum + annual;
   }, 0);
@@ -99,7 +142,7 @@ export function incomeStreamMonthlyAmount(plan: RetirementPlan, stream: Retireme
       stream,
       plan.personal.currentAge,
       plan.personal.targetRetirementAge,
-      plan.investment.preRetirementAnnualReturn,
+      planAccumulationReturn(plan),
     );
   }
   return stream.monthlyAmount ?? 0;
@@ -231,6 +274,7 @@ interface RetirementOverviewLike {
   successStatus?: string;
   failureAge?: number | null;
   spendingShortfallAge?: number | null;
+  incomeStreamExhaustion?: { label: string; exhaustedAge: number }[] | null;
 }
 
 interface DeriveRetirementReadinessInput {
@@ -249,10 +293,23 @@ export interface RetirementReadiness {
     | "unreachable-target"
     | "spending-gap"
     | "portfolio-depletion"
+    | "fund-exhaustion"
     | "on-track"
     | "late"
     | "not-reachable";
   body: string | null;
+}
+
+/** The first drawdown fund to run out, which is the one worth naming. */
+function earliestFundExhaustion(overview: RetirementOverviewLike) {
+  return (overview.incomeStreamExhaustion ?? []).reduce<{
+    label: string;
+    exhaustedAge: number;
+  } | null>(
+    (earliest, entry) =>
+      earliest && earliest.exhaustedAge <= entry.exhaustedAge ? earliest : entry,
+    null,
+  );
 }
 
 export function deriveRetirementReadiness({
@@ -288,6 +345,15 @@ export function deriveRetirementReadiness({
       tone: "watch",
       problem: "spending-gap",
       body: `Projected spending gap starts at age ${overview.spendingShortfallAge}. Increase contributions, retire later, reduce retirement spending, or add retirement income.`,
+    };
+  }
+
+  const exhaustion = earliestFundExhaustion(overview);
+  if (exhaustion) {
+    return {
+      tone: "watch",
+      problem: "fund-exhaustion",
+      body: `${exhaustion.label} runs out at age ${exhaustion.exhaustedAge} and pays nothing after that. Lower its payout rate, switch it to an annuity, or plan for the portfolio to cover the gap.`,
     };
   }
 

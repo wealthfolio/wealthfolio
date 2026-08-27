@@ -66,6 +66,8 @@ fn parse_sources(config_json: Option<&str>, provider_code: &str) -> Vec<CustomPr
             invert: s.invert,
             locale: s.locale,
             headers: s.headers,
+            method: s.method,
+            body: s.body,
             open_path: s.open_path,
             high_path: s.high_path,
             low_path: s.low_path,

@@ -134,29 +134,70 @@ export function seriesFor(history: ParsedHistoryPoint[], key: string): number[] 
 
 export interface Change {
   amount: number;
-  percent: number;
+  /** Ratio (0.145 = 14.5%), or null when the range starts with no usable baseline. */
+  percent: number | null;
+  /**
+   * The row had no usable baseline but ends holding a real value, so it was added
+   * during the range. Derived from the raw series rather than `amount`, because
+   * liability amounts are sign-inverted and a new debt yields a negative amount.
+   */
+  isNew: boolean;
 }
+
+/**
+ * A starting value below this counts as "no baseline" rather than a divisor. Over
+ * long ranges the first point is often zero (the category was added later) or
+ * rounding residue forward-filled from years ago, and dividing by either produces
+ * percentages in the millions.
+ */
+const BASELINE_FLOOR = 1;
+
+/** Past this ratio a percentage stops being readable, so it renders as a multiple. */
+const MULTIPLE_THRESHOLD = 10;
 
 /**
  * Change over the range from a value series. Liabilities are stored as positive
  * magnitudes, so a reduction is expressed as a positive (good) change.
  */
 export function deriveChange(series: number[], isLiability: boolean): Change {
-  if (series.length < 2) return { amount: 0, percent: 0 };
+  if (series.length < 2) return { amount: 0, percent: 0, isNew: false };
   const first = series[0];
   const last = series[series.length - 1];
   const amount = isLiability ? first - last : last - first;
   const base = Math.abs(first);
-  return { amount, percent: base > 0 ? amount / base : 0 };
+  const hasBaseline = base >= BASELINE_FLOOR;
+  return {
+    amount,
+    percent: hasBaseline ? amount / base : null,
+    isNew: !hasBaseline && Math.abs(last) >= BASELINE_FLOOR,
+  };
 }
 
-/** Percent is a ratio (0.145 = 14.5%); drop decimals for very large swings. */
+/** True when the ratio is small enough to read as a plain percentage. */
+export function isPlainPercent(percent: number | null): percent is number {
+  return percent !== null && Math.abs(percent) < MULTIPLE_THRESHOLD;
+}
+
+/**
+ * Display string for a change: a percentage, a multiple once the ratio outgrows
+ * MULTIPLE_THRESHOLD (3,347,531% reads as "33K×"), or `newLabel` for a row that
+ * grew from nothing.
+ */
 export function formatChangePercent(
-  percent: number,
-  formatting: Pick<FormattingApi, "formatPercent">,
+  change: Change,
+  newLabel: string,
+  formatting: Pick<FormattingApi, "formatPercent" | "formatDecimal">,
 ): string {
-  const abs = Math.abs(percent);
-  return formatting.formatPercent(abs, { digits: abs >= 10 ? 0 : 1, signDisplay: "never" });
+  if (change.percent === null) return change.isNew ? newLabel : "—";
+  const abs = Math.abs(change.percent);
+  if (abs >= MULTIPLE_THRESHOLD) {
+    const multiple = formatting.formatDecimal(1 + abs, {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    });
+    return `${multiple}×`;
+  }
+  return formatting.formatPercent(abs, { digits: abs >= 1 ? 0 : 1, signDisplay: "never" });
 }
 
 const MS_PER_DAY = 86_400_000;

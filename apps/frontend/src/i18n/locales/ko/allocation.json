@@ -107,6 +107,29 @@
     "modeVerbHybrid": "현금 및 매도",
     "modeVerbCashFlow": "현금흐름 매수"
   },
+  "eligibleHoldings": {
+    "label": "매수 가능 보유 종목",
+    "triggerLabel": "{{label}}: {{summary}}",
+    "rowLabel": "{{symbol}} {{name}} {{details}} — {{state}}",
+    "selected": "선택됨",
+    "notSelected": "선택되지 않음",
+    "allSelected": "모든 보유 종목 선택됨",
+    "selectedCount": "{{total}}개 중 {{selected}}개 선택됨",
+    "searchPlaceholder": "보유 종목 검색",
+    "noMatches": "일치하는 보유 종목이 없습니다.",
+    "selectAll": "모두 선택",
+    "clear": "지우기",
+    "emptyGuidance": "계획을 계산하려면 하나 이상의 보유 종목을 선택하세요.",
+    "groups": {
+      "equity": "주식",
+      "bond": "채권",
+      "crypto": "암호화폐",
+      "option": "옵션",
+      "metal": "금속",
+      "fx": "외환",
+      "other": "기타"
+    }
+  },
   "narrative": {
     "liftAndShrink": "{{verb}}: {{lifted}}을(를) 목표로 끌어올리고, {{shrank}}의 초과 비중을 {{before}}에서 {{after}}로 줄입니다.",
     "lift": "{{verb}}: {{lifted}}을(를) 목표로 끌어올립니다.",

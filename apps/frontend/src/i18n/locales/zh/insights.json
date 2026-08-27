@@ -91,6 +91,7 @@
       "category": "类别",
       "value": "价值",
       "delta_period": "Δ {{period}}",
+      "new": "新增",
       "liabilities": "负债",
       "net_worth": "净资产"
     },

@@ -70,6 +70,7 @@ export function GoalLeverRow({
   const [moneyInputFocused, setMoneyInputFocused] = useState(false);
   const skipNextMoneyCommitRef = useRef(false);
   const [draftValue, setDraftValue] = useState<string | null>(null);
+  const numberDraftDirtyRef = useRef(false);
   const displayValue = draftValue ?? format(value);
 
   const commitMoneyDraftValue = () => {
@@ -87,13 +88,19 @@ export function GoalLeverRow({
   };
 
   const commitDraftValue = () => {
+    if (!numberDraftDirtyRef.current) {
+      setDraftValue(null);
+      return;
+    }
+    numberDraftDirtyRef.current = false;
+
     const raw = displayValue.trim();
     if (!raw) {
       setDraftValue(null);
       return;
     }
 
-    const parsed = parseFloat(raw.replace(/,/g, ""));
+    const parsed = parseFloat(raw.replace(",", "."));
     if (Number.isNaN(parsed)) {
       setDraftValue(null);
       return;
@@ -150,11 +157,13 @@ export function GoalLeverRow({
               inputMode={suffix === "%" ? "decimal" : "numeric"}
               value={displayValue}
               onFocus={() => {
+                numberDraftDirtyRef.current = false;
                 setDraftValue(format(value));
               }}
               onChange={(event) => {
                 const next = event.target.value;
                 if (/^-?\d*([.,]\d*)?$/.test(next)) {
+                  numberDraftDirtyRef.current = true;
                   setDraftValue(next);
                 }
               }}
@@ -166,6 +175,7 @@ export function GoalLeverRow({
                   event.currentTarget.blur();
                 }
                 if (event.key === "Escape") {
+                  numberDraftDirtyRef.current = false;
                   setDraftValue(null);
                 }
               }}
