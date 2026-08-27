@@ -3744,15 +3744,25 @@ impl PerformanceService {
         // IRR/value_return, this is not a "selected-period" return. Requires a
         // fully known cost basis: a position with unrecorded lots would
         // otherwise understate cost_basis and silently misstate the result.
+        //
+        // Always computed in account currency, independent of `flow_basis`:
+        // it must match the Investments/Cost Basis figures the account page
+        // displays alongside it (also account currency). Using the base-
+        // currency fields here would mix in FX drift between when the cost
+        // basis was accumulated and now, producing a different number than
+        // what's shown on screen for accounts whose currency isn't the
+        // portfolio's base currency.
         let return_to_break_even = if !Self::holdings_basis_is_complete(end_point) {
             None
         } else {
-            let end_market_value = Self::return_investment_market_value(end_point, flow_basis);
+            let end_market_value =
+                Self::return_investment_market_value(end_point, ExternalFlowBasis::AccountCurrency);
             if end_market_value == Decimal::ZERO {
                 None
             } else {
                 Some(
-                    (Self::return_cost_basis(end_point, flow_basis) / end_market_value
+                    (Self::return_cost_basis(end_point, ExternalFlowBasis::AccountCurrency)
+                        / end_market_value
                         - Decimal::ONE)
                         .round_dp(DECIMAL_PRECISION),
                 )
@@ -8624,6 +8634,39 @@ mod tests {
         assert_eq!(
             all_time.returns.return_to_break_even,
             dated.returns.return_to_break_even
+        );
+    }
+
+    /// Must match the account-currency Investments/Cost Basis figures shown
+    /// alongside it on the account page, not a base-currency conversion —
+    /// otherwise FX drift between when the cost basis was accumulated and
+    /// now produces a different number than what's on screen for accounts
+    /// whose currency isn't the portfolio's base currency.
+    #[test]
+    fn perf_return_to_break_even_ignores_base_currency_fx_drift() {
+        let mut history = fixture_small_seed_then_large_deposit();
+        let end = history.last_mut().unwrap();
+        end.investment_market_value_base = dec!(2000.00);
+        end.cost_basis_base = dec!(1600.00);
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("should compute");
+
+        // Account-currency fields (1809.16 / 1820), not the base-currency
+        // ones set above (which would give a very different +25% figure).
+        let expected = (dec!(1820) / dec!(1809.16) - Decimal::ONE).round_dp(DECIMAL_PRECISION);
+        assert_eq!(
+            result
+                .returns
+                .return_to_break_even
+                .unwrap()
+                .round_dp(DECIMAL_PRECISION),
+            expected
         );
     }
 
