@@ -1,6 +1,5 @@
 import {
   HOLDINGS_MODE_MAX_DRAWDOWN_INFO,
-  HOLDINGS_MODE_PROFIT_LOSS_INFO,
   HOLDINGS_MODE_VOLATILITY_INFO,
   IRR_RETURN_INFO,
   MAX_DRAWDOWN_INFO,
@@ -31,8 +30,6 @@ export interface PerformanceGridProps {
   className?: string;
   /** If true, shows holdings-mode return cards instead of transaction return cards. */
   isHoldingsMode?: boolean;
-  profitLossPercent?: number | null;
-  breakEvenReturn?: number | null;
 }
 
 export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
@@ -41,8 +38,6 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
   performanceError,
   className,
   isHoldingsMode = false,
-  profitLossPercent,
-  breakEvenReturn,
 }) => {
   const { t } = useTranslation();
   if (performanceError) {
@@ -65,7 +60,7 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
         <Card className="border-none p-0 shadow-none">
           <CardContent className="p-0">
             <div className="grid grid-cols-2 gap-3">
-              {Array.from({ length: isHoldingsMode ? 6 : 4 }, (_, index) => (
+              {Array.from({ length: isHoldingsMode ? 4 : 5 }, (_, index) => (
                 <div
                   key={index}
                   className="border-muted/30 bg-muted/30 flex min-h-16 flex-col items-center justify-center space-y-1 rounded-md border p-2.5"
@@ -102,6 +97,7 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
   const volatility = performance.risk.volatility ?? undefined;
   const maxDrawdown = performance.risk.maxDrawdown ?? undefined;
   const unavailableReason = performance.dataQuality.notApplicableReasons?.[0];
+  const breakEvenReturn = performance.returns.returnToBreakEven ?? undefined;
 
   // For HOLDINGS mode accounts:
   // - TWR/IRR are NOT available (require cash flow tracking)
@@ -200,14 +196,6 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
               value={maxDrawdown}
               emptyReason={unavailableReason}
               infoText={MAX_DRAWDOWN_INFO}
-              isPercentage={true}
-              className="border-muted/30 bg-muted/30 min-h-16 rounded-md border p-2.5"
-            />
-            <MetricDisplay
-              label={t("account:metric.profit_loss_percent")}
-              value={profitLossPercent ?? undefined}
-              emptyReason={unavailableReason}
-              infoText={HOLDINGS_MODE_PROFIT_LOSS_INFO}
               isPercentage={true}
               className="border-muted/30 bg-muted/30 min-h-16 rounded-md border p-2.5"
             />

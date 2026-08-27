@@ -149,7 +149,6 @@
     "irr": "IRR",
     "cumulative_twr": "Cumulative TWR",
     "period_irr": "Period IRR",
-    "profit_loss_percent": "Profit/Loss %",
     "return_to_break_even": "Return to Break-Even",
     "twr_hover_hint": " Hover the value to see cumulative TWR.",
     "irr_hover_hint": " Hover the value to see the selected-period IRR."

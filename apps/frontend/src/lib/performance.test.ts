@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   performancePeriodPnl,
-  performanceReturnToBreakEven,
   performanceSummaryReturn,
   shouldDisplayAnnualizedPerformanceReturn,
   simpleReturnFromNetContribution,
@@ -167,56 +166,5 @@ describe("shouldDisplayAnnualizedPerformanceReturn", () => {
     result.period = { startDate: "2026-01-01", endDate: "2026-06-30" };
 
     expect(shouldDisplayAnnualizedPerformanceReturn(result)).toBe(false);
-  });
-});
-
-describe("performanceReturnToBreakEven", () => {
-  it("returns the positive gain still needed when currently at a loss", () => {
-    const result = baseResult();
-    result.summary!.percent = -0.2;
-    result.summary!.percentStatus = "complete";
-    expect(performanceReturnToBreakEven(result)).toBeCloseTo(0.25, 6);
-  });
-
-  it("returns 1.0 (needs to double) when down 50%", () => {
-    const result = baseResult();
-    result.summary!.percent = -0.5;
-    result.summary!.percentStatus = "complete";
-    expect(performanceReturnToBreakEven(result)).toBeCloseTo(1.0, 6);
-  });
-
-  it("returns the negative decline that would erase the gain when currently at a profit", () => {
-    const result = baseResult();
-    result.summary!.percent = 0.25;
-    result.summary!.percentStatus = "complete";
-    expect(performanceReturnToBreakEven(result)).toBeCloseTo(-0.2, 6);
-  });
-
-  it("returns -0.5 when the value has doubled (+100%)", () => {
-    const result = baseResult();
-    result.summary!.percent = 1.0;
-    result.summary!.percentStatus = "complete";
-    expect(performanceReturnToBreakEven(result)).toBeCloseTo(-0.5, 6);
-  });
-
-  it("returns 0 when already exactly at break-even", () => {
-    const result = baseResult();
-    result.summary!.percent = 0;
-    result.summary!.percentStatus = "complete";
-    expect(performanceReturnToBreakEven(result)).toBe(0);
-  });
-
-  it("returns null for a total loss (-100%), where the calculation divides by zero", () => {
-    const result = baseResult();
-    result.summary!.percent = -1;
-    result.summary!.percentStatus = "complete";
-    expect(performanceReturnToBreakEven(result)).toBeNull();
-  });
-
-  it("returns null when summary percent is unavailable", () => {
-    const result = baseResult();
-    result.summary!.percent = -0.2;
-    result.summary!.percentStatus = "unavailable";
-    expect(performanceReturnToBreakEven(result)).toBeNull();
   });
 });

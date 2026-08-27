@@ -149,7 +149,6 @@
     "irr": "IRR",
     "cumulative_twr": "累積TWR",
     "period_irr": "期間IRR",
-    "profit_loss_percent": "損益率",
     "return_to_break_even": "損益分岐点までのリターン",
     "twr_hover_hint": " 数値にカーソルを合わせると累積TWRを表示します。",
     "irr_hover_hint": " 数値にカーソルを合わせると選択期間のIRRを表示します。"

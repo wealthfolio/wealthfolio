@@ -60,37 +60,3 @@ export function shouldDisplayAnnualizedPerformanceReturn(
 
   return (end - start) / MS_PER_DAY >= ANNUALIZED_DISPLAY_MIN_DAYS;
 }
-
-export function unrealizedPnlPercent(
-  unrealizedPnl: number | null | undefined,
-  costBasis: number | null | undefined,
-): number | null {
-  if (
-    unrealizedPnl == null ||
-    costBasis == null ||
-    !Number.isFinite(unrealizedPnl) ||
-    !Number.isFinite(costBasis) ||
-    costBasis === 0
-  ) {
-    return null;
-  }
-
-  return unrealizedPnl / costBasis;
-}
-
-export function returnToBreakEven(
-  currentValue: number | null | undefined,
-  costBasis: number | null | undefined,
-): number | null {
-  if (
-    currentValue == null ||
-    costBasis == null ||
-    !Number.isFinite(currentValue) ||
-    !Number.isFinite(costBasis) ||
-    currentValue === 0
-  ) {
-    return null;
-  }
-
-  return costBasis / currentValue - 1;
-}

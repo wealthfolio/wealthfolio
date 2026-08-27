@@ -1226,6 +1226,8 @@ export interface PerformanceReturns {
   annualizedIrr?: number | null;
   valueReturn?: number | null;
   annualizedValueReturn?: number | null;
+  /** Change in value needed to bring the account back to a 0% return against its current cost basis. */
+  returnToBreakEven?: number | null;
 }
 
 export interface PerformanceAttribution {
