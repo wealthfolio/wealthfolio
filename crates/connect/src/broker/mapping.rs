@@ -286,6 +286,29 @@ fn is_broker_bond(code: Option<&str>) -> bool {
     )
 }
 
+/// Infers bond vs equity from amount / (quantity * price): equities are
+/// ~1, percent-of-par bonds are ~0.01 -- 100x apart, so robust to rounding
+/// drift. Returns false when any input is missing or zero (e.g. a
+/// zero-price bond redemption), since that shape is indistinguishable from
+/// a fixed-NAV fund trade.
+fn infers_bond_from_amount_ratio(
+    quantity: Option<Decimal>,
+    unit_price: Option<Decimal>,
+    amount: Option<Decimal>,
+) -> bool {
+    let (Some(quantity), Some(unit_price), Some(amount)) = (quantity, unit_price, amount) else {
+        return false;
+    };
+    if quantity.is_zero() || unit_price.is_zero() || amount.is_zero() {
+        return false;
+    }
+    let naive_equity_amount = quantity * unit_price;
+    let ratio = amount / naive_equity_amount;
+    // Percent-of-par band: amount is roughly 0.5%-2% of the naive equity
+    // value (e.g. a bond price of 98.35 quoted per $100 face, not $98.35/share).
+    ratio >= Decimal::new(5, 3) && ratio <= Decimal::new(2, 2)
+}
+
 /// The instrument identity a broker payload names: its ticker and its venue.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedBrokerSymbol {
@@ -473,7 +496,25 @@ pub fn map_broker_activity(
     let symbol_type_ref = symbol_ref.and_then(|s| s.symbol_type.as_ref());
     let symbol_type_code = symbol_type_ref.and_then(|t| t.code.as_deref());
     let is_crypto = is_broker_crypto(symbol_type_code);
-    let is_bond = is_broker_bond(symbol_type_code);
+    // Options have their own pricing mechanics (contract multiplier), so
+    // they are excluded from the ratio check the same way is_broker_bond
+    // exclusions work -- this only needs to know whether an option leg is
+    // present, not the fully-resolved option_symbol computed further below.
+    let is_option_leg = option_leg_type.is_some()
+        || activity
+            .option_symbol
+            .as_ref()
+            .and_then(|s| s.ticker.as_deref())
+            .is_some_and(|t| !t.trim().is_empty());
+    let is_bond = is_broker_bond(symbol_type_code)
+        || (symbol_type_code.map(str::trim).unwrap_or("").is_empty()
+            && !is_option_leg
+            && !is_crypto
+            && infers_bond_from_amount_ratio(
+                activity.units.and_then(Decimal::from_f64).map(|d| d.abs()),
+                activity.price.and_then(Decimal::from_f64).map(|d| d.abs()),
+                activity.amount.and_then(Decimal::from_f64).map(|d| d.abs()),
+            ));
 
     // Ticker and venue come from the same normalization the holdings path uses, so
     // one instrument cannot land under two asset identities depending on which
@@ -809,6 +850,81 @@ mod tests {
         assert_eq!(mapped.amount.unwrap().round_dp(4), decimal("997.6000"));
         assert_eq!(mapped.fee.unwrap().round_dp(4), decimal("4.9000"));
         assert_eq!(mapped.tax, None);
+    }
+
+    #[test]
+    fn test_map_broker_activity_detects_bond_via_amount_ratio_when_type_code_missing() {
+        // Some institutions send no symbol_type_code at all for fixed-income
+        // securities. Without this fallback, this would be treated as a
+        // plain equity trade and its percent-of-par bond price would get
+        // multiplied straight into the amount. Numbers here are synthetic.
+        let activity = AccountUniversalActivity {
+            id: Some("act-bond-buy".to_string()),
+            activity_type: Some("BUY".to_string()),
+            symbol: Some(broker_symbol("ZZZTEST99", "")),
+            units: Some(1000.0),
+            price: Some(95.5),
+            amount: Some(955.0),
+            ..Default::default()
+        };
+
+        let mapped = map_test_activity(&activity);
+
+        let asset = mapped.asset.expect("bond activity should produce an asset");
+        assert_eq!(asset.kind.as_deref(), Some("BOND"));
+        assert_eq!(asset.instrument_type.as_deref(), Some("BOND"));
+        assert_eq!(mapped.amount.unwrap().round_dp(2), decimal("955.00"));
+        // The amount/quantity/price relationship directly confirms the
+        // pricing convention used on this trade -- unlike a heuristic
+        // guess from symbol formatting, so no review flag is needed.
+        assert_eq!(mapped.needs_review, Some(false));
+    }
+
+    #[test]
+    fn test_map_broker_activity_amount_ratio_ignores_equity_shaped_trade() {
+        // amount ~= quantity * price (ratio ~1) is the equity shape, not
+        // the bond shape (ratio ~0.01) -- must not be misdetected as a bond
+        // just because the type code happens to be missing.
+        let activity = AccountUniversalActivity {
+            id: Some("act-equity-buy".to_string()),
+            activity_type: Some("BUY".to_string()),
+            symbol: Some(broker_symbol("ZZZTEST00", "")),
+            units: Some(10.0),
+            price: Some(50.0),
+            amount: Some(500.0),
+            ..Default::default()
+        };
+
+        let mapped = map_test_activity(&activity);
+
+        let asset = mapped
+            .asset
+            .expect("equity activity should produce an asset");
+        assert_ne!(asset.instrument_type.as_deref(), Some("BOND"));
+    }
+
+    #[test]
+    fn test_map_broker_activity_amount_ratio_leaves_zero_price_undetected() {
+        // A bond redeemed at maturity typically carries no market price, so
+        // quantity == amount with price == 0 -- indistinguishable from a
+        // fixed-NAV fund trade shape. Left as equity rather than guessed.
+        let activity = AccountUniversalActivity {
+            id: Some("act-redemption".to_string()),
+            activity_type: Some("SELL".to_string()),
+            symbol: Some(broker_symbol("ZZZTEST99", "")),
+            units: Some(1000.0),
+            price: Some(0.0),
+            amount: Some(1000.0),
+            ..Default::default()
+        };
+
+        let mapped = map_test_activity(&activity);
+
+        let asset = mapped.asset.expect("activity should produce an asset");
+        assert_ne!(asset.instrument_type.as_deref(), Some("BOND"));
+        // Amount must stay intact regardless of the classification: a
+        // price of 0 never triggers the equity-recompute path.
+        assert_eq!(mapped.amount.unwrap().round_dp(2), decimal("1000.00"));
     }
 
     #[test]
