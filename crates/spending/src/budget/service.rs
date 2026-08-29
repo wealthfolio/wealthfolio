@@ -9,7 +9,7 @@ use uuid::Uuid;
 use wealthfolio_core::accounts::{
     account_supports_purpose, AccountPurpose, AccountRepositoryTrait,
 };
-use wealthfolio_core::activities::ActivityRepositoryTrait;
+use wealthfolio_core::activities::{Activity, ActivityRepositoryTrait};
 use wealthfolio_core::taxonomies::{Category, TaxonomyServiceTrait};
 
 use super::model::{
@@ -23,7 +23,10 @@ use crate::activity_allocations::{
     allocations_for_taxonomy, group_assignments, group_splits, SplitsByActivity,
 };
 use crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait;
-use crate::activity_classification::{activity_abs_amount, classify_activity, decimal_to_f64};
+use crate::activity_classification::{
+    activity_abs_amount, classify_activity_for_aggregation, decimal_to_f64,
+    within_spending_transfer_groups,
+};
 use crate::activity_splits::ActivitySplitRepositoryTrait;
 use crate::error::SpendingError;
 use crate::settings::SpendingSettingsService;
@@ -243,10 +246,13 @@ impl BudgetService {
 
         let spending_categories = self.taxonomy_categories(SPENDING_TAXONOMY)?;
         let income_categories = self.taxonomy_categories(INCOME_TAXONOMY)?;
+        let savings_categories = self.taxonomy_categories(SAVINGS_TAXONOMY)?;
         let spending_category_meta = category_meta(&spending_categories);
         let income_meta = category_meta(&income_categories);
+        let savings_meta = category_meta(&savings_categories);
         let top_spending_categories = top_level_categories(&spending_categories);
         let top_income_categories = top_level_categories(&income_categories);
+        let top_savings_categories = top_level_categories(&savings_categories);
 
         let is_month_view = period_key != DEFAULT_PERIOD_KEY;
         let actuals_by_month = if is_month_view {
@@ -261,6 +267,7 @@ impl BudgetService {
                 &period_key,
                 &spending_category_meta,
                 &income_meta,
+                &savings_meta,
                 currency,
                 timezone,
             )
@@ -510,12 +517,55 @@ impl BudgetService {
         }
         income_rows.sort_by(|a, b| a.name.cmp(&b.name));
 
+        let mut savings_rows = Vec::with_capacity(top_savings_categories.len());
+        let mut savings_planned_total = Decimal::ZERO;
+        let mut savings_actual_total = Decimal::ZERO;
+        for category in &top_savings_categories {
+            let actual = current_actuals
+                .get(&(SAVINGS_TAXONOMY.to_string(), category.id.clone()))
+                .copied()
+                .unwrap_or(Decimal::ZERO);
+            let target = target_index.effective_category_decimal(
+                &period_key,
+                SAVINGS_TAXONOMY,
+                &category.id,
+            );
+            savings_planned_total += target;
+            savings_actual_total += actual;
+            savings_rows.push(BudgetCategoryRow {
+                taxonomy_id: SAVINGS_TAXONOMY.to_string(),
+                category_id: category.id.clone(),
+                group_id: None,
+                parent_id: category.parent_id.clone(),
+                name: category.name.clone(),
+                color: Some(category.color.clone()),
+                icon: category.icon.clone(),
+                target: decimal_to_f64(target),
+                actual: decimal_to_f64(actual),
+                rollover_in: 0.0,
+                rollover_out: 0.0,
+                remaining: decimal_to_f64(target - actual),
+                overspent: false,
+                has_default_target: target_index
+                    .has_default_category(SAVINGS_TAXONOMY, &category.id),
+                has_month_override: target_index.has_month_category(
+                    &period_key,
+                    SAVINGS_TAXONOMY,
+                    &category.id,
+                ),
+                rollover_enabled: false,
+            });
+        }
+        savings_rows.sort_by(|a, b| a.name.cmp(&b.name));
+
         let totals = BudgetTotals {
             spending_planned: decimal_to_f64(spending_planned_total),
             spending_actual: decimal_to_f64(spending_actual_total),
             spending_remaining: decimal_to_f64(spending_remaining_total),
             income_planned: decimal_to_f64(income_planned_total),
             income_actual: decimal_to_f64(income_actual_total),
+            savings_planned: decimal_to_f64(savings_planned_total),
+            savings_actual: decimal_to_f64(savings_actual_total),
             group_buffer: decimal_to_f64(group_buffer_total),
             rollover_in: decimal_to_f64(rollover_in_total),
             rollover_out: decimal_to_f64(rollover_out_total),
@@ -548,6 +598,7 @@ impl BudgetService {
                 group_rows,
                 ungrouped_rows: vec![],
                 income_rows,
+                savings_rows,
                 totals,
             },
         })
@@ -873,12 +924,14 @@ impl BudgetService {
     /// `timezone` (IANA name, may be empty) drives per-month bucketing so a
     /// midnight-local activity on the first/last day of a month lands in the
     /// month the user perceives, not the UTC month.
+    #[allow(clippy::too_many_arguments)]
     async fn actuals_by_month(
         &self,
         start_period: &str,
         end_period: &str,
         spending_meta: &HashMap<String, Category>,
         income_meta: &HashMap<String, Category>,
+        savings_meta: &HashMap<String, Category>,
         currency: &str,
         timezone: &str,
     ) -> Result<HashMap<String, MonthActuals>> {
@@ -907,6 +960,17 @@ impl BudgetService {
             .map_err(|e| anyhow!(e.to_string()))?
             .into_iter()
             .collect::<Vec<_>>();
+        // Transfer-pair classification (Saving vs InternalTransfer) needs to see
+        // a transfer's *other* leg, which can fall outside this month's window
+        // (or even outside the spending account set). Mirrors
+        // `insight::service`'s use of the full activity history for the
+        // spending accounts to compute `within_spending_transfer_groups`.
+        let all_account_activities = self
+            .activity_repo
+            .get_activities_by_account_ids(&account_ids)
+            .map_err(|e| anyhow!(e.to_string()))?;
+        let transfer_context_acts: Vec<&Activity> = all_account_activities.iter().collect();
+        let transfer_groups = within_spending_transfer_groups(&transfer_context_acts);
         let activity_ids = activities.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
         let assignments = self
             .assignment_repo
@@ -926,11 +990,12 @@ impl BudgetService {
             let Some(account_type) = account_types.get(&activity.account_id) else {
                 continue;
             };
-            let classification = classify_activity(&activity, account_type);
-            let amount = activity_abs_amount(&activity);
-            let spending_native = classification.spending_amount(amount);
-            let income_native = classification.income_amount(amount);
-            if spending_native == Decimal::ZERO && income_native == Decimal::ZERO {
+            let (spending_native, income_native, saving_native) =
+                native_amounts_for_actuals(&activity, account_type, &transfer_groups);
+            if spending_native == Decimal::ZERO
+                && income_native == Decimal::ZERO
+                && saving_native == Decimal::ZERO
+            {
                 continue;
             }
             // Bucket by user-local month so a midnight-local activity on
@@ -964,9 +1029,42 @@ impl BudgetService {
                 currency,
                 fx_as_of,
             );
+            add_allocated_actuals(
+                month_actuals,
+                &activity.id,
+                SAVINGS_TAXONOMY,
+                saving_native,
+                savings_meta,
+                &assignments_by_activity,
+                &splits_by_activity,
+                fx,
+                &activity.currency,
+                currency,
+                fx_as_of,
+            );
         }
         Ok(actuals)
     }
+}
+
+/// Splits an activity's absolute amount into (spending, income, saving)
+/// native-currency buckets. Must use the aggregation-aware classifier: the
+/// plain `classify_activity` has no `Saving` branch at all (a CASH
+/// `TRANSFER_OUT` maps to `Expense` there), so every savings-taxonomy actual
+/// silently computed to zero until this was caught — see PR description for
+/// the repro.
+fn native_amounts_for_actuals(
+    activity: &Activity,
+    account_type: &str,
+    transfer_groups: &HashSet<String>,
+) -> (Decimal, Decimal, Decimal) {
+    let classification = classify_activity_for_aggregation(activity, account_type, transfer_groups);
+    let amount = activity_abs_amount(activity);
+    (
+        classification.spending_amount(amount),
+        classification.income_amount(amount),
+        classification.saving_amount(amount),
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1473,9 +1571,81 @@ fn parse_month(period_key: &str) -> Result<(i32, u32)> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{NaiveDate, NaiveDateTime};
+    use chrono::{NaiveDate, NaiveDateTime, TimeZone, Utc};
 
     use super::*;
+    use wealthfolio_core::accounts::account_types;
+    use wealthfolio_core::activities::ActivityStatus;
+
+    fn transfer_out_activity(source_group_id: Option<&str>) -> Activity {
+        Activity {
+            id: "act-transfer-out".to_string(),
+            account_id: "cash-account".to_string(),
+            asset_id: None,
+            activity_type: "TRANSFER_OUT".to_string(),
+            activity_type_override: None,
+            source_type: None,
+            subtype: None,
+            status: ActivityStatus::Posted,
+            activity_date: Utc.with_ymd_and_hms(2026, 6, 8, 12, 0, 0).unwrap(),
+            settlement_date: None,
+            quantity: None,
+            unit_price: None,
+            amount: Some(Decimal::new(30000, 2)),
+            fee: None,
+            tax: None,
+            currency: "EUR".to_string(),
+            fx_rate: None,
+            notes: None,
+            metadata: None,
+            source_system: None,
+            source_record_id: None,
+            source_group_id: source_group_id.map(str::to_string),
+            idempotency_key: None,
+            import_run_id: None,
+            is_user_modified: false,
+            needs_review: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    /// Regression test: `actuals_by_month` used to call the plain
+    /// `classify_activity`, which has no `Saving` branch — a CASH
+    /// `TRANSFER_OUT` whose other leg is outside the spending-account set
+    /// (an investment/savings transfer) silently computed a zero actual for
+    /// every savings-taxonomy category, even though the money genuinely left
+    /// the account and the target was set correctly.
+    #[test]
+    fn native_amounts_for_actuals_classifies_external_transfer_out_as_saving() {
+        let activity = transfer_out_activity(Some("transfer-grp-1"));
+        // Empty `transfer_groups` means this group never reached the ">= 2"
+        // within-spending threshold — i.e. the other leg lives outside the
+        // spending-account universe, exactly like a real savings transfer.
+        let transfer_groups: HashSet<String> = HashSet::new();
+
+        let (spending, income, saving) =
+            native_amounts_for_actuals(&activity, account_types::CASH, &transfer_groups);
+
+        assert_eq!(spending, Decimal::ZERO);
+        assert_eq!(income, Decimal::ZERO);
+        assert_eq!(saving, Decimal::new(30000, 2));
+    }
+
+    #[test]
+    fn native_amounts_for_actuals_treats_within_spending_transfer_as_neutral() {
+        let activity = transfer_out_activity(Some("transfer-grp-1"));
+        // Both legs of this transfer are among the spending accounts (>= 2
+        // count), so it's an internal move — neither spending nor saving.
+        let transfer_groups: HashSet<String> = HashSet::from(["transfer-grp-1".to_string()]);
+
+        let (spending, income, saving) =
+            native_amounts_for_actuals(&activity, account_types::CASH, &transfer_groups);
+
+        assert_eq!(spending, Decimal::ZERO);
+        assert_eq!(income, Decimal::ZERO);
+        assert_eq!(saving, Decimal::ZERO);
+    }
 
     fn ts() -> NaiveDateTime {
         NaiveDate::from_ymd_opt(2026, 1, 1)

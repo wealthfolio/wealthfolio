@@ -82,7 +82,7 @@ export function QuickCategorizePopover({
     if (scope === "expense" || scope === "both") {
       out.push(...flattenTaxonomy(SPENDING_TAXONOMY, spending.data?.categories ?? [], "Expense"));
     }
-    if (scope === "saving") {
+    if (scope === "saving" || scope === "both") {
       out.push(...flattenTaxonomy(SAVINGS_TAXONOMY, savings.data?.categories ?? [], "Savings"));
     }
     if (scope === "income" || scope === "both") {

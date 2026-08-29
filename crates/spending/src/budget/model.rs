@@ -225,6 +225,8 @@ pub struct BudgetTotals {
     pub spending_remaining: f64,
     pub income_planned: f64,
     pub income_actual: f64,
+    pub savings_planned: f64,
+    pub savings_actual: f64,
     pub group_buffer: f64,
     pub rollover_in: f64,
     pub rollover_out: f64,
@@ -249,6 +251,7 @@ pub struct BudgetSnapshotComputed {
     pub group_rows: Vec<BudgetGroupRow>,
     pub ungrouped_rows: Vec<BudgetCategoryRow>,
     pub income_rows: Vec<BudgetCategoryRow>,
+    pub savings_rows: Vec<BudgetCategoryRow>,
     pub totals: BudgetTotals,
 }
 
@@ -275,6 +278,7 @@ impl BudgetSnapshot {
                 group_rows: Vec::new(),
                 ungrouped_rows: Vec::new(),
                 income_rows: Vec::new(),
+                savings_rows: Vec::new(),
                 totals: BudgetTotals::default(),
             },
         }

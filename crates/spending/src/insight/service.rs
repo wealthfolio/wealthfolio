@@ -428,6 +428,7 @@ impl InsightService {
             &account_types,
             &assignments_by_activity,
             &splits_by_activity,
+            &transfer_groups,
             timezone,
             self.fx_service.as_ref(),
             currency,
@@ -863,11 +864,13 @@ fn compute_by_day_by_category(
     fx_as_of: NaiveDate,
 ) -> Vec<DayCategoryBucket> {
     let splits_by_activity = SplitsByActivity::new();
+    let transfer_groups = HashSet::new();
     compute_by_day_by_category_with_splits(
         acts,
         account_types,
         assignments_by_activity,
         &splits_by_activity,
+        &transfer_groups,
         timezone,
         fx,
         target_currency,
@@ -881,6 +884,7 @@ fn compute_by_day_by_category_with_splits(
     account_types: &HashMap<String, String>,
     assignments_by_activity: &AssignmentsByActivity,
     splits_by_activity: &SplitsByActivity,
+    transfer_groups: &HashSet<String>,
     timezone: &str,
     fx: &dyn FxServiceTrait,
     target_currency: &str,
@@ -891,67 +895,79 @@ fn compute_by_day_by_category_with_splits(
         let Some(account_type) = account_types.get(&a.account_id) else {
             continue;
         };
-        let classification = classify_activity(a, account_type);
-        let spending_native = classification.spending_amount(activity_abs_amount(a));
-        if spending_native == Decimal::ZERO {
-            continue;
-        }
-        let Some(amount) =
-            fx_to_target(fx, spending_native, &a.currency, target_currency, fx_as_of)
-        else {
-            continue;
-        };
-        if amount == Decimal::ZERO {
-            continue;
-        }
-
+        // Aggregation-aware classifier: the plain `classify_activity` has no
+        // `Saving` branch (a CASH transfer-out reads as `Expense` there), which
+        // would silently drop every day-by-category point for savings.
+        let classification = classify_activity_for_aggregation(a, account_type, transfer_groups);
+        let amount_abs = activity_abs_amount(a);
         let date = wealthfolio_core::utils::time_utils::activity_date_in_user_timezone(
             a.activity_date,
             timezone,
         );
         let date = format_date(date);
-        let allocations = allocations_for_taxonomy(
-            &a.id,
-            SPENDING_TAXONOMY,
-            spending_native,
-            assignments_by_activity,
-            splits_by_activity,
-        );
-        if allocations.is_empty() {
-            let entry = map
-                .entry((
-                    date,
-                    SPENDING_TAXONOMY.to_string(),
-                    UNCATEGORIZED_CATEGORY_ID.to_string(),
-                ))
-                .or_insert((Decimal::ZERO, 0));
-            entry.0 += amount;
-            entry.1 += 1;
-            continue;
-        }
 
-        for allocation in allocations {
-            let Some(line_amount) = fx_to_target(
-                fx,
-                allocation.amount,
-                &a.currency,
-                target_currency,
-                fx_as_of,
-            ) else {
-                continue;
-            };
-            if line_amount == Decimal::ZERO {
+        for (taxonomy_id, native_amount) in [
+            (
+                SPENDING_TAXONOMY,
+                classification.spending_amount(amount_abs),
+            ),
+            (SAVINGS_TAXONOMY, classification.saving_amount(amount_abs)),
+        ] {
+            if native_amount == Decimal::ZERO {
                 continue;
             }
-            let entry = map
-                .entry((
-                    date.clone(),
-                    SPENDING_TAXONOMY.to_string(),
-                    allocation.category_id,
-                ))
-                .or_insert((Decimal::ZERO, 0));
-            entry.0 += line_amount;
-            entry.1 += 1;
+            let Some(amount) =
+                fx_to_target(fx, native_amount, &a.currency, target_currency, fx_as_of)
+            else {
+                continue;
+            };
+            if amount == Decimal::ZERO {
+                continue;
+            }
+
+            let allocations = allocations_for_taxonomy(
+                &a.id,
+                taxonomy_id,
+                native_amount,
+                assignments_by_activity,
+                splits_by_activity,
+            );
+            if allocations.is_empty() {
+                let entry = map
+                    .entry((
+                        date.clone(),
+                        taxonomy_id.to_string(),
+                        UNCATEGORIZED_CATEGORY_ID.to_string(),
+                    ))
+                    .or_insert((Decimal::ZERO, 0));
+                entry.0 += amount;
+                entry.1 += 1;
+                continue;
+            }
+
+            for allocation in allocations {
+                let Some(line_amount) = fx_to_target(
+                    fx,
+                    allocation.amount,
+                    &a.currency,
+                    target_currency,
+                    fx_as_of,
+                ) else {
+                    continue;
+                };
+                if line_amount == Decimal::ZERO {
+                    continue;
+                }
+                let entry = map
+                    .entry((
+                        date.clone(),
+                        taxonomy_id.to_string(),
+                        allocation.category_id,
+                    ))
+                    .or_insert((Decimal::ZERO, 0));
+                entry.0 += line_amount;
+                entry.1 += 1;
+            }
         }
     }
 

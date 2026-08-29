@@ -124,6 +124,8 @@ export interface BudgetTotals {
   spendingRemaining: number;
   incomePlanned: number;
   incomeActual: number;
+  savingsPlanned: number;
+  savingsActual: number;
   groupBuffer: number;
   rolloverIn: number;
   rolloverOut: number;
@@ -144,6 +146,7 @@ export interface BudgetSnapshot {
     groupRows: BudgetGroupRow[];
     ungroupedRows: BudgetCategoryRow[];
     incomeRows: BudgetCategoryRow[];
+    savingsRows: BudgetCategoryRow[];
     totals: BudgetTotals;
   };
 }

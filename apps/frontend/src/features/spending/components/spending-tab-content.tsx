@@ -37,7 +37,15 @@ import { useCashActivities, useUncategorizedCount } from "../hooks/use-cash-acti
 import { useCategorizationRules } from "../hooks/use-categorization-rules";
 import { useSpendingReport } from "../hooks/use-spending-report";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
-import { SAVINGS_ROW_COLOR, SAVINGS_ROW_ID, buildWhereItWentRows } from "../lib/category-rollup";
+import {
+  SAVINGS_ROW_COLOR,
+  SAVINGS_ROW_ID,
+  buildWhereItWentRows,
+  rollUpToTopLevel,
+  sumByDayForTaxonomy,
+} from "../lib/category-rollup";
+import type { BudgetCategoryRow } from "../types/budget";
+import { CategoryIcon } from "./category-chips";
 import {
   SPENDING_MONTH_PARAM,
   SPENDING_MONTH_STORAGE_KEY,
@@ -77,6 +85,7 @@ import { SpendingPeriodSelector } from "./spending-period-toggle";
 
 const FUTURE_BAR = "#E5E7EB";
 const SPENDING_TAXONOMY = "spending_categories";
+const SAVINGS_TAXONOMY = "savings_categories";
 type SpendingDashboardPeriod = "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y";
 
 type SpendingSelection =
@@ -394,6 +403,7 @@ export default function SpendingTabContent() {
     endDate: reportReq.endDate,
   });
   const taxonomy = useTaxonomy(SPENDING_TAXONOMY);
+  const savingsTaxonomy = useTaxonomy(SAVINGS_TAXONOMY);
   const { data: budget, isError: budgetErrored } = useBudget();
   const todayParts = useMemo(() => getZonedDateParts(new Date(), appTimezone), [appTimezone]);
   const currentBudgetMonthKey = useMemo(() => monthKeyFromParts(todayParts), [todayParts]);
@@ -742,6 +752,14 @@ export default function SpendingTabContent() {
     return meta;
   }, [taxonomy.data?.categories]);
 
+  const savingsCategoriesMeta = useMemo(() => {
+    const meta = new Map<string, { parentId: string | null }>();
+    (savingsTaxonomy.data?.categories ?? []).forEach((c: TaxonomyCategory) => {
+      meta.set(c.id, { parentId: c.parentId ?? null });
+    });
+    return meta;
+  }, [savingsTaxonomy.data?.categories]);
+
   const categoryRows = useMemo(() => {
     if (!report) return [];
     return buildWhereItWentRows({
@@ -754,6 +772,23 @@ export default function SpendingTabContent() {
       savingsLabel: t("spending:cashFlow.saving"),
     });
   }, [report, priorReport, categoriesMeta, t, totalSaved]);
+
+  // Savings actuals for the dashboard goal widget, rolled up from the report
+  // (already proven correct — it's what "Where it went" and the cashflow
+  // strip read) rather than the budget snapshot's own per-category actuals,
+  // which cover a different aggregation path (allocated-actuals cache) that
+  // can disagree with the report for freshly-reorganized categories.
+  const savingsActualByCategory = useMemo(
+    () => rollUpToTopLevel(monthReport?.savingsBreakdown ?? [], savingsCategoriesMeta),
+    [monthReport?.savingsBreakdown, savingsCategoriesMeta],
+  );
+
+  // Per-day saved total for the chart — same source (byDayByCategory) as the
+  // per-category actuals above, just bucketed by date instead of category.
+  const savingsByDay = useMemo(
+    () => sumByDayForTaxonomy(monthReport?.byDayByCategory ?? [], SAVINGS_TAXONOMY),
+    [monthReport?.byDayByCategory],
+  );
 
   const insights = useMemo(() => {
     const items: {
@@ -1131,6 +1166,18 @@ export default function SpendingTabContent() {
                 />
               </div>
 
+              <SavingsGoalCard
+                monthKey={budgetMonthKey}
+                today={todayParts}
+                isCurrentMonth={budgetMonthKey === currentBudgetMonthKey}
+                rows={budgetCardBudget?.computed.savingsRows ?? []}
+                actualByCategory={savingsActualByCategory}
+                byDay={savingsByDay}
+                totalActual={monthReport?.current.saved ?? 0}
+                currency={budgetCardBudget?.computed.currency ?? currency}
+                activityRange={budgetMonthActivityRange}
+              />
+
               {insights.length > 0 && (
                 <div className="border-border/40 bg-card/70 order-4 rounded-xl border p-4 backdrop-blur-xl md:p-5 lg:order-none">
                   <div className="mb-2 flex items-center gap-2">
@@ -1257,6 +1304,330 @@ function spendingActivityHref(id: string, savingsHref?: string): string {
   return id === "__uncategorized__"
     ? "/activities?tab=spending&status=uncategorized"
     : `/activities?tab=spending&category=${id}`;
+}
+
+/**
+ * Compact "how much of my savings goals did I hit this month" widget — the
+ * dashboard counterpart to the Budget page's savings goals panel. One ring
+ * per savings category that has a target set (mirrors the "By category"
+ * rings on `BudgetLineChartCard`, but progress toward a goal is good instead
+ * of bad). Falls back to a single total line when no per-category targets
+ * are set yet. Renders nothing if there's neither a target nor any actual
+ * savings, so it doesn't add noise for accounts that don't use savings.
+ */
+function SavingsGoalCard({
+  monthKey,
+  today,
+  isCurrentMonth,
+  rows,
+  actualByCategory,
+  byDay,
+  totalActual,
+  currency,
+  activityRange,
+}: {
+  monthKey: string;
+  today: { year: number; month: number; day: number };
+  isCurrentMonth: boolean;
+  rows: BudgetCategoryRow[];
+  /** categoryId -> actual amount saved this period, from `report.savingsBreakdown`. */
+  actualByCategory: Map<string, number>;
+  /** "YYYY-MM-DD" -> amount saved that day, from `report.byDayByCategory`. */
+  byDay: Map<string, number>;
+  totalActual: number;
+  currency: string;
+  activityRange: { from: string; to: string };
+}) {
+  const { t } = useTranslation();
+  const { isBalanceHidden } = useBalancePrivacy();
+
+  // All hooks must run unconditionally — mirrors BudgetLineChartCard's own
+  // comment on this same pitfall (the `totalTarget <= 0` early return sits
+  // after every hook below).
+  const monthMeta = useMemo(() => {
+    const match = /^(\d{4})-(\d{2})$/.exec(monthKey);
+    const year = match ? Number(match[1]) : today.year;
+    const month = match ? Number(match[2]) : today.month;
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const dayOfMonth = isCurrentMonth ? Math.min(today.day, daysInMonth) : daysInMonth;
+    return { year, month, daysInMonth, dayOfMonth };
+  }, [monthKey, isCurrentMonth, today]);
+  const { year, month, daysInMonth, dayOfMonth } = monthMeta;
+
+  const cumulative = useMemo(() => {
+    let running = 0;
+    const out: { day: number; value: number }[] = [];
+    for (let d = 1; d <= dayOfMonth; d++) {
+      const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      running += byDay.get(dateStr) ?? 0;
+      out.push({ day: d, value: running });
+    }
+    return out;
+  }, [byDay, year, month, dayOfMonth]);
+
+  const goalRows = rows
+    .filter((r) => r.target > 0)
+    .map((r) => ({ ...r, actual: actualByCategory.get(r.categoryId) ?? 0 }))
+    .sort((a, b) => b.actual / b.target - a.actual / a.target);
+  const totalTarget = goalRows.reduce((s, r) => s + r.target, 0);
+
+  const chartW = 320;
+  const chartH = 110;
+  const padT = 24;
+  const padB = 14;
+  const innerW = chartW;
+  const innerH = chartH - padT - padB;
+  const yMax = Math.max(totalTarget, totalActual, 1) * 1.05;
+  const xForDay = (day: number) => ((day - 1) / Math.max(1, daysInMonth - 1)) * innerW;
+  const yForVal = (v: number) => padT + (1 - v / yMax) * innerH;
+  const actualPath =
+    cumulative.length > 0
+      ? "M " +
+        cumulative
+          .map((p) => `${xForDay(p.day).toFixed(2)} ${yForVal(p.value).toFixed(2)}`)
+          .join(" L ")
+      : "";
+  const targetY = totalTarget > 0 ? yForVal(totalTarget) : null;
+  const endPoint = cumulative[cumulative.length - 1];
+  const endX = endPoint ? xForDay(endPoint.day) : 0;
+  const endY = endPoint ? yForVal(endPoint.value) : padT + innerH;
+  const endLeftPct = (endX / innerW) * 100;
+
+  if (totalTarget <= 0 && totalActual <= 0) return null;
+
+  const reachedGoal = totalTarget > 0 && totalActual >= totalTarget;
+  const remaining = Math.max(0, totalTarget - totalActual);
+  const overBy = totalActual - totalTarget;
+  const lineColor = SAVINGS_ROW_COLOR;
+
+  return (
+    <DashboardCard
+      title={t("spending:cashFlow.saving")}
+      action={
+        <Link
+          to="/spending/budget"
+          className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
+        >
+          {t("spending:budgetChart.manage")}
+        </Link>
+      }
+    >
+      <div className="flex items-center gap-2">
+        {reachedGoal && <Icons.Check className="text-success h-4 w-4 shrink-0" />}
+        <span className="text-foreground text-sm font-semibold">
+          {reachedGoal
+            ? t("spending:budgetChart.goalReached")
+            : t("spending:tabContent.savedLower")}
+        </span>
+        <span className="text-muted-foreground/70 ml-auto text-xs tabular-nums">
+          {isCurrentMonth
+            ? t("spending:budgetChart.dayOf", { day: dayOfMonth, total: daysInMonth })
+            : t("spending:budgetChart.closed")}
+        </span>
+      </div>
+
+      <div className="mt-3">
+        <div className="text-foreground text-2xl font-bold tabular-nums tracking-tight">
+          {isBalanceHidden ? "••••" : <PrivacyAmount value={totalActual} currency={currency} />}{" "}
+          <span className="text-muted-foreground/70 text-base font-medium">
+            {t("spending:tabContent.savedLower")}
+          </span>
+        </div>
+        {totalTarget > 0 && (
+          <>
+            <div
+              className={cn(
+                "mt-0.5 inline-flex items-center gap-1 text-xs font-semibold tabular-nums",
+                reachedGoal ? "text-success" : "text-muted-foreground",
+              )}
+            >
+              {reachedGoal ? (
+                <>
+                  <PrivacyAmount value={overBy} currency={currency} />{" "}
+                  {t("spending:budgetChart.overLower")}
+                </>
+              ) : (
+                <>
+                  <PrivacyAmount value={remaining} currency={currency} />{" "}
+                  {t("spending:tabContent.leftToGoal")}
+                </>
+              )}
+            </div>
+            <div className="text-muted-foreground/80 mt-0.5 text-xs tabular-nums">
+              {t("spending:budgetChart.ofLower")}{" "}
+              <PrivacyAmount value={totalTarget} currency={currency} />{" "}
+              {t("spending:tabContent.goalLower")}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="relative mt-4 w-full">
+        <svg
+          viewBox={`0 0 ${chartW} ${chartH}`}
+          preserveAspectRatio="none"
+          className="block h-[110px] w-full"
+        >
+          {targetY != null && (
+            <line
+              x1={0}
+              y1={targetY}
+              x2={innerW}
+              y2={targetY}
+              stroke="var(--muted-foreground)"
+              strokeOpacity={0.35}
+              strokeDasharray="3 4"
+              strokeWidth={1.25}
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+          {actualPath && (
+            <path
+              d={actualPath}
+              fill="none"
+              stroke={lineColor}
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+        </svg>
+        {cumulative.length > 0 && (
+          <div
+            className="absolute h-[9px] w-[9px] rounded-full bg-white"
+            style={{
+              left: `${endLeftPct}%`,
+              top: `${endY}px`,
+              transform: "translate(-50%, -50%)",
+              border: `2.5px solid ${lineColor}`,
+            }}
+          />
+        )}
+      </div>
+      <div className="text-muted-foreground/70 mt-1 flex justify-between text-[10px] tabular-nums">
+        <span>{t("spending:budgetChart.dayN", { day: 1 })}</span>
+        <span>{t("spending:budgetChart.dayN", { day: daysInMonth })}</span>
+      </div>
+
+      <div className="border-border mt-4 grid grid-cols-2 gap-3 border-t pt-3 text-xs">
+        <div>
+          <div className="text-muted-foreground/70 text-[11px] uppercase tracking-wide">
+            {t("spending:tabContent.savedLower")}
+          </div>
+          <div className="text-foreground text-sm font-semibold tabular-nums">
+            <PrivacyAmount value={totalActual} currency={currency} />
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-muted-foreground/70 text-[11px] uppercase tracking-wide">
+            {t("spending:budgetChart.result")}
+          </div>
+          <div
+            className={cn(
+              "text-sm font-semibold tabular-nums",
+              reachedGoal ? "text-success" : "text-foreground",
+            )}
+          >
+            <PrivacyAmount value={reachedGoal ? overBy : remaining} currency={currency} />
+          </div>
+          <div className="text-muted-foreground/60 text-[10px]">
+            {reachedGoal
+              ? t("spending:budgetChart.overLower")
+              : t("spending:tabContent.leftToGoal")}
+          </div>
+        </div>
+      </div>
+      {goalRows.length > 0 && (
+        <div
+          data-no-swipe-drag
+          className="-mx-1 mt-3 flex min-w-0 touch-pan-x gap-3 overflow-x-auto overscroll-x-contain px-1 pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {goalRows.map((row) => (
+            <SavingsRing
+              key={row.categoryId}
+              row={row}
+              currency={currency}
+              activityRange={activityRange}
+            />
+          ))}
+        </div>
+      )}
+    </DashboardCard>
+  );
+}
+
+function SavingsRing({
+  row,
+  currency,
+  activityRange,
+}: {
+  row: BudgetCategoryRow;
+  currency: string;
+  activityRange: { from: string; to: string };
+}) {
+  const { t } = useTranslation();
+  const { isBalanceHidden } = useBalancePrivacy();
+  const pct = row.target > 0 ? row.actual / row.target : 0;
+  const reached = row.actual >= row.target;
+
+  const size = 56;
+  const stroke = 4;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const fillPct = Math.min(1, pct);
+  const dash = `${c * fillPct} ${c}`;
+
+  return (
+    <Link
+      to={`/activities?tab=spending&category=${encodeURIComponent(row.categoryId)}&from=${
+        activityRange.from
+      }&to=${activityRange.to}`}
+      className="hover:bg-muted/40 flex w-16 shrink-0 flex-col items-center gap-1 rounded-md px-1 py-1 transition-colors"
+      title={`${row.name}: ${row.actual.toFixed(2)} / ${row.target.toFixed(2)}`}
+    >
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90">
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke={SAVINGS_ROW_COLOR}
+            strokeOpacity={0.22}
+            strokeWidth={stroke}
+          />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke={SAVINGS_ROW_COLOR}
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={dash}
+          />
+        </svg>
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ color: row.color ?? SAVINGS_ROW_COLOR }}
+        >
+          <CategoryIcon icon={row.icon} fallback={row.name} className="h-5 w-5" />
+        </div>
+      </div>
+      <div className="text-foreground text-xs font-semibold tabular-nums">
+        {isBalanceHidden ? "••••" : formatCompactAmount(row.actual, currency)}
+      </div>
+      <div
+        className={cn(
+          "text-[10px] uppercase tracking-wide",
+          reached ? "text-success" : "text-muted-foreground/70",
+        )}
+      >
+        {reached ? t("spending:budgetChart.goalReached") : `${Math.round(pct * 100)}%`}
+      </div>
+    </Link>
+  );
 }
 
 function WhereItWentEmptyState({ hasNoIncludedAccounts }: { hasNoIncludedAccounts: boolean }) {

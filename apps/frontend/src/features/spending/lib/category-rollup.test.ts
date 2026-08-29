@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { SAVINGS_ROW_ID, buildWhereItWentRows, type CategoryMeta } from "./category-rollup";
+import {
+  SAVINGS_ROW_ID,
+  buildWhereItWentRows,
+  rollUpToTopLevel,
+  sumByDayForTaxonomy,
+  type CategoryMeta,
+  type RollupMeta,
+} from "./category-rollup";
 
 const meta = (overrides: Record<string, CategoryMeta> = {}) =>
   new Map<string, CategoryMeta>([
@@ -69,5 +76,69 @@ describe("buildWhereItWentRows", () => {
 
     const savings = rows.find((r) => r.id === SAVINGS_ROW_ID);
     expect(savings).toMatchObject({ delta: 200, deltaPct: 50 });
+  });
+});
+
+describe("rollUpToTopLevel", () => {
+  const savingsMeta = () =>
+    new Map<string, RollupMeta>([
+      ["cat_savings", { parentId: null }],
+      ["cat_savings_livret", { parentId: "cat_savings" }],
+      ["cat_savings_life_insurance", { parentId: "cat_savings" }],
+    ]);
+
+  it("sums subcategory amounts under their top-level parent", () => {
+    const result = rollUpToTopLevel(
+      [
+        { categoryId: "cat_savings_livret", amount: 300 },
+        { categoryId: "cat_savings_life_insurance", amount: 200 },
+      ],
+      savingsMeta(),
+    );
+
+    expect(result.get("cat_savings")).toBe(500);
+  });
+
+  it("keeps an already-top-level category id unchanged", () => {
+    const result = rollUpToTopLevel([{ categoryId: "cat_savings", amount: 100 }], savingsMeta());
+
+    expect(result.get("cat_savings")).toBe(100);
+  });
+
+  it("drops tops whose rolled-up total is zero or negative", () => {
+    const result = rollUpToTopLevel(
+      [
+        { categoryId: "cat_savings_livret", amount: 100 },
+        { categoryId: "cat_savings_livret", amount: -100 },
+      ],
+      savingsMeta(),
+    );
+
+    expect(result.has("cat_savings")).toBe(false);
+  });
+});
+
+describe("sumByDayForTaxonomy", () => {
+  it("sums same-day rows for the requested taxonomy", () => {
+    const result = sumByDayForTaxonomy(
+      [
+        { date: "2026-06-08", taxonomyId: "savings_categories", amount: 300, categoryId: "a" },
+        { date: "2026-06-08", taxonomyId: "savings_categories", amount: 306.84, categoryId: "b" },
+        { date: "2026-06-10", taxonomyId: "savings_categories", amount: 200, categoryId: "c" },
+      ],
+      "savings_categories",
+    );
+
+    expect(result.get("2026-06-08")).toBeCloseTo(606.84);
+    expect(result.get("2026-06-10")).toBe(200);
+  });
+
+  it("ignores rows from other taxonomies", () => {
+    const result = sumByDayForTaxonomy(
+      [{ date: "2026-06-08", taxonomyId: "spending_categories", amount: 50, categoryId: "a" }],
+      "savings_categories",
+    );
+
+    expect(result.size).toBe(0);
   });
 });

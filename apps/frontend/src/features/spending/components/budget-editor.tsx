@@ -243,6 +243,19 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
     />
   );
 
+  const savingsPanel = (
+    <SavingsGoalsPanel
+      rows={budget.computed.savingsRows}
+      targets={targets}
+      currency={currency}
+      periodKey={periodForWrite}
+      monthMode={monthMode}
+      mode={mode}
+      onSaveTarget={saveCategoryTarget}
+      onDeleteOverride={deleteMonthOverride}
+    />
+  );
+
   if (mode === "monthly") {
     return (
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -253,6 +266,7 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
         </div>
         <div className="space-y-4">
           {incomePanel}
+          {savingsPanel}
           <CopyFromMonthRow
             currentPeriodKey={periodForWrite}
             onCopy={(sourcePeriodKey, overwrite) =>
@@ -276,6 +290,7 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
       <BudgetSummary budget={budget} currency={currency} mode={mode} />
       {groupSection}
       {incomePanel}
+      {savingsPanel}
       <BudgetTotalsPanel totals={budget.computed.totals} currency={currency} />
     </div>
   );
@@ -1312,16 +1327,7 @@ function GroupBufferLine({
   );
 }
 
-function IncomeSourcesPanel({
-  rows,
-  targets,
-  currency,
-  periodKey,
-  monthMode,
-  mode,
-  onSaveTarget,
-  onDeleteOverride,
-}: {
+function IncomeSourcesPanel(props: {
   rows: BudgetCategoryRow[];
   targets: BudgetTarget[];
   currency: string;
@@ -1332,8 +1338,82 @@ function IncomeSourcesPanel({
   onDeleteOverride: (target: BudgetTarget | undefined) => void;
 }) {
   const { t } = useTranslation();
-  const title =
-    mode === "setup" ? t("spending:budgetEditor.incomeDefaults") : t("spending:cashFlow.income");
+  return (
+    <CategoryTargetsPanel
+      {...props}
+      icon={<Icons.Wallet className="h-3.5 w-3.5" />}
+      title={
+        props.mode === "setup"
+          ? t("spending:budgetEditor.incomeDefaults")
+          : t("spending:cashFlow.income")
+      }
+      emptyAllMessage={t("spending:budgetEditor.noIncomeCategories")}
+      emptyMonthMessage={t("spending:budgetEditor.noIncomeThisMonth")}
+      addMoreLabel={(count) => t("spending:budgetEditor.addSource", { count })}
+    />
+  );
+}
+
+function SavingsGoalsPanel(props: {
+  rows: BudgetCategoryRow[];
+  targets: BudgetTarget[];
+  currency: string;
+  periodKey: string;
+  monthMode: boolean;
+  mode: BudgetEditorMode;
+  onSaveTarget: (row: BudgetCategoryRow, amount: string) => void;
+  onDeleteOverride: (target: BudgetTarget | undefined) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <CategoryTargetsPanel
+      {...props}
+      icon={<Icons.PiggyBank className="h-3.5 w-3.5" />}
+      title={
+        props.mode === "setup"
+          ? t("spending:budgetEditor.savingsDefaults")
+          : t("spending:cashFlow.saving")
+      }
+      emptyAllMessage={t("spending:budgetEditor.noSavingsCategories")}
+      emptyMonthMessage={t("spending:budgetEditor.noSavingsThisMonth")}
+      addMoreLabel={(count) => t("spending:budgetEditor.addGoal", { count })}
+    />
+  );
+}
+
+/** Shared by `IncomeSourcesPanel` and `SavingsGoalsPanel` — a flat list of
+ *  taxonomy categories with a target amount each, no groups/rollover (unlike
+ *  the spending groups system). */
+function CategoryTargetsPanel({
+  rows,
+  targets,
+  currency,
+  periodKey,
+  monthMode,
+  mode,
+  onSaveTarget,
+  onDeleteOverride,
+  icon,
+  title,
+  emptyAllMessage,
+  emptyMonthMessage,
+  addMoreLabel,
+}: {
+  rows: BudgetCategoryRow[];
+  targets: BudgetTarget[];
+  currency: string;
+  periodKey: string;
+  monthMode: boolean;
+  mode: BudgetEditorMode;
+  onSaveTarget: (row: BudgetCategoryRow, amount: string) => void;
+  onDeleteOverride: (target: BudgetTarget | undefined) => void;
+  icon: React.ReactNode;
+  title: string;
+  emptyAllMessage: string;
+  emptyMonthMessage: string;
+  addMoreLabel: (count: number) => string;
+}) {
+  const { t } = useTranslation();
   const isMonthly = mode === "monthly";
   const [showAll, setShowAll] = useState(false);
 
@@ -1351,7 +1431,7 @@ function IncomeSourcesPanel({
   return (
     <section className={cn(CARD_CLASS, "p-3 sm:p-4")}>
       <div className="flex items-center justify-between">
-        <PanelHeader title={title} icon={<Icons.Wallet className="h-3.5 w-3.5" />} />
+        <PanelHeader title={title} icon={icon} />
         {isMonthly && (
           <span className="text-foreground text-xs font-semibold tabular-nums">
             <PrivacyAmount value={total} currency={currency} />
@@ -1360,9 +1440,9 @@ function IncomeSourcesPanel({
       </div>
       <div className="mt-2 space-y-0.5">
         {rows.length === 0 ? (
-          <EmptyPanelLine>{t("spending:budgetEditor.noIncomeCategories")}</EmptyPanelLine>
+          <EmptyPanelLine>{emptyAllMessage}</EmptyPanelLine>
         ) : visibleRows.length === 0 ? (
-          <EmptyPanelLine>{t("spending:budgetEditor.noIncomeThisMonth")}</EmptyPanelLine>
+          <EmptyPanelLine>{emptyMonthMessage}</EmptyPanelLine>
         ) : (
           visibleRows.map((row) => {
             const target = findCategoryTarget(targets, periodKey, row.taxonomyId, row.categoryId);
@@ -1396,9 +1476,7 @@ function IncomeSourcesPanel({
           className="text-muted-foreground hover:text-foreground mt-1 inline-flex items-center gap-1 text-[11px] underline-offset-4 hover:underline"
         >
           <Icons.Plus className="h-3 w-3" />
-          {showAll
-            ? t("spending:budgetEditor.hideEmptySources")
-            : t("spending:budgetEditor.addSource", { count: hiddenCount })}
+          {showAll ? t("spending:budgetEditor.hideEmptySources") : addMoreLabel(hiddenCount)}
         </button>
       )}
       {!isMonthly && (
@@ -1471,6 +1549,9 @@ function OverridesSummary({
       }
     }
     for (const row of budget.computed.incomeRows) {
+      categoryRowByKey.set(`${row.taxonomyId}:${row.categoryId}`, row);
+    }
+    for (const row of budget.computed.savingsRows) {
       categoryRowByKey.set(`${row.taxonomyId}:${row.categoryId}`, row);
     }
     const groupById = new Map(budget.state.groups.map((g) => [g.id, g] as const));

@@ -100,6 +100,23 @@ export function distinctTopIds<T extends { categoryId: string }>(
   return out;
 }
 
+/**
+ * Per-day total for a single taxonomy, from a report's `byDayByCategory`
+ * rows — feeds the savings goal chart's cumulative line. Doesn't roll up to
+ * top-level (the chart only needs a daily total, not a per-category split).
+ */
+export function sumByDayForTaxonomy<T extends { date: string; taxonomyId: string; amount: number }>(
+  rows: T[],
+  taxonomyId: string,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const row of rows) {
+    if (row.taxonomyId !== taxonomyId) continue;
+    out.set(row.date, (out.get(row.date) ?? 0) + row.amount);
+  }
+  return out;
+}
+
 /** Synthetic row id for the "money set aside" entry in the "Where it went"
  *  widget — kept distinct from real category ids. */
 export const SAVINGS_ROW_ID = "__savings__";

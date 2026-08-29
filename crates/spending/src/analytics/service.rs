@@ -375,7 +375,7 @@ impl AnalyticsService {
                 base_currency,
                 fx_as_of_current,
                 &day_str,
-                false,
+                true,
             );
         }
 
@@ -530,7 +530,7 @@ fn add_report_breakdown_allocations(
     target_currency: &str,
     fx_as_of: NaiveDate,
     day: &str,
-    uncategorized_day_bucket: bool,
+    day_bucket_enabled: bool,
 ) {
     if native_amount == Decimal::ZERO {
         return;
@@ -557,7 +557,7 @@ fn add_report_breakdown_allocations(
             .or_insert((Decimal::ZERO, 0));
         entry.0 += amount;
         entry.1 += 1;
-        if taxonomy_id == SPENDING_TAXONOMY && uncategorized_day_bucket {
+        if day_bucket_enabled {
             let dc = by_day_cat_acc
                 .entry((
                     day.to_string(),
@@ -588,7 +588,7 @@ fn add_report_breakdown_allocations(
             .or_insert((Decimal::ZERO, 0));
         entry.0 += amount;
         entry.1 += 1;
-        if taxonomy_id == SPENDING_TAXONOMY {
+        if day_bucket_enabled {
             let dc = by_day_cat_acc
                 .entry((
                     day.to_string(),
@@ -1811,6 +1811,57 @@ mod tests {
             Some(&(Decimal::new(100, 0), 1)),
         );
         assert!(by_day_cat_acc.is_empty());
+    }
+
+    /// Regression test: `by_day_by_category` used to be hardcoded to
+    /// `SPENDING_TAXONOMY` regardless of the `day_bucket_enabled` flag passed
+    /// in, so a savings-taxonomy category with a real allocation was silently
+    /// dropped from the daily series (while still counting correctly toward
+    /// the aggregate `savings_breakdown` total) — the dashboard's savings
+    /// goal chart rendered flat even when the month total was correct.
+    #[test]
+    fn report_breakdown_includes_savings_in_daily_category_buckets_when_enabled() {
+        let assignments = group_assignments(vec![assignment(
+            "save1",
+            SAVINGS_TAXONOMY,
+            "cat_savings_livret",
+        )]);
+        let splits = SplitsByActivity::new();
+        let mut savings_acc: HashMap<(String, String), (Decimal, usize)> = HashMap::new();
+        let mut by_day_cat_acc: HashMap<(String, String, String), (Decimal, usize)> =
+            HashMap::new();
+
+        add_report_breakdown_allocations(
+            &mut savings_acc,
+            &mut by_day_cat_acc,
+            "save1",
+            SAVINGS_TAXONOMY,
+            Decimal::new(300, 0),
+            &assignments,
+            &splits,
+            &PassthroughFx,
+            "USD",
+            "USD",
+            NaiveDate::from_ymd_opt(2024, 1, 10).unwrap(),
+            "2024-01-08",
+            true,
+        );
+
+        assert_eq!(
+            savings_acc.get(&(
+                SAVINGS_TAXONOMY.to_string(),
+                "cat_savings_livret".to_string()
+            )),
+            Some(&(Decimal::new(300, 0), 1)),
+        );
+        assert_eq!(
+            by_day_cat_acc.get(&(
+                "2024-01-08".to_string(),
+                SAVINGS_TAXONOMY.to_string(),
+                "cat_savings_livret".to_string(),
+            )),
+            Some(&(Decimal::new(300, 0), 1)),
+        );
     }
 
     fn build_credit_card_summary(activities: &[Activity]) -> SpendingSummary {
