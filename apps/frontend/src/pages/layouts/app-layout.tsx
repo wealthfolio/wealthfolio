@@ -29,7 +29,7 @@ const AppLayoutContent = () => {
   } = useSettings();
   const location = useLocation();
   const navigation = useNavigation();
-  const { isMobile, isTauri } = usePlatform();
+  const { isMobile, isTauri, isMacOS } = usePlatform();
   const isMobileViewport = useIsMobileViewport();
   const isIPad =
     typeof window !== "undefined" &&
@@ -99,7 +99,14 @@ const AppLayoutContent = () => {
             shouldUseMobileNavigation ? "overscroll-contain" : undefined,
           )}
         >
-          <main className="relative flex min-h-0 w-full max-w-full flex-1 flex-col overflow-x-hidden">
+          <main
+            className="relative flex min-h-0 w-full max-w-full flex-1 flex-col overflow-x-hidden"
+            style={
+              !shouldUseMobileNavigation && isLaunchBar && !isFocusMode
+                ? { paddingTop: isTauri && isMacOS ? "28px" : "env(safe-area-inset-top, 0px)" }
+                : undefined
+            }
+          >
             <div
               data-tauri-drag-region="true"
               className="draggable pointer-events-auto absolute inset-x-0 top-0 z-50 h-6 cursor-grab opacity-0"
