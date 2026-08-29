@@ -815,9 +815,7 @@
     "deselectAllVisible": "表示中の取引の選択をすべて解除",
     "selectAllVisible": "表示中の取引をすべて選択",
     "nameNotes": "名前 / メモ",
-    "loading": "読み込み中…",
-    "loadMore": "さらに読み込む(残り{{count}}件)",
-    "loadMore_other": "さらに読み込む(残り{{count}}件)"
+    "loading": "読み込み中…"
   },
   "tabContent": {
     "stageWhereLabel": "現状",

@@ -824,10 +824,7 @@
     "deselectAllVisible": "Deseleccionar todas las transacciones visibles",
     "selectAllVisible": "Seleccionar todas las transacciones visibles",
     "nameNotes": "Nombre / Notas",
-    "loading": "Cargando…",
-    "loadMore": "Cargar más ({{count}} restantes)",
-    "loadMore_one": "Cargar más ({{count}} restante)",
-    "loadMore_other": "Cargar más ({{count}} restantes)"
+    "loading": "Cargando…"
   },
   "tabContent": {
     "stageWhereLabel": "Dónde estoy",

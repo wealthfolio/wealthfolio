@@ -815,9 +815,7 @@
     "deselectAllVisible": "표시된 거래 모두 선택 해제",
     "selectAllVisible": "표시된 거래 모두 선택",
     "nameNotes": "이름 / 메모",
-    "loading": "불러오는 중…",
-    "loadMore": "더 불러오기 (남은 항목 {{count}}건)",
-    "loadMore_other": "더 불러오기 (남은 항목 {{count}}건)"
+    "loading": "불러오는 중…"
   },
   "tabContent": {
     "stageWhereLabel": "현재 위치",

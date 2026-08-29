@@ -815,9 +815,7 @@
     "deselectAllVisible": "取消选择所有可见交易",
     "selectAllVisible": "选择所有可见交易",
     "nameNotes": "名称 / 备注",
-    "loading": "正在加载……",
-    "loadMore": "加载更多（剩余 {{count}} 项）",
-    "loadMore_other": "加载更多（剩余 {{count}} 项）"
+    "loading": "正在加载……"
   },
   "tabContent": {
     "stageWhereLabel": "我的现状",
