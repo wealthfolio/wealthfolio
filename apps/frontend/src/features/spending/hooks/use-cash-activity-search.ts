@@ -47,10 +47,12 @@ export function useCashActivitySearch(
     [query.data],
   );
   const totalCount = query.data?.pages[0]?.totalCount ?? 0;
+  const pageCount = query.data?.pages.length ?? 0;
 
   return {
     items,
     totalCount,
+    pageCount,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     isFetchingNextPage: query.isFetchingNextPage,

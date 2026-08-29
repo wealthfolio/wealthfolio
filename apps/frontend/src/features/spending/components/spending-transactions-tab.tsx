@@ -476,6 +476,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const {
       items,
       totalCount,
+      pageCount,
       isLoading,
       isFetching,
       isFetchingNextPage,
@@ -845,8 +846,16 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
 
     const sentinelRef = useIntersectionObserver(loadMore, {
       enabled: hasNextPage && !isFetchingNextPage,
-      rootMargin: "200px",
+      rootMargin: "800px",
     });
+
+    // Eagerly prefetch page 2 once the first page lands so the first scroll
+    // extension is instant; settles naturally once pageCount reaches 2.
+    useEffect(() => {
+      if (pageCount === 1 && hasNextPage && !isFetchingNextPage && !isError) {
+        fetchNextPage();
+      }
+    }, [pageCount, hasNextPage, isFetchingNextPage, isError, fetchNextPage]);
 
     const loadMoreSentinel = hasNextPage ? (
       <>
