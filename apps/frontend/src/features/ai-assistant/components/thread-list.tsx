@@ -1,5 +1,5 @@
 import { ThreadListPrimitive } from "@assistant-ui/react";
-import { type FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -9,6 +9,7 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import { useRuntimeContext } from "../hooks/use-runtime-context";
 import {
   flattenThreadPages,
@@ -38,44 +39,6 @@ function useDebouncedValue<T>(value: T, delay: number): T {
   }, [value, delay]);
 
   return debouncedValue;
-}
-
-/**
- * Custom hook for intersection observer (infinite scroll trigger).
- */
-function useIntersectionObserver(
-  callback: () => void,
-  options?: {
-    enabled?: boolean;
-    rootMargin?: string;
-  },
-) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const { enabled = true, rootMargin = "100px" } = options ?? {};
-
-  useEffect(() => {
-    if (!enabled) return;
-
-    const element = ref.current;
-    if (!element) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          callback();
-        }
-      },
-      { rootMargin },
-    );
-
-    observer.observe(element);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [callback, enabled, rootMargin]);
-
-  return ref;
 }
 
 export const ThreadList: FC = () => {
