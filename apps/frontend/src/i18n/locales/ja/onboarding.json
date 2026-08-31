@@ -52,7 +52,9 @@
       "languageLabel": "言語",
       "formattingRegionLabel": "地域と表示形式",
       "searchRegionsPlaceholder": "地域を検索...",
-      "noRegionsFound": "地域が見つかりません"
+      "noRegionsFound": "地域が見つかりません",
+      "searchLanguagesPlaceholder": "言語を検索...",
+      "noLanguagesFound": "言語が見つかりません"
     }
   },
   "appearance": {

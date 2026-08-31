@@ -153,7 +153,8 @@
     "maturity": "Vencimiento",
     "type": "Tipo",
     "strike": "Precio de ejercicio",
-    "expiry": "Vencimiento"
+    "expiry": "Vencimiento",
+    "multiplier": "Multiplicador"
   },
   "profile": {
     "overview": "Resumen",
@@ -256,6 +257,18 @@
     "exchange": "Mercado",
     "select_exchange": "Seleccionar mercado",
     "search_exchanges": "Buscar mercados...",
+    "contract_multiplier": "Multiplicador del contrato",
+    "contract_multiplier_hint": "Cada contrato representa esta cantidad de unidades subyacentes. Déjalo vacío para usar el valor estándar {{default}}.",
+    "maturity_date": "Fecha de vencimiento",
+    "coupon_rate": "Tasa del cupón (%)",
+    "coupon_frequency": "Frecuencia del cupón",
+    "select_frequency": "Seleccionar frecuencia",
+    "couponFrequency": {
+      "ANNUAL": "Anual",
+      "SEMI_ANNUAL": "Semestral",
+      "QUARTERLY": "Trimestral",
+      "ZERO": "Cupón cero"
+    },
     "saving": "Guardando...",
     "saving_short": "Guardando",
     "save_changes": "Guardar cambios",

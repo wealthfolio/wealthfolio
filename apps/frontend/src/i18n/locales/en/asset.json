@@ -153,7 +153,8 @@
     "maturity": "Maturity",
     "type": "Type",
     "strike": "Strike",
-    "expiry": "Expiry"
+    "expiry": "Expiry",
+    "multiplier": "Multiplier"
   },
   "profile": {
     "overview": "Overview",
@@ -256,6 +257,18 @@
     "exchange": "Exchange",
     "select_exchange": "Select exchange",
     "search_exchanges": "Search exchanges...",
+    "contract_multiplier": "Contract Multiplier",
+    "contract_multiplier_hint": "Each contract represents this many underlying units. Leave empty to use the standard {{default}}.",
+    "maturity_date": "Maturity Date",
+    "coupon_rate": "Coupon Rate (%)",
+    "coupon_frequency": "Coupon Frequency",
+    "select_frequency": "Select frequency",
+    "couponFrequency": {
+      "ANNUAL": "Annual",
+      "SEMI_ANNUAL": "Semi-annual",
+      "QUARTERLY": "Quarterly",
+      "ZERO": "Zero-coupon"
+    },
     "saving": "Saving...",
     "saving_short": "Saving",
     "save_changes": "Save Changes",

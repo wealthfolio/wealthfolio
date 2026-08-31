@@ -54,6 +54,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AlternativeAssetContent, useAlternativeAssetActions } from "./alternative-asset-content";
 import { AssetSnapshotHistory, useHasManualSnapshots } from "./asset-account-holdings";
+import { resolveContractMultiplier } from "./asset-contract-multiplier";
 import AssetDetailCard from "./asset-detail-card";
 import { AssetEditSheet } from "./asset-edit-sheet";
 import AssetHistoryCard from "./asset-history-card";
@@ -132,6 +133,7 @@ interface AssetDetailData {
     strike?: number | null;
     expiration?: string | null;
   } | null;
+  contractMultiplier?: number | null;
 }
 
 type AssetTab = "overview" | "history";
@@ -495,6 +497,8 @@ export const AssetProfilePage = () => {
           couponFrequency?: string | null;
         }
       | undefined;
+    // Frequency alone has nothing to render — the card only draws a coupon cell
+    // (which carries the frequency) and a maturity cell.
     if (!bond || (!bond.maturityDate && bond.couponRate == null)) return null;
     return bond;
   }, [assetProfile]);
@@ -714,6 +718,12 @@ export const AssetProfilePage = () => {
     const quantity = Number(holding?.quantity ?? 0);
 
     const contractMultiplier = Number(holding?.contractMultiplier ?? 1);
+    // What the asset is configured with, independent of any holding. The line
+    // above falls back to 1, which would misreport a closed option as 1x.
+    const configuredContractMultiplier = resolveContractMultiplier(
+      asset?.metadata,
+      asset?.instrumentType,
+    );
     const costUnits =
       optionSpec && contractMultiplier > 0 ? quantity * contractMultiplier : quantity;
     const averageCostPrice =
@@ -852,6 +862,7 @@ export const AssetProfilePage = () => {
       quote: quoteData?.quote ?? null,
       bondSpec: bondSpec ?? null,
       optionSpec: optionSpec ?? null,
+      contractMultiplier: configuredContractMultiplier,
     };
   }, [
     holding,

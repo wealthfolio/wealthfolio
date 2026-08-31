@@ -153,7 +153,8 @@
     "maturity": "Fälligkeit",
     "type": "Typ",
     "strike": "Ausübungspreis",
-    "expiry": "Verfall"
+    "expiry": "Verfall",
+    "multiplier": "Multiplikator"
   },
   "profile": {
     "overview": "Übersicht",
@@ -256,6 +257,18 @@
     "exchange": "Börse",
     "select_exchange": "Börse auswählen",
     "search_exchanges": "Börsen suchen...",
+    "contract_multiplier": "Kontraktmultiplikator",
+    "contract_multiplier_hint": "Jeder Kontrakt entspricht so vielen Basiswerteinheiten. Leer lassen für den Standardwert {{default}}.",
+    "maturity_date": "Fälligkeitsdatum",
+    "coupon_rate": "Kuponsatz (%)",
+    "coupon_frequency": "Kuponfrequenz",
+    "select_frequency": "Frequenz auswählen",
+    "couponFrequency": {
+      "ANNUAL": "Jährlich",
+      "SEMI_ANNUAL": "Halbjährlich",
+      "QUARTERLY": "Vierteljährlich",
+      "ZERO": "Nullkupon"
+    },
     "saving": "Wird gespeichert...",
     "saving_short": "Wird gespeichert",
     "save_changes": "Änderungen speichern",

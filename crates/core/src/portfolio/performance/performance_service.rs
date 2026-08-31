@@ -751,6 +751,18 @@ impl PerformanceService {
         flow_basis: ExternalFlowBasis,
     ) -> DailyExternalFlow {
         let date = curr_point.valuation_date;
+        if curr_point.external_flow_source == ValuationExternalFlowSource::NoFlow
+            && curr_point.external_inflow_base.is_zero()
+            && curr_point.external_outflow_base.is_zero()
+        {
+            return DailyExternalFlow {
+                date,
+                inflow: Decimal::ZERO,
+                outflow: Decimal::ZERO,
+                source: ValuationExternalFlowSource::NoFlow,
+            };
+        }
+
         let cash_flow = match flow_basis {
             ExternalFlowBasis::AccountCurrency => {
                 curr_point.net_contribution - prev_point.net_contribution
@@ -9036,6 +9048,45 @@ mod tests {
             .warnings
             .iter()
             .any(|warning| warning.contains("inferred from net contribution")));
+    }
+
+    #[test]
+    fn daily_external_flows_keep_no_flow_as_neutral() {
+        let prev = valuation("2026-05-01", dec!(100), dec!(100), dec!(100), dec!(100));
+        let curr = valuation("2027-05-01", dec!(110), dec!(100), dec!(110), dec!(100));
+
+        for basis in [
+            ExternalFlowBasis::BaseCurrency,
+            ExternalFlowBasis::AccountCurrency,
+        ] {
+            let flow = PerformanceService::daily_external_flows(&prev, &curr, basis);
+
+            assert_eq!(flow.inflow, Decimal::ZERO);
+            assert_eq!(flow.outflow, Decimal::ZERO);
+            assert_eq!(flow.source, ExternalFlowSource::NoFlow);
+        }
+    }
+
+    #[test]
+    fn no_flow_rows_do_not_warn_about_inferred_cash_flows() {
+        let history = vec![
+            valuation("2026-05-01", dec!(100), dec!(100), dec!(100), dec!(100)),
+            valuation("2027-05-01", dec!(110), dec!(100), dec!(110), dec!(100)),
+        ];
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            true,
+        )
+        .expect("performance should compute");
+
+        assert!(result
+            .data_quality
+            .warnings
+            .iter()
+            .all(|warning| !warning.contains("inferred from net contribution")));
     }
 
     #[test]

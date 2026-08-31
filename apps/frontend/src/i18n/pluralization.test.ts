@@ -3,6 +3,7 @@ import enActivity from "./locales/en/activity.json";
 import esActivity from "./locales/es/activity.json";
 import frActivity from "./locales/fr/activity.json";
 import itActivity from "./locales/it/activity.json";
+import ptActivity from "./locales/pt/activity.json";
 import deCommon from "./locales/de/common.json";
 import enCommon from "./locales/en/common.json";
 import esCommon from "./locales/es/common.json";
@@ -10,6 +11,7 @@ import frCommon from "./locales/fr/common.json";
 import itCommon from "./locales/it/common.json";
 import jaCommon from "./locales/ja/common.json";
 import koCommon from "./locales/ko/common.json";
+import ptCommon from "./locales/pt/common.json";
 import zhCommon from "./locales/zh/common.json";
 import i18next from "i18next";
 import { describe, expect, it } from "vitest";
@@ -20,6 +22,7 @@ const resources = {
   es: { activity: esActivity },
   fr: { activity: frActivity },
   it: { activity: itActivity },
+  pt: { activity: ptActivity },
 };
 
 describe("singular translations", () => {
@@ -29,6 +32,7 @@ describe("singular translations", () => {
     ["de", "Es gibt Probleme mit 1 Aktivitätseintrag."],
     ["es", "Hay problemas con 1 entrada de actividad."],
     ["it", "È presente un problema con 1 voce di movimento."],
+    ["pt", "Há problemas com 1 entrada de atividade."],
   ])("uses the singular activity form for %s", async (locale, expected) => {
     const i18n = i18next.createInstance();
     await i18n.init({
@@ -54,6 +58,7 @@ describe("global event translations", () => {
     ["ko", koCommon],
     ["zh", zhCommon],
     ["it", itCommon],
+    ["pt", ptCommon],
   ])("resolves asset-count messages for %s", async (locale, common) => {
     const i18n = i18next.createInstance();
     await i18n.init({
@@ -74,5 +79,29 @@ describe("global event translations", () => {
     // `it` resolves the CLDR `many` category at exact millions; a missing or
     // empty `_many` form would render an empty string here.
     expect(i18n.t("common:globalEvents.priceUpdateFailed", { count: 1_000_000 })).not.toBe("");
+  });
+});
+
+describe("CLDR `many` category", () => {
+  // it/pt (and fr/es) resolve `many` at exact millions. Without a `_many` form
+  // i18next resolves nothing and echoes the raw key back.
+  it.each([
+    ["it", itCommon],
+    ["pt", ptCommon],
+  ])("resolves the many form for %s", async (locale, common) => {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      defaultNS: "common",
+      fallbackLng: false,
+      interpolation: { escapeValue: false },
+      lng: locale,
+      ns: ["common"],
+      resources: { [locale]: { common } },
+    });
+
+    expect(new Intl.PluralRules(locale).select(1_000_000)).toBe("many");
+    expect(i18n.t("common:globalEvents.priceUpdateFailed", { count: 1_000_000 })).not.toContain(
+      "globalEvents",
+    );
   });
 });

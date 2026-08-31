@@ -393,15 +393,17 @@ impl AssetRepositoryTrait for AssetRepository {
                     .first(tx.conn())
                     .map_err(StorageError::from)?;
 
-                // Parse current metadata and remove $.legacy, keep $.identifiers
+                // Remove $.legacy and keep every other namespace. Allow-listing
+                // `identifiers` here would silently drop `option`, `bond`,
+                // `contractMultiplier` and `profile` — including user-set values.
                 let new_metadata: Option<String> = existing.metadata.and_then(|meta_str| {
-                    serde_json::from_str::<serde_json::Value>(&meta_str)
-                        .ok()
-                        .and_then(|meta| {
-                            let identifiers = meta.get("identifiers").cloned();
-                            identifiers
-                                .map(|ids| serde_json::json!({ "identifiers": ids }).to_string())
-                        })
+                    let mut meta = serde_json::from_str::<serde_json::Value>(&meta_str).ok()?;
+                    let obj = meta.as_object_mut()?;
+                    obj.remove("legacy");
+                    if obj.is_empty() {
+                        return None;
+                    }
+                    serde_json::to_string(&meta).ok()
                 });
 
                 // Update the asset
@@ -638,18 +640,35 @@ mod tests {
         snapshot_date: &str,
         positions: &str,
     ) {
+        insert_holdings_snapshot_with_source(
+            conn,
+            account_id,
+            snapshot_date,
+            positions,
+            "CALCULATED",
+        );
+    }
+
+    fn insert_holdings_snapshot_with_source(
+        conn: &mut SqliteConnection,
+        account_id: &str,
+        snapshot_date: &str,
+        positions: &str,
+        source: &str,
+    ) {
         let snapshot_id = format!("{}_{}", account_id, snapshot_date);
         sql_query(
             "INSERT INTO holdings_snapshots (
                 id, account_id, snapshot_date, currency, positions, cash_balances, cost_basis,
                 net_contribution, calculated_at, net_contribution_base,
                 cash_total_account_currency, cash_total_base_currency, source
-             ) VALUES (?, ?, ?, 'USD', ?, '{}', '0', '0', '2026-01-01T00:00:00Z', '0', '0', '0', 'CALCULATED')",
+             ) VALUES (?, ?, ?, 'USD', ?, '{}', '0', '0', '2026-01-01T00:00:00Z', '0', '0', '0', ?)",
         )
         .bind::<Text, _>(snapshot_id)
         .bind::<Text, _>(account_id)
         .bind::<Text, _>(snapshot_date)
         .bind::<Text, _>(positions)
+        .bind::<Text, _>(source)
         .execute(conn)
         .expect("insert holdings snapshot");
     }
@@ -696,6 +715,73 @@ mod tests {
                 .and_then(|metadata| metadata.get("contractMultiplier")),
             Some(&serde_json::json!("50"))
         );
+    }
+
+    async fn cleanup_legacy_metadata_for(metadata: serde_json::Value) -> Option<serde_json::Value> {
+        let (pool, writer) = setup_db();
+        let repo = AssetRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_asset(&mut conn, "legacy-asset");
+        diesel::update(assets::table.filter(assets::id.eq("legacy-asset")))
+            .set(assets::metadata.eq(metadata.to_string()))
+            .execute(&mut conn)
+            .expect("seed metadata");
+        drop(conn);
+
+        repo.cleanup_legacy_metadata("legacy-asset")
+            .await
+            .expect("cleanup");
+
+        repo.get_by_id("legacy-asset").expect("reload").metadata
+    }
+
+    #[tokio::test]
+    async fn cleanup_legacy_metadata_keeps_every_other_namespace() {
+        let metadata = cleanup_legacy_metadata_for(serde_json::json!({
+            "legacy": { "sectors": "[]", "countries": "[]", "old_id": "AAPL" },
+            "identifiers": { "isin": "US0378331005" },
+            "option": { "multiplier": 10.0, "right": "CALL" },
+            "bond": { "couponRate": 0.04375 },
+            "contractMultiplier": 50.0,
+            "profile": { "marketCap": 1 },
+        }))
+        .await
+        .expect("metadata retained");
+
+        assert!(metadata.get("legacy").is_none(), "legacy should be removed");
+        assert_eq!(
+            metadata.get("contractMultiplier"),
+            Some(&serde_json::json!(50.0)),
+            "a user-set multiplier must survive the legacy cleanup"
+        );
+        for key in ["identifiers", "option", "bond", "profile"] {
+            assert!(metadata.get(key).is_some(), "{key} should be preserved");
+        }
+    }
+
+    #[tokio::test]
+    async fn cleanup_legacy_metadata_keeps_multiplier_without_identifiers() {
+        let metadata = cleanup_legacy_metadata_for(serde_json::json!({
+            "legacy": { "sectors": "[]" },
+            "contractMultiplier": 5.0,
+        }))
+        .await
+        .expect("metadata retained");
+
+        assert_eq!(
+            metadata.get("contractMultiplier"),
+            Some(&serde_json::json!(5.0))
+        );
+    }
+
+    #[tokio::test]
+    async fn cleanup_legacy_metadata_nulls_column_when_only_legacy_remains() {
+        let metadata = cleanup_legacy_metadata_for(serde_json::json!({
+            "legacy": { "sectors": "[]", "countries": "[]" },
+        }))
+        .await;
+
+        assert!(metadata.is_none(), "expected metadata column to be NULL");
     }
 
     #[tokio::test]

@@ -153,7 +153,8 @@
     "maturity": "償還日",
     "type": "タイプ",
     "strike": "権利行使価格",
-    "expiry": "満期日"
+    "expiry": "満期日",
+    "multiplier": "乗数"
   },
   "profile": {
     "overview": "概要",
@@ -256,6 +257,18 @@
     "exchange": "取引所",
     "select_exchange": "取引所を選択",
     "search_exchanges": "取引所を検索...",
+    "contract_multiplier": "契約乗数",
+    "contract_multiplier_hint": "1契約が表す原資産の単位数です。空欄にすると標準値の {{default}} を使用します。",
+    "maturity_date": "償還日",
+    "coupon_rate": "クーポン利率 (%)",
+    "coupon_frequency": "クーポン頻度",
+    "select_frequency": "頻度を選択",
+    "couponFrequency": {
+      "ANNUAL": "年1回",
+      "SEMI_ANNUAL": "年2回",
+      "QUARTERLY": "四半期ごと",
+      "ZERO": "ゼロクーポン"
+    },
     "saving": "保存中...",
     "saving_short": "保存中",
     "save_changes": "変更を保存",

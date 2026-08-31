@@ -11,6 +11,7 @@ import frUi from "@/i18n/locales/fr/ui.json";
 import itUi from "@/i18n/locales/it/ui.json";
 import jaUi from "@/i18n/locales/ja/ui.json";
 import koUi from "@/i18n/locales/ko/ui.json";
+import ptUi from "@/i18n/locales/pt/ui.json";
 import zhUi from "@/i18n/locales/zh/ui.json";
 
 // The sandbox iframe renders `@wealthfolio/ui` components that call
@@ -34,6 +35,7 @@ const resources: Record<LocaleCode, { ui: Record<string, unknown> }> = {
   it: { ui: itUi },
   ja: { ui: jaUi },
   ko: { ui: koUi },
+  pt: { ui: ptUi },
   zh: { ui: zhUi },
 };
 

@@ -153,7 +153,8 @@
     "maturity": "만기",
     "type": "유형",
     "strike": "행사가",
-    "expiry": "만료"
+    "expiry": "만료",
+    "multiplier": "승수"
   },
   "profile": {
     "overview": "개요",
@@ -256,6 +257,18 @@
     "exchange": "거래소",
     "select_exchange": "거래소 선택",
     "search_exchanges": "거래소 검색...",
+    "contract_multiplier": "계약 승수",
+    "contract_multiplier_hint": "계약 하나가 나타내는 기초자산 단위 수입니다. 비워 두면 표준값 {{default}}을(를) 사용합니다.",
+    "maturity_date": "만기일",
+    "coupon_rate": "쿠폰 금리 (%)",
+    "coupon_frequency": "쿠폰 지급 주기",
+    "select_frequency": "주기 선택",
+    "couponFrequency": {
+      "ANNUAL": "연 1회",
+      "SEMI_ANNUAL": "연 2회",
+      "QUARTERLY": "분기별",
+      "ZERO": "무이표"
+    },
     "saving": "저장하는 중...",
     "saving_short": "저장 중",
     "save_changes": "변경사항 저장",

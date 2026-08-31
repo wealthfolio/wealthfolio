@@ -414,9 +414,14 @@ async fn run_portfolio_job(
             }
             Err(err) => {
                 let err_msg = err.to_string();
-                tracing::error!("Market data sync failed: {}", err_msg);
+                tracing::error!(
+                    "Market data sync failed: {}. Recalculating with cached quotes.",
+                    err_msg
+                );
                 event_bus.publish(ServerEvent::with_payload(MARKET_SYNC_ERROR, json!(err_msg)));
-                return;
+                // Fall through to the recalculation below. The change that
+                // queued this job still has to reach the portfolio; fetching
+                // quotes is a separate concern and must not block it.
             }
         }
     } else {

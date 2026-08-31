@@ -129,4 +129,42 @@ describe("AssetDetailCard", () => {
     expect(screen.getByText("contracts")).toBeInTheDocument();
     expect(screen.getByText("Average premium")).toBeInTheDocument();
   });
+
+  describe("contract multiplier row", () => {
+    const baseData = {
+      numShares: 1,
+      marketValue: 100,
+      costBasis: 100,
+      averagePrice: 100,
+      portfolioPercent: 0.1,
+      todaysReturn: null,
+      todaysReturnPercent: null,
+      unrealizedPnl: null,
+      unrealizedPnlPercent: null,
+      realizedPnl: null,
+      realizedPnlPercent: null,
+      income: 0,
+      fxEffect: null,
+      priceReturnPercent: null,
+      totalPnl: null,
+      totalPnlPercent: null,
+      totalReturn: null,
+      totalReturnPercent: null,
+      currency: "USD",
+      baseCurrency: "USD",
+      quoteCurrency: null,
+      quote: null,
+    };
+
+    it("is hidden at the default multiplier of 1", () => {
+      render(<AssetDetailCard assetData={{ ...baseData, contractMultiplier: 1 }} />);
+      expect(screen.queryByText("Multiplier")).not.toBeInTheDocument();
+    });
+
+    it("renders outside the option block, so futures and CFDs show it too", () => {
+      render(<AssetDetailCard assetData={{ ...baseData, contractMultiplier: 50 }} />);
+      expect(screen.getByText("Multiplier")).toBeInTheDocument();
+      expect(screen.getByText("50")).toBeInTheDocument();
+    });
+  });
 });

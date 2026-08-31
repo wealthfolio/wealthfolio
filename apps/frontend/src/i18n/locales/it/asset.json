@@ -153,7 +153,8 @@
     "maturity": "Scadenza",
     "type": "Tipo",
     "strike": "Prezzo di esercizio",
-    "expiry": "Scadenza"
+    "expiry": "Scadenza",
+    "multiplier": "Moltiplicatore"
   },
   "profile": {
     "overview": "Panoramica",
@@ -256,6 +257,18 @@
     "exchange": "Borsa",
     "select_exchange": "Seleziona borsa",
     "search_exchanges": "Cerca borse...",
+    "contract_multiplier": "Moltiplicatore del contratto",
+    "contract_multiplier_hint": "Ogni contratto rappresenta questo numero di unità sottostanti. Lascia vuoto per usare il valore standard {{default}}.",
+    "maturity_date": "Data di scadenza",
+    "coupon_rate": "Tasso della cedola (%)",
+    "coupon_frequency": "Frequenza della cedola",
+    "select_frequency": "Seleziona la frequenza",
+    "couponFrequency": {
+      "ANNUAL": "Annuale",
+      "SEMI_ANNUAL": "Semestrale",
+      "QUARTERLY": "Trimestrale",
+      "ZERO": "Cedola zero"
+    },
     "saving": "Salvataggio...",
     "saving_short": "Salvataggio",
     "save_changes": "Salva modifiche",

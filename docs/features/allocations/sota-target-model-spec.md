@@ -1,7 +1,29 @@
 # Allocation Advisor SOTA Target Model Specification
 
-Status: Draft Date: 2026-05-07 Audience: Product, frontend, backend, desktop,
-web, and addon engineers
+Status: Historical draft. Rebalancing superseded — see below Date: 2026-05-07
+Audience: Product, frontend, backend, desktop, web, and addon engineers
+
+> **Rebalancing in this document is superseded.**
+>
+> [`self-directed-rebalancing-design.md`](./self-directed-rebalancing-design.md)
+> is the current direction for everything this document says about rebalancing,
+> scenarios, trade generation and the copy that goes with them. This one is kept
+> as a record of the earlier target-model thinking, not as a source of truth for
+> behaviour the current design leaves unstated.
+>
+> It predates PR #1486 and the product-boundary rework that followed. §1 still
+> frames the feature as an advisor that answers "what exact draft trades would
+> move me toward the target?", which is the direction that was withdrawn: the
+> app no longer selects, ranks or constructs a course of action.
+>
+> Superseded specifically: §4.3, §5.5, §5.7, §5.8, §5.9, §6.4, §6.5, §6.6, §7.4,
+> §7.5, §11.3, §11.4, §11.5 and Phase 2 of §13. In particular the three scenario
+> modes and their labels are replaced by the two modes in §4 of the current
+> design, and `ExecutionPolicy` is not the shape the turnover cap and the
+> reduction constraints actually shipped in — see PR #1177.
+>
+> The target model itself (§5.1, §5.2, §5.3, §6.1, §6.2, §6.3) is still a useful
+> reference and is broadly what shipped.
 
 ## 1. Purpose
 

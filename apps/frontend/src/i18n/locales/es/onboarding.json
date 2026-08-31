@@ -52,7 +52,9 @@
       "languageLabel": "Idioma",
       "formattingRegionLabel": "Región y formatos",
       "searchRegionsPlaceholder": "Buscar regiones...",
-      "noRegionsFound": "No se encontraron regiones"
+      "noRegionsFound": "No se encontraron regiones",
+      "searchLanguagesPlaceholder": "Buscar idiomas...",
+      "noLanguagesFound": "No se encontraron idiomas"
     }
   },
   "appearance": {

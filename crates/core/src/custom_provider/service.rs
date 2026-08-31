@@ -925,7 +925,8 @@ pub fn parse_number_string(s: &str, locale: Option<&str>) -> Option<f64> {
             if l.starts_with("de")
                 || l.starts_with("fr")
                 || l.starts_with("es")
-                || l.starts_with("it") =>
+                || l.starts_with("it")
+                || l.starts_with("pt") =>
         {
             // European: 1.234,56 → 1234.56
             stripped.replace('.', "").replace(',', ".")
@@ -1355,5 +1356,19 @@ mod tests {
         // the starts-with-digit check and return None, even though the
         // rest already correctly auto-detects "1.234,56" as 1234.56.
         assert_eq!(parse_number_string("R$ 1.234,56", None), Some(1234.56));
+    }
+
+    #[test]
+    fn parse_number_string_treats_portuguese_as_european() {
+        // pt shares the "1.234,56" convention with de/fr/es/it. Without it in
+        // that arm, auto-detection reads a dotted thousands group as a decimal
+        // fraction and a price of 4.832 comes back a thousand times too small.
+        assert_eq!(parse_number_string("4.832", Some("pt-BR")), Some(4832.0));
+        assert_eq!(parse_number_string("4.832", Some("pt")), Some(4832.0));
+        assert_eq!(
+            parse_number_string("1.234,56", Some("pt-BR")),
+            Some(1234.56)
+        );
+        assert_eq!(parse_number_string("0,5", Some("pt-BR")), Some(0.5));
     }
 }

@@ -153,7 +153,8 @@
     "maturity": "Échéance",
     "type": "Type",
     "strike": "Prix d'exercice",
-    "expiry": "Expiration"
+    "expiry": "Expiration",
+    "multiplier": "Multiplicateur"
   },
   "profile": {
     "overview": "Aperçu",
@@ -256,6 +257,18 @@
     "exchange": "Bourse",
     "select_exchange": "Sélectionner une bourse",
     "search_exchanges": "Rechercher des bourses...",
+    "contract_multiplier": "Multiplicateur du contrat",
+    "contract_multiplier_hint": "Chaque contrat représente ce nombre d'unités sous-jacentes. Laissez vide pour utiliser la valeur standard de {{default}}.",
+    "maturity_date": "Date d’échéance",
+    "coupon_rate": "Taux du coupon (%)",
+    "coupon_frequency": "Fréquence du coupon",
+    "select_frequency": "Sélectionner la fréquence",
+    "couponFrequency": {
+      "ANNUAL": "Annuelle",
+      "SEMI_ANNUAL": "Semestrielle",
+      "QUARTERLY": "Trimestrielle",
+      "ZERO": "Coupon zéro"
+    },
     "saving": "Enregistrement...",
     "saving_short": "Enregistrement",
     "save_changes": "Enregistrer les modifications",

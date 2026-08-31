@@ -153,7 +153,8 @@
     "maturity": "到期",
     "type": "类型",
     "strike": "行权价",
-    "expiry": "到期日"
+    "expiry": "到期日",
+    "multiplier": "乘数"
   },
   "profile": {
     "overview": "概览",
@@ -256,6 +257,18 @@
     "exchange": "交易所",
     "select_exchange": "选择交易所",
     "search_exchanges": "搜索交易所……",
+    "contract_multiplier": "合约乘数",
+    "contract_multiplier_hint": "每份合约代表的标的单位数。留空则使用标准值 {{default}}。",
+    "maturity_date": "到期日",
+    "coupon_rate": "票息率 (%)",
+    "coupon_frequency": "付息频率",
+    "select_frequency": "选择频率",
+    "couponFrequency": {
+      "ANNUAL": "每年",
+      "SEMI_ANNUAL": "每半年",
+      "QUARTERLY": "每季度",
+      "ZERO": "零息"
+    },
     "saving": "正在保存……",
     "saving_short": "保存中",
     "save_changes": "保存更改",

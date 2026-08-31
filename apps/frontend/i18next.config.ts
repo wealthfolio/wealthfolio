@@ -3,7 +3,7 @@ import { defineConfig } from "i18next-cli";
 // Config for `i18next-cli` (extract / status / lint / types / instrument).
 // Keep `locales` in sync with SUPPORTED_LOCALES in src/i18n/locales.ts.
 export default defineConfig({
-  locales: ["en", "fr", "de", "es", "zh", "ja", "ko", "it"],
+  locales: ["en", "fr", "de", "es", "pt", "zh", "ja", "ko", "it"],
   extract: {
     input: ["src/**/*.{ts,tsx}"],
     output: "src/i18n/locales/{{language}}/{{namespace}}.json",

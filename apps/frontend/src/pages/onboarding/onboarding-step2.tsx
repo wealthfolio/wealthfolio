@@ -51,6 +51,7 @@ function detectDefaultCurrency(locale?: string): string | undefined {
   if (lang.startsWith("ru")) return "RUB";
   if (lang.startsWith("nl")) return "EUR";
   if (lang.startsWith("pl")) return "EUR";
+  if (lang.startsWith("pt-BR")) return "BRL";
   if (lang.startsWith("pt")) return "EUR";
   if (lang.startsWith("sv")) return "EUR";
   if (lang.startsWith("tr")) return "EUR";
@@ -58,6 +59,11 @@ function detectDefaultCurrency(locale?: string): string | undefined {
   if (lang.startsWith("hi")) return "INR";
   return undefined;
 }
+
+// Languages shown as chips. Listed explicitly (rather than sliced off
+// SUPPORTED_LOCALES) so adding or reordering a locale cannot silently change
+// what onboarding puts on screen; everything else lives behind "Other".
+const popularLanguages = ["en", "fr", "de", "es", "zh", "ja", "ko"];
 
 const popularCurrencies = ["USD", "CAD", "EUR", "GBP"];
 
@@ -70,6 +76,8 @@ const formattingRegions = [
   ["DE", "germany"],
   ["ES", "spain"],
   ["MX", "mexico"],
+  ["BR", "brazil"],
+  ["PT", "portugal"],
   ["CN", "china"],
   ["JP", "japan"],
   ["KR", "southKorea"],
@@ -147,6 +155,8 @@ export const OnboardingStep2 = forwardRef<OnboardingStep2Handle, OnboardingStep2
     const [formattingRegion, setFormattingRegion] = useState(
       settings?.formattingRegion ?? "system",
     );
+    const [showLanguageSearch, setShowLanguageSearch] = useState(false);
+    const [languageSearch, setLanguageSearch] = useState("");
     const [showFormattingRegionSearch, setShowFormattingRegionSearch] = useState(false);
     const [formattingRegionSearch, setFormattingRegionSearch] = useState("");
     const onboardingSettingsSchema = useMemo(() => createOnboardingSettingsSchema(t), [t]);
@@ -183,9 +193,27 @@ export const OnboardingStep2 = forwardRef<OnboardingStep2Handle, OnboardingStep2
       setCurrencySearch("");
     }
 
+    // Keep the active language on screen even when it is not one of the chips.
+    const languageOptions = (
+      popularLanguages.includes(language) || !language
+        ? popularLanguages
+        : [...popularLanguages.slice(0, -1), language]
+    ).flatMap((code) => {
+      const locale = SUPPORTED_LOCALES.find((entry) => entry.code === code);
+      return locale ? [locale] : [];
+    });
+
+    const filteredLocales = SUPPORTED_LOCALES.filter(
+      (locale) =>
+        locale.code.toLowerCase().includes(languageSearch.toLowerCase()) ||
+        locale.label.toLowerCase().includes(languageSearch.toLowerCase()),
+    );
+
     // Language applies instantly so the rest of onboarding switches immediately.
     function handleLanguageSelect(code: string) {
       setLanguage(code);
+      setShowLanguageSearch(false);
+      setLanguageSearch("");
       updateSettings({ language: code }).catch((error) =>
         console.error("Failed to save language:", error),
       );
@@ -317,7 +345,7 @@ export const OnboardingStep2 = forwardRef<OnboardingStep2Handle, OnboardingStep2
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {SUPPORTED_LOCALES.map((locale) => (
+                      {languageOptions.map((locale) => (
                         <button
                           key={locale.code}
                           type="button"
@@ -332,6 +360,14 @@ export const OnboardingStep2 = forwardRef<OnboardingStep2Handle, OnboardingStep2
                           {locale.label}
                         </button>
                       ))}
+                      <button
+                        type="button"
+                        onClick={() => setShowLanguageSearch(true)}
+                        className="border-border bg-background hover:border-primary/50 hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex min-h-10 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                      >
+                        <Icons.Search className="size-4 shrink-0" />
+                        {t("onboarding:steps.preferences.other")}
+                      </button>
                     </div>
                   </div>
 
@@ -470,6 +506,67 @@ export const OnboardingStep2 = forwardRef<OnboardingStep2Handle, OnboardingStep2
             </CardContent>
           </Card>
         </div>
+
+        {showLanguageSearch && (
+          <div className="bg-background/80 animate-in fade-in fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm duration-200">
+            <Card className="w-full max-w-md border shadow-lg">
+              <div className="p-6">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-xl font-bold">
+                    {t("onboarding:steps.preferences.languageLabel")}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLanguageSearch(false);
+                      setLanguageSearch("");
+                    }}
+                    className="hover:bg-accent rounded-lg p-2 transition-colors"
+                  >
+                    <Icons.Close className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="relative mb-4">
+                  <Icons.Search className="text-muted-foreground absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2" />
+                  <Input
+                    type="text"
+                    placeholder={t("onboarding:steps.preferences.searchLanguagesPlaceholder")}
+                    value={languageSearch}
+                    onChange={(event) => setLanguageSearch(event.target.value)}
+                    className="pl-10"
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-96 space-y-1 overflow-y-auto pr-2">
+                  {filteredLocales.map((locale) => (
+                    <button
+                      key={locale.code}
+                      type="button"
+                      data-testid={`language-${locale.code}-button`}
+                      onClick={() => handleLanguageSelect(locale.code)}
+                      className={`flex w-full items-center justify-between rounded-lg p-3 text-left transition-all ${
+                        language === locale.code ? "bg-primary/10" : "hover:bg-accent"
+                      }`}
+                    >
+                      <span>
+                        <span className="block font-semibold">{locale.label}</span>
+                        <span className="text-muted-foreground text-sm">{locale.code}</span>
+                      </span>
+                      {language === locale.code && (
+                        <Icons.CheckCircle className="text-primary h-5 w-5" />
+                      )}
+                    </button>
+                  ))}
+                  {filteredLocales.length === 0 && (
+                    <div className="text-muted-foreground py-8 text-center">
+                      {t("onboarding:steps.preferences.noLanguagesFound")}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
 
         {showCurrencySearch && (
           <div className="bg-background/80 animate-in fade-in fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm duration-200">

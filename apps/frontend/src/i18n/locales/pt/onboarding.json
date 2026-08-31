@@ -1,0 +1,101 @@
+{
+  "buttons": {
+    "continue": "Continuar",
+    "subscribeConnect": "Assinar e conectar",
+    "getStarted": "Começar"
+  },
+  "steps": {
+    "chooseMode": {
+      "subtitle": "Duas formas de acompanhar sua carteira.",
+      "holdings": {
+        "title": "Posições",
+        "subtitle": "Acompanhamento por valor",
+        "badge": "Ideal para um acompanhamento de baixa manutenção.",
+        "features": {
+          "netWorth": "Patrimônio líquido e alocação",
+          "unrealizedPnl": "Valor e L/P não realizado",
+          "priceBased": "Rentabilidade baseada em preços",
+          "fastSetup": "Configuração rápida e leve"
+        },
+        "limit": "Limitação: sem TWR/IRR baseados em transações.",
+        "note": "Nota: requer manter as posições atualizadas."
+      },
+      "transactions": {
+        "title": "Transações",
+        "subtitle": "Acompanhamento de rentabilidade",
+        "badge": "Ideal para análises completas de rentabilidade.",
+        "features": {
+          "totalReturn": "Rentabilidade total ao longo do tempo",
+          "attribution": "Atribuição de ganhos e fluxos de caixa",
+          "completeView": "A visão de rentabilidade mais completa",
+          "brokerSync": "Ótimo com sincronização de corretora ou importação CSV"
+        },
+        "limit": "Limitação: requer registrar todas as transações.",
+        "note": "Nota: automatizado se sincronizado com uma corretora."
+      },
+      "footnote": "Você pode usar modos diferentes para contas diferentes.",
+      "learnMore": "Saiba mais"
+    },
+    "preferences": {
+      "subtitle": "Apenas algumas preferências para começar",
+      "currencyLabel": "Moeda",
+      "timezoneLabel": "Fuso horário",
+      "other": "Outro",
+      "selectCurrency": "Selecionar moeda",
+      "selectTimezone": "Selecionar fuso horário",
+      "searchCurrenciesPlaceholder": "Buscar moedas...",
+      "searchTimezonesPlaceholder": "Buscar fusos horários...",
+      "noCurrenciesFound": "Nenhuma moeda encontrada",
+      "noTimezonesFound": "Nenhum fuso horário encontrado",
+      "currencyRequired": "Selecione uma moeda base.",
+      "timezoneRequired": "Selecione um fuso horário.",
+      "languageLabel": "Idioma",
+      "formattingRegionLabel": "Região e formatos",
+      "searchRegionsPlaceholder": "Buscar regiões...",
+      "noRegionsFound": "Nenhuma região encontrada",
+      "searchLanguagesPlaceholder": "Buscar idiomas...",
+      "noLanguagesFound": "Nenhum idioma encontrado"
+    }
+  },
+  "appearance": {
+    "subtitle": "Personalize sua experiência",
+    "themeLabel": "Tema",
+    "fontLabel": "Fonte",
+    "themeLight": "Claro",
+    "themeDark": "Escuro",
+    "themeSystem": "Sistema",
+    "themeLightPreviewAlt": "Prévia do tema claro",
+    "themeDarkPreviewAlt": "Prévia do tema escuro",
+    "themeSystemPreviewAlt": "Prévia do tema do sistema",
+    "fontSample": "Invista com clareza.",
+    "fonts": {
+      "monoLabel": "Mono",
+      "monoDescription": "Técnica e precisa",
+      "sansLabel": "Sans",
+      "sansDescription": "Limpa e moderna",
+      "serifLabel": "Serif",
+      "serifDescription": "Clássica e elegante"
+    },
+    "navigationLabel": "Navegação"
+  },
+  "connect": {
+    "optional": "Opcional",
+    "title": "Wealthfolio Connect",
+    "subtitle": "Sincronize automaticamente suas corretoras mantendo seus dados privados.",
+    "learnMore": "Saiba mais sobre o Connect",
+    "features": {
+      "brokerageSync": {
+        "title": "Sincronização de corretora",
+        "description": "Sincronize automaticamente suas contas e transações no seu banco de dados local."
+      },
+      "deviceSync": {
+        "title": "Sincronização de dispositivos",
+        "description": "Mantenha seu banco de dados sincronizado em todos os seus dispositivos com criptografia de ponta a ponta."
+      },
+      "householdView": {
+        "title": "Visão familiar",
+        "description": "Compartilhe contas selecionadas com sua família e vejam juntos uma visão agregada."
+      }
+    }
+  }
+}

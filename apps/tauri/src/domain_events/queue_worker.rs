@@ -420,9 +420,22 @@ async fn run_portfolio_job(
                     error!("Failed to emit market:sync-error event: {}", e_emit);
                 }
                 error!(
-                    "Market data sync failed: {}. Skipping portfolio calculation.",
+                    "Market data sync failed: {}. Recalculating with cached quotes.",
                     e
                 );
+
+                // The change that queued this job — an edited asset, a new
+                // activity — still has to reach the portfolio. Fetching quotes
+                // is a separate concern, and a provider outage or an offline
+                // device must not leave the portfolio on stale values.
+                run_portfolio_calculation(
+                    app_handle,
+                    context,
+                    accounts_to_recalc,
+                    snapshot_mode,
+                    valuation_mode,
+                )
+                .await;
             }
         }
     } else {

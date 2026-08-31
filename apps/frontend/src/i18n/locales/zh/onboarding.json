@@ -52,7 +52,9 @@
       "languageLabel": "语言",
       "formattingRegionLabel": "地区与格式",
       "searchRegionsPlaceholder": "搜索地区……",
-      "noRegionsFound": "未找到地区"
+      "noRegionsFound": "未找到地区",
+      "searchLanguagesPlaceholder": "搜索语言……",
+      "noLanguagesFound": "未找到语言"
     }
   },
   "appearance": {

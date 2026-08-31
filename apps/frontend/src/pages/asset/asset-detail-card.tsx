@@ -53,6 +53,8 @@ interface AssetDetail {
     strike?: number | null;
     expiration?: string | null;
   } | null;
+  /** Multiplier configured on the asset. Independent of any holding. */
+  contractMultiplier?: number | null;
   className?: string;
 }
 
@@ -99,6 +101,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
     quote,
     bondSpec,
     optionSpec,
+    contractMultiplier,
   } = assetData;
 
   const isOption = optionSpec != null;
@@ -342,6 +345,22 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
                   </span>
                 </div>
               </div>
+            </div>
+          </>
+        )}
+
+        {/* Shown outside the option block: futures and CFDs arrive as EQUITY and
+            carry a multiplier too, and a scaled value is unexplainable without it. */}
+        {contractMultiplier != null && contractMultiplier !== 1 && (
+          <>
+            <Separator className="my-3" />
+            <div className="flex items-baseline justify-between">
+              <span className="text-muted-foreground text-xs">
+                {t("asset:detailCard.multiplier")}
+              </span>
+              <span className="text-sm font-medium">
+                {numberFormatting.formatDecimal(contractMultiplier)}
+              </span>
             </div>
           </>
         )}

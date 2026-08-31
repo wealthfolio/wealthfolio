@@ -63,6 +63,17 @@ community-contributed translations are preserved.
 1. Add a `locales/<code>/` folder with the namespace JSON files.
 2. Add an entry to `SUPPORTED_LOCALES` in `locales.ts` and `locales` in
    `i18next.config.ts`.
+3. Add the code to `SUPPORTED_UI_LANGUAGES` in
+   `crates/core/src/settings/settings_service.rs` so the backend persists it.
+4. Add the locale's `ui.json` to `src/addons/iframe/addon-sandbox-i18n.ts`.
+5. Check `new Intl.PluralRules("<code>").resolvedOptions().pluralCategories`. A
+   locale with a `many` category (fr, es, pt, it) needs a `_many` form for every
+   plural stem — i18next echoes the raw key back when the form is missing.
+6. If the language has its own number/date conventions, add a formatting region:
+   `FORMATTING_REGIONS` + `FORMATTING_REGION_LOCALES` in
+   `packages/ui/src/lib/formatting.ts`, `SUPPORTED_FORMATTING_REGIONS` in
+   `settings_service.rs`, the two region pickers, and a
+   `settings:formattingRegion.options.*` label in every locale.
 
 ## Provenance of current translations
 
@@ -79,3 +90,10 @@ community-contributed translations are preserved.
   Spanish sets (`Posizioni`, `Classe di attività`, `Costo di carico`) and
   Italian sentence case; `_many` plural forms are required because Italian has a
   CLDR `many` category. Intended for continued community review.
+- **Portuguese (pt-BR)**: community contribution (PR #1533), full coverage of
+  all namespaces in Brazilian Portuguese. Terminology follows Brazilian market
+  usage — `Posições`, `Carteira`, `Custo de aquisição`, `Rentabilidade`, `L/P`,
+  `Valores mobiliários`, `Aportes`, `Desdobramento de ações` — and Brazilian
+  punctuation (`"..."`, never `«...»`). `_many` plural forms are required
+  because Portuguese has a CLDR `many` category. Intended for continued
+  community review.

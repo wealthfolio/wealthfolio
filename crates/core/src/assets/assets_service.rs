@@ -993,16 +993,39 @@ impl AssetService {
             .filter(|s| !s.is_empty())
     }
 
+    /// Pricing inputs a user can edit on a bond spec. A change here alters every
+    /// price the calculated provider would derive, so the provider binding has
+    /// to be re-resolved. Note this only re-resolves and refetches the recent
+    /// window: older calculated quotes keep the previous specification.
+    fn bond_pricing_inputs(
+        metadata: Option<&serde_json::Value>,
+    ) -> (
+        Option<&serde_json::Value>,
+        Option<&serde_json::Value>,
+        Option<&serde_json::Value>,
+    ) {
+        let bond = metadata.and_then(|m| m.get("bond"));
+        (
+            bond.and_then(|b| b.get("maturityDate")),
+            bond.and_then(|b| b.get("couponRate")),
+            bond.and_then(|b| b.get("couponFrequency")),
+        )
+    }
+
     fn should_reset_sync_state_after_profile_change(before: &Asset, after: &Asset) -> bool {
+        let is_bond = before.is_bond() || after.is_bond();
         before.quote_mode != after.quote_mode
             || before.quote_ccy != after.quote_ccy
             || before.instrument_type != after.instrument_type
             || before.instrument_symbol != after.instrument_symbol
             || before.instrument_exchange_mic != after.instrument_exchange_mic
             || before.provider_config != after.provider_config
-            || ((before.is_bond() || after.is_bond())
+            || (is_bond
                 && Self::metadata_identifier(before.metadata.as_ref(), "isin")
                     != Self::metadata_identifier(after.metadata.as_ref(), "isin"))
+            || (is_bond
+                && Self::bond_pricing_inputs(before.metadata.as_ref())
+                    != Self::bond_pricing_inputs(after.metadata.as_ref()))
     }
 
     /// Creates a new AssetService instance
@@ -4426,6 +4449,61 @@ mod tests {
         let before = test_market_asset();
         let after = Asset {
             notes: Some("Updated notes".to_string()),
+            ..before.clone()
+        };
+
+        assert!(!AssetService::should_reset_sync_state_after_profile_change(
+            &before, &after
+        ));
+    }
+
+    fn test_bond_asset(bond: serde_json::Value) -> Asset {
+        Asset {
+            instrument_type: Some(InstrumentType::Bond),
+            instrument_symbol: Some("US912828XY12".to_string()),
+            metadata: Some(serde_json::json!({ "bond": bond })),
+            ..test_market_asset()
+        }
+    }
+
+    #[test]
+    fn test_bond_pricing_input_change_resets_sync_state() {
+        let before = test_bond_asset(serde_json::json!({ "maturityDate": "2032-02-15" }));
+
+        for after in [
+            test_bond_asset(serde_json::json!({ "maturityDate": "2033-02-15" })),
+            test_bond_asset(serde_json::json!({
+                "maturityDate": "2032-02-15", "couponRate": 0.04375
+            })),
+            test_bond_asset(serde_json::json!({
+                "maturityDate": "2032-02-15", "couponFrequency": "ANNUAL"
+            })),
+        ] {
+            assert!(
+                AssetService::should_reset_sync_state_after_profile_change(&before, &after),
+                "editing a bond pricing input must re-resolve the provider binding"
+            );
+        }
+    }
+
+    #[test]
+    fn test_bond_face_value_change_does_not_reset_sync_state() {
+        let before = test_bond_asset(serde_json::json!({ "maturityDate": "2032-02-15" }));
+        let after = test_bond_asset(serde_json::json!({
+            "maturityDate": "2032-02-15", "faceValue": 100
+        }));
+
+        // faceValue cancels out of the calculated price, so it changes nothing.
+        assert!(!AssetService::should_reset_sync_state_after_profile_change(
+            &before, &after
+        ));
+    }
+
+    #[test]
+    fn test_non_bond_metadata_change_does_not_reset_sync_state() {
+        let before = test_market_asset();
+        let after = Asset {
+            metadata: Some(serde_json::json!({ "contractMultiplier": 50 })),
             ..before.clone()
         };
 

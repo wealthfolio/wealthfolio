@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FC } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -48,6 +48,7 @@ import {
   monthRange,
   parseMonthKey,
 } from "../lib/month-period";
+import { spendingActivityHref } from "../lib/navigation";
 import {
   DASHBOARD_PERIOD_UPDATED_AT_STORAGE_KEY,
   INSIGHTS_PERIOD_STORAGE_KEY,
@@ -527,6 +528,17 @@ export default function SpendingTabContent() {
     persistedInsightPeriod,
     selection,
   ]);
+  // "Where it went" deep-links carry the selected period (interval or month)
+  // so the activities spending tab opens pre-filtered to the same range.
+  const activityHrefFor = useCallback(
+    (id: string) =>
+      spendingActivityHref(id, {
+        savingsHref: dashboardInsightHref.cashflow,
+        startDate: dateRange?.from ? formatDateISO(dateRange.from) : undefined,
+        endDate: dateRange?.to ? formatDateISO(dateRange.to) : undefined,
+      }),
+    [dashboardInsightHref.cashflow, dateRange],
+  );
   const accountTypeById = useMemo(
     () => new Map(accounts.map((account) => [account.id, account.accountType])),
     [accounts],
@@ -1056,7 +1068,7 @@ export default function SpendingTabContent() {
                     currency={currency}
                     themeColor={theme.deep}
                     hasNoIncludedAccounts={hasNoIncludedAccounts}
-                    savingsHref={dashboardInsightHref.cashflow}
+                    activityHrefFor={activityHrefFor}
                   />
                 ) : (
                   <CategoryRankedBar
@@ -1066,7 +1078,7 @@ export default function SpendingTabContent() {
                     themeColor={theme.deep}
                     groupRows={budget?.computed.groupRows ?? []}
                     hasNoIncludedAccounts={hasNoIncludedAccounts}
-                    savingsHref={dashboardInsightHref.cashflow}
+                    activityHrefFor={activityHrefFor}
                   />
                 )}
               </DashboardCard>
@@ -1247,18 +1259,6 @@ interface CategoryRow {
   amount: number;
 }
 
-/**
- * Deep-link for a "Where it went" node. The synthetic uncategorized bucket has
- * no real category id, so it routes to the status filter — the category filter
- * would match nothing and render an empty list.
- */
-function spendingActivityHref(id: string, savingsHref?: string): string {
-  if (id === SAVINGS_ROW_ID) return savingsHref ?? "/activities?tab=spending";
-  return id === "__uncategorized__"
-    ? "/activities?tab=spending&status=uncategorized"
-    : `/activities?tab=spending&category=${id}`;
-}
-
 function WhereItWentEmptyState({ hasNoIncludedAccounts }: { hasNoIncludedAccounts: boolean }) {
   const { t } = useTranslation();
   return (
@@ -1309,14 +1309,14 @@ function CategoryTreemapMono({
   currency,
   themeColor,
   hasNoIncludedAccounts,
-  savingsHref,
+  activityHrefFor,
 }: {
   rows: CategoryRow[];
   total: number;
   currency: string;
   themeColor: string;
   hasNoIncludedAccounts: boolean;
-  savingsHref?: string;
+  activityHrefFor: (id: string) => string;
 }) {
   const { t } = useTranslation();
   const numberFormatting = useNumberFormatting();
@@ -1369,7 +1369,7 @@ function CategoryTreemapMono({
                   currency={currency}
                   onActivate={(id) => {
                     if (id && id !== "__other__") {
-                      navigate(spendingActivityHref(id, savingsHref));
+                      navigate(activityHrefFor(id));
                     }
                   }}
                 />
@@ -1379,7 +1379,7 @@ function CategoryTreemapMono({
             onClick={(node: unknown) => {
               const id = (node as { id?: string } | null)?.id;
               if (id && id !== "__other__") {
-                navigate(spendingActivityHref(id, savingsHref));
+                navigate(activityHrefFor(id));
               }
             }}
           >
@@ -1536,7 +1536,7 @@ function CategoryRankedBar({
   themeColor,
   groupRows = [],
   hasNoIncludedAccounts,
-  savingsHref,
+  activityHrefFor,
 }: {
   rows: CategoryRow[];
   total: number;
@@ -1548,7 +1548,7 @@ function CategoryRankedBar({
    * group, the list switches to a grouped layout with collapsible group rows.
    */
   groupRows?: import("../types/budget").BudgetGroupRow[];
-  savingsHref?: string;
+  activityHrefFor: (id: string) => string;
 }) {
   const formatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
@@ -1687,7 +1687,7 @@ function CategoryRankedBar({
               total={total}
               currency={currency}
               themeColor={themeColor}
-              savingsHref={savingsHref}
+              activityHrefFor={activityHrefFor}
             />
           ))}
         </div>
@@ -1708,7 +1708,7 @@ function CategoryRankedBar({
           return (
             <Link
               key={r.id}
-              to={spendingActivityHref(r.id, savingsHref)}
+              to={activityHrefFor(r.id)}
               className="hover:bg-muted/40 group flex items-center gap-2.5 rounded-md px-1 py-1 transition-colors"
             >
               <span
@@ -1729,7 +1729,7 @@ function CategoryRankedBar({
         })}
         {uncategorizedAmount > 0.01 && (
           <Link
-            to="/activities?tab=spending&status=uncategorized"
+            to={activityHrefFor("__uncategorized__")}
             className="border-border/60 hover:bg-muted/40 mt-1 flex items-center gap-2.5 rounded-md border border-dashed px-2 py-1.5 transition-colors"
           >
             <Icons.AlertCircle className="text-muted-foreground h-3 w-3 shrink-0" />
@@ -1760,7 +1760,7 @@ function GroupedCategoryBlock({
   total,
   currency,
   themeColor,
-  savingsHref,
+  activityHrefFor,
 }: {
   bucket: {
     id: string;
@@ -1772,7 +1772,7 @@ function GroupedCategoryBlock({
   total: number;
   currency: string;
   themeColor: string;
-  savingsHref?: string;
+  activityHrefFor: (id: string) => string;
 }) {
   const numberFormatting = useNumberFormatting();
   const [expanded, setExpanded] = useState(false);
@@ -1823,7 +1823,7 @@ function GroupedCategoryBlock({
           {sortedCats.map((cat) => {
             const catShare = total > 0 ? (cat.amount / total) * 100 : 0;
             const isUncategorized = cat.id === "__uncategorized__";
-            const to = spendingActivityHref(cat.id, savingsHref);
+            const to = activityHrefFor(cat.id);
             const dotColor = cat.color ?? accent;
             return (
               <Link
