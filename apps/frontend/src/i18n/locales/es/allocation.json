@@ -104,8 +104,8 @@
     "loading": "Cargando…",
     "recalculate": "Recalcular",
     "calculatePlan": "Calcular plan",
-    "driverSentenceOver": "{{name}} está {{current}}% por encima de un objetivo del {{target}}%.",
-    "driverSentenceUnder": "{{name}} está {{current}}% por debajo de un objetivo del {{target}}%.",
+    "driverSentenceOver": "{{name}} está en el {{current}}%, por encima del objetivo del {{target}}%.",
+    "driverSentenceUnder": "{{name}} está en el {{current}}%, por debajo del objetivo del {{target}}%.",
     "modeVerbSells": "Ventas y compras",
     "modeVerbHybrid": "Efectivo y ventas",
     "modeVerbCashFlow": "Compras con flujo de efectivo"

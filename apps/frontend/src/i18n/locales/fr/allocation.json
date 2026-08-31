@@ -104,8 +104,8 @@
     "loading": "Chargement…",
     "recalculate": "Recalculer",
     "calculatePlan": "Calculer le plan",
-    "driverSentenceOver": "{{name}} est à {{current}} % au-dessus d'une cible de {{target}} %.",
-    "driverSentenceUnder": "{{name}} est à {{current}} % en dessous d'une cible de {{target}} %.",
+    "driverSentenceOver": "{{name}} est à {{current}} %, au-dessus de la cible de {{target}} %.",
+    "driverSentenceUnder": "{{name}} est à {{current}} %, en dessous de la cible de {{target}} %.",
     "modeVerbSells": "Les ventes et achats",
     "modeVerbHybrid": "La trésorerie et les ventes",
     "modeVerbCashFlow": "Les achats par flux de trésorerie"

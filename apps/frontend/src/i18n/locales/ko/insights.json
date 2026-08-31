@@ -44,14 +44,14 @@
       "add": "추가",
       "trim": "축소",
       "inside_target_range": "목표 범위 내",
-      "outside_range": "{{count}}개 범위 초과 · 최대 격차 {{gap}}",
+      "outside_range": "{{count}}개 범위 벗어남 · 최대 격차 {{gap}}",
       "tolerance": "허용 오차 {{tolerance}}",
       "current": "현재",
       "target": "목표",
       "no_target_yet": "아직 목표 배분이 없습니다",
       "compare_weights": "현재 비중을 원하는 포트폴리오와 비교하세요.",
       "set_target_allocation": "목표 배분 설정",
-      "outside_range_other": "{{count}}개 범위 초과 · 최대 격차 {{gap}}"
+      "outside_range_other": "{{count}}개 범위 벗어남 · 최대 격차 {{gap}}"
     },
     "value_strip": {
       "portfolio_value": "포트폴리오 가치",

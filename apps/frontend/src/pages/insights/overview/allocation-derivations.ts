@@ -293,6 +293,7 @@ export function currencyLensItems(holdings: Holding[]): LensItem[] {
 
 /**
  * Nested account breakdown: account groups at the top level, individual accounts as children.
+ * A group stays a group at any member count, so its accounts are always reachable underneath.
  * Ungrouped accounts (no `account.group`) appear as flat top-level rows. Values come from real
  * per-account valuations (holdings are aggregated under a single id in "all" scope).
  */
@@ -303,7 +304,12 @@ export function accountTreeWeights(
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
   const groups = new Map<
     string,
-    { name: string; value: number; accounts: { id: string; name: string; value: number }[] }
+    {
+      name: string;
+      groupName: string | null;
+      value: number;
+      accounts: { id: string; name: string; value: number }[];
+    }
   >();
   let total = 0;
   for (const v of valuations) {
@@ -315,8 +321,15 @@ export function accountTreeWeights(
         : num(v.totalValue) * (num(v.fxRateToBase) || 1);
     if (value <= 0) continue;
     total += value;
-    const key = account.group || account.name;
-    const group = groups.get(key) ?? { name: key, value: 0, accounts: [] };
+    const groupName = account.group?.trim() || null;
+    // Ungrouped accounts key by id so two accounts sharing a name stay separate rows.
+    const key = groupName ? `grp:${groupName}` : `acct:${account.id}`;
+    const group = groups.get(key) ?? {
+      name: groupName ?? account.name,
+      groupName,
+      value: 0,
+      accounts: [],
+    };
     group.value += value;
     group.accounts.push({ id: account.id, name: account.name, value });
     groups.set(key, group);
@@ -325,15 +338,15 @@ export function accountTreeWeights(
     .sort((a, b) => b.value - a.value)
     .map((group, index) => {
       const color = paletteColor(index);
-      const nested = group.accounts.length > 1;
+      const isGroup = group.groupName != null;
       return {
-        id: `grp:${group.name}`,
+        id: isGroup ? `grp:${group.groupName}` : group.accounts[0].id,
         name: group.name,
         value: group.value,
         percentage: total > 0 ? (group.value / total) * 100 : 0,
         color,
         depth: 0,
-        children: nested
+        children: isGroup
           ? group.accounts
               .sort((a, b) => b.value - a.value)
               .map((acc) => ({

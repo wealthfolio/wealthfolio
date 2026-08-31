@@ -74,3 +74,8 @@ community-contributed translations are preserved.
 - **Korean**: AI-drafted, full-coverage translation of all namespaces against
   the English source keys, using standard Korean financial/investment
   terminology; intended for community review.
+- **Italian**: community contribution (PR #1588), full coverage of all
+  namespaces, reviewed against the terminology already used by the French and
+  Spanish sets (`Posizioni`, `Classe di attività`, `Costo di carico`) and
+  Italian sentence case; `_many` plural forms are required because Italian has a
+  CLDR `many` category. Intended for continued community review.

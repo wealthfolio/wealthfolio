@@ -36,6 +36,8 @@ interface Lens {
   label: string;
   unit: string;
   nodes: BreakdownNode[];
+  /** Underlying item count when it differs from the top-level row count (grouped rows). */
+  count?: number;
   /** Taxonomy backing the lens; when present, leaf rows open the detail sheet. */
   allocation?: TaxonomyAllocation;
 }
@@ -108,6 +110,17 @@ function taxonomyLens(
   };
 }
 
+/** Accounts lens: rows are groups, so the count has to reach through to the accounts. */
+function accountsLens(label: string, unit: string, nodes: BreakdownNode[]): Lens {
+  return {
+    key: "accounts",
+    label,
+    unit,
+    nodes,
+    count: nodes.reduce((s, n) => s + (n.children?.length ?? 1), 0),
+  };
+}
+
 export function PortfolioExplorer({
   allocations,
   holdings,
@@ -140,12 +153,11 @@ export function PortfolioExplorer({
         t("insights:insights.explorer.unit_categories"),
         allocations?.assetClasses,
       ),
-      {
-        key: "accounts",
-        label: t("insights:insights.explorer.lens_accounts"),
-        unit: t("insights:insights.explorer.unit_accounts"),
-        nodes: accountTreeWeights(accountValues, scopedAccounts),
-      },
+      accountsLens(
+        t("insights:insights.explorer.lens_accounts"),
+        t("insights:insights.explorer.unit_accounts"),
+        accountTreeWeights(accountValues, scopedAccounts),
+      ),
       taxonomyLens(
         "sectors",
         t("insights:insights.explorer.lens_sectors"),
@@ -334,8 +346,8 @@ export function PortfolioExplorer({
           <div className="mb-3.5 flex items-baseline justify-between gap-3.5">
             <span className="text-[13.5px] font-bold">{active.label}</span>
             <span className="text-muted-foreground text-[12.5px] tabular-nums">
-              <PrivacyAmount value={total} currency={currency} /> · {active.nodes.length}{" "}
-              {active.unit}
+              <PrivacyAmount value={total} currency={currency} /> ·{" "}
+              {active.count ?? active.nodes.length} {active.unit}
             </span>
           </div>
           <SegmentedBar nodes={barWeights} />

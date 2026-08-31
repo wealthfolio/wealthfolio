@@ -8,9 +8,9 @@ use log::{debug, error};
 use std::sync::Arc;
 
 const SUPPORTED_FORMATTING_REGIONS: &[&str] = &[
-    "system", "CA", "US", "GB", "FR", "DE", "ES", "MX", "CN", "JP", "KR",
+    "system", "CA", "US", "GB", "FR", "DE", "ES", "MX", "CN", "JP", "KR", "IT",
 ];
-const SUPPORTED_UI_LANGUAGES: &[&str] = &["en", "fr", "de", "es", "zh", "ja", "ko"];
+const SUPPORTED_UI_LANGUAGES: &[&str] = &["en", "fr", "de", "es", "zh", "ja", "ko", "it"];
 
 fn normalize_ui_language(language: &str) -> String {
     let base = language.split(['-', '_']).next().unwrap_or(language);
@@ -255,6 +255,7 @@ mod tests {
         assert!(validate_formatting_region("DE").is_ok());
         assert!(validate_formatting_region("JP").is_ok());
         assert!(validate_formatting_region("KR").is_ok());
+        assert!(validate_formatting_region("IT").is_ok());
         assert!(validate_formatting_region("de-DE").is_err());
     }
 }

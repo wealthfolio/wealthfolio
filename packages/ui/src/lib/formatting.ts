@@ -31,6 +31,7 @@ export const FORMATTING_REGIONS = [
   "CN",
   "JP",
   "KR",
+  "IT",
 ] as const;
 
 export type FormattingRegionSetting = (typeof FORMATTING_REGIONS)[number];
@@ -46,6 +47,7 @@ const FORMATTING_REGION_LOCALES: Record<Exclude<FormattingRegionSetting, "system
   CN: "zh-CN",
   JP: "ja-JP",
   KR: "ko-KR",
+  IT: "it-IT",
 };
 
 export interface PercentFormatOptions {

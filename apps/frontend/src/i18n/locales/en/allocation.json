@@ -104,8 +104,8 @@
     "loading": "Loading…",
     "recalculate": "Recalculate",
     "calculatePlan": "Calculate plan",
-    "driverSentenceOver": "{{name}} sits {{current}}% over a {{target}}% target.",
-    "driverSentenceUnder": "{{name}} sits {{current}}% under a {{target}}% target.",
+    "driverSentenceOver": "{{name}} is at {{current}}%, above a {{target}}% target.",
+    "driverSentenceUnder": "{{name}} is at {{current}}%, below a {{target}}% target.",
     "modeVerbSells": "Sells and buys",
     "modeVerbHybrid": "Cash and sells",
     "modeVerbCashFlow": "Cash-flow buys"

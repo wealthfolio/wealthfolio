@@ -161,4 +161,41 @@ describe("allocation dashboard derivations", () => {
     expect(nodes[0].children?.[0].name).toBe("Taxable");
     expect(nodes[0].children?.[0].value).toBe(125);
   });
+
+  it("keeps a single-account group as an expandable group carrying the account name", () => {
+    const nodes = accountTreeWeights(
+      [{ accountId: "taxable", totalValue: 100, totalValueBase: 100, fxRateToBase: 1 }],
+      [account("taxable", "Fidelity Brokerage", "taxable")],
+    );
+
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].name).toBe("taxable");
+    expect(nodes[0].children).toHaveLength(1);
+    expect(nodes[0].children?.[0].name).toBe("Fidelity Brokerage");
+    expect(nodes[0].children?.[0].value).toBe(100);
+  });
+
+  it("renders an ungrouped account as a flat row named after the account", () => {
+    const nodes = accountTreeWeights(
+      [{ accountId: "solo", totalValue: 100, totalValueBase: 100, fxRateToBase: 1 }],
+      [account("solo", "Schwab IRA")],
+    );
+
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].name).toBe("Schwab IRA");
+    expect(nodes[0].children).toBeUndefined();
+  });
+
+  it("keeps same-named ungrouped accounts as separate rows", () => {
+    const nodes = accountTreeWeights(
+      [
+        { accountId: "a", totalValue: 100, totalValueBase: 100, fxRateToBase: 1 },
+        { accountId: "b", totalValue: 50, totalValueBase: 50, fxRateToBase: 1 },
+      ],
+      [account("a", "Checking"), account("b", "Checking")],
+    );
+
+    expect(nodes).toHaveLength(2);
+    expect(nodes.map((n) => n.value)).toEqual([100, 50]);
+  });
 });

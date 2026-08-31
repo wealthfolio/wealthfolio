@@ -1,0 +1,278 @@
+{
+  "issues": {
+    "price_manual_valuation_missing": {
+      "title_one": "Valutazione manuale mancante per {{symbol}}",
+      "title_many": "Valutazioni manuali mancanti per {{count}} posizioni",
+      "title_other": "Valutazioni manuali mancanti per {{count}} posizioni",
+      "message": "Le posizioni manuali/personalizzate richiedono una valutazione manuale prima di poter essere incluse nel calcolo della performance."
+    },
+    "price_no_market_data": {
+      "title_one": "Nessun dato di mercato per {{symbol}}",
+      "title_many": "Nessun dato di mercato per {{count}} posizioni",
+      "title_other": "Nessun dato di mercato per {{count}} posizioni",
+      "message": "Impossibile recuperare i dati di mercato per alcune posizioni. Questo può dipendere da simboli non validi o problemi del provider. Il valore del tuo portafoglio potrebbe essere impreciso."
+    },
+    "price_stale_outdated": {
+      "title_one": "Prezzo obsoleto per {{count}} posizione",
+      "title_many": "Prezzi obsoleti per {{count}} posizioni",
+      "title_other": "Prezzi obsoleti per {{count}} posizioni",
+      "message": "Alcune posizioni non hanno prezzi aggiornati da oltre 3 giorni. Il valore del tuo portafoglio potrebbe essere impreciso."
+    },
+    "price_update_needed": {
+      "title_one": "Aggiornamento prezzo necessario per {{count}} posizione",
+      "title_many": "Aggiornamento prezzi necessario per {{count}} posizioni",
+      "title_other": "Aggiornamento prezzi necessario per {{count}} posizioni",
+      "message": "Alcune posizioni non hanno prezzi aggiornati di recente. Valuta di sincronizzare i prezzi."
+    },
+    "fx_missing": {
+      "title_one": "Tasso di cambio mancante per {{currency}}",
+      "title_many": "Tassi di cambio mancanti per {{count}} valute",
+      "title_other": "Tassi di cambio mancanti per {{count}} valute",
+      "message": "Non possiamo convertire alcune posizioni nella tua valuta base. Questo influisce sul valore totale del tuo portafoglio."
+    },
+    "fx_stale_error": {
+      "title_one": "Tasso di cambio obsoleto",
+      "title_many": "Tassi di cambio obsoleti per {{count}} valute",
+      "title_other": "Tassi di cambio obsoleti per {{count}} valute",
+      "message": "Alcuni tassi di cambio non sono stati aggiornati da oltre 3 giorni. Le conversioni valutarie potrebbero essere imprecise."
+    },
+    "fx_stale_warning": {
+      "title_one": "Aggiornamento tasso di cambio necessario",
+      "title_many": "Aggiornamento tassi di cambio necessario per {{count}} valute",
+      "title_other": "Aggiornamento tassi di cambio necessario per {{count}} valute",
+      "message": "Alcuni tassi di cambio non sono stati aggiornati di recente. Valuta di aggiornare i tassi."
+    },
+    "classification_missing_category": {
+      "title_one": "{{count}} posizione richiede una categoria",
+      "title_many": "{{count}} posizioni richiedono categorie",
+      "title_other": "{{count}} posizioni richiedono categorie",
+      "message": "Ad alcune posizioni non è assegnata una {{taxonomy}}. Questo influisce sui grafici di allocazione e sulle analisi."
+    },
+    "classification_legacy_migration": {
+      "title_one": "{{count}} asset ha dati di classificazione obsoleti",
+      "title_many": "{{count}} asset hanno dati di classificazione obsoleti",
+      "title_other": "{{count}} asset hanno dati di classificazione obsoleti",
+      "message": "Alcuni asset hanno dati di settore/paese nel vecchio formato. Esegui la migrazione al nuovo sistema di tassonomie per un tracciamento dell'allocazione migliore."
+    },
+    "data_orphan_activity_account": {
+      "title_one": "Una transazione fa riferimento a un conto inesistente",
+      "title_many": "{{count}} transazioni fanno riferimento a conti inesistenti",
+      "title_other": "{{count}} transazioni fanno riferimento a conti inesistenti",
+      "message": "Alcune transazioni puntano a conti che non esistono più. Questo può causare errori di calcolo."
+    },
+    "data_orphan_activity_asset": {
+      "title_one": "Una transazione fa riferimento a un asset inesistente",
+      "title_many": "{{count}} transazioni fanno riferimento ad asset inesistenti",
+      "title_other": "{{count}} transazioni fanno riferimento ad asset inesistenti",
+      "message": "Alcune transazioni puntano ad asset che non esistono più. Questo può causare errori di calcolo."
+    },
+    "data_negative_position": {
+      "title_one": "Una posizione ha quantità negativa",
+      "title_many": "{{count}} posizioni hanno quantità negative",
+      "title_other": "{{count}} posizioni hanno quantità negative",
+      "message": "Alcune posizioni mostrano quantità negative, il che di solito indica transazioni mancanti o errate."
+    },
+    "data_legacy_classification": {
+      "title_one": "{{count}} asset ha dati di classificazione datati",
+      "title_many": "{{count}} asset hanno dati di classificazione datati",
+      "title_other": "{{count}} asset hanno dati di classificazione datati",
+      "message": "Alcuni asset hanno dati di settore/paese obsoleti che possono essere migrati al nuovo sistema di classificazione."
+    },
+    "data_negative_account_balance": {
+      "title_one": "Un conto ha un saldo del portafoglio negativo",
+      "title_many": "{{count}} conti hanno un saldo del portafoglio negativo",
+      "title_other": "{{count}} conti hanno un saldo del portafoglio negativo",
+      "message": "Uno o più conti mostrano un valore totale negativo nella loro cronologia. Questo è solitamente causato da transazioni di acquisto mancanti. Rivedi i tuoi movimenti per risolvere il problema."
+    },
+    "data_negative_cash_balance": {
+      "title_one": "Un conto in contanti ha avuto un saldo negativo",
+      "title_many": "{{count}} conti in contanti hanno avuto un saldo negativo",
+      "title_other": "{{count}} conti in contanti hanno avuto un saldo negativo",
+      "message": "Uno o più conti in contanti mostrano un saldo negativo nella loro cronologia. Questo potrebbe essere un normale scoperto bancario oppure un deposito mancante."
+    },
+    "data_missing_lot_disposal_for_sell": {
+      "title_one": "Una vendita non ha una corrispondenza di costo di carico",
+      "title_many": "{{count}} vendite senza corrispondenza di costo di carico",
+      "title_other": "{{count}} vendite senza corrispondenza di costo di carico",
+      "message": "Non è stato possibile abbinare una vendita a un lotto, quindi il guadagno/la perdita realizzati e l'attribuzione della performance potrebbero essere incompleti."
+    },
+    "data_missing_generated_valuation": {
+      "title_one": "Lo storico delle valutazioni generate è incompleto",
+      "title_many": "Mancano {{count}} righe di valutazione generate",
+      "title_other": "Mancano {{count}} righe di valutazione generate",
+      "message": "Alcune date delle istantanee delle posizioni non hanno righe di valutazione generate. Ricostruisci la cronologia del conto dopo aver corretto i prezzi mancanti, le valutazioni manuali o i tassi di cambio."
+    },
+    "data_incomplete_valuation_value": {
+      "title_one": "La copertura della valutazione è incompleta",
+      "title_many": "{{count}} righe di valutazione hanno un valore di mercato incompleto",
+      "title_other": "{{count}} righe di valutazione hanno un valore di mercato incompleto",
+      "message": "Alcune righe di valutazione generate hanno una copertura del valore di mercato incompleta. Il modulo Performance tutela la correttezza contrassegnando i rendimenti interessati come non disponibili o degradati; controlla i prezzi mancanti o le valutazioni manuali."
+    },
+    "data_incomplete_valuation_basis": {
+      "title_one": "La copertura del costo di carico è incompleta",
+      "title_many": "{{count}} posizioni hanno un costo di carico incompleto",
+      "title_other": "{{count}} posizioni hanno un costo di carico incompleto",
+      "message": "Alcune posizioni hanno un costo di carico d'acquisto mancante o parziale. Il valore di mercato può comunque essere mostrato, ma il guadagno/la perdita e i rendimenti basati sul costo di carico potrebbero non essere disponibili finché i movimenti correlati non vengono corretti."
+    },
+    "data_unknown_performance_flow_source": {
+      "title_one": "Il confine del flusso di performance è sconosciuto",
+      "title_many": "{{count}} righe di valutazione hanno una classificazione di trasferimento sconosciuta",
+      "title_other": "{{count}} righe di valutazione hanno una classificazione di trasferimento sconosciuta",
+      "message": "Alcune righe di valutazione generate includono un trasferimento o un flusso il cui confine di portafoglio è sconosciuto. Rivedi i movimenti di trasferimento nelle date interessate e contrassegna ogni trasferimento come esterno oppure collegalo al conto corrispondente."
+    },
+    "account_unconfigured": {
+      "title_one": "{{count}} conto richiede configurazione",
+      "title_many": "{{count}} conti richiedono configurazione",
+      "title_other": "{{count}} conti richiedono configurazione",
+      "message_one": "Scegli una modalità di tracciamento per iniziare a sincronizzare i dati.",
+      "message_many": "Scegli le modalità di tracciamento per iniziare a sincronizzare i dati.",
+      "message_other": "Scegli le modalità di tracciamento per iniziare a sincronizzare i dati."
+    },
+    "account_timezone_missing": {
+      "title": "Fuso orario non configurato",
+      "message": "Imposta il tuo fuso orario nelle Impostazioni generali per assicurarti che le date corrispondano alla tua zona."
+    },
+    "account_timezone_invalid": {
+      "title": "Il fuso orario configurato non è valido",
+      "message": "Il fuso orario configurato \"{{timezone}}\" non è valido. Aggiornalo nelle Impostazioni generali."
+    },
+    "account_timezone_mismatch": {
+      "title": "I fusi orari del browser e dell'app differiscono",
+      "message": "Il fuso orario configurato è \"{{configured}}\" ma quello del browser è \"{{browser}}\". Le date seguono il fuso orario configurato."
+    },
+    "quote_sync_error": {
+      "title_one": "Sincronizzazione delle quotazioni non riuscita per {{symbol}}",
+      "title_many": "Sincronizzazione delle quotazioni non riuscita per {{count}} asset",
+      "title_other": "Sincronizzazione delle quotazioni non riuscita per {{count}} asset",
+      "message": "Questi asset non sono riusciti ripetutamente a sincronizzare i prezzi. Controlla i simboli o le impostazioni del provider dei dati."
+    },
+    "quote_sync_warning": {
+      "title_one": "Problemi di sincronizzazione per {{symbol}}",
+      "title_many": "Problemi di sincronizzazione per {{count}} asset",
+      "title_other": "Problemi di sincronizzazione per {{count}} asset",
+      "message": "Alcuni asset hanno problemi nella sincronizzazione dei prezzi. Potrebbe risolversi automaticamente."
+    },
+    "transfer_incomplete": {
+      "title_one": "Rilevato un trasferimento incompleto",
+      "title_many": "Rilevati {{count}} trasferimenti incompleti",
+      "title_other": "Rilevati {{count}} trasferimenti incompleti",
+      "message": "Un trasferimento non è abbinato o manca della sua parte corrispondente, quindi il suo flusso è stato trattato come esterno e potrebbe distorcere i rendimenti. Abbinalo al trasferimento corrispondente, oppure contrassegnalo come esterno se è quello previsto."
+    }
+  },
+  "page": {
+    "heading": "Stato dei dati",
+    "text": "Identifica e risolvi i problemi di qualità dei dati"
+  },
+  "severity": {
+    "info": "Informazione",
+    "warning": "Avviso",
+    "error": "Errore",
+    "critical": "Critico"
+  },
+  "category": {
+    "prices": "Prezzi",
+    "fxRates": "Tassi di cambio",
+    "categories": "Categorie",
+    "data": "Dati",
+    "accounts": "Conti",
+    "settings": "Impostazioni"
+  },
+  "actions": {
+    "fix": "Correggi",
+    "clear": "Cancella",
+    "sync_prices": "Sincronizza prezzi",
+    "fetch_fx": "Recupera tassi di cambio",
+    "migrate_classifications": "Migra classificazioni",
+    "migrate_legacy_classifications": "Avvia migrazione",
+    "retry_sync": "Riprova sincronizzazione",
+    "to_holdings": "Visualizza posizioni",
+    "to_activities": "Visualizza movimenti",
+    "to_accounts": "Visualizza conti",
+    "to_taxonomies": "Visualizza classificazioni",
+    "to_market_data": "Visualizza dati di mercato",
+    "to_general_settings": "Apri impostazioni generali",
+    "to_connect": "Configura conti",
+    "review_transfers": "Rivedi trasferimenti"
+  },
+  "updatedAt": "Aggiornato {{time}}",
+  "healthy": {
+    "title": "I tuoi dati sono in ottima forma",
+    "description": "Nessun problema rilevato. I dati del tuo portafoglio sono coerenti e aggiornati."
+  },
+  "loadError": {
+    "title": "Impossibile caricare lo stato dei dati",
+    "retry": "Riprova"
+  },
+  "sheet": {
+    "groupedPriceMessage": "Wealthfolio sta utilizzando prezzi riportati per queste date. Recupera nuovamente o aggiungi i prezzi per i giorni di negoziazione effettivi; ignora il problema se le date erano festivi o giorni non lavorativi.",
+    "pricesByInvestment": "Prezzi per investimento",
+    "pricesByInvestmentHint": "Apri un investimento per recuperare nuovamente o aggiungere prezzi. Se le date erano festivi o giorni non lavorativi, ignora il problema.",
+    "priceHistoryNeedsReview": "Lo storico dei prezzi richiede revisione",
+    "missingTradingDay_one": "1 giorno di negoziazione mancante: {{dates}}",
+    "missingTradingDay_many": "{{count}} giorni di negoziazione mancanti: {{dates}}",
+    "missingTradingDay_other": "{{count}} giorni di negoziazione mancanti: {{dates}}",
+    "dateRange": "dal {{from}} al {{to}}",
+    "priceIssueSummary": "{{diagnosticCount}} {{dateWord}} di prezzo su {{assetCount}} {{assetWord}}",
+    "priceDate_one": "data",
+    "priceDate_many": "date",
+    "priceDate_other": "date",
+    "investment_one": "investimento",
+    "investment_many": "investimenti",
+    "investment_other": "investimenti"
+  },
+  "detail": {
+    "categories": {
+      "priceStaleness": {
+        "label": "Prezzi obsoleti",
+        "description": "I prezzi di mercato sono obsoleti e devono essere aggiornati. Questo può influire sull'accuratezza della valutazione del tuo portafoglio."
+      },
+      "fxIntegrity": {
+        "label": "Tassi di cambio",
+        "description": "Tassi di cambio mancanti o obsoleti per la conversione valutaria. Questo può influire sui calcoli dei portafogli multivaluta."
+      },
+      "classification": {
+        "label": "Classificazione",
+        "description": "Ad alcuni asset mancano categorie o classificazioni. Questo influisce sulla ripartizione del portafoglio e sull'analisi dell'allocazione."
+      },
+      "dataConsistency": {
+        "label": "Coerenza dei dati",
+        "description": "Sono state rilevate incoerenze nei dati del portafoglio. Questo può causare report o calcoli imprecisi."
+      },
+      "accountConfiguration": {
+        "label": "Configurazione del conto",
+        "description": "Alcuni conti richiedono una configurazione prima che i dati possano essere sincronizzati. Imposta la modalità di tracciamento per iniziare a importare i dati."
+      },
+      "settingsConfiguration": {
+        "label": "Impostazioni",
+        "description": "Alcune impostazioni dell'applicazione richiedono attenzione per garantire che i dati vengano interpretati correttamente."
+      },
+      "timezoneMissing": {
+        "label": "Impostazioni del fuso orario",
+        "description": "Il fuso orario della tua app non è configurato. Finché non lo imposti, le date visualizzate potrebbero non corrispondere alla tua zona."
+      },
+      "timezoneInvalid": {
+        "label": "Impostazioni del fuso orario",
+        "description": "Il fuso orario configurato non è valido. Aggiornalo nelle Impostazioni generali per ripristinare una gestione coerente delle date."
+      },
+      "timezoneMismatch": {
+        "label": "Impostazioni del fuso orario",
+        "description": "Il fuso orario del tuo browser differisce da quello configurato nell'app. Le date del portafoglio seguono il fuso orario configurato."
+      }
+    },
+    "affectedItems": "Elementi interessati ({{count}})",
+    "impact": "Impatto",
+    "affectedItemsCount": "Elementi interessati",
+    "portfolioImpact": "Impatto sul portafoglio",
+    "details": "Dettagli",
+    "aboutThisIssue": "Informazioni su questo problema",
+    "dismiss": "Ignora",
+    "dismissConfirm": {
+      "title": "Ignorare questo problema?",
+      "message": "Questo nasconderà il problema dal tuo Centro salute. Riapparirà se i dati sottostanti cambiano.",
+      "pendingText": "Rimozione in corso..."
+    },
+    "affectedItems_one": "Elemento interessato ({{count}})",
+    "affectedItems_many": "Elementi interessati ({{count}})",
+    "affectedItems_other": "Elementi interessati ({{count}})"
+  }
+}

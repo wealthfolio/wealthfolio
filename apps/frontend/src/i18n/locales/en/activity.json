@@ -2,7 +2,8 @@
   "needs_review_alert": {
     "title_one": "{{count}} activity needs review",
     "title_other": "{{count}} activities need review",
-    "description": "Confirm each transaction's asset, type, and final amount."
+    "description": "Confirm each transaction's asset, type, and final amount.",
+    "action": "Review"
   },
   "activities": "Activities",
   "add_activity": "Add Activity",

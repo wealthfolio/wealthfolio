@@ -82,6 +82,15 @@ export function DrillableDonutChart({
 
   const data = isAtRoot ? rootData : drilledData;
 
+  // The selection points at a category, not at a position — reset it when the categories
+  // change (re-classification, account-scope change) instead of pointing at a new one.
+  const categoryKey = data.map((item) => item.id).join("|");
+  const [renderedCategoryKey, setRenderedCategoryKey] = useState(categoryKey);
+  if (categoryKey !== renderedCategoryKey) {
+    setRenderedCategoryKey(categoryKey);
+    setActiveIndex(0);
+  }
+
   const handleSectionClick = (
     sectionData: { name: string; value: number; currency: string },
     index: number,

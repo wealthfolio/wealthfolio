@@ -241,7 +241,7 @@
     "cancel": "취소",
     "currency_required": "통화를 선택해주세요",
     "base_currency": "기준 통화",
-    "quote_currency": "상대통화",
+    "quote_currency": "호가 통화",
     "name": "이름",
     "name_placeholder": "자산 표시 이름",
     "isin": "ISIN",

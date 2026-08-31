@@ -117,6 +117,14 @@ export const DonutChart: React.FC<DonutChartProps> = ({
   const { isBalanceHidden } = useBalancePrivacy();
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
+  // Hovering points at a slice, not at a position: drop it when the slices change.
+  const sliceKey = data.map((item) => item.name).join("|");
+  const [renderedSliceKey, setRenderedSliceKey] = useState(sliceKey);
+  if (sliceKey !== renderedSliceKey) {
+    setRenderedSliceKey(sliceKey);
+    setHoverIndex(null);
+  }
+
   const handlePieEnter = (_: React.MouseEvent, index: number) => {
     setHoverIndex(index);
   };
@@ -126,7 +134,9 @@ export const DonutChart: React.FC<DonutChartProps> = ({
   };
 
   const totalValue = useMemo(() => data.reduce((acc, item) => acc + item.value, 0), [data]);
-  const displayIndex = hoverIndex ?? activeIndex;
+  // Clamp: the selected index outlives the data it was picked from (re-classification,
+  // account-scope change, refetch), and an out-of-range index blanks the center label.
+  const displayIndex = Math.min(hoverIndex ?? activeIndex, data.length - 1);
   const activeData = data[displayIndex];
 
   const tooltipFormatter = (

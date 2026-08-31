@@ -2,7 +2,8 @@
   "needs_review_alert": {
     "title_one": "{{count}} actividad requiere revisión",
     "title_other": "{{count}} actividades requieren revisión",
-    "description": "Revise el activo, el tipo y el importe final de cada transacción."
+    "description": "Revise el activo, el tipo y el importe final de cada transacción.",
+    "action": "Revisar"
   },
   "activities": "Actividades",
   "add_activity": "Añadir actividad",

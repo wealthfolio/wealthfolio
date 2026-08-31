@@ -14,7 +14,7 @@ interface NeedsReviewBannerProps {
  * one is resolved, so it is never dismissed.
  */
 export function NeedsReviewBanner({ accountIds, onReview }: NeedsReviewBannerProps) {
-  const { t } = useTranslation(["activity", "common"]);
+  const { t } = useTranslation(["activity"]);
   const { totalRowCount, isLoading } = useActivitySearch({
     mode: "paginated",
     filters: { accountIds, activityTypes: [], status: "pending" },
@@ -40,7 +40,7 @@ export function NeedsReviewBanner({ accountIds, onReview }: NeedsReviewBannerPro
         </div>
       </div>
       <Button size="sm" className="shrink-0" onClick={onReview}>
-        {t("common:review")}
+        {t("activity:needs_review_alert.action")}
       </Button>
     </div>
   );

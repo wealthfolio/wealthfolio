@@ -241,7 +241,7 @@
     "cancel": "キャンセル",
     "currency_required": "通貨は必須です",
     "base_currency": "基準通貨",
-    "quote_currency": "決済通貨",
+    "quote_currency": "建値通貨",
     "name": "名称",
     "name_placeholder": "資産の表示名",
     "isin": "ISIN",

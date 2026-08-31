@@ -202,29 +202,48 @@ export function getIsInPopover(element: unknown): boolean {
   );
 }
 
+// `label` stays the English string so existing callers keep working; `labelKey`
+// is what the UI should render through `t()`.
 export function getColumnVariant(variant?: CellOpts["variant"]): {
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   label: string;
+  labelKey: string;
 } | null {
   switch (variant) {
     case "short-text":
-      return { label: "Short text", icon: Icons.Baseline };
+      return {
+        label: "Short text",
+        labelKey: "ui:dataGrid.variantShortText",
+        icon: Icons.Baseline,
+      };
     case "long-text":
-      return { label: "Long text", icon: Icons.CaseSensitive };
+      return {
+        label: "Long text",
+        labelKey: "ui:dataGrid.variantLongText",
+        icon: Icons.CaseSensitive,
+      };
     case "number":
-      return { label: "Number", icon: Icons.Hash };
+      return { label: "Number", labelKey: "ui:dataGrid.variantNumber", icon: Icons.Hash };
     case "url":
-      return { label: "URL", icon: Icons.Link };
+      return { label: "URL", labelKey: "ui:dataGrid.variantUrl", icon: Icons.Link };
     case "checkbox":
-      return { label: "Checkbox", icon: Icons.CheckSquare };
+      return {
+        label: "Checkbox",
+        labelKey: "ui:dataGrid.variantCheckbox",
+        icon: Icons.CheckSquare,
+      };
     case "select":
-      return { label: "Select", icon: Icons.List };
+      return { label: "Select", labelKey: "ui:dataGrid.variantSelect", icon: Icons.List };
     case "multi-select":
-      return { label: "Multi-select", icon: Icons.ListChecks };
+      return {
+        label: "Multi-select",
+        labelKey: "ui:dataGrid.variantMultiSelect",
+        icon: Icons.ListChecks,
+      };
     case "date":
-      return { label: "Date", icon: Icons.CalendarIcon };
+      return { label: "Date", labelKey: "ui:dataGrid.variantDate", icon: Icons.CalendarIcon };
     case "file":
-      return { label: "File", icon: Icons.File };
+      return { label: "File", labelKey: "ui:dataGrid.variantFile", icon: Icons.File };
     default:
       return null;
   }

@@ -94,7 +94,7 @@
       "nominal": "名义值",
       "explained_aria": "现值与名义值说明",
       "todays_value_tip": "将未来的金额换算回今天的购买力，使金额与您当前的预算具有可比性。",
-      "nominal_tip": "显示经通胀调整后的未来金额。这是您在未来那一年将看到的金额。"
+      "nominal_tip": "显示计入通胀后的未来名义金额。这是您在未来那一年将看到的金额。"
     },
     "age_label": "{{age}} 岁",
     "failed_to_load_portfolio": "加载投资组合数据失败：{{message}}",
@@ -228,7 +228,7 @@
     "more_info_about": "关于 {{label}} 的更多信息",
     "edit_section": "编辑 {{title}}",
     "warnings": {
-      "high_inflation": "通胀假设偏高。在此利率下，长期支出需求会变得更加敏感。",
+      "high_inflation": "通胀假设偏高。在该通胀率下，长期支出需求会变得更加敏感。",
       "high_fee": "费用假设偏高。费用拖累会显著降低长期收益。",
       "high_volatility": "波动率假设偏高。结果区间可能变得非常宽。",
       "high_contribution_growth": "供款增长假设偏高。这意味着持续大幅增加储蓄。"

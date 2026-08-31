@@ -101,8 +101,8 @@
     "loading": "불러오는 중…",
     "recalculate": "다시 계산",
     "calculatePlan": "계획 계산",
-    "driverSentenceOver": "{{name}}이(가) 목표 {{target}}%보다 {{current}}% 초과 상태입니다.",
-    "driverSentenceUnder": "{{name}}이(가) 목표 {{target}}%보다 {{current}}% 미달 상태입니다.",
+    "driverSentenceOver": "{{name}}이(가) 현재 {{current}}%로, 목표 {{target}}%를 초과합니다.",
+    "driverSentenceUnder": "{{name}}이(가) 현재 {{current}}%로, 목표 {{target}}%에 미달합니다.",
     "modeVerbSells": "매도 및 매수",
     "modeVerbHybrid": "현금 및 매도",
     "modeVerbCashFlow": "현금흐름 매수"

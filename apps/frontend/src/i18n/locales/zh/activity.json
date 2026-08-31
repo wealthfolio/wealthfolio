@@ -1,7 +1,8 @@
 {
   "needs_review_alert": {
     "title_other": "{{count}} 条活动需要审核",
-    "description": "请确认每笔交易的资产、类型和最终金额。"
+    "description": "请确认每笔交易的资产、类型和最终金额。",
+    "action": "审核"
   },
   "activities": "活动",
   "add_activity": "添加活动",
@@ -30,7 +31,7 @@
   "type_fee": "费用",
   "type_tax": "税费",
   "type_split": "拆股",
-  "type_credit": "补贴",
+  "type_credit": "入账",
   "type_adjustment": "调整",
   "type_unknown": "未知",
   "subtype_drip": "股息再投资（DRIP）",
@@ -39,7 +40,7 @@
   "subtype_bonus": "赠金",
   "subtype_rebate": "交易返佣",
   "subtype_refund": "费用退还",
-  "subtype_reimbursement": "报销",
+  "subtype_reimbursement": "补偿",
   "subtype_option_expiry": "期权到期",
   "subtype_position_open": "开仓",
   "subtype_position_close": "平仓",
@@ -555,8 +556,8 @@
     "received_amount": "收到金额",
     "contract_multiplier": "合约乘数",
     "available_amount": "可用：{{amount}}",
-    "total_debit": "借方总额",
-    "total_credit": "贷方总额",
+    "total_debit": "实付总额",
+    "total_credit": "实收总额",
     "help_total_debit": "包含费用和税款的最终支付金额。",
     "help_total_credit": "扣除费用和税款后的最终收款金额。",
     "use_calculated_total": "使用计算总额（{{amount}}）",

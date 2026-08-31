@@ -132,6 +132,15 @@ export function DrillableAccountChart({
 
   const data = isAtRoot ? groupedData : drilledData;
 
+  // The selection points at an account/group, not at a position — reset it when the set
+  // changes instead of pointing at a different one.
+  const entryKey = data.map((item) => item.id).join("|");
+  const [renderedEntryKey, setRenderedEntryKey] = useState(entryKey);
+  if (entryKey !== renderedEntryKey) {
+    setRenderedEntryKey(entryKey);
+    setActiveIndex(0);
+  }
+
   const handleSectionClick = (
     sectionData: { name: string; value: number; currency: string },
     index: number,

@@ -2,6 +2,7 @@
 
 import type { Header, SortDirection, Table } from "@tanstack/react-table";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { Icons } from "../ui/icons";
 
 import {
@@ -28,6 +29,7 @@ export function DataGridColumnHeader<TData, TValue>({
   onPointerDown,
   ...props
 }: DataGridColumnHeaderProps<TData, TValue>) {
+  const { t } = useTranslation();
   const column = header.column;
   const label = column.columnDef.meta?.label
     ? column.columnDef.meta.label
@@ -106,7 +108,7 @@ export function DataGridColumnHeader<TData, TValue>({
                   <columnVariant.icon className="text-muted-foreground size-3.5 shrink-0" />
                 </TooltipTrigger>
                 <TooltipContent side="top">
-                  <p>{columnVariant.label}</p>
+                  <p>{t(columnVariant.labelKey, columnVariant.label)}</p>
                 </TooltipContent>
               </Tooltip>
             )}
@@ -133,7 +135,7 @@ export function DataGridColumnHeader<TData, TValue>({
                 onClick={() => onSortingChange("asc")}
               >
                 <Icons.ChevronUp />
-                Sort asc
+                {t("ui:dataGrid.sortAsc", "Sort asc")}
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 className="[&_svg]:text-muted-foreground relative ltr:pl-2 ltr:pr-8 rtl:pl-8 rtl:pr-2 [&>span:first-child]:ltr:left-auto [&>span:first-child]:ltr:right-2 [&>span:first-child]:rtl:left-2 [&>span:first-child]:rtl:right-auto"
@@ -141,12 +143,12 @@ export function DataGridColumnHeader<TData, TValue>({
                 onClick={() => onSortingChange("desc")}
               >
                 <Icons.ChevronDown />
-                Sort desc
+                {t("ui:dataGrid.sortDesc", "Sort desc")}
               </DropdownMenuCheckboxItem>
               {column.getIsSorted() && (
                 <DropdownMenuItem onClick={onSortRemove}>
                   <Icons.X />
-                  Remove sort
+                  {t("ui:dataGrid.removeSort", "Remove sort")}
                 </DropdownMenuItem>
               )}
             </>
@@ -158,23 +160,23 @@ export function DataGridColumnHeader<TData, TValue>({
               {isPinnedLeft ? (
                 <DropdownMenuItem className="[&_svg]:text-muted-foreground" onClick={onUnpin}>
                   <Icons.PinOff />
-                  Unpin from left
+                  {t("ui:dataGrid.unpinFromLeft", "Unpin from left")}
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem className="[&_svg]:text-muted-foreground" onClick={onLeftPin}>
                   <Icons.Pin />
-                  Pin to left
+                  {t("ui:dataGrid.pinToLeft", "Pin to left")}
                 </DropdownMenuItem>
               )}
               {isPinnedRight ? (
                 <DropdownMenuItem className="[&_svg]:text-muted-foreground" onClick={onUnpin}>
                   <Icons.PinOff />
-                  Unpin from right
+                  {t("ui:dataGrid.unpinFromRight", "Unpin from right")}
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem className="[&_svg]:text-muted-foreground" onClick={onRightPin}>
                   <Icons.Pin />
-                  Pin to right
+                  {t("ui:dataGrid.pinToRight", "Pin to right")}
                 </DropdownMenuItem>
               )}
             </>
@@ -187,7 +189,7 @@ export function DataGridColumnHeader<TData, TValue>({
                 onClick={() => column.toggleVisibility(false)}
               >
                 <Icons.EyeOff />
-                Hide column
+                {t("ui:dataGrid.hideColumn", "Hide column")}
               </DropdownMenuItem>
             </>
           )}
@@ -216,6 +218,7 @@ interface DataGridColumnResizerProps<TData, TValue> extends DataGridColumnHeader
 }
 
 function DataGridColumnResizerImpl<TData, TValue>({ header, table, label }: DataGridColumnResizerProps<TData, TValue>) {
+  const { t } = useTranslation();
   const defaultColumnDef = table._getDefaultColumnDef();
 
   const onDoubleClick = React.useCallback(() => {
@@ -226,7 +229,7 @@ function DataGridColumnResizerImpl<TData, TValue>({ header, table, label }: Data
     <div
       role="separator"
       aria-orientation="vertical"
-      aria-label={`Resize ${label} column`}
+      aria-label={t("ui:dataGrid.resizeColumn", "Resize {{label}} column", { label })}
       aria-valuenow={header.column.getSize()}
       aria-valuemin={defaultColumnDef.minSize}
       aria-valuemax={defaultColumnDef.maxSize}
