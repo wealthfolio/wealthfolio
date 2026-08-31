@@ -1045,12 +1045,15 @@ export default function PerformancePage() {
     // User-created portfolios resolve to account ids at calc time, so we keep
     // them regardless of `reportAccountIds`; the backend filter handles it.
     const isPortfolioItem = (item: TrackedItem) => item.accountScope?.type === "portfolio";
+    // Multi-account scopes carry their member ids in the scope, not in `item.id`.
+    const isMultiAccountItem = (item: TrackedItem) => item.accountScope?.type === "accounts";
     setSelectedItems((current) => {
       const next = current.filter(
         (item) =>
           item.type !== "account" ||
           item.id === PORTFOLIO_SCOPE_ID ||
           isPortfolioItem(item) ||
+          isMultiAccountItem(item) ||
           reportAccountIds.has(item.id),
       );
       if (next.length === current.length) {
@@ -1066,6 +1069,7 @@ export default function PerformancePage() {
           (item.type !== "account" ||
             item.id === PORTFOLIO_SCOPE_ID ||
             isPortfolioItem(item) ||
+            isMultiAccountItem(item) ||
             reportAccountIds.has(item.id)),
       );
     if (!selectedItemStillPresent) {
