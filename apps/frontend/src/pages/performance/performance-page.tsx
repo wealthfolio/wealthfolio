@@ -78,8 +78,21 @@ import {
   migratePerformanceSelectedItemId,
   migratePerformanceSelectedItems,
 } from "./performance-selection";
+import { usePerformanceScopeBridge } from "./hooks/use-performance-scope-bridge";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
+
+// Helper function to sort comparison items (accounts first, then symbols)
+function sortComparisonItems(items: TrackedItem[]): TrackedItem[] {
+  return [...items].sort((a, b) => {
+    // Sort by type first (accounts before symbols)
+    if (a.type !== b.type) {
+      return a.type === "account" ? -1 : 1;
+    }
+    // If same type, maintain original order
+    return 0;
+  });
+}
 
 function chartMetricForResult(result: PerformanceResult): PerformanceMetric {
   return result.mode === "valueReturn" ? "valueReturn" : "twr";
@@ -1084,23 +1097,20 @@ export default function PerformancePage() {
     setSelectedItems,
   ]);
 
+  usePerformanceScopeBridge({
+    accounts,
+    isAccountsLoading,
+    selectedItems,
+    setSelectedItems,
+    setSelectedItemId,
+    sortItems: sortComparisonItems,
+  });
+
   const accountNamesById = useMemo(() => {
     const map = new Map<string, string>();
     for (const account of accounts) map.set(account.id.toLowerCase(), account.name);
     return map;
   }, [accounts]);
-
-  // Helper function to sort comparison items (accounts first, then symbols)
-  const sortComparisonItems = (items: TrackedItem[]): TrackedItem[] => {
-    return [...items].sort((a, b) => {
-      // Sort by type first (accounts before symbols)
-      if (a.type !== b.type) {
-        return a.type === "account" ? -1 : 1;
-      }
-      // If same type, maintain original order
-      return 0;
-    });
-  };
 
   // Use the custom hook for parallel data fetching with effective date calculation
   const {
