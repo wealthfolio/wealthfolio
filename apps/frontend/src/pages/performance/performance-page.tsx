@@ -1,3 +1,4 @@
+import { AccountScopeSelector } from "@/components/account-filter-selector";
 import { BenchmarkSymbolSelector } from "@/components/benchmark-symbol-selector";
 import {
   ANNUALIZED_RETURN_INFO as annualizedReturnInfo,
@@ -16,6 +17,7 @@ import { PerformanceChartMobile } from "@/components/performance-chart-mobile";
 import { PERFORMANCE_CHART_COLORS } from "@/components/performance-chart-colors";
 import { useAccounts } from "@/hooks/use-accounts";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import { useAccountScopeStore } from "@/lib/account-scope-store";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { AccountPurpose, PORTFOLIO_SCOPE_ID } from "@/lib/constants";
 import {
@@ -1097,6 +1099,9 @@ export default function PerformancePage() {
     setSelectedItems,
   ]);
 
+  const accountScope = useAccountScopeStore((state) => state.scope);
+  const setAccountScope = useAccountScopeStore((state) => state.setScope);
+
   usePerformanceScopeBridge({
     accounts,
     isAccountsLoading,
@@ -1424,8 +1429,9 @@ export default function PerformancePage() {
 
   return (
     <>
-      {/* Date range selector - fixed position in header area */}
-      <div className="pointer-events-auto fixed right-2 top-4 z-20 hidden md:block lg:right-4">
+      {/* Account scope + date range selectors - fixed position in header area */}
+      <div className="pointer-events-auto fixed right-2 top-4 z-20 hidden items-center gap-2 md:flex lg:right-4">
+        <AccountScopeSelector value={accountScope} onChange={setAccountScope} />
         <DateRangeSelector
           value={dateRange}
           onChange={setDateRange}
@@ -1434,7 +1440,8 @@ export default function PerformancePage() {
       </div>
 
       <div className="flex h-full flex-col space-y-4">
-        <div className="flex justify-end md:hidden">
+        <div className="flex items-center justify-end gap-2 md:hidden">
+          <AccountScopeSelector value={accountScope} onChange={setAccountScope} />
           <DateRangeSelector
             value={dateRange}
             onChange={setDateRange}
