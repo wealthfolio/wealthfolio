@@ -709,7 +709,11 @@ export function AssetEditSheet({
       <SheetContent side="right" className="pb-safe flex h-full w-full flex-col sm:max-w-2xl">
         <SheetHeader className="shrink-0 pb-4">
           <div className="flex items-center gap-3">
-            <TickerAvatar symbol={asset.displayCode ?? ""} className="size-10" />
+            <TickerAvatar
+              symbol={asset.displayCode ?? ""}
+              exchangeMic={asset.instrumentExchangeMic ?? undefined}
+              className="size-10"
+            />
             <div className="min-w-0 flex-1">
               <SheetTitle className="truncate text-lg">
                 {asset.displayCode ?? asset.name ?? t("asset:editSheet.unknown")}

@@ -246,7 +246,11 @@ export const ActivityTable = ({
 
           const content = (
             <div className="flex max-w-[220px] items-center gap-2">
-              <TickerAvatar symbol={avatarSymbol} className="h-8 w-8 shrink-0" />
+              <TickerAvatar
+                symbol={avatarSymbol}
+                exchangeMic={row.original.exchangeMic}
+                className="h-8 w-8 shrink-0"
+              />
               <div className="flex min-w-0 flex-col">
                 <span className="flex items-center gap-1 truncate font-medium">
                   <span className="truncate">{displaySymbol}</span>

@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { parseOccSymbol } from "@/lib/occ-symbol";
+import { useTickerLogoSuffix } from "@/hooks/use-ticker-logo-suffix";
 import { Avatar, AvatarFallback, AvatarImage } from "@wealthfolio/ui";
 
 interface TickerAvatarProps {
   symbol: string;
+  exchangeMic?: string | null;
   className?: string;
   imageClassName?: string;
 }
@@ -33,9 +35,12 @@ const getFallbackAvatarLabel = (symbol: string): string => symbol.slice(0, 4);
 
 export const TickerAvatar = ({
   symbol,
+  exchangeMic,
   className = "size-8",
   imageClassName = "object-contain p-2",
 }: TickerAvatarProps) => {
+  const suffix = useTickerLogoSuffix(exchangeMic);
+
   // For OCC option symbols (e.g. "AAPL250321C00150000"), use the underlying ticker for logo
   const parsed = symbol ? parseOccSymbol(symbol) : null;
   const logoSymbol = parsed ? parsed.underlying : symbol;
@@ -44,8 +49,19 @@ export const TickerAvatar = ({
   const baseSymbol = logoSymbol ? logoSymbol.split(/[.:-]/)[0].toUpperCase() : "";
   const fullSymbol = logoSymbol ? logoSymbol.toUpperCase() : "";
 
-  // Try full symbol first, then fallback to base symbol
-  const primaryLogoUrl = fullSymbol ? `/ticker-logos/${fullSymbol}.png` : "";
+  // Check if logoSymbol already contains an explicit delimiter/suffix
+  const hasExistingSuffix = Boolean(logoSymbol && /[.:-]/.test(logoSymbol));
+
+  // If exchangeMic provides a suffix and symbol has no existing suffix, attempt {baseSymbol}.{suffix} first
+  const exchangeSymbol =
+    !hasExistingSuffix && suffix && baseSymbol ? `${baseSymbol}.${suffix}` : null;
+
+  // Try exchange-suffixed symbol first, then full symbol, then fallback to base symbol
+  const primaryLogoUrl = exchangeSymbol
+    ? `/ticker-logos/${exchangeSymbol}.png`
+    : fullSymbol
+      ? `/ticker-logos/${fullSymbol}.png`
+      : "";
   const fallbackLogoUrl = baseSymbol ? `/ticker-logos/${baseSymbol}.png` : "";
   const cashAvatarLabel = getCashAvatarLabel(fullSymbol);
   const fallbackAvatarLabel = baseSymbol ? getFallbackAvatarLabel(baseSymbol) : "•";

@@ -80,6 +80,12 @@ const HoldingRow = memo(
       defaultValue: "",
     });
 
+    const exchangeMic = useWatch({
+      control,
+      name: `holdings.${index}.exchangeMic`,
+      defaultValue: "",
+    });
+
     const sharesOwned = useWatch({
       control,
       name: `holdings.${index}.sharesOwned`,
@@ -186,7 +192,7 @@ const HoldingRow = memo(
         {/* Ticker Input */}
         <div className="col-span-3 sm:col-span-6">
           <div className="flex min-w-0 items-center gap-2">
-            <TickerAvatar symbol={ticker} className="shrink-0" />
+            <TickerAvatar symbol={ticker} exchangeMic={exchangeMic} className="shrink-0" />
             <div className="min-w-0 flex-1">
               <FormField
                 control={control}

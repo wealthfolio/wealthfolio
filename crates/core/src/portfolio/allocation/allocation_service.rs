@@ -192,6 +192,9 @@ impl AllocationService {
                 if existing_summary.unit_price.is_none() {
                     existing_summary.unit_price = summary.unit_price;
                 }
+                if existing_summary.exchange_mic.is_none() {
+                    existing_summary.exchange_mic = summary.exchange_mic;
+                }
                 *existing_value += value;
             } else {
                 non_cash_index_by_id.insert(summary.id.clone(), merged.len());
@@ -1055,6 +1058,10 @@ impl AllocationService {
                     currency: base_currency.to_string(),
                     weight_in_category: Decimal::ZERO,
                     unit_price: holding.price,
+                    exchange_mic: holding
+                        .instrument
+                        .as_ref()
+                        .and_then(|i| i.exchange_mic.clone()),
                 },
                 matched_value,
             ));
