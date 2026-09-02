@@ -4634,9 +4634,15 @@ impl PerformanceService {
         start_date_opt: Option<NaiveDate>,
         end_date_opt: Option<NaiveDate>,
     ) -> Result<PerformanceResult> {
+        // All-time (no explicit start date): symbols follow the same inception
+        // semantics as accounts — request from the earliest date the quote layer
+        // can serve (1970-01-01 sentinel, matching the frontend all-time
+        // contract) instead of degrading the window to a single year. The
+        // window self-corrects below: `quote_points.first()` becomes the
+        // actual start date of the returned series.
+        let all_time_start = NaiveDate::from_ymd_opt(1970, 1, 1).expect("valid date");
         let effective_end_date = end_date_opt.unwrap_or_else(|| self.today_in_user_timezone());
-        let effective_start_date =
-            start_date_opt.unwrap_or_else(|| effective_end_date - chrono::Duration::days(365));
+        let effective_start_date = start_date_opt.unwrap_or(all_time_start);
 
         if effective_start_date > effective_end_date {
             return Err(errors::Error::Validation(ValidationError::InvalidInput(
@@ -7033,6 +7039,48 @@ mod tests {
         assert_eq!(
             performance.series.last().unwrap().value.round_dp(4),
             dec!(0.2)
+        );
+    }
+
+    #[tokio::test]
+    async fn symbol_performance_all_time_requests_earliest_history() {
+        let performance_service = PerformanceService::new(
+            Arc::new(TestValuationService::new(vec![])),
+            Arc::new(TestQuoteService),
+        );
+
+        // TestQuoteService serves no quotes, so the empty response echoes the
+        // effective request window — enough to assert that an all-time query
+        // (no start date) requests earliest history instead of a 1Y window.
+        let result = performance_service
+            .calculate_symbol_performance("BENCH", None, None)
+            .await
+            .unwrap();
+
+        assert_eq!(result.series.len(), 0);
+        assert_eq!(
+            result.period.start_date,
+            NaiveDate::from_ymd_opt(1970, 1, 1)
+        );
+        assert!(result.period.end_date.is_some());
+    }
+
+    #[tokio::test]
+    async fn symbol_performance_explicit_start_date_is_preserved() {
+        let performance_service = PerformanceService::new(
+            Arc::new(TestValuationService::new(vec![])),
+            Arc::new(TestQuoteService),
+        );
+
+        let result = performance_service
+            .calculate_symbol_performance("BENCH", NaiveDate::from_ymd_opt(2020, 4, 6), None)
+            .await
+            .unwrap();
+
+        assert_eq!(result.series.len(), 0);
+        assert_eq!(
+            result.period.start_date,
+            NaiveDate::from_ymd_opt(2020, 4, 6)
         );
     }
 
