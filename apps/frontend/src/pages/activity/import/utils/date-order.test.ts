@@ -39,9 +39,9 @@ describe("detectDateOrder", () => {
     expect(detectDateOrder(["13/08-2026"])).toBeNull();
   });
 
-  it("ignores two-digit years, which no pattern can parse", () => {
-    expect(detectDateOrder(["13/08/26"])).toBeNull();
-    expect(detectDateOrder(["08/13/26"])).toBeNull();
+  it("detects the order of two-digit-year dates", () => {
+    expect(detectDateOrder(["13/08/26"])).toBe("DMY");
+    expect(detectDateOrder(["08/13/26"])).toBe("MDY");
   });
 
   it("still reads a four-digit year followed by a time", () => {
@@ -82,6 +82,12 @@ describe("numeric format coverage", () => {
     expect(parseDateToYMD("3/8/2026", "auto", "DMY")).toBe("2026-08-03");
     expect(ymd(tryParseDate("3/8/2026", "DMY"))).toBe("2026-08-03");
   });
+
+  it("applies the order detected from a two-digit-year row to the whole column", () => {
+    const order = detectDateOrder(["03/08/26", "26/06/26"]);
+    expect(order).toBe("DMY");
+    expect(ymd(tryParseDate("03/08/26", order ?? undefined))).toBe("2026-08-03");
+  });
 });
 
 describe("isAmbiguousNumericDate", () => {
@@ -95,6 +101,11 @@ describe("isAmbiguousNumericDate", () => {
 
   it("does not flag ISO dates", () => {
     expect(isAmbiguousNumericDate("2026-08-03")).toBe(false);
+  });
+
+  it("checks ambiguity for two-digit-year dates", () => {
+    expect(isAmbiguousNumericDate("03/08/26")).toBe(true);
+    expect(isAmbiguousNumericDate("26/06/26")).toBe(false);
   });
 });
 
