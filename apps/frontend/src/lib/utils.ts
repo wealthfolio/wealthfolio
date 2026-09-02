@@ -218,7 +218,7 @@ export function tryParseDate(dateStr: string, order?: DateOrder): Date | null {
 }
 
 // Helper to check if date is within reasonable range (1900-2100)
-function isDateInRange(date: Date): boolean {
+export function isDateInRange(date: Date): boolean {
   const year = date.getFullYear();
   return year >= 1900 && year <= 2100;
 }
