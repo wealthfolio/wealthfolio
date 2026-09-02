@@ -1959,6 +1959,7 @@ impl ActivityService {
             activity.quote_mode = Some(match asset.quote_mode {
                 QuoteMode::Manual => "MANUAL".to_string(),
                 QuoteMode::Market => "MARKET".to_string(),
+                QuoteMode::Discontinued => "DISCONTINUED".to_string(),
             });
         }
         if activity.currency.trim().is_empty() {
@@ -4056,6 +4057,7 @@ impl ActivityService {
                         activity.quote_mode = Some(match asset.quote_mode {
                             QuoteMode::Manual => "MANUAL".to_string(),
                             QuoteMode::Market => "MARKET".to_string(),
+                            QuoteMode::Discontinued => "DISCONTINUED".to_string(),
                         });
                     }
                 } else {

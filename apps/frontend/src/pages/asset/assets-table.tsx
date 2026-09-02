@@ -141,6 +141,7 @@ export function AssetsTable({
         cell: ({ row }) => {
           const asset = row.original;
           const isManual = asset.quoteMode === "MANUAL";
+          const isDiscontinued = asset.quoteMode === "DISCONTINUED";
           return (
             <div className="space-y-0.5">
               <div className="flex items-center gap-1.5 text-sm">
@@ -156,6 +157,15 @@ export function AssetsTable({
                 <div>
                   <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
                     {t("asset:table.manual")}
+                  </Badge>
+                </div>
+              ) : isDiscontinued ? (
+                <div>
+                  <Badge
+                    variant="outline"
+                    className="text-muted-foreground px-1.5 py-0 text-[10px]"
+                  >
+                    {t("asset:table.discontinued")}
                   </Badge>
                 </div>
               ) : null}
@@ -231,18 +241,26 @@ export function AssetsTable({
           const stale = isStaleQuote(snapshot, asset);
           const noQuoteReason = getNoQuoteReasonText(snapshot, asset);
 
+          const isDiscontinued = asset.quoteMode === "DISCONTINUED";
+
           if (!quote) {
             return (
               <div className="text-right">
                 <div className="flex items-center justify-end gap-1.5">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Icons.AlertTriangle
-                        className="h-3.5 w-3.5 text-amber-500"
-                        aria-label={noQuoteReason}
-                      />
+                      {isDiscontinued ? (
+                        <Icons.MinusCircle className="text-muted-foreground h-3.5 w-3.5" />
+                      ) : (
+                        <Icons.AlertTriangle
+                          className="h-3.5 w-3.5 text-amber-500"
+                          aria-label={noQuoteReason}
+                        />
+                      )}
                     </TooltipTrigger>
-                    <TooltipContent>{noQuoteReason}</TooltipContent>
+                    <TooltipContent>
+                      {isDiscontinued ? t("asset:table.discontinued") : noQuoteReason}
+                    </TooltipContent>
                   </Tooltip>
                   <span className="text-muted-foreground text-sm">
                     {t("asset:table.no_quotes")}
@@ -255,7 +273,14 @@ export function AssetsTable({
           return (
             <div className="text-right">
               <div className="flex items-center justify-end gap-1.5">
-                {stale ? (
+                {isDiscontinued ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Icons.MinusCircle className="text-muted-foreground h-3.5 w-3.5" />
+                    </TooltipTrigger>
+                    <TooltipContent>{t("asset:table.discontinued")}</TooltipContent>
+                  </Tooltip>
+                ) : stale ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Icons.AlertTriangle
@@ -351,7 +376,14 @@ export function AssetsTable({
   const quoteModeOptions = useMemo(() => {
     const modes = new Set(assets.map((asset) => asset.quoteMode).filter(Boolean));
     return Array.from(modes).map((mode) => ({
-      label: mode === "MARKET" ? t("asset:table.filters.auto") : mode,
+      label:
+        mode === "MARKET"
+          ? t("asset:table.filters.auto")
+          : mode === "MANUAL"
+            ? t("asset:table.manual")
+            : mode === "DISCONTINUED"
+              ? t("asset:table.discontinued")
+              : mode,
       value: mode,
     }));
   }, [assets, t]);

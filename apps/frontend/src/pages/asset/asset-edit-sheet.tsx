@@ -189,14 +189,32 @@ type EditTab = "general" | "classification" | "market-data" | "fx-settings";
 // Uses "Automatic Updates" toggle: ON = automatic, OFF = manual (more intuitive)
 function PricingModeToggle({
   isManualMode,
+  isDiscontinued = false,
   onConfirm,
 }: {
   isManualMode: boolean;
+  isDiscontinued?: boolean;
   onConfirm: () => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const isAutomatic = !isManualMode;
+
+  if (isDiscontinued) {
+    return (
+      <div className="rounded-lg border p-4 opacity-60">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0 flex-1 space-y-1">
+            <Label className="text-sm font-medium">{t("asset:editSheet.automatic_updates")}</Label>
+            <p className="text-muted-foreground text-xs">
+              {t("asset:profile.discontinued_updates_description")}
+            </p>
+          </div>
+          <Switch checked={false} disabled />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-lg border p-4">
@@ -561,7 +579,10 @@ export function AssetEditSheet({
       instrumentType: asset?.instrumentType ?? "",
       quoteCcy: asset?.quoteCcy ?? "",
       instrumentExchangeMic: normalizeMic(asset?.instrumentExchangeMic),
-      quoteMode: asset?.quoteMode === "MANUAL" ? QuoteMode.MANUAL : QuoteMode.MARKET,
+      quoteMode:
+        asset?.quoteMode === "MANUAL" || asset?.quoteMode === "DISCONTINUED"
+          ? QuoteMode.MANUAL
+          : QuoteMode.MARKET,
       preferredProvider: parsePreferredProvider(
         asset?.providerConfig as Record<string, unknown> | null,
       ),
@@ -697,6 +718,7 @@ export function AssetEditSheet({
   );
 
   const isManualMode = form.watch("quoteMode") === QuoteMode.MANUAL;
+  const isDiscontinuedAsset = asset?.quoteMode === "DISCONTINUED";
   const isSaving = updateAssetProfileMutation.isPending;
 
   // Check if current asset kind is system-managed (shouldn't allow editing)
@@ -1193,6 +1215,7 @@ export function AssetEditSheet({
                     {/* Pricing Mode Toggle Card */}
                     <PricingModeToggle
                       isManualMode={isManualMode}
+                      isDiscontinued={isDiscontinuedAsset}
                       onConfirm={() => {
                         form.setValue(
                           "quoteMode",

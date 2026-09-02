@@ -1135,7 +1135,7 @@ impl AssetService {
                     resolved_mic.as_deref(),
                 )
             }),
-            QuoteMode::Manual => None,
+            QuoteMode::Manual | QuoteMode::Discontinued => None,
         });
 
         let resolved_symbol = canonical
@@ -1737,7 +1737,7 @@ impl AssetServiceTrait for AssetService {
                         exchange_mic.as_deref(),
                     )
                 }),
-                QuoteMode::Manual => None,
+                QuoteMode::Manual | QuoteMode::Discontinued => None,
             };
             let review_symbol = Self::import_asset_review_symbol(
                 &canonical_symbol,
@@ -2209,7 +2209,7 @@ impl AssetServiceTrait for AssetService {
                         .or(exchange_mic.as_deref()),
                 )
             }),
-            QuoteMode::Manual => None,
+            QuoteMode::Manual | QuoteMode::Discontinued => None,
         });
 
         let new_asset = NewAsset {
@@ -2269,7 +2269,7 @@ impl AssetServiceTrait for AssetService {
             .update_quote_mode(asset_id, quote_mode)
             .await?;
 
-        if asset.quote_mode == QuoteMode::Manual {
+        if asset.quote_mode == QuoteMode::Manual || asset.quote_mode == QuoteMode::Discontinued {
             if let Err(e) = self.quote_service.delete_sync_state(asset_id).await {
                 warn!("Failed to clear sync state for {}: {:?}", asset_id, e);
             }

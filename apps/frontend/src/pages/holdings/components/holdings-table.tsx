@@ -332,6 +332,7 @@ const getColumns = (
       };
 
       const isManual = holding.instrument?.quoteMode === "MANUAL";
+      const isDiscontinued = holding.instrument?.quoteMode === "DISCONTINUED";
       const content = (
         <div className="flex items-center">
           <TickerAvatar symbol={avatarSymbol} className="mr-2 h-8 w-8" />
@@ -341,6 +342,14 @@ const getColumns = (
               {isManual && !isCash && (
                 <Badge variant="secondary" className="h-4 px-1 py-0 text-[10px]">
                   {t("holdings:manual")}
+                </Badge>
+              )}
+              {isDiscontinued && !isCash && (
+                <Badge
+                  variant="outline"
+                  className="text-muted-foreground h-4 px-1 py-0 text-[10px]"
+                >
+                  {t("holdings:discontinued")}
                 </Badge>
               )}
               {isClosed && (

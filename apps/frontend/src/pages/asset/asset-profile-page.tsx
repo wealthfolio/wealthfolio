@@ -521,6 +521,7 @@ export const AssetProfilePage = () => {
   }, [optionSpec]);
 
   const [confirmExpiryOpen, setConfirmExpiryOpen] = useState(false);
+  const [confirmDiscontinuedOpen, setConfirmDiscontinuedOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const confirmExpiryMutation = useMutation({
@@ -559,6 +560,7 @@ export const AssetProfilePage = () => {
 
   // Determine if manual tracking based on asset's quoteMode
   const isManualPricingMode = assetProfile?.quoteMode === "MANUAL";
+  const isDiscontinued = assetProfile?.quoteMode === "DISCONTINUED";
 
   // Determine if this is an alternative asset (property, vehicle, liability, etc.)
   const isAltAsset = isAlternativeAsset(assetProfile?.kind);
@@ -1386,6 +1388,26 @@ export const AssetProfilePage = () => {
                             label: t("asset:profile.edit"),
                             onClick: () => setEditSheetOpen(true),
                           },
+                          ...(!isAltAsset
+                            ? [
+                                {
+                                  icon: isDiscontinued ? Icons.Refresh : Icons.XCircle,
+                                  label: isDiscontinued
+                                    ? t("asset:profile.restore_from_discontinued")
+                                    : t("asset:profile.mark_discontinued"),
+                                  onClick: () => {
+                                    if (isDiscontinued) {
+                                      updateQuoteModeMutation.mutate({
+                                        assetId,
+                                        quoteMode: "MARKET",
+                                      });
+                                    } else {
+                                      setConfirmDiscontinuedOpen(true);
+                                    }
+                                  },
+                                },
+                              ]
+                            : []),
                         ],
                       },
                     ] satisfies ActionPaletteGroup[])
@@ -1590,6 +1612,29 @@ export const AssetProfilePage = () => {
         onOpenChange={setRefreshConfirmOpen}
         onConfirm={handleRefreshQuotes}
       />
+
+      {/* Confirm Mark as Discontinued Dialog */}
+      <AlertDialog open={confirmDiscontinuedOpen} onOpenChange={setConfirmDiscontinuedOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("asset:profile.confirm_discontinued_title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("asset:profile.confirm_discontinued_description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                updateQuoteModeMutation.mutate({ assetId, quoteMode: "DISCONTINUED" });
+                setConfirmDiscontinuedOpen(false);
+              }}
+            >
+              {t("asset:profile.confirm_discontinued_action")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirm Option Expiry Dialog */}
       <AlertDialog open={confirmExpiryOpen} onOpenChange={setConfirmExpiryOpen}>

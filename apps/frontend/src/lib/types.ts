@@ -263,7 +263,7 @@ export interface AssetResolutionInput {
   exchangeMic?: string; // e.g., "XNAS" or undefined
   kind?: string; // e.g., "INVESTMENT", "OTHER" - asset kind hint
   name?: string; // Asset name hint for custom assets
-  quoteMode?: QuoteMode;
+  quoteMode?: "MARKET" | "MANUAL";
   quoteCcy?: string; // Optional quote currency hint from search/provider (e.g., "GBp")
   instrumentType?: string; // Optional instrument type hint (e.g., "EQUITY", "CRYPTO")
   providerId?: string;
@@ -404,7 +404,7 @@ export interface ImportTemplateData {
       symbolName?: string;
       quoteCcy?: string;
       instrumentType?: string;
-      quoteMode?: QuoteMode;
+      quoteMode?: "MARKET" | "MANUAL";
       providerId?: string;
       providerSymbol?: string;
     }
@@ -527,7 +527,7 @@ export interface SymbolSearchResult {
   typeDisplay: string;
   longName: string;
   dataSource?: string;
-  quoteMode?: QuoteMode;
+  quoteMode?: "MARKET" | "MANUAL";
   /** Asset kind for custom assets (e.g., "SECURITY", "CRYPTO", "OTHER") */
   assetKind?: string;
   /** True if this asset already exists in user's database */
@@ -796,7 +796,7 @@ export interface Asset {
   isActive?: boolean;
 
   // Valuation
-  quoteMode: "MARKET" | "MANUAL";
+  quoteMode: "MARKET" | "MANUAL" | "DISCONTINUED";
   quoteCcy: string; // Currency prices/valuations are quoted in
   valuationMarketPrice?: number | null;
   valuationMarketCurrency?: string | null;

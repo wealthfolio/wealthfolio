@@ -89,8 +89,8 @@ pub fn gather_quote_sync_errors(
                 .cloned()
                 .unwrap_or_else(|| (s.asset_id.clone(), QuoteMode::Market));
 
-            // Skip assets with manual pricing - they don't need quote syncing
-            if quote_mode == QuoteMode::Manual {
+            // Skip assets with manual or discontinued pricing - they don't need quote syncing
+            if quote_mode == QuoteMode::Manual || quote_mode == QuoteMode::Discontinued {
                 return None;
             }
 

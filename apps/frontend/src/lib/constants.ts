@@ -214,6 +214,7 @@ export const dataSourceSchema = z.string();
 export const QuoteMode = {
   MARKET: "MARKET", // Auto-fetch prices from market data providers
   MANUAL: "MANUAL", // User manages prices manually
+  DISCONTINUED: "DISCONTINUED", // Asset no longer traded; skip sync silently, preserve history
 } as const;
 
 export type QuoteMode = (typeof QuoteMode)[keyof typeof QuoteMode];

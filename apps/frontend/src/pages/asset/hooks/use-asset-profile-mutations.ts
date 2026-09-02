@@ -39,8 +39,14 @@ export const useAssetProfileMutations = () => {
   const updateQuoteModeMutation = useMutation({
     mutationFn: ({ assetId, quoteMode }: { assetId: string; quoteMode: string }) =>
       updateQuoteMode(assetId, quoteMode),
-    onSuccess: (result) => {
-      handleSuccess("Asset quote mode updated successfully.", result.id);
+    onSuccess: (result, { quoteMode }) => {
+      const message =
+        quoteMode === "DISCONTINUED"
+          ? "Asset marked as discontinued"
+          : quoteMode === "MARKET"
+            ? "Asset restored — price sync will resume"
+            : "Asset quote mode updated successfully.";
+      handleSuccess(message, result.id);
     },
     onError: (error) => {
       logger.error(`Error updating asset quote mode: ${error}`);
