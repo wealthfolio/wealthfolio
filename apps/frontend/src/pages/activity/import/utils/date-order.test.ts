@@ -86,6 +86,7 @@ describe("numeric format coverage", () => {
   it("applies the order detected from a two-digit-year row to the whole column", () => {
     const order = detectDateOrder(["03/08/26", "26/06/26"]);
     expect(order).toBe("DMY");
+    expect(parseDateToYMD("03/08/26", "auto", order ?? undefined)).toBe("2026-08-03");
     expect(ymd(tryParseDate("03/08/26", order ?? undefined))).toBe("2026-08-03");
   });
 });
@@ -122,6 +123,17 @@ describe("parseDateToYMD", () => {
     expect(parseDateToYMD("03/08/2026", "MM/DD/YYYY", "DMY")).toBe("2026-03-08");
   });
 
+  it.each([
+    ["DD/MM/YY", "03/08/26", "2026-08-03"],
+    ["MM/DD/YY", "03/08/26", "2026-03-08"],
+    ["DD.MM.YY", "03.08.26", "2026-08-03"],
+    ["MM.DD.YY", "03.08.26", "2026-03-08"],
+    ["DD-MM-YY", "03-08-26", "2026-08-03"],
+    ["MM-DD-YY", "03-08-26", "2026-03-08"],
+  ])("supports the explicit %s preset", (dateFormat, value, expected) => {
+    expect(parseDateToYMD(value, dateFormat)).toBe(expected);
+  });
+
   it("leaves ISO dates alone", () => {
     expect(parseDateToYMD("2026-08-03", "auto", "DMY")).toBe("2026-08-03");
   });
@@ -130,6 +142,10 @@ describe("parseDateToYMD", () => {
     // Regression guard: "auto" must stay byte-for-byte the historical order,
     // where dd.MM precedes MM.dd.
     expect(parseDateToYMD("01.05.2024", "auto")).toBe("2024-05-01");
+  });
+
+  it("parses a dot date with a two-digit year instead of padding year 26", () => {
+    expect(parseDateToYMD("26.06.26", "auto", "DMY")).toBe("2026-06-26");
   });
 
   it("refuses a numeric date no pattern matched rather than guessing", () => {
