@@ -32,31 +32,6 @@ impl ValuationRepository {
 
 #[async_trait]
 impl ValuationRepositoryTrait for ValuationRepository {
-    async fn save_valuations(&self, valuation_records: &[DailyAccountValuation]) -> Result<()> {
-        // Materialize the records once before moving into the closure
-        let records_to_save: Vec<DailyAccountValuationDB> = valuation_records
-            .iter()
-            .cloned()
-            .map(DailyAccountValuationDB::from)
-            .collect();
-
-        if records_to_save.is_empty() {
-            return Ok(());
-        }
-
-        self.writer
-            .exec(move |conn| {
-                for chunk in records_to_save.chunks(1000) {
-                    diesel::replace_into(daily_account_valuation::table)
-                        .values(chunk) // Pass the chunk directly
-                        .execute(conn)
-                        .map_err(StorageError::from)?;
-                }
-                Ok(())
-            })
-            .await
-    }
-
     async fn replace_valuations_for_account(
         &self,
         input_account_id: &str,
@@ -207,27 +182,6 @@ impl ValuationRepositoryTrait for ValuationRepository {
             .map_err(StorageError::from)?;
 
         Ok(result.flatten())
-    }
-
-    fn load_latest_valuation_date(&self, input_account_id: &str) -> Result<Option<NaiveDate>> {
-        use diesel::OptionalExtension; // Ensure OptionalExtension is in scope
-        let mut conn = get_connection(&self.pool)?;
-
-        // Select the max date. This returns Option<NaiveDate> at the SQL level.
-        // Execute with .first(). This returns Result<T, Error> where T is Option<NaiveDate>.
-        // Use .optional() to convert Result<Option<NaiveDate>, Error> where Error=NotFound to Ok(None),
-        // and other errors to Err(...). This yields a Result<Option<Option<NaiveDate>>, Error>.
-        let result: Option<Option<NaiveDate>> = daily_account_valuation::table
-            .filter(account_id.eq(input_account_id))
-            .select(diesel::dsl::max(valuation_date))
-            .first::<Option<NaiveDate>>(&mut conn)
-            .optional()
-            .map_err(StorageError::from)?;
-
-        // Flatten the Option<Option<NaiveDate>> to Option<NaiveDate>
-        let latest_date = result.flatten();
-
-        Ok(latest_date)
     }
 
     async fn delete_valuations_for_account(

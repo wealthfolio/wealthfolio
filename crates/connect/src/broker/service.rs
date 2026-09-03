@@ -1423,7 +1423,6 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
             self.event_sink.emit(DomainEvent::HoldingsChanged {
                 account_ids: vec![account_id.clone()],
                 asset_ids: new_asset_ids.clone(),
-                earliest_snapshot_date: today,
             });
         }
 

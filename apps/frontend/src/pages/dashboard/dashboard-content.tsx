@@ -146,12 +146,16 @@ export function DashboardContent() {
 
   const chartData = useMemo(() => {
     return (
-      valuationHistory?.map((item) => ({
-        date: item.valuationDate,
-        totalValue: item.totalValueBase,
-        netContribution: item.netContributionBase,
-        currency: item.baseCurrency ?? baseCurrency,
-      })) ?? []
+      valuationHistory
+        // A day the engine could not fully convert carries a partial value;
+        // it is not plotted rather than drawn as if it were complete.
+        ?.filter((item) => item.valueStatus !== "unavailable")
+        .map((item) => ({
+          date: item.valuationDate,
+          totalValue: item.totalValueBase,
+          netContribution: item.netContributionBase,
+          currency: item.baseCurrency ?? baseCurrency,
+        })) ?? []
     );
   }, [valuationHistory, baseCurrency]);
 

@@ -792,7 +792,14 @@ fn reset_restore_dependent_read_models(
         || table_set.contains("assets")
         || table_set.contains("activities")
     {
-        for table in ["lot_disposals", "lots", "daily_account_valuation"] {
+        // Derived rows go, so the projection watermarks that vouch for them
+        // must go too: the next consistency check then rebuilds everything.
+        for table in [
+            "lot_disposals",
+            "lots",
+            "daily_account_valuation",
+            "projection_watermarks",
+        ] {
             diesel::sql_query(format!("DELETE FROM {}", quote_identifier(table)))
                 .execute(conn)
                 .map_err(StorageError::from)?;

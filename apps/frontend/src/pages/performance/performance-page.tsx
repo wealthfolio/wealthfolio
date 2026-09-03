@@ -125,6 +125,18 @@ function chartExclusion(
       message: t("performance:exclusion.no_series"),
     };
   }
+  // A return the engine reports as unavailable (an unpriced or unconvertible
+  // period endpoint) has no line worth drawing: the series would only trace
+  // the excluded days as zeros.
+  if (
+    (metric === "twr" || metric === "irr" || metric === "valueReturn") &&
+    metricValue(result, metric) == null
+  ) {
+    return {
+      kind: "missingData",
+      message: t("performance:exclusion.no_data"),
+    };
+  }
 
   if (metric === "twr" && result.mode === "valueReturn") {
     return {

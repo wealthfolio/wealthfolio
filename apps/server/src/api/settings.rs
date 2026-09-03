@@ -16,7 +16,6 @@ use reqwest::StatusCode as HttpStatusCode;
 use semver::Version;
 use serde::Deserialize;
 use wealthfolio_core::{
-    portfolio::{snapshot::SnapshotRecalcMode, valuation::ValuationRecalcMode},
     quotes::MarketSyncMode,
     settings::{Settings, SettingsServiceTrait, SettingsUpdate},
 };
@@ -53,9 +52,7 @@ async fn update_settings(
                     asset_ids: None,
                     days: wealthfolio_core::quotes::DEFAULT_HISTORY_DAYS,
                 },
-                snapshot_mode: SnapshotRecalcMode::Full,
-                valuation_mode: ValuationRecalcMode::Full,
-                since_date: None,
+                ..PortfolioJobConfig::default()
             };
 
             if let Err(err) = process_portfolio_job(state_for_job, job_config).await {
@@ -68,9 +65,8 @@ async fn update_settings(
             let job_config = PortfolioJobConfig {
                 account_ids: None,
                 market_sync_mode: MarketSyncMode::None,
-                snapshot_mode: SnapshotRecalcMode::Full,
-                valuation_mode: ValuationRecalcMode::Full,
-                since_date: None,
+                force_full: false,
+                earliest_change_at: None,
             };
 
             if let Err(err) = process_portfolio_job(state_for_job, job_config).await {

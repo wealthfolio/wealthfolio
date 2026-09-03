@@ -1,4 +1,3 @@
-use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 use wealthfolio_core::quotes::MarketSyncMode;
@@ -60,9 +59,13 @@ pub struct PortfolioRequestPayload {
     /// Controls market data sync behavior for this portfolio job.
     #[serde(default)]
     pub market_sync_mode: MarketSyncMode,
-    /// Earliest date affected by the triggering change. When set, recalculation
-    /// starts from this date rather than the beginning of account history.
-    pub since_date: Option<NaiveDate>,
+    /// Rebuild from the first activity even when the accounts are fresh
+    /// (the user asked for a recalculation).
+    #[serde(default)]
+    pub force_full: bool,
+    /// Earliest instant a fact changed, when the event carries it.
+    #[serde(default)]
+    pub earliest_change_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl PortfolioRequestPayload {
@@ -77,7 +80,8 @@ impl PortfolioRequestPayload {
 pub struct PortfolioRequestPayloadBuilder {
     account_ids: Option<Vec<String>>,
     market_sync_mode: MarketSyncMode,
-    since_date: Option<NaiveDate>,
+    force_full: bool,
+    earliest_change_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl PortfolioRequestPayloadBuilder {
@@ -93,9 +97,15 @@ impl PortfolioRequestPayloadBuilder {
         self
     }
 
-    /// Sets the earliest affected date for targeted recalculation.
-    pub fn since_date(mut self, date: Option<NaiveDate>) -> Self {
-        self.since_date = date;
+    /// Forces a fold from the first activity (user-requested recalculation).
+    pub fn force_full(mut self, force_full: bool) -> Self {
+        self.force_full = force_full;
+        self
+    }
+
+    /// Earliest instant a fact changed, when known.
+    pub fn earliest_change_at(mut self, at: Option<chrono::DateTime<chrono::Utc>>) -> Self {
+        self.earliest_change_at = at;
         self
     }
 
@@ -104,7 +114,8 @@ impl PortfolioRequestPayloadBuilder {
         PortfolioRequestPayload {
             account_ids: self.account_ids,
             market_sync_mode: self.market_sync_mode,
-            since_date: self.since_date,
+            force_full: self.force_full,
+            earliest_change_at: self.earliest_change_at,
         }
     }
 }

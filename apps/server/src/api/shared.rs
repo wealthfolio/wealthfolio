@@ -3,8 +3,9 @@ use std::sync::Arc;
 use crate::{
     error::{ApiError, ApiResult},
     events::{
-        MarketSyncResult, ServerEvent, MARKET_SYNC_COMPLETE, MARKET_SYNC_ERROR, MARKET_SYNC_START,
-        PORTFOLIO_UPDATE_COMPLETE, PORTFOLIO_UPDATE_ERROR, PORTFOLIO_UPDATE_START,
+        EventBus, MarketSyncResult, ServerEvent, MARKET_SYNC_COMPLETE, MARKET_SYNC_ERROR,
+        MARKET_SYNC_START, PORTFOLIO_UPDATE_COMPLETE, PORTFOLIO_UPDATE_ERROR,
+        PORTFOLIO_UPDATE_START,
     },
     main_lib::AppState,
 };
@@ -13,15 +14,11 @@ use chrono::NaiveDate;
 use serde_json::json;
 use wealthfolio_core::{
     accounts::{account_supports_portfolio_scope, AccountPurpose, AccountServiceTrait},
-    portfolio::{
-        snapshot::{
-            reconcile_quote_sync_from_latest_account_snapshots, snapshot_date_requires_remediation,
-            SnapshotRecalcMode,
-        },
-        valuation::ValuationRecalcMode,
+    health::HealthServiceTrait,
+    portfolio::coordinator::{
+        run_periodic_consistency, AccountFailure, JobObserver, PortfolioJobRequest, RetryPolicy,
     },
-    quotes::MarketSyncMode,
-    utils::time_utils::{parse_user_timezone_or_default, user_today},
+    quotes::{MarketSyncMode, SyncResult},
 };
 
 // ============================================================================
@@ -58,34 +55,31 @@ pub struct PortfolioRequestBody {
     pub account_ids: Option<Vec<String>>,
     #[serde(default)]
     pub market_sync_mode: MarketSyncMode,
+    /// Rebuild from the first activity even when the accounts are fresh.
+    #[serde(default)]
+    pub force_full: bool,
+    /// Earliest instant a fact changed, when known.
+    #[serde(default)]
+    pub earliest_change_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl PortfolioRequestBody {
-    pub fn into_config(self, force_full_recalculation: bool) -> PortfolioJobConfig {
-        let (snapshot_mode, valuation_mode) = if force_full_recalculation {
-            (SnapshotRecalcMode::Full, ValuationRecalcMode::Full)
-        } else {
-            (
-                SnapshotRecalcMode::IncrementalFromLast,
-                ValuationRecalcMode::IncrementalFromLast,
-            )
-        };
+    pub fn into_config(self) -> PortfolioJobConfig {
         PortfolioJobConfig {
             account_ids: self.account_ids,
             market_sync_mode: self.market_sync_mode,
-            snapshot_mode,
-            valuation_mode,
-            since_date: None,
+            force_full: self.force_full,
+            earliest_change_at: self.earliest_change_at,
         }
     }
 }
 
+#[derive(Debug, Clone, Default)]
 pub struct PortfolioJobConfig {
     pub account_ids: Option<Vec<String>>,
     pub market_sync_mode: MarketSyncMode,
-    pub snapshot_mode: SnapshotRecalcMode,
-    pub valuation_mode: ValuationRecalcMode,
-    pub since_date: Option<NaiveDate>,
+    pub force_full: bool,
+    pub earliest_change_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Enqueue a background portfolio job that will publish SSE events as it runs.
@@ -105,9 +99,8 @@ pub fn trigger_lightweight_portfolio_update(state: Arc<AppState>) {
         PortfolioJobConfig {
             account_ids: None,
             market_sync_mode: MarketSyncMode::None,
-            snapshot_mode: SnapshotRecalcMode::IncrementalFromLast,
-            valuation_mode: ValuationRecalcMode::IncrementalFromLast,
-            since_date: None,
+            force_full: false,
+            earliest_change_at: None,
         },
     );
 }
@@ -120,9 +113,8 @@ pub fn trigger_full_portfolio_recalc(state: Arc<AppState>) {
         PortfolioJobConfig {
             account_ids: None,
             market_sync_mode: MarketSyncMode::None,
-            snapshot_mode: SnapshotRecalcMode::Full,
-            valuation_mode: ValuationRecalcMode::Full,
-            since_date: None,
+            force_full: false,
+            earliest_change_at: None,
         },
     );
 }
@@ -138,191 +130,145 @@ pub fn trigger_portfolio_recalc_with_asset_sync(state: Arc<AppState>, asset_ids:
             market_sync_mode: MarketSyncMode::Incremental {
                 asset_ids: Some(asset_ids),
             },
-            snapshot_mode: SnapshotRecalcMode::Full,
-            valuation_mode: ValuationRecalcMode::Full,
-            since_date: None,
+            ..PortfolioJobConfig::default()
         },
     );
+}
+
+/// Server side of a portfolio job: the coordinator does the work, the
+/// observer turns its callbacks into SSE events.
+pub struct ServerJobObserver {
+    event_bus: EventBus,
+    health_service: Arc<dyn HealthServiceTrait + Send + Sync>,
+}
+
+impl ServerJobObserver {
+    pub fn new(state: &AppState) -> Self {
+        Self {
+            event_bus: state.event_bus.clone(),
+            health_service: state.health_service.clone(),
+        }
+    }
+
+    pub fn with_parts(
+        event_bus: EventBus,
+        health_service: Arc<dyn HealthServiceTrait + Send + Sync>,
+    ) -> Self {
+        Self {
+            event_bus,
+            health_service,
+        }
+    }
+
+    fn clear_health_cache(&self) {
+        let health_service = self.health_service.clone();
+        tokio::spawn(async move {
+            health_service.clear_cache().await;
+        });
+    }
+}
+
+impl JobObserver for ServerJobObserver {
+    fn market_sync_started(&self) {
+        self.event_bus.publish(ServerEvent::new(MARKET_SYNC_START));
+    }
+
+    fn market_sync_completed(&self, result: &SyncResult) {
+        self.clear_health_cache();
+        let skipped_reasons: Vec<(String, String)> = result
+            .skipped_reasons
+            .iter()
+            .map(|(asset_id, reason)| (asset_id.clone(), reason.to_string()))
+            .collect();
+        self.event_bus.publish(ServerEvent::with_payload(
+            MARKET_SYNC_COMPLETE,
+            json!(MarketSyncResult {
+                failed_syncs: result.failures.clone(),
+                skipped_reasons,
+                show_skipped_reasons: false,
+            }),
+        ));
+    }
+
+    fn market_sync_failed(&self, message: &str) {
+        self.event_bus
+            .publish(ServerEvent::with_payload(MARKET_SYNC_ERROR, json!(message)));
+    }
+
+    fn update_started(&self) {
+        self.event_bus
+            .publish(ServerEvent::new(PORTFOLIO_UPDATE_START));
+    }
+
+    fn update_failed(&self, failure: &AccountFailure) {
+        if failure.code == "INVALID_SNAPSHOT_DATE" {
+            self.clear_health_cache();
+        }
+        let payload = if failure.account_id.is_empty() {
+            json!(failure.message)
+        } else {
+            json!(failure)
+        };
+        self.event_bus
+            .publish(ServerEvent::with_payload(PORTFOLIO_UPDATE_ERROR, payload));
+    }
+
+    fn update_completed(&self) {
+        // Freshness verdicts and stale-projection issues are cached.
+        self.clear_health_cache();
+        self.event_bus
+            .publish(ServerEvent::new(PORTFOLIO_UPDATE_COMPLETE));
+    }
+}
+
+impl PortfolioJobConfig {
+    /// The coordinator request this config describes.
+    pub fn into_request(self) -> PortfolioJobRequest {
+        PortfolioJobRequest {
+            account_ids: self.account_ids,
+            market_sync: self.market_sync_mode,
+            force_full: self.force_full,
+            earliest_change_at: self.earliest_change_at,
+        }
+    }
 }
 
 pub async fn process_portfolio_job(
     state: Arc<AppState>,
     config: PortfolioJobConfig,
 ) -> ApiResult<()> {
-    let event_bus = state.event_bus.clone();
-    let today = user_today(parse_user_timezone_or_default(
-        &state.timezone.read().unwrap(),
-    ));
-    let safe_since_date = config
-        .since_date
-        .filter(|date| !snapshot_date_requires_remediation(*date, today));
-    if config.since_date.is_some() && safe_since_date.is_none() {
-        tracing::warn!(
-            "Ignoring an invalid portfolio recalculation boundary and rebuilding safely"
-        );
-    }
-    let snapshot_mode = safe_since_date
-        .map(SnapshotRecalcMode::SinceDate)
-        .unwrap_or_else(|| config.snapshot_mode.clone());
-    let valuation_mode = safe_since_date
-        .map(ValuationRecalcMode::SinceDate)
-        .unwrap_or_else(|| config.valuation_mode.clone());
-
-    let accounts_for_scope = state
-        .account_service
-        .get_non_archived_accounts()
-        .map_err(|err| {
-            let err_msg = format!("Failed to list non-archived accounts: {}", err);
-            event_bus.publish(ServerEvent::with_payload(
-                PORTFOLIO_UPDATE_ERROR,
-                json!(err_msg),
-            ));
-            crate::error::ApiError::Anyhow(anyhow!(err_msg))
-        })?;
-
-    let account_ids: Vec<String> = if let Some(ref target_ids) = config.account_ids {
-        target_ids.clone()
-    } else {
-        accounts_for_scope.iter().map(|a| a.id.clone()).collect()
-    };
-    let quote_reconciliation_account_ids: Vec<String> =
-        accounts_for_scope.iter().map(|a| a.id.clone()).collect();
-
-    // Only perform market sync if the mode requires it
-    if config.market_sync_mode.requires_sync() {
-        if let Err(e) = reconcile_quote_sync_from_latest_account_snapshots(
-            state.snapshot_service.as_ref(),
-            state.quote_service.as_ref(),
-            &quote_reconciliation_account_ids,
-        )
+    let observer = ServerJobObserver::new(&state);
+    let report = state
+        .portfolio_coordinator
+        .run_job_with_retry(config.into_request(), &observer, RetryPolicy::default())
         .await
-        {
-            tracing::warn!(
-                "Failed to reconcile quote sync state from latest holdings: {}. Quote sync planning may be affected.",
-                e
-            );
-        }
-
-        event_bus.publish(ServerEvent::new(MARKET_SYNC_START));
-
-        let sync_start = std::time::Instant::now();
-        let asset_ids = config.market_sync_mode.asset_ids().cloned();
-
-        // Convert MarketSyncMode to SyncMode for the quote service
-        let sync_result = match config.market_sync_mode.to_sync_mode() {
-            Some(sync_mode) => state.quote_service.sync(sync_mode, asset_ids).await,
-            None => {
-                // This shouldn't happen since we checked requires_sync(), but handle gracefully
-                tracing::warn!("MarketSyncMode requires sync but returned None for SyncMode");
-                Ok(wealthfolio_core::quotes::SyncResult::default())
-            }
-        };
-
-        match sync_result {
-            Ok(result) => {
-                let skipped_reasons: Vec<(String, String)> = result
-                    .skipped_reasons
-                    .into_iter()
-                    .map(|(asset_id, reason)| (asset_id, reason.to_string()))
-                    .collect();
-                event_bus.publish(ServerEvent::with_payload(
-                    MARKET_SYNC_COMPLETE,
-                    json!(MarketSyncResult {
-                        failed_syncs: result.failures,
-                        skipped_reasons,
-                        show_skipped_reasons: false,
-                    }),
-                ));
-                tracing::info!("Market data sync completed in {:?}", sync_start.elapsed());
-                state.health_service.clear_cache().await;
-                if let Err(err) = state.fx_service.initialize() {
-                    tracing::warn!(
-                        "Failed to initialize FxService after market data sync: {}",
-                        err
-                    );
-                }
-            }
-            Err(err) => {
-                let err_msg = err.to_string();
-                tracing::error!("Market data sync failed: {}", err_msg);
-                event_bus.publish(ServerEvent::with_payload(MARKET_SYNC_ERROR, json!(err_msg)));
-                return Err(crate::error::ApiError::Anyhow(anyhow!(err_msg)));
-            }
-        }
-    } else {
-        tracing::debug!("Skipping market sync (MarketSyncMode::None)");
+        .map_err(|err| crate::error::ApiError::Anyhow(anyhow!(err.to_string())))?;
+    if let Some(Err(message)) = &report.market_sync {
+        tracing::error!("Market data sync failed before the rebuild: {message}");
     }
-
-    event_bus.publish(ServerEvent::new(PORTFOLIO_UPDATE_START));
-
-    if !account_ids.is_empty() {
-        let ids_slice = account_ids.as_slice();
-        if let Err(err) = state
-            .snapshot_service
-            .recalculate_holdings_snapshots(Some(ids_slice), snapshot_mode.clone())
-            .await
-        {
-            let err_msg = format!(
-                "Holdings snapshot calculation failed for targeted accounts: {}",
-                err
-            );
-            tracing::warn!("{}", err_msg);
-            event_bus.publish(ServerEvent::with_payload(
-                PORTFOLIO_UPDATE_ERROR,
-                json!(err_msg),
-            ));
-        }
-    }
-
-    // Update position status from latest real-account snapshots for quote sync planning.
-    if let Err(e) = reconcile_quote_sync_from_latest_account_snapshots(
-        state.snapshot_service.as_ref(),
-        state.quote_service.as_ref(),
-        &quote_reconciliation_account_ids,
-    )
-    .await
-    {
-        tracing::warn!(
-            "Failed to update position status from holdings: {}. Quote sync planning may be affected.",
-            e
-        );
-    }
-
-    match state
-        .valuation_service
-        .calculate_valuation_histories(&account_ids, valuation_mode)
-        .await
-    {
-        Ok(outcome) => {
-            if outcome
-                .failures
-                .iter()
-                .any(|failure| failure.code == "INVALID_SNAPSHOT_DATE")
-            {
-                state.health_service.clear_cache().await;
-            }
-            for failure in outcome.failures {
-                tracing::warn!(
-                    "Valuation history calculation failed for {}: {}",
-                    failure.account_id,
-                    failure.message
-                );
-                event_bus.publish(ServerEvent::with_payload(
-                    PORTFOLIO_UPDATE_ERROR,
-                    json!(failure),
-                ));
-            }
-        }
-        Err(error) => {
-            let message = format!("Failed to load shared valuation facts: {}", error);
-            tracing::warn!("{}", message);
-            event_bus.publish(ServerEvent::with_payload(
-                PORTFOLIO_UPDATE_ERROR,
-                json!(message),
-            ));
-        }
-    }
-
-    event_bus.publish(ServerEvent::new(PORTFOLIO_UPDATE_COMPLETE));
     Ok(())
+}
+
+/// One consistency pass (architecture §3.3): sync market data, then rebuild whatever
+/// the check finds stale. Requested at server start, by each web client
+/// once its event stream is live, and by the periodic scheduler.
+pub fn enqueue_consistency_pass(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        let observer = ServerJobObserver::new(&state);
+        state
+            .portfolio_coordinator
+            .ensure_consistent_or_report(MarketSyncMode::Incremental { asset_ids: None }, &observer)
+            .await;
+    });
+}
+
+/// Periodic market sync plus consistency pass (6h, after a 2min delay).
+pub fn spawn_periodic_consistency(state: Arc<AppState>) {
+    let observer: Arc<dyn JobObserver> = Arc::new(ServerJobObserver::new(&state));
+    tokio::spawn(run_periodic_consistency(
+        state.portfolio_coordinator.clone(),
+        observer,
+        std::time::Duration::from_secs(120),
+        std::time::Duration::from_secs(6 * 3600),
+    ));
 }

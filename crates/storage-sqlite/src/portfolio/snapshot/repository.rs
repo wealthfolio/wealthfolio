@@ -385,148 +385,6 @@ impl SnapshotRepository {
             .await
     }
 
-    pub async fn delete_snapshots_for_account_in_range(
-        &self,
-        input_account_id: &str,
-        start_date_val: NaiveDate,
-        end_date_val: NaiveDate,
-    ) -> Result<()> {
-        use crate::schema::holdings_snapshots::dsl::*;
-
-        let account_id_owned = input_account_id.to_string();
-        let start_date_str = start_date_val.format("%Y-%m-%d").to_string();
-        let end_date_str = end_date_val.format("%Y-%m-%d").to_string();
-
-        self.writer
-            .exec(move |conn| {
-                diesel::delete(
-                    holdings_snapshots
-                        .filter(account_id.eq(account_id_owned))
-                        .filter(snapshot_date.ge(start_date_str))
-                        .filter(snapshot_date.le(end_date_str)),
-                )
-                .execute(conn)
-                .map_err(StorageError::from)?;
-                Ok(())
-            })
-            .await
-    }
-
-    pub async fn overwrite_snapshots_for_account_in_range(
-        &self,
-        target_account_id: &str,
-        range_start_date: NaiveDate,
-        range_end_date: NaiveDate,
-        snapshots_to_save: &[AccountStateSnapshot],
-    ) -> Result<()> {
-        // It's crucial that these operations appear atomic for a given account's range.
-        // The current writer.exec handles individual Diesel calls transactionally.
-        // For true atomicity of delete + save, this whole block should be one transaction.
-        // However, self.writer.exec itself creates a transaction for each call.
-        // For now, we rely on sequential execution. A deeper refactor of WriteHandle might be needed for true multi-statement transactions.
-
-        // Only delete CALCULATED snapshots - preserve manual/broker/CSV imported ones
-        self.delete_calculated_snapshots_for_account_in_range(
-            target_account_id,
-            range_start_date,
-            range_end_date,
-        )
-        .await?;
-
-        let anchor_dates = self
-            .get_anchor_snapshot_dates_for_account_in_range(
-                target_account_id,
-                range_start_date,
-                range_end_date,
-            )
-            .await?;
-
-        if !snapshots_to_save.is_empty() {
-            // Filter snapshots_to_save to ensure they are indeed for the target_account_id
-            // although the caller should guarantee this.
-            let mut account_specific_snapshots: Vec<AccountStateSnapshot> = snapshots_to_save
-                .iter()
-                .filter(|s| s.account_id == target_account_id)
-                .cloned()
-                .collect();
-
-            if account_specific_snapshots.len() != snapshots_to_save.len() {
-                warn!(
-                    "overwrite_snapshots_for_account_in_range: Mismatch between provided snapshots and target_account_id {}. Expected all {} for this account.",
-                    target_account_id, snapshots_to_save.len()
-                );
-                // Decide on error handling: proceed with filtered, or error out?
-                // For now, proceed with filtered, but this indicates a caller issue.
-            }
-
-            if !anchor_dates.is_empty() {
-                account_specific_snapshots.retain(|s| {
-                    let date_key = s.snapshot_date.format("%Y-%m-%d").to_string();
-                    !anchor_dates.contains(&date_key)
-                });
-            }
-
-            if !account_specific_snapshots.is_empty() {
-                self.save_snapshots(&account_specific_snapshots).await?;
-            } else if snapshots_to_save.is_empty() {
-                debug!("overwrite_snapshots_for_account_in_range: No new snapshots provided for account {} after deleting range. Only delete was performed.", target_account_id);
-            } else {
-                warn!("overwrite_snapshots_for_account_in_range: All provided snapshots were filtered out for account {}. No save performed after delete.", target_account_id);
-            }
-        } else {
-            debug!("overwrite_snapshots_for_account_in_range: No new snapshots provided for account {}. Only delete was performed for range [{}, {}].", target_account_id, range_start_date, range_end_date);
-        }
-        Ok(())
-    }
-
-    pub async fn overwrite_multiple_account_snapshot_ranges(
-        &self,
-        new_snapshots: &[AccountStateSnapshot],
-    ) -> Result<()> {
-        if new_snapshots.is_empty() {
-            return Ok(());
-        }
-
-        let mut snapshots_by_account: HashMap<String, Vec<AccountStateSnapshot>> = HashMap::new();
-        for snapshot in new_snapshots {
-            snapshots_by_account
-                .entry(snapshot.account_id.clone())
-                .or_default()
-                .push(snapshot.clone());
-        }
-
-        for (acc_id, acc_snapshots) in snapshots_by_account {
-            if acc_snapshots.is_empty() {
-                // Should not happen if new_snapshots was not empty
-                continue;
-            }
-
-            // Determine min/max date for this account's specific snapshots
-            // Panics if acc_snapshots is empty, but we checked above.
-            let mut min_date = acc_snapshots.first().unwrap().snapshot_date;
-            let mut max_date = acc_snapshots.first().unwrap().snapshot_date;
-
-            for snapshot in acc_snapshots.iter().skip(1) {
-                if snapshot.snapshot_date < min_date {
-                    min_date = snapshot.snapshot_date;
-                }
-                if snapshot.snapshot_date > max_date {
-                    max_date = snapshot.snapshot_date;
-                }
-            }
-
-            // Now call the per-account overwrite method
-            self.overwrite_snapshots_for_account_in_range(
-                &acc_id,
-                min_date,
-                max_date,
-                &acc_snapshots, // Pass the already filtered and cloned vec for this account
-            )
-            .await?;
-        }
-        Ok(())
-    }
-
     pub fn get_all_non_archived_account_snapshots(
         &self,
         start_date_opt: Option<NaiveDate>,
@@ -583,35 +441,6 @@ impl SnapshotRepository {
                 }),
             None => Ok(None), // No snapshots found for this account
         }
-    }
-
-    /// Update the source field for all snapshots of an account.
-    /// Used when switching tracking modes (e.g., from HOLDINGS to TRANSACTIONS).
-    pub async fn update_snapshots_source(
-        &self,
-        input_account_id: &str,
-        new_source: &str,
-    ) -> Result<usize> {
-        use crate::schema::holdings_snapshots::dsl::*;
-
-        let account_id_owned = input_account_id.to_string();
-        let new_source_owned = new_source.to_string();
-
-        self.writer
-            .exec(move |conn| {
-                let updated_count =
-                    diesel::update(holdings_snapshots.filter(account_id.eq(&account_id_owned)))
-                        .set(source.eq(&new_source_owned))
-                        .execute(conn)
-                        .map_err(StorageError::from)?;
-
-                debug!(
-                    "Updated {} snapshots for account {} to source {}",
-                    updated_count, account_id_owned, new_source_owned
-                );
-                Ok(updated_count)
-            })
-            .await
     }
 
     /// Delete CALCULATED snapshots only for account in a date range.
@@ -693,33 +522,6 @@ impl SnapshotRepository {
                 }
 
                 Ok(())
-            })
-            .await
-    }
-
-    async fn get_anchor_snapshot_dates_for_account_in_range(
-        &self,
-        target_account_id: &str,
-        range_start_date: NaiveDate,
-        range_end_date: NaiveDate,
-    ) -> Result<HashSet<String>> {
-        use crate::schema::holdings_snapshots::dsl::*;
-
-        let account_id_owned = target_account_id.to_string();
-        let start_date_str = range_start_date.format("%Y-%m-%d").to_string();
-        let end_date_str = range_end_date.format("%Y-%m-%d").to_string();
-
-        self.writer
-            .exec(move |conn| {
-                let dates = holdings_snapshots
-                    .select(snapshot_date)
-                    .filter(account_id.eq(&account_id_owned))
-                    .filter(snapshot_date.ge(start_date_str))
-                    .filter(snapshot_date.le(end_date_str))
-                    .filter(source.ne(SOURCE_CALCULATED))
-                    .load::<String>(conn)
-                    .map_err(|e| Error::from(StorageError::from(e)))?;
-                Ok(dates.into_iter().collect())
             })
             .await
     }
@@ -881,7 +683,7 @@ impl SnapshotRepository {
     /// insert an orphan row would abort the whole save. Drop them here so the
     /// JSON write (which still happens in AccountStateSnapshotDB) keeps the
     /// historical reference while the relational view stays clean.
-    fn write_snapshot_positions(
+    pub(crate) fn write_snapshot_positions(
         conn: &mut SqliteConnection,
         snap_id: &str,
         positions: &HashMap<String, Position>,
@@ -1051,44 +853,6 @@ impl SnapshotRepositoryTrait for SnapshotRepository {
             .await
     }
 
-    async fn delete_snapshots_for_account_in_range(
-        &self,
-        account_id_param: &str,
-        start_date_param: NaiveDate,
-        end_date_param: NaiveDate,
-    ) -> Result<()> {
-        self.delete_snapshots_for_account_in_range(
-            account_id_param,
-            start_date_param,
-            end_date_param,
-        )
-        .await
-    }
-
-    async fn overwrite_snapshots_for_account_in_range(
-        &self,
-        target_account_id: &str,
-        range_start_date: NaiveDate,
-        range_end_date: NaiveDate,
-        snapshots_to_save: &[AccountStateSnapshot],
-    ) -> Result<()> {
-        self.overwrite_snapshots_for_account_in_range(
-            target_account_id,
-            range_start_date,
-            range_end_date,
-            snapshots_to_save,
-        )
-        .await
-    }
-
-    async fn overwrite_multiple_account_snapshot_ranges(
-        &self,
-        new_snapshots: &[AccountStateSnapshot],
-    ) -> Result<()> {
-        self.overwrite_multiple_account_snapshot_ranges(new_snapshots)
-            .await
-    }
-
     fn get_all_non_archived_account_snapshots(
         &self,
         start_date: Option<NaiveDate>,
@@ -1108,10 +872,6 @@ impl SnapshotRepositoryTrait for SnapshotRepository {
     ) -> Result<()> {
         self.overwrite_all_snapshots_for_account(account_id, snapshots_to_save)
             .await
-    }
-
-    async fn update_snapshots_source(&self, account_id: &str, new_source: &str) -> Result<usize> {
-        self.update_snapshots_source(account_id, new_source).await
     }
 
     async fn save_or_update_snapshot(&self, snapshot: &AccountStateSnapshot) -> Result<()> {
@@ -1488,104 +1248,6 @@ mod tests {
             .get_snapshots_by_account(other_account_id, None, None)
             .expect("Failed to get other account snapshots");
         assert_eq!(remaining_for_other.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_overwrite_in_range_preserves_manual_snapshots() {
-        let (repo, pool, _temp_dir) = create_test_repository().await;
-        let account_id = "test-account-2";
-        create_test_account(&pool, account_id);
-
-        let start_date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
-        let end_date = NaiveDate::from_ymd_opt(2024, 1, 31).unwrap();
-
-        // Create snapshots within range with different sources
-        let calculated_snapshot = create_test_snapshot(
-            account_id,
-            NaiveDate::from_ymd_opt(2024, 1, 10).unwrap(),
-            SnapshotSource::Calculated,
-        );
-        let csv_snapshot = create_test_snapshot(
-            account_id,
-            NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
-            SnapshotSource::CsvImport,
-        );
-
-        repo.save_snapshots(&[calculated_snapshot, csv_snapshot.clone()])
-            .await
-            .expect("Failed to save initial snapshots");
-
-        // Overwrite in range with new calculated snapshot
-        let new_snapshot = create_test_snapshot(
-            account_id,
-            NaiveDate::from_ymd_opt(2024, 1, 20).unwrap(),
-            SnapshotSource::Calculated,
-        );
-
-        repo.overwrite_snapshots_for_account_in_range(
-            account_id,
-            start_date,
-            end_date,
-            std::slice::from_ref(&new_snapshot),
-        )
-        .await
-        .expect("Failed to overwrite in range");
-
-        // Should have 2 snapshots: preserved CSV + new calculated
-        let final_snapshots = repo
-            .get_snapshots_by_account(account_id, None, None)
-            .expect("Failed to get final snapshots");
-        assert_eq!(final_snapshots.len(), 2, "Should have 2 snapshots");
-
-        // Verify CSV is preserved
-        let csv_preserved = final_snapshots
-            .iter()
-            .any(|s| s.source == SnapshotSource::CsvImport);
-        assert!(csv_preserved, "CSV import snapshot should be preserved");
-    }
-
-    #[tokio::test]
-    async fn test_update_snapshots_source() {
-        let (repo, pool, _temp_dir) = create_test_repository().await;
-        let account_id = "test-account-3";
-        create_test_account(&pool, account_id);
-
-        // Create calculated snapshots
-        let snapshot1 = create_test_snapshot(
-            account_id,
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
-            SnapshotSource::Calculated,
-        );
-        let snapshot2 = create_test_snapshot(
-            account_id,
-            NaiveDate::from_ymd_opt(2024, 1, 2).unwrap(),
-            SnapshotSource::Calculated,
-        );
-
-        repo.save_snapshots(&[snapshot1, snapshot2])
-            .await
-            .expect("Failed to save snapshots");
-
-        // Update source to MANUAL_ENTRY
-        let updated_count = repo
-            .update_snapshots_source(account_id, "MANUAL_ENTRY")
-            .await
-            .expect("Failed to update source");
-
-        assert_eq!(updated_count, 2, "Should update 2 snapshots");
-
-        // Verify source was updated
-        let snapshots = repo
-            .get_snapshots_by_account(account_id, None, None)
-            .expect("Failed to get snapshots");
-
-        for snapshot in &snapshots {
-            assert_eq!(
-                snapshot.source,
-                SnapshotSource::ManualEntry,
-                "Source should be updated to ManualEntry"
-            );
-        }
     }
 
     #[tokio::test]

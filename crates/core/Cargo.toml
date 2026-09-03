@@ -33,6 +33,7 @@ reqwest = { workspace = true, features = ["cookies"] }
 
 # Sibling crates
 wealthfolio-market-data = { path = "../market-data" }
+wealthfolio-portfolio-engine = { workspace = true }
 
 # Additional dependencies not in workspace
 regex = "1.10"
@@ -56,3 +57,5 @@ url = "2"
 [dev-dependencies]
 tempfile = "3"
 proptest = "1.4"
+insta = { version = "1", features = ["yaml"] }
+serde_yaml = "0.9"

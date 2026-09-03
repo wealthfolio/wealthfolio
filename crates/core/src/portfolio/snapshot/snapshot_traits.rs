@@ -86,29 +86,6 @@ pub trait SnapshotRepositoryTrait: Send + Sync {
             .await
     }
 
-    /// Delete snapshots for a specific account within a date range.
-    async fn delete_snapshots_for_account_in_range(
-        &self,
-        account_id: &str,
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-    ) -> Result<()>;
-
-    /// Delete all snapshots in range and save new ones atomically.
-    async fn overwrite_snapshots_for_account_in_range(
-        &self,
-        account_id: &str,
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-        snapshots_to_save: &[AccountStateSnapshot],
-    ) -> Result<()>;
-
-    /// Overwrite snapshot ranges for multiple accounts.
-    async fn overwrite_multiple_account_snapshot_ranges(
-        &self,
-        new_snapshots: &[AccountStateSnapshot],
-    ) -> Result<()>;
-
     /// Get all non-archived account snapshots.
     /// Uses is_archived=false filtering to include closed accounts.
     fn get_all_non_archived_account_snapshots(
@@ -126,10 +103,6 @@ pub trait SnapshotRepositoryTrait: Send + Sync {
         account_id: &str,
         snapshots_to_save: &[AccountStateSnapshot],
     ) -> Result<()>;
-
-    /// Update the source field of all snapshots for an account.
-    /// Returns the number of rows updated.
-    async fn update_snapshots_source(&self, account_id: &str, new_source: &str) -> Result<usize>;
 
     /// Save or update a snapshot for a specific date.
     /// If a snapshot exists for the same date, it is replaced.

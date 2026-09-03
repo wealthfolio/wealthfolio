@@ -133,7 +133,7 @@ impl FxService {
 
         if let Ok(converter_lock) = self.converter.read() {
             if let Some(converter) = &*converter_lock {
-                let today = Utc::now().naive_utc().date();
+                let today = crate::utils::clock::now().naive_utc().date();
                 if let Ok(rate) = converter.get_rate_nearest(from, to, today) {
                     return Ok(rate);
                 }

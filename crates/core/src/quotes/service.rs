@@ -10,7 +10,7 @@
 use async_trait::async_trait;
 use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use log::{debug, info};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -375,23 +375,6 @@ pub trait QuoteServiceTrait: Send + Sync {
         end: NaiveDate,
     ) -> Result<Vec<Quote>> {
         self.get_quotes_in_range_filled(symbols, start, end)
-    }
-
-    /// Gets sparse persisted quotes with an independent inclusive start per asset.
-    fn get_sparse_quotes_in_range_by_asset(
-        &self,
-        asset_start_dates: &BTreeMap<String, NaiveDate>,
-        end: NaiveDate,
-    ) -> Result<Vec<Quote>> {
-        let mut quotes = Vec::new();
-        for (asset_id, start) in asset_start_dates {
-            quotes.extend(self.get_sparse_quotes_in_range(
-                &HashSet::from([asset_id.clone()]),
-                *start,
-                end,
-            )?);
-        }
-        Ok(quotes)
     }
 
     /// Get quotes for symbols within a date range, with gap filling.
@@ -1269,72 +1252,6 @@ where
                         .into_values(),
                 );
             }
-        }
-
-        for quote in &mut quotes {
-            if let Some(asset) = assets_by_id.get(&quote.asset_id) {
-                reconcile_quote_currency(quote, asset);
-            }
-        }
-        quotes.sort_by(|left, right| {
-            left.asset_id
-                .cmp(&right.asset_id)
-                .then_with(|| left.timestamp.cmp(&right.timestamp))
-        });
-        quotes.dedup_by(|left, right| {
-            left.asset_id == right.asset_id
-                && left.timestamp.date_naive() == right.timestamp.date_naive()
-        });
-        Ok(quotes)
-    }
-
-    fn get_sparse_quotes_in_range_by_asset(
-        &self,
-        asset_start_dates: &BTreeMap<String, NaiveDate>,
-        end: NaiveDate,
-    ) -> Result<Vec<Quote>> {
-        if asset_start_dates.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        const ASSET_BATCH_SIZE: usize = 400;
-        let ids: Vec<String> = asset_start_dates.keys().cloned().collect();
-        let assets = self.asset_repo.list_by_asset_ids(&ids)?;
-        let assets_by_id: HashMap<String, Asset> = assets
-            .into_iter()
-            .map(|asset| (asset.id.clone(), asset))
-            .collect();
-
-        let mut quotes = Vec::new();
-        for batch in ids.chunks(ASSET_BATCH_SIZE) {
-            let range_requests: Vec<_> = batch
-                .iter()
-                .map(|asset_id| {
-                    (
-                        AssetId::new(asset_id.clone()),
-                        Day::new(asset_start_dates[asset_id]),
-                    )
-                })
-                .collect();
-            quotes.extend(self.quote_store.range_batch_from_dates(
-                &range_requests,
-                Day::new(end),
-                None,
-            )?);
-
-            let seed_requests: Vec<_> = batch
-                .iter()
-                .filter_map(|asset_id| {
-                    asset_start_dates[asset_id]
-                        .checked_sub_signed(Duration::days(1))
-                        .map(|seed_date| (asset_id.clone(), seed_date))
-                })
-                .collect();
-            quotes.extend(
-                self.quote_store
-                    .get_latest_quotes_as_of_dates(&seed_requests)?
-                    .into_values(),
-            );
         }
 
         for quote in &mut quotes {

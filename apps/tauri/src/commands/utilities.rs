@@ -341,6 +341,7 @@ async fn build_data_export_content(
                     None,
                     None,
                 )
+                .await
                 .map_err(|e| format!("Failed to load portfolio history for export: {}", e))?;
             format_records(&records, format).map_err(|e| e.to_string())
         }

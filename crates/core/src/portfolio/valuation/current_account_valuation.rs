@@ -65,7 +65,7 @@ impl<'a> CurrentAccountValuationService<'a> {
             base_currency,
             latest_snapshot_cutoff,
             include_accounts,
-            Utc::now(),
+            crate::utils::clock::now(),
         )
         .await
     }

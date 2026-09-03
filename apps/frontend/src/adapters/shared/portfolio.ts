@@ -25,6 +25,11 @@ export const updatePortfolio = async (): Promise<void> => {
   return invoke<void>("update_portfolio");
 };
 
+/** Cold-start consistency pass: market sync plus a rebuild of whatever is stale. */
+export const ensurePortfolioConsistent = async (): Promise<void> => {
+  return invoke<void>("ensure_portfolio_consistent");
+};
+
 export const recalculatePortfolio = async (): Promise<void> => {
   return invoke<void>("recalculate_portfolio");
 };

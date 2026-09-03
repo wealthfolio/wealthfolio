@@ -30,6 +30,8 @@ use crate::events::EventBus;
 
 /// Debounce window for collecting events before processing.
 const DEBOUNCE_DURATION: Duration = Duration::from_millis(1000);
+/// A batch is processed at most this long after its first event.
+const MAX_BATCH_WAIT: Duration = Duration::from_millis(5000);
 
 /// Dependencies needed by the queue worker for processing events.
 pub struct QueueWorkerDeps {
@@ -42,13 +44,10 @@ pub struct QueueWorkerDeps {
     // we pass what we need for enqueue_portfolio_job (which spawns its own async task).
     // The shared.rs enqueue_portfolio_job needs Arc<AppState>, so we'll need to pass
     // a callback or restructure slightly. For now, we'll store what we need.
-    pub snapshot_service:
-        Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait + Send + Sync>,
     pub snapshot_repository:
         Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotRepositoryTrait + Send + Sync>,
     pub quote_service: Arc<dyn wealthfolio_core::quotes::QuoteServiceTrait + Send + Sync>,
-    pub valuation_service:
-        Arc<dyn wealthfolio_core::portfolio::valuation::ValuationServiceTrait + Send + Sync>,
+    pub portfolio_coordinator: Arc<wealthfolio_core::portfolio::coordinator::PortfolioCoordinator>,
     pub account_service: Arc<wealthfolio_core::accounts::AccountService>,
     pub goal_service: Arc<dyn GoalServiceTrait + Send + Sync>,
     pub fx_service: Arc<dyn wealthfolio_core::fx::FxServiceTrait + Send + Sync>,
@@ -79,65 +78,52 @@ pub async fn event_queue_worker(
     tracing::info!("Domain event queue worker started");
 
     let mut pending_events: Vec<DomainEvent> = Vec::new();
+    let mut batch_started: Option<std::time::Instant> = None;
     let is_processing = Arc::new(AtomicBool::new(false));
 
     loop {
-        // If we have pending events, wait for more events or timeout
-        if !pending_events.is_empty() {
-            tokio::select! {
-                // Wait for more events
-                event = rx.recv() => {
-                    match event {
-                        Some(e) => {
-                            pending_events.push(e);
-                            // Continue collecting more events
-                        }
-                        None => {
-                            // Channel closed, process remaining and exit
-                            // Wait for any in-progress processing to complete before final batch
-                            while is_processing.load(Ordering::SeqCst) {
-                                tokio::time::sleep(Duration::from_millis(50)).await;
-                            }
-                            if !pending_events.is_empty() {
-                                is_processing.store(true, Ordering::SeqCst);
-                                process_event_batch(&pending_events, deps.clone()).await;
-                                is_processing.store(false, Ordering::SeqCst);
-                            }
-                            tracing::info!("Domain event queue worker shutting down");
-                            return;
-                        }
-                    }
-                }
-                // Debounce timeout expired
-                _ = tokio::time::sleep(DEBOUNCE_DURATION) => {
-                    // Check if we're still processing a previous batch
-                    if is_processing.load(Ordering::SeqCst) {
-                        // Still processing, keep collecting events
-                        tracing::debug!("Debounce expired but previous batch still processing, continuing to collect events");
-                        continue;
-                    }
-
-                    if !pending_events.is_empty() {
-                        let batch = std::mem::take(&mut pending_events);
-                        is_processing.store(true, Ordering::SeqCst);
-                        process_event_batch(&batch, deps.clone()).await;
-                        is_processing.store(false, Ordering::SeqCst);
-                    }
-                }
-            }
+        // Wait for the first event, then debounce; a sustained event stream
+        // never postpones the batch beyond MAX_BATCH_WAIT (architecture §3.3).
+        let maybe_event = if pending_events.is_empty() {
+            rx.recv().await
         } else {
-            // No pending events, wait for the first event
-            match rx.recv().await {
-                Some(e) => {
-                    pending_events.push(e);
-                }
-                None => {
-                    // Channel closed
-                    tracing::info!("Domain event queue worker shutting down");
-                    return;
+            let wait = batch_started
+                .map(|started| MAX_BATCH_WAIT.saturating_sub(started.elapsed()))
+                .unwrap_or(DEBOUNCE_DURATION)
+                .min(DEBOUNCE_DURATION);
+            tokio::select! {
+                event = rx.recv() => event,
+                _ = tokio::time::sleep(wait) => None,
+            }
+        };
+
+        match maybe_event {
+            Some(event) => {
+                pending_events.push(event);
+                let started = *batch_started.get_or_insert_with(std::time::Instant::now);
+                if started.elapsed() < MAX_BATCH_WAIT {
+                    continue;
                 }
             }
+            None if pending_events.is_empty() => {
+                while is_processing.load(Ordering::SeqCst) {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                tracing::info!("Domain event queue worker shutting down");
+                return;
+            }
+            None => {}
         }
+
+        if is_processing.load(Ordering::SeqCst) {
+            tracing::debug!("Debounce expired but previous batch still processing, continuing to collect events");
+            continue;
+        }
+        let batch = std::mem::take(&mut pending_events);
+        batch_started = None;
+        is_processing.store(true, Ordering::SeqCst);
+        process_event_batch(&batch, deps.clone()).await;
+        is_processing.store(false, Ordering::SeqCst);
     }
 }
 
@@ -227,8 +213,7 @@ async fn process_event_batch(events: &[DomainEvent], deps: Arc<QueueWorkerDeps>)
     }
 
     // 2. Plan and trigger portfolio job
-    let timezone = deps.timezone.read().unwrap().clone();
-    if let Some(config) = plan_portfolio_job(events, &timezone) {
+    if let Some(config) = plan_portfolio_job(events) {
         tracing::info!(
             "Triggering portfolio job for accounts: {:?}, market_sync: {:?}",
             config.account_ids,
@@ -293,212 +278,27 @@ async fn process_event_batch(events: &[DomainEvent], deps: Arc<QueueWorkerDeps>)
     }
 }
 
-/// Runs a portfolio job with the given configuration.
-///
-/// This is a local implementation that mirrors the behavior of
-/// `enqueue_portfolio_job` from `api/shared.rs` but uses the
-/// worker's dependencies instead of requiring full AppState.
-///
-/// Note: This runs the job directly (not spawned) so that the caller
-/// can properly track completion via the `is_processing` guard.
+/// Runs a portfolio job through the coordinator (not spawned, so the
+/// `is_processing` guard tracks completion).
 async fn run_portfolio_job(
     deps: Arc<QueueWorkerDeps>,
     config: crate::api::shared::PortfolioJobConfig,
 ) {
-    use crate::events::{
-        MarketSyncResult, ServerEvent, MARKET_SYNC_COMPLETE, MARKET_SYNC_ERROR, MARKET_SYNC_START,
-        PORTFOLIO_UPDATE_COMPLETE, PORTFOLIO_UPDATE_ERROR, PORTFOLIO_UPDATE_START,
-    };
-    use serde_json::json;
-    use wealthfolio_core::accounts::AccountServiceTrait;
-    use wealthfolio_core::portfolio::snapshot::{
-        reconcile_quote_sync_from_latest_account_snapshots, snapshot_date_requires_remediation,
-    };
-
-    let event_bus = deps.event_bus.clone();
-    let today = user_today(parse_user_timezone_or_default(
-        &deps.timezone.read().unwrap(),
-    ));
-    let safe_since_date = config
-        .since_date
-        .filter(|date| !snapshot_date_requires_remediation(*date, today));
-    if config.since_date.is_some() && safe_since_date.is_none() {
-        tracing::warn!(
-            "Ignoring an invalid portfolio recalculation boundary and rebuilding safely"
-        );
-    }
-    let snapshot_mode = safe_since_date
-        .map(wealthfolio_core::portfolio::snapshot::SnapshotRecalcMode::SinceDate)
-        .unwrap_or_else(|| config.snapshot_mode.clone());
-    let valuation_mode = safe_since_date
-        .map(wealthfolio_core::portfolio::valuation::ValuationRecalcMode::SinceDate)
-        .unwrap_or_else(|| config.valuation_mode.clone());
-
-    let accounts_for_scope = match deps.account_service.get_non_archived_accounts() {
-        Ok(accounts) => accounts,
-        Err(err) => {
-            let err_msg = format!("Failed to list non-archived accounts: {}", err);
-            tracing::error!("{}", err_msg);
-            event_bus.publish(ServerEvent::with_payload(
-                PORTFOLIO_UPDATE_ERROR,
-                json!(err_msg),
-            ));
-            return;
-        }
-    };
-
-    // Determine which accounts to calculate individual snapshots for:
-    // - If specific account_ids provided: process those accounts (even if archived)
-    // - Otherwise: process all non-archived accounts
-    let account_ids: Vec<String> = if let Some(ref target_ids) = config.account_ids {
-        // Process the specific requested accounts (even if archived, for their own snapshots)
-        target_ids.clone()
-    } else {
-        // No specific accounts requested - use non-archived accounts
-        accounts_for_scope.iter().map(|a| a.id.clone()).collect()
-    };
-    let quote_reconciliation_account_ids: Vec<String> =
-        accounts_for_scope.iter().map(|a| a.id.clone()).collect();
-
-    // Only perform market sync if the mode requires it
-    if config.market_sync_mode.requires_sync() {
-        if let Err(e) = reconcile_quote_sync_from_latest_account_snapshots(
-            deps.snapshot_service.as_ref(),
-            deps.quote_service.as_ref(),
-            &quote_reconciliation_account_ids,
+    let observer = crate::api::shared::ServerJobObserver::with_parts(
+        deps.event_bus.clone(),
+        deps.health_service.clone(),
+    );
+    if let Err(err) = deps
+        .portfolio_coordinator
+        .run_job_with_retry(
+            config.into_request(),
+            &observer,
+            wealthfolio_core::portfolio::coordinator::RetryPolicy::default(),
         )
         .await
-        {
-            tracing::warn!(
-                "Failed to reconcile quote sync state from latest holdings: {}. Quote sync planning may be affected.",
-                e
-            );
-        }
-
-        event_bus.publish(ServerEvent::new(MARKET_SYNC_START));
-
-        let sync_start = std::time::Instant::now();
-        let asset_ids = config.market_sync_mode.asset_ids().cloned();
-
-        let sync_result = match config.market_sync_mode.to_sync_mode() {
-            Some(sync_mode) => deps.quote_service.sync(sync_mode, asset_ids).await,
-            None => {
-                tracing::warn!("MarketSyncMode requires sync but returned None for SyncMode");
-                Ok(wealthfolio_core::quotes::SyncResult::default())
-            }
-        };
-
-        match sync_result {
-            Ok(result) => {
-                let skipped_reasons: Vec<(String, String)> = result
-                    .skipped_reasons
-                    .into_iter()
-                    .map(|(asset_id, reason)| (asset_id, reason.to_string()))
-                    .collect();
-                event_bus.publish(ServerEvent::with_payload(
-                    MARKET_SYNC_COMPLETE,
-                    json!(MarketSyncResult {
-                        failed_syncs: result.failures,
-                        skipped_reasons,
-                        show_skipped_reasons: false,
-                    }),
-                ));
-                tracing::info!("Market data sync completed in {:?}", sync_start.elapsed());
-                deps.health_service.clear_cache().await;
-                if let Err(err) = deps.fx_service.initialize() {
-                    tracing::warn!(
-                        "Failed to initialize FxService after market data sync: {}",
-                        err
-                    );
-                }
-            }
-            Err(err) => {
-                let err_msg = err.to_string();
-                tracing::error!(
-                    "Market data sync failed: {}. Recalculating with cached quotes.",
-                    err_msg
-                );
-                event_bus.publish(ServerEvent::with_payload(MARKET_SYNC_ERROR, json!(err_msg)));
-                // Fall through to the recalculation below. The change that
-                // queued this job still has to reach the portfolio; fetching
-                // quotes is a separate concern and must not block it.
-            }
-        }
-    } else {
-        tracing::debug!("Skipping market sync (MarketSyncMode::None)");
-    }
-
-    event_bus.publish(ServerEvent::new(PORTFOLIO_UPDATE_START));
-
-    if !account_ids.is_empty() {
-        let ids_slice = account_ids.as_slice();
-        if let Err(err) = deps
-            .snapshot_service
-            .recalculate_holdings_snapshots(Some(ids_slice), snapshot_mode.clone())
-            .await
-        {
-            let err_msg = format!(
-                "Holdings snapshot calculation failed for targeted accounts: {}",
-                err
-            );
-            tracing::warn!("{}", err_msg);
-            event_bus.publish(ServerEvent::with_payload(
-                PORTFOLIO_UPDATE_ERROR,
-                json!(err_msg),
-            ));
-        }
-    }
-
-    // Update position status from latest real-account snapshots for quote sync planning.
-    if let Err(e) = reconcile_quote_sync_from_latest_account_snapshots(
-        deps.snapshot_service.as_ref(),
-        deps.quote_service.as_ref(),
-        &quote_reconciliation_account_ids,
-    )
-    .await
     {
-        tracing::warn!(
-            "Failed to update position status from holdings: {}. Quote sync planning may be affected.",
-            e
-        );
+        tracing::error!("Portfolio job failed: {}", err);
     }
-
-    match deps
-        .valuation_service
-        .calculate_valuation_histories(&account_ids, valuation_mode)
-        .await
-    {
-        Ok(outcome) => {
-            if outcome
-                .failures
-                .iter()
-                .any(|failure| failure.code == "INVALID_SNAPSHOT_DATE")
-            {
-                deps.health_service.clear_cache().await;
-            }
-            for failure in outcome.failures {
-                tracing::warn!(
-                    "Valuation history calculation failed for {}: {}",
-                    failure.account_id,
-                    failure.message
-                );
-                event_bus.publish(ServerEvent::with_payload(
-                    PORTFOLIO_UPDATE_ERROR,
-                    json!(failure),
-                ));
-            }
-        }
-        Err(error) => {
-            let message = format!("Failed to load shared valuation facts: {}", error);
-            tracing::warn!("{}", message);
-            event_bus.publish(ServerEvent::with_payload(
-                PORTFOLIO_UPDATE_ERROR,
-                json!(message),
-            ));
-        }
-    }
-
-    event_bus.publish(ServerEvent::new(PORTFOLIO_UPDATE_COMPLETE));
 }
 
 /// Plans and spawns auto-categorization for this batch's spending-account

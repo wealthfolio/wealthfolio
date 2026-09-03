@@ -239,32 +239,6 @@ impl SnapshotRepositoryTrait for MockSnapshotRepository {
         unimplemented!()
     }
 
-    async fn delete_snapshots_for_account_in_range(
-        &self,
-        _account_id: &str,
-        _start_date: NaiveDate,
-        _end_date: NaiveDate,
-    ) -> Result<()> {
-        unimplemented!()
-    }
-
-    async fn overwrite_snapshots_for_account_in_range(
-        &self,
-        _account_id: &str,
-        _start_date: NaiveDate,
-        _end_date: NaiveDate,
-        _snapshots_to_save: &[AccountStateSnapshot],
-    ) -> Result<()> {
-        unimplemented!()
-    }
-
-    async fn overwrite_multiple_account_snapshot_ranges(
-        &self,
-        _new_snapshots: &[AccountStateSnapshot],
-    ) -> Result<()> {
-        unimplemented!()
-    }
-
     fn get_all_non_archived_account_snapshots(
         &self,
         _start_date: Option<NaiveDate>,
@@ -282,10 +256,6 @@ impl SnapshotRepositoryTrait for MockSnapshotRepository {
         _account_id: &str,
         _snapshots_to_save: &[AccountStateSnapshot],
     ) -> Result<()> {
-        unimplemented!()
-    }
-
-    async fn update_snapshots_source(&self, _account_id: &str, _new_source: &str) -> Result<usize> {
         unimplemented!()
     }
 
@@ -744,10 +714,6 @@ impl MockValuationRepository {
 
 #[async_trait]
 impl ValuationRepositoryTrait for MockValuationRepository {
-    async fn save_valuations(&self, _valuation_records: &[DailyAccountValuation]) -> Result<()> {
-        Ok(())
-    }
-
     async fn replace_valuations_for_account(
         &self,
         _account_id: &str,
@@ -789,16 +755,6 @@ impl ValuationRepositoryTrait for MockValuationRepository {
             .cloned()
             .collect();
         Ok(filtered)
-    }
-
-    fn load_latest_valuation_date(&self, account_id: &str) -> Result<Option<NaiveDate>> {
-        let latest = self
-            .valuations
-            .iter()
-            .filter(|v| v.account_id == account_id)
-            .max_by_key(|v| v.valuation_date)
-            .map(|v| v.valuation_date);
-        Ok(latest)
     }
 
     async fn delete_valuations_for_account(

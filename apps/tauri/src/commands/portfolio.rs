@@ -34,10 +34,9 @@ use wealthfolio_core::{
     },
     portfolio::snapshot::{
         check_holdings_import as validate_holdings_import, holdings_import_data_source,
-        snapshot_date_requires_remediation, snapshot_recalculation_start_after_delete,
-        validate_holdings_import_snapshot, CashBalanceInput, HoldingsImportPositionValidationInput,
-        HoldingsImportSnapshotValidationInput, ManualHoldingInput, ManualSnapshotRequest,
-        ManualSnapshotService, SnapshotSource,
+        snapshot_date_requires_remediation, validate_holdings_import_snapshot, CashBalanceInput,
+        HoldingsImportPositionValidationInput, HoldingsImportSnapshotValidationInput,
+        ManualHoldingInput, ManualSnapshotRequest, ManualSnapshotService, SnapshotSource,
     },
     portfolios::{AccountScope, ResolvedAccountScope},
     quotes::MarketSyncMode,
@@ -171,8 +170,21 @@ pub async fn recalculate_portfolio(handle: AppHandle) -> Result<(), String> {
             asset_ids: None,
             days: 365 * 5, // 5 years fallback if no activity dates
         })
+        .force_full(true)
         .build();
     emit_portfolio_trigger_recalculate(&handle, payload);
+    Ok(())
+}
+
+/// Cold-start consistency pass, requested by the frontend once its event
+/// listeners are live: market sync plus a rebuild of whatever is stale.
+#[tauri::command]
+pub async fn ensure_portfolio_consistent(
+    handle: AppHandle,
+    state: State<'_, Arc<ServiceContext>>,
+) -> Result<(), String> {
+    let context = Arc::clone(&state);
+    tauri::async_runtime::spawn(crate::portfolio_jobs::ensure_consistent(handle, context));
     Ok(())
 }
 
@@ -1830,8 +1842,6 @@ pub async fn delete_snapshot(
     let requires_remediation = target_date
         .map(|date| snapshot_date_requires_remediation(date, today))
         .unwrap_or(true);
-    let recalculation_start =
-        target_date.and_then(|date| snapshot_recalculation_start_after_delete(date, today));
     if snapshot.source == SnapshotSource::Calculated.as_str() && !requires_remediation {
         return Err("This entry comes from account activity and can't be deleted here. Update or delete the related activity instead.".to_string());
     }
@@ -1871,7 +1881,6 @@ pub async fn delete_snapshot(
     let payload = PortfolioRequestPayload::builder()
         .account_ids(Some(vec![account_id.clone()]))
         .market_sync_mode(MarketSyncMode::Incremental { asset_ids: None })
-        .since_date(recalculation_start)
         .build();
     emit_portfolio_trigger_recalculate(&handle, payload);
 

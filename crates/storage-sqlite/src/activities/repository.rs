@@ -1519,6 +1519,39 @@ impl ActivityRepositoryTrait for ActivityRepository {
         Ok(activities_db.into_iter().map(Activity::from).collect())
     }
 
+    fn get_activities_by_account_ids_including_archived(
+        &self,
+        account_ids: &[String],
+    ) -> Result<Vec<Activity>> {
+        let mut conn = get_connection(&self.pool)?;
+
+        let activities_db = activities::table
+            .inner_join(accounts::table.on(activities::account_id.eq(accounts::id)))
+            .filter(activities::account_id.eq_any(account_ids))
+            .select(ActivityDB::as_select())
+            .order(activities::activity_date.asc())
+            .load::<ActivityDB>(&mut conn)
+            .map_err(StorageError::from)?;
+
+        Ok(activities_db.into_iter().map(Activity::from).collect())
+    }
+
+    fn get_activities_by_source_group_ids(&self, group_ids: &[String]) -> Result<Vec<Activity>> {
+        if group_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut conn = get_connection(&self.pool)?;
+        let activities_db = activities::table
+            .filter(activities::source_group_id.eq_any(group_ids))
+            .select(ActivityDB::as_select())
+            .order(activities::activity_date.asc())
+            .load::<ActivityDB>(&mut conn)
+            .map_err(StorageError::from)?;
+
+        Ok(activities_db.into_iter().map(Activity::from).collect())
+    }
+
     fn get_activities_by_account_ids_in_date_range(
         &self,
         account_ids: &[String],
@@ -1539,42 +1572,6 @@ impl ActivityRepositoryTrait for ActivityRepository {
             .map_err(StorageError::from)?;
 
         Ok(activities_db.into_iter().map(Activity::from).collect())
-    }
-
-    fn get_split_activities_by_asset_ids_in_date_range(
-        &self,
-        asset_ids: &[String],
-        start_utc: DateTime<Utc>,
-        end_exclusive_utc: DateTime<Utc>,
-    ) -> Result<Vec<Activity>> {
-        if asset_ids.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let mut conn = get_connection(&self.pool)?;
-        let mut results = Vec::new();
-        let start = start_utc.to_rfc3339();
-        let end_exclusive = end_exclusive_utc.to_rfc3339();
-
-        for chunk in chunk_for_sqlite(asset_ids) {
-            let activities_db = activities::table
-                .filter(activities::asset_id.eq_any(chunk))
-                .filter(activities::status.eq("POSTED"))
-                .filter(diesel::dsl::sql::<Bool>(
-                    "COALESCE(activity_type_override, activity_type) = 'SPLIT'",
-                ))
-                .filter(activities::activity_date.ge(&start))
-                .filter(activities::activity_date.lt(&end_exclusive))
-                .select(ActivityDB::as_select())
-                .order(activities::activity_date.asc())
-                .load::<ActivityDB>(&mut conn)
-                .map_err(StorageError::from)?;
-
-            results.extend(activities_db.into_iter().map(Activity::from));
-        }
-
-        results.sort_by_key(|activity| activity.activity_date);
-        Ok(results)
     }
 
     fn get_transfer_activities_touching_account_ids_in_date_range(
@@ -3287,62 +3284,6 @@ mod tests {
             .count()
             .get_result::<i64>(conn)
             .expect("count outbox")
-    }
-
-    #[tokio::test]
-    async fn split_activity_query_loads_posted_rows_across_accounts() {
-        let (pool, writer) = setup_db();
-        let repo = ActivityRepository::new(pool.clone(), writer);
-
-        {
-            let mut conn = get_connection(&pool).expect("conn");
-            insert_account(&mut conn, "account-1");
-            insert_account(&mut conn, "account-2");
-            insert_account_with_archived(&mut conn, "archived-account", true);
-            diesel::sql_query(
-                "INSERT INTO assets
-                 (id, kind, name, display_code, is_active, quote_mode, quote_ccy,
-                  instrument_type, instrument_symbol, created_at, updated_at)
-                 VALUES ('asset-vgt', 'INVESTMENT', 'VGT', 'VGT', 1, 'MARKET', 'USD',
-                         'EQUITY', 'VGT', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-            )
-            .execute(&mut conn)
-            .expect("insert asset");
-            diesel::sql_query(
-                "INSERT INTO activities
-                 (id, account_id, asset_id, activity_type, status, activity_date, amount,
-                  currency, is_user_modified, needs_review, created_at, updated_at)
-                 VALUES
-                 ('split-1', 'account-1', 'asset-vgt', 'SPLIT', 'POSTED',
-                  '2025-12-01T12:00:00Z', '4', 'USD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-                 ('split-2', 'account-2', 'asset-vgt', 'SPLIT', 'POSTED',
-                  '2025-12-01T12:00:00Z', '4', 'USD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-                 ('draft-split', 'account-1', 'asset-vgt', 'SPLIT', 'DRAFT',
-                  '2025-12-01T12:00:00Z', '4', 'USD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-                 ('archived-split', 'archived-account', 'asset-vgt', 'SPLIT', 'POSTED',
-                  '2025-12-01T12:00:00Z', '4', 'USD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-            )
-            .execute(&mut conn)
-            .expect("insert activities");
-        }
-
-        let activities = repo
-            .get_split_activities_by_asset_ids_in_date_range(
-                &["asset-vgt".to_string()],
-                DateTime::parse_from_rfc3339("2025-01-01T00:00:00Z")
-                    .unwrap()
-                    .with_timezone(&Utc),
-                DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z")
-                    .unwrap()
-                    .with_timezone(&Utc),
-            )
-            .unwrap();
-
-        let ids: HashSet<&str> = activities
-            .iter()
-            .map(|activity| activity.id.as_str())
-            .collect();
-        assert_eq!(ids, HashSet::from(["split-1", "split-2", "archived-split"]));
     }
 
     #[tokio::test]

@@ -231,6 +231,21 @@ impl Activity {
         self.status == ActivityStatus::Posted
     }
 
+    /// The explicit external-transfer marker (`metadata.flow.is_external`),
+    /// when the row carries one.
+    pub fn explicit_external_transfer(&self) -> Option<bool> {
+        self.metadata
+            .as_ref()
+            .and_then(|m| m.get("flow"))
+            .and_then(|f| f.get("is_external"))
+            .and_then(|v| v.as_bool())
+    }
+
+    /// Whether the row is explicitly marked as an external transfer.
+    pub fn is_external_transfer(&self) -> bool {
+        self.explicit_external_transfer().unwrap_or(false)
+    }
+
     /// Check if this activity has a user override
     pub fn has_override(&self) -> bool {
         self.activity_type_override.is_some()

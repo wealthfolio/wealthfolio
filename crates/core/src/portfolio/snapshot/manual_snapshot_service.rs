@@ -202,7 +202,7 @@ impl ManualSnapshotService {
                 average_cost: holding.average_cost,
                 total_cost_basis,
                 currency: holding.currency,
-                inception_date: Utc::now(),
+                inception_date: crate::utils::clock::now(),
                 lots: std::collections::VecDeque::new(),
                 created_at: Utc::now(),
                 last_updated: Utc::now(),

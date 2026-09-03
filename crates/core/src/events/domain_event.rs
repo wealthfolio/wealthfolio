@@ -1,6 +1,6 @@
 //! Domain event types.
 
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::accounts::TrackingMode;
@@ -35,8 +35,6 @@ pub enum DomainEvent {
     HoldingsChanged {
         account_ids: Vec<String>,
         asset_ids: Vec<String>,
-        /// Earliest holdings snapshot date affected by this change.
-        earliest_snapshot_date: NaiveDate,
     },
 
     /// Accounts were created, updated, or deleted.
@@ -117,15 +115,10 @@ impl DomainEvent {
     }
 
     /// Creates a HoldingsChanged event.
-    pub fn holdings_changed(
-        account_ids: Vec<String>,
-        asset_ids: Vec<String>,
-        earliest_snapshot_date: NaiveDate,
-    ) -> Self {
+    pub fn holdings_changed(account_ids: Vec<String>, asset_ids: Vec<String>) -> Self {
         Self::HoldingsChanged {
             account_ids,
             asset_ids,
-            earliest_snapshot_date,
         }
     }
 

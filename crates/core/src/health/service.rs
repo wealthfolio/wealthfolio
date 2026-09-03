@@ -9,6 +9,8 @@ use log::{debug, info, warn};
 use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+
+use crate::portfolio::coordinator::ProjectionFreshnessTrait;
 use tokio::sync::RwLock;
 
 use crate::accounts::{
@@ -23,7 +25,6 @@ use crate::errors::Result;
 use crate::lots::LotRepositoryTrait;
 use crate::portfolio::economic_events::{ActivityEconomicsResolver, BasisStatus};
 use crate::portfolio::holdings::{HoldingType, HoldingsServiceTrait};
-use crate::portfolio::performance::is_external_transfer;
 use crate::portfolio::snapshot::{
     max_snapshot_read_date, min_supported_snapshot_date, validate_snapshot_read_date,
     AccountStateSnapshot, HoldingsTimeline, Position, SnapshotServiceTrait,
@@ -35,10 +36,10 @@ use crate::utils::time_utils::{activity_date_in_tz, parse_user_timezone_or_defau
 
 use super::checks::{
     AccountConfigurationCheck, AssetHoldingInfo, ClassificationCheck, ConsistencyIssueInfo,
-    DataConsistencyCheck, FxIntegrityCheck, FxPairInfo, InvalidTransferGroupInfo,
-    LegacyMigrationInfo, PriceStalenessCheck, QuoteSyncCheck, QuoteSyncErrorInfo,
-    TransferIntegrityCheck, TransferLegDetail, UnclassifiedAssetInfo, UnconfiguredAccountInfo,
-    ValuationIssueReason,
+    ConsistencyIssueType, DataConsistencyCheck, FxIntegrityCheck, FxPairInfo,
+    InvalidTransferGroupInfo, LegacyMigrationInfo, PriceStalenessCheck, QuoteSyncCheck,
+    QuoteSyncErrorInfo, TransferIntegrityCheck, TransferLegDetail, UnclassifiedAssetInfo,
+    UnconfiguredAccountInfo, ValuationIssueReason,
 };
 use super::errors::HealthError;
 use super::model::{FixAction, HealthConfig, HealthIssue, HealthStatus, IssueDismissal};
@@ -69,6 +70,8 @@ pub struct HealthService {
     consistency_check: DataConsistencyCheck,
     account_config_check: AccountConfigurationCheck,
     transfer_integrity_check: TransferIntegrityCheck,
+    /// Projection freshness (the coordinator), when wired by the host.
+    projection_freshness: Option<Arc<dyn ProjectionFreshnessTrait>>,
 }
 
 fn is_price_staleness_candidate(
@@ -92,7 +95,17 @@ impl HealthService {
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
+            projection_freshness: None,
         }
+    }
+
+    /// Reports accounts whose projected history is behind their facts.
+    pub fn with_projection_freshness(
+        mut self,
+        freshness: Arc<dyn ProjectionFreshnessTrait>,
+    ) -> Self {
+        self.projection_freshness = Some(freshness);
+        self
     }
 
     /// Creates a health service with custom configuration.
@@ -111,6 +124,7 @@ impl HealthService {
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
+            projection_freshness: None,
         }
     }
 
@@ -608,6 +622,38 @@ impl HealthService {
             &health_activities,
             effective_timezone,
         ));
+        if let Some(freshness) = &self.projection_freshness {
+            match freshness.stale_accounts() {
+                Ok(stale) => consistency_issues.extend(stale.into_iter().map(|stale| {
+                    ConsistencyIssueInfo {
+                        issue_type: ConsistencyIssueType::StaleProjection,
+                        record_id: stale.account_id.clone(),
+                        description: account_name_map
+                            .get(&stale.account_id)
+                            .cloned()
+                            .unwrap_or_else(|| stale.account_id.clone()),
+                        account_id: Some(stale.account_id),
+                        asset_id: None,
+                        first_negative_date: None,
+                        cash_balance: None,
+                        total_value_at_date: None,
+                        account_currency: None,
+                        activity_date: None,
+                        asset_symbol: None,
+                        asset_name: None,
+                        quantity: None,
+                        proceeds: None,
+                        reason: None,
+                        activity_id: None,
+                        snapshot_date_raw: None,
+                        snapshot_source: None,
+                        snapshot_min_date: None,
+                        snapshot_max_date: None,
+                    }
+                })),
+                Err(error) => warn!("Failed to check projection freshness: {}", error),
+            }
+        }
 
         // Run checks with gathered data
         self.run_checks_with_data(
@@ -786,7 +832,7 @@ fn invalid_transfer_groups_from_activities(
                 .activity_ids
                 .iter()
                 .filter_map(|id| by_id.get(id.as_str()).copied())
-                .filter(|act| act.is_posted() && !is_external_transfer(act))
+                .filter(|act| act.is_posted() && !act.is_external_transfer())
                 .filter(|act| eligible_account_ids.contains(act.account_id.as_str()))
                 .map(|act| transfer_leg_detail(act, account_names, tz))
                 .collect();
@@ -800,7 +846,7 @@ fn invalid_transfer_groups_from_activities(
     for activity in activities {
         if activity.is_posted()
             && resolution.is_ungrouped_transfer(&activity.id)
-            && !is_external_transfer(activity)
+            && !activity.is_external_transfer()
             && eligible_account_ids.contains(activity.account_id.as_str())
         {
             groups.push(InvalidTransferGroupInfo {
@@ -813,7 +859,7 @@ fn invalid_transfer_groups_from_activities(
     for pair in resolution.pairs() {
         for activity in [&pair.transfer_in, &pair.transfer_out] {
             if activity.is_posted()
-                && is_external_transfer(activity)
+                && activity.is_external_transfer()
                 && eligible_account_ids.contains(activity.account_id.as_str())
             {
                 groups.push(InvalidTransferGroupInfo {
@@ -1141,7 +1187,7 @@ fn is_lot_creating_basis_source(activity: &Activity) -> bool {
     }
 
     activity_type.eq_ignore_ascii_case(ACTIVITY_TYPE_TRANSFER_IN)
-        && (activity.source_group_id.is_none() || is_external_transfer(activity))
+        && (activity.source_group_id.is_none() || activity.is_external_transfer())
 }
 
 /// Flags activities stored without a currency (#1388): FX conversion fails for

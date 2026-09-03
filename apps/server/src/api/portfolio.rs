@@ -1,7 +1,7 @@
 use std::{convert::Infallible, sync::Arc, time::Duration};
 
 use crate::{
-    api::shared::{enqueue_portfolio_job, PortfolioRequestBody},
+    api::shared::{enqueue_consistency_pass, enqueue_portfolio_job, PortfolioRequestBody},
     error::ApiResult,
     main_lib::AppState,
 };
@@ -21,13 +21,19 @@ async fn update_portfolio(
     body: Option<Json<PortfolioRequestBody>>,
 ) -> ApiResult<StatusCode> {
     // Web-mode callers typically omit the body; preserve desktop behavior by defaulting
-    // to an explicit market sync policy (PRD: no implicit sync inside the job runner).
+    // to an explicit market sync policy (the job runner performs no implicit sync).
     let mut request = body.map(|Json(inner)| inner).unwrap_or_default();
     if matches!(request.market_sync_mode, MarketSyncMode::None) {
         request.market_sync_mode = MarketSyncMode::Incremental { asset_ids: None };
     }
-    let cfg = request.into_config(false);
+    let cfg = request.into_config();
     enqueue_portfolio_job(state, cfg);
+    Ok(StatusCode::ACCEPTED)
+}
+
+/// Cold-start consistency pass for a web client whose event stream is live.
+async fn ensure_consistent(State(state): State<Arc<AppState>>) -> ApiResult<StatusCode> {
+    enqueue_consistency_pass(state);
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -44,7 +50,8 @@ async fn recalculate_portfolio(
             days: DEFAULT_HISTORY_DAYS,
         };
     }
-    let cfg = request.into_config(true);
+    request.force_full = true;
+    let cfg = request.into_config();
     enqueue_portfolio_job(state, cfg);
     Ok(StatusCode::ACCEPTED)
 }
@@ -86,6 +93,7 @@ async fn stream_events(
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/portfolio/update", post(update_portfolio))
+        .route("/portfolio/ensure-consistent", post(ensure_consistent))
         .route("/portfolio/recalculate", post(recalculate_portfolio))
         .route("/events/stream", get(stream_events))
 }

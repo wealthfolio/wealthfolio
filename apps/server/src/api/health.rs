@@ -17,7 +17,6 @@ use axum::{
 use serde_json::json;
 use wealthfolio_core::{
     health::{FixAction, HealthConfig, HealthStatus},
-    portfolio::{snapshot::SnapshotRecalcMode, valuation::ValuationRecalcMode},
     quotes::MarketSyncMode,
 };
 
@@ -209,9 +208,8 @@ async fn execute_health_fix(
             account_ids: Some(account_ids),
             // Prices/valuations were already fixed by the user; just rebuild.
             market_sync_mode: MarketSyncMode::Incremental { asset_ids: None },
-            snapshot_mode: SnapshotRecalcMode::Full,
-            valuation_mode: ValuationRecalcMode::Full,
-            since_date: None,
+            force_full: true,
+            earliest_change_at: None,
         };
 
         process_portfolio_job(state.clone(), job_config)

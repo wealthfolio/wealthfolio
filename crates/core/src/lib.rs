@@ -28,6 +28,9 @@ pub mod sync;
 pub mod taxonomies;
 pub mod utils;
 
+#[cfg(test)]
+pub mod test_support;
+
 // Re-export common types from asset and portfolio modules
 pub use assets::*;
 pub use portfolio::*;

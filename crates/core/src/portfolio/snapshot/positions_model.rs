@@ -8,7 +8,6 @@ use std::default::Default;
 use crate::activities::Activity;
 
 use crate::constants::QUANTITY_THRESHOLD;
-use crate::fx::currency::normalize_currency_code;
 
 use crate::errors::{CalculatorError, Result};
 use crate::portfolio::economic_events::BasisStatus;
@@ -18,61 +17,6 @@ pub fn is_quantity_significant(quantity: &Decimal) -> bool {
     let threshold =
         Decimal::from_str_radix(QUANTITY_THRESHOLD, 10).unwrap_or_else(|_| Decimal::new(1, 8));
     quantity.abs() >= threshold
-}
-
-/// Sum a position's cost basis in `target_currency` from its materialized
-/// lots, anchoring each lot to its acquisition-date FX (stored lot rate
-/// preferred). `fx_fallback` supplies an acquisition-date market rate for a lot
-/// that has no stored rate to `target_currency`; returning `None` from it
-/// signals the rate is unavailable.
-///
-/// Mirrors `valuation_calculator::calculate_cost_basis_in_currency`'s per-lot
-/// logic **exactly** so the value is byte-identical to valuation's lot walk:
-///   * skip only zero-cost lots (not zero-quantity);
-///   * prefer the lot's stored acquisition FX (`Lot::stored_fx_rate_to`);
-///   * otherwise multiply by the fallback acquisition-date rate.
-///
-/// Returns `None` when the position has no materialized lots (valuation keeps
-/// its valuation-date-FX fallback for those) or when any required
-/// acquisition-date FX rate is unavailable, so a scalar is derived only when it
-/// can be trusted.
-///
-/// Called from the write-time precompute
-/// ([`HoldingsCalculator::precompute_position_cost_basis`]), which passes a
-/// fallback backed by the FX service. `fx_fallback` stays a parameter so a
-/// caller without an FX service can pass one that always returns `None` and get
-/// a scalar derived purely from the per-lot stored FX.
-pub fn compute_position_cost_basis_from_lots<F>(
-    position: &Position,
-    target_currency: &str,
-    mut fx_fallback: F,
-) -> Option<Decimal>
-where
-    F: FnMut(&str, &str, NaiveDate) -> Option<Decimal>,
-{
-    if position.lots.is_empty() {
-        return None;
-    }
-
-    let position_currency = normalize_currency_code(&position.currency);
-    let target = normalize_currency_code(target_currency);
-    let mut total = Decimal::ZERO;
-
-    for lot in &position.lots {
-        if lot.cost_basis.is_zero() {
-            continue;
-        }
-        if let Some(rate) = lot.stored_fx_rate_to(target) {
-            total += lot.cost_basis * rate;
-            continue;
-        }
-
-        let acquisition_date = lot.acquisition_date_key();
-        let rate = fx_fallback(position_currency, target, acquisition_date)?;
-        total += lot.cost_basis * rate;
-    }
-
-    Some(total)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -139,10 +83,10 @@ impl Default for Position {
             average_cost: Decimal::ZERO,
             total_cost_basis: Decimal::ZERO,
             currency: String::new(), // Initialized as empty, set by first lot
-            inception_date: Utc::now(),
+            inception_date: crate::utils::clock::now(),
             lots: VecDeque::new(),
-            created_at: Utc::now(),
-            last_updated: Utc::now(),
+            created_at: crate::utils::clock::now(),
+            last_updated: crate::utils::clock::now(),
             is_alternative: false,
             contract_multiplier: Decimal::ONE,
             cost_basis_account: None,
@@ -521,7 +465,7 @@ impl Position {
             self.inception_date = first_lot.acquisition_date;
         }
         // Update last updated time
-        self.last_updated = Utc::now();
+        self.last_updated = crate::utils::clock::now();
     }
 
     /// Adds a new lot based on an acquisition activity.

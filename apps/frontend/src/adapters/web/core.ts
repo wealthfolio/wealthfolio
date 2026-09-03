@@ -61,6 +61,7 @@ export const COMMANDS: CommandMap = {
   import_holdings_csv: { method: "POST", path: "/snapshots/import" },
   check_holdings_import: { method: "POST", path: "/snapshots/import/check" },
   update_portfolio: { method: "POST", path: "/portfolio/update" },
+  ensure_portfolio_consistent: { method: "POST", path: "/portfolio/ensure-consistent" },
   recalculate_portfolio: { method: "POST", path: "/portfolio/recalculate" },
   // Performance
   calculate_accounts_simple_performance: { method: "POST", path: "/performance/accounts/simple" },

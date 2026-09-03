@@ -44,6 +44,8 @@ pub enum ConsistencyIssueType {
     MissingActivityCurrency,
     /// A stored snapshot falls outside the supported date policy.
     InvalidSnapshotDate,
+    /// The account's facts changed since its history was last projected.
+    StaleProjection,
 }
 
 /// Root cause classification for valuation-quality issues (incomplete value /
@@ -811,6 +813,10 @@ impl DataConsistencyCheck {
             ));
         }
 
+        if let Some(stale) = by_type.get(&ConsistencyIssueType::StaleProjection) {
+            health_issues.push(build_stale_projection_issue(stale));
+        }
+
         if let Some(flow_issues) = by_type.get(&ConsistencyIssueType::UnknownPerformanceFlowSource)
         {
             health_issues.push(build_unknown_performance_flow_issue(
@@ -826,6 +832,46 @@ impl DataConsistencyCheck {
 
         health_issues
     }
+}
+
+/// Accounts whose recorded projection no longer matches their facts: the
+/// fix is a scoped rebuild through the coordinator.
+fn build_stale_projection_issue(issues: &[&ConsistencyIssueInfo]) -> HealthIssue {
+    let mut account_ids: Vec<String> = issues.iter().filter_map(|i| i.account_id.clone()).collect();
+    account_ids.sort();
+    account_ids.dedup();
+    let data_hash = compute_data_hash(
+        &issues
+            .iter()
+            .map(|i| format!("{}:{}", i.record_id, i.description))
+            .collect::<Vec<_>>(),
+    );
+    let affected_items: Vec<AffectedItem> = issues
+        .iter()
+        .filter_map(|i| {
+            i.account_id
+                .as_ref()
+                .map(|id| AffectedItem::account(id.clone(), i.description.clone()))
+        })
+        .collect();
+    let count = account_ids.len();
+    let title = if count == 1 {
+        "Account history is out of date".to_string()
+    } else {
+        format!("{count} account histories are out of date")
+    };
+    HealthIssue::builder()
+        .id("stale_projection")
+        .severity(Severity::Warning)
+        .category(HealthCategory::DataConsistency)
+        .title(title)
+        .message("Activities, prices or settings changed after these account histories were last calculated. Rebuild them so values and returns reflect the current data.")
+        .code("data_stale_projection")
+        .affected_count(count as u32)
+        .affected_items(affected_items)
+        .fix_action(FixAction::rebuild_account_history(account_ids))
+        .data_hash(data_hash)
+        .build()
 }
 
 fn snapshot_source_label(source: &str) -> &str {

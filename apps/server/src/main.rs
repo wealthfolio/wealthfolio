@@ -111,16 +111,8 @@ async fn main() -> anyhow::Result<()> {
     // Start background broker sync scheduler (4-hour interval)
     scheduler::start_broker_sync_scheduler(state.clone());
 
-    // Start periodic market data sync (6h interval, 2min initial delay)
-    let quote_svc = state.quote_service.clone();
-    tokio::spawn(async move {
-        wealthfolio_core::quotes::scheduler::run_periodic_sync(
-            quote_svc,
-            std::time::Duration::from_secs(120),
-            std::time::Duration::from_secs(6 * 3600),
-        )
-        .await;
-    });
+    // Periodic market data sync plus consistency pass (6h, 2min delay)
+    api::shared::spawn_periodic_consistency(state.clone());
 
     let static_dir = std::path::PathBuf::from(&config.static_dir);
     let index_file = static_dir.join("index.html");

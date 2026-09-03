@@ -5,19 +5,14 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use rust_decimal::prelude::ToPrimitive;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc;
 use wealthfolio_core::events::DomainEvent;
-use wealthfolio_core::health::HealthServiceTrait;
-use wealthfolio_core::portfolio::snapshot::{
-    reconcile_quote_sync_from_latest_account_snapshots, snapshot_date_requires_remediation,
-    SnapshotRecalcMode,
-};
-use wealthfolio_core::portfolio::valuation::{CurrentAccountValuationService, ValuationRecalcMode};
+use wealthfolio_core::portfolio::valuation::CurrentAccountValuationService;
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 #[cfg(feature = "connect-sync")]
@@ -30,14 +25,15 @@ use super::planner::{
 use crate::commands::brokers_sync::perform_broker_sync;
 use crate::context::ServiceContext;
 use crate::events::{
-    MarketSyncResult, PortfolioRequestPayload, ASSET_CLASSIFICATIONS_CHANGED,
-    ASSET_ENRICHMENT_COMPLETE, ASSET_ENRICHMENT_PROGRESS, ASSET_ENRICHMENT_START,
-    MARKET_SYNC_COMPLETE, MARKET_SYNC_ERROR, MARKET_SYNC_START, PORTFOLIO_UPDATE_COMPLETE,
-    PORTFOLIO_UPDATE_ERROR, PORTFOLIO_UPDATE_START,
+    PortfolioRequestPayload, ASSET_CLASSIFICATIONS_CHANGED, ASSET_ENRICHMENT_COMPLETE,
+    ASSET_ENRICHMENT_PROGRESS, ASSET_ENRICHMENT_START,
 };
 
 /// Debounce window duration in milliseconds.
 const DEBOUNCE_MS: u64 = 1000;
+/// A batch is processed at most this long after its first event, however
+/// many events keep arriving.
+const MAX_BATCH_WAIT_MS: u64 = 5000;
 
 /// Runs the event queue worker that processes domain events with debouncing.
 ///
@@ -55,53 +51,58 @@ pub async fn event_queue_worker(
     context: Arc<ServiceContext>,
 ) {
     let debounce_duration = Duration::from_millis(DEBOUNCE_MS);
+    let max_batch_wait = Duration::from_millis(MAX_BATCH_WAIT_MS);
     let mut event_buffer: Vec<DomainEvent> = Vec::new();
+    let mut batch_started: Option<Instant> = None;
     let is_processing = Arc::new(AtomicBool::new(false));
 
     loop {
-        // If buffer is empty, wait indefinitely for the first event
-        // If buffer has events, wait with a timeout for more events
+        // If buffer is empty, wait indefinitely for the first event.
+        // Otherwise debounce, but never let a sustained event stream postpone
+        // the batch beyond MAX_BATCH_WAIT_MS (architecture §3.3).
         let maybe_event = if event_buffer.is_empty() {
-            // Wait indefinitely for the first event
             receiver.recv().await
         } else {
-            // Wait for more events or timeout
+            let wait = batch_started
+                .map(|started| max_batch_wait.saturating_sub(started.elapsed()))
+                .unwrap_or(debounce_duration)
+                .min(debounce_duration);
             tokio::select! {
                 event = receiver.recv() => event,
-                _ = tokio::time::sleep(debounce_duration) => None,
+                _ = tokio::time::sleep(wait) => None,
             }
         };
 
         match maybe_event {
             Some(event) => {
-                // Add event to buffer and continue collecting
                 event_buffer.push(event);
-            }
-            None if !event_buffer.is_empty() => {
-                // Timeout expired or channel closed with events in buffer
-                // Check if we're still processing a previous batch
-                if is_processing.load(Ordering::SeqCst) {
-                    // Still processing, keep collecting events
-                    debug!("Debounce expired but previous batch still processing, continuing to collect events");
+                let started = *batch_started.get_or_insert_with(Instant::now);
+                if started.elapsed() < max_batch_wait {
                     continue;
                 }
-
-                // Process the batch
-                let events = std::mem::take(&mut event_buffer);
-                is_processing.store(true, Ordering::SeqCst);
-                process_event_batch(&events, &app_handle, &context).await;
-                is_processing.store(false, Ordering::SeqCst);
             }
-            None => {
-                // Channel closed and buffer is empty - exit the worker
-                // Wait for any in-progress processing to complete
+            None if event_buffer.is_empty() => {
+                // Channel closed and nothing buffered: exit the worker.
                 while is_processing.load(Ordering::SeqCst) {
                     tokio::time::sleep(Duration::from_millis(50)).await;
                 }
                 info!("Domain event queue worker shutting down");
                 break;
             }
+            None => {}
         }
+
+        // Debounce expired, the batch is overdue, or the channel closed with
+        // buffered events: process them.
+        if is_processing.load(Ordering::SeqCst) {
+            debug!("Debounce expired but previous batch still processing, continuing to collect events");
+            continue;
+        }
+        let events = std::mem::take(&mut event_buffer);
+        batch_started = None;
+        is_processing.store(true, Ordering::SeqCst);
+        process_event_batch(&events, &app_handle, &context).await;
+        is_processing.store(false, Ordering::SeqCst);
     }
 }
 
@@ -201,8 +202,7 @@ async fn process_event_batch(
 
     // 2. Plan and run portfolio job directly (not via event emission)
     // This ensures the is_processing guard properly tracks completion
-    let timezone = context.get_timezone();
-    if let Some(payload) = plan_portfolio_job(events, &timezone) {
+    if let Some(payload) = plan_portfolio_job(events) {
         run_portfolio_job(app_handle, context, payload).await;
 
         // 2b. Refresh all active goal summaries after portfolio valuations update.
@@ -304,268 +304,13 @@ async fn spawn_auto_categorize_for_batch(events: &[DomainEvent], context: &Arc<S
     });
 }
 
-/// Runs a portfolio job directly (not via event emission).
-///
-/// This ensures the is_processing guard properly tracks completion and prevents
-/// concurrent portfolio jobs. The logic mirrors handle_portfolio_request in listeners.rs.
+/// Runs a portfolio job through the coordinator.
 async fn run_portfolio_job(
     app_handle: &AppHandle,
     context: &Arc<ServiceContext>,
     payload: PortfolioRequestPayload,
 ) {
-    let market_sync_mode = payload.market_sync_mode.clone();
-    let accounts_to_recalc = payload.account_ids.clone();
-    let today = user_today(parse_user_timezone_or_default(&context.get_timezone()));
-    let safe_since_date = payload
-        .since_date
-        .filter(|date| !snapshot_date_requires_remediation(*date, today));
-    if payload.since_date.is_some() && safe_since_date.is_none() {
-        warn!("Ignoring an invalid portfolio recalculation boundary and rebuilding safely");
-    }
-    let snapshot_mode = match safe_since_date {
-        Some(date) => SnapshotRecalcMode::SinceDate(date),
-        None => SnapshotRecalcMode::Full,
-    };
-    let valuation_mode = match safe_since_date {
-        Some(date) => ValuationRecalcMode::SinceDate(date),
-        None => ValuationRecalcMode::Full,
-    };
-
-    // Only perform market sync if the mode requires it
-    if market_sync_mode.requires_sync() {
-        let market_data_service = context.quote_service();
-        let snapshot_service = context.snapshot_service();
-        let account_ids_for_sync = resolve_job_account_ids(context, None).unwrap_or_else(|err| {
-            warn!(
-                "Failed to resolve accounts for quote sync reconciliation: {}",
-                err
-            );
-            Vec::new()
-        });
-
-        if let Err(e) = reconcile_quote_sync_from_latest_account_snapshots(
-            snapshot_service.as_ref(),
-            market_data_service.as_ref(),
-            &account_ids_for_sync,
-        )
-        .await
-        {
-            warn!(
-                "Failed to reconcile quote sync state from latest holdings: {}. Quote sync planning may be affected.",
-                e
-            );
-        }
-
-        // Emit sync start event
-        if let Err(e) = app_handle.emit(MARKET_SYNC_START, &()) {
-            error!("Failed to emit market:sync-start event: {}", e);
-        }
-
-        let sync_start = std::time::Instant::now();
-        let asset_ids = market_sync_mode.asset_ids().cloned();
-
-        // Convert MarketSyncMode to SyncMode for the quote service
-        let sync_result = match market_sync_mode.to_sync_mode() {
-            Some(sync_mode) => market_data_service.sync(sync_mode, asset_ids).await,
-            None => {
-                warn!("MarketSyncMode requires sync but returned None for SyncMode");
-                Ok(wealthfolio_core::quotes::SyncResult::default())
-            }
-        };
-
-        info!("Market data sync completed in: {:?}", sync_start.elapsed());
-
-        match sync_result {
-            Ok(result) => {
-                let failed_syncs = result.failures;
-                let skipped_reasons = result
-                    .skipped_reasons
-                    .into_iter()
-                    .map(|(asset_id, reason)| (asset_id, reason.to_string()))
-                    .collect();
-
-                let health_service = context.health_service();
-                health_service.clear_cache().await;
-
-                let result_payload = MarketSyncResult {
-                    failed_syncs,
-                    skipped_reasons,
-                    show_skipped_reasons: false,
-                };
-                if let Err(e) = app_handle.emit(MARKET_SYNC_COMPLETE, &result_payload) {
-                    error!("Failed to emit market:sync-complete event: {}", e);
-                }
-
-                // Initialize the FxService after successful sync
-                let fx_service = context.fx_service();
-                if let Err(e) = fx_service.initialize() {
-                    error!(
-                        "Failed to initialize FxService after market data sync: {}",
-                        e
-                    );
-                }
-
-                // Continue to portfolio calculation
-                run_portfolio_calculation(
-                    app_handle,
-                    context,
-                    accounts_to_recalc,
-                    snapshot_mode,
-                    valuation_mode,
-                )
-                .await;
-            }
-            Err(e) => {
-                if let Err(e_emit) = app_handle.emit(MARKET_SYNC_ERROR, &e.to_string()) {
-                    error!("Failed to emit market:sync-error event: {}", e_emit);
-                }
-                error!(
-                    "Market data sync failed: {}. Recalculating with cached quotes.",
-                    e
-                );
-
-                // The change that queued this job — an edited asset, a new
-                // activity — still has to reach the portfolio. Fetching quotes
-                // is a separate concern, and a provider outage or an offline
-                // device must not leave the portfolio on stale values.
-                run_portfolio_calculation(
-                    app_handle,
-                    context,
-                    accounts_to_recalc,
-                    snapshot_mode,
-                    valuation_mode,
-                )
-                .await;
-            }
-        }
-    } else {
-        // MarketSyncMode::None - skip market sync, just recalculate
-        debug!("Skipping market sync (MarketSyncMode::None)");
-        run_portfolio_calculation(
-            app_handle,
-            context,
-            accounts_to_recalc,
-            snapshot_mode,
-            valuation_mode,
-        )
-        .await;
-    }
-}
-
-fn resolve_job_account_ids(
-    context: &Arc<ServiceContext>,
-    account_ids: Option<&Vec<String>>,
-) -> Result<Vec<String>, wealthfolio_core::Error> {
-    if let Some(target_ids) = account_ids {
-        return Ok(target_ids.clone());
-    }
-
-    Ok(context
-        .account_service()
-        .get_non_archived_accounts()?
-        .into_iter()
-        .map(|account| account.id)
-        .collect())
-}
-
-/// Runs the portfolio calculation (snapshots and valuations).
-async fn run_portfolio_calculation(
-    app_handle: &AppHandle,
-    context: &Arc<ServiceContext>,
-    account_ids: Option<Vec<String>>,
-    snapshot_mode: SnapshotRecalcMode,
-    valuation_mode: ValuationRecalcMode,
-) {
-    // Emit start event
-    if let Err(e) = app_handle.emit(PORTFOLIO_UPDATE_START, &()) {
-        error!("Failed to emit portfolio:update-start event: {}", e);
-    }
-
-    let account_ids_vec = match resolve_job_account_ids(context, account_ids.as_ref()) {
-        Ok(ids) => ids,
-        Err(err) => {
-            let err_msg = format!("Failed to resolve account IDs: {}", err);
-            error!("{}", err_msg);
-            let _ = app_handle.emit(PORTFOLIO_UPDATE_ERROR, &err_msg);
-            return;
-        }
-    };
-
-    // Calculate holdings snapshots
-    if !account_ids_vec.is_empty() {
-        let ids_slice = account_ids_vec.as_slice();
-        let snapshot_service = context.snapshot_service();
-
-        if let Err(err) = snapshot_service
-            .recalculate_holdings_snapshots(Some(ids_slice), snapshot_mode.clone())
-            .await
-        {
-            let err_msg = format!(
-                "Holdings snapshot calculation failed for targeted accounts: {}",
-                err
-            );
-            warn!("{}", err_msg);
-            let _ = app_handle.emit(PORTFOLIO_UPDATE_ERROR, &err_msg);
-        }
-    }
-
-    let snapshot_service = context.snapshot_service();
-    // Update position status from latest real-account snapshots for quote sync planning.
-    let quote_service = context.quote_service();
-    let quote_reconciliation_account_ids =
-        resolve_job_account_ids(context, None).unwrap_or_else(|err| {
-            warn!(
-                "Failed to resolve accounts for quote sync reconciliation: {}",
-                err
-            );
-            Vec::new()
-        });
-    if let Err(e) = reconcile_quote_sync_from_latest_account_snapshots(
-        snapshot_service.as_ref(),
-        quote_service.as_ref(),
-        &quote_reconciliation_account_ids,
-    )
-    .await
-    {
-        warn!(
-            "Failed to update position status from holdings: {}. Quote sync planning may be affected.",
-            e
-        );
-    }
-
-    // Calculate valuation histories as one bounded batch.
-    let valuation_service = context.valuation_service();
-    match valuation_service
-        .calculate_valuation_histories(&account_ids_vec, valuation_mode)
-        .await
-    {
-        Ok(outcome) => {
-            if outcome
-                .failures
-                .iter()
-                .any(|failure| failure.code == "INVALID_SNAPSHOT_DATE")
-            {
-                context.health_service().clear_cache().await;
-            }
-            for failure in outcome.failures {
-                warn!(
-                    "Valuation history calculation failed for {}: {}",
-                    failure.account_id, failure.message
-                );
-                let _ = app_handle.emit(PORTFOLIO_UPDATE_ERROR, &failure);
-            }
-        }
-        Err(error) => {
-            let message = format!("Failed to load shared valuation facts: {}", error);
-            warn!("{}", message);
-            let _ = app_handle.emit(PORTFOLIO_UPDATE_ERROR, &message);
-        }
-    }
-
-    // Emit completion event
-    if let Err(e) = app_handle.emit(PORTFOLIO_UPDATE_COMPLETE, &()) {
-        error!("Failed to emit portfolio:update-complete event: {}", e);
-    }
+    crate::portfolio_jobs::run_portfolio_request(app_handle, context, payload).await;
 }
 
 /// Refreshes cached summary fields for all active goals.

@@ -1,5 +1,6 @@
 // useGlobalEventListener.ts
 import {
+  ensurePortfolioConsistent,
   isDesktop,
   listenAssetClassificationsChanged,
   listenBrokerSyncComplete,
@@ -12,7 +13,6 @@ import {
   listenPortfolioUpdateError,
   listenPortfolioUpdateStart,
   logger,
-  updatePortfolio,
 } from "@/adapters";
 import { usePortfolioSyncOptional } from "@/context/portfolio-sync-context";
 import { useIsMobileViewport } from "@/hooks/use-platform";
@@ -54,11 +54,11 @@ function getSyncSkips(payload?: MarketSyncCompletePayload | null): [string, stri
 }
 
 const useGlobalEventListener = () => {
+  usePortfolioResumeCheck();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [areListenersReady, setAreListenersReady] = useState(false);
-  const hasTriggeredInitialUpdate = useRef(false);
   const isDesktopEnv = isDesktop;
   const isMobileViewport = useIsMobileViewport();
   const syncContext = usePortfolioSyncOptional();
@@ -431,17 +431,13 @@ const useGlobalEventListener = () => {
         Array.from(POST_LOGIN_REQUIRED_LISTENERS).every((name) => readyListeners.has(name)),
       );
 
-      // Trigger initial portfolio update after listeners are set up
-      if (!hasTriggeredInitialUpdate.current) {
-        hasTriggeredInitialUpdate.current = true;
-        logger.debug("Triggering initial portfolio update from frontend");
-
-        // Trigger portfolio update
-        updatePortfolio().catch((error) => {
-          logger.error("Failed to trigger initial portfolio update: " + String(error));
-        });
-        // Note: Update check is now handled by useCheckUpdateOnStartup query in UpdateDialog
-      }
+      // Listeners are live: request the backend's cold-start consistency pass
+      // (market sync plus a rebuild of whatever is stale). Its progress arrives
+      // through the events registered above, so nothing is missed.
+      ensurePortfolioConsistent().catch((error) => {
+        logger.error("Failed to request the portfolio consistency check: " + String(error));
+      });
+      // Note: Update check is handled by useCheckUpdateOnStartup query in UpdateDialog
     };
 
     setupListeners().catch((error) => {
@@ -457,5 +453,30 @@ const useGlobalEventListener = () => {
 
   return areListenersReady;
 };
+
+/** Hidden this long (a suspended phone, a laptop lid) means market data and
+ *  the day may have moved: ask the backend for a consistency pass on return. */
+const RESUME_CHECK_AFTER_MS = 5 * 60 * 1000;
+
+export function usePortfolioResumeCheck() {
+  useEffect(() => {
+    let hiddenAt: number | null = null;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
+      }
+      const hiddenFor = hiddenAt === null ? 0 : Date.now() - hiddenAt;
+      hiddenAt = null;
+      if (hiddenFor >= RESUME_CHECK_AFTER_MS) {
+        ensurePortfolioConsistent().catch((error) => {
+          logger.error("Failed to request the portfolio consistency check: " + String(error));
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+}
 
 export default useGlobalEventListener;

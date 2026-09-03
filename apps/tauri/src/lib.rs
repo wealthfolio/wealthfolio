@@ -7,6 +7,7 @@ mod domain_events;
 mod events;
 mod listeners;
 mod mcp;
+mod portfolio_jobs;
 mod scheduler;
 mod secret_store;
 mod services;
@@ -24,62 +25,8 @@ use log::error;
 use log::warn;
 use tauri::{AppHandle, Emitter, Manager};
 
-use events::{emit_app_ready, emit_portfolio_trigger_recalculate, PortfolioRequestPayload};
+use events::emit_app_ready;
 use tauri_plugin_deep_link::DeepLinkExt;
-
-fn portfolio_history_backfill_needed(context: &Arc<context::ServiceContext>) -> bool {
-    let accounts = match context.account_service().get_non_archived_accounts() {
-        Ok(accounts) => accounts,
-        Err(err) => {
-            error!("Failed to inspect accounts for valuation backfill: {}", err);
-            return false;
-        }
-    };
-    let account_ids: Vec<String> = accounts.into_iter().map(|account| account.id).collect();
-    if account_ids.is_empty() {
-        return false;
-    }
-
-    let latest = match context
-        .valuation_service()
-        .get_latest_valuations(&account_ids)
-    {
-        Ok(latest) => latest,
-        Err(err) => {
-            error!("Failed to inspect valuation history for backfill: {}", err);
-            return false;
-        }
-    };
-    let accounts_with_valuations: std::collections::HashSet<_> = latest
-        .into_iter()
-        .map(|valuation| valuation.account_id)
-        .collect();
-    let missing_ids: Vec<String> = account_ids
-        .into_iter()
-        .filter(|account_id| !accounts_with_valuations.contains(account_id))
-        .collect();
-    if missing_ids.is_empty() {
-        return false;
-    }
-
-    if matches!(
-        context
-            .activity_service()
-            .get_first_activity_date(Some(&missing_ids)),
-        Ok(Some(_))
-    ) {
-        return true;
-    }
-
-    missing_ids.iter().any(|account_id| {
-        matches!(
-            context
-                .snapshot_service()
-                .get_latest_holdings_snapshot(account_id),
-            Ok(Some(_))
-        )
-    })
-}
 
 #[cfg(feature = "device-sync")]
 fn start_sync_outbox_wake_worker(
@@ -184,10 +131,6 @@ mod desktop {
         // The frontend will trigger the initial portfolio update and update check after it's mounted
         emit_app_ready(&handle);
 
-        if portfolio_history_backfill_needed(&context) {
-            emit_portfolio_trigger_recalculate(&handle, PortfolioRequestPayload::builder().build());
-        }
-
         // Trigger startup sync (async, non-blocking)
         // After this, user manually triggers sync via button
         let startup_handle = handle.clone();
@@ -196,16 +139,8 @@ mod desktop {
             scheduler::run_startup_sync(&startup_handle, &startup_context).await;
         });
 
-        // Start periodic market data sync (6h interval, 2min initial delay)
-        let periodic_quote_service = Arc::clone(&context.quote_service);
-        tauri::async_runtime::spawn(async move {
-            wealthfolio_core::quotes::scheduler::run_periodic_sync(
-                periodic_quote_service,
-                std::time::Duration::from_secs(120),
-                std::time::Duration::from_secs(6 * 3600),
-            )
-            .await;
-        });
+        // Periodic market data sync plus consistency pass (6h, 2min delay)
+        portfolio_jobs::spawn_periodic_consistency(handle.clone(), Arc::clone(&context));
 
         // Start background device sync engine (self-skips when device is not READY).
         #[cfg(feature = "device-sync")]
@@ -271,13 +206,6 @@ mod mobile {
                     // Notify frontend that app is ready
                     // The frontend will trigger the initial portfolio update after it's mounted
                     emit_app_ready(&handle);
-
-                    if portfolio_history_backfill_needed(&context) {
-                        emit_portfolio_trigger_recalculate(
-                            &handle,
-                            PortfolioRequestPayload::builder().build(),
-                        );
-                    }
 
                     // Trigger startup broker sync (async, non-blocking).
                     // After this, user manually triggers sync via button.
@@ -531,6 +459,7 @@ pub fn run() {
             commands::portfolio::get_current_valuation,
             commands::portfolio::calculate_accounts_simple_performance,
             commands::portfolio::update_portfolio,
+            commands::portfolio::ensure_portfolio_consistent,
             commands::portfolio::recalculate_portfolio,
             commands::portfolio::calculate_performance_summary,
             commands::portfolio::calculate_performance_history,

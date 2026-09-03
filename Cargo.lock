@@ -8871,6 +8871,7 @@ dependencies = [
  "encoding_rs",
  "futures",
  "hex",
+ "insta",
  "jsonpath-rust",
  "log",
  "num-traits",
@@ -8888,6 +8889,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "serde_yaml",
  "sha2",
  "tempfile",
  "thiserror 1.0.69",
@@ -8896,6 +8898,7 @@ dependencies = [
  "urlencoding",
  "uuid",
  "wealthfolio-market-data",
+ "wealthfolio-portfolio-engine",
  "zip 2.4.2",
 ]
 
