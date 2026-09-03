@@ -202,6 +202,7 @@ mod tests {
         // Draft/suggest tools are present.
         assert!(names.contains(&"record_activity"));
         assert!(names.contains(&"prepare_asset_classification"));
+        assert!(names.contains(&"prepare_activity_update"));
         // Commit and CSV-import tools are NOT exposed to the assistant.
         assert!(!names.contains(&"commit_activity_draft"));
         assert!(!names.contains(&"commit_activity_drafts"));
@@ -215,6 +216,8 @@ mod tests {
     fn mcp_catalog_includes_commit_and_import_tools() {
         let catalog = AgentToolCatalog::mcp_catalog();
         let names: Vec<&str> = catalog.iter().map(|tool| tool.name()).collect();
+        assert!(names.contains(&"prepare_activity_update"));
+        assert!(names.contains(&"commit_activity_update"));
         assert!(names.contains(&"commit_activity_draft"));
         assert!(names.contains(&"commit_activity_drafts"));
         assert!(names.contains(&"commit_asset_classification_draft"));
@@ -233,6 +236,7 @@ mod tests {
             "commit_activity_draft",
             "commit_activity_drafts",
             "commit_asset_classification_draft",
+            "commit_activity_update",
         ] {
             let err = catalog
                 .execute(Arc::new(PanicEnv), &granted, name, serde_json::json!({}))
