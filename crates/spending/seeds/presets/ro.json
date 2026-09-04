@@ -1,0 +1,193 @@
+{
+  "presetId": "ro",
+  "presetVersion": "2026-08.1",
+  "name": "Romania",
+  "description": "expense rules covering common Romanian household transactions",
+  "language": "sv-SE",
+  "rules": [
+    {
+      "key": "ro.groceries.major_chains",
+      "name": "Groceries — major chains",
+      "pattern": "(?i)lidl|\\bcarrefour\\b|kaufland|\\bauchan\\b|\\bsenic\\b",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 80
+    },
+    {
+      "key": "ro.alcohol",
+      "name": "Bars",
+      "pattern": "(?i)finestore",
+      "matchType": "regex",
+      "categoryKey": "food_alcohol",
+      "priority": 88
+    },
+    {
+      "key": "ro.coffee",
+      "name": "Coffee shops & bakeries",
+      "pattern": "(?i)\\bcoffe\\b|\\bcoffee\\b|starbucks",
+      "matchType": "regex",
+      "categoryKey": "food_coffee",
+      "priority": 80
+    },
+    {
+      "key": "ro.kiosk_convenience",
+      "name": "Kiosks & convenience",
+      "pattern": "(?i)\\bprofi\\b|\\bpenny\\b|\\bmegaimage\\b",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 78
+    },
+    {
+      "key": "ro.fastfood",
+      "name": "Fast food & restaurants",
+      "pattern": "(?i)\\bmcdonald\\b|mcd[a-z]*|burger king|\\bkfc\\b|\\bsubway\\b|\\bmesopotamia\\b|noodle pack|\\bdabo\\b|\\bspartan\\b|taco bell|pep[ &]pepper|\\bfryday\\b|\\bpopeyes\\b|\\bpizzeria\\b|\\bpizza\\b|\\bsushi\\b|\\brestaurant\\b|\\bgrill\\b|\\bwok\\b|streetfood|street food|\\bkebab\\b|\\bthai\\b|\\bindian\\b|\\bramen\\b|\\bburger\\b",
+      "matchType": "regex",
+      "categoryKey": "food_restaurants",
+      "priority": 74
+    },
+    {
+      "key": "ro.food_delivery",
+      "name": "Food delivery",
+      "pattern": "(?i)\\bglovo\\b|\\bwolt\\b|uber ?eats|bolt food|\\btazz\\b",
+      "matchType": "regex",
+      "categoryKey": "food_delivery",
+      "priority": 88
+    },
+    {
+      "key": "ro.fuel",
+      "name": "Fuel stations",
+      "pattern": "(?i)\\bmol\\b|\\bomv\\b|\\bpetrom\\b|\\brompetrol\\b|\\baral\\b|\\bgazprom\\b|\\blukoil\\b|\\bsocar\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_gas",
+      "priority": 85
+    },
+    {
+      "key": "ro.micromobility",
+      "name": "E-scooters & rideshare",
+      "pattern": "(?i)\\bbolt\\b|\\buber\\b|\\btaxi\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_rideshare",
+      "priority": 80
+    },
+    {
+      "key": "ro.airlines",
+      "name": "Airlines",
+      "pattern": "(?i)\\bsas\\b|scandinavian airlines|\\bnorwegian\\b|ryanair|\\bwizz air\\b|\\bfinnair\\b|\\blufthansa\\b|\\bklm\\b|\\bair france\\b|\\bbra sverigeflyg\\b|thai airways|\\bturkish airlines\\b",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 90
+    },
+    {
+      "key": "ro.travel_booking",
+      "name": "Hotels & travel booking",
+      "pattern": "(?i)airbnb|booking\\.com|\\bhotel\\b",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 86
+    },
+    {
+      "key": "ro.streaming",
+      "name": "Streaming services",
+      "pattern": "(?i)netflix|spotify|\\bhbo\\b|\\bmax\\.com\\b|disney ?\\+|apple\\.com/bill|apple music|prime video|youtube ?premium|\\baudible\\b",
+      "matchType": "regex",
+      "categoryKey": "entertainment_streaming",
+      "priority": 86
+    },
+    {
+      "key": "ro.software_subs",
+      "name": "Software & cloud",
+      "pattern": "(?i)\\bgithub\\b|\\bopenai\\b|\\bchatgpt\\b|anthropic|claude|deepseek|\\bopenrouter\\b|google ?\\*?cloud|\\baws\\b|\\bcloudflare\\b|\\bbackblaze\\b|\\badobe\\b|\\bmicrosoft\\b|office ?365|dropbox|\\bicloud\\b|google one|\\bnotion\\b|jetbrains|\\b1password\\b|\\bporkbun\\b|\\bpaddle\\.net\\b|\\blemonsqueezy\\b|\\blemsqzy\\b|\\bgumroad\\b|home assistant|\\boverleaf\\b|\\btorbox\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_software",
+      "priority": 84
+    },
+    {
+      "key": "ro.utilities",
+      "name": "Electricity, heating & water",
+      "pattern": "(?i)\\belectrica\\b|eon\\.ro|\\be\\.on\\b",
+      "matchType": "regex",
+      "categoryKey": "housing_utilities",
+      "priority": 84
+    },
+    {
+      "key": "ro.home_improvement",
+      "name": "Home improvement & furnishing",
+      "pattern": "(?i)\\bikea\\b|\\bleroy merlin\\b|\\bdedeman\\b|\\bhornbach\\b|\\bjumbo\\b|\\bpepco\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_home",
+      "priority": 82
+    },
+    {
+      "key": "ro.electronics",
+      "name": "Electronics",
+      "pattern": "(?i)\\bflanco\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_electronics",
+      "priority": 86
+    },
+    {
+      "key": "ro.online_marketplaces",
+      "name": "Online marketplaces",
+      "pattern": "(?i)amazon|\\bamzn\\b|\\bebay\\b|\\betsy\\b|\\btemu\\b|\\bshein\\b|aliexpress|\\bwish\\b|emag|\\baltex\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_online",
+      "priority": 70
+    },
+    {
+      "key": "ro.clothing",
+      "name": "Clothing & shoes",
+      "pattern": "(?i)\\bh&m\\b|\\bzara\\b|\\bintersport\\b|\\bxxl\\b|\\bnike\\b|\\badidas\\b|\\blc\\s+waikiki\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_clothing",
+      "priority": 82
+    },
+    {
+      "key": "ro.pharmacy",
+      "name": "Pharmacies",
+      "pattern": "(?i)apoteka|farmacia|farmacie|\\bhelp net\\b|dr\\.max|\\bcatena\\b",
+      "matchType": "regex",
+      "categoryKey": "health_pharmacy",
+      "priority": 88
+    },
+    {
+      "key": "ro.movies_events",
+      "name": "Cinemas & live events",
+      "pattern": "(?i)cineplexx|\\bcine gold\\b",
+      "matchType": "regex",
+      "categoryKey": "entertainment_movies",
+      "priority": 86
+    },
+    {
+      "key": "ro.gaming",
+      "name": "Gaming platforms",
+      "pattern": "(?i)\\bsteam\\b|valve corp|\\bxbox\\b|playstation|\\bpsn\\b|nintendo|epic games",
+      "matchType": "regex",
+      "categoryKey": "entertainment_games",
+      "priority": 86
+    },
+    {
+      "key": "ro.pets",
+      "name": "Pets & veterinary",
+      "pattern": "(?i)\\bfressnapf\\b",
+      "matchType": "regex",
+      "categoryKey": "personal",
+      "priority": 84
+    },
+    {
+      "key": "ro.bank_fees",
+      "name": "Bank & card fees",
+      "pattern": "(?i)\\brevolut fee\\b|\\bcomision\\s+lunar\\s+de\\s+administrare\\b",
+      "matchType": "regex",
+      "categoryKey": "fees_bank",
+      "priority": 90
+    },
+    {
+      "key": "ro.shipping",
+      "name": "Shipping & postage",
+      "pattern": "(?i)\\bcargus\\b|\\bfan courier\\b|\\bdpd\\b|\\bups\\b|\\bdhl\\b|\\beasybox\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_online",
+      "priority": 80
+    }
+  ]
+}

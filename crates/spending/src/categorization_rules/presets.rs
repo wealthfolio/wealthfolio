@@ -91,6 +91,7 @@ const PRESET_JSONS: &[(&str, &str)] = &[
     ("es", include_str!("../../seeds/presets/es.json")),
     ("au", include_str!("../../seeds/presets/au.json")),
     ("nz", include_str!("../../seeds/presets/nz.json")),
+    ("ro", include_str!("../../seeds/presets/ro.json")),
 ];
 
 /// Parse all bundled presets. Bad JSON (or schema-mismatched files) is logged
