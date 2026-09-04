@@ -4624,9 +4624,10 @@ impl ActivityServiceTrait for ActivityService {
     fn get_transfer_pair_for_activity(
         &self,
         activity_id: String,
-    ) -> Result<InternalTransferPairResponse> {
-        let pair = self.require_internal_transfer_pair_for_activity(&activity_id)?;
-        Ok(Self::transfer_pair_response(pair))
+    ) -> Result<Option<InternalTransferPairResponse>> {
+        Ok(self
+            .load_internal_transfer_pair_for_activity(&activity_id)?
+            .map(Self::transfer_pair_response))
     }
 
     fn find_transfer_match_candidates(

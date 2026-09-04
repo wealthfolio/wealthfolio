@@ -483,7 +483,7 @@ impl ActivityServiceTrait for MockActivityService {
     fn get_transfer_pair_for_activity(
         &self,
         _activity_id: String,
-    ) -> CoreResult<InternalTransferPairResponse> {
+    ) -> CoreResult<Option<InternalTransferPairResponse>> {
         unimplemented!("MockActivityService::get_transfer_pair_for_activity")
     }
 

@@ -3,6 +3,7 @@
 import { vi, describe, it, expect } from "vitest";
 import { createPermissionGuard, createSDKHostAPIBridge, type InternalHostAPI } from "./type-bridge";
 import { getPermissionCategory, isBaselineCategory } from "@wealthfolio/addon-sdk";
+import type { InternalTransferPairRequest } from "@wealthfolio/addon-sdk";
 
 describe("Addon Type Bridge", () => {
   describe("createSDKHostAPIBridge", () => {
@@ -283,6 +284,148 @@ describe("Addon Type Bridge", () => {
         url: "https://api.example.com/v1",
         auth: { type: "bearer", secretKey: "api-token" },
       });
+    });
+
+    it("wires activities.* transfer methods to their internal implementations", () => {
+      const mockGetTransferPair = vi.fn().mockResolvedValue({ transferOut: {}, transferIn: {} });
+      const mockFindCandidates = vi.fn().mockResolvedValue([]);
+      const mockSaveTransferPair = vi.fn().mockResolvedValue({ transferOut: {}, transferIn: {} });
+      const mockLinkTransfer = vi.fn().mockResolvedValue([{}, {}]);
+      const mockUnlinkTransfer = vi.fn().mockResolvedValue([{}, {}]);
+
+      const guard = createPermissionGuard("test-addon", [
+        {
+          category: "activities",
+          purpose: "Transfer matching",
+          functions: [
+            { name: "getTransferPair", isDeclared: true, isDetected: false },
+            { name: "findTransferMatchCandidates", isDeclared: true, isDetected: false },
+            { name: "saveTransferPair", isDeclared: true, isDetected: false },
+            { name: "linkTransfer", isDeclared: true, isDetected: false },
+            { name: "unlinkTransfer", isDeclared: true, isDetected: false },
+          ],
+        },
+      ]);
+
+      const sdkAPI = createSDKHostAPIBridge(
+        {
+          getTransferPairForActivity: mockGetTransferPair,
+          findTransferMatchCandidates: mockFindCandidates,
+          saveInternalTransferPair: mockSaveTransferPair,
+          linkTransferActivities: mockLinkTransfer,
+          unlinkTransferActivities: mockUnlinkTransfer,
+          logError: vi.fn(),
+          logInfo: vi.fn(),
+          logWarn: vi.fn(),
+          logTrace: vi.fn(),
+          logDebug: vi.fn(),
+        } as unknown as InternalHostAPI,
+        "test-addon",
+        guard,
+      );
+
+      sdkAPI.activities.getTransferPair("activity-1");
+      expect(mockGetTransferPair).toHaveBeenCalledWith("activity-1");
+
+      sdkAPI.activities.findTransferMatchCandidates({ activityId: "activity-1" });
+      expect(mockFindCandidates).toHaveBeenCalledWith({ activityId: "activity-1" });
+
+      const request = {
+        fromAccountId: "acct-a",
+        toAccountId: "acct-b",
+        activityDate: "2026-01-01",
+        sourceAmount: 100,
+        destinationAmount: 100,
+        sourceCurrency: "USD",
+        destinationCurrency: "USD",
+      };
+      sdkAPI.activities.saveTransferPair(request);
+      expect(mockSaveTransferPair).toHaveBeenCalledWith(request);
+
+      sdkAPI.activities.linkTransfer("activity-a", "activity-b");
+      expect(mockLinkTransfer).toHaveBeenCalledWith("activity-a", "activity-b");
+
+      sdkAPI.activities.unlinkTransfer("activity-a", "activity-b");
+      expect(mockUnlinkTransfer).toHaveBeenCalledWith("activity-a", "activity-b");
+    });
+
+    it("passes a null transfer pair through to the addon unchanged", async () => {
+      const mockGetTransferPair = vi.fn().mockResolvedValue(null);
+
+      const guard = createPermissionGuard("test-addon", [
+        {
+          category: "activities",
+          purpose: "Transfer matching",
+          functions: [{ name: "getTransferPair", isDeclared: true, isDetected: false }],
+        },
+      ]);
+
+      const sdkAPI = createSDKHostAPIBridge(
+        {
+          getTransferPairForActivity: mockGetTransferPair,
+          logError: vi.fn(),
+          logInfo: vi.fn(),
+          logWarn: vi.fn(),
+          logTrace: vi.fn(),
+          logDebug: vi.fn(),
+        } as unknown as InternalHostAPI,
+        "test-addon",
+        guard,
+      );
+
+      await expect(sdkAPI.activities.getTransferPair("activity-1")).resolves.toBeNull();
+    });
+
+    it("rejects a half-specified transfer pair update at compile time", () => {
+      const legs = {
+        fromAccountId: "acct-a",
+        toAccountId: "acct-b",
+        activityDate: "2026-01-01",
+        sourceAmount: 100,
+        destinationAmount: 100,
+        sourceCurrency: "USD",
+        destinationCurrency: "USD",
+      };
+
+      const create: InternalTransferPairRequest = legs;
+      const update: InternalTransferPairRequest = {
+        ...legs,
+        transferOutId: "activity-out",
+        transferInId: "activity-in",
+      };
+
+      // @ts-expect-error naming one leg without the other matches neither variant
+      const partial: InternalTransferPairRequest = { ...legs, transferOutId: "activity-out" };
+
+      expect([create, update, partial]).toHaveLength(3);
+    });
+
+    it("denies activities.* transfer methods without the activities permission", () => {
+      const guard = createPermissionGuard("test-addon", []);
+
+      const sdkAPI = createSDKHostAPIBridge(
+        {
+          getTransferPairForActivity: vi.fn(),
+          findTransferMatchCandidates: vi.fn(),
+          saveInternalTransferPair: vi.fn(),
+          linkTransferActivities: vi.fn(),
+          unlinkTransferActivities: vi.fn(),
+          logError: vi.fn(),
+          logInfo: vi.fn(),
+          logWarn: vi.fn(),
+          logTrace: vi.fn(),
+          logDebug: vi.fn(),
+        } as unknown as InternalHostAPI,
+        "test-addon",
+        guard,
+      );
+
+      expect(() => sdkAPI.activities.getTransferPair("activity-1")).toThrow(
+        "Addon 'test-addon' is not allowed to call activities.getTransferPair",
+      );
+      expect(() => sdkAPI.activities.linkTransfer("activity-a", "activity-b")).toThrow(
+        "Addon 'test-addon' is not allowed to call activities.linkTransfer",
+      );
     });
   });
 });

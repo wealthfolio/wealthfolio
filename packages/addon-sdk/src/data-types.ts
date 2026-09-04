@@ -364,6 +364,59 @@ export interface ActivityBulkMutationResult {
   errors: ActivityBulkMutationError[];
 }
 
+interface InternalTransferPairRequestBase {
+  sourceGroupId?: string;
+  fromAccountId: string;
+  toAccountId: string;
+  activityDate: string | Date;
+  sourceAmount: string | number;
+  destinationAmount: string | number;
+  sourceCurrency: string;
+  destinationCurrency: string;
+  fxRate?: string | number | null;
+  notes?: string | null;
+  transferMode?: 'cash';
+}
+
+/** Create both legs of a new internal transfer pair. */
+export interface CreateInternalTransferPairRequest extends InternalTransferPairRequestBase {
+  transferOutId?: never;
+  transferInId?: never;
+}
+
+/**
+ * Update an existing internal transfer pair. Both leg ids are required: the host
+ * rejects a request that names one leg without the other.
+ */
+export interface UpdateInternalTransferPairRequest extends InternalTransferPairRequestBase {
+  transferOutId: string;
+  transferInId: string;
+}
+
+export type InternalTransferPairRequest =
+  | CreateInternalTransferPairRequest
+  | UpdateInternalTransferPairRequest;
+
+export interface InternalTransferPairResponse {
+  transferOut: Activity;
+  transferIn: Activity;
+}
+
+export interface TransferMatchCandidateRequest {
+  activityId: string;
+  windowDays?: number;
+  limit?: number;
+}
+
+export interface TransferMatchCandidate {
+  activity: Activity;
+  matchKind: 'cash' | 'security' | 'cash_fx_conversion';
+  confidence: 'high' | 'medium' | 'low';
+  score: number;
+  reasons: string[];
+  warnings: string[];
+}
+
 export interface ActivityImport {
   id?: string;
   accountId: string;

@@ -531,4 +531,40 @@ describe("AddonIframeManager", () => {
     );
     await vi.waitFor(() => expect(document.querySelector("iframe")).toBeNull());
   });
+
+  it("whitelists the transfer pairing methods for addon API calls", async () => {
+    const manager = new AddonIframeManager();
+    const postMessage = vi.fn();
+    const transferMethods = {
+      getTransferPair: vi.fn().mockResolvedValue({}),
+      findTransferMatchCandidates: vi.fn().mockResolvedValue([]),
+      saveTransferPair: vi.fn().mockResolvedValue({}),
+      linkTransfer: vi.fn().mockResolvedValue([{}, {}]),
+      unlinkTransfer: vi.fn().mockResolvedValue([{}, {}]),
+    };
+    const runtime = {
+      addonId: "test-addon",
+      api: { activities: transferMethods },
+      iframe: { contentWindow: { postMessage } },
+      nonce: "nonce-1",
+    };
+
+    const internals = manager as unknown as {
+      handleApiCall: (runtime: unknown, message: unknown) => Promise<void>;
+    };
+
+    for (const method of Object.keys(transferMethods)) {
+      postMessage.mockClear();
+      await internals.handleApiCall(runtime, {
+        args: [],
+        method: `activities.${method}`,
+        requestId: `request-${method}`,
+      });
+
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ ok: true, requestId: `request-${method}` }),
+        "*",
+      );
+    }
+  });
 });

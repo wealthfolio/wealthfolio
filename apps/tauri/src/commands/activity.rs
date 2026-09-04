@@ -116,7 +116,7 @@ pub async fn delete_activity(
 pub async fn get_transfer_pair_for_activity(
     activity_id: String,
     state: State<'_, Arc<ServiceContext>>,
-) -> Result<InternalTransferPairResponse, String> {
+) -> Result<Option<InternalTransferPairResponse>, String> {
     debug!("Getting transfer pair...");
     state
         .activity_service()

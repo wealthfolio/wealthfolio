@@ -14480,6 +14480,7 @@ mod tests {
             event => panic!("expected ActivitiesChanged, got {event:?}"),
         }
     }
+
     // ───────────────────────────────────────────────────────────────────
     // Import writer-boundary policy — one test per policy-table behavior,
     // through the REAL entry point (`import_activities`), asserting the
@@ -14820,5 +14821,111 @@ mod tests {
             .sum();
         // 1000 - 505 + 296 - 9.99
         assert_eq!(booked, dec!(781.01));
+    }
+
+    fn seed_internal_cash_transfer_pair(
+        activity_repository: &MockActivityRepository,
+        group_id: &str,
+    ) {
+        for (id, account_id, activity_type) in [
+            ("pair-out", "acc-a", "TRANSFER_OUT"),
+            ("pair-in", "acc-b", "TRANSFER_IN"),
+        ] {
+            let mut activity = create_cash_transfer_activity(
+                id,
+                account_id,
+                activity_type,
+                "2024-01-17T00:00:00Z",
+                dec!(100),
+                "USD",
+            );
+            activity.source_group_id = Some(group_id.to_string());
+            activity.metadata = Some(json!({ "flow": { "is_external": false } }));
+            activity_repository.add_activity(activity);
+        }
+    }
+
+    fn build_transfer_pair_service(
+        activity_repository: Arc<MockActivityRepository>,
+    ) -> ActivityService {
+        ActivityService::new(
+            activity_repository,
+            Arc::new(MockAccountService::new()),
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        )
+    }
+
+    #[tokio::test]
+    async fn test_get_transfer_pair_returns_pair_for_linked_activity() {
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        seed_internal_cash_transfer_pair(&activity_repository, "group-internal");
+        let activity_service = build_transfer_pair_service(activity_repository);
+
+        let pair = activity_service
+            .get_transfer_pair_for_activity("pair-in".to_string())
+            .expect("lookup should succeed")
+            .expect("linked activity should resolve to a pair");
+
+        assert_eq!(pair.transfer_out.id, "pair-out");
+        assert_eq!(pair.transfer_in.id, "pair-in");
+    }
+
+    #[tokio::test]
+    async fn test_get_transfer_pair_returns_none_for_unpaired_activity() {
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        activity_repository.add_activity(create_cash_transfer_activity(
+            "lonely-out",
+            "acc-a",
+            "TRANSFER_OUT",
+            "2024-01-17T00:00:00Z",
+            dec!(100),
+            "USD",
+        ));
+        let activity_service = build_transfer_pair_service(activity_repository);
+
+        let pair = activity_service
+            .get_transfer_pair_for_activity("lonely-out".to_string())
+            .expect("unpaired activity should not be an error");
+
+        assert!(pair.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_transfer_pair_returns_none_for_grouped_external_transfer() {
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        for (id, account_id, activity_type) in [
+            ("external-out", "acc-a", "TRANSFER_OUT"),
+            ("external-in", "acc-b", "TRANSFER_IN"),
+        ] {
+            let mut activity = create_cash_transfer_activity(
+                id,
+                account_id,
+                activity_type,
+                "2024-01-17T00:00:00Z",
+                dec!(100),
+                "USD",
+            );
+            activity.source_group_id = Some("group-external".to_string());
+            activity_repository.add_activity(activity);
+        }
+        let activity_service = build_transfer_pair_service(activity_repository);
+
+        let pair = activity_service
+            .get_transfer_pair_for_activity("external-in".to_string())
+            .expect("external pair should not be an error");
+
+        assert!(pair.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_transfer_pair_errors_for_unknown_activity() {
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        let activity_service = build_transfer_pair_service(activity_repository);
+
+        let result = activity_service.get_transfer_pair_for_activity("missing".to_string());
+
+        assert!(result.is_err());
     }
 }

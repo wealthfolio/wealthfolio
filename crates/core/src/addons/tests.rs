@@ -438,6 +438,50 @@ fn test_detect_addon_permissions_historical_exchange_rates() {
 }
 
 #[test]
+fn test_detect_addon_permissions_activities_transfer_functions() {
+    let addon_files = vec![AddonFile {
+        name: "addon.js".to_string(),
+        content: r#"
+            export default function enable(ctx) {
+                ctx.api.activities.getTransferPair('activity-1');
+                ctx.api.activities.findTransferMatchCandidates({ activityId: 'activity-1' });
+                ctx.api.activities.saveTransferPair({ fromAccountId: 'a', toAccountId: 'b' });
+                ctx.api.activities.linkTransfer('activity-a', 'activity-b');
+                ctx.api.activities.unlinkTransfer('activity-a', 'activity-b');
+            }
+        "#
+        .to_string(),
+        is_main: true,
+    }];
+
+    let detected_permissions = detect_addon_permissions(&addon_files);
+
+    let activities_permission = detected_permissions
+        .iter()
+        .find(|p| p.category == "activities")
+        .expect("activities permissions should be detected");
+    let activities_functions: Vec<&str> = activities_permission
+        .functions
+        .iter()
+        .map(|f| f.name.as_str())
+        .collect();
+
+    for function in [
+        "getTransferPair",
+        "findTransferMatchCandidates",
+        "saveTransferPair",
+        "linkTransfer",
+        "unlinkTransfer",
+    ] {
+        assert!(
+            activities_functions.contains(&function),
+            "{} should be detected under activities",
+            function
+        );
+    }
+}
+
+#[test]
 fn test_addon_manifest_to_installed() {
     let manifest = AddonManifest {
         id: "test-addon".to_string(),
