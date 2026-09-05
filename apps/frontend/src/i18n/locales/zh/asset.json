@@ -609,6 +609,8 @@
     "asset_description": "编辑名称、购买信息及其他详情",
     "name": "名称",
     "name_placeholder": "输入资产名称……",
+    "ownership_pct": "所有权比例",
+    "ownership_pct_description": "您在此资产中所占的份额。仅影响您的净资产总额——显示的资产价值始终为 100%。",
     "purchase_information": "购买信息",
     "purchase_information_description": "用于盈亏跟踪的可选购买详情",
     "purchase_price_per_unit": "购买价格（每单位）",

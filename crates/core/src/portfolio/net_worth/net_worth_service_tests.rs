@@ -1242,6 +1242,117 @@ async fn test_property_breakdown() {
 }
 
 #[tokio::test]
+async fn test_property_ownership_percentage_discounts_net_worth() {
+    let account = create_test_account("prop1", "PROPERTY", "USD");
+    let mut asset = create_test_asset("PROP-shared", AssetKind::Property, "USD");
+    asset.metadata = Some(json!({ "ownership_pct": "50" }));
+    let position = create_test_position("prop1", "PROP-shared", dec!(1), dec!(400000), "USD");
+    let snapshot = create_test_snapshot("prop1", vec![position], HashMap::new());
+    let quote = create_test_quote(
+        "PROP-shared",
+        dec!(500000),
+        NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
+        "USD",
+    );
+
+    let service = create_net_worth_service(vec![account], vec![asset], vec![snapshot], vec![quote]);
+
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let result = service.get_net_worth(date).await.unwrap();
+
+    // Full market value is $500,000, but only 50% ownership counts toward net worth.
+    assert_eq!(result.net_worth, dec!(250000));
+    assert_eq!(get_category_value(&result, "properties"), dec!(250000));
+
+    let category_item = result
+        .assets
+        .breakdown
+        .iter()
+        .find(|b| b.category == "properties")
+        .expect("expected a properties category row");
+    assert!(
+        category_item.name.contains("(50%)"),
+        "expected category row name to include ownership suffix when unambiguous, got: {}",
+        category_item.name
+    );
+
+    let property_item = category_item
+        .children
+        .first()
+        .expect("expected a property breakdown child");
+    assert_eq!(property_item.value, dec!(250000));
+    assert!(
+        property_item.name.contains("(50%)"),
+        "expected name to include ownership suffix, got: {}",
+        property_item.name
+    );
+}
+
+#[tokio::test]
+async fn test_mixed_ownership_percentages_omit_ambiguous_category_suffix() {
+    // Two properties with different ownership percentages in the same category:
+    // the category row must NOT show a single "(N%)" suffix since that would be
+    // misleading. Individual property rows still show their own percentage.
+    let account1 = create_test_account("prop1", "PROPERTY", "USD");
+    let mut asset1 = create_test_asset("PROP-a", AssetKind::Property, "USD");
+    asset1.metadata = Some(json!({ "ownership_pct": "50" }));
+    let position1 = create_test_position("prop1", "PROP-a", dec!(1), dec!(200000), "USD");
+    let snapshot1 = create_test_snapshot("prop1", vec![position1], HashMap::new());
+    let quote1 = create_test_quote(
+        "PROP-a",
+        dec!(200000),
+        NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
+        "USD",
+    );
+
+    let account2 = create_test_account("prop2", "PROPERTY", "USD");
+    let asset2 = create_test_asset("PROP-b", AssetKind::Property, "USD"); // fully owned (100%)
+    let position2 = create_test_position("prop2", "PROP-b", dec!(1), dec!(100000), "USD");
+    let snapshot2 = create_test_snapshot("prop2", vec![position2], HashMap::new());
+    let quote2 = create_test_quote(
+        "PROP-b",
+        dec!(100000),
+        NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
+        "USD",
+    );
+
+    let service = create_net_worth_service(
+        vec![account1, account2],
+        vec![asset1, asset2],
+        vec![snapshot1, snapshot2],
+        vec![quote1, quote2],
+    );
+
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let result = service.get_net_worth(date).await.unwrap();
+
+    let category_item = result
+        .assets
+        .breakdown
+        .iter()
+        .find(|b| b.category == "properties")
+        .expect("expected a properties category row");
+    assert_eq!(
+        category_item.name, "Properties",
+        "mixed ownership percentages within a category should not add an ambiguous suffix"
+    );
+
+    let a_item = category_item
+        .children
+        .iter()
+        .find(|c| c.asset_id.as_deref() == Some("PROP-a"))
+        .expect("expected PROP-a child");
+    assert!(a_item.name.contains("(50%)"));
+
+    let b_item = category_item
+        .children
+        .iter()
+        .find(|c| c.asset_id.as_deref() == Some("PROP-b"))
+        .expect("expected PROP-b child");
+    assert!(!b_item.name.contains('%'));
+}
+
+#[tokio::test]
 async fn test_cash_included_in_investments() {
     let account = create_test_account("acc1", "SECURITIES", "USD");
     let mut cash = HashMap::new();
@@ -2078,6 +2189,39 @@ fn test_history_alt_assets_only_no_portfolio() {
 
     assert_eq!(history[1].alternative_assets_value, dec!(410000));
     assert_eq!(history[1].net_worth, dec!(410000));
+}
+
+#[test]
+fn test_history_property_ownership_percentage_discounts_alt_assets_value() {
+    // Same shape as test_history_alt_assets_only_no_portfolio, but the property
+    // is only 50%-owned. Exercises both the initial-seed value path (d1) and the
+    // quotes_by_date path (d2).
+    let d1 = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+    let d2 = NaiveDate::from_ymd_opt(2024, 1, 2).unwrap();
+
+    let mut property = create_test_asset("PROP-shared", AssetKind::Property, "USD");
+    property.metadata = Some(json!({ "ownership_pct": "50" }));
+    let quotes = vec![
+        create_test_quote("PROP-shared", dec!(400000), d1, "USD"),
+        create_test_quote("PROP-shared", dec!(410000), d2, "USD"),
+    ];
+
+    let service = create_net_worth_service_with_valuations(
+        vec![],
+        vec![property],
+        vec![],
+        quotes,
+        vec![], // No portfolio valuations
+    );
+
+    let history = service.get_net_worth_history(d1, d2).unwrap();
+
+    assert_eq!(history.len(), 2);
+    assert_eq!(history[0].alternative_assets_value, dec!(200000));
+    assert_eq!(history[0].net_worth, dec!(200000));
+
+    assert_eq!(history[1].alternative_assets_value, dec!(205000));
+    assert_eq!(history[1].net_worth, dec!(205000));
 }
 
 #[test]
