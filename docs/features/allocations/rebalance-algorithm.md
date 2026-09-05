@@ -1,7 +1,7 @@
 # Rebalance Algorithm — Design Notes
 
-Status: Current (PR-B) Date: 2026-06-03 Audience: Contributors, reviewers,
-curious users
+Status: Current (M3 + proportional top-up) Date: 2026-06-07 Audience:
+Contributors, reviewers, curious users
 
 ---
 
@@ -151,8 +151,9 @@ Key properties:
   a cheaper asset per dollar improves the category by the same bps as buying
   less of an expensive one). The tie-break resolves them by price ASC.
 - **Stops when no improvement.** Once the portfolio reaches target (or no
-  candidate can further reduce drift without overshooting), the loop terminates.
-  Remaining cash stays as `cash_remaining`.
+  candidate can further reduce drift without overshooting), the greedy loop
+  terminates. Any residual cash then flows into the proportional top-up (§6.5),
+  and whatever still cannot be deployed stays as `cash_remaining`.
 
 ---
 
@@ -175,6 +176,33 @@ tie-breaks.
   start, capped at available cash and the next target/band bend for categories
   the candidate can improve. This avoids full-share overbuying when a fractional
   quantity already closes the drift.
+
+---
+
+## 6.5 Proportional top-up
+
+The drift-improving greedy stops as soon as no buy further reduces drift. In a
+cash-flow plan that often leaves cash undeployed (e.g. the portfolio is already
+within band, or whole-share granularity blocks the last improving trade). Rather
+than returning that cash as idle `cash_remaining`, `run_proportional_topup`
+(`optimizer.rs`) deploys it **proportionally to `target_bps`**: each sleeve
+receives a share of the leftover cash in proportion to its target weight, using
+the same per-share exposure candidates.
+
+Behaviour:
+
+- Runs only after the greedy exhausts drift-improving buys, on the buy cash
+  pool.
+- Respects whole-share / fractional mode and `min_trade_amount` like the greedy.
+- Preserves any required cash-sleeve target (it does not over-deploy past a
+  `CASH` target weight).
+- **Cash-flow / hybrid only.** `SellToRebalance` leftover sell proceeds are
+  _not_ topped up — they stay as `cash_remaining` (selling to then re-buy
+  proportionally would churn for no drift benefit).
+
+This mirrors how M1 Finance and the robo-advisors deploy new cash: once drift is
+resolved, remaining contributions are spread across the model rather than
+parked.
 
 ---
 
@@ -220,22 +248,25 @@ behaviour.
 
 The old `WholeShareResidue` top-up warning is not carried forward. It was tied
 to the old proportional sleeve planner and does not map cleanly to this
-exposure-aware optimiser. Whole-share residue is reported as `cash_remaining`; a
-future UI pass can add a non-blocking "add X for one more share" hint.
+exposure-aware optimiser. Residual cash is now handled by the proportional
+top-up (§6.5), which deploys leftover cash across sleeves ∝ `target_bps` instead
+of leaving it idle; only cash that still cannot be deployed is reported as
+`cash_remaining`.
 
 ---
 
 ## 10. Possible future improvements
 
-| Idea                                                | Complexity | Status                                |
-| --------------------------------------------------- | ---------- | ------------------------------------- |
-| Sell-to-rebalance (`allow_sells`)                   | Medium     | ✅ M3                                 |
-| `HoldingTarget` — per-ticker allocations            | High       | V2 data model (SOTA Phase 2)          |
-| Tax-lot awareness                                   | High       | Out of V1 scope                       |
-| `TaxAwareOptimizer` (greedy + tax penalty in score) | Medium     | M3/M4                                 |
-| `MilpOptimizer` behind `--features milp`            | High       | When tax-aware / lot selection needed |
-| Multi-account optimisation                          | High       | SOTA spec, future roadmap             |
-| Whole-share top-up hint                             | Low        | UX polish                             |
+| Idea                                                | Complexity | Status                                           |
+| --------------------------------------------------- | ---------- | ------------------------------------------------ |
+| Sell-to-rebalance (`allow_sells`)                   | Medium     | ✅ M3                                            |
+| Proportional top-up of residual cash                | Low        | ✅ shipped (§6.5)                                |
+| Relative tolerance bands (% of weight)              | Low/Med    | Proposed — see current-state-and-roadmap.md §4.3 |
+| `HoldingTarget` — per-ticker allocations            | High       | V2 data model (SOTA §5.4)                        |
+| Tax-lot awareness                                   | High       | Out of V1 scope (SOTA Phase 4)                   |
+| `TaxAwareOptimizer` (greedy + tax penalty in score) | Medium     | M4 / Phase 4                                     |
+| `MilpOptimizer` behind `--features milp`            | High       | When tax-aware / lot selection needed            |
+| Multi-account / asset-location optimisation         | High       | SOTA Phase 3, future roadmap                     |
 
 ---
 
@@ -251,8 +282,9 @@ future UI pass can add a non-blocking "add X for one more share" hint.
 - **Types:** `crates/core/src/portfolio/allocation_targets/model.rs` —
   `RebalancePlan`, `SuggestedManualTrade`, `RebalanceWarning`,
   `RebalanceWarningKind`.
-- **Tests:** `rebalance_service.rs` `mod tests` — 53 tests covering cash
+- **Tests:** `rebalance_service.rs` `mod tests` — 36 tests covering cash
   enforcement, greedy selection, multi-category ETF exposure, classification
-  edge cases, whole-share, nearest-band, min-trade filter.
+  edge cases, whole-share, nearest-band, min-trade filter, sell/hybrid
+  scenarios, proportional top-up.
 - **UI:**
   `apps/frontend/src/pages/allocation-targets/components/rebalance-tab.tsx`.
