@@ -66,6 +66,9 @@ mod tests {
 async fn main() -> anyhow::Result<()> {
     let config = Config::from_env();
     init_tracing();
+    // Before build_state: it spawns the domain-event queue worker, which can reach
+    // the profile-enrichment freshness predicate and fix the TTL for the process.
+    let profile_enrichment = wealthfolio_core::quotes::scheduler::configure_profile_enrichment();
     let state = build_state(&config).await?;
 
     #[cfg(feature = "device-sync")]
@@ -121,6 +124,13 @@ async fn main() -> anyhow::Result<()> {
         )
         .await;
     });
+
+    // Start periodic asset profile enrichment (fundamentals; cadence read above)
+    wealthfolio_core::quotes::scheduler::start_periodic_profile_enrichment(
+        state.quote_service.clone(),
+        state.asset_service.clone(),
+        profile_enrichment,
+    );
 
     let static_dir = std::path::PathBuf::from(&config.static_dir);
     let index_file = static_dir.join("index.html");

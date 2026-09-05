@@ -1,3 +1,4 @@
+use chrono::Utc;
 use log::{debug, error, info, warn};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -1264,6 +1265,18 @@ impl AssetService {
         }
         if let Some(week_52_low) = provider_profile.week_52_low {
             profile_metadata.insert("week52Low".to_string(), serde_json::json!(week_52_low));
+        }
+
+        // Stamp when these figures were fetched, so consumers can tell how old a
+        // ratio is. `assets.updated_at` cannot answer that: it is not written by the
+        // profile update path at all, and it also moves for unrelated edits such as
+        // a rename. Only stamped alongside real provider data — an empty profile
+        // gets no date, and must not be turned into a non-empty one by this.
+        if !profile_metadata.is_empty() {
+            profile_metadata.insert(
+                "enrichedAt".to_string(),
+                serde_json::Value::String(Utc::now().to_rfc3339()),
+            );
         }
 
         // Merge with existing metadata (preserving any non-profile fields like OptionSpec)
