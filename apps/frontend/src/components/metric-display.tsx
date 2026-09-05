@@ -38,6 +38,8 @@ export const HOLDINGS_MODE_VOLATILITY_INFO =
   "Volatility of account value changes. Based on daily valuations without adjusting for deposits or withdrawals. Reflects how much the market value fluctuates.";
 export const HOLDINGS_MODE_MAX_DRAWDOWN_INFO =
   "Largest peak-to-trough decline in account value. Based on daily valuations without adjusting for deposits or withdrawals.";
+export const RETURN_TO_BREAK_EVEN_INFO =
+  "The change in value that would bring the account back to a 0% return against its current cost basis. Always relative to the current cost basis, not the selected period. Positive when currently at a loss (return still needed to recover); negative when currently at a gain (decline that would erase it).";
 
 export interface MetricDisplayProps {
   label: string;

@@ -6,7 +6,7 @@ const children = new Set();
 let stopping = false;
 
 function spawnPnpm(args) {
-  const child = spawn("pnpm", args, { stdio: "inherit" });
+  const child = spawn("pnpm", args, { stdio: "inherit", shell: true });
   children.add(child);
   child.once("exit", () => children.delete(child));
   return child;

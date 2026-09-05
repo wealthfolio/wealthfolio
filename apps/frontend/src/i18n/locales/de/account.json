@@ -119,6 +119,7 @@
     "irr": "IRR",
     "cumulative_twr": "Kumulierter TWR",
     "period_irr": "Perioden-IRR",
+    "return_to_break_even": "Rendite bis Break-even",
     "twr_hover_hint": " Bewegen Sie den Mauszeiger über den Wert, um den kumulierten TWR zu sehen.",
     "irr_hover_hint": " Bewegen Sie den Mauszeiger über den Wert, um den IRR des ausgewählten Zeitraums zu sehen."
   },

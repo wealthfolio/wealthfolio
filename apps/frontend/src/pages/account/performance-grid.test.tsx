@@ -11,6 +11,7 @@ vi.mock("@/components/metric-display", () => ({
   HOLDINGS_MODE_VOLATILITY_INFO: "holdings volatility",
   IRR_RETURN_INFO: "irr",
   MAX_DRAWDOWN_INFO: "max drawdown",
+  RETURN_TO_BREAK_EVEN_INFO: "return to break even",
   TIME_WEIGHTED_RETURN_INFO: "twr",
   VALUE_RETURN_INFO: "value return",
   VOLATILITY_INFO: "volatility",
@@ -148,5 +149,28 @@ describe("PerformanceGrid", () => {
       "Time Weighted Return:0.12::=",
     );
     expect(screen.getByTestId("metric-IRR")).toHaveTextContent("IRR:0.14::=");
+  });
+
+  it("reads Return to Break-Even off performance.returns rather than a prop", () => {
+    render(
+      <PerformanceGrid
+        performance={performanceResult({
+          mode: "timeWeighted",
+          returns: {
+            twr: 0.12,
+            annualizedTwr: null,
+            irr: 0.14,
+            annualizedIrr: null,
+            valueReturn: 0.08,
+            annualizedValueReturn: null,
+            returnToBreakEven: -0.05,
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId("metric-Return to Break-Even")).toHaveTextContent(
+      "Return to Break-Even:-0.05",
+    );
   });
 });
