@@ -404,6 +404,10 @@ environment variables.
 
 You can either pull the official Docker image or build it yourself locally.
 
+> **Prefer not to self-host?** [![Deploy with Zenith](https://cdn.zenith.hosting/buttons/deploy-with-zenith.svg)](https://zenith.hosting/host/wealthfolio)
+>
+> One-click managed Wealthfolio: storage, backups, email and a free subdomain included. A share of every subscription goes back to Wealthfolio.
+
 ### Using the Pre-built Image
 
 The latest server build is published to Docker Hub.
