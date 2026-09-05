@@ -6,11 +6,14 @@ use crate::{
     main_lib::AppState,
 };
 use axum::{
+    body::Body,
     extract::{Path, State},
-    http::StatusCode,
+    http::{header, StatusCode},
+    response::Response,
     routing::{get, post},
     Json, Router,
 };
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use rust_decimal::prelude::ToPrimitive;
 use serde::Deserialize;
 use wealthfolio_core::{
@@ -64,8 +67,113 @@ async fn delete_goal(
     Path(id): Path<String>,
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<StatusCode> {
+    remove_goal_cover_image_files(&state, &id)?;
     let _ = state.goal_service.delete_goal(id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+const ALLOWED_GOAL_IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "webp"];
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetGoalCoverImageBody {
+    content_base64: String,
+    file_extension: String,
+}
+
+fn goal_images_dir(state: &AppState) -> std::path::PathBuf {
+    std::path::Path::new(&state.data_root).join("goal-images")
+}
+
+/// Removes any existing cover image file for a goal, regardless of extension
+/// (a prior upload may have used a different format).
+fn remove_goal_cover_image_files(state: &AppState, goal_id: &str) -> ApiResult<()> {
+    let dir = goal_images_dir(state);
+    for extension in ALLOWED_GOAL_IMAGE_EXTENSIONS {
+        let path = dir.join(format!("{}.{}", goal_id, extension));
+        if path.exists() {
+            std::fs::remove_file(&path).map_err(|e| {
+                ApiError::Internal(format!("Failed to remove {}: {}", path.display(), e))
+            })?;
+        }
+    }
+    Ok(())
+}
+
+async fn set_goal_cover_image(
+    Path(id): Path<String>,
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<SetGoalCoverImageBody>,
+) -> ApiResult<Json<Goal>> {
+    let extension = body.file_extension.to_ascii_lowercase();
+    if !ALLOWED_GOAL_IMAGE_EXTENSIONS.contains(&extension.as_str()) {
+        return Err(ApiError::BadRequest(format!(
+            "Unsupported image format: {}",
+            body.file_extension
+        )));
+    }
+    let content = BASE64
+        .decode(&body.content_base64)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to decode cover image: {}", e)))?;
+
+    let dir = goal_images_dir(&state);
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| ApiError::Internal(format!("Failed to create {}: {}", dir.display(), e)))?;
+    remove_goal_cover_image_files(&state, &id)?;
+
+    let filename = format!("{}.{}", id, extension);
+    let path = dir.join(&filename);
+    std::fs::write(&path, content)
+        .map_err(|e| ApiError::Internal(format!("Failed to write {}: {}", path.display(), e)))?;
+
+    let mut goal = state.goal_service.get_goal(&id)?;
+    goal.cover_image_path = Some(filename);
+    let g = state.goal_service.update_goal(goal).await?;
+    Ok(Json(g))
+}
+
+async fn remove_goal_cover_image(
+    Path(id): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> ApiResult<Json<Goal>> {
+    remove_goal_cover_image_files(&state, &id)?;
+    let mut goal = state.goal_service.get_goal(&id)?;
+    goal.cover_image_path = None;
+    let g = state.goal_service.update_goal(goal).await?;
+    Ok(Json(g))
+}
+
+async fn get_goal_cover_image(
+    Path(id): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> ApiResult<Response> {
+    let goal = state.goal_service.get_goal(&id)?;
+    let filename = goal.cover_image_path.ok_or(ApiError::NotFound)?;
+    let path = goal_images_dir(&state).join(&filename);
+    let content_type = match std::path::Path::new(&filename)
+        .extension()
+        .and_then(|e| e.to_str())
+    {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        _ => "application/octet-stream",
+    };
+
+    let bytes = tokio::task::spawn_blocking(move || std::fs::read(&path))
+        .await
+        .map_err(|e| ApiError::Internal(format!("Cover image read task failed: {e}")))?
+        .map_err(|_| ApiError::NotFound)?;
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, content_type)
+        .header(
+            header::CACHE_CONTROL,
+            "private, max-age=31536000, immutable",
+        )
+        .body(Body::from(bytes))
+        .map_err(|e| ApiError::Internal(format!("Failed to build cover image response: {e}")))
 }
 
 async fn get_goal_funding(
@@ -483,6 +591,12 @@ pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/goals", get(get_goals).post(create_goal).put(update_goal))
         .route("/goals/{id}", get(get_goal).delete(delete_goal))
+        .route(
+            "/goals/{id}/cover-image",
+            get(get_goal_cover_image)
+                .post(set_goal_cover_image)
+                .delete(remove_goal_cover_image),
+        )
         .route(
             "/goals/{id}/funding",
             get(get_goal_funding).put(save_goal_funding),

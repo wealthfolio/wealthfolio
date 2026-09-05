@@ -921,6 +921,8 @@ export interface Goal {
   statusHealth: GoalHealth;
   priority: number;
   coverImageKey?: string;
+  /** Filename of a user-uploaded custom cover image (custom_save_up goals only). */
+  coverImagePath?: string;
   currency?: string;
   startDate?: string;
   targetDate?: string;

@@ -521,6 +521,9 @@ pub fn run() {
             commands::goal::get_retirement_overview,
             commands::goal::get_save_up_overview,
             commands::goal::preview_save_up_overview,
+            commands::goal::save_goal_cover_image,
+            commands::goal::load_goal_cover_image,
+            commands::goal::remove_goal_cover_image,
             // Portfolios (saved reporting scopes)
             commands::portfolios::get_portfolios,
             commands::portfolios::get_portfolio,
