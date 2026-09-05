@@ -1,75 +1,75 @@
 {
   "page": {
     "title": "同步與連線",
-    "subtitle": "您的所有裝置,盡在一處。",
-    "subtitleWithBrokers": "您的券商和裝置,盡在一處。",
+    "subtitle": "所有裝置，集中管理。",
+    "subtitleWithBrokers": "券商與裝置，集中管理。",
     "brokerages": "券商",
     "devices": "裝置",
     "recentActivity": "近期活動",
     "manage": "管理",
     "timeAgo": "{{time}}前",
     "noBrokeragesConnected": "尚未連線券商",
-    "noBrokeragesDescription": "關聯一家券商以開始同步您的帳戶。",
+    "noBrokeragesDescription": "連線券商後，即可開始同步帳戶。",
     "noDevicesSyncing": "尚無裝置在同步",
-    "noDevicesDescription": "在設定中設定裝置同步,以在各裝置間保持資料同步。",
-    "noActivity": "暫無活動",
-    "noActivityDescription": "資料開始同步後,更新將顯示在這裡。"
+    "noDevicesDescription": "請在設定中啟用裝置同步，讓各裝置的資料保持一致。",
+    "noActivity": "尚無活動",
+    "noActivityDescription": "開始同步資料後，更新會顯示在這裡。"
   },
   "emptyState": {
-    "optional": "可選",
-    "subtitle": "在保護資料隱私的同時自動同步您的券商。",
+    "optional": "選填",
+    "subtitle": "自動同步券商資料，同時保護你的隱私。",
     "getStarted": "開始使用 Connect",
-    "loginToAccount": "登入您的帳戶",
-    "learnMore": "瞭解有關 Connect 的更多資訊",
+    "loginToAccount": "登入你的帳戶",
+    "learnMore": "了解有關 Connect 的更多資訊",
     "features": {
       "brokerageSync": {
         "title": "券商同步",
-        "description": "每日自動同步帳戶和交易。"
+        "description": "每天自動同步帳戶與交易。"
       },
       "deviceSync": {
         "title": "裝置同步",
-        "description": "透過端到端加密在各裝置間同步。"
+        "description": "透過端對端加密在裝置間同步資料。"
       },
       "householdView": {
         "title": "家庭檢視",
-        "description": "與家庭成員共享帳戶。"
+        "description": "與家庭成員分享帳戶。"
       }
     }
   },
   "flow": {
-    "yourDevice": "您的裝置",
-    "localDatabase": "本地資料庫",
+    "yourDevice": "你的裝置",
+    "localDatabase": "本機資料庫",
     "dataStaysHere": "資料保留在此",
-    "aggregators": "聚合服務商",
+    "aggregators": "資料彙整服務商",
     "brokerages": "券商",
     "banks": "銀行",
-    "crypto": "加密貨幣"
+    "crypto": "加密資產"
   },
   "account": {
     "userAvatar": "使用者頭像",
     "userFallback": "使用者",
-    "active": "活躍",
+    "active": "使用中",
     "signOut": "登出",
-    "signOutTitle": "退出 Wealthfolio Connect?",
-    "signOutMessage": "您需要重新登入才能存取已同步的券商帳戶。您的本地資料不會受到影響。",
+    "signOutTitle": "要登出 Wealthfolio Connect 嗎？",
+    "signOutMessage": "你必須重新登入，才能存取已同步的券商帳戶。本機資料不會受到影響。",
     "signOutConfirm": "登出",
-    "signingOut": "正在登出..."
+    "signingOut": "正在登出…"
   },
   "accounts": {
     "title": "帳戶",
     "manage": "管理帳戶",
     "accountFallback": "帳戶",
-    "platformFallback": "平臺",
+    "platformFallback": "平台",
     "brokerFallback": "券商",
     "paper": "模擬",
-    "shared": "共享",
-    "sharedBy": "由 {{name}} 共享",
+    "shared": "已分享",
+    "sharedBy": "由 {{name}} 分享",
     "syncEnabled": "已啟用同步",
     "excludedFromSync": "已排除同步",
-    "noDataYet": "暫無資料",
+    "noDataYet": "尚無資料",
     "dataAsOf": "資料截至 {{date}}",
     "emptyTitle": "尚未同步任何帳戶",
-    "emptyDescription": "連線一家券商以開始同步您的帳戶。"
+    "emptyDescription": "連線券商後，即可開始同步帳戶。"
   },
   "connections": {
     "title": "券商連線",
@@ -79,7 +79,7 @@
     "unknownBroker": "未知券商",
     "unknown": "未知",
     "connected": "已連線",
-    "disconnected": "已斷開",
+    "disconnected": "已中斷連線",
     "reconnect": "重新連線",
     "noAccountsFound": "找不到帳戶",
     "allAccountsExcluded": "所有帳戶已排除",
@@ -92,18 +92,18 @@
     "syncNow": "立即同步",
     "sync": "同步",
     "syncAll": "全部同步",
-    "syncingShort": "同步中...",
+    "syncingShort": "同步中…",
     "statusTitle": "同步狀態",
-    "syncingBrokerData": "正在同步券商資料...",
-    "startFailed": "啟動同步失敗:{{error}}",
-    "needAttention_one": "{{count}} 個帳戶需要關注",
-    "needAttention_other": "{{count}} 個帳戶需要關注"
+    "syncingBrokerData": "正在同步券商資料…",
+    "startFailed": "啟動同步失敗：{{error}}",
+    "needAttention_one": "{{count}} 個帳戶需要處理",
+    "needAttention_other": "{{count}} 個帳戶需要處理"
   },
   "status": {
     "upToDate": "已是最新",
     "syncing": "同步中",
-    "syncingEllipsis": "同步中...",
-    "needsReview": "需要稽核",
+    "syncingEllipsis": "同步中…",
+    "needsReview": "需要檢查",
     "failed": "失敗",
     "notConnected": "未連線",
     "lastSynced": "上次同步 {{time}}",
@@ -112,7 +112,7 @@
   "runStatus": {
     "running": "執行中",
     "applied": "已套用",
-    "needsReview": "需要稽核",
+    "needsReview": "需要檢查",
     "failed": "失敗",
     "cancelled": "已取消"
   },
@@ -122,77 +122,77 @@
     "warningsCount_one": "{{count}} 個警告",
     "warningsCount_other": "{{count}} 個警告",
     "fetched": "已取得",
-    "inserted": "已插入",
+    "inserted": "已新增",
     "updated": "已更新",
-    "skipped": "已跳過",
-    "warningsLabel": "警告:",
-    "andMore": "... 還有 {{count}} 個",
-    "reviewActivities": "稽核活動",
-    "duration": "耗時:",
-    "inProgress": "進行中...",
-    "andMore_other": "... 還有 {{count}} 個",
-    "andMore_one": "... 還有 {{count}} 個"
+    "skipped": "已略過",
+    "warningsLabel": "警告：",
+    "andMore": "另有 {{count}} 個",
+    "reviewActivities": "檢查交易紀錄",
+    "duration": "耗時：",
+    "inProgress": "進行中…",
+    "andMore_other": "另有 {{count}} 個",
+    "andMore_one": "另有 {{count}} 個"
   },
   "syncHistory": {
     "title": "同步歷史",
     "success": "成功",
-    "review": "稽核",
+    "review": "檢查",
     "emptyTitle": "尚無同步任務",
-    "emptyDescription": "首次同步後,您的同步歷史將顯示在這裡",
+    "emptyDescription": "首次同步後，同步歷史會顯示在這裡",
     "runCount_one": "{{count}} 次任務",
     "runCount_other": "{{count}} 次任務",
     "loadMore": "載入更多",
-    "lessThanOneSecond": "<1秒",
+    "lessThanOneSecond": "<1 秒",
     "new": "新增",
     "updated": "已更新",
-    "skipped": "已跳過",
+    "skipped": "已略過",
     "warningsCount_one": "{{count}} 個警告",
     "warningsCount_other": "{{count}} 個警告",
-    "andMore": "+{{count}} 個",
-    "andMore_other": "+{{count}} 個",
-    "andMore_one": "+{{count}} 個"
+    "andMore": "另有 {{count}} 個",
+    "andMore_other": "另有 {{count}} 個",
+    "andMore_one": "另有 {{count}} 個"
   },
   "activity": {
-    "syncingData": "正在同步您的資料...",
-    "somethingWentWrong": "出了點問題",
-    "upToDate": "一切都是最新的",
-    "itemsNeedReview_one": "{{count}} 項需要您稽核",
-    "itemsNeedReview_other": "{{count}} 項需要您稽核",
+    "syncingData": "正在同步你的資料…",
+    "somethingWentWrong": "發生錯誤",
+    "upToDate": "所有資料都是最新的",
+    "itemsNeedReview_one": "{{count}} 項需要你檢查",
+    "itemsNeedReview_other": "{{count}} 項需要你檢查",
     "newItems": {
       "transaction_one": "{{count}} 筆新交易",
       "transaction_other": "{{count}} 筆新交易",
-      "position_one": "{{count}} 個新持倉",
-      "position_other": "{{count}} 個新持倉"
+      "position_one": "{{count}} 個新持有部位",
+      "position_other": "{{count}} 個新持有部位"
     },
     "updatedItems": {
       "transaction_one": "{{count}} 筆交易已更新",
       "transaction_other": "{{count}} 筆交易已更新",
-      "position_one": "{{count}} 個持倉已更新",
-      "position_other": "{{count}} 個持倉已更新"
+      "position_one": "{{count}} 個持有部位已更新",
+      "position_other": "{{count}} 個持有部位已更新"
     },
     "removedItems": {
       "transaction_one": "{{count}} 筆交易已移除",
       "transaction_other": "{{count}} 筆交易已移除",
-      "position_one": "{{count}} 個持倉已移除",
-      "position_other": "{{count}} 個持倉已移除"
+      "position_one": "{{count}} 個持有部位已移除",
+      "position_other": "{{count}} 個持有部位已移除"
     }
   },
   "attention": {
-    "title": "券商同步需要關注",
-    "description_one": "{{count}} 個帳戶需要重試或券商稽核。",
-    "description_other": "{{count}} 個帳戶需要重試或券商稽核。"
+    "title": "券商同步需要處理",
+    "description_one": "{{count}} 個帳戶需要重試或由券商檢查。",
+    "description_other": "{{count}} 個帳戶需要重試或由券商檢查。"
   },
   "setup": {
     "newAccountsTitle": "新帳戶需要設定",
     "newAccountsDescription_one": "{{count}} 個帳戶在開始同步前需要快速設定。",
     "newAccountsDescription_other": "{{count}} 個帳戶在開始同步前需要快速設定。",
-    "reviewAccounts": "稽核帳戶"
+    "reviewAccounts": "檢查帳戶"
   },
   "devices": {
     "thisDevice": "此裝置",
-    "activeNow": "目前活躍",
-    "lastSeen": "上次活躍 {{time}}",
-    "online": "線上",
+    "activeNow": "目前在線上",
+    "lastSeen": "上次在線時間：{{time}}",
+    "online": "在線上",
     "never": "從未"
   },
   "deviceStatus": {
@@ -203,22 +203,22 @@
   },
   "serviceUnavailable": {
     "title": "服務暫時不可用",
-    "description": "我們連線 Wealthfolio Connect 時遇到問題。這通常是暫時的,應該很快就會恢復。",
-    "retrying": "正在重試...",
+    "description": "連線 Wealthfolio Connect 時發生問題。這通常只是暫時狀況，應該很快就會恢復。",
+    "retrying": "正在重試…",
     "tryAgain": "重試"
   },
   "upgrade": {
     "title": "升級以同步券商帳戶",
-    "description": "連線您的券商帳戶以自動同步投資組合。",
+    "description": "連線你的券商帳戶以自動同步投資組合。",
     "button": "升級"
   },
   "privacy": {
-    "footnote": "Wealthfolio Connect 不會儲存您的券商憑據或財務資料。所有內容均透過聚合服務商安全同步到您的本地資料庫。裝置同步採用端到端加密。<privacyLink>瞭解更多</privacyLink>"
+    "footnote": "Wealthfolio Connect 不會儲存你的券商憑證或財務資料。資料會透過資料彙整服務商安全地同步到本機資料庫。裝置同步採用端對端加密。<privacyLink>了解更多</privacyLink>"
   },
   "providers": {
     "continueWithGoogle": "使用 Google 繼續",
     "continueWithApple": "使用 Apple 繼續",
-    "continueWithEmail": "使用郵箱繼續",
+    "continueWithEmail": "使用電子郵件繼續",
     "lastUsed": "上次使用"
   },
   "subscription": {
@@ -226,34 +226,34 @@
     "getStarted": "開始使用",
     "perMonthShort": "月",
     "perYearShort": "年",
-    "savings": "相比按月節省 {{percent}}%",
-    "choosePlan": "選擇您的方案",
-    "choosePlanDescription": "訂閱以解鎖券商同步和雲功能。",
-    "monthly": "按月",
-    "yearly": "按年",
-    "monthlyBilling": "按月計費",
-    "yearlyBilling": "按年計費",
-    "alreadySubscribed": "已訂閱?",
+    "savings": "比月繳節省 {{percent}}%",
+    "choosePlan": "選取你的方案",
+    "choosePlanDescription": "訂閱後即可使用券商同步與雲端功能。",
+    "monthly": "月繳",
+    "yearly": "年繳",
+    "monthlyBilling": "每月計費",
+    "yearlyBilling": "每年計費",
+    "alreadySubscribed": "已訂閱？",
     "connectionIssueTitle": "連線問題",
-    "connectionIssueDescription": "我們連線您的帳戶時遇到問題。如果您的工作階段已過期，可能會出現這種情況。",
+    "connectionIssueDescription": "連線帳戶時發生問題，可能是登入工作階段已過期。",
     "unableToLoadTitle": "無法載入方案",
     "unableToLoadDescription": "我們暫時無法取得訂閱方案。這通常是暫時性問題。",
-    "contactSupport": "聯絡支援",
-    "emailCopied": "郵箱已複製到剪貼簿",
-    "reconnecting": "正在重新連線...",
+    "contactSupport": "聯絡支援團隊",
+    "emailCopied": "電子郵件地址已複製到剪貼簿",
+    "reconnecting": "正在重新連線…",
     "reconnect": "重新連線",
     "refreshPage": "重新整理頁面"
   },
   "authCallback": {
-    "processing": "正在處理身分驗證...",
-    "completing": "正在完成登入..."
+    "processing": "正在處理身分驗證…",
+    "completing": "正在完成登入…"
   },
   "authErrors": {
-    "noSessionReturned": "完成登入後未傳回工作階段。",
+    "noSessionReturned": "完成登入後未回傳工作階段。",
     "completeSignInFailed": "完成登入失敗",
     "signInFailed": "登入失敗",
     "signUpFailed": "註冊失敗",
-    "confirmEmail": "請檢查您的郵箱以確認您的帳戶。",
+    "confirmEmail": "請查看電子郵件並確認帳戶。",
     "oauthFailed": "OAuth 登入失敗",
     "magicLinkFailed": "傳送魔法連結失敗",
     "invalidVerificationCode": "驗證碼無效",
@@ -262,22 +262,22 @@
   },
   "newAccounts": {
     "title": "發現新帳戶",
-    "description": "選擇如何追蹤每個帳戶。您可以稍後更改。",
-    "trackingInfo": "<strong>交易</strong>模式追蹤每一筆交易,提供完整的績效分析。<strong>持倉</strong>模式僅匯入快照,指標有限。<docsLink>瞭解更多</docsLink>",
+    "description": "選取如何追蹤每個帳戶。你可以稍後變更。",
+    "trackingInfo": "<strong>交易</strong>模式會追蹤每筆交易，提供完整的績效分析。<strong>持有部位</strong>模式只匯入快照，可用指標較少。<docsLink>了解更多</docsLink>",
     "accountName": "帳戶名稱",
-    "group": "分組(可選)",
-    "groupPlaceholder": "例如:退休",
+    "group": "群組（選填）",
+    "groupPlaceholder": "例如：退休",
     "trackingMode": "追蹤模式",
     "transactions": "交易",
     "transactionsDescription": "完整績效分析",
-    "holdings": "持倉",
+    "holdings": "持有部位",
     "holdingsDescription": "僅快照",
-    "holdingsWarning": "沒有交易歷史,績效指標將受到限制。",
+    "holdingsWarning": "沒有交易歷史時，可用的績效指標會受到限制。",
     "notNow": "暫不",
-    "saving": "正在儲存...",
+    "saving": "正在儲存…",
     "saveAndSync": "儲存並同步",
     "configured": "帳戶已設定",
-    "configuredDescription": "正在使用您選擇的設定開始同步...",
+    "configuredDescription": "正在使用你選取的設定開始同步…",
     "saveFailed": "儲存帳戶失敗"
   },
   "errors": {

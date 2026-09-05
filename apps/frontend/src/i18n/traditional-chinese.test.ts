@@ -61,7 +61,12 @@ const GLOSSARY: readonly {
   insteadOf: readonly string[];
   note?: string;
 }[] = [
-  { concept: "Return", use: "報酬", insteadOf: ["回報"], note: "回報 means 'to reciprocate'" },
+  {
+    concept: "Return",
+    use: "報酬",
+    insteadOf: [],
+    note: "回報 is valid in the unrelated sense of reporting a problem",
+  },
   { concept: "Type", use: "類型", insteadOf: ["型別"], note: "型別 is a *data* type" },
   { concept: "Plan", use: "計畫", insteadOf: ["計劃"] },
   { concept: "P&L", use: "損益", insteadOf: ["盈虧"] },
@@ -70,7 +75,7 @@ const GLOSSARY: readonly {
   { concept: "Item", use: "項目", insteadOf: [] },
   { concept: "Yield", use: "殖利率", insteadOf: ["股息率", "收益率"] },
   { concept: "Brokerage fee", use: "手續費", insteadOf: ["傭金", "佣金"] },
-  { concept: "Stock split", use: "股票分割", insteadOf: ["拆股"] },
+  { concept: "Stock split", use: "拆股", insteadOf: [] },
   { concept: "Inflation", use: "通膨", insteadOf: ["通脹"] },
   { concept: "Contribution", use: "提撥", insteadOf: ["供款"] },
 ];
@@ -88,7 +93,6 @@ const MAINLAND_REGISTER = [
   "自定義",
   "添加",
   "獲取",
-  "點選",
   "程式碼",
   "例項",
   "對映",
@@ -147,42 +151,43 @@ describe("Traditional Chinese translations", () => {
     expect(offenders("”")).toEqual([]);
   });
 
-  it("keeps 表現 for the verb sense only", () => {
-    // "How is my portfolio performing?" is a verb; a Performance *metric* is 績效.
-    // 代表現金 ("represents cash") is an unrelated substring and must survive too.
+  it("uses 績效 consistently for portfolio performance", () => {
     expect(offenders("表現").length).toBeLessThanOrEqual(3);
-    expect(allStrings.get("ai:thread.suggestions.performance")).toContain("表現");
+    expect(allStrings.get("ai:thread.suggestions.performance")).toContain("績效");
     expect(allStrings.get("common:performance")).toBe("績效");
   });
 
-  it("labels trade cash totals as payable and receivable, not ledger sides", () => {
-    // These label the final cash on a trade form, not a double-entry ledger.
+  it("labels trade cash totals and explains their cash direction", () => {
     expect(allStrings.get("activity:form.total_debit")).toBe("應付總額");
     expect(allStrings.get("activity:form.total_credit")).toBe("應收總額");
-    // The help text describes cash paid and received, which is what makes
-    // 借方/貸方 the wrong label for the field above it.
     expect(allStrings.get("activity:form.help_total_debit")).toContain("支付");
     expect(allStrings.get("activity:form.help_total_credit")).toContain("收到");
-    expect(allStrings.get("activity:type_credit")).toBe("入帳");
+    expect(allStrings.get("activity:type_credit")).toBe("退款／回饋");
+    expect(allStrings.get("spending:rules.activityWithdrawal")).toBe("支出／提領");
   });
 
   it("uses the correct stock-split direction in the help text", () => {
-    expect(allStrings.get("activity:type_split_desc")).toContain("1 拆 2");
+    expect(allStrings.get("activity:type_split_desc")).toContain("1 股拆成 2 股");
   });
 
   it("keeps nominal values distinct from inflation-adjusted values", () => {
-    expect(allStrings.get("goals:dashboard.value_mode.nominal_tip")).toContain("包含通膨影響");
+    expect(allStrings.get("goals:dashboard.value_mode.todays_value_tip")).toContain("今天的購買力");
+    expect(allStrings.get("goals:dashboard.value_mode.nominal_tip")).toContain("未來名目金額");
   });
 
   it("keeps rebuild wording valid", () => {
-    expect(allStrings.get("settings:accounts.mode_switch_description")).toContain("重新建構");
+    expect(allStrings.get("settings:accounts.mode_switch_description")).toContain("重新建置");
     expect(allStrings.get("settings:fx_delete_warning")).toContain("重新建立");
+  });
+
+  it("keeps the client configuration prefix valid", () => {
+    expect(allStrings.get("settings:agentAccess.dialog_client_config_desc")).toMatch(/^可直接貼上/);
   });
 
   it("labels retirement capital inputs accurately", () => {
     expect(allStrings.get("goals:dashboard.progress.capital_needed_tip_traditional")).toContain(
-      "已納入",
+      "已計入",
     );
-    expect(allStrings.get("goals:dashboard.progress.capital_needed_tip_fire")).toContain("已納入");
+    expect(allStrings.get("goals:dashboard.progress.capital_needed_tip_fire")).toContain("已計入");
   });
 });
