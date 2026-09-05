@@ -473,6 +473,118 @@ pub struct RebalancePlan {
     pub after_bps_by_category: std::collections::HashMap<String, i32>,
 }
 
+// ── Calculated worksheet types ───────────────────────────────────────────────
+//
+// Shapes for the calculated rebalancing worksheet described in
+// `docs/features/allocations/self-directed-rebalancing-design.md`. The
+// arithmetic that produces them lives in `worksheet_calculator`.
+
+/// Which directions the calculation is allowed to produce (design §4).
+///
+/// Replaces the three-way `ScenarioMode`: cash-flow-only and sell-to-rebalance
+/// were the two ends of the same cash-first sequence, and hybrid was that
+/// sequence with both inputs present.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorksheetMode {
+    /// Cash increases positions and nothing is reduced.
+    #[default]
+    InvestCash,
+    /// Cash is used first, then reductions cover what is left. Offered only
+    /// when the target allows sells.
+    Rebalance,
+}
+
+/// How a category's gap is spread across the securities that carry it
+/// (design §4.2). One rule ships first, and the user selects it explicitly.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AllocationRule {
+    #[default]
+    CurrentHoldingProportions,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorksheetDirection {
+    Increase,
+    Reduce,
+}
+
+/// A category amount that no eligible security can carry (design §4.4).
+///
+/// Nothing is recorded, everything is excluded, or no price is usable. The
+/// amount is surfaced against its category rather than forced onto an
+/// unrelated security, and is excluded from the projected figures.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnresolvedCategoryAmount {
+    pub category_id: String,
+    pub category_name: String,
+    pub amount: Decimal,
+    pub reason: UnresolvedReason,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UnresolvedReason {
+    /// No security in the category is recorded in scope.
+    NoRecordedSecurity,
+    /// Every security carrying the category was left out of the eligible set.
+    NoEligibleSecurity,
+    /// Securities exist and are eligible, but none has a usable price.
+    NoUsablePrice,
+}
+
+/// Proportional scaling applied before the worksheet is prefilled (§4.6).
+///
+/// Both factors are reported so a scaled figure is never mistaken for the full
+/// amount. `None` means that limit did not bind.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdjustmentScaling {
+    /// Step 2 — reductions scaled to fit the target's turnover cap.
+    pub reduction_factor: Option<Decimal>,
+    /// Step 4 — increases that depend on reduction proceeds, scaled to the
+    /// funding those proceeds actually raised.
+    pub increase_factor: Option<Decimal>,
+}
+
+/// One prefilled worksheet line.
+///
+/// Amounts are primary and quantities are estimates (§7).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalculatedAdjustment {
+    pub line_id: String,
+    pub direction: WorksheetDirection,
+    pub asset_id: String,
+    pub symbol: String,
+    /// `None` when several accounts are eligible and the user has to place the
+    /// line (§6). Reductions always carry the account they are drawn from.
+    pub account_id: Option<String>,
+    /// Signed, in base currency. Negative for a reduction.
+    pub amount: Decimal,
+    pub quantity: Decimal,
+    pub unit_price: Decimal,
+    /// Below the target's minimum line size — reported, never dropped (§4.6).
+    pub is_below_minimum: bool,
+}
+
+/// The calculated adjustments the worksheet is prefilled with (§4, §5).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalculatedAdjustments {
+    pub mode: WorksheetMode,
+    pub rule: AllocationRule,
+    pub adjustments: Vec<CalculatedAdjustment>,
+    pub unresolved: Vec<UnresolvedCategoryAmount>,
+    pub scaling: AdjustmentScaling,
+    /// Left over after rounding and minimum-line reporting. Never
+    /// redistributed — that would be another round of construction (§4.6).
+    pub remaining_cash: Decimal,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
