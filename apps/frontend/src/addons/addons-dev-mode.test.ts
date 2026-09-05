@@ -1,12 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/adapters", () => ({
+const adapters = vi.hoisted(() => ({
+  isDesktop: true,
   logger: {
     error: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
   },
+  registerDevAddonManifest: vi.fn(),
+  unregisterDevAddonManifest: vi.fn(),
 }));
+
+vi.mock("@/adapters", () => adapters);
+
+const iframeManager = vi.hoisted(() => ({ startAddon: vi.fn() }));
+
+vi.mock("./iframe/addon-iframe-manager", () => ({ addonIframeManager: iframeManager }));
 
 import {
   addonDevManager,
@@ -83,5 +92,87 @@ describe("development addon reloads", () => {
 
     fetchRuntimePackage.mockRestore();
     manager.devServers.delete(addonId);
+  });
+});
+
+describe("dev-server addon manifest sync with the network broker", () => {
+  const addonId = "dev-addon";
+  interface TestRuntimePackage {
+    assets: never[];
+    files: { isMain: boolean; content: string }[];
+    generation: number;
+    manifest: { id: string; name: string; version: string };
+  }
+
+  const runtimePackage: TestRuntimePackage = {
+    assets: [],
+    files: [{ isMain: true, content: "console.log('addon')" }],
+    generation: 1,
+    manifest: { id: addonId, name: "Dev Addon", version: "1.0.0" },
+  };
+
+  const manager = addonDevManager as unknown as {
+    devServers: Map<
+      string,
+      { id: string; name: string; port: number; status: string; url: string }
+    >;
+    devAddons: Map<string, { disable: () => Promise<void> }>;
+    activateRuntimePackage: (
+      devServer: { id: string; name: string; port: number; status: string; url: string },
+      runtimePackage: TestRuntimePackage,
+    ) => Promise<void>;
+    cleanup: () => void;
+  };
+
+  beforeEach(() => {
+    adapters.isDesktop = true;
+    adapters.registerDevAddonManifest.mockReset().mockResolvedValue(undefined);
+    adapters.unregisterDevAddonManifest.mockReset().mockResolvedValue(undefined);
+    adapters.logger.warn.mockReset();
+    iframeManager.startAddon
+      .mockReset()
+      .mockResolvedValue({ disable: vi.fn().mockResolvedValue(undefined) });
+    manager.devServers.set(addonId, {
+      id: addonId,
+      name: "Dev Addon",
+      port: 3001,
+      status: "stopped",
+      url: "http://localhost:3001",
+    });
+  });
+
+  afterEach(() => {
+    manager.devServers.delete(addonId);
+    manager.devAddons.delete(addonId);
+  });
+
+  it("registers the dev server's manifest with the backend on activation", async () => {
+    await manager.activateRuntimePackage(manager.devServers.get(addonId)!, runtimePackage);
+
+    expect(adapters.registerDevAddonManifest).toHaveBeenCalledWith(
+      addonId,
+      JSON.stringify(runtimePackage.manifest),
+    );
+  });
+
+  it("logs and does not fail activation if registering the manifest fails", async () => {
+    adapters.registerDevAddonManifest.mockRejectedValue(new Error("backend unavailable"));
+
+    await expect(
+      manager.activateRuntimePackage(manager.devServers.get(addonId)!, runtimePackage),
+    ).resolves.toBeUndefined();
+    expect(adapters.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to sync dev addon manifest for dev-addon"),
+    );
+  });
+
+  it("unregisters the manifest during cleanup", async () => {
+    await manager.activateRuntimePackage(manager.devServers.get(addonId)!, runtimePackage);
+    adapters.registerDevAddonManifest.mockClear();
+
+    manager.cleanup();
+    await vi.waitFor(() => {
+      expect(adapters.unregisterDevAddonManifest).toHaveBeenCalledWith(addonId);
+    });
   });
 });

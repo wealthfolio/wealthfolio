@@ -1,9 +1,38 @@
-import { logger } from "@/adapters";
+import {
+  isDesktop,
+  logger,
+  registerDevAddonManifest,
+  unregisterDevAddonManifest,
+} from "@/adapters";
 import { reloadAllAddons } from "@/addons/addons-core";
 import type { AddonManifest } from "@wealthfolio/addon-sdk";
 import type { AddonAsset, AddonFile } from "@/adapters/types";
 import { clearAddonContributions, ingestAddonContributions } from "./contribution-registry";
 import { addonIframeManager, type AddonRuntimeHandle } from "./iframe/addon-iframe-manager";
+
+/**
+ * Registers (or clears) the dev-server addon's manifest with the Tauri backend so the
+ * brokered network API (`ctx.api.network.request`) can resolve permissions and approved
+ * hosts for it. Dev-server addons are never written to the installed addons directory,
+ * so without this the backend has no record of them at all — desktop-only since it's a
+ * Tauri command, and failures are logged, not thrown, so a missing/older host build
+ * degrades to "networking doesn't work in dev mode" rather than breaking addon loading.
+ */
+async function syncDevAddonManifest(
+  addonId: string,
+  manifest: Partial<AddonManifest> | null,
+): Promise<void> {
+  if (!isDesktop) return;
+  try {
+    if (manifest) {
+      await registerDevAddonManifest(addonId, JSON.stringify(manifest));
+    } else {
+      await unregisterDevAddonManifest(addonId);
+    }
+  } catch (error) {
+    logger.warn(`Failed to sync dev addon manifest for ${addonId}: ${String(error)}`);
+  }
+}
 
 interface DevModeConfig {
   enabled: boolean;
@@ -255,6 +284,10 @@ class AddonDevManager {
       runtimePackage.generation,
     );
 
+    // Let the backend know about this addon's manifest so brokered network requests
+    // can be resolved for it (see syncDevAddonManifest for why this is needed).
+    await syncDevAddonManifest(devServer.id, runtimePackage.manifest);
+
     // Dev addons don't flow through loadInstalledAddons, so ingest their
     // manifest contributions here. Clear-then-ingest keeps this idempotent.
     clearAddonContributions(devServer.id);
@@ -476,6 +509,7 @@ class AddonDevManager {
       // Drop the durable nav/routes ingested on load so disabling dev mode
       // doesn't leave a stale sidebar entry behind.
       clearAddonContributions(addonId);
+      void syncDevAddonManifest(addonId, null);
     }
     this.devAddons.clear();
   }

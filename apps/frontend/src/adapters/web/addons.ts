@@ -202,3 +202,17 @@ export const setAddonStorageItem = async (
 export const deleteAddonStorageItem = async (addonId: string, key: string): Promise<void> => {
   return invoke<void>("delete_addon_storage_item", { addonId, key });
 };
+
+// ============================================================================
+// Dev-server Addon Network Broker (desktop/Tauri only)
+// ============================================================================
+
+export const registerDevAddonManifest = (addonId: string, manifestJson: string): Promise<void> => {
+  return Promise.reject(
+    new Error(`registerDevAddonManifest not supported in web: ${addonId}, ${manifestJson}`),
+  );
+};
+
+export const unregisterDevAddonManifest = (addonId: string): Promise<void> => {
+  return Promise.reject(new Error(`unregisterDevAddonManifest not supported in web: ${addonId}`));
+};
