@@ -3,6 +3,7 @@ import { HistoryChart } from "@/components/history-chart";
 import { useHapticFeedback } from "@/hooks";
 import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { useHoldings } from "@/hooks/use-holdings";
+import { usePeriodOffset } from "@/hooks/use-period-offset";
 import { useValuationHistory } from "@/hooks/use-valuation-history";
 import { HoldingType, isAlternativeAssetKind } from "@/lib/constants";
 import { performancePeriodPnl, performanceSummaryReturn } from "@/lib/performance";
@@ -13,10 +14,12 @@ import { PortfolioUpdateTrigger } from "@/pages/dashboard/portfolio-update-trigg
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { TimePeriod as UITimePeriod } from "@wealthfolio/ui";
 import {
+  formatPeriodRangeLabel,
   GainAmount,
   GainPercent,
   getInitialIntervalData,
   IntervalSelector,
+  PeriodStepArrows,
   usePersistentState,
 } from "@wealthfolio/ui";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
@@ -76,12 +79,14 @@ export function DashboardContent() {
   // Use the same persisted state as IntervalSelector for the interval code
   const [intervalCode] = usePersistentState<UITimePeriod>(INTERVAL_STORAGE_KEY, DEFAULT_INTERVAL);
 
-  // Derive initial values from the persisted interval code
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(
-    () => getInitialIntervalData(intervalCode).range,
-  );
   const [selectedInterval, setSelectedInterval] = useState<UITimePeriod>(() => intervalCode);
-  const [isAllTime, setIsAllTime] = useState<boolean>(() => intervalCode === "ALL");
+  const { offset, anchor, canStepBackward, canStepForward, stepBackward, stepForward } =
+    usePeriodOffset(selectedInterval);
+  const dateRange = useMemo<DateRange | undefined>(
+    () => getInitialIntervalData(selectedInterval, anchor).range,
+    [selectedInterval, anchor],
+  );
+  const isAllTime = selectedInterval === "ALL";
 
   const { holdings: allHoldings, isLoading: isHoldingsLoading } = useHoldings({ type: "all" });
   const {
@@ -166,15 +171,11 @@ export function DashboardContent() {
 
   const isNegative = totalValue < 0;
 
-  // Callback for IntervalSelector
-  const handleIntervalSelect = (
-    code: TimePeriod,
-    _description: string,
-    range: DateRange | undefined,
-  ) => {
+  // Callback for IntervalSelector — offset resets to the current window
+  // automatically (see usePeriodOffset), and dateRange/isAllTime are
+  // derived from selectedInterval, so picking a period just needs the code.
+  const handleIntervalSelect = (code: TimePeriod) => {
     setSelectedInterval(code);
-    setDateRange(range);
-    setIsAllTime(code === "ALL");
   };
 
   return (
@@ -229,8 +230,18 @@ export function DashboardContent() {
                   </>
                 )}
                 {selectedInterval && (
-                  <span className="lg:text-md text-muted-foreground ml-1 text-sm font-light">
-                    {t(`ui:interval.${selectedInterval}`)}
+                  <span className="lg:text-md text-muted-foreground ml-1 flex items-center gap-1 text-sm font-light">
+                    {offset > 0
+                      ? (formatPeriodRangeLabel(dateRange) ?? t(`ui:interval.${selectedInterval}`))
+                      : t(`ui:interval.${selectedInterval}`)}
+                    <PeriodStepArrows
+                      onPrevious={stepBackward}
+                      onNext={stepForward}
+                      previousDisabled={!canStepBackward}
+                      nextDisabled={!canStepForward}
+                      previousLabel={t("ui:interval.previousPeriod")}
+                      nextLabel={t("ui:interval.nextPeriod")}
+                    />
                   </span>
                 )}
               </div>

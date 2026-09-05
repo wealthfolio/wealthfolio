@@ -175,7 +175,9 @@
       "1Y": "1年",
       "5Y": "5年",
       "ALL": "全部"
-    }
+    },
+    "previousPeriod": "上一个周期",
+    "nextPeriod": "下一个周期"
   },
   "search": {
     "clear": "清除搜索",

@@ -59,6 +59,10 @@ vi.mock("@wealthfolio/ui", () => ({
           description: "3M",
         },
   IntervalSelector: () => <div>interval-selector</div>,
+  PeriodStepArrows: () => <div>period-step-arrows</div>,
+  formatPeriodRangeLabel: () => null,
+  shiftPeriodAnchor: (_code: string, _steps: number, anchor: Date = new Date()) => anchor,
+  PERIOD_STEP: { "3M": vi.fn(), ALL: null },
   usePersistentState: () => [uiMocks.intervalCode, vi.fn()],
 }));
 
