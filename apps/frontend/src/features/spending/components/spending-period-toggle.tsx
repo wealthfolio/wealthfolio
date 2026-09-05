@@ -17,10 +17,12 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { DateRange } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import {
   AnimatedToggleGroup,
+  DateRangeSelector,
   Icons,
   MonthYearPicker,
   Popover,
@@ -97,8 +99,10 @@ interface SpendingPeriodSelectorProps {
   value: ReportsPeriod | null;
   onValueChange: (next: ReportsPeriod) => void;
   customMonth: string | null;
+  customRange?: DateRange;
   maxMonth: string;
   onCustomMonthChange: (monthKey: string | null) => void;
+  onCustomRangeChange?: (range: DateRange | undefined) => void;
   isLoading?: boolean;
   className?: string;
 }
@@ -107,8 +111,10 @@ export function SpendingPeriodSelector({
   value,
   onValueChange,
   customMonth,
+  customRange,
   maxMonth,
   onCustomMonthChange,
+  onCustomRangeChange,
   isLoading,
   className,
 }: SpendingPeriodSelectorProps) {
@@ -147,6 +153,9 @@ export function SpendingPeriodSelector({
             onSelect={onCustomMonthChange}
             onClear={customMonth ? () => onCustomMonthChange(null) : undefined}
           />
+          {onCustomRangeChange && (
+            <DateRangeSelector value={customRange} onChange={onCustomRangeChange} customOnly />
+          )}
         </div>
       </div>
     </div>
