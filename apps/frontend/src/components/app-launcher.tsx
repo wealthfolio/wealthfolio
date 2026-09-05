@@ -5,6 +5,7 @@ import {
   useUpdatePortfolioMutation,
 } from "@/hooks/use-calculate-portfolio";
 import { useHoldings } from "@/hooks/use-holdings";
+import { useNameCollator } from "@/hooks/use-name-collator";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import {
@@ -79,6 +80,7 @@ const accountTypeIcons: Record<AccountType | typeof PORTFOLIO_ACCOUNT_TYPE, Icon
 
 export function AppLauncher() {
   const { t } = useTranslation();
+  const compareNames = useNameCollator();
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -440,8 +442,8 @@ export function AppLauncher() {
         name: account.name,
         accountType: account.accountType,
       }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [accounts]);
+      .sort((a, b) => compareNames(a.name, b.name));
+  }, [accounts, compareNames]);
   const handleSelectHolding = (id: string, symbol: string, name?: string | null) => {
     if (!id) {
       return;

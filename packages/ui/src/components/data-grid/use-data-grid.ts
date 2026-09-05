@@ -2471,6 +2471,10 @@ function useDataGrid<TData>({
 
   const onDataGridKeyDown = React.useCallback(
     (event: KeyboardEvent) => {
+      // This native listener runs before React's per-cell handlers. Composition
+      // keys belong to the input method and must not end or navigate the grid edit.
+      if (event.isComposing) return;
+
       const currentState = store.getState();
       const { key, ctrlKey, metaKey, shiftKey, altKey } = event;
       const isCtrlPressed = ctrlKey || metaKey;

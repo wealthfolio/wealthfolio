@@ -33,6 +33,10 @@ import type { DataGridCellProps, FileCellData, SymbolSearchResult } from "./data
 import { getCellKey, getLineCount } from "./data-grid-utils";
 import { useDateFormatting, useLocalizationSettings, useNumberFormatting } from "../formatting-provider";
 
+function preventEscapeDuringComposition(event: KeyboardEvent) {
+  if (event.isComposing) event.preventDefault();
+}
+
 export function ShortTextCell<TData>({
   cell,
   tableMeta,
@@ -77,6 +81,8 @@ export function ShortTextCell<TData>({
 
   const onWrapperKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.nativeEvent.isComposing) return;
+
       if (isEditing) {
         if (event.key === "Enter") {
           event.preventDefault();
@@ -280,6 +286,8 @@ export function LongTextCell<TData>({
 
   const onKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.nativeEvent.isComposing) return;
+
       if (event.key === "Escape") {
         event.preventDefault();
         onCancel();
@@ -627,6 +635,8 @@ export function UrlCell<TData>({
 
   const onWrapperKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.nativeEvent.isComposing) return;
+
       if (isEditing) {
         if (event.key === "Enter") {
           event.preventDefault();
@@ -1145,6 +1155,8 @@ export function MultiSelectCell<TData>({
 
   const onWrapperKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.nativeEvent.isComposing) return;
+
       if (isEditing && event.key === "Escape") {
         event.preventDefault();
         setSelectedValues(cellValue);
@@ -1163,6 +1175,11 @@ export function MultiSelectCell<TData>({
 
   const onInputKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.nativeEvent.isComposing) {
+        event.stopPropagation();
+        return;
+      }
+
       // Handle backspace when input is empty - remove last selected item
       if (event.key === "Backspace" && searchValue === "" && selectedValues.length > 0) {
         event.preventDefault();
@@ -1221,6 +1238,7 @@ export function MultiSelectCell<TData>({
             sideOffset={sideOffset}
             className="w-[300px] rounded-none p-0"
             onOpenAutoFocus={onOpenAutoFocus}
+            onEscapeKeyDown={preventEscapeDuringComposition}
           >
             <Command className="**:data-[slot=command-input-wrapper]:h-auto **:data-[slot=command-input-wrapper]:border-none **:data-[slot=command-input-wrapper]:p-0 [&_[data-slot=command-input-wrapper]_svg]:hidden">
               <div className="flex min-h-9 flex-wrap items-center gap-1 border-b px-3 py-1.5">
@@ -2649,6 +2667,8 @@ export function SymbolCell<TData>({
 
   const onWrapperKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.nativeEvent.isComposing) return;
+
       if (isEditing && event.key === "Escape") {
         event.preventDefault();
         setValue(initialValue ?? "");
@@ -2667,6 +2687,11 @@ export function SymbolCell<TData>({
 
   const onInputKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.nativeEvent.isComposing) {
+        event.stopPropagation();
+        return;
+      }
+
       if (event.key === "Escape") {
         event.preventDefault();
         setValue(initialValue ?? "");
@@ -2731,6 +2756,7 @@ export function SymbolCell<TData>({
             sideOffset={sideOffset}
             className="w-[280px] rounded-none p-0"
             onOpenAutoFocus={onOpenAutoFocus}
+            onEscapeKeyDown={preventEscapeDuringComposition}
           >
             <Command shouldFilter={false}>
               <CommandInput
@@ -2882,6 +2908,8 @@ export function CurrencyCell<TData>({
 
   const onWrapperKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.nativeEvent.isComposing) return;
+
       if (isEditing && event.key === "Escape") {
         event.preventDefault();
         setValue(initialValue ?? "");
@@ -2899,6 +2927,11 @@ export function CurrencyCell<TData>({
 
   const onInputKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.nativeEvent.isComposing) {
+        event.stopPropagation();
+        return;
+      }
+
       if (event.key === "Escape") {
         event.preventDefault();
         setValue(initialValue ?? "");
@@ -2945,6 +2978,7 @@ export function CurrencyCell<TData>({
             sideOffset={sideOffset}
             className="w-[280px] rounded-none p-0"
             onOpenAutoFocus={onOpenAutoFocus}
+            onEscapeKeyDown={preventEscapeDuringComposition}
           >
             <Command shouldFilter={false}>
               <CommandInput

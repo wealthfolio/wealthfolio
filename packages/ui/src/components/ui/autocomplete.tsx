@@ -55,6 +55,8 @@ export const AutoComplete = ({
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.nativeEvent.isComposing) return;
+
       const input = inputRef.current;
       if (!input) {
         return;

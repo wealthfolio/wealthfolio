@@ -60,6 +60,8 @@ const InputTags = React.forwardRef<HTMLInputElement, InputTagsProps>(
           value={pendingDataPoint}
           onChange={(e) => setPendingDataPoint(e.target.value)}
           onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return;
+
             if (e.key === "Enter" || e.key === ",") {
               e.preventDefault();
               addPendingDataPoint();

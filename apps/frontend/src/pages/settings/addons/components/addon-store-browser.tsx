@@ -1,4 +1,5 @@
 import type { AddonStoreListing } from "@/lib/types";
+import { useNameCollator } from "@/hooks/use-name-collator";
 import {
   Badge,
   Button,
@@ -36,6 +37,7 @@ const isAddonDisplayable = (listing: AddonStoreListing) => {
 
 export function AddonStoreBrowser({ installedAddonIds, onInstallSuccess }: AddonStoreBrowserProps) {
   const { t } = useTranslation();
+  const compareNames = useNameCollator();
   const {
     storeListings,
     isLoadingStore,
@@ -104,14 +106,14 @@ export function AddonStoreBrowser({ installedAddonIds, onInstallSuccess }: Addon
         case "recent":
           return new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime();
         case "name":
-          return a.name.localeCompare(b.name);
+          return compareNames(a.name, b.name);
         default:
           return 0;
       }
     });
 
     return filtered;
-  }, [storeListings, searchQuery, sortBy, filterBy, selectedTag, installedAddonIds]);
+  }, [storeListings, searchQuery, sortBy, filterBy, selectedTag, installedAddonIds, compareNames]);
 
   const handleInstall = async (listing: AddonStoreListing) => {
     try {

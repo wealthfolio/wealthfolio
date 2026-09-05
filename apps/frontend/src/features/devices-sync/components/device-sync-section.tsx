@@ -1534,6 +1534,8 @@ function DeviceCard({
                 maxLength={64}
                 autoFocus
                 onKeyDown={(e) => {
+                  if (e.nativeEvent.isComposing) return;
+
                   if (e.key === "Enter") handleRename();
                   if (e.key === "Escape") handleCancelRename();
                 }}

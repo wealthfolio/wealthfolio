@@ -1008,6 +1008,8 @@ function GroupEditDialogBody({
               value={draftName}
               onChange={(event) => setDraftName(event.target.value)}
               onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing) return;
+
                 if (event.key === "Enter") handleSave();
               }}
               className="text-foreground placeholder:text-muted-foreground/50 w-full bg-transparent text-sm outline-none"

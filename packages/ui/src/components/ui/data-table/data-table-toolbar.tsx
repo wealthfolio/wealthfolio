@@ -125,6 +125,8 @@ function SearchInput({
   }, [initialValue]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing) return;
+
     if (e.key === "Enter") {
       onChange(value);
     }

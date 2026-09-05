@@ -75,6 +75,8 @@ function DataGridSearchImpl({
     (event: React.KeyboardEvent) => {
       event.stopPropagation();
 
+      if (event.nativeEvent.isComposing) return;
+
       if (event.key === "Enter") {
         event.preventDefault();
         if (event.shiftKey) {

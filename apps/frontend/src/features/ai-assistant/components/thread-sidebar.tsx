@@ -364,6 +364,8 @@ export function ThreadSidebar({
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder={t("ai:threadSidebar.renamePlaceholder")}
             onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
+
               if (e.key === "Enter") {
                 handleConfirmRename();
               }

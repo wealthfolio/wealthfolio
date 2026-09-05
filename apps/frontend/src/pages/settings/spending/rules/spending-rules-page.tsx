@@ -24,6 +24,7 @@ import {
 } from "@wealthfolio/ui";
 import { cn } from "@/lib/utils";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useNameCollator } from "@/hooks/use-name-collator";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import type { TaxonomyCategory } from "@/lib/types";
 
@@ -59,6 +60,7 @@ const SAVINGS_TAXONOMY = "savings_categories";
 
 export default function SpendingRulesPage() {
   const { t } = useTranslation();
+  const compareNames = useNameCollator();
   const { isEnabled, isLoading: settingsLoading, accountIds } = useSpendingSettings();
   const { accounts } = useAccounts({ filterActive: false });
   const {
@@ -145,7 +147,7 @@ export default function SpendingRulesPage() {
     const opts: RuleFormAccountOption[] = accounts
       .filter((a) => isSpendingAccountType(a.accountType) && tracked.has(a.id))
       .map((a) => ({ id: a.id, name: a.name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => compareNames(a.name, b.name));
     // Names cover every account, not just the pickable ones, so a rule scoped to
     // an account the user has since untracked still renders a real name.
     const meta: Record<string, string> = {};
@@ -153,7 +155,7 @@ export default function SpendingRulesPage() {
       meta[a.id] = a.name;
     });
     return { accountOptions: opts, accountMeta: meta };
-  }, [accounts, accountIds]);
+  }, [accounts, accountIds, compareNames]);
 
   if (!settingsLoading && !isEnabled) {
     return <Navigate to="/settings/spending" replace />;

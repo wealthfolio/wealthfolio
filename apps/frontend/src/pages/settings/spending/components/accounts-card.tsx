@@ -2,6 +2,7 @@ import { useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAccounts } from "@/hooks/use-accounts";
+import { useNameCollator } from "@/hooks/use-name-collator";
 import type { Account } from "@/lib/types";
 import {
   Card,
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 
 export function AccountsCard() {
   const { t } = useTranslation();
+  const compareNames = useNameCollator();
   const { settings } = useSpendingSettings();
   const mutation = useSpendingSettingsMutation();
   const { accounts } = useAccounts({ filterActive: false });
@@ -44,9 +46,9 @@ export function AccountsCard() {
         const bTracked = initiallyTracked.has(b.id) ? 0 : 1;
         if (aTracked !== bTracked) return aTracked - bTracked;
         if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
-        return a.name.localeCompare(b.name);
+        return compareNames(a.name, b.name);
       });
-  }, [accounts, sortAccountIds]);
+  }, [accounts, sortAccountIds, compareNames]);
 
   const includedAccounts = useMemo(
     () => spendingAccounts.filter((a) => accountIds.includes(a.id)),

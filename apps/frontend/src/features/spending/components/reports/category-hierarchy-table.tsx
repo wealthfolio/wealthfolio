@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Icons, PrivacyAmount, Skeleton, useNumberFormatting } from "@wealthfolio/ui";
+import { useNameCollator } from "@/hooks/use-name-collator";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import type { TaxonomyCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -67,9 +68,18 @@ export function CategoryHierarchyTable({
   const { t: tr } = useTranslation();
   const numberFormatting = useNumberFormatting();
   const isMobile = useIsMobileViewport();
+  const compareNames = useNameCollator();
   const tree = useMemo(
-    () => buildTree({ breakdown, priorBreakdown, budgetRows, taxonomyCategories, sort }),
-    [breakdown, priorBreakdown, budgetRows, taxonomyCategories, sort],
+    () =>
+      buildTree({
+        breakdown,
+        priorBreakdown,
+        budgetRows,
+        taxonomyCategories,
+        sort,
+        compareNames,
+      }),
+    [breakdown, priorBreakdown, budgetRows, taxonomyCategories, sort, compareNames],
   );
 
   const totals = useMemo(() => {

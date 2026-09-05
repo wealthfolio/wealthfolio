@@ -47,12 +47,14 @@ export function buildTree({
   budgetRows,
   taxonomyCategories,
   sort,
+  compareNames,
 }: {
   breakdown: CategoryBreakdownRow[];
   priorBreakdown: CategoryBreakdownRow[];
   budgetRows: BudgetCategoryRow[];
   taxonomyCategories: TaxonomyCategory[];
   sort: CategorySort;
+  compareNames: (a: string, b: string) => number;
 }): NodeRow[] {
   const meta = new Map(taxonomyCategories.map((c) => [c.id, c]));
   const allocationByCat = new Map(budgetRows.map((a) => [a.categoryId, a.target || 0]));
@@ -135,7 +137,7 @@ export function buildTree({
 
   const compare =
     sort === "name"
-      ? (a: NodeRow, b: NodeRow) => a.name.localeCompare(b.name)
+      ? (a: NodeRow, b: NodeRow) => compareNames(a.name, b.name)
       : sort === "delta"
         ? (a: NodeRow, b: NodeRow) =>
             Math.abs(b.spent - b.priorSpent) - Math.abs(a.spent - a.priorSpent)

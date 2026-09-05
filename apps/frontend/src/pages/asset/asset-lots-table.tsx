@@ -1,4 +1,5 @@
 import type { AssetLotView } from "@/lib/types";
+import { useNameCollator } from "@/hooks/use-name-collator";
 import { cn, formatDate, normalizeCurrency } from "@/lib/utils";
 import {
   Button,
@@ -52,12 +53,13 @@ export const AssetLotsTable = ({
   dayChangePct = null,
 }: AssetLotsTableProps) => {
   const { t } = useTranslation();
+  const compareNames = useNameCollator();
   const groups = useMemo(
     () =>
       lots && lots.length > 0
-        ? groupLotsByAccount(lots, currency, marketPrice, contractMultiplier)
+        ? groupLotsByAccount(lots, currency, marketPrice, contractMultiplier, compareNames)
         : [],
-    [lots, currency, marketPrice, contractMultiplier],
+    [lots, currency, marketPrice, contractMultiplier, compareNames],
   );
   const totals = useMemo(() => computeTotals(groups), [groups]);
   const totalLots = useMemo(() => groups.reduce((acc, g) => acc + g.lots.length, 0), [groups]);
@@ -183,6 +185,7 @@ function groupLotsByAccount(
   currency: string,
   marketPrice: number,
   contractMultiplier: number,
+  compareNames: (a: string, b: string) => number,
 ): AccountLotGroupData[] {
   const byAccount = new Map<
     string,
@@ -226,7 +229,7 @@ function groupLotsByAccount(
         allSnapshot,
       };
     })
-    .sort((a, b) => a.accountName.localeCompare(b.accountName));
+    .sort((a, b) => compareNames(a.accountName, b.accountName));
 }
 
 function computeLot(
