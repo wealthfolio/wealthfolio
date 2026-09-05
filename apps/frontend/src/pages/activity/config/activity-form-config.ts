@@ -15,6 +15,7 @@ import { DepositForm, type DepositFormValues } from "../components/forms/deposit
 import { WithdrawalForm, type WithdrawalFormValues } from "../components/forms/withdrawal-form";
 import { DividendForm, type DividendFormValues } from "../components/forms/dividend-form";
 import { TransferForm, type TransferFormValues } from "../components/forms/transfer-form";
+import { ExchangeForm, type ExchangeFormValues } from "../components/forms/exchange-form";
 import { SplitForm, type SplitFormValues } from "../components/forms/split-form";
 import { FeeForm, type FeeFormValues } from "../components/forms/fee-form";
 import { InterestForm, type InterestFormValues } from "../components/forms/interest-form";
@@ -32,6 +33,7 @@ export type PickerActivityType =
   | typeof ActivityType.WITHDRAWAL
   | typeof ActivityType.DIVIDEND
   | "TRANSFER"
+  | "EXCHANGE"
   | typeof ActivityType.SPLIT
   | typeof ActivityType.FEE
   | typeof ActivityType.INTEREST
@@ -47,6 +49,7 @@ export type ActivityFormValues =
   | WithdrawalFormValues
   | DividendFormValues
   | TransferFormValues
+  | ExchangeFormValues
   | SplitFormValues
   | FeeFormValues
   | InterestFormValues
@@ -501,6 +504,88 @@ export const ACTIVITY_FORM_CONFIG: Record<
             }
           : undefined,
         ...(d.isExternal && { metadata: { flow: { is_external: true } } }),
+      };
+    },
+  },
+
+  EXCHANGE: {
+    component: ExchangeForm as ComponentType<ActivityFormComponentProps<ActivityFormValues>>,
+    activityType: ActivityType.ADJUSTMENT,
+    getDefaults: (activity, accounts) => {
+      const isEditingOut = activity?.subtype === ACTIVITY_SUBTYPES.EXCHANGE_OUT;
+      const isEditingIn = activity?.subtype === ACTIVITY_SUBTYPES.EXCHANGE_IN;
+
+      if (isEditingOut || isEditingIn) {
+        // openForm (use-activity-action-dialogs.ts) has already merged the
+        // counterpart leg's data onto `activity` for editing. Map "own" vs
+        // "counterpart" onto "from" (closing) vs "to" (opening) depending on
+        // which leg the user actually clicked to edit.
+        const own = {
+          assetId: activity?.assetSymbol ?? activity?.assetId ?? "",
+          existingAssetId: activity?.assetId ?? null,
+          quantity: absNum(activity?.quantity),
+          currency: activity?.currency,
+        };
+        const counterpart = {
+          assetId: activity?.counterpartAssetSymbol ?? activity?.counterpartAssetId ?? "",
+          existingAssetId: activity?.counterpartAssetId ?? null,
+          quantity: absNum(activity?.counterpartQuantity),
+          currency: activity?.counterpartCurrency ?? undefined,
+        };
+        const from = isEditingOut ? own : counterpart;
+        const to = isEditingOut ? counterpart : own;
+
+        const ownDate = activity?.date ? new Date(activity.date) : new Date();
+        const counterpartDate = activity?.counterpartActivityDate
+          ? new Date(activity.counterpartActivityDate)
+          : ownDate;
+        const fromDate = isEditingOut ? ownDate : counterpartDate;
+        const toDate = isEditingOut ? counterpartDate : ownDate;
+
+        return {
+          accountId: activity?.accountId ?? "",
+          activityDate: fromDate,
+          toActivityDate: toDate,
+          fromAssetId: from.assetId,
+          fromExistingAssetId: from.existingAssetId,
+          fromQuantity: from.quantity,
+          fromCurrency: from.currency,
+          toAssetId: to.assetId,
+          toExistingAssetId: to.existingAssetId,
+          toQuantity: to.quantity,
+          toCurrency: to.currency,
+          fee: (isEditingOut ? absNum(activity?.counterpartFee) : absNum(activity?.fee)) ?? 0,
+          comment: activity?.comment ?? null,
+        };
+      }
+
+      const today = new Date();
+      return {
+        accountId: accounts.length === 1 ? accounts[0].value : "",
+        activityDate: today,
+        toActivityDate: today,
+        fromAssetId: "",
+        fromQuantity: undefined,
+        toAssetId: "",
+        toQuantity: undefined,
+        fee: 0,
+        comment: null,
+      };
+    },
+    // Submission (both create and edit) is handled specially in
+    // useActivityForm (like internal TRANSFER pairs) — this leg-1 payload
+    // exists only to satisfy the config shape and is not the actual
+    // submission path.
+    toPayload: (data) => {
+      const d = data as ExchangeFormValues;
+      return {
+        accountId: d.accountId,
+        activityDate: d.activityDate,
+        assetId: d.fromAssetId,
+        quantity: d.fromQuantity,
+        subtype: ACTIVITY_SUBTYPES.EXCHANGE_OUT,
+        comment: d.comment,
+        currency: d.fromCurrency,
       };
     },
   },

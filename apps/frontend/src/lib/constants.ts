@@ -434,6 +434,11 @@ export const ACTIVITY_SUBTYPES = {
   // ADJUSTMENT subtypes
   // OPTION_EXPIRY: removes option lots with no cash effect
   OPTION_EXPIRY: "OPTION_EXPIRY",
+  // EXCHANGE_OUT / EXCHANGE_IN: paired legs of an in-kind asset exchange
+  // (e.g. Spain's tax-deferred fund "traspaso"). Cost basis carries from the
+  // closed asset to the opened one; no cash effect, no net_contribution change.
+  EXCHANGE_OUT: "EXCHANGE_OUT",
+  EXCHANGE_IN: "EXCHANGE_IN",
 
   // BUY/SELL position intent subtypes
   // POSITION_OPEN: opens or extends a long/short position
@@ -501,6 +506,8 @@ export const SUBTYPE_DISPLAY_NAMES: Record<string, string> = {
   [ACTIVITY_SUBTYPES.REFUND]: "Fee Refund",
   [ACTIVITY_SUBTYPES.REIMBURSEMENT]: "Reimbursement",
   [ACTIVITY_SUBTYPES.OPTION_EXPIRY]: "Option Expiry",
+  [ACTIVITY_SUBTYPES.EXCHANGE_OUT]: "Exchange Out",
+  [ACTIVITY_SUBTYPES.EXCHANGE_IN]: "Exchange In",
   [ACTIVITY_SUBTYPES.POSITION_OPEN]: "Open Position",
   [ACTIVITY_SUBTYPES.POSITION_CLOSE]: "Close Position",
 };
@@ -517,7 +524,11 @@ export const SUBTYPES_BY_ACTIVITY_TYPE: Record<string, string[]> = {
     ACTIVITY_SUBTYPES.REFUND,
     ACTIVITY_SUBTYPES.REIMBURSEMENT,
   ],
-  [ActivityType.ADJUSTMENT]: [ACTIVITY_SUBTYPES.OPTION_EXPIRY],
+  [ActivityType.ADJUSTMENT]: [
+    ACTIVITY_SUBTYPES.OPTION_EXPIRY,
+    ACTIVITY_SUBTYPES.EXCHANGE_OUT,
+    ACTIVITY_SUBTYPES.EXCHANGE_IN,
+  ],
 };
 
 // Asset kinds for behavior classification

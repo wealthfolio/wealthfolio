@@ -14,9 +14,10 @@ use wealthfolio_core::{
         Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityDetails,
         ActivityImport, ActivitySearchResponse, ActivitySearchResponseMeta, ActivityServiceTrait,
         ActivityUpdate, BrokerSyncProfileData, ImportAssetCandidate, ImportAssetPreviewItem,
-        ImportMappingData, ImportTemplateData, ImportTemplateScope, InternalTransferPairRequest,
-        InternalTransferPairResponse, NewActivity, SaveBrokerSyncProfileRulesRequest, Sort,
-        TransferMatchCandidate, TransferMatchCandidateRequest,
+        ImportMappingData, ImportTemplateData, ImportTemplateScope, InternalExchangePairResponse,
+        InternalTransferPairRequest, InternalTransferPairResponse, NewActivity,
+        SaveBrokerSyncProfileRulesRequest, Sort, TransferMatchCandidate,
+        TransferMatchCandidateRequest,
     },
     assets::{
         Asset, AssetMetadata, AssetResolutionInput, AssetResolutionOutput, AssetServiceTrait,
@@ -29,9 +30,9 @@ use wealthfolio_core::{
     },
     health::{
         checks::{
-            AssetHoldingInfo, ConsistencyIssueInfo, FxPairInfo, InvalidTransferGroupInfo,
-            LegacyMigrationInfo, QuoteSyncErrorInfo, UnclassifiedAssetInfo,
-            UnconfiguredAccountInfo,
+            AssetHoldingInfo, ConsistencyIssueInfo, FxPairInfo, InvalidExchangeGroupInfo,
+            InvalidTransferGroupInfo, LegacyMigrationInfo, QuoteSyncErrorInfo,
+            UnclassifiedAssetInfo, UnconfiguredAccountInfo,
         },
         FixAction, HealthConfig, HealthServiceTrait, HealthStatus,
     },
@@ -485,6 +486,13 @@ impl ActivityServiceTrait for MockActivityService {
         _activity_id: String,
     ) -> CoreResult<InternalTransferPairResponse> {
         unimplemented!("MockActivityService::get_transfer_pair_for_activity")
+    }
+
+    fn get_exchange_pair_for_activity(
+        &self,
+        _activity_id: String,
+    ) -> CoreResult<InternalExchangePairResponse> {
+        unimplemented!("MockActivityService::get_exchange_pair_for_activity")
     }
 
     async fn save_internal_transfer_pair(
@@ -1755,6 +1763,7 @@ impl HealthServiceTrait for MockHealthService {
         _configured_timezone: Option<&str>,
         _client_timezone: Option<&str>,
         _invalid_transfer_groups: &[InvalidTransferGroupInfo],
+        _invalid_exchange_groups: &[InvalidExchangeGroupInfo],
     ) -> CoreResult<HealthStatus> {
         Ok(HealthStatus::healthy())
     }

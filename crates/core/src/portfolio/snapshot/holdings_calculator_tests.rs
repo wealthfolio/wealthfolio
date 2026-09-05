@@ -9287,6 +9287,217 @@ mod tests {
         );
     }
 
+    // =========================================================================
+    // Exchange Tests (EXCHANGE_OUT / EXCHANGE_IN, ADJUSTMENT subtypes)
+    // =========================================================================
+
+    fn create_exchange_activity(
+        id: &str,
+        subtype: &str,
+        asset_id: &str,
+        quantity: Decimal,
+        currency: &str,
+        date_str: &str,
+        source_group_id: &str,
+    ) -> Activity {
+        let mut a = create_default_activity(
+            id,
+            ActivityType::Adjustment,
+            asset_id,
+            quantity,
+            Decimal::ZERO,
+            Decimal::ZERO,
+            currency,
+            date_str,
+        );
+        a.subtype = Some(subtype.to_string());
+        a.source_group_id = Some(source_group_id.to_string());
+        a
+    }
+
+    #[test]
+    fn test_exchange_preserves_per_lot_dates_and_prorates_cost_basis() {
+        // Scenario: Buy 10 AAPL @ $100 (2023-01-01, cost 1000), then 15 AAPL @ $200
+        // (2023-02-01, cost 3000). Exchange all 25 AAPL for 40 AMZN on 2023-06-01.
+        // AMZN should get 2 lots, weighted by each source lot's share of total
+        // cost basis (1000/4000 = 0.25, 3000/4000 = 0.75), preserving the
+        // original acquisition dates.
+        let mock_fx_service = MockFxService::new();
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let buy1 = create_default_activity(
+            "buy1",
+            ActivityType::Buy,
+            "AAPL",
+            dec!(10),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            "2023-01-01",
+        );
+        let buy2 = create_default_activity(
+            "buy2",
+            ActivityType::Buy,
+            "AAPL",
+            dec!(15),
+            dec!(200),
+            Decimal::ZERO,
+            "USD",
+            "2023-02-01",
+        );
+
+        let prev = create_initial_snapshot("acc_1", "USD", "2022-12-31");
+        let snap_after_buy1 = calculator
+            .calculate_next_holdings(&prev, std::slice::from_ref(&buy1), dec_date("2023-01-01"))
+            .unwrap()
+            .snapshot;
+        let snap_after_buy2 = calculator
+            .calculate_next_holdings(
+                &snap_after_buy1,
+                std::slice::from_ref(&buy2),
+                dec_date("2023-02-01"),
+            )
+            .unwrap()
+            .snapshot;
+        assert_eq!(
+            snap_after_buy2.positions.get("AAPL").unwrap().quantity,
+            dec!(25)
+        );
+
+        let exchange_out = create_exchange_activity(
+            "exg_out",
+            "EXCHANGE_OUT",
+            "AAPL",
+            dec!(25),
+            "USD",
+            "2023-06-01",
+            "exg_1",
+        );
+        let exchange_in = create_exchange_activity(
+            "exg_in",
+            "EXCHANGE_IN",
+            "AMZN",
+            dec!(40),
+            "USD",
+            "2023-06-01",
+            "exg_1",
+        );
+
+        let result = calculator
+            .calculate_next_holdings(
+                &snap_after_buy2,
+                &[exchange_out, exchange_in],
+                dec_date("2023-06-01"),
+            )
+            .unwrap();
+        let state = result.snapshot;
+
+        // AAPL fully closed
+        let aapl = state.positions.get("AAPL");
+        assert!(
+            aapl.is_none() || aapl.unwrap().quantity.is_zero(),
+            "AAPL should be fully closed after the exchange"
+        );
+
+        // AMZN opened with carried-over cost basis, split across 2 lots
+        let amzn = state.positions.get("AMZN").expect("AMZN position expected");
+        assert_eq!(amzn.quantity, dec!(40));
+        assert_eq!(amzn.total_cost_basis, dec!(4000));
+        assert_eq!(amzn.average_cost, dec!(100));
+        assert_eq!(amzn.lots.len(), 2);
+
+        assert_eq!(amzn.lots[0].acquisition_date, buy1.activity_date);
+        assert_eq!(amzn.lots[0].quantity, dec!(10));
+        assert_eq!(amzn.lots[0].cost_basis, dec!(1000));
+
+        assert_eq!(amzn.lots[1].acquisition_date, buy2.activity_date);
+        assert_eq!(amzn.lots[1].quantity, dec!(30));
+        assert_eq!(amzn.lots[1].cost_basis, dec!(3000));
+
+        // Neither leg is new capital in or out.
+        assert_eq!(state.net_contribution, Decimal::ZERO);
+        assert_eq!(state.net_contribution_base, Decimal::ZERO);
+
+        // The close leg records a disposal with zero realized P/L (excluded from
+        // realized-gain reporting elsewhere because ADJUSTMENT isn't BUY/SELL).
+        let disposals = calculator.take_lot_disposals("acc_1", "FIFO");
+        assert_eq!(disposals.len(), 2);
+        for disposal in &disposals {
+            assert_eq!(disposal.disposal_activity_id, "exg_out");
+            assert_eq!(
+                Decimal::from_str(&disposal.realized_pnl).unwrap(),
+                Decimal::ZERO
+            );
+        }
+    }
+
+    #[test]
+    fn test_exchange_converts_cost_basis_across_currencies() {
+        // Scenario: Buy 10 AAPL (USD) @ $100. Exchange for ADS.DE (EUR-listed).
+        // The carried-over USD cost basis must be converted to EUR using the
+        // exchange-date rate.
+        let mut mock_fx_service = MockFxService::new();
+        let exchange_date = dec_date("2023-06-01");
+        mock_fx_service.add_bidirectional_rate("USD", "EUR", exchange_date, dec!(0.9));
+        let base_currency = Arc::new(RwLock::new("USD".to_string()));
+        let mut calculator = create_calculator(Arc::new(mock_fx_service), base_currency);
+
+        let buy = create_default_activity(
+            "buy1",
+            ActivityType::Buy,
+            "AAPL",
+            dec!(10),
+            dec!(100),
+            Decimal::ZERO,
+            "USD",
+            "2023-01-01",
+        );
+        let prev = create_initial_snapshot("acc_1", "USD", "2022-12-31");
+        let snap_after_buy = calculator
+            .calculate_next_holdings(&prev, std::slice::from_ref(&buy), dec_date("2023-01-01"))
+            .unwrap()
+            .snapshot;
+
+        let exchange_out = create_exchange_activity(
+            "exg_out",
+            "EXCHANGE_OUT",
+            "AAPL",
+            dec!(10),
+            "USD",
+            "2023-06-01",
+            "exg_2",
+        );
+        let exchange_in = create_exchange_activity(
+            "exg_in",
+            "EXCHANGE_IN",
+            "ADS.DE",
+            dec!(5),
+            "EUR",
+            "2023-06-01",
+            "exg_2",
+        );
+
+        let result = calculator
+            .calculate_next_holdings(&snap_after_buy, &[exchange_out, exchange_in], exchange_date)
+            .unwrap();
+        let state = result.snapshot;
+
+        let ads = state
+            .positions
+            .get("ADS.DE")
+            .expect("ADS.DE position expected");
+        assert_eq!(ads.quantity, dec!(5));
+        assert_eq!(ads.currency, "EUR");
+        // USD $1000 carried cost basis * 0.9 = EUR 900
+        assert_eq!(ads.total_cost_basis, dec!(900));
+        assert_eq!(state.net_contribution, Decimal::ZERO);
+    }
+
+    fn dec_date(date_str: &str) -> NaiveDate {
+        NaiveDate::from_str(date_str).unwrap()
+    }
+
     /// STEP 1 parity (same currency): a multi-lot position that lives through a
     /// split and a partial sell must have its precomputed cost-basis scalars
     /// equal the sum of the remaining lots' cost basis (== total_cost_basis when

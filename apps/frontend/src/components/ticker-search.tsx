@@ -53,6 +53,8 @@ interface SearchProps {
   hideCustomCreate?: boolean;
   /** Test ID for e2e testing */
   "data-testid"?: string;
+  /** Accessible name for the trigger, e.g. to disambiguate multiple pickers in one form */
+  "aria-label"?: string;
 }
 
 interface SearchResultsProps {
@@ -222,6 +224,7 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
       onClear,
       hideCustomCreate,
       "data-testid": testId,
+      "aria-label": ariaLabel,
     },
     ref,
   ) => {
@@ -488,6 +491,7 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
               ref={composedTriggerRef}
               aria-expanded={open}
               aria-haspopup="listbox"
+              aria-label={ariaLabel}
               data-testid={testId}
             >
               {selectedTicker ? (

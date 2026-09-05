@@ -24,7 +24,8 @@ export type SecondaryActivityType =
   | typeof CanonicalActivityType.FEE
   | typeof CanonicalActivityType.INTEREST
   | typeof CanonicalActivityType.TAX
-  | typeof CanonicalActivityType.CREDIT;
+  | typeof CanonicalActivityType.CREDIT
+  | "EXCHANGE";
 export type ActivityType =
   | PrimaryActivityType
   | SecondaryActivityType
@@ -63,6 +64,7 @@ const SECONDARY_ACTIVITY_TYPES: ActivityTypeConfig<SecondaryActivityType>[] = [
     labelKey: "activity:type_credit",
     icon: "BadgeDollarSign",
   },
+  { value: "EXCHANGE", labelKey: "activity:picker.exchange", icon: "RefreshCw" },
 ];
 
 const ALL_ACTIVITY_TYPES = [...PRIMARY_ACTIVITY_TYPES, ...SECONDARY_ACTIVITY_TYPES];

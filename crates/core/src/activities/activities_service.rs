@@ -1303,6 +1303,15 @@ impl ActivityService {
         }
     }
 
+    fn exchange_pair_response(
+        pair: crate::activities::ExchangePair,
+    ) -> crate::activities::InternalExchangePairResponse {
+        crate::activities::InternalExchangePairResponse {
+            exchange_out: pair.exchange_out,
+            exchange_in: pair.exchange_in,
+        }
+    }
+
     fn transfer_match_tolerance() -> Decimal {
         Decimal::new(1, 6)
     }
@@ -1513,6 +1522,43 @@ impl ActivityService {
         self.load_internal_transfer_pair_for_activity(activity_id)?
             .ok_or_else(|| {
                 Self::invalid_activity_data("Activity is not a valid internal transfer pair")
+            })
+    }
+
+    fn load_internal_exchange_pair_for_activity(
+        &self,
+        activity_id: &str,
+    ) -> Result<Option<crate::activities::ExchangePair>> {
+        let activity = self.activity_repository.get_activity(activity_id)?;
+        let Some(group_id) = activity
+            .source_group_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            return Ok(None);
+        };
+
+        let group_activities = self
+            .activity_repository
+            .get_activities_by_source_group_id(group_id)?;
+
+        if group_activities.len() != 2 {
+            return Ok(None);
+        }
+
+        let resolution =
+            crate::activities::ExchangePairResolution::from_activities(&group_activities);
+        Ok(resolution.pair_for_activity(activity_id).cloned())
+    }
+
+    fn require_internal_exchange_pair_for_activity(
+        &self,
+        activity_id: &str,
+    ) -> Result<crate::activities::ExchangePair> {
+        self.load_internal_exchange_pair_for_activity(activity_id)?
+            .ok_or_else(|| {
+                Self::invalid_activity_data("Activity is not a valid internal exchange pair")
             })
     }
 
@@ -4702,6 +4748,14 @@ impl ActivityServiceTrait for ActivityService {
         Ok(Self::transfer_pair_response(pair))
     }
 
+    fn get_exchange_pair_for_activity(
+        &self,
+        activity_id: String,
+    ) -> Result<InternalExchangePairResponse> {
+        let pair = self.require_internal_exchange_pair_for_activity(&activity_id)?;
+        Ok(Self::exchange_pair_response(pair))
+    }
+
     fn find_transfer_match_candidates(
         &self,
         request: TransferMatchCandidateRequest,
@@ -7246,6 +7300,7 @@ mod reviewed_import_metadata_tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         }
     }
 

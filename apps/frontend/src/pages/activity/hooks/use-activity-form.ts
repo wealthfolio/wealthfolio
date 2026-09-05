@@ -1,6 +1,6 @@
 import { getTransferPairForActivity, logger } from "@/adapters";
 import { buildAssetResolutionInput } from "@/lib/asset-resolution-input";
-import { ActivityStatus, ActivityType } from "@/lib/constants";
+import { ACTIVITY_SUBTYPES, ActivityStatus, ActivityType } from "@/lib/constants";
 import { generateId } from "@/lib/id";
 import type { ActivityCreate, ActivityDetails, ActivityUpdate } from "@/lib/types";
 import { useCallback, useMemo } from "react";
@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import type { AccountSelectOption } from "../components/forms/fields";
 import type { NewActivityFormValues } from "../components/forms/schemas";
 import type { TransferFormValues } from "../components/forms/transfer-form";
+import type { ExchangeFormValues } from "../components/forms/exchange-form";
 import type { AdjustmentFormValues } from "../components/forms/adjustment-form";
 import {
   ACTIVITY_FORM_CONFIG,
@@ -18,6 +19,10 @@ import { useActivityMutations } from "./use-activity-mutations";
 
 function generateSourceGroupId(): string {
   return generateId("wf-transfer");
+}
+
+function generateExchangeGroupId(): string {
+  return generateId("wf-exchange");
 }
 
 function extractErrorMessage(error: unknown): string {
@@ -326,6 +331,107 @@ export function useActivityForm({
           } else {
             await addActivityMutation.mutateAsync(submitData);
           }
+          return;
+        }
+
+        // Handle in-kind asset exchanges specially - need to create/update two
+        // paired ADJUSTMENT activities (EXCHANGE_OUT/EXCHANGE_IN), same
+        // account, sharing a source group id, like the internal
+        // securities-transfer case above.
+        if (selectedType === "EXCHANGE") {
+          const exchangeData = formData as ExchangeFormValues;
+          const account = accounts.find((a) => a.value === exchangeData.accountId);
+
+          const fromAsset = buildAssetResolutionInput({
+            id: exchangeData.fromExistingAssetId,
+            symbol: exchangeData.fromAssetId,
+            exchangeMic: exchangeData.fromExchangeMic,
+            quoteMode: exchangeData.fromQuoteMode,
+            quoteCcy: exchangeData.fromSymbolQuoteCcy,
+            instrumentType: exchangeData.fromSymbolInstrumentType,
+            name: exchangeData.fromAssetMetadata?.name,
+            kind: exchangeData.fromAssetMetadata?.kind,
+          });
+          const toAsset = buildAssetResolutionInput({
+            id: exchangeData.toExistingAssetId,
+            symbol: exchangeData.toAssetId,
+            exchangeMic: exchangeData.toExchangeMic,
+            quoteMode: exchangeData.toQuoteMode,
+            quoteCcy: exchangeData.toSymbolQuoteCcy,
+            instrumentType: exchangeData.toSymbolInstrumentType,
+            name: exchangeData.toAssetMetadata?.name,
+            kind: exchangeData.toAssetMetadata?.kind,
+          });
+
+          const fromCurrency = exchangeData.fromCurrency?.trim() || account?.currency;
+          const toCurrency = exchangeData.toCurrency?.trim() || account?.currency;
+
+          const sharedFields = {
+            accountId: exchangeData.accountId,
+            comment: exchangeData.comment,
+          };
+
+          if (isEditing) {
+            const exchangeOutId = activity?.exchangeOutId;
+            const exchangeInId = activity?.exchangeInId;
+            if (!exchangeOutId || !exchangeInId) {
+              throw new Error("Editing an exchange requires both legs.");
+            }
+
+            await saveActivitiesMutation.mutateAsync({
+              updates: [
+                {
+                  ...sharedFields,
+                  id: exchangeOutId,
+                  activityType: ActivityType.ADJUSTMENT,
+                  subtype: ACTIVITY_SUBTYPES.EXCHANGE_OUT,
+                  activityDate: exchangeData.activityDate,
+                  asset: fromAsset,
+                  quantity: exchangeData.fromQuantity,
+                  currency: fromCurrency,
+                },
+                {
+                  ...sharedFields,
+                  id: exchangeInId,
+                  activityType: ActivityType.ADJUSTMENT,
+                  subtype: ACTIVITY_SUBTYPES.EXCHANGE_IN,
+                  activityDate: exchangeData.toActivityDate,
+                  asset: toAsset,
+                  quantity: exchangeData.toQuantity,
+                  currency: toCurrency,
+                  fee: exchangeData.fee || undefined,
+                },
+              ],
+            });
+            return;
+          }
+
+          const groupId = generateExchangeGroupId();
+          await saveActivitiesMutation.mutateAsync({
+            creates: [
+              {
+                ...sharedFields,
+                sourceGroupId: groupId,
+                activityType: ActivityType.ADJUSTMENT,
+                subtype: ACTIVITY_SUBTYPES.EXCHANGE_OUT,
+                activityDate: exchangeData.activityDate,
+                asset: fromAsset,
+                quantity: exchangeData.fromQuantity,
+                currency: fromCurrency,
+              },
+              {
+                ...sharedFields,
+                sourceGroupId: groupId,
+                activityType: ActivityType.ADJUSTMENT,
+                subtype: ACTIVITY_SUBTYPES.EXCHANGE_IN,
+                activityDate: exchangeData.toActivityDate,
+                asset: toAsset,
+                quantity: exchangeData.toQuantity,
+                currency: toCurrency,
+                fee: exchangeData.fee || undefined,
+              },
+            ],
+          });
           return;
         }
 

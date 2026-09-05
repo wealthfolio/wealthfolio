@@ -862,6 +862,139 @@ impl Position {
         Ok(total_cost_basis_added)
     }
 
+    /// Adds lots for an asset exchange (e.g. a tax-deferred fund switch), carrying
+    /// cost basis over from a different asset's closed lots rather than pricing at
+    /// market. One new lot is created per source lot, preserving that source lot's
+    /// original acquisition date; `target_quantity` (this asset's real quantity) is
+    /// redistributed across the new lots weighted by each source lot's share of the
+    /// total source cost basis, since the two assets' per-unit prices are unrelated.
+    ///
+    /// `fx_rate` converts source cost basis (source asset's currency) into this
+    /// position's currency; `fee`/`tax` (already in this position's currency) are
+    /// folded into the total cost basis pro-rata, same convention as a BUY.
+    ///
+    /// Returns the total cost basis added in the position's currency.
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_exchanged_lots(
+        &mut self,
+        lot_id_prefix: &str,
+        source_lots: &[Lot],
+        target_quantity: Decimal,
+        fx_rate: Option<Decimal>,
+        fee: Decimal,
+        tax: Decimal,
+        allows_negative_lots: bool,
+    ) -> Result<Decimal> {
+        if !target_quantity.is_sign_positive() {
+            warn!(
+                "Skipping add_exchanged_lots for lot {} with non-positive target quantity: {}",
+                lot_id_prefix, target_quantity
+            );
+            return Ok(Decimal::ZERO);
+        }
+
+        let weighted_lots: Vec<&Lot> = source_lots
+            .iter()
+            .filter(|lot| {
+                !lot.quantity.is_zero() && (lot.quantity.is_sign_positive() || allows_negative_lots)
+            })
+            .collect();
+        if weighted_lots.is_empty() {
+            return Ok(Decimal::ZERO);
+        }
+
+        let total_source_cost_basis: Decimal = weighted_lots.iter().map(|lot| lot.cost_basis).sum();
+        let lot_count = Decimal::from(weighted_lots.len() as i64);
+        let last_index = weighted_lots.len() - 1;
+
+        let mut total_cost_basis_added = Decimal::ZERO;
+        let mut new_lots = Vec::with_capacity(weighted_lots.len());
+        // Weighted division (e.g. 1/3) rarely divides exactly, so each lot's
+        // share is rounded independently and would drift from the true total
+        // if applied directly. Track what's been assigned and let the last lot
+        // absorb the remainder, guaranteeing the sum matches exactly — same
+        // convention as `split_lots_by_cover_quantity`.
+        let mut quantity_assigned = Decimal::ZERO;
+        let mut fee_assigned = Decimal::ZERO;
+        let mut tax_assigned = Decimal::ZERO;
+
+        for (i, src_lot) in weighted_lots.iter().enumerate() {
+            let weight = if total_source_cost_basis.is_zero() {
+                Decimal::ONE / lot_count
+            } else {
+                src_lot.cost_basis / total_source_cost_basis
+            };
+
+            let (quantity, lot_fee, lot_tax) = if i == last_index {
+                (
+                    target_quantity - quantity_assigned,
+                    fee - fee_assigned,
+                    tax - tax_assigned,
+                )
+            } else {
+                (target_quantity * weight, fee * weight, tax * weight)
+            };
+            quantity_assigned += quantity;
+            fee_assigned += lot_fee;
+            tax_assigned += lot_tax;
+            if quantity.is_zero() {
+                continue;
+            }
+
+            let converted_source_basis = match fx_rate {
+                Some(rate) => src_lot.cost_basis * rate,
+                None => src_lot.cost_basis,
+            };
+            let cost_basis = converted_source_basis + lot_fee + lot_tax;
+
+            let new_lot = Lot {
+                id: if weighted_lots.len() == 1 {
+                    lot_id_prefix.to_string()
+                } else {
+                    format!("{}_lot{}", lot_id_prefix, i)
+                },
+                position_id: self.id.clone(),
+                acquisition_date: src_lot.acquisition_date, // Preserve original date
+                acquisition_local_date: src_lot.acquisition_local_date,
+                quantity,
+                original_quantity: quantity,
+                cost_basis,
+                acquisition_price: cost_basis / quantity,
+                acquisition_fees: lot_fee,
+                original_acquisition_fees: lot_fee,
+                acquisition_taxes: lot_tax,
+                original_acquisition_taxes: lot_tax,
+                fx_rate_to_position: fx_rate,
+                // Different asset/currency context than the source lot — stale
+                // account/base fx bookkeeping does not carry over.
+                fx_rate_to_account: None,
+                account_currency: None,
+                fx_rate_to_base: None,
+                base_currency: None,
+                // The EXCHANGE_IN activity owns these sub-lots — deleting it
+                // should cascade-remove them. `lot_id_prefix` is the
+                // EXCHANGE_IN activity id.
+                source_activity_id: Some(lot_id_prefix.to_string()),
+                // A fresh lot for a different security — its own split history
+                // starts over, unlike a same-asset transfer.
+                split_ratio: Decimal::ONE,
+            };
+
+            total_cost_basis_added += new_lot.cost_basis;
+            new_lots.push(new_lot);
+        }
+
+        self.lots.extend(new_lots);
+
+        // Sort by acquisition_date
+        let mut vec_lots: Vec<_> = self.lots.drain(..).collect();
+        vec_lots.sort_by_key(|lot| lot.acquisition_date);
+        self.lots = vec_lots.into();
+
+        self.recalculate_aggregates_with_policy(allows_negative_lots);
+        Ok(total_cost_basis_added)
+    }
+
     /// Reduces position quantity using FIFO lot relief.
     ///
     /// **Input units.** `quantity_to_reduce_input` is in **effective (current,

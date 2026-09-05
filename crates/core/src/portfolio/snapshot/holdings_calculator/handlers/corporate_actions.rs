@@ -77,18 +77,28 @@ impl HoldingsCalculator {
     /// Handle ADJUSTMENT activity.
     /// Dispatches on subtype:
     /// - OPTION_EXPIRY: removes option lots via FIFO, no cash effect
+    /// - EXCHANGE_OUT / EXCHANGE_IN: in-kind asset exchange, see handlers::exchanges
     /// - Other/None: no-op (future: RoC basis adjustment, merger/spinoff, etc.)
     pub(crate) fn handle_adjustment(
         &self,
         activity: &Activity,
         state: &mut AccountStateSnapshot,
-        _asset_cache: &mut AssetCache,
+        asset_cache: &mut AssetCache,
         run: &ProjectionRun,
         buffer: &mut SideEffectBuffer,
     ) -> Result<()> {
-        use crate::activities::ACTIVITY_SUBTYPE_OPTION_EXPIRY;
+        use crate::activities::{
+            ACTIVITY_SUBTYPE_EXCHANGE_IN, ACTIVITY_SUBTYPE_EXCHANGE_OUT,
+            ACTIVITY_SUBTYPE_OPTION_EXPIRY,
+        };
 
         match activity.subtype.as_deref() {
+            Some(subtype) if subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_EXCHANGE_OUT) => {
+                self.handle_exchange_out(activity, state, run, buffer)
+            }
+            Some(subtype) if subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_EXCHANGE_IN) => {
+                self.handle_exchange_in(activity, state, asset_cache, run, buffer)
+            }
             Some(subtype) if subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_OPTION_EXPIRY) => {
                 let asset_id = activity.asset_id.as_deref().unwrap_or("");
                 if let Some(position) = state.positions.get_mut(asset_id) {

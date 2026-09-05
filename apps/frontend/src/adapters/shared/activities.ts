@@ -14,6 +14,7 @@ import type {
   ImportActivitiesResult,
   ImportMappingData,
   ImportTemplateData,
+  InternalExchangePairResponse,
   InternalTransferPairRequest,
   InternalTransferPairResponse,
   TransferMatchCandidate,
@@ -171,6 +172,19 @@ export const getTransferPairForActivity = async (
     });
   } catch (err) {
     logger.error("Error fetching transfer pair.");
+    throw err;
+  }
+};
+
+export const getExchangePairForActivity = async (
+  activityId: string,
+): Promise<InternalExchangePairResponse> => {
+  try {
+    return await invoke<InternalExchangePairResponse>("get_exchange_pair_for_activity", {
+      activityId,
+    });
+  } catch (err) {
+    logger.error("Error fetching exchange pair.");
     throw err;
   }
 };

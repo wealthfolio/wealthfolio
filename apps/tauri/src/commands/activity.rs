@@ -7,9 +7,9 @@ use tauri::State;
 use wealthfolio_core::activities::{
     Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityImport,
     ActivitySearchResponse, ActivityUpdate, ImportActivitiesResult, ImportAssetCandidate,
-    ImportAssetPreviewItem, ImportMappingData, ImportTemplateData, InternalTransferPairRequest,
-    InternalTransferPairResponse, NewActivity, ParseConfig, ParsedCsvResult, Sort,
-    TransferMatchCandidate, TransferMatchCandidateRequest,
+    ImportAssetPreviewItem, ImportMappingData, ImportTemplateData, InternalExchangePairResponse,
+    InternalTransferPairRequest, InternalTransferPairResponse, NewActivity, ParseConfig,
+    ParsedCsvResult, Sort, TransferMatchCandidate, TransferMatchCandidateRequest,
 };
 use wealthfolio_core::health::HealthServiceTrait;
 use wealthfolio_core::utils::time_utils::{
@@ -121,6 +121,18 @@ pub async fn get_transfer_pair_for_activity(
     state
         .activity_service()
         .get_transfer_pair_for_activity(activity_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_exchange_pair_for_activity(
+    activity_id: String,
+    state: State<'_, Arc<ServiceContext>>,
+) -> Result<InternalExchangePairResponse, String> {
+    debug!("Getting exchange pair...");
+    state
+        .activity_service()
+        .get_exchange_pair_for_activity(activity_id)
         .map_err(|e| e.to_string())
 }
 

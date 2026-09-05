@@ -15,8 +15,8 @@ use crate::accounts::{
     account_types, is_liability_account_type, Account, AccountServiceTrait, TrackingMode,
 };
 use crate::activities::{
-    Activity, ActivityServiceTrait, TransferPairResolution, ACTIVITY_TYPE_BUY,
-    ACTIVITY_TYPE_TRANSFER_IN,
+    Activity, ActivityServiceTrait, ExchangePairResolution, TransferPairResolution,
+    ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_TRANSFER_IN,
 };
 use crate::assets::{Asset, AssetKind, AssetServiceTrait, QuoteMode};
 use crate::errors::Result;
@@ -35,10 +35,10 @@ use crate::utils::time_utils::{activity_date_in_tz, parse_user_timezone_or_defau
 
 use super::checks::{
     AccountConfigurationCheck, AssetHoldingInfo, ClassificationCheck, ConsistencyIssueInfo,
-    DataConsistencyCheck, FxIntegrityCheck, FxPairInfo, InvalidTransferGroupInfo,
-    LegacyMigrationInfo, PriceStalenessCheck, QuoteSyncCheck, QuoteSyncErrorInfo,
-    TransferIntegrityCheck, TransferLegDetail, UnclassifiedAssetInfo, UnconfiguredAccountInfo,
-    ValuationIssueReason,
+    DataConsistencyCheck, ExchangeIntegrityCheck, ExchangeLegDetail, FxIntegrityCheck, FxPairInfo,
+    InvalidExchangeGroupInfo, InvalidTransferGroupInfo, LegacyMigrationInfo, PriceStalenessCheck,
+    QuoteSyncCheck, QuoteSyncErrorInfo, TransferIntegrityCheck, TransferLegDetail,
+    UnclassifiedAssetInfo, UnconfiguredAccountInfo, ValuationIssueReason,
 };
 use super::errors::HealthError;
 use super::model::{FixAction, HealthConfig, HealthIssue, HealthStatus, IssueDismissal};
@@ -69,6 +69,7 @@ pub struct HealthService {
     consistency_check: DataConsistencyCheck,
     account_config_check: AccountConfigurationCheck,
     transfer_integrity_check: TransferIntegrityCheck,
+    exchange_integrity_check: ExchangeIntegrityCheck,
 }
 
 fn is_price_staleness_candidate(
@@ -92,6 +93,7 @@ impl HealthService {
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
+            exchange_integrity_check: ExchangeIntegrityCheck::new(),
         }
     }
 
@@ -111,6 +113,7 @@ impl HealthService {
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
+            exchange_integrity_check: ExchangeIntegrityCheck::new(),
         }
     }
 
@@ -134,6 +137,7 @@ impl HealthService {
         configured_timezone: Option<&str>,
         client_timezone: Option<&str>,
         invalid_transfer_groups: &[InvalidTransferGroupInfo],
+        invalid_exchange_groups: &[InvalidExchangeGroupInfo],
     ) -> Result<HealthStatus> {
         let config = self.config.read().await.clone();
         let ctx = HealthContext::new(config, base_currency, total_portfolio_value);
@@ -231,6 +235,20 @@ impl HealthService {
             transfer_issues.len()
         );
         all_issues.extend(transfer_issues);
+
+        // Run exchange integrity check (invalid / incomplete in-kind exchange groups)
+        debug!(
+            "Running exchange integrity check on {} invalid groups",
+            invalid_exchange_groups.len()
+        );
+        let exchange_issues = self
+            .exchange_integrity_check
+            .analyze(invalid_exchange_groups, &ctx);
+        debug!(
+            "Exchange integrity check found {} issues",
+            exchange_issues.len()
+        );
+        all_issues.extend(exchange_issues);
 
         // Filter out dismissed issues (unless data has changed)
         let filtered_issues = self.filter_dismissed_issues(all_issues).await?;
@@ -575,6 +593,11 @@ impl HealthService {
             &account_name_map,
             effective_timezone,
         );
+        let invalid_exchange_groups = invalid_exchange_groups_from_activities(
+            &health_activities,
+            &account_name_map,
+            effective_timezone,
+        );
         let valuation_quality_issues = gather_valuation_quality_issues(
             valuation_service.as_ref(),
             snapshot_service.as_ref(),
@@ -624,6 +647,7 @@ impl HealthService {
             configured_timezone,
             client_timezone,
             &invalid_transfer_groups,
+            &invalid_exchange_groups,
         )
         .await
     }
@@ -825,6 +849,71 @@ fn invalid_transfer_groups_from_activities(
     }
 
     groups
+}
+
+/// Loads all activities and resolves in-kind exchange groups (EXCHANGE_OUT/
+/// EXCHANGE_IN, an ADJUSTMENT subtype pair), returning the ones that don't
+/// form a valid pair.
+fn invalid_exchange_groups_from_activities(
+    activities: &[Activity],
+    account_names: &HashMap<String, String>,
+    timezone: Option<&str>,
+) -> Vec<InvalidExchangeGroupInfo> {
+    let tz = parse_user_timezone_or_default(timezone.unwrap_or_default());
+    let resolution = ExchangePairResolution::from_activities(activities);
+    let by_id: HashMap<&str, &Activity> = activities.iter().map(|a| (a.id.as_str(), a)).collect();
+    let eligible_account_ids: HashSet<&str> = account_names.keys().map(String::as_str).collect();
+
+    let mut groups: Vec<InvalidExchangeGroupInfo> = resolution
+        .invalid_groups()
+        .iter()
+        .filter_map(|group| {
+            let legs: Vec<_> = group
+                .activity_ids
+                .iter()
+                .filter_map(|id| by_id.get(id.as_str()).copied())
+                .filter(|act| act.is_posted())
+                .filter(|act| eligible_account_ids.contains(act.account_id.as_str()))
+                .map(|act| exchange_leg_detail(act, account_names, tz))
+                .collect();
+            (!legs.is_empty()).then(|| InvalidExchangeGroupInfo {
+                group_id: group.group_id.clone(),
+                legs,
+            })
+        })
+        .collect();
+
+    for activity in activities {
+        if activity.is_posted()
+            && resolution.is_ungrouped_exchange(&activity.id)
+            && eligible_account_ids.contains(activity.account_id.as_str())
+        {
+            groups.push(InvalidExchangeGroupInfo {
+                group_id: format!("ungrouped:{}", activity.id),
+                legs: vec![exchange_leg_detail(activity, account_names, tz)],
+            });
+        }
+    }
+
+    groups
+}
+
+fn exchange_leg_detail(
+    activity: &Activity,
+    account_names: &HashMap<String, String>,
+    timezone: chrono_tz::Tz,
+) -> ExchangeLegDetail {
+    ExchangeLegDetail {
+        account_id: activity.account_id.clone(),
+        account_name: account_names
+            .get(&activity.account_id)
+            .cloned()
+            .unwrap_or_else(|| "Account".to_string()),
+        subtype: activity.subtype.clone().unwrap_or_default(),
+        asset_symbol: activity.asset_id.clone(),
+        quantity: activity.quantity,
+        date: activity_date_in_tz(activity.activity_date, timezone),
+    }
 }
 
 async fn gather_missing_lot_disposal_sells(
@@ -1847,6 +1936,7 @@ impl HealthServiceTrait for HealthService {
         configured_timezone: Option<&str>,
         client_timezone: Option<&str>,
         invalid_transfer_groups: &[InvalidTransferGroupInfo],
+        invalid_exchange_groups: &[InvalidExchangeGroupInfo],
     ) -> Result<HealthStatus> {
         // Call the inherent method
         HealthService::run_checks_with_data(
@@ -1864,6 +1954,7 @@ impl HealthServiceTrait for HealthService {
             configured_timezone,
             client_timezone,
             invalid_transfer_groups,
+            invalid_exchange_groups,
         )
         .await
     }
@@ -3086,6 +3177,7 @@ mod tests {
                 Some("UTC"),
                 None,
                 &[],
+                &[],
             )
             .await
             .unwrap();
@@ -3164,6 +3256,7 @@ mod tests {
                 Some("UTC"),
                 None,
                 &[],
+                &[],
             )
             .await
             .unwrap();
@@ -3203,6 +3296,7 @@ mod tests {
                 Some("UTC"),
                 None,
                 &[],
+                &[],
             )
             .await
             .unwrap();
@@ -3231,6 +3325,7 @@ mod tests {
                 &[],
                 Some("UTC"),
                 None,
+                &[],
                 &[],
             )
             .await

@@ -812,6 +812,13 @@ pub struct InternalTransferPairResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct InternalExchangePairResponse {
+    pub exchange_out: Activity,
+    pub exchange_in: Activity,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransferMatchCandidateRequest {
     pub activity_id: String,
     #[serde(default)]
@@ -1046,6 +1053,13 @@ pub struct ActivityImport {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_external: Option<bool>,
+    /// Optional grouping key linking this row to its paired leg in the same
+    /// import batch (e.g. TRANSFER_OUT/TRANSFER_IN, or EXCHANGE_OUT/EXCHANGE_IN).
+    /// Callers supplying this explicitly (e.g. addons) take precedence over the
+    /// batch's own transfer auto-linking heuristic.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_group_id: Option<String>,
 }
 
 /// Model for sorting activities
@@ -1962,7 +1976,7 @@ impl From<ActivityImport> for NewActivity {
             needs_review: None,
             source_system: Some("CSV".to_string()),
             source_record_id: None,
-            source_group_id: None,
+            source_group_id: import.source_group_id,
             idempotency_key: None,
             import_run_id: None,
         }

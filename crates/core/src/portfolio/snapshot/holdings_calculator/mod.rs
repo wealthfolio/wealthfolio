@@ -56,6 +56,11 @@ pub struct ProjectionRun {
     /// TRANSFER_IN (possibly on a different account or day) consumes them,
     /// preserving original acquisition dates and cost basis.
     transfer_lots_cache: HashMap<String, Vec<super::Lot>>,
+    /// Lots removed during EXCHANGE_OUT plus the source position's currency,
+    /// keyed by source_group_id. A paired EXCHANGE_IN (same account, a
+    /// different asset) consumes them, converting cost basis to its own
+    /// asset's currency while preserving original acquisition dates.
+    exchange_lots_cache: HashMap<String, (String, Vec<super::Lot>)>,
     /// Lot closures (fully consumed lots) accumulated during the run, by account_id.
     disposed_lots: HashMap<String, Vec<LotClosure>>,
     /// Sell/transfer disposal slices accumulated during the run, by account_id.
@@ -139,6 +144,12 @@ impl ProjectionRun {
         for group_id in buffer.transfer_cache_removals {
             self.transfer_lots_cache.remove(&group_id);
         }
+        for (group_id, currency, lots) in buffer.exchange_cache_inserts {
+            self.exchange_lots_cache.insert(group_id, (currency, lots));
+        }
+        for group_id in buffer.exchange_cache_removals {
+            self.exchange_lots_cache.remove(&group_id);
+        }
     }
 }
 
@@ -157,6 +168,11 @@ pub(crate) struct SideEffectBuffer {
     transfer_cache_inserts: Vec<(String, Vec<super::Lot>)>,
     /// source_group_ids whose cached lots were consumed by a TRANSFER_IN.
     transfer_cache_removals: Vec<String>,
+    /// (source_group_id, position_currency, lots) removed during an
+    /// EXCHANGE_OUT, to be cached for the paired EXCHANGE_IN.
+    exchange_cache_inserts: Vec<(String, String, Vec<super::Lot>)>,
+    /// source_group_ids whose cached lots were consumed by an EXCHANGE_IN.
+    exchange_cache_removals: Vec<String>,
 }
 
 impl HoldingsCalculator {

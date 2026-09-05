@@ -402,6 +402,14 @@ export interface ActivityImport {
   isDraft: boolean;
   forceImport?: boolean;
   comment?: string;
+  /**
+   * Optional grouping key linking this row to its paired leg in the same
+   * import batch (e.g. TRANSFER_OUT/TRANSFER_IN, or EXCHANGE_OUT/EXCHANGE_IN
+   * — an in-kind asset exchange, ActivityType.ADJUSTMENT with subtype
+   * "EXCHANGE_OUT"/"EXCHANGE_IN"). Generate a unique string per pair (e.g. a
+   * UUID) and set it on both legs.
+   */
+  sourceGroupId?: string;
 }
 
 export interface ImportActivitiesSummary {

@@ -436,6 +436,7 @@ pub fn run() {
             commands::activity::save_activities,
             commands::activity::delete_activity,
             commands::activity::get_transfer_pair_for_activity,
+            commands::activity::get_exchange_pair_for_activity,
             commands::activity::find_transfer_match_candidates,
             commands::activity::save_internal_transfer_pair,
             commands::activity::link_transfer_activities,

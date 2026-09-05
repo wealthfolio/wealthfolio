@@ -8,10 +8,21 @@ import { ActivityType, ACTIVITY_TYPES, isLiabilityAccountType } from "@/lib/cons
 const PICKER_TRANSFER_TYPE = "TRANSFER";
 
 /**
- * All activity types in picker-compatible format.
- * Includes TRANSFER as UI alias for TRANSFER_IN/TRANSFER_OUT.
+ * Picker-friendly activity type for in-kind asset exchanges (ADJUSTMENT with
+ * EXCHANGE_OUT/EXCHANGE_IN subtypes). Used by ActivityTypePicker component.
  */
-const ALL_PICKER_TYPES: readonly string[] = [...ACTIVITY_TYPES, PICKER_TRANSFER_TYPE];
+const PICKER_EXCHANGE_TYPE = "EXCHANGE";
+
+/**
+ * All activity types in picker-compatible format.
+ * Includes TRANSFER as UI alias for TRANSFER_IN/TRANSFER_OUT, and EXCHANGE as
+ * UI alias for the ADJUSTMENT EXCHANGE_OUT/EXCHANGE_IN subtype pair.
+ */
+const ALL_PICKER_TYPES: readonly string[] = [
+  ...ACTIVITY_TYPES,
+  PICKER_TRANSFER_TYPE,
+  PICKER_EXCHANGE_TYPE,
+];
 
 /**
  * Activity types allowed for manual HOLDINGS tracking mode accounts.
