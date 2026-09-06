@@ -1,0 +1,38 @@
+id: NOM-CASH-02
+title: Interest credit and a standalone fee in one cash account
+intent: >
+  INTEREST is income (cash in, attributed as income) and a standalone FEE is a
+  charge (cash out, attributed as a fee). Neither touches net_contribution,
+  which stays pinned at the deposit; only the deposit is an external flow.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    name: Cash
+    currency: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: int-1
+    account: acc-1
+    type: INTEREST
+    date: 2025-01-05T10:00:00Z
+    amount: 12.5
+  - id: fee-1
+    account: acc-1
+    type: FEE
+    date: 2025-01-07T10:00:00Z
+    amount: 3
+    fee: 3
+expected_notes: >
+  Cash USD 1000 (01-02), 1012.5 (01-05), 1009.5 (01-07 onward).
+  net_contribution stays 1000 on every keyframe and valuation row. The only
+  stamped flow is the deposit (first row, so `flows` is empty at both scopes:
+  the first valuation row is never a flow). Attribution: contributions 1000,
+  income 12.5, fees 3, taxes 0, realized/unrealized 0. TWR = 1009.5/1000 - 1 =
+  0.95% (01-05 +1.25%, 01-07 -0.2963%). No positions, no FX.

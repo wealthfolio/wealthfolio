@@ -1,0 +1,41 @@
+id: EDGE-FX-06
+title: End-of-day cash totals with an unconvertible currency bucket
+intent: >
+  USD account and base; a DEPOSIT in XYZ (a syntactically valid code with
+  no FX observation anywhere). `HoldingsCalculator::compute_cash_totals`
+  catches the failed conversion and ADDS the raw XYZ amount into both
+  cash_total_account_currency and cash_total_base_currency ("Using
+  unconverted"), and the deposit handler adds the raw amount to
+  net_contribution while skipping the base leg. The valuation stage then
+  fails the account because the XYZ bucket cannot be converted. Kernel:
+  degraded status + diagnostic, never a silent add.
+markers: [L]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+activities:
+  - id: dep-usd
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: dep-xyz
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-03T10:00:00Z
+    amount: 250
+    currency: XYZ
+expected_notes: >
+  LEGACY BEHAVIOR: keyframe 01-03 cash {USD 1000, XYZ 250};
+  cash_total_account_currency 1250 and cash_total_base_currency 1250 (250
+  XYZ silently counted as 250 USD); net_contribution 1250 (raw add),
+  net_contribution_base 1000 (skipped). Valuation of acc-1 fails
+  (VALUATION_CALCULATION_FAILED: "Failed to convert external flow 250
+  XYZ->USD on 2025-01-03 for activity dep-xyz ... Exchange rate not found
+  for XYZ/USD") so no valuation rows, flows or performance exist, and the
+  scoped portfolio read fails too. Economically the USD total is 1000 plus
+  an unknown-value XYZ bucket.

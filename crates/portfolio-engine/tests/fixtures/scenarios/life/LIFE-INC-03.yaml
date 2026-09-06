@@ -1,0 +1,91 @@
+id: LIFE-INC-03
+title: Hard delete of a middle buy, recalculated SinceDate at its date
+intent: >
+  A buy that sits between an earlier buy and a later sell is hard-deleted
+  and the legacy SinceDate mode is asked to recalculate from the deleted
+  row's date. `since` (01-08) is on/before the account's high-water mark
+  (the 01-13 sell keyframe), so `since_date_is_append_only` upgrades the
+  snapshot run to Full and rebuilds keyframes, lots and disposals from
+  inception; the valuation SinceDate path replaces rows from 01-08 with
+  01-07 as the discarded anchor. Compared with a full rebuild of the same
+  facts (LIFE-INC-03: the row-count watermark is what would trigger this
+  in the kernel; here the recalc equivalence is what is pinned).
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-15
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 505
+    fee: 5
+  - id: buy-2
+    account: acc-1
+    type: BUY
+    date: 2025-01-08T10:00:00Z
+    asset: aapl
+    quantity: 4
+    unit_price: 105
+    amount: 425
+    fee: 5
+  - id: sell-1
+    account: acc-1
+    type: SELL
+    date: 2025-01-13T10:00:00Z
+    asset: aapl
+    quantity: 3
+    unit_price: 110
+    amount: 325
+    fee: 5
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 105 }
+  - { asset: aapl, day: 2025-01-13, close: 110 }
+  - { asset: aapl, day: 2025-01-15, close: 120 }
+lifecycle:
+  - label: delete_middle_buy_since_date
+    as_of: 2025-01-16
+    remove_activities: [buy-2]
+    add_quotes:
+      - { asset: aapl, day: 2025-01-16, close: 125 }
+    recalc: { snapshots: SINCE_DATE, valuations: SINCE_DATE, since: 2025-01-08 }
+expected_notes: >
+  Baseline (as_of 01-15): cash 2000 -> 1495 -> 1070 -> 1395; keyframes
+  01-02, 01-03 (5 aapl), 01-08 (9 aapl, basis 930), 01-13 (6 aapl after the
+  FIFO sell of 3 out of buy-1: buy-1 remaining 2, buy-2 remaining 4, basis
+  627); one disposal (sell-1 against buy-1, 3 units); total value 01-15 =
+  6 x 120 + 1395 = 2115.
+  Step (buy-2 deleted, SinceDate 01-08, as_of 01-16): legacy upgrades to
+  Full (01-08 <= high-water mark 01-13). Expected keyframes 01-02, 01-03 (5
+  aapl, cash 1495), 01-13 (2 aapl, cash 1820, basis 202); no 01-08 keyframe;
+  lots: buy-1 only (remaining 2 of 5) — the buy-2 lot must disappear from
+  the lots table; one disposal (sell-1 vs buy-1, 3 units); valuations 01-08
+  onward repriced with 5 then 2 shares, 01-16 = 2 x 125 + 1820 = 2070; rows
+  before 01-08 untouched (they are unchanged by the delete). Expected to
+  MATCH the full rebuild.
+  LEGACY BEHAVIOR (golden LIFE-INC-03.snap): matches_full_rebuild = true,
+  differences = []. The auto-upgrade to Full rebuilt keyframes 01-02, 01-03
+  (5 aapl, cash 1495, basis 505) and 01-13 (2 aapl, cash 1820, cost_basis
+  202, average_cost 101), replaced the lots table (buy-1 only:
+  original_quantity 5, remaining_quantity 2, remaining_cost_basis 202; the
+  buy-2 lot is gone) and the disposals (sell-1:buy-1:0, quantity 3, proceeds
+  325, cost_basis 303, realized_pnl 22), and the valuation SinceDate(01-08)
+  replaced rows from 01-08 onward (01-16 total_value 2070 = 2 x 125 + 1820)
+  while 01-02..01-07 stayed as captured in the baseline.

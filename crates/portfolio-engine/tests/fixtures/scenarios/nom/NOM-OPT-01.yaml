@@ -1,0 +1,85 @@
+id: NOM-OPT-01
+title: Option long, over-sell netting to short, partial buy-to-close, expiry
+intent: >
+  Options (multiplier 100) may go negative implicitly. bto-1 opens +1
+  contract; sto-1 sells 3 with no intent subtype: 1 closes the long, the
+  other 2 open a short lot `sto-1:open` (fee prorated 1/2); btc-1 (BUY,
+  POSITION_CLOSE) covers 1 contract; exp-1 (ADJUSTMENT, OPTION_EXPIRY)
+  removes the residual short at zero proceeds with no cash effect, realizing
+  the remaining premium.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-1
+    name: Options
+    currency: USD
+assets:
+  - id: spy-call
+    symbol: SPY250117C00600000
+    quote_ccy: USD
+    instrument_type: OPTION
+    contract_multiplier: 100
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 5000
+  - id: bto-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: spy-call
+    quantity: 1
+    unit_price: 2
+    amount: 201
+    fee: 1
+  - id: sto-1
+    account: acc-1
+    type: SELL
+    date: 2025-01-06T10:00:00Z
+    asset: spy-call
+    quantity: 3
+    unit_price: 3
+    amount: 897
+    fee: 3
+  - id: btc-1
+    account: acc-1
+    type: BUY
+    subtype: POSITION_CLOSE
+    date: 2025-01-08T10:00:00Z
+    asset: spy-call
+    quantity: 1
+    unit_price: 2.5
+    amount: 251
+    fee: 1
+  - id: exp-1
+    account: acc-1
+    type: ADJUSTMENT
+    subtype: OPTION_EXPIRY
+    date: 2025-01-10T10:00:00Z
+    asset: spy-call
+    quantity: 1
+quotes:
+  - { asset: spy-call, day: 2025-01-03, close: 2 }
+  - { asset: spy-call, day: 2025-01-06, close: 3 }
+  - { asset: spy-call, day: 2025-01-08, close: 2.5 }
+  - { asset: spy-call, day: 2025-01-09, close: 1 }
+expected_notes: >
+  Cash 5000 -> 4799 (bto-1) -> 5696 (sto-1) -> 5445 (btc-1) -> 5445
+  (expiry, no cash). Lots: bto-1 +1 @ 200 (basis 201, fee 1), closed 01-06
+  by sto-1; `sto-1:open` -2 @ 300, basis -598 (-600 + fee 2), later reduced
+  to -1 (basis -299) and closed 01-10 by exp-1. Disposals: sto-1:bto-1:0
+  proceeds 299 (1 x 300 - fee 1), basis 201, realized 98; btc-1:sto-1:open:0
+  quantity -1, proceeds -251, basis -299, realized 48; exp-1:sto-1:open:0
+  quantity -1, proceeds 0, basis -299, realized 299. Keyframes: 01-03 +1
+  (basis 201); 01-06 -2 (basis -598, average 299, contract_multiplier 100);
+  01-08 -1 (-299); 01-10 no position. Market value: 01-03 200, 01-06 -600,
+  01-08 -250, 01-09 -100, 01-10 onward 0. Total value 5445 on 01-10 = 5000
+  + realized 445; TWR 8.9%. LEGACY BEHAVIOR (attribution): realized 150 and
+  fees 5 (summary 145) - the 299 realized on the OPTION_EXPIRY adjustment is
+  excluded because attribution only keeps disposals whose activity is a BUY
+  or SELL, so the diagnostics report "attribution incomplete, difference
+  300". Candidate for the divergence ledger.

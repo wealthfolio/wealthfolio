@@ -1,0 +1,51 @@
+id: NOM-TXF-05
+title: External security TRANSFER_OUT with no quote at all for the asset
+intent: >
+  10 units of an unquoted asset (bought at 50) are delivered out of the
+  portfolio (metadata.flow.is_external = true). No quote exists on or before
+  the transfer date, and the row carries no unit_price or amount, so the
+  external flow cannot be valued at compile time: it is deferred and
+  finalized from the removed-lot basis (500) with REMOVED_LOT_BASIS_FALLBACK
+  provenance.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - id: priv
+    symbol: PRIV
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: priv
+    quantity: 10
+    unit_price: 50
+    amount: 500
+    fee: 0
+  - id: out-1
+    account: acc-1
+    type: TRANSFER_OUT
+    date: 2025-01-08T10:00:00Z
+    asset: priv
+    quantity: 10
+    metadata: { flow: { is_external: true } }
+expected_notes: >
+  Cash 1000 -> 500 from 01-03 and unchanged by the transfer (no fee).
+  Position priv 10 (basis 500) from 01-03 to 01-07, gone from 01-08; lot
+  buy-1 closed 01-08 by out-1; disposal out-1 proceeds 500 = basis, realized
+  0. net_contribution 1000 -> 500 on 01-08. Flows (account and portfolio):
+  01-08 outflow 500 REMOVED_LOT_BASIS_FALLBACK. Valuations 01-03..01-07 hold
+  an unpriced position (investment_market_value 0, value_status degraded);
+  from 01-08 total value 500 complete. Attribution: distributions 500.

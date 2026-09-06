@@ -1,0 +1,74 @@
+id: LIFE-START-01
+title: Cold start race between the frontend refresh and the backend backfill
+markers: [S]
+intent: >
+  Shell-level. Two accounts: acc-a already has projections (from a previous
+  session) and acc-b was created by a sync just before shutdown and has
+  activities but NO valuation rows. Today a cold start fires two jobs
+  through different paths: the frontend's `update_portfolio` on mount
+  (IncrementalFromLast via the listener path) and the backend's
+  `portfolio_history_backfill_needed` check (Full via the domain-event path,
+  because acc-b lacks valuation rows); they race, and depending on ordering
+  acc-b is either rebuilt once, twice, or valued from an
+  IncrementalFromLast run that found no keyframe and started from its
+  earliest activity. The coordinator replaces both with one idempotent
+  `ensure_consistent()` driven by the facts fingerprint versus the
+  projection watermark. Expected: after startup both accounts equal a
+  one-shot Full rebuild of these facts, exactly one job ran per scope, and
+  a second `ensure_consistent()` is a no-op. No legacy golden: the startup
+  wiring lives in the hosts, not in the calculation chain.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-a
+    name: Warm
+    currency: USD
+  - id: acc-b
+    name: Cold
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-a
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-a
+    account: acc-a
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 4
+    unit_price: 100
+    amount: 400
+    fee: 0
+  - id: dep-b
+    account: acc-b
+    type: DEPOSIT
+    date: 2025-01-08T10:00:00Z
+    amount: 600
+  - id: buy-b
+    account: acc-b
+    type: BUY
+    date: 2025-01-09T10:00:00Z
+    asset: aapl
+    quantity: 2
+    unit_price: 105
+    amount: 210
+    fee: 0
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 105 }
+  - { asset: aapl, day: 2025-01-09, close: 105 }
+  - { asset: aapl, day: 2025-01-10, close: 110 }
+expected_notes: >
+  Full-rebuild reference: acc-a cash 1000 -> 600 with 4 aapl (value 01-10 =
+  4 x 110 + 600 = 1040); acc-b cash 600 -> 390 with 2 aapl (value 01-10 = 2
+  x 110 + 390 = 610); portfolio 1650 on 01-10, contributions 1600. After
+  the cold start acc-b has keyframes 01-08 and 01-09 and dense valuations
+  01-08..01-10 exactly once; acc-a is unchanged.

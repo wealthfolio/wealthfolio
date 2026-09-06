@@ -1,0 +1,61 @@
+id: NOM-TRADE-02
+title: BUY with broker-rounded amount, and a BUY with an explicit zero amount
+intent: >
+  buy-1 stores amount 1001.37 although qty x price + fee = 1001: the supplied
+  final cash is authoritative for cash, and the lot basis is reverse-derived
+  from it (gross = amount - charges, unit price = gross / qty). buy-2 stores
+  an explicit amount 0: the zero is trusted (no cash effect, never re-derived
+  from qty x price); with a zero gross the lot falls back to the reported
+  unit price for its basis.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-09
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 3000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1001.37
+    fee: 1
+  - id: buy-2
+    account: acc-1
+    type: BUY
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 0
+    fee: 0
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 100 }
+  - { asset: aapl, day: 2025-01-09, close: 105 }
+expected_notes: >
+  Cash 3000 -> 1998.63 (01-03) and unchanged on 01-06 (explicit zero
+  trusted). Lot buy-1: cost_per_unit 100.037 (gross 1000.37 / 10), basis
+  1001.37, fee 1; keyframe 01-03 average_cost 100.137. Lot buy-2: 5 units;
+  because gross is zero the lot price falls back to unit_price 100, so
+  basis 500 appears with no cash movement. LEGACY BEHAVIOR: keyframe 01-06
+  shows aapl 15 units, total_cost_basis 1501.37 (average 100.09133333)
+  while cash only fell by 1001.37 and net_contribution stays 3000 - book
+  value of 500 with no cash or contribution counterpart. Total value jumps
+  from 2998.63 (01-03) to 3498.63 (01-06) with no flow stamped, so the
+  all-time TWR is 19.121% (3573.63 / 3000 - 1) and attribution reports
+  "difference 500" (unrealized 74.63, fees 1). Candidate for the divergence
+  ledger (a zero-cash buy still books a price-derived basis).

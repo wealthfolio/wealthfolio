@@ -1,0 +1,33 @@
+id: EDGE-FX-08
+title: A zero FX rate is a broken observation, not a rate
+intent: >
+  Kernel-only. The rates table has no positive-value constraint, so a
+  CAD->USD observation of 0 can reach the kernel. Using it would convert the
+  CAD cash bucket to nothing and report the day Complete. The kernel drops
+  the observation at normalize with an InvalidFxRate diagnostic; with no
+  other CAD->USD observation the bucket cannot convert, so the days are
+  UNAVAILABLE with an FxUnavailable diagnostic. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - id: acc-1
+    currency: USD
+activities:
+  - id: dep-cad
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+    currency: CAD
+fx_rates:
+  - { from: CAD, to: USD, day: 2025-01-02, rate: 0 }
+expected_notes: >
+  Kernel golden: normalize reports InvalidFxRate for CAD/USD@2025-01-02 and
+  keeps no CAD->USD observation. Every day from 01-02 carries the CAD bucket
+  of 1000 unconverted: cash_balance 0 in USD terms is never reported as
+  Complete; instead value_status is unavailable with an FxUnavailable
+  diagnostic for the cash bucket, and net_contribution stays 1000 CAD in
+  the account view with its base leg unavailable.

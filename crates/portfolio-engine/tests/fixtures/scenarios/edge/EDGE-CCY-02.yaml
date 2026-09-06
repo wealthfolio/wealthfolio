@@ -1,0 +1,141 @@
+id: EDGE-CCY-02
+title: Minor-unit rule table and case-sensitivity of quote currencies
+intent: >
+  One account per major currency, each holding one asset quoted in a
+  minor-unit code from `fx::currency`: GBX (x0.01 -> GBP), ZAc (x0.01 ->
+  ZAR), ILA (x0.01 -> ILS), USX (x0.01 -> USD), KWF (x0.001 -> KWD). Every
+  trade is entered in the account (major) currency, so the lot is converted
+  into the minor unit through the multiplier (no market rate), valuation
+  normalizes the minor-unit close back into the major unit, and the lot
+  fx_rate_to_account equals the rule factor. A sixth account holds an asset
+  quoted in lowercase `gbp`, bought with activity currency `gbp`: the code is
+  case-sensitive, so `gbp` is NOT pence (no x0.01) and is NOT the account
+  currency GBP either - it is an unknown foreign currency with no FX path.
+  Base USD with one direct rate per major currency pins the base leg.
+markers: [L]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-gbp
+    currency: GBP
+  - id: acc-zar
+    currency: ZAR
+  - id: acc-ils
+    currency: ILS
+  - id: acc-usd
+    currency: USD
+  - id: acc-kwd
+    currency: KWD
+  - id: acc-lower
+    currency: GBP
+assets:
+  - id: gbx-asset
+    symbol: GBX.L
+    quote_ccy: GBX
+  - id: zac-asset
+    symbol: ZAC.JO
+    quote_ccy: ZAc
+  - id: ila-asset
+    symbol: ILA.TA
+    quote_ccy: ILA
+  - id: usx-asset
+    symbol: USX.US
+    quote_ccy: USX
+  - id: kwf-asset
+    symbol: KWF.KW
+    quote_ccy: KWF
+  - id: lower-asset
+    symbol: LOWER.L
+    quote_ccy: gbp
+activities:
+  - { id: dep-gbp, account: acc-gbp, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 1000 }
+  - { id: dep-zar, account: acc-zar, type: DEPOSIT, date: 2025-01-02T11:00:00Z, amount: 1000 }
+  - { id: dep-ils, account: acc-ils, type: DEPOSIT, date: 2025-01-02T12:00:00Z, amount: 1000 }
+  - { id: dep-usd, account: acc-usd, type: DEPOSIT, date: 2025-01-02T13:00:00Z, amount: 1000 }
+  - { id: dep-kwd, account: acc-kwd, type: DEPOSIT, date: 2025-01-02T14:00:00Z, amount: 1000 }
+  - { id: dep-lower, account: acc-lower, type: DEPOSIT, date: 2025-01-02T15:00:00Z, amount: 1000 }
+  - id: buy-gbx
+    account: acc-gbp
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: gbx-asset
+    quantity: 10
+    unit_price: 2.50
+    amount: 25
+  - id: buy-zac
+    account: acc-zar
+    type: BUY
+    date: 2025-01-03T11:00:00Z
+    asset: zac-asset
+    quantity: 10
+    unit_price: 15
+    amount: 150
+  - id: buy-ila
+    account: acc-ils
+    type: BUY
+    date: 2025-01-03T12:00:00Z
+    asset: ila-asset
+    quantity: 10
+    unit_price: 12
+    amount: 120
+  - id: buy-usx
+    account: acc-usd
+    type: BUY
+    date: 2025-01-03T13:00:00Z
+    asset: usx-asset
+    quantity: 10
+    unit_price: 5
+    amount: 50
+  - id: buy-kwf
+    account: acc-kwd
+    type: BUY
+    date: 2025-01-03T14:00:00Z
+    asset: kwf-asset
+    quantity: 10
+    unit_price: 0.5
+    amount: 5
+  - id: buy-lower
+    account: acc-lower
+    type: BUY
+    date: 2025-01-03T15:00:00Z
+    asset: lower-asset
+    quantity: 10
+    unit_price: 2.50
+    amount: 25
+    currency: gbp
+quotes:
+  - { asset: gbx-asset, day: 2025-01-03, close: 250 }
+  - { asset: gbx-asset, day: 2025-01-08, close: 260 }
+  - { asset: zac-asset, day: 2025-01-03, close: 1500 }
+  - { asset: zac-asset, day: 2025-01-08, close: 1600 }
+  - { asset: ila-asset, day: 2025-01-03, close: 1200 }
+  - { asset: ila-asset, day: 2025-01-08, close: 1300 }
+  - { asset: usx-asset, day: 2025-01-03, close: 500 }
+  - { asset: usx-asset, day: 2025-01-08, close: 520 }
+  - { asset: kwf-asset, day: 2025-01-03, close: 500 }
+  - { asset: kwf-asset, day: 2025-01-08, close: 520 }
+  - { asset: lower-asset, day: 2025-01-03, close: 2.50 }
+  - { asset: lower-asset, day: 2025-01-08, close: 2.60 }
+fx_rates:
+  - { from: GBP, to: USD, day: 2025-01-02, rate: 1.25 }
+  - { from: ZAR, to: USD, day: 2025-01-02, rate: 0.05 }
+  - { from: ILS, to: USD, day: 2025-01-02, rate: 0.28 }
+  - { from: KWD, to: USD, day: 2025-01-02, rate: 3.25 }
+expected_notes: >
+  Rule table (lot cost_per_unit in the minor unit, fx_rate_to_account =
+  factor, investment value on 01-08 in the account currency): GBX 250 /
+  0.01 / 26 GBP; ZAc 1500 / 0.01 / 160 ZAR; ILA 1200 / 0.01 / 130 ILS; USX
+  500 / 0.01 / 52 USD; KWF 500 / 0.001 / 5.2 KWD. Lot fx_rate_to_base =
+  factor x major->USD rate (GBX 0.0125, ZAc 0.0005, ILA 0.0028, USX 0.01, KWF
+  0.00325) so original_cost_basis_base equals the major cost x rate (31.25,
+  7.5, 33.6, 50, 16.25). Each account's total is 1000 in its currency on
+  01-03 and rises by the 01-08 quote change; valuation fx_rate_to_base is the
+  direct rate (1.25 / 0.05 / 0.28 / 1 / 3.25). Lowercase `gbp`: the lot is
+  NOT scaled (cost_per_unit 2.5, basis 25), the cash is booked in a separate
+  `gbp` bucket (-25) that the keyframe totals add unconverted
+  (cash_total_account_currency 975), the lot has no book FX to GBP/USD
+  (fx_rate_to_base 0), and the valuation of acc-lower FAILS
+  (VALUATION_CALCULATION_FAILED, missing gbp->GBP) so it has no valuation
+  rows and no performance.

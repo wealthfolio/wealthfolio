@@ -1,0 +1,43 @@
+id: EDGE-CCY-03
+title: GBp/GBP minor-unit pair with no FX rates at all
+intent: >
+  A GBp-quoted asset in a GBP account (base GBP) with an EMPTY fx_rates
+  table: the FxService converter is never initialized, yet every GBp<->GBP
+  request resolves to the multiplier product (0.01 or 100) because both codes
+  normalize to GBP; a market FX conversion is never attempted and the pair is
+  never registered as a synthetic FX asset. Valuation prices the pence close
+  x0.01, lot book rates are 0.01, and the account is `complete` throughout.
+policy:
+  base_currency: GBP
+  timezone: Europe/London
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    currency: GBP
+assets:
+  - id: vod
+    symbol: VOD.L
+    quote_ccy: GBp
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: vod
+    quantity: 100
+    unit_price: 2.50
+    amount: 250
+quotes:
+  - { asset: vod, day: 2025-01-03, close: 250 }
+  - { asset: vod, day: 2025-01-07, close: 275 }
+expected_notes: >
+  Cash GBP 750 from 01-03. Lot buy-1: cost_per_unit 250 (pence), basis
+  25000, fx_rate_to_account 0.01, fx_rate_to_base 0.01, basis_base 250.
+  Valuations: 01-03..01-06 investment 250, total 1000; 01-07 onward
+  investment 275, total 1025; value_status complete on every row;
+  fx_rate_to_base 1. No FX diagnostics.

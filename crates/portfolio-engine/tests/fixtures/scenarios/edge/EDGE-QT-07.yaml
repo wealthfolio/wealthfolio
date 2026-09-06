@@ -1,0 +1,43 @@
+id: EDGE-QT-07
+title: Same-day quotes from several sources resolve by source rank
+intent: >
+  Kernel-only. The quote store is unique on asset, day and source, so one
+  day can carry a MANUAL, a provider and a BROKER close. The kernel keeps
+  one observation per asset and day by source rank (MANUAL, then providers,
+  then BROKER), then source name, so the valuation does not depend on the
+  order rows arrive in (I3; the determinism law reverses the input). Marked
+  [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 102, source: YAHOO }
+  - { asset: aapl, day: 2025-01-03, close: 100, source: MANUAL }
+  - { asset: aapl, day: 2025-01-05, close: 104, source: BROKER }
+  - { asset: aapl, day: 2025-01-05, close: 105, source: YAHOO }
+expected_notes: >
+  Kernel golden: 01-03 and 01-04 price at 100 (the MANUAL close beats the
+  provider's 102), 01-05 and 01-06 at 105 (the provider beats the BROKER
+  104); investment 1000 then 1050, every day complete, no diagnostics.

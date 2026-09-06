@@ -1,0 +1,85 @@
+id: PERF-FLOW-03
+title: Resolved transfer pair with the counterparty outside the evaluated scope
+intent: >
+  acc-a sends two paired cash transfers. g1 goes to acc-b, which is ARCHIVED:
+  legacy repositories (SQLite and the harness double) hide archived-account
+  rows from every activity query, so the visible g1 leg is a one-leg invalid
+  group with no external metadata -> Unknown boundary, not External. g2 goes
+  to acc-c, an active account that is excluded from the acc_a_only window: the
+  pair resolves and the counterparty is outside the scope -> External
+  (CASH_AMOUNT 100), while all_time (acc-a + acc-c) classifies g2 Internal.
+  The kernel classifies the straddling pair as External for an archived
+  counterparty too; the golden pins what legacy actually does.
+markers: [L]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-a
+    currency: USD
+  - id: acc-b
+    currency: USD
+    is_archived: true
+  - id: acc-c
+    currency: USD
+activities:
+  - id: dep-a
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: tout-a1
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-04T10:00:00Z
+    amount: 400
+    source_group_id: g1
+  - id: tout-a2
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-06T10:00:00Z
+    amount: 100
+    source_group_id: g2
+  - id: dep-b
+    account: acc-b
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: 50
+  - id: tin-b
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-04T11:00:00Z
+    amount: 400
+    source_group_id: g1
+  - id: dep-c
+    account: acc-c
+    type: DEPOSIT
+    date: 2025-01-02T12:00:00Z
+    amount: 500
+  - id: tin-c
+    account: acc-c
+    type: TRANSFER_IN
+    date: 2025-01-06T11:00:00Z
+    amount: 100
+    source_group_id: g2
+performance_windows:
+  - { label: acc_a_only, accounts: [acc-a] }
+expected_notes: >
+  acc-b is archived: no keyframes, valuations or performance are captured for
+  it and its rows are invisible to the flow classifier. acc-a: cash 1000 ->
+  600 (01-04) -> 500 (01-06); net_contribution 500. Account scope and the
+  acc_a_only window: 01-04 0/0 UNKNOWN_BOUNDARY_TRANSFER (g1 is an invalid
+  one-leg group: warning "Transfer group g1 is invalid (expected exactly two
+  transfer legs, found 1); affected transfer activity flows were treated as
+  external." - the text says external, the stamp is Unknown), 01-06 outflow
+  100 CASH_AMOUNT (g2 resolved, acc-c outside the scope -> External). TWR and
+  IRR null because of 01-04; attribution contributions 1000, distributions
+  100, difference -400 vs tolerance 1. LEGACY BEHAVIOR (ledger candidate):
+  PERF-FLOW-03 expects the archived-counterparty pair to classify External
+  with a 400 outflow; legacy yields Unknown and nulls the headline;
+  value_return = (500 - 1000 + 100)/1000 = -0.4 silently absorbs the 400.
+  acc-c: 500 -> 600, account-scope inflow 100 CASH_AMOUNT, TWR 0. all_time
+  (a + c): 01-04 still UNKNOWN_BOUNDARY_TRANSFER; 01-06 g2 Internal (stored
+  gross 100/100 netted to 0/0, source CASH_AMOUNT); total 1500 -> 1100,
+  value_return -0.26666667, difference -400 vs tolerance 2.2.

@@ -1,0 +1,92 @@
+id: LIFE-EMPTY-01
+title: Delete the last activity of an account (scoped SinceDate recalc)
+intent: >
+  Account A has exactly one activity (a deposit); account B has a deposit
+  and a buy. The step removes A's only activity and recalculates SinceDate
+  at that date scoped to `accounts: [acc-a]`. Legacy: `fetch_required_data`
+  finds no activities for A; `since_date_is_append_only` sees since (01-03)
+  <= A's high-water mark (the 01-03 keyframe) and upgrades the run to Full,
+  which takes the "no activities + Full" branch: `delete_snapshots_by_account_ids`
+  wipes every keyframe of A and the lot rows are cleared (the
+  `clear_stale_account_state` SinceDate branch is only reachable when since
+  is after the high-water mark). Valuation SinceDate(01-03) on an empty
+  timeline persists Replace(01-03), removing A's valuation rows from 01-03.
+  B is out of scope and must be untouched; with as_of unchanged its rows are
+  still exactly what a full rebuild produces. Compared with a full rebuild:
+  a Full run over an activity-less TRANSACTIONS account emits an empty
+  first-day keyframe on as_of, so the comparison also pins how the two
+  "empty account" representations differ (LIFE-EMPTY-01).
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-a
+    name: Emptied
+    currency: USD
+  - id: acc-b
+    name: Untouched
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-a
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-03T10:00:00Z
+    amount: 500
+  - id: dep-b
+    account: acc-b
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-b
+    account: acc-b
+    type: BUY
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+    fee: 0
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 100 }
+  - { asset: aapl, day: 2025-01-10, close: 110 }
+lifecycle:
+  - label: delete_only_activity_scoped_since_date
+    remove_activities: [dep-a]
+    recalc:
+      snapshots: SINCE_DATE
+      valuations: SINCE_DATE
+      since: 2025-01-03
+      accounts: [acc-a]
+expected_notes: >
+  Baseline (as_of 01-10): acc-a keyframe 01-03 cash 500, valuations
+  01-03..01-10 total 500, net_contribution 500; acc-b keyframes 01-02 (cash
+  1000) and 01-06 (5 aapl, cash 500), valuations 01-02..01-05 = 1000,
+  01-06..01-09 = 1000, 01-10 = 5 x 110 + 500 = 1050; portfolio all-time
+  contributions 1500.
+  Step (dep-a removed, SinceDate 01-03 scoped to acc-a): acc-a must end with
+  NO keyframes, NO lots and NO valuation rows (its stale 01-03..01-10
+  projections are cleared); acc-b must be byte-identical to the baseline.
+  The full rebuild of the same facts is expected to differ for acc-a only:
+  legacy Full emits an empty CALCULATED keyframe dated as_of (01-10, no
+  positions, no cash) for an account with zero activities, plus whatever
+  valuation/performance rows follow from it. Portfolio-scope performance
+  should agree (acc-a contributes nothing either way).
+  LEGACY BEHAVIOR (golden LIFE-EMPTY-01.snap): matches_full_rebuild = false;
+  differences = ["accounts.acc-a.keyframes: 0 items != 1 items",
+  "accounts.acc-a.performance.all_time.period_end: null != 2025-01-10",
+  "accounts.acc-a.performance.all_time.period_start: null != 2025-01-10",
+  "accounts.acc-a.valuations: 0 items != 1 items"]. The scoped SinceDate run
+  cleared acc-a completely (keyframes [], lots [], disposals [], valuations
+  [], performance method notApplicable, diagnostic "Performance unavailable:
+  at least two valuation points are required"), whereas the Full rebuild of
+  the same facts leaves acc-a with one empty CALCULATED keyframe dated as_of
+  (01-10) and one valuation row on 01-10 (period_start = period_end =
+  2025-01-10). acc-b is identical to the baseline and the portfolio window
+  (twr 0.05, contributions 1000) matches the full rebuild. Legacy therefore
+  has two representations of "account with no activities": nothing at all
+  (delete path) versus an empty as_of keyframe (Full path).

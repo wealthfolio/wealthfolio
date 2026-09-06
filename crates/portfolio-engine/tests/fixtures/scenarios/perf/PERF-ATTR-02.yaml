@@ -1,0 +1,76 @@
+id: PERF-ATTR-02
+title: Activity in a currency with no FX rate at all
+intent: >
+  JPY has no exchange rates in the facts. acc-div receives a 5000 JPY dividend:
+  the holdings calculator books it into a JPY cash bucket, adds it UNCONVERTED
+  to cash_total_account_currency, and every valuation day from 01-04 fails on
+  the missing JPY->USD rate, so the whole account has no valuation rows and no
+  performance (the attribution skip is never reached). acc-trade buys a
+  USD-quoted asset with a JPY-denominated trade carrying fx_rate 0.0067: cash
+  and lot basis settle in USD through the activity rate, so valuation succeeds,
+  but attribution cannot convert the 1500 JPY fee and skips it with a warning.
+  Because the trade-charge gross-up is skipped too, the fee stays inside
+  unrealized P&L and the residual does NOT fire (fees reported 0).
+markers: [L]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-07
+accounts:
+  - id: acc-div
+    currency: USD
+  - id: acc-trade
+    currency: USD
+assets:
+  - id: sony
+    quote_ccy: JPY
+  - id: msft
+    quote_ccy: USD
+activities:
+  - id: dep-div
+    account: acc-div
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: div-jpy
+    account: acc-div
+    type: DIVIDEND
+    date: 2025-01-04T10:00:00Z
+    asset: sony
+    amount: 5000
+    currency: JPY
+  - id: dep-trade
+    account: acc-trade
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: 2000
+  - id: buy-jpy
+    account: acc-trade
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: msft
+    quantity: 10
+    unit_price: 15000
+    amount: 151500
+    fee: 1500
+    currency: JPY
+    fx_rate: 0.0067
+quotes:
+  - { asset: msft, day: 2025-01-03, close: 100 }
+  - { asset: msft, day: 2025-01-06, close: 110 }
+expected_notes: >
+  acc-div keyframe 01-04: cash {JPY: 5000, USD: 1000}, cash_total_account_
+  currency 6000 (LEGACY BEHAVIOR: the JPY amount is added unconverted, a silent
+  rate=1), net_contribution 1000. Diagnostics carry the valuation failure
+  "Incomplete valuation history for account 'acc-div': 4 date(s) could not be
+  calculated" (01-04..01-07, missing JPY->USD); no valuation rows; account
+  performance "at least two valuation points are required". The portfolio
+  scope silently drops acc-div (its deposit is not in the aggregate) - ledger
+  candidate (I10).
+  acc-trade: lot buy-jpy cost_per_unit 100.5 USD, basis 1015.05 incl.
+  fee_allocated 10.05, fx_rate_to_account 0.0067; cash 984.95; value 1984.95
+  from 01-03 and 2084.95 from 01-06; TWR 0.042475. Attribution: contributions
+  2000, fees 0 with warning "Fee attribution skipped for activity buy-jpy
+  because FX conversion failed.", unrealized 1100 - 1015.05 = 84.95 -> sums to
+  2084.95 = delta, so no residual warning even though 10.05 of fee is hidden
+  inside unrealized P&L (quality partial from the warning).

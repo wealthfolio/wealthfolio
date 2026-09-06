@@ -1,0 +1,71 @@
+id: LIFE-CONC-01
+title: Concurrent recalculation triggers on overlapping account scopes
+markers: [S]
+intent: >
+  Shell-level. Two accounts with a few activities; the shell test fires two
+  jobs at once — an activity-save trigger (SinceDate(01-06) for acc-a) and a
+  startup/listener trigger (IncrementalFromLast for both accounts) — and
+  checks the final projections against a one-shot Full rebuild of these
+  facts. Today the per-account `PortfolioRecalculationGate` serializes the
+  snapshot phase and the valuation phase SEPARATELY (each service acquires
+  its own permit), so job B can interleave between job A's phases and value
+  keyframes A has not finished writing, and nothing de-duplicates identical
+  in-flight requests. The coordinator holds one permit per job spanning
+  market sync, FX init, snapshots, valuations and persistence, and
+  single-flights per scope. Expected: whatever the interleaving, the stored
+  keyframes, lots and valuations equal the Full rebuild and exactly one
+  projection runs per scope. No legacy golden: concurrency is not
+  expressible in the single-threaded capture harness.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-a
+    currency: USD
+  - id: acc-b
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-a
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: dep-b
+    account: acc-b
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: 2000
+  - id: buy-a
+    account: acc-a
+    type: BUY
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+    fee: 0
+  - id: buy-b
+    account: acc-b
+    type: BUY
+    date: 2025-01-07T10:00:00Z
+    asset: aapl
+    quantity: 8
+    unit_price: 105
+    amount: 840
+    fee: 0
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 100 }
+  - { asset: aapl, day: 2025-01-07, close: 105 }
+  - { asset: aapl, day: 2025-01-10, close: 110 }
+expected_notes: >
+  Full-rebuild reference: acc-a cash 1000 -> 500 with 5 aapl (value 01-10
+  = 5 x 110 + 500 = 1050); acc-b cash 2000 -> 1160 with 8 aapl (value 01-10
+  = 8 x 110 + 1160 = 2040); portfolio 3090 on 01-10, contributions 3000.
+  The concurrent run must end in exactly this state with no duplicated or
+  missing keyframes (acc-a 01-02, 01-06; acc-b 01-02, 01-07) and no
+  valuation row computed from a half-written snapshot set.

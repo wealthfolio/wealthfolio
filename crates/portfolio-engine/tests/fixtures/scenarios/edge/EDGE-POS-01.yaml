@@ -1,0 +1,42 @@
+id: EDGE-POS-01
+title: SELL of a position that does not exist - cash only
+intent: >
+  A plain SELL for an asset the account never held: `handle_sell` books the
+  proceeds and, finding no position, logs "Attempted to Sell non-existent
+  /zero position ... Applying cash effect only". No position, lot,
+  closure or disposal is created. The kernel keeps the cash-only effect and
+  emits a warning diagnostic.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: ghost
+    symbol: GHOST
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: sell-ghost
+    account: acc-1
+    type: SELL
+    date: 2025-01-03T10:00:00Z
+    asset: ghost
+    quantity: 10
+    unit_price: 50
+    fee: 1
+    amount: 499
+quotes:
+  - { asset: ghost, day: 2025-01-03, close: 50 }
+expected_notes: >
+  Cash 1000 -> 1499 on 01-03; keyframe positions empty; lots and disposals
+  empty; net_contribution 1000. Valuations cash-only and complete (1499 from
+  01-03). Performance: no realized P&L, fees 1 attributed, and the 499 of
+  unexplained cash shows up as a +49.9% TWR (no flow stamped), IRR does not
+  converge, attribution incomplete by 500.

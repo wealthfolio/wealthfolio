@@ -1,0 +1,66 @@
+id: EDGE-STATUS-01
+title: Identical BUY in POSTED, DRAFT, PENDING and VOID
+intent: >
+  Four identical BUY rows differing only in status. The activity compiler
+  drops every non-POSTED row before the holdings calculator sees it, and
+  the valuation/performance flow paths filter on `is_posted()` too, so
+  exactly one lot opens and exactly one cash debit happens.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: buy-posted
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+    status: POSTED
+  - id: buy-draft
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T11:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+    status: DRAFT
+  - id: buy-pending
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T12:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+    status: PENDING
+  - id: buy-void
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T13:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+    status: VOID
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 104 }
+expected_notes: >
+  Cash 2000 -> 1500 (one debit). Exactly one lot (buy-posted, 5 @ 100) and
+  position quantity 5, basis 500. Valuations 01-03 total 2000, 01-06 total
+  2020. No trace of the DRAFT, PENDING or VOID rows anywhere.

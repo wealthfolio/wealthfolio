@@ -1,0 +1,79 @@
+id: NOM-FX-02
+title: Cash booking convention with and without an activity fx_rate
+intent: >
+  A CAD account buys a USD asset twice. buy-1 carries fx_rate 1.35 (activity
+  currency USD, account CAD): its cash settles in the ACCOUNT currency at
+  amount x rate (CAD -1350) and the lot's fx_rate_to_account is the explicit
+  1.35. buy-2 carries no fx_rate: cash settles in the activity-currency
+  bucket (USD -500) and the lot's account rate comes from the FX table on the
+  trade date (1.36).
+policy:
+  base_currency: CAD
+  timezone: UTC
+  as_of: 2025-01-09
+accounts:
+  - id: acc-1
+    name: CAD brokerage
+    currency: CAD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-cad
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: dep-usd
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: 600
+    currency: USD
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+    fee: 0
+    currency: USD
+    fx_rate: 1.35
+  - id: buy-2
+    account: acc-1
+    type: BUY
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+    fee: 0
+    currency: USD
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 100 }
+  - { asset: aapl, day: 2025-01-09, close: 100 }
+fx_rates:
+  - { from: USD, to: CAD, day: 2025-01-02, rate: 1.35 }
+  - { from: USD, to: CAD, day: 2025-01-03, rate: 1.35 }
+  - { from: USD, to: CAD, day: 2025-01-04, rate: 1.35 }
+  - { from: USD, to: CAD, day: 2025-01-05, rate: 1.36 }
+  - { from: USD, to: CAD, day: 2025-01-06, rate: 1.36 }
+  - { from: USD, to: CAD, day: 2025-01-07, rate: 1.36 }
+  - { from: USD, to: CAD, day: 2025-01-08, rate: 1.37 }
+  - { from: USD, to: CAD, day: 2025-01-09, rate: 1.37 }
+expected_notes: >
+  Keyframe 01-02: cash CAD 2000, USD 600; net_contribution 2000 + 600 x 1.35
+  = 2810. Keyframe 01-03: cash CAD 650 (2000 - 1000 x 1.35), USD 600; lot
+  buy-1 fx_rate_to_account 1.35 (explicit), basis 1000 USD = 1350 CAD;
+  position cost_basis_account 1350; cash_total_account_currency 650 + 600 x
+  1.35 = 1460. Keyframe 01-06: cash CAD 650, USD 100 (600 - 500); lot buy-2
+  fx_rate_to_account 1.36 (FX table on 01-06), 500 USD = 680 CAD; position
+  15 units, cost_basis_account 2030, cash_total_account_currency 650 + 100
+  x 1.36 = 786. net_contribution 2810 throughout; no flows after the first
+  row. Valuation 01-08/01-09: market value 1500 USD x 1.37 = 2055, cash 650
+  + 137 = 787, total 2842 CAD; TWR = 2842/2810 - 1 = 1.13879%. Attribution:
+  unrealized 25 (2055 - 2030); the FX gain on the USD cash (7 CAD) is not
+  attributed ("difference 7.00").

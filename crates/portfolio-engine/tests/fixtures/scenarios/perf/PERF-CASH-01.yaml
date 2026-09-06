@@ -1,0 +1,54 @@
+id: PERF-CASH-01
+title: Pure CASH account in a foreign currency across an FX move
+intent: >
+  An EUR cash account (account_type CASH, base USD) holds 1000 EUR while
+  EUR/USD moves 1.05 -> 1.10 and pays out 200 EUR mid-way. Because every
+  account in scope is CASH and the history is cash-only, legacy attributes the
+  base-currency drift of the cash balance as fx_effect: sum over days of
+  (cash_base delta - cash delta x current FX) = 46 USD, and the attribution
+  reconciles exactly to the 880 USD ending value with residual 0.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-09
+accounts:
+  - id: acc-1
+    currency: EUR
+    account_type: CASH
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: wd-1
+    account: acc-1
+    type: WITHDRAWAL
+    date: 2025-01-07T10:00:00Z
+    amount: 200
+fx_rates:
+  - { from: EUR, to: USD, day: 2025-01-02, rate: 1.05 }
+  - { from: EUR, to: USD, day: 2025-01-03, rate: 1.05 }
+  - { from: EUR, to: USD, day: 2025-01-04, rate: 1.06 }
+  - { from: EUR, to: USD, day: 2025-01-05, rate: 1.08 }
+  - { from: EUR, to: USD, day: 2025-01-06, rate: 1.08 }
+  - { from: EUR, to: USD, day: 2025-01-07, rate: 1.08 }
+  - { from: EUR, to: USD, day: 2025-01-08, rate: 1.09 }
+  - { from: EUR, to: USD, day: 2025-01-09, rate: 1.10 }
+expected_notes: >
+  Cash EUR 1000 -> 800 on 01-07; net_contribution 1000 -> 800;
+  net_contribution_base 1050 -> 834 (withdrawal 200 x 1.08 = 216). Values USD:
+  1050, 1050, 1060, 1080, 1080, 864, 872, 880. Flow 01-07: outflow 216
+  CASH_AMOUNT. TWR: 10/1050, 20/1060, 0 on 01-07 ((864 + 216 - 1080)/1080),
+  8/864, 8/872 -> headline 1.10/1.05 - 1 = 0.04761905. value_return
+  (880 - 1050 + 216)/1050 = 0.04380952. IRR flows -1050, +216, +880 (period
+  0.04649827).
+  Account scope attribution (inception): contributions 1050 (opening
+  net_contribution_base), distributions 216, fx_effect 10 + 20 + 0 + 8 + 8 =
+  46, unrealized 0 -> 1050 - 216 + 46 = 880 = delta, residual 0, no warning,
+  quality ok, summary amount 46.
+  LEGACY BEHAVIOR (ledger candidate): the portfolio scope over the same single
+  CASH account reports fx_effect 0 and summary amount 0 with the warning
+  "Performance attribution is incomplete ... Difference: 46.00; tolerance:
+  1.7600": the scoped-unrealized pass replaces the base market movement and
+  only carries investment FX, dropping the cash-only fx_effect.

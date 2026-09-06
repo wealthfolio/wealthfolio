@@ -1,0 +1,124 @@
+id: LIFE-INC-02
+title: Backdated edit of an existing activity (SinceDate vs IncrementalFromLast)
+intent: >
+  The FIRST buy of a two-buy history is edited in place (same id, same date,
+  new quantity/amount) and the two legacy incremental modes are run on the
+  edited facts. Step 1 asks for SinceDate(01-03) = the edited buy's date;
+  because `since` is on/before the account's high-water mark (the 01-13
+  keyframe) legacy's `since_date_is_append_only` upgrades the run to Full and
+  rebuilds keyframes and lots from inception, while the valuation SinceDate
+  path replaces rows from 01-03 (anchor 01-02). Step 2 edits the same buy
+  again and asks for IncrementalFromLast, which never revisits the edited
+  day: it seeds from the latest keyframe (01-13) and only appends. Each step
+  is compared with a full rebuild of the same facts (LIFE-INC-02, I1).
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-15
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 505
+    fee: 5
+  - id: buy-2
+    account: acc-1
+    type: BUY
+    date: 2025-01-13T10:00:00Z
+    asset: aapl
+    quantity: 3
+    unit_price: 110
+    amount: 335
+    fee: 5
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 105 }
+  - { asset: aapl, day: 2025-01-13, close: 110 }
+  - { asset: aapl, day: 2025-01-15, close: 120 }
+lifecycle:
+  - label: backdated_edit_since_date
+    as_of: 2025-01-16
+    update_activities:
+      - id: buy-1
+        account: acc-1
+        type: BUY
+        date: 2025-01-03T10:00:00Z
+        asset: aapl
+        quantity: 8
+        unit_price: 100
+        amount: 805
+        fee: 5
+    add_quotes:
+      - { asset: aapl, day: 2025-01-16, close: 125 }
+    recalc: { snapshots: SINCE_DATE, valuations: SINCE_DATE, since: 2025-01-03 }
+  - label: backdated_edit_incremental_from_last
+    as_of: 2025-01-17
+    update_activities:
+      - id: buy-1
+        account: acc-1
+        type: BUY
+        date: 2025-01-03T10:00:00Z
+        asset: aapl
+        quantity: 6
+        unit_price: 100
+        amount: 605
+        fee: 5
+    add_quotes:
+      - { asset: aapl, day: 2025-01-17, close: 130 }
+    recalc: { snapshots: INCREMENTAL_FROM_LAST, valuations: INCREMENTAL_FROM_LAST }
+expected_notes: >
+  Baseline (as_of 01-15): cash 2000 -> 1495 (buy-1 5 @ 100 + 5 fee) -> 1160
+  (buy-2 3 @ 110 + 5 fee); keyframes 01-02, 01-03, 01-13; position 8 aapl,
+  cost basis 840; total value 01-15 = 8 x 120 + 1160 = 2120.
+  Step 1 (buy-1 edited to 8 @ 100, amount 805; SinceDate 01-03): legacy
+  upgrades to Full because since (01-03) <= high-water mark (01-13). Expected
+  keyframes 01-02 (cash 2000), 01-03 (8 aapl, cash 1195, basis 805), 01-13
+  (11 aapl, cash 860, basis 1140); lots buy-1 8 @ 100 (fee 5) and buy-2 3 @
+  110 (fee 5); valuations 01-03.. repriced, 01-16 = 11 x 125 + 860 = 2235.
+  Expected to MATCH the full rebuild (no extra keyframe: the run is Full).
+  Step 2 (buy-1 edited again to 6 @ 100, amount 605; IncrementalFromLast):
+  the full rebuild has 01-03 = 6 aapl / cash 1395 / basis 605, 01-13 = 9
+  aapl / cash 1060 / basis 940, 01-17 = 9 x 130 + 1060 = 2230. Legacy
+  instead seeds from the stale 01-13 keyframe (11 aapl, cash 860), writes an
+  extra carried-forward keyframe on the resume day 01-14, keeps the stale
+  buy-1 lot (8 units) and appends only the 01-17 valuation (11 x 130 + 860 =
+  2290) on top of the stale rows. Expected NOT to match: the edit is
+  invisible to IncrementalFromLast (finding).
+  LEGACY BEHAVIOR (golden LIFE-INC-02.snap): step 1 matches_full_rebuild =
+  true, differences = [] — the backdated SinceDate(01-03) was upgraded to
+  Full: keyframes 01-02, 01-03 (8 aapl, cash 1195, basis 805), 01-13 (11
+  aapl, cash 860, basis 1140); lots buy-1 8 @ 100 and buy-2 3 @ 110; 01-16
+  total value 2235; no extra keyframe. Step 2 matches_full_rebuild = false
+  with 181 differences (40 listed, then "… and 141 more"): "keyframes: 4
+  items != 3 items" (an extra carried-forward keyframe dated 01-14 — the
+  IncrementalFromLast resume day — holding the stale 11 aapl / cash 860 /
+  cost_basis 1140 state); keyframes[1] (01-03) cash.USD "1195" != "1395",
+  cost_basis "805" != "605", positions.aapl.quantity "8" != "6",
+  average_cost "100.625" != "100.83333333"; keyframes[2] (01-13) cash.USD
+  "860" != "1060", cost_basis "1140" != "940", quantity "11" != "9",
+  average_cost "103.63636364" != "104.44444444"; lots[0] (buy-1)
+  original/remaining_quantity "8" != "6", original/remaining cost basis
+  "805" != "605"; performance twr/irr/value_return "0.145" != "0.115",
+  unrealized_pnl_change "300" != "240", volatility "0.29613921" !=
+  "0.24412558", annualized_irr "26.03420484" != "13.16260103", series[6..14]
+  differ; the hidden remainder is the stale valuation rows (01-13..01-17
+  keep 11 shares: 01-17 total_value 2290 = 11 x 130 + 860 versus 2230 = 9 x
+  130 + 1060 in the full rebuild). IncrementalFromLast never revisits the
+  edited day and never reprices persisted rows, so a backdated edit is
+  invisible to it until a Full (or backdated SinceDate) run.

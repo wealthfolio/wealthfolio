@@ -1,0 +1,64 @@
+id: EDGE-TZ-01
+title: Midnight-straddling activities under a non-UTC policy timezone
+intent: >
+  Policy timezone America/Toronto (UTC-5 in January). A BUY at
+  2025-01-02T03:30:00Z is 01-01 22:30 local and a BUY at
+  2025-01-02T23:30:00Z is 01-02 18:30 local; a 2:1 SPLIT at
+  2025-01-03T02:00:00Z is 01-02 21:00 local. Calendar-date bucketing goes
+  through the policy timezone: keyframes land on 01-01 and 01-02 (not
+  01-02/01-03), the lot opened on local 01-01 is split-eligible (acquired
+  BEFORE the split's local date) while the lot opened on local 01-02 is
+  not (same local date as the split, so it is treated as already
+  post-split), and flow dating and the as_of clamp use local dates.
+policy:
+  base_currency: USD
+  timezone: America/Toronto
+  as_of: 2025-01-06
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-01T15:00:00Z
+    amount: 2000
+  - id: buy-late-night
+    account: acc-1
+    type: BUY
+    date: 2025-01-02T03:30:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+  - id: buy-evening
+    account: acc-1
+    type: BUY
+    date: 2025-01-02T23:30:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 50
+    amount: 500
+  - id: split-1
+    account: acc-1
+    type: SPLIT
+    date: 2025-01-03T02:00:00Z
+    asset: aapl
+    amount: 2
+quotes:
+  - { asset: aapl, day: 2025-01-01, close: 100 }
+  - { asset: aapl, day: 2025-01-02, close: 50 }
+  - { asset: aapl, day: 2025-01-03, close: 52 }
+expected_notes: >
+  Keyframes dated 2025-01-01 (cash 1000, 10 aapl from buy-late-night, lot
+  open_date 2025-01-01) and 2025-01-02 (cash 500, 30 aapl: buy-late-night
+  split_ratio 2 -> 20 effective + buy-evening split_ratio 1 -> 10; basis
+  1500, average_cost 50). No keyframe on 01-03. Valuations start 01-01:
+  10 x 100 + 1000 = 2000; 01-02: 30 x 50 + 500 = 2000; 01-03..01-06: 30 x
+  52 + 500 = 2060. The raw quote series (100 -> 50) is detected as
+  unadjusted, so no price factor. The 2000 deposit lands on the first
+  valuation row (2025-01-01), whose flows are always zeroed, so no flow row
+  appears; contributions 2000, TWR +3%.

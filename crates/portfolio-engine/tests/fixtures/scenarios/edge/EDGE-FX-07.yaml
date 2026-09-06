@@ -1,0 +1,54 @@
+id: EDGE-FX-07
+title: Only observation a year away - unbounded carry, fallback unreachable
+intent: >
+  CAD account, USD base, USD-quoted asset, and a single USD->CAD observation
+  dated 2024-01-01 while every activity and valuation is in January 2025.
+  The nearest-neighbor converter has no time bound, so the year-old rate is
+  used everywhere with `complete` status and no warning. The legacy
+  last-resort step (`FxService::get_rate_for_date_between_normalized`
+  falling back to the repository's latest stored rate with a log warning)
+  is only taken when the converter has NO path for the pair, and the
+  converter is built from the same rows the fallback reads, so the fallback
+  is unreachable in this harness (and in production, where the converter is
+  initialized from all historical rates). The kernel replaces the silent
+  carry with a typed staleness degradation unless open question 10 keeps
+  the fallback.
+  Parity: the kernel reproduces the legacy result exactly, so there is no ledger entry.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: CAD
+assets:
+  - id: us
+    symbol: USS
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1300
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: us
+    quantity: 5
+    unit_price: 100
+    amount: 500
+    currency: USD
+quotes:
+  - { asset: us, day: 2025-01-03, close: 100 }
+  - { asset: us, day: 2025-01-06, close: 102 }
+fx_rates:
+  - { from: USD, to: CAD, day: 2024-01-01, rate: 1.30 }
+expected_notes: >
+  LEGACY BEHAVIOR: every conversion uses the 2024-01-01 rate: lot
+  fx_rate_to_account 1.30, fx_rate_to_base 1, cost_basis_account 650; cash
+  {CAD 1300, USD -500}; valuations 01-03 investment 650 CAD, cash 650, total
+  1300, fx_rate_to_base 0.76923077 (1/1.30), total_base 1000; 01-06
+  investment 663, total 1313, base 1010; value_status complete on every
+  row and no diagnostics despite the 370-day-old observation.

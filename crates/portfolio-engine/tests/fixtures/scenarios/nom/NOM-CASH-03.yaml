@@ -1,0 +1,59 @@
+id: NOM-CASH-03
+title: CREDIT subtype matrix (BONUS, REBATE, REFUND, REIMBURSEMENT, none)
+intent: >
+  Five CREDIT rows differ only by subtype. Every one books cash; only BONUS is
+  external capital (moves net_contribution and is stamped as an external
+  flow). REBATE, REFUND, REIMBURSEMENT and an untyped CREDIT are internal.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: cr-bonus
+    account: acc-1
+    type: CREDIT
+    subtype: BONUS
+    date: 2025-01-03T10:00:00Z
+    amount: 50
+  - id: cr-rebate
+    account: acc-1
+    type: CREDIT
+    subtype: REBATE
+    date: 2025-01-04T10:00:00Z
+    amount: 10
+  - id: cr-refund
+    account: acc-1
+    type: CREDIT
+    subtype: REFUND
+    date: 2025-01-05T10:00:00Z
+    amount: 5
+  - id: cr-reimb
+    account: acc-1
+    type: CREDIT
+    subtype: REIMBURSEMENT
+    date: 2025-01-06T10:00:00Z
+    amount: 7
+  - id: cr-plain
+    account: acc-1
+    type: CREDIT
+    date: 2025-01-07T10:00:00Z
+    amount: 3
+expected_notes: >
+  Cash: 1000 -> 1050 (01-03) -> 1060 -> 1065 -> 1072 -> 1075 (01-07).
+  net_contribution: 1000, then 1050 from 01-03 and never again (only BONUS).
+  `flows` (account and portfolio): exactly one row, 01-03 inflow 50
+  CASH_AMOUNT. TWR: 01-03 is 0% ((1050-50)/1000 - 1), then 1075/1050 - 1 =
+  2.380952% cumulative; contributions 1050. LEGACY BEHAVIOR: the 25 of
+  non-bonus credits are not attributed anywhere (CREDIT is not an income
+  type in attribution): income 0, residual 0, summary amount 0, quality
+  partial, and the diagnostics report "attribution incomplete, difference
+  25" at both scopes.

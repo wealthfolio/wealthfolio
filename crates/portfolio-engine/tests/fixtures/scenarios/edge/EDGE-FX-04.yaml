@@ -1,0 +1,53 @@
+id: EDGE-FX-04
+title: Base-FX pair fully unresolvable - legacy fails the whole account
+intent: >
+  EUR account, USD base, EMPTY fx table. The holdings stage survives (it
+  falls back per leg), but `calculate_prepared_valuation_account_from_facts`
+  skips every day whose account->base rate is missing and then returns an
+  error for the account ("Incomplete valuation history"), so NO valuation
+  row is persisted at all, not even the EUR-denominated columns that need
+  no FX. The kernel emits every day with a typed degradation (base columns
+  unavailable) and continues.
+markers: [L]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: EUR
+assets:
+  - id: eu
+    symbol: EUS
+    quote_ccy: EUR
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: eu
+    quantity: 5
+    unit_price: 100
+    amount: 500
+quotes:
+  - { asset: eu, day: 2025-01-03, close: 100 }
+  - { asset: eu, day: 2025-01-06, close: 102 }
+expected_notes: >
+  LEGACY BEHAVIOR: keyframes are computed (cash EUR 1000 then 500, position
+  5 @ 100) but with net_contribution_base 0 (base leg skipped) while
+  cash_total_base_currency carries the UNCONVERTED EUR amounts (1000, 500),
+  the position has no cost_basis_base scalar and the lot has fx_rate_to_base
+  0 / basis_base 0. The valuation batch reports acc-1 as
+  VALUATION_CALCULATION_FAILED: the activity flow pass fails first ("Failed
+  to convert external flow 1000 EUR->USD on 2025-01-02 for activity dep-1
+  ... Exchange rate not found for EUR/USD"); had it passed, the per-day
+  "missing base-currency FX rate EUR->USD" check would have failed the
+  account the same way. The account has zero valuation rows and zero flows,
+  every performance window reports an error, and the scoped portfolio read
+  fails too ("flows/portfolio: error"). Economically the EUR columns (cash
+  500, investment 500 -> 510, total 1000 -> 1010) are fully known.

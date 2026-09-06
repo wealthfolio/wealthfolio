@@ -1,0 +1,47 @@
+id: EDGE-DEC-01
+title: Unparseable decimal in a monetary field (storage-boundary variant)
+intent: >
+  A corrupt monetary text (e.g. amount stored as "12.3abc") is a
+  storage-boundary fact: the SQLite repositories parse it through
+  `parse_decimal_string_tolerant`, which silently yields ZERO, so the
+  legacy pipeline books no cash for the row. The fixture loader parses
+  decimals strictly (a corrupt literal is rejected at load time), so this
+  file carries the WELL-FORMED facts of the same small trade. The shell-level
+  test (Phase 3, storage-sqlite recipe) stores the corrupt text for `amount`
+  of `buy-1` and asserts: legacy books 0 cash for the BUY (the lot still
+  opens at qty x price + fee); the kernel emits a typed diagnostic and
+  excludes the row. Marked [S]: not captured by the in-memory harness.
+markers: [S]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    fee: 1
+    amount: 501
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 105 }
+expected_notes: >
+  Well-formed facts: cash 1000 then 499; lot buy-1 5 @ 100 with basis 501;
+  valuations 01-03 999, 01-06 onward 1024. With the corrupt `amount` text
+  stored at the SQLite boundary, legacy would instead show cash 1000 after
+  the BUY (silent zero) while the lot still opens with basis 501.

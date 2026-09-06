@@ -1,0 +1,47 @@
+id: EDGE-FX-05
+title: Deposit whose currency has no FX to base - account/base drift
+intent: >
+  CAD account, USD base. The second deposit is in CHF and carries an
+  explicit activity fx_rate (CHF->CAD 1.60); no CHF rate exists anywhere, so
+  "no FX on the deposit date" holds for CHF->USD. Legacy: net_contribution
+  advances by 500 x 1.60 = 800 CAD (explicit rate), the base leg is SKIPPED
+  (net_contribution_base unchanged), while the end-of-day cash totals add
+  the raw 500 (a third, unconverted view of the same deposit). Because the
+  nearest-neighbor converter is unbounded in time, a date-local FX gap
+  cannot exist for a pair that has any observation; the only way to reach
+  this path in legacy is a pair with no observation at all, which also
+  makes the valuation stage fail the account (every cash bucket must
+  convert), so the drift is pinned on the keyframes only.
+markers: [L]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: CAD
+activities:
+  - id: dep-cad
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: dep-chf
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-03T10:00:00Z
+    amount: 500
+    currency: CHF
+    fx_rate: 1.60
+fx_rates:
+  - { from: CAD, to: USD, day: 2025-01-02, rate: 0.70 }
+expected_notes: >
+  Keyframe 01-02: cash CAD 1000, net_contribution 1000, net_contribution_base
+  700, totals 1000 / 700. Keyframe 01-03: cash {CAD 1000, CHF 500},
+  net_contribution 1800 (explicit 1.60), net_contribution_base 700 (base leg
+  skipped: 500 CHF worth 0 USD), cash_total_account_currency 1500 and
+  cash_total_base_currency 1200 (raw 500 added unconverted) - three
+  inconsistent views of one deposit. Valuation of acc-1 fails
+  (VALUATION_CALCULATION_FAILED: "Failed to convert external flow 500
+  CHF->USD on 2025-01-03 for activity dep-chf"); no valuation rows, no
+  flows, no performance, and the scoped portfolio read fails as well.

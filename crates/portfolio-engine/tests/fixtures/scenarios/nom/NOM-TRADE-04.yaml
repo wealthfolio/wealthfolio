@@ -1,0 +1,62 @@
+id: NOM-TRADE-04
+title: Zero-price buy and bond amount-based trade (writer-side derivation)
+intent: >
+  Shell-level facts for the writer's final-cash derivation. A BOND trade is
+  entered in face value with the provider fraction-of-par quote (0.995 x
+  10000 face = 9950, default multiplier 1); the writer stores amount 9950. A
+  zero-price BUY (share award) stores an explicit amount 0 because there is
+  nothing to derive. The kernel-side behaviour of these rows is EDGE-CASH-02;
+  this scenario is outside the parity gate (marker S) and has no legacy
+  golden.
+markers: [S]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - id: tbond
+    symbol: US91282CJK
+    quote_ccy: USD
+    instrument_type: BOND
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 20000
+  - id: buy-bond
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: tbond
+    quantity: 10000
+    unit_price: 0.995
+    amount: 9950
+    fee: 0
+  - id: buy-award
+    account: acc-1
+    type: BUY
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 0
+    amount: 0
+    fee: 0
+quotes:
+  - { asset: tbond, day: 2025-01-03, close: 0.995 }
+  - { asset: tbond, day: 2025-01-10, close: 0.997 }
+  - { asset: aapl, day: 2025-01-06, close: 100 }
+  - { asset: aapl, day: 2025-01-10, close: 102 }
+expected_notes: >
+  Writer-level: calculate_trade_final_cash(10000 x 0.995 x 1 + 0) = 9950
+  matches the stored amount; the zero-price buy derives no gross, so the
+  stored explicit 0 stands. If a kernel golden is ever produced: cash 20000
+  -> 10050 after the bond, unchanged after the award; bond position 10000
+  face valued 9950 (01-03) and 9970 (01-10); aapl 5 units with a zero-cost
+  lot (basis 0, unit price 0) valued 500 on 01-06 and 510 on 01-10.

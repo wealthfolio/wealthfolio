@@ -1,0 +1,59 @@
+id: PERF-HOLD-02
+title: Holdings transition with an unpriced side gates dated returns
+intent: >
+  The second observed snapshot introduces nvda, which has no quotes. From
+  01-08 the rows are PARTIAL_UNPRICED (nvda excluded from market value) and the
+  01-08 keyframe transition cannot be priced on both sides, so it is stamped
+  UNPRICED_HOLDINGS_TRANSITION (0/0). For a dated window that marker makes
+  holdings flows unavailable: value return, P&L and the series are nulled with
+  typed reasons. All-time still reports the book-basis return, which counts
+  nvda's 200 basis in the denominator with no market value.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-h
+    currency: USD
+    tracking_mode: HOLDINGS
+assets:
+  - id: aapl
+    quote_ccy: USD
+  - id: nvda
+    quote_ccy: USD
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 104 }
+  - { asset: aapl, day: 2025-01-12, close: 112 }
+observed_snapshots:
+  - account: acc-h
+    date: 2025-01-02
+    positions: [{ asset: aapl, quantity: 10, average_cost: 90 }]
+    cash: { USD: 500 }
+  - account: acc-h
+    date: 2025-01-08
+    positions:
+      - { asset: aapl, quantity: 10, average_cost: 90 }
+      - { asset: nvda, quantity: 5, average_cost: 40 }
+    cash: { USD: 300 }
+performance_windows:
+  - { label: dated, start: 2025-01-04, end: 2025-01-12 }
+expected_notes: >
+  Rows 01-02..01-07: COMPLETE, value 1500, book_basis 1400. Rows 01-08..01-11:
+  PARTIAL_UNPRICED, value 1040 + 300 = 1340 (nvda unpriced), cost_basis 1100,
+  book_basis 1400; 01-12 value 1420. Flow 01-08: 0/0
+  UNPRICED_HOLDINGS_TRANSITION; other days NO_FLOW. all_time: value_return
+  (1420 - 1400)/1400 = 0.01428571, amount 20 (understated: aapl alone gained
+  220 on 900); basis_status complete; TWR/IRR holdings reasons; the chained
+  all-time series drops to -0.10666667 on 01-08 (the unpriceable transition is
+  chained as a -160 loss) and ends at -0.05333333 while the headline is
+  +0.0143. dated (01-04..01-12): value_return and amount null with reasons
+  "Value return unavailable for holdings-only scope because external cash
+  flows could not be inferred from snapshots." and the matching P&L reason;
+  summary amount and percent unavailable; series holds only the 01-04 zero
+  point; risk fields null. Both windows also warn "External cash flow
+  provenance is incomplete" and carry a spurious attribution-incomplete
+  warning (all_time difference -100, dated -80). No "unpriced positions"
+  warning is emitted on the holdings path. Portfolio scope mirrors the
+  account, except its all-time amount is the period-start unrealized delta
+  -80 instead of 20 (same inconsistency as PERF-HOLD-01).

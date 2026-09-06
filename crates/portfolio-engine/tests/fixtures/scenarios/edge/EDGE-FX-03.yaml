@@ -1,0 +1,35 @@
+id: EDGE-FX-03
+title: Bidirectional nearest FX observation with tie-to-past
+intent: >
+  CAD account, USD base, cash only, with CAD->USD rates on 01-06, 01-09 and
+  01-11 only. `CurrencyConverter::get_direct_rate` picks the closest
+  observation on either side of the valuation date and prefers the PAST on
+  a tie (`dist_prev <= dist_next`). The dense valuation rows pin every
+  case: exact match, nearer past, nearer FUTURE, tie, and past-only after
+  the last observation.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-1
+    currency: CAD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-06T10:00:00Z
+    amount: 1000
+fx_rates:
+  - { from: CAD, to: USD, day: 2025-01-06, rate: 0.70 }
+  - { from: CAD, to: USD, day: 2025-01-09, rate: 0.72 }
+  - { from: CAD, to: USD, day: 2025-01-11, rate: 0.74 }
+expected_notes: >
+  fx_rate_to_base per row: 01-06 0.70 (exact); 01-07 0.70 (1 day back beats
+  2 days forward); 01-08 0.72 (1 day FORWARD beats 2 days back); 01-09 0.72
+  (exact); 01-10 0.72 (tie 1/1 -> past); 01-11 0.74 (exact); 01-12 0.74
+  (past only). total_value_base = 1000 x that rate; net_contribution_base
+  700 (deposit-date rate) on every row, so the 01-08 row shows a base
+  "gain" of 20 from a future rate. Performance: TWR 5.71% (700 -> 740) with
+  no attribution component for the FX move on cash ("attribution is
+  incomplete ... Difference: 40").

@@ -1,0 +1,95 @@
+id: EDGE-QT-05
+title: Unadjusted quotes across a split, and competing split candidates
+intent: >
+  Asset `raw`: quotes are RAW (100 before the 2:1 split, 50 after). The
+  observed ratio 100/50 = 2 sits on the split ratio, so
+  `quotes_appear_split_adjusted` is false and no price factor is applied;
+  the lot's split_ratio alone doubles the quantity (10 x 100 = 20 x 50).
+  Asset `dup`: two SPLIT rows one local day apart for the same event with
+  DIFFERENT ratios - a user-modified MANUAL row (ratio 2, 01-13) and a
+  GENERATED row (ratio 3, 01-14). The valuation's
+  `select_shared_split_activities` clusters candidates within one day and
+  ranks sources (user-modified/MANUAL/CSV 3 > other 2 > GENERATED 1), so the
+  manual ratio 2 wins; `dup` quotes look adjusted (flat 30), so factor 2 is
+  applied before 01-13 (a factor of 3 would reveal the wrong winner). The
+  holdings calculator has NO such dedupe: it applies every SPLIT row to the
+  lots, so the `dup` lot ends with split_ratio 6 - captured as-is.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-17
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: raw
+    symbol: RAW
+    quote_ccy: USD
+  - id: dup
+    symbol: DUP
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 5000
+  - id: buy-raw
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: raw
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+  - id: buy-dup
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T11:00:00Z
+    asset: dup
+    quantity: 10
+    unit_price: 60
+    amount: 600
+  - id: split-raw
+    account: acc-1
+    type: SPLIT
+    date: 2025-01-09T10:00:00Z
+    asset: raw
+    amount: 2
+  - id: split-dup-manual
+    account: acc-1
+    type: SPLIT
+    date: 2025-01-13T10:00:00Z
+    asset: dup
+    amount: 2
+    source_system: MANUAL
+    is_user_modified: true
+  - id: split-dup-generated
+    account: acc-1
+    type: SPLIT
+    date: 2025-01-14T10:00:00Z
+    asset: dup
+    amount: 3
+    source_system: GENERATED
+quotes:
+  - { asset: raw, day: 2025-01-03, close: 100 }
+  - { asset: raw, day: 2025-01-08, close: 100 }
+  - { asset: raw, day: 2025-01-09, close: 50 }
+  - { asset: raw, day: 2025-01-13, close: 51 }
+  - { asset: dup, day: 2025-01-03, close: 30 }
+  - { asset: dup, day: 2025-01-08, close: 30 }
+  - { asset: dup, day: 2025-01-10, close: 30 }
+  - { asset: dup, day: 2025-01-13, close: 30 }
+  - { asset: dup, day: 2025-01-15, close: 31 }
+expected_notes: >
+  Cash 3400 from 01-03. raw: 10 shares valued 1000 through 01-08 (no factor
+  on the raw series), 20 shares x 50 = 1000 from 01-09, 1020 from 01-13;
+  lot split_ratio 2. dup: valued 600 from 01-03 through 01-12 (10 x 30 x
+  factor 2 from the MANUAL winner - the GENERATED ratio 3 would give 900);
+  01-13 keyframe: quantity 20 (manual split applied by holdings), valuation
+  20 x 30 = 600. LEGACY BEHAVIOR on 01-14: the GENERATED split is applied
+  AGAIN by the holdings calculator (lot split_ratio 6, quantity 60,
+  average_cost 10) while the valuation only dedupes price factors, so the
+  position jumps to 60 x 30 = 1800 and 60 x 31 = 1860 from 01-15 - a
+  phantom tripling of the position (double-applied split) with a
+  corresponding phantom gain in TWR.

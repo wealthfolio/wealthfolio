@@ -1,0 +1,65 @@
+id: REG-0913
+title: Full rebuild must not destroy observed snapshots (issue #913)
+markers: [S]
+intent: >
+  Coordinator-level scenario (shell, not parity-gated). A TRANSACTIONS account
+  carries a MANUAL_ENTRY opening-balance snapshot dated before its first
+  activity, next to a HOLDINGS account that only has observed snapshots. The
+  legacy Full recalculation persists keyframes through
+  overwrite_all_snapshots_for_account, which deletes EVERY source for the
+  account - the manual opening balance of acc-t is wiped and the rebuilt
+  keyframes start from the first activity, while acc-h survives only because
+  HOLDINGS accounts are skipped by the transaction recalculation. The
+  lifecycle step reruns Full with no mutation to show the wipe is
+  reproducible. The coordinator + facts/projections split makes the wipe
+  structurally impossible.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-t
+    currency: USD
+  - id: acc-h
+    currency: USD
+    tracking_mode: HOLDINGS
+assets:
+  - id: aapl
+    quote_ccy: USD
+  - id: msft
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-t
+    type: DEPOSIT
+    date: 2025-01-05T10:00:00Z
+    amount: 200
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 110 }
+  - { asset: msft, day: 2025-01-02, close: 50 }
+  - { asset: msft, day: 2025-01-08, close: 52 }
+observed_snapshots:
+  - account: acc-t
+    date: 2025-01-02
+    positions: [{ asset: aapl, quantity: 10, average_cost: 90 }]
+    cash: { USD: 500 }
+  - account: acc-h
+    date: 2025-01-02
+    positions: [{ asset: msft, quantity: 4, average_cost: 50 }]
+    cash: { USD: 100 }
+lifecycle:
+  - label: full_rebuild_again
+    recalc: { snapshots: FULL, valuations: FULL }
+expected_notes: >
+  Expected (kernel/coordinator): acc-t keeps its 01-02 MANUAL_ENTRY keyframe
+  (10 aapl @ 90, cash 500) and the 01-05 CALCULATED keyframe continues from it
+  (cash 700, position intact); valuations start 01-02 at 1500.
+  Legacy (temporary capture with the marker removed, 2026-09-02): the baseline
+  Full run already deletes the manual row for acc-t, so keyframes show only
+  01-05 CALCULATED with cash 200 and no position, valuations start 01-05 at
+  200, account performance covers 01-05..01-08 with TWR 0, and the lifecycle
+  Full step matches that full rebuild trivially (matches_full_rebuild true).
+  acc-h keeps its MANUAL_ENTRY keyframe (4 msft @ 50, cash 100; value 300 ->
+  308, book-basis return 8/300 = 0.02666667) in both runs. Portfolio (mixed):
+  value_return 0.016 = 8 / (300 + 200).

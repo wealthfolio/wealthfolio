@@ -1,0 +1,56 @@
+id: EDGE-QT-04
+title: Provider-adjusted quote series across a 2:1 split
+intent: >
+  The quote series is ALREADY split-adjusted (the provider restated
+  pre-split closes at half price), while lots are kept in as-acquired units
+  with a per-lot split_ratio. `quotes_appear_split_adjusted` compares the
+  last close before the split date with the first close on/after it: the
+  observed ratio (52/52 = 1) is closer to 1 than to the split ratio 2, so
+  the series is detected as adjusted and `split_price_factors_for_date`
+  multiplies the close by 2 on every day BEFORE the split date. Value is
+  continuous across the split: 10 x 52 x 2 before, 20 x 52 after.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-14
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: splitter
+    symbol: SPLT
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: splitter
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+  - id: split-1
+    account: acc-1
+    type: SPLIT
+    date: 2025-01-09T10:00:00Z
+    asset: splitter
+    amount: 2
+quotes:
+  - { asset: splitter, day: 2025-01-03, close: 50 }
+  - { asset: splitter, day: 2025-01-06, close: 50 }
+  - { asset: splitter, day: 2025-01-08, close: 52 }
+  - { asset: splitter, day: 2025-01-09, close: 52 }
+  - { asset: splitter, day: 2025-01-13, close: 54 }
+expected_notes: >
+  Keyframes: 01-03 position 10 @ 100 (basis 1000, cash 1000); 01-09
+  position quantity 20, average_cost 50, basis unchanged 1000, lot buy-1
+  split_ratio 2 with as-acquired quantity 10. Valuations: 01-03..01-05
+  investment 1000 (10 x 50 x factor 2); 01-06/07 1000; 01-08 1040 (10 x 52 x
+  2); 01-09..01-12 1040 (20 x 52, no factor on/after the split date); 01-13
+  onward 1080. Total = investment + 1000 cash; no price discontinuity on
+  01-09; value_status complete.

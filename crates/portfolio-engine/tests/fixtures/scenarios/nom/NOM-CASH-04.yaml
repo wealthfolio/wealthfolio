@@ -1,0 +1,39 @@
+id: NOM-CASH-04
+title: Standalone FEE with amount != fee; TAX with fee only and no amount
+intent: >
+  Pins the post-refactor rule that runtime cash reads the stored `amount`
+  only. fee-1 carries amount 7 but fee 9: cash moves by 7. tax-1 carries only
+  fee 4 (amount absent, tax absent): the writer would have filled amount at
+  write time, but the runtime never derives it, so the row has no cash effect.
+  Attribution uses resolve_cash().final_amount for standalone FEE/TAX.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: fee-1
+    account: acc-1
+    type: FEE
+    date: 2025-01-05T10:00:00Z
+    amount: 7
+    fee: 9
+  - id: tax-1
+    account: acc-1
+    type: TAX
+    date: 2025-01-07T10:00:00Z
+    fee: 4
+expected_notes: >
+  Cash 1000 -> 993 on 01-05 (amount 7 wins over fee 9). tax-1 changes nothing:
+  cash stays 993 on 01-07 (the 01-07 keyframe, if emitted, equals 01-05).
+  net_contribution 1000 throughout. Attribution: fees 7 (final_amount of
+  fee-1, not 9), taxes 0 (tax-1 has no final amount), income 0. TWR =
+  993/1000 - 1 = -0.7%. No flows after the first row.

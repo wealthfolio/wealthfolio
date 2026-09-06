@@ -1,0 +1,49 @@
+id: NOM-TXF-06
+title: Same-account cash FX conversion (USD out, CAD in, one source_group_id)
+intent: >
+  A single USD account converts 1000 USD into 1350 CAD: TRANSFER_OUT USD 1000
+  and TRANSFER_IN CAD 1350 with one source_group_id. The pair is valid today
+  (same account, cash, different currencies) so no external flow is stamped
+  at either scope. Pins the resulting cash buckets and the net_contribution
+  effect of the two legs (open question 9).
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    name: Multi-currency
+    currency: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: out-usd
+    account: acc-1
+    type: TRANSFER_OUT
+    date: 2025-01-06T10:00:00Z
+    amount: 1000
+    currency: USD
+    source_group_id: fx1
+  - id: in-cad
+    account: acc-1
+    type: TRANSFER_IN
+    date: 2025-01-06T11:00:00Z
+    amount: 1350
+    currency: CAD
+    source_group_id: fx1
+fx_rates:
+  - { from: USD, to: CAD, day: 2025-01-02, rate: 1.35 }
+  - { from: USD, to: CAD, day: 2025-01-06, rate: 1.35 }
+  - { from: USD, to: CAD, day: 2025-01-10, rate: 1.35 }
+expected_notes: >
+  Keyframe 01-06: cash USD 1000 and CAD 1350; cash_total_account_currency
+  2000 (1350 / 1.35 = 1000 CAD->USD). net_contribution 2000 -> 2000 - 1000 +
+  1350/1.35 = 2000 (each leg converted separately; exact only because the
+  booked rate equals the day's FX rate). Valuations: total value 2000 every
+  day; persisted rows keep NO_FLOW on 01-06; the scoped `flows` read lists a
+  01-06 row with inflow 0 / outflow 0 and source CASH_AMOUNT at both scopes
+  (the internal-pair adjustment marker), i.e. no external flow. TWR 0%,
+  contributions 2000, no attribution warnings.

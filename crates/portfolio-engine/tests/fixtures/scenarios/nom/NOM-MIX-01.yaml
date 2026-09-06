@@ -1,0 +1,93 @@
+id: NOM-MIX-01
+title: Transactions accounts with an internal transfer plus a holdings account
+intent: >
+  acc-a and acc-b are TRANSACTIONS accounts linked by a paired cash transfer
+  (400 on 01-06); acc-h is a HOLDINGS account whose second observed keyframe
+  adds 200 of cash. At portfolio scope the internal transfer nets out
+  (portfolio flows show nothing on 01-06) while the holdings transition on
+  01-09 is a real inferred inflow (I9 aggregation); the portfolio
+  performance is reported as mixed tracking mode.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-a
+    name: Transactions A
+    currency: USD
+  - id: acc-b
+    name: Transactions B
+    currency: USD
+  - id: acc-h
+    name: Holdings
+    currency: USD
+    tracking_mode: HOLDINGS
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: dep-2
+    account: acc-b
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: 500
+  - id: buy-1
+    account: acc-a
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+    fee: 0
+  - id: out-1
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-06T10:00:00Z
+    amount: 400
+    source_group_id: g1
+  - id: in-1
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-06T11:00:00Z
+    amount: 400
+    source_group_id: g1
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 104 }
+  - { asset: aapl, day: 2025-01-09, close: 108 }
+  - { asset: aapl, day: 2025-01-12, close: 110 }
+observed_snapshots:
+  - account: acc-h
+    date: 2025-01-02
+    source: MANUAL_ENTRY
+    positions: [{ asset: aapl, quantity: 10, average_cost: 90 }]
+    cash: { USD: 100 }
+  - account: acc-h
+    date: 2025-01-09
+    source: MANUAL_ENTRY
+    positions: [{ asset: aapl, quantity: 10, average_cost: 90 }]
+    cash: { USD: 300 }
+expected_notes: >
+  acc-a: cash 2000 -> 1500 (buy) -> 1100 (transfer out); 5 aapl;
+  net_contribution 2000 -> 1600; flows 01-06 outflow 400 CASH_AMOUNT. acc-b:
+  cash 500 -> 900; net_contribution 900; flows 01-06 inflow 400. acc-h:
+  keyframes 01-02 and 01-09 (MANUAL_ENTRY), flow 01-09 inflow 200 (= 10 x
+  108 + 300 - (10 x 108 + 100)) QUOTE_DERIVED_MARKET_VALUE; is_holdings_mode
+  true, value_return 16.67%. Portfolio flows: the 01-06 row nets to zero
+  (source CASH_AMOUNT, internal pair), 01-09 inflow 200. Portfolio total
+  value: 01-02 2000 + 500 + 1100 = 3600; 01-12 1650 + 900 + 1400 = 3950.
+  Portfolio performance is_mixed_tracking_mode true (is_holdings_mode
+  false), method valueReturn 6.756757%, TWR/IRR unavailable ("mixed
+  transaction and holdings scopes"). LEGACY BEHAVIOR (attribution): the
+  portfolio sums account-level components, so contributions 2900 = 2000 +
+  500 + 400 (the internal transfer-in) and distributions 400 (the
+  transfer-out) instead of netting the pair, the 200 holdings inflow is not
+  a contribution, and acc-h reports the 200 cash increase as unrealized P&L
+  (unrealized 200, "difference 100").

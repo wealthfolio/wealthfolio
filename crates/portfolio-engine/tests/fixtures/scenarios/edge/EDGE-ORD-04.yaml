@@ -1,0 +1,52 @@
+id: EDGE-ORD-04
+title: Same-instant buy then sell folds in creation order, not id order
+intent: >
+  Kernel-only. Date-only imports stamp every row of a day at the same
+  instant, and the legacy pipeline folded ties in insertion (rowid) order.
+  The kernel therefore breaks timestamp ties by created_at before the id:
+  here the BUY's id sorts AFTER the SELL's id, but it was created first, so
+  the buy must open the lot before the sell closes part of it. Folding by id
+  would reject the sell ("no position") and leave 5 shares held with no
+  realized gain. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: a-deposit
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T00:00:00Z
+    amount: 1000
+  - id: z-buy
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T00:00:00Z
+    created_at: 2025-01-03T15:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+  - id: a-sell
+    account: acc-1
+    type: SELL
+    date: 2025-01-03T00:00:00Z
+    created_at: 2025-01-03T15:00:01Z
+    asset: aapl
+    quantity: 2
+    unit_price: 110
+    amount: 220
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 110 }
+expected_notes: >
+  Kernel golden: the buy opens 5 @ 100, the sell closes 2 with realized +20;
+  cash 720, position 3 (basis 300), total 1050 on 01-03, no rejection
+  diagnostics. Id order alone (a-sell < z-buy) would produce cash 720 with a
+  rejected sell and 5 shares still open.

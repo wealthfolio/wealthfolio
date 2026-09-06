@@ -1,0 +1,53 @@
+id: EDGE-DEC-02
+title: Corrupt lot-disposal record in the removed-lot-basis transfer flow
+intent: >
+  A security TRANSFER_OUT with no quote on the transfer date defers its
+  performance flow to the removed-lot basis
+  (`ExternalFlowSource::RemovedLotBasisFallback`), read back from the
+  persisted lot-disposal row through `parse_decimal_lossy` (valuation_service
+  `removed_lot_basis_by_activity_base`). A corrupt `cost_basis_base` text in
+  that row silently contributes 0, which the legacy path then relabels as an
+  Unknown flow. The fixture loader is strict and lot disposals are produced
+  by the pipeline itself, so this file carries the well-formed facts; the
+  shell-level test corrupts the persisted disposal row. Marked [S].
+markers: [S]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 50
+    amount: 500
+  - id: xfer-out
+    account: acc-1
+    type: TRANSFER_OUT
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: 10
+    metadata: { flow: { is_external: true } }
+expected_notes: >
+  No quotes at all for aapl, so the external TRANSFER_OUT on 01-06 gets its
+  flow from the removed lot basis: outflow 500 with source
+  REMOVED_LOT_BASIS_FALLBACK; disposal proceeds = cost basis = 500, P&L 0;
+  net_contribution drops from 1000 to 500. Valuations while the unpriced
+  position is held (01-03..01-05) are partialUnpriced (cash 500 priced,
+  position not); after the transfer the account is cash-only and complete.
+  A corrupt disposal cost_basis_base would turn the 01-06 outflow into 0 /
+  Unknown.

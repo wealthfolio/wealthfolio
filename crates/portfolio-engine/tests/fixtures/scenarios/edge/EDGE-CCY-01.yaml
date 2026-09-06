@@ -1,0 +1,70 @@
+id: EDGE-CCY-01
+title: GBp-quoted asset in a GBP account - minor-unit normalization
+intent: >
+  LSE share quoted in pence (asset quote_ccy GBp) bought and partly sold
+  from a GBP account with base GBP. Convention pinned here (what the code
+  supports): the ACTIVITY is entered in the account currency GBP with the
+  unit price in pounds (2.50), which is how the app's activity form records
+  it; the POSITION currency is the asset's quote currency GBp, so the
+  holdings calculator converts the trade price/fee into pence through
+  `FxService::convert_currency_for_date(GBP -> GBp)`, which resolves to the
+  minor-unit multiplier x100 (both codes normalize to GBP, so no market rate
+  is consulted). Lot book rates GBp->GBP and GBp->base are the x0.01
+  multiplier; valuation normalizes the pence close x0.01 before pricing;
+  disposal proceeds are converted into pence and cost_basis_base uses the
+  major unit.
+policy:
+  base_currency: GBP
+  timezone: Europe/London
+  as_of: 2025-01-14
+accounts:
+  - id: acc-1
+    name: ISA
+    currency: GBP
+assets:
+  - id: vod
+    symbol: VOD.L
+    quote_ccy: GBp
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: vod
+    quantity: 100
+    unit_price: 2.50
+    fee: 5
+    amount: 255
+  - id: sell-1
+    account: acc-1
+    type: SELL
+    date: 2025-01-09T10:00:00Z
+    asset: vod
+    quantity: 40
+    unit_price: 3.00
+    fee: 2
+    amount: 118
+quotes:
+  - { asset: vod, day: 2025-01-03, close: 250 }
+  - { asset: vod, day: 2025-01-06, close: 280 }
+  - { asset: vod, day: 2025-01-09, close: 300 }
+  - { asset: vod, day: 2025-01-13, close: 310 }
+expected_notes: >
+  Cash GBP 1000 -> 745 (01-03) -> 863 (01-09). Lot buy-1 is kept in pence:
+  cost_per_unit 250, original_cost_basis 25500 (100 x 250 + 500 fee),
+  fx_rate_to_account 0.01, fx_rate_to_base 0.01, original_cost_basis_base
+  255; the position shows quantity 100, average_cost 255 (pence), and
+  cost_basis_account/base 255. Valuations: 01-03 investment 250 (100 x 250 x
+  0.01), total 995; 01-06 280 -> 1025; after the sell 60 shares: 01-09 180 +
+  863 = 1043; 01-13 186 + 863 = 1049. Disposal sell-1: quantity 40, proceeds
+  11800 (pence), cost_basis 10200, realized 1600 (pence) and the base view in
+  pounds: 118 / 102 / 16. fx_rate_to_base on every valuation row is 1 (GBP
+  base); the GBp/GBP pair never touches a market rate (no fx_rates in the
+  scenario). Performance attribution is in pounds and gross of fees:
+  realized_pnl 20 (40 x (3.00 - 2.50)), unrealized 36, fees 7, total 49 =
+  TWR 4.9%.

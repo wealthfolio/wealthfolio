@@ -1,0 +1,74 @@
+id: EDGE-TXF-02
+title: In-kind transfer with a fee on the receiving leg nets to zero in portfolio scope
+intent: >
+  Kernel-only. A paired security transfer between two tracked accounts is
+  internal to the portfolio scope, so the scope nets both legs to zero
+  regardless of where the transfer fee is charged. The receiving leg books
+  only its fee as cash (a negative cash effect), which must not classify the
+  incoming securities as an outflow: the scope row on the transfer day is
+  0 in / 0 out (MIXED), not 5,000 in / 0 out. Per account the legs stay
+  external (acc-a outflow 5,000, acc-b inflow 5,000 at market). Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-a
+    name: Source
+    currency: USD
+  - id: acc-b
+    name: Destination
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-a
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 6000
+  - id: dep-b
+    account: acc-b
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: 100
+  - id: buy-1
+    account: acc-a
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 100
+    unit_price: 50
+    amount: 5000
+  - id: out-1
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-08T10:00:00Z
+    asset: aapl
+    quantity: 100
+    unit_price: 50
+    source_group_id: g1
+  - id: in-1
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-08T11:00:00Z
+    asset: aapl
+    quantity: 100
+    unit_price: 50
+    fee: 25
+    amount: 25
+    source_group_id: g1
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 50 }
+  - { asset: aapl, day: 2025-01-08, close: 50 }
+  - { asset: aapl, day: 2025-01-12, close: 52 }
+expected_notes: >
+  01-08 per account: acc-a external outflow 5000 (market), acc-b external
+  inflow 5000 and cash 100 -> 75 (fee 25). Portfolio scope row for 01-08:
+  inflow 0, outflow 0, source MIXED; the scope's net contribution is
+  unchanged by the transfer and the 25 fee shows up as a fee in attribution,
+  not as a phantom contribution. Before the direction fix the scope row
+  read inflow 5000 / outflow 0 because the receiving leg's negative cash
+  (the fee) classified it as an outflow.

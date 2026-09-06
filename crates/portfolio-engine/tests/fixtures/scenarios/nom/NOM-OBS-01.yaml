@@ -1,0 +1,52 @@
+id: NOM-OBS-01
+title: Holdings-mode account with two observed keyframes
+intent: >
+  A HOLDINGS account has no activities: two observed snapshots ten days
+  apart change quantity and cash. Valuations bridge the keyframes at daily
+  prices; the transition on 01-12 infers an external flow as V(new, 01-12) -
+  V(old positions at 01-12 prices) with QUOTE_DERIVED_MARKET_VALUE
+  provenance, and performance runs in holdings mode.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-15
+accounts:
+  - id: acc-h
+    name: Observed
+    currency: USD
+    tracking_mode: HOLDINGS
+assets:
+  - id: aapl
+    quote_ccy: USD
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-07, close: 105 }
+  - { asset: aapl, day: 2025-01-12, close: 110 }
+  - { asset: aapl, day: 2025-01-15, close: 120 }
+observed_snapshots:
+  - account: acc-h
+    date: 2025-01-02
+    source: MANUAL_ENTRY
+    positions: [{ asset: aapl, quantity: 10, average_cost: 90 }]
+    cash: { USD: 500 }
+  - account: acc-h
+    date: 2025-01-12
+    source: MANUAL_ENTRY
+    positions: [{ asset: aapl, quantity: 15, average_cost: 95 }]
+    cash: { USD: 400 }
+expected_notes: >
+  Keyframes: 01-02 (source MANUAL_ENTRY, 10 aapl @ 90, cash 500, cost basis
+  900) and 01-12 (15 @ 95, cash 400, cost basis 1425); no lots;
+  net_contribution 0 on both (facts carry none). Valuations: 01-02..01-06
+  total value 1500 (10 x 100 + 500); 01-07..01-11 1550; 01-12 2050 (15 x
+  110 + 400); 01-13..01-14 2050; 01-15 2200. Flow 01-12: inflow 450 = 2050
+  - (10 x 110 + 500) QUOTE_DERIVED_MARKET_VALUE at account and portfolio
+  scope. LEGACY BEHAVIOR: holdings-only scopes get no TWR/IRR (method
+  valueReturn, "TWR unavailable for holdings-only scopes because
+  transaction cash flows are not tracked"); value_return 20.547945% at both
+  scopes; is_holdings_mode true. Attribution is inconsistent across scopes:
+  account unrealized 375 (end market value 1800 - end cost basis 1425,
+  no baseline) vs portfolio 275, contributions 0 at both, and the
+  diagnostics report "attribution incomplete" (difference 325 / 425) against
+  the true gain of 250 (2200 - 1500 - 450). Candidate for the divergence
+  ledger.

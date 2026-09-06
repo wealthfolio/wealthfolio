@@ -1,0 +1,29 @@
+[package]
+name = "wealthfolio-portfolio-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pure, deterministic portfolio calculation kernel (facts in, values out)"
+
+[lints]
+workspace = true
+
+# Closed runtime dependency list (PRD §4.1). CI asserts this set; anything
+# else is a build failure, not a review comment.
+[dependencies]
+chrono = { workspace = true }
+chrono-tz = { version = "0.10", features = ["serde"] }
+rust_decimal = { workspace = true }
+rust_decimal_macros = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+criterion = { version = "0.5", default-features = false }
+insta = { version = "1", features = ["yaml"] }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+
+[[bench]]
+name = "scale"
+harness = false

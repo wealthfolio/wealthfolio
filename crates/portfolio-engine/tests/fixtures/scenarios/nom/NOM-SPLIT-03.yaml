@@ -1,0 +1,49 @@
+id: NOM-SPLIT-03
+title: Split ratio carried in quantity with amount absent
+intent: >
+  Bridge convention: some import paths wrote the split ratio to `quantity`
+  and left `amount` NULL. The ratio is read from amount first and falls back
+  to quantity, so a 3-for-1 split with quantity 3 and no amount still
+  applies.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 90
+    amount: 900
+    fee: 0
+  - id: split-1
+    account: acc-1
+    type: SPLIT
+    date: 2025-01-08T10:00:00Z
+    asset: aapl
+    quantity: 3
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 90 }
+  - { asset: aapl, day: 2025-01-07, close: 90 }
+  - { asset: aapl, day: 2025-01-08, close: 30 }
+  - { asset: aapl, day: 2025-01-12, close: 31 }
+expected_notes: >
+  Cash 1100 from 01-03. Keyframe 01-08: aapl quantity 30, total_cost_basis
+  900, average_cost 30. Lot buy-1: quantity 10 as-acquired, cost_per_unit
+  90, split_ratio 3. Market value 01-07 = 900, 01-08 = 30 x 30 = 900
+  (unchanged), 01-12 = 930. No cash effect, no flow.
