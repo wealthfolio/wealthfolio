@@ -9,6 +9,7 @@ import { SwipablePage, SwipablePageView } from "@/components/page";
 import { AccountScopeSelector } from "@/components/account-filter-selector";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useAccountScopeStore } from "@/lib/account-scope-store";
 import { useHoldingsWithClosedProbe } from "@/hooks/use-holdings";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import {
@@ -24,7 +25,6 @@ import {
   apiKindToAlternativeAssetKind,
 } from "@/lib/constants";
 import {
-  Account,
   AccountScope,
   HoldingType,
   AlternativeAssetHolding,
@@ -84,10 +84,21 @@ export const HoldingsPage = () => {
     [...DEFAULT_HOLDINGS_VISIBILITY],
   );
 
-  const [accountFilter, setAccountScope] = useState<AccountScope>({ type: "all" });
+  const accountFilter = useAccountScopeStore((state) => state.scope);
+  const setAccountScope = useAccountScopeStore((state) => state.setScope);
+  const { accounts, isLoading: isAccountsLoading } = useAccounts({
+    accountPurpose: AccountPurpose.HOLDINGS,
+  });
 
   // Keep selectedAccount for edit/add functionality when a specific account is selected.
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  // Derived rather than stored so a scope picked on another page applies on mount.
+  const selectedAccount = useMemo(
+    () =>
+      accountFilter.type === "account"
+        ? (accounts.find((account) => account.id === accountFilter.accountId) ?? null)
+        : null,
+    [accountFilter, accounts],
+  );
 
   const showClosedPositions = selectedAccount?.trackingMode !== "HOLDINGS";
   const effectiveVisibilityFilters = useMemo(
@@ -109,9 +120,6 @@ export const HoldingsPage = () => {
       probeClosedWhenEmpty: showClosedPositions,
     },
   );
-  const { accounts, isLoading: isAccountsLoading } = useAccounts({
-    accountPurpose: AccountPurpose.HOLDINGS,
-  });
   const { data: portfolios = [] } = usePortfolios();
   const { data: alternativeHoldings, isLoading: isAlternativeHoldingsLoading } =
     useAlternativeHoldings();
@@ -169,13 +177,8 @@ export const HoldingsPage = () => {
     (filter: AccountScope) => {
       setAccountScope(filter);
       setIsEditMode(false);
-      setSelectedAccount(
-        filter.type === "account"
-          ? (accounts.find((account) => account.id === filter.accountId) ?? null)
-          : null,
-      );
     },
-    [accounts],
+    [setAccountScope],
   );
 
   const clearHealthContext = useCallback(() => {

@@ -1,3 +1,4 @@
+import { AccountScopeSelector } from "@/components/account-filter-selector";
 import { BenchmarkSymbolSelector } from "@/components/benchmark-symbol-selector";
 import {
   ANNUALIZED_RETURN_INFO as annualizedReturnInfo,
@@ -16,6 +17,7 @@ import { PerformanceChartMobile } from "@/components/performance-chart-mobile";
 import { PERFORMANCE_CHART_COLORS } from "@/components/performance-chart-colors";
 import { useAccounts } from "@/hooks/use-accounts";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import { useAccountScopeStore } from "@/lib/account-scope-store";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { AccountPurpose, PORTFOLIO_SCOPE_ID } from "@/lib/constants";
 import {
@@ -78,8 +80,21 @@ import {
   migratePerformanceSelectedItemId,
   migratePerformanceSelectedItems,
 } from "./performance-selection";
+import { usePerformanceScopeBridge } from "./hooks/use-performance-scope-bridge";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
+
+// Helper function to sort comparison items (accounts first, then symbols)
+function sortComparisonItems(items: TrackedItem[]): TrackedItem[] {
+  return [...items].sort((a, b) => {
+    // Sort by type first (accounts before symbols)
+    if (a.type !== b.type) {
+      return a.type === "account" ? -1 : 1;
+    }
+    // If same type, maintain original order
+    return 0;
+  });
+}
 
 function chartMetricForResult(result: PerformanceResult): PerformanceMetric {
   return result.mode === "valueReturn" ? "valueReturn" : "twr";
@@ -1045,12 +1060,15 @@ export default function PerformancePage() {
     // User-created portfolios resolve to account ids at calc time, so we keep
     // them regardless of `reportAccountIds`; the backend filter handles it.
     const isPortfolioItem = (item: TrackedItem) => item.accountScope?.type === "portfolio";
+    // Multi-account scopes carry their member ids in the scope, not in `item.id`.
+    const isMultiAccountItem = (item: TrackedItem) => item.accountScope?.type === "accounts";
     setSelectedItems((current) => {
       const next = current.filter(
         (item) =>
           item.type !== "account" ||
           item.id === PORTFOLIO_SCOPE_ID ||
           isPortfolioItem(item) ||
+          isMultiAccountItem(item) ||
           reportAccountIds.has(item.id),
       );
       if (next.length === current.length) {
@@ -1066,6 +1084,7 @@ export default function PerformancePage() {
           (item.type !== "account" ||
             item.id === PORTFOLIO_SCOPE_ID ||
             isPortfolioItem(item) ||
+            isMultiAccountItem(item) ||
             reportAccountIds.has(item.id)),
       );
     if (!selectedItemStillPresent) {
@@ -1080,23 +1099,23 @@ export default function PerformancePage() {
     setSelectedItems,
   ]);
 
+  const accountScope = useAccountScopeStore((state) => state.scope);
+  const setAccountScope = useAccountScopeStore((state) => state.setScope);
+
+  usePerformanceScopeBridge({
+    accounts,
+    isAccountsLoading,
+    selectedItems,
+    setSelectedItems,
+    setSelectedItemId,
+    sortItems: sortComparisonItems,
+  });
+
   const accountNamesById = useMemo(() => {
     const map = new Map<string, string>();
     for (const account of accounts) map.set(account.id.toLowerCase(), account.name);
     return map;
   }, [accounts]);
-
-  // Helper function to sort comparison items (accounts first, then symbols)
-  const sortComparisonItems = (items: TrackedItem[]): TrackedItem[] => {
-    return [...items].sort((a, b) => {
-      // Sort by type first (accounts before symbols)
-      if (a.type !== b.type) {
-        return a.type === "account" ? -1 : 1;
-      }
-      // If same type, maintain original order
-      return 0;
-    });
-  };
 
   // Use the custom hook for parallel data fetching with effective date calculation
   const {
@@ -1410,8 +1429,9 @@ export default function PerformancePage() {
 
   return (
     <>
-      {/* Date range selector - fixed position in header area */}
-      <div className="pointer-events-auto fixed right-2 top-4 z-20 hidden md:block lg:right-4">
+      {/* Account scope + date range selectors - fixed position in header area */}
+      <div className="pointer-events-auto fixed right-2 top-4 z-20 hidden items-center gap-2 md:flex lg:right-4">
+        <AccountScopeSelector value={accountScope} onChange={setAccountScope} />
         <DateRangeSelector
           value={dateRange}
           onChange={setDateRange}
@@ -1420,7 +1440,8 @@ export default function PerformancePage() {
       </div>
 
       <div className="flex h-full flex-col space-y-4">
-        <div className="flex justify-end md:hidden">
+        <div className="flex items-center justify-end gap-2 md:hidden">
+          <AccountScopeSelector value={accountScope} onChange={setAccountScope} />
           <DateRangeSelector
             value={dateRange}
             onChange={setDateRange}

@@ -12,7 +12,7 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { AccountScopeSelector } from "@/components/account-filter-selector";
-import type { AccountScope } from "@/lib/types";
+import { useAccountScopeStore } from "@/lib/account-scope-store";
 
 import { QueryKeys } from "@/lib/query-keys";
 import type { IncomeSummary } from "@/lib/types";
@@ -74,7 +74,8 @@ export default function IncomePage() {
   const { isBalanceHidden } = useBalancePrivacy();
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
-  const [accountFilter, setAccountScope] = useState<AccountScope>({ type: "all" });
+  const accountFilter = useAccountScopeStore((state) => state.scope);
+  const setAccountScope = useAccountScopeStore((state) => state.setScope);
 
   const {
     data: incomeData,
