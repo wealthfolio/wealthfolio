@@ -1,6 +1,6 @@
 import { Badge } from "./badge";
 import { Button } from "./button";
-import { cn } from "../../lib/utils";
+import { cn, isKeyboardEventComposing } from "../../lib/utils";
 import { Icons } from "./icons";
 import * as React from "react";
 
@@ -60,7 +60,7 @@ const InputTags = React.forwardRef<HTMLInputElement, InputTagsProps>(
           value={pendingDataPoint}
           onChange={(e) => setPendingDataPoint(e.target.value)}
           onKeyDown={(e) => {
-            if (e.nativeEvent.isComposing) return;
+            if (isKeyboardEventComposing(e.nativeEvent)) return;
 
             if (e.key === "Enter" || e.key === ",") {
               e.preventDefault();

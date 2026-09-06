@@ -6,6 +6,7 @@ import { Icons } from "../ui/icons";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useDebouncedCallback } from "../../hooks/use-debounced-callback";
+import { isKeyboardEventComposing } from "../../lib/utils";
 import type { SearchState } from "./data-grid-types";
 
 type DataGridSearchProps = SearchState;
@@ -75,7 +76,7 @@ function DataGridSearchImpl({
     (event: React.KeyboardEvent) => {
       event.stopPropagation();
 
-      if (event.nativeEvent.isComposing) return;
+      if (isKeyboardEventComposing(event.nativeEvent)) return;
 
       if (event.key === "Enter") {
         event.preventDefault();

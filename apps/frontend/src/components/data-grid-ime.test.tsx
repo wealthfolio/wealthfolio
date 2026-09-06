@@ -18,6 +18,11 @@ interface PortalCellTestRow {
 
 type PortalCellVariant = "multi-select" | "symbol" | "currency";
 
+const compositionEventCases = [
+  { label: "modern composition event", eventInit: { isComposing: true } },
+  { label: "legacy WebKit composition event", eventInit: { keyCode: 229 } },
+] as const;
+
 class ResizeObserverStub {
   observe = vi.fn();
   unobserve = vi.fn();
@@ -111,12 +116,16 @@ async function renderPortalCell(variant: PortalCellVariant) {
 }
 
 describe("CJK IME composition", () => {
-  it.each(["Enter", "Escape", "Tab"])("keeps the grid edit open for composing %s", async (key) => {
+  it.each(
+    compositionEventCases.flatMap(({ label, eventInit }) =>
+      (["Enter", "Escape", "Tab"] as const).map((key) => ({ label, eventInit, key })),
+    ),
+  )("keeps the grid edit open for $key from a $label", async ({ eventInit, key }) => {
     render(<GridHarness />);
     fireEvent.click(screen.getByRole("button", { name: "Edit cell" }));
     expect(screen.getByTestId("editing")).toHaveTextContent("editing");
 
-    fireEvent.keyDown(screen.getByTestId("grid"), { key, isComposing: true });
+    fireEvent.keyDown(screen.getByTestId("grid"), { key, ...eventInit });
     await act(() => Promise.resolve());
     expect(screen.getByTestId("editing")).toHaveTextContent("editing");
 
@@ -124,26 +133,37 @@ describe("CJK IME composition", () => {
     await waitFor(() => expect(screen.getByTestId("editing")).toHaveTextContent("idle"));
   });
 
-  it("does not add a tag until composition has finished", () => {
-    const onChange = vi.fn();
-    render(<InputTags aria-label="Tags" value={[]} onChange={onChange} />);
-    const input = screen.getByRole("textbox", { name: "Tags" });
+  it.each(compositionEventCases)(
+    "does not add a tag for a $label until composition has finished",
+    ({ eventInit }) => {
+      const onChange = vi.fn();
+      render(<InputTags aria-label="Tags" value={[]} onChange={onChange} />);
+      const input = screen.getByRole("textbox", { name: "Tags" });
 
-    fireEvent.change(input, { target: { value: "候選" } });
-    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
-    expect(onChange).not.toHaveBeenCalled();
+      fireEvent.change(input, { target: { value: "候選" } });
+      fireEvent.keyDown(input, { key: "Enter", ...eventInit });
+      expect(onChange).not.toHaveBeenCalled();
 
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(onChange).toHaveBeenCalledWith(["候選"]);
-  });
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(onChange).toHaveBeenCalledWith(["候選"]);
+    },
+  );
 
-  it.each(["multi-select", "symbol", "currency"] as const)(
-    "keeps the %s portal cell open for composing Escape",
-    async (variant) => {
+  it.each(
+    compositionEventCases.flatMap(({ label, eventInit }) =>
+      (["multi-select", "symbol", "currency"] as const).map((variant) => ({
+        eventInit,
+        label,
+        variant,
+      })),
+    ),
+  )(
+    "keeps the $variant portal cell open for composing Escape from a $label",
+    async ({ eventInit, variant }) => {
       const { input, onCellEditingStop } = await renderPortalCell(variant);
 
       fireEvent.change(input, { target: { value: "候選" } });
-      fireEvent.keyDown(input, { key: "Escape", isComposing: true });
+      fireEvent.keyDown(input, { key: "Escape", ...eventInit });
 
       expect(onCellEditingStop).not.toHaveBeenCalled();
       expect(input).toHaveValue("候選");

@@ -50,6 +50,7 @@ import {
   parseDateTimeInTimezone,
   parseLocalizedDecimalString,
 } from "../../lib/formatting";
+import { isKeyboardEventComposing } from "../../lib/utils";
 
 const DEFAULT_ROW_HEIGHT = "short";
 const OVERSCAN = 6;
@@ -2473,7 +2474,7 @@ function useDataGrid<TData>({
     (event: KeyboardEvent) => {
       // This native listener runs before React's per-cell handlers. Composition
       // keys belong to the input method and must not end or navigate the grid edit.
-      if (event.isComposing) return;
+      if (isKeyboardEventComposing(event)) return;
 
       const currentState = store.getState();
       const { key, ctrlKey, metaKey, shiftKey, altKey } = event;

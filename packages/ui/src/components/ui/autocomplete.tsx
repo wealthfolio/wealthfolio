@@ -2,7 +2,7 @@ import { Command as CommandPrimitive } from "cmdk";
 import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from "react";
 import { CommandGroup, CommandItem, CommandList, CommandInput } from "./command";
 import { Skeleton } from "./skeleton";
-import { cn } from "../../lib/utils";
+import { cn, isKeyboardEventComposing } from "../../lib/utils";
 import { Icons } from "./icons";
 
 export type Option = Record<"value" | "label", string> & Record<string, string>;
@@ -55,7 +55,7 @@ export const AutoComplete = ({
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
-      if (event.nativeEvent.isComposing) return;
+      if (isKeyboardEventComposing(event.nativeEvent)) return;
 
       const input = inputRef.current;
       if (!input) {

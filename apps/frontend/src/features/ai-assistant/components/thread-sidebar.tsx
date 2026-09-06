@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { useDateFormatting } from "@wealthfolio/ui";
+import { isKeyboardEventComposing, useDateFormatting } from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -364,7 +364,7 @@ export function ThreadSidebar({
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder={t("ai:threadSidebar.renamePlaceholder")}
             onKeyDown={(e) => {
-              if (e.nativeEvent.isComposing) return;
+              if (isKeyboardEventComposing(e.nativeEvent)) return;
 
               if (e.key === "Enter") {
                 handleConfirmRename();

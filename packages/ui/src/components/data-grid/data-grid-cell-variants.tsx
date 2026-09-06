@@ -27,14 +27,14 @@ import { useDebouncedCallback } from "../../hooks/use-debounced-callback";
 import { quoteCurrencies } from "../../lib/currencies";
 import { generateId } from "../../lib/id";
 import { parseDateTimeInTimezone, parseLocalizedDecimalString } from "../../lib/formatting";
-import { cn } from "../../lib/utils";
+import { cn, isKeyboardEventComposing } from "../../lib/utils";
 import { DataGridCellWrapper } from "./data-grid-cell-wrapper";
 import type { DataGridCellProps, FileCellData, SymbolSearchResult } from "./data-grid-types";
 import { getCellKey, getLineCount } from "./data-grid-utils";
 import { useDateFormatting, useLocalizationSettings, useNumberFormatting } from "../formatting-provider";
 
 function preventEscapeDuringComposition(event: KeyboardEvent) {
-  if (event.isComposing) event.preventDefault();
+  if (isKeyboardEventComposing(event)) event.preventDefault();
 }
 
 export function ShortTextCell<TData>({
@@ -81,7 +81,7 @@ export function ShortTextCell<TData>({
 
   const onWrapperKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (event.nativeEvent.isComposing) return;
+      if (isKeyboardEventComposing(event.nativeEvent)) return;
 
       if (isEditing) {
         if (event.key === "Enter") {
@@ -286,7 +286,7 @@ export function LongTextCell<TData>({
 
   const onKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (event.nativeEvent.isComposing) return;
+      if (isKeyboardEventComposing(event.nativeEvent)) return;
 
       if (event.key === "Escape") {
         event.preventDefault();
@@ -635,7 +635,7 @@ export function UrlCell<TData>({
 
   const onWrapperKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (event.nativeEvent.isComposing) return;
+      if (isKeyboardEventComposing(event.nativeEvent)) return;
 
       if (isEditing) {
         if (event.key === "Enter") {
@@ -1155,7 +1155,7 @@ export function MultiSelectCell<TData>({
 
   const onWrapperKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (event.nativeEvent.isComposing) return;
+      if (isKeyboardEventComposing(event.nativeEvent)) return;
 
       if (isEditing && event.key === "Escape") {
         event.preventDefault();
@@ -1175,7 +1175,7 @@ export function MultiSelectCell<TData>({
 
   const onInputKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.nativeEvent.isComposing) {
+      if (isKeyboardEventComposing(event.nativeEvent)) {
         event.stopPropagation();
         return;
       }
@@ -2667,7 +2667,7 @@ export function SymbolCell<TData>({
 
   const onWrapperKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (event.nativeEvent.isComposing) return;
+      if (isKeyboardEventComposing(event.nativeEvent)) return;
 
       if (isEditing && event.key === "Escape") {
         event.preventDefault();
@@ -2687,7 +2687,7 @@ export function SymbolCell<TData>({
 
   const onInputKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.nativeEvent.isComposing) {
+      if (isKeyboardEventComposing(event.nativeEvent)) {
         event.stopPropagation();
         return;
       }
@@ -2908,7 +2908,7 @@ export function CurrencyCell<TData>({
 
   const onWrapperKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (event.nativeEvent.isComposing) return;
+      if (isKeyboardEventComposing(event.nativeEvent)) return;
 
       if (isEditing && event.key === "Escape") {
         event.preventDefault();
@@ -2927,7 +2927,7 @@ export function CurrencyCell<TData>({
 
   const onInputKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.nativeEvent.isComposing) {
+      if (isKeyboardEventComposing(event.nativeEvent)) {
         event.stopPropagation();
         return;
       }
