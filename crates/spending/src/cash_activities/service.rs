@@ -16,9 +16,10 @@ use wealthfolio_core::utils::time_utils::{activity_date_in_tz, parse_user_timezo
 
 use super::{
     model::{
-        CashActivity, CashActivityFilter, CashActivitySearchRequest, CashActivitySearchResponse,
-        CashActivitySortField, CashActivityStatusFilter, CashFlowBucket, CurrencyNet, NetSummary,
-        SortDirection, TransferLinkStatus,
+        BulkAssignRejection, BulkAssignResult, CashActivity, CashActivityFilter,
+        CashActivitySearchRequest, CashActivitySearchResponse, CashActivitySortField,
+        CashActivityStatusFilter, CashFlowBucket, CurrencyNet, NetSummary, SortDirection,
+        TransferLinkStatus,
     },
     CASH_ACTIVITY_TYPES,
 };
@@ -729,17 +730,34 @@ impl CashActivityService {
         self.assignments.unassign(activity_id, taxonomy_id).await
     }
 
+    /// Validates each item's activity against its cash-flow bucket, then
+    /// applies the valid subset atomically. Items that fail validation (e.g.
+    /// an income activity submitted with a spending category) are reported in
+    /// `rejected` rather than aborting the whole batch — a single bad row
+    /// (an AI mis-guess, stale client state) shouldn't block the rest.
     pub async fn bulk_assign_categories(
         &self,
         items: &[BulkCategoryAssignment],
-    ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+    ) -> Result<BulkAssignResult> {
+        let mut valid = Vec::with_capacity(items.len());
+        let mut rejected = Vec::new();
         for item in items {
-            self.ensure_activity_assignment_allowed(&item.activity_id, &item.taxonomy_id, true)
-                .await?;
+            match self
+                .ensure_activity_assignment_allowed(&item.activity_id, &item.taxonomy_id, true)
+                .await
+            {
+                Ok(_) => valid.push(item.clone()),
+                Err(e) => rejected.push(BulkAssignRejection {
+                    activity_id: item.activity_id.clone(),
+                    message: e.to_string(),
+                }),
+            }
         }
-        self.assignments
-            .assign_many_single_select_clearing_splits(items)
-            .await
+        let applied = self
+            .assignments
+            .assign_many_single_select_clearing_splits(&valid)
+            .await?;
+        Ok(BulkAssignResult { applied, rejected })
     }
 
     pub async fn list_splits(&self, activity_id: &str) -> Result<Vec<ActivitySplit>> {

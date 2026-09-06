@@ -109,12 +109,23 @@ export interface BulkCategoryAssignment {
   categoryId: string;
 }
 
-/** Atomic batch — all rows committed in a single DB transaction. */
+export interface BulkAssignRejection {
+  activityId: string;
+  message: string;
+}
+
+export interface BulkAssignResult {
+  applied: ActivityTaxonomyAssignment[];
+  rejected: BulkAssignRejection[];
+}
+
+/** The `applied` subset is committed atomically; `rejected` items (failed the
+ * activity's cash-flow-bucket check) are reported instead of failing the batch. */
 export const bulkAssignCategories = async (
   items: BulkCategoryAssignment[],
-): Promise<ActivityTaxonomyAssignment[]> => {
+): Promise<BulkAssignResult> => {
   try {
-    return await invoke<ActivityTaxonomyAssignment[]>("bulk_assign_categories", { items });
+    return await invoke<BulkAssignResult>("bulk_assign_categories", { items });
   } catch (error) {
     logger.error("Error bulk-assigning categories.");
     throw error;

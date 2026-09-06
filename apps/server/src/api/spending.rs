@@ -21,7 +21,8 @@ use wealthfolio_spending::budget::{
     BudgetSnapshot, NewBudgetGroup, NewBudgetRolloverSetting, NewBudgetTarget, UpdateBudgetGroup,
 };
 use wealthfolio_spending::cash_activities::{
-    CashActivity, CashActivityFilter, CashActivitySearchRequest, CashActivitySearchResponse,
+    BulkAssignResult, CashActivity, CashActivityFilter, CashActivitySearchRequest,
+    CashActivitySearchResponse,
 };
 use wealthfolio_spending::categorization_rules::{
     CategorizationRule, CategorizationRulesService, NewCategorizationRule, UpdateCategorizationRule,
@@ -272,7 +273,7 @@ async fn clear_activity_splits(
 async fn bulk_assign_categories(
     State(state): State<Arc<AppState>>,
     Json(items): Json<Vec<wealthfolio_spending::activity_assignments::BulkCategoryAssignment>>,
-) -> ApiResult<Json<Vec<ActivityTaxonomyAssignment>>> {
+) -> ApiResult<Json<BulkAssignResult>> {
     if items.len() > MAX_BULK_CATEGORY_ASSIGNMENTS {
         return Err(ApiError::BadRequest(format!(
             "At most {MAX_BULK_CATEGORY_ASSIGNMENTS} category assignments can be submitted at once"

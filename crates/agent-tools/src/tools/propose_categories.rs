@@ -29,8 +29,8 @@ use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
 use crate::tools::categorization_context::{
-    compute_categorization_state, CategorizationFilters, CategoryExample, Proposal,
-    TaxonomySummary, UnproposedActivity, MAX_LIMIT,
+    compute_categorization_state, taxonomy_id_for_bucket, CategorizationFilters, CategoryExample,
+    Proposal, TaxonomySummary, UnproposedActivity, MAX_LIMIT,
 };
 
 /// One AI-inferred category for a row, supplied by the chat agent on its second
@@ -115,10 +115,14 @@ const PROPOSE_CATEGORIES_DESCRIPTION: &str =
      examples, and the unproposed rows. If `needsAiJudgement` is 0 and total is > 0, \
      still call this tool with `aiProposals: []` so the rule/history draft proposals \
      appear in the review widget. Otherwise reason about each unproposed row, then \
-     call this tool with `aiProposals` filled in. The tool runs deterministic rule + \
-     same-payee history matches, merges your `aiProposals` for the rows those passes \
-     didn't cover, and renders the widget. Do NOT pass `accountIds` for generic \
-     mentions like 'credit card' or 'this account'.";
+     call this tool with `aiProposals` filled in. Each unproposed row has a \
+     `cashFlowBucket` ('spending' | 'income' | 'saving') — your `taxonomyId` for that \
+     row MUST come from the matching taxonomy (spending_categories / income_sources / \
+     savings_categories respectively); a mismatched taxonomyId is silently dropped and \
+     the row stays unproposed. The tool runs deterministic rule + same-payee history \
+     matches, merges your `aiProposals` for the rows those passes didn't cover, and \
+     renders the widget. Do NOT pass `accountIds` for generic mentions like 'credit \
+     card' or 'this account'.";
 
 pub struct ProposeCategories;
 
@@ -262,7 +266,10 @@ impl AgentTool for ProposeCategories {
                         "type": "object",
                         "properties": {
                             "activityId": { "type": "string" },
-                            "taxonomyId": { "type": "string" },
+                            "taxonomyId": {
+                                "type": "string",
+                                "description": "Must match the row's `cashFlowBucket`: spending_categories for 'spending', income_sources for 'income', savings_categories for 'saving'."
+                            },
                             "categoryKey": { "type": "string" },
                             "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
                             "reason": { "type": "string" }
@@ -303,7 +310,12 @@ impl AgentTool for ProposeCategories {
 
 /// Merge agent-supplied AI proposals into the deterministic results.
 /// Drops entries whose `activity_id` is not in `unproposed` (rules/history
-/// already covered them) or whose `category_key` is not in `key_lookup`.
+/// already covered them), whose `category_key` is not in `key_lookup`, or
+/// whose `taxonomyId` doesn't match the row's actual cash-flow bucket (the
+/// agent is shown every taxonomy and can misjudge which one applies to a
+/// given row — the commit step enforces the bucket match server-side and
+/// would reject the whole batch, so we filter here first and leave
+/// bucket-mismatched rows in `unproposed` for manual review instead).
 /// Confidence is clamped to [0.5, 0.95]; missing confidence defaults to 0.7.
 /// On duplicate `activity_id` entries the last one wins (HashMap insertion).
 pub(crate) fn merge_ai_proposals(
@@ -321,6 +333,9 @@ pub(crate) fn merge_ai_proposals(
         let Some(row) = target_index.get(ai.activity_id.as_str()) else {
             continue;
         };
+        if taxonomy_id_for_bucket(row.cash_flow_bucket) != Some(ai.taxonomy_id.as_str()) {
+            continue;
+        }
         let Some((tax_id, cat_id, path)) =
             key_lookup.get(&(ai.taxonomy_id.clone(), ai.category_key.clone()))
         else {
@@ -343,6 +358,7 @@ pub(crate) fn merge_ai_proposals(
                 explanation: ai
                     .reason
                     .unwrap_or_else(|| "AI inferred from payee + history.".to_string()),
+                cash_flow_bucket: row.cash_flow_bucket,
             },
         );
     }
@@ -358,10 +374,18 @@ pub(crate) fn merge_ai_proposals(
 mod tests {
     use super::*;
     use crate::tools::categorization_context::UnproposedActivity;
+    use wealthfolio_spending::cash_activities::model::CashFlowBucket;
 
     // ----- merge_ai_proposals ----------------------------------------------
 
     fn make_unproposed(id: &str) -> UnproposedActivity {
+        make_unproposed_with_bucket(id, CashFlowBucket::Spending)
+    }
+
+    fn make_unproposed_with_bucket(
+        id: &str,
+        cash_flow_bucket: CashFlowBucket,
+    ) -> UnproposedActivity {
         UnproposedActivity {
             activity_id: id.to_string(),
             activity_date: "2024-06-01".to_string(),
@@ -369,23 +393,24 @@ mod tests {
             currency: "USD".to_string(),
             notes: Some("STARBUCKS".to_string()),
             reason: "test".to_string(),
+            cash_flow_bucket,
         }
     }
 
     fn make_key_lookup() -> HashMap<(String, String), (String, String, String)> {
         let mut m = HashMap::new();
         m.insert(
-            ("tax1".to_string(), "groceries".to_string()),
+            ("spending_categories".to_string(), "groceries".to_string()),
             (
-                "tax1".to_string(),
+                "spending_categories".to_string(),
                 "cat-g".to_string(),
                 "Food / Groceries".to_string(),
             ),
         );
         m.insert(
-            ("tax1".to_string(), "coffee".to_string()),
+            ("spending_categories".to_string(), "coffee".to_string()),
             (
-                "tax1".to_string(),
+                "spending_categories".to_string(),
                 "cat-c".to_string(),
                 "Food / Coffee".to_string(),
             ),
@@ -399,7 +424,7 @@ mod tests {
         let key_lookup = make_key_lookup();
         let ai = vec![AiProposal {
             activity_id: "a1".to_string(),
-            taxonomy_id: "tax1".to_string(),
+            taxonomy_id: "spending_categories".to_string(),
             category_key: "groceries".to_string(),
             confidence: Some(0.8),
             reason: Some("looks like food".to_string()),
@@ -411,7 +436,7 @@ mod tests {
         let p = &proposals[0];
         assert_eq!(p.activity_id, "a1");
         assert_eq!(p.source, "ai");
-        assert_eq!(p.taxonomy_id, "tax1");
+        assert_eq!(p.taxonomy_id, "spending_categories");
         assert_eq!(p.category_id, "cat-g");
         assert_eq!(p.category_path, "Food / Groceries");
         assert_eq!(p.confidence, 0.8);
@@ -427,7 +452,7 @@ mod tests {
         let key_lookup = make_key_lookup();
         let ai = vec![AiProposal {
             activity_id: "a1".to_string(),
-            taxonomy_id: "tax1".to_string(),
+            taxonomy_id: "spending_categories".to_string(),
             category_key: "nonexistent".to_string(),
             confidence: Some(0.8),
             reason: None,
@@ -447,7 +472,7 @@ mod tests {
         let key_lookup = make_key_lookup();
         let ai = vec![AiProposal {
             activity_id: "a1".to_string(),
-            taxonomy_id: "tax1".to_string(),
+            taxonomy_id: "spending_categories".to_string(),
             category_key: "groceries".to_string(),
             confidence: Some(0.8),
             reason: None,
@@ -466,7 +491,7 @@ mod tests {
         let key_lookup = make_key_lookup();
         let ai = vec![AiProposal {
             activity_id: "a1".to_string(),
-            taxonomy_id: "tax1".to_string(),
+            taxonomy_id: "spending_categories".to_string(),
             category_key: "groceries".to_string(),
             confidence: Some(2.0),
             reason: None,
@@ -482,7 +507,7 @@ mod tests {
         let key_lookup = make_key_lookup();
         let ai = vec![AiProposal {
             activity_id: "a1".to_string(),
-            taxonomy_id: "tax1".to_string(),
+            taxonomy_id: "spending_categories".to_string(),
             category_key: "groceries".to_string(),
             confidence: Some(0.1),
             reason: None,
@@ -498,7 +523,7 @@ mod tests {
         let key_lookup = make_key_lookup();
         let ai = vec![AiProposal {
             activity_id: "a1".to_string(),
-            taxonomy_id: "tax1".to_string(),
+            taxonomy_id: "spending_categories".to_string(),
             category_key: "groceries".to_string(),
             confidence: None,
             reason: None,
@@ -514,7 +539,7 @@ mod tests {
         let key_lookup = make_key_lookup();
         let ai = vec![AiProposal {
             activity_id: "a1".to_string(),
-            taxonomy_id: "tax1".to_string(),
+            taxonomy_id: "spending_categories".to_string(),
             category_key: "groceries".to_string(),
             confidence: Some(0.7),
             reason: None,
@@ -545,14 +570,14 @@ mod tests {
         let ai = vec![
             AiProposal {
                 activity_id: "a1".to_string(),
-                taxonomy_id: "tax1".to_string(),
+                taxonomy_id: "spending_categories".to_string(),
                 category_key: "groceries".to_string(),
                 confidence: Some(0.6),
                 reason: Some("first".to_string()),
             },
             AiProposal {
                 activity_id: "a1".to_string(),
-                taxonomy_id: "tax1".to_string(),
+                taxonomy_id: "spending_categories".to_string(),
                 category_key: "coffee".to_string(),
                 confidence: Some(0.9),
                 reason: Some("second".to_string()),
@@ -577,16 +602,17 @@ mod tests {
             amount: -10.0,
             currency: "USD".to_string(),
             notes: None,
-            taxonomy_id: "tax1".to_string(),
+            taxonomy_id: "spending_categories".to_string(),
             category_id: "cat-g".to_string(),
             category_path: "Food / Groceries".to_string(),
             confidence: 0.95,
             source: "rule".to_string(),
             explanation: "Matched rule".to_string(),
+            cash_flow_bucket: CashFlowBucket::Spending,
         }];
         let ai = vec![AiProposal {
             activity_id: "a1".to_string(),
-            taxonomy_id: "tax1".to_string(),
+            taxonomy_id: "spending_categories".to_string(),
             category_key: "coffee".to_string(),
             confidence: Some(0.8),
             reason: None,
@@ -601,5 +627,28 @@ mod tests {
             .iter()
             .any(|p| p.source == "ai" && p.activity_id == "a1"));
         assert!(remaining.is_empty());
+    }
+
+    #[test]
+    fn merge_taxonomy_mismatched_with_row_bucket_is_dropped() {
+        // Regression: an Income-bucket row proposed with a spending_categories
+        // category must not reach the commit step — it would fail there with
+        // "Income activities can only use income categories" and abort the
+        // whole bulk-assign batch. It should stay unproposed instead.
+        let unproposed = vec![make_unproposed_with_bucket("a1", CashFlowBucket::Income)];
+        let key_lookup = make_key_lookup();
+        let ai = vec![AiProposal {
+            activity_id: "a1".to_string(),
+            taxonomy_id: "spending_categories".to_string(),
+            category_key: "groceries".to_string(),
+            confidence: Some(0.8),
+            reason: None,
+        }];
+
+        let (proposals, remaining) = merge_ai_proposals(unproposed, Vec::new(), &key_lookup, ai);
+
+        assert!(proposals.is_empty());
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].activity_id, "a1");
     }
 }

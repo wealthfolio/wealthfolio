@@ -271,6 +271,8 @@
     "pickedManually": "手动选择。",
     "failedApplyTitle": "应用类别失败",
     "failedApply": "应用类别失败。",
+    "partialApplyFailed_one": "{{count}} 笔交易无法归类：{{reason}}",
+    "partialApplyFailed_other": "{{count}} 笔交易无法归类：{{reason}}",
     "transactionsCategorized_one": "已归类 {{count}} 笔交易",
     "transactionsCategorized_other": "已归类 {{count}} 笔交易",
     "categoriesSaved": "类别已保存至您的交易。",

@@ -277,6 +277,8 @@
     "pickedManually": "手動選擇。",
     "failedApplyTitle": "套用類別失敗",
     "failedApply": "套用類別失敗。",
+    "partialApplyFailed_one": "{{count}} 筆交易無法歸類：{{reason}}",
+    "partialApplyFailed_other": "{{count}} 筆交易無法歸類：{{reason}}",
     "transactionsCategorized_one": "已歸類 {{count}} 筆交易",
     "transactionsCategorized_other": "已歸類 {{count}} 筆交易",
     "categoriesSaved": "類別已儲存至您的交易。",
