@@ -10268,6 +10268,127 @@ mod tests {
         assert!(result.data_quality.not_applicable_reasons.is_empty());
     }
 
+    // Issue #1609: the exact mixture is complete provenance. Same fixture as
+    // the degraded mixture above; its returns and data quality must match a
+    // plain cash flow exactly, with no provenance warning.
+    #[test]
+    fn mixed_exact_flow_source_is_clean_and_computable() {
+        let compute = |source: ExternalFlowSource| {
+            let mut history = vec![
+                valuation("2026-04-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000)),
+                valuation("2026-04-02", dec!(1110), dec!(1100), dec!(1110), dec!(1000)),
+            ];
+            history[1].external_inflow_base = dec!(100);
+            history[1].external_flow_source = source;
+            PerformanceService::compute_account_performance(
+                &history,
+                Some(TrackingMode::Transactions),
+                None,
+                false,
+            )
+            .expect("known-source flow should compute")
+        };
+
+        let exact = compute(ExternalFlowSource::MixedExact);
+        let control = compute(ExternalFlowSource::CashAmount);
+        let degraded = compute(ExternalFlowSource::Mixed);
+
+        assert_eq!(exact.returns.twr.unwrap().round_dp(4), dec!(0.0091));
+        assert_eq!(exact.returns.twr, control.returns.twr);
+        assert_eq!(exact.returns.irr, control.returns.irr);
+        assert_eq!(exact.data_quality.status, control.data_quality.status);
+        assert_eq!(exact.data_quality.warnings, control.data_quality.warnings);
+        assert_eq!(
+            exact.data_quality.not_applicable_reasons,
+            control.data_quality.not_applicable_reasons
+        );
+        assert!(exact
+            .data_quality
+            .warnings
+            .iter()
+            .all(|warning| !warning.starts_with("External cash flow")));
+
+        // The degraded mixture differs from the exact one by exactly the
+        // provenance warning.
+        let provenance: Vec<_> = degraded
+            .data_quality
+            .warnings
+            .iter()
+            .filter(|warning| !exact.data_quality.warnings.contains(warning))
+            .collect();
+        assert_eq!(provenance.len(), 1);
+        assert!(provenance[0].contains("External cash flow provenance is incomplete"));
+        assert_eq!(degraded.data_quality.status, DataQualityStatus::Partial);
+    }
+
+    // The exact mixture is explicit gross: the stored amounts are used as-is,
+    // never re-derived from the net-contribution delta.
+    #[test]
+    fn daily_external_flows_read_stored_gross_for_mixed_exact() {
+        let prev = valuation("2026-04-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000));
+        let mut curr = valuation("2026-04-02", dec!(1200), dec!(1200), dec!(1200), dec!(1200));
+        curr.external_inflow_base = dec!(150);
+        curr.external_outflow_base = dec!(30);
+        curr.external_flow_source = ExternalFlowSource::MixedExact;
+
+        let flow =
+            PerformanceService::daily_external_flows(&prev, &curr, ExternalFlowBasis::BaseCurrency);
+
+        assert_eq!(flow.inflow, dec!(150));
+        assert_eq!(flow.outflow, dec!(30));
+        assert_eq!(flow.source, ExternalFlowSource::MixedExact);
+        assert!(!flow.source.is_degraded());
+    }
+
+    #[test]
+    fn external_flow_quality_warnings_ignore_mixed_exact() {
+        let flow = |source: ExternalFlowSource| DailyExternalFlow {
+            date: NaiveDate::from_ymd_opt(2026, 4, 2).unwrap(),
+            inflow: dec!(100),
+            outflow: Decimal::ZERO,
+            source,
+        };
+
+        assert!(PerformanceService::external_flow_quality_warnings(&[flow(
+            ExternalFlowSource::MixedExact
+        )])
+        .is_empty());
+        let degraded =
+            PerformanceService::external_flow_quality_warnings(&[flow(ExternalFlowSource::Mixed)]);
+        assert_eq!(degraded.len(), 1);
+        assert!(degraded[0].contains("External cash flow provenance is incomplete"));
+    }
+
+    // HOLDINGS-mode helpers key off `is_explicit_gross`, so the exact mixture
+    // is netted like any other gross flow and the fallback row is ignored.
+    #[test]
+    fn holdings_flow_helpers_treat_mixed_exact_as_explicit_gross() {
+        let date = NaiveDate::from_ymd_opt(2026, 4, 2).unwrap();
+        let flows = [
+            DailyExternalFlow {
+                date,
+                inflow: dec!(100),
+                outflow: dec!(30),
+                source: ExternalFlowSource::MixedExact,
+            },
+            DailyExternalFlow {
+                date,
+                inflow: dec!(999),
+                outflow: Decimal::ZERO,
+                source: ExternalFlowSource::NetContributionFallback,
+            },
+        ];
+
+        assert_eq!(
+            PerformanceService::net_explicit_gross_flow(&flows),
+            dec!(70)
+        );
+        assert!(PerformanceService::has_estimated_holdings_flows(&flows));
+        assert!(!PerformanceService::has_estimated_holdings_flows(
+            &flows[1..]
+        ));
+    }
+
     #[test]
     fn partial_unpriced_valuation_warns_but_still_computes_priced_subset() {
         let mut history = vec![
