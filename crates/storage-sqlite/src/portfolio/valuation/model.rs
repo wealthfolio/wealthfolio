@@ -206,4 +206,47 @@ mod tests {
         );
         assert_eq!(valuation.basis_status, BasisStatus::PartialUnknown);
     }
+
+    // Issue #1609: the exact mixture is a new persisted code. It must survive
+    // the DB round trip as itself, not collapse into the safe `UNKNOWN` fallback.
+    #[test]
+    fn mixed_exact_flow_source_roundtrips_through_the_db_row() {
+        let db_value = DailyAccountValuationDB {
+            id: "valuation-2".to_string(),
+            account_id: "account-1".to_string(),
+            valuation_date: NaiveDate::from_ymd_opt(2026, 4, 23).unwrap(),
+            account_currency: "USD".to_string(),
+            base_currency: "USD".to_string(),
+            fx_rate_to_base: "1".to_string(),
+            cash_balance: "10".to_string(),
+            investment_market_value: "20".to_string(),
+            total_value: "30".to_string(),
+            cost_basis: "25".to_string(),
+            net_contribution: "5".to_string(),
+            cash_balance_base: "10".to_string(),
+            investment_market_value_base: "20".to_string(),
+            total_value_base: "30".to_string(),
+            cost_basis_base: "25".to_string(),
+            net_contribution_base: "5".to_string(),
+            external_inflow_base: "50".to_string(),
+            external_outflow_base: "70".to_string(),
+            external_flow_source: "MIXED_EXACT".to_string(),
+            performance_eligible_value_base: "30".to_string(),
+            value_status: "COMPLETE".to_string(),
+            basis_status: "COMPLETE".to_string(),
+            calculated_at: "2026-04-23T00:00:00Z".to_string(),
+        };
+
+        let valuation = DailyAccountValuation::from(db_value);
+        assert_eq!(
+            valuation.external_flow_source,
+            wealthfolio_core::portfolio::valuation::ExternalFlowSource::MixedExact
+        );
+        assert!(!valuation.external_flow_source.is_degraded());
+
+        let stored = DailyAccountValuationDB::from(valuation);
+        assert_eq!(stored.external_flow_source, "MIXED_EXACT");
+        assert_eq!(stored.external_inflow_base, "50");
+        assert_eq!(stored.external_outflow_base, "70");
+    }
 }

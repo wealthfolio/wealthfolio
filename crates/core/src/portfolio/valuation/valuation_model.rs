@@ -35,8 +35,14 @@ pub enum ExternalFlowSource {
     /// Compatibility-only value for persisted rows that already have gross flow columns.
     StoredGross,
     NetContributionFallback,
-    /// Aggregate valuation rows can contain multiple compiler flow sources on the same day.
+    /// Two or more distinct flow sources on the same day, at least one of them
+    /// degraded. Aggregate rows and per-account days with several activities
+    /// produce this; it stays degraded because a constituent is.
     Mixed,
+    /// Two or more distinct flow sources on the same day, every one of them
+    /// exact (e.g. a cash movement and a quote-priced in-kind transfer).
+    /// Provenance is complete, only heterogeneous, so it is not degraded.
+    MixedExact,
 }
 
 #[cfg(test)]
@@ -62,25 +68,41 @@ mod tests {
 
     #[test]
     fn known_external_flow_source_codes_roundtrip() {
-        let sources = [
-            ExternalFlowSource::NoFlow,
-            ExternalFlowSource::Unknown,
-            ExternalFlowSource::CashAmount,
-            ExternalFlowSource::QuoteDerivedMarketValue,
-            ExternalFlowSource::CostBasisFallback,
-            ExternalFlowSource::RemovedLotBasisFallback,
-            ExternalFlowSource::LegacyActivityAmountFallback,
-            ExternalFlowSource::UnknownBoundaryTransfer,
-            ExternalFlowSource::UnpricedHoldingsTransition,
-            ExternalFlowSource::ActivityDerived,
-            ExternalFlowSource::StoredGross,
-            ExternalFlowSource::NetContributionFallback,
-            ExternalFlowSource::Mixed,
-        ];
+        // `ALL` is the exhaustive list; a variant added without updating it
+        // would silently escape every property test that iterates it.
+        assert_eq!(ExternalFlowSource::ALL.len(), 14);
 
-        for source in sources {
+        for source in ExternalFlowSource::ALL {
             assert_eq!(ExternalFlowSource::from_code(source.as_str()), source);
         }
+        assert_eq!(
+            ExternalFlowSource::from_code("MIXED_EXACT"),
+            ExternalFlowSource::MixedExact
+        );
+        assert_eq!(ExternalFlowSource::MixedExact.as_str(), "MIXED_EXACT");
+    }
+
+    #[test]
+    fn serde_codes_match_storage_codes() {
+        for source in ExternalFlowSource::ALL {
+            let json = serde_json::to_string(&source).expect("serialize flow source");
+            assert_eq!(json, format!("\"{}\"", source.as_str()));
+            let parsed: ExternalFlowSource =
+                serde_json::from_str(&json).expect("deserialize flow source");
+            assert_eq!(parsed, source);
+        }
+    }
+
+    #[test]
+    fn from_code_is_case_and_whitespace_tolerant() {
+        assert_eq!(
+            ExternalFlowSource::from_code(" mixed_exact "),
+            ExternalFlowSource::MixedExact
+        );
+        assert_eq!(
+            ExternalFlowSource::from_code("mixed"),
+            ExternalFlowSource::Mixed
+        );
     }
 
     #[test]
@@ -110,7 +132,16 @@ mod tests {
         assert!(ExternalFlowSource::CostBasisFallback.is_degraded());
         assert!(ExternalFlowSource::RemovedLotBasisFallback.is_degraded());
         assert!(ExternalFlowSource::LegacyActivityAmountFallback.is_degraded());
+
+        // Mixed carries a degraded constituent; MixedExact carries only exact
+        // ones. Both are gross flows, neither blocks returns.
+        assert!(ExternalFlowSource::Mixed.is_explicit_gross());
         assert!(ExternalFlowSource::Mixed.is_degraded());
+        assert!(!ExternalFlowSource::Mixed.is_unavailable_for_returns());
+
+        assert!(ExternalFlowSource::MixedExact.is_explicit_gross());
+        assert!(!ExternalFlowSource::MixedExact.is_degraded());
+        assert!(!ExternalFlowSource::MixedExact.is_unavailable_for_returns());
 
         assert!(ExternalFlowSource::Unknown.is_unavailable_for_returns());
         assert!(ExternalFlowSource::UnknownBoundaryTransfer.is_unavailable_for_returns());
@@ -144,10 +175,130 @@ mod tests {
             ExternalFlowSource::RemovedLotBasisFallback.combine(ExternalFlowSource::CashAmount),
             ExternalFlowSource::RemovedLotBasisFallback
         );
+        // Two exact sources merge into the exact mixture, in either order, and
+        // the exact mixture absorbs further exact sources.
         assert_eq!(
             ExternalFlowSource::CashAmount.combine(ExternalFlowSource::QuoteDerivedMarketValue),
+            ExternalFlowSource::MixedExact
+        );
+        assert_eq!(
+            ExternalFlowSource::QuoteDerivedMarketValue.combine(ExternalFlowSource::CashAmount),
+            ExternalFlowSource::MixedExact
+        );
+        assert_eq!(
+            ExternalFlowSource::MixedExact.combine(ExternalFlowSource::CashAmount),
+            ExternalFlowSource::MixedExact
+        );
+        assert_eq!(
+            ExternalFlowSource::MixedExact.combine(ExternalFlowSource::QuoteDerivedMarketValue),
+            ExternalFlowSource::MixedExact
+        );
+
+        // Any degraded constituent turns the mixture into the degraded one.
+        assert_eq!(
+            ExternalFlowSource::CashAmount.combine(ExternalFlowSource::StoredGross),
             ExternalFlowSource::Mixed
         );
+        assert_eq!(
+            ExternalFlowSource::MixedExact.combine(ExternalFlowSource::StoredGross),
+            ExternalFlowSource::Mixed
+        );
+        assert_eq!(
+            ExternalFlowSource::MixedExact.combine(ExternalFlowSource::CostBasisFallback),
+            ExternalFlowSource::Mixed
+        );
+        assert_eq!(
+            ExternalFlowSource::Mixed.combine(ExternalFlowSource::MixedExact),
+            ExternalFlowSource::Mixed
+        );
+        assert_eq!(
+            ExternalFlowSource::MixedExact.combine(ExternalFlowSource::Mixed),
+            ExternalFlowSource::Mixed
+        );
+
+        // Absorbing markers still win over the exact mixture.
+        assert_eq!(
+            ExternalFlowSource::MixedExact.combine(ExternalFlowSource::Unknown),
+            ExternalFlowSource::Unknown
+        );
+        assert_eq!(
+            ExternalFlowSource::MixedExact.combine(ExternalFlowSource::UnknownBoundaryTransfer),
+            ExternalFlowSource::UnknownBoundaryTransfer
+        );
+        assert_eq!(
+            ExternalFlowSource::MixedExact.combine(ExternalFlowSource::UnpricedHoldingsTransition),
+            ExternalFlowSource::UnpricedHoldingsTransition
+        );
+        assert_eq!(
+            ExternalFlowSource::MixedExact.combine(ExternalFlowSource::RemovedLotBasisFallback),
+            ExternalFlowSource::RemovedLotBasisFallback
+        );
+    }
+
+    // Issue #1609: merging exact provenance must never invent degradation.
+    // The exact sources form a closed set under `combine`.
+    #[test]
+    fn exact_sources_are_closed_under_combine() {
+        const EXACT: [ExternalFlowSource; 4] = [
+            ExternalFlowSource::NoFlow,
+            ExternalFlowSource::CashAmount,
+            ExternalFlowSource::QuoteDerivedMarketValue,
+            ExternalFlowSource::MixedExact,
+        ];
+        for source in ExternalFlowSource::ALL {
+            assert_eq!(
+                EXACT.contains(&source),
+                !source.is_degraded(),
+                "{source:?} must be exact iff it is not degraded",
+            );
+        }
+        for left in EXACT {
+            for right in EXACT {
+                let combined = left.combine(right);
+                assert!(
+                    EXACT.contains(&combined),
+                    "combine({left:?}, {right:?}) = {combined:?} left the exact set",
+                );
+                assert!(!combined.is_degraded());
+                assert!(!combined.is_unavailable_for_returns());
+            }
+        }
+    }
+
+    // The two mixture variants partition the "distinct, non-absorbing" merges:
+    // `Mixed` always has a degraded input, `MixedExact` never does.
+    #[test]
+    fn mixture_variants_reflect_their_inputs() {
+        for left in ExternalFlowSource::ALL {
+            for right in ExternalFlowSource::ALL {
+                let either_degraded = left.is_degraded() || right.is_degraded();
+                match left.combine(right) {
+                    ExternalFlowSource::Mixed => assert!(
+                        either_degraded,
+                        "combine({left:?}, {right:?}) is Mixed without a degraded input",
+                    ),
+                    ExternalFlowSource::MixedExact => {
+                        assert!(
+                            !either_degraded,
+                            "combine({left:?}, {right:?}) is MixedExact with a degraded input",
+                        );
+                        // Unless an input already was the exact mixture, it
+                        // takes two distinct real sources to produce one.
+                        if left != ExternalFlowSource::MixedExact
+                            && right != ExternalFlowSource::MixedExact
+                        {
+                            assert_ne!(
+                                left, right,
+                                "a single exact source must not merge into MixedExact",
+                            );
+                            assert_ne!(left, ExternalFlowSource::NoFlow);
+                            assert_ne!(right, ExternalFlowSource::NoFlow);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
 
     #[test]
@@ -176,7 +327,7 @@ mod tests {
 }
 
 impl ExternalFlowSource {
-    pub const ALL: [ExternalFlowSource; 13] = [
+    pub const ALL: [ExternalFlowSource; 14] = [
         ExternalFlowSource::NoFlow,
         ExternalFlowSource::Unknown,
         ExternalFlowSource::CashAmount,
@@ -190,6 +341,7 @@ impl ExternalFlowSource {
         ExternalFlowSource::StoredGross,
         ExternalFlowSource::NetContributionFallback,
         ExternalFlowSource::Mixed,
+        ExternalFlowSource::MixedExact,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -207,6 +359,7 @@ impl ExternalFlowSource {
             Self::StoredGross => "STORED_GROSS",
             Self::NetContributionFallback => "NET_CONTRIBUTION_FALLBACK",
             Self::Mixed => "MIXED",
+            Self::MixedExact => "MIXED_EXACT",
         }
     }
 
@@ -226,6 +379,7 @@ impl ExternalFlowSource {
             "STORED_GROSS" => Self::StoredGross,
             "NET_CONTRIBUTION_FALLBACK" => Self::NetContributionFallback,
             "MIXED" => Self::Mixed,
+            "MIXED_EXACT" => Self::MixedExact,
             _ => Self::Unknown,
         }
     }
@@ -241,6 +395,7 @@ impl ExternalFlowSource {
                 | Self::ActivityDerived
                 | Self::StoredGross
                 | Self::Mixed
+                | Self::MixedExact
         )
     }
 
@@ -281,6 +436,10 @@ impl ExternalFlowSource {
             (Self::RemovedLotBasisFallback, _) | (_, Self::RemovedLotBasisFallback) => {
                 Self::RemovedLotBasisFallback
             }
+            // Distinct exact sources: provenance is complete, only heterogeneous.
+            // The guard makes this unreachable when either side is degraded, so
+            // `Mixed` keeps meaning "at least one constituent is degraded".
+            (left, right) if !left.is_degraded() && !right.is_degraded() => Self::MixedExact,
             _ => Self::Mixed,
         }
     }

@@ -1127,10 +1127,9 @@ impl ValuationService {
                 Self::subtract_flow_floor_zero(value.external_inflow_base, *inflow_to_remove);
             value.external_outflow_base =
                 Self::subtract_flow_floor_zero(value.external_outflow_base, *outflow_to_remove);
-            value.external_flow_source = Self::combine_external_flow_sources(
-                value.external_flow_source,
-                ExternalFlowSource::CashAmount,
-            );
+            // Netting removes scope-internal legs; it does not introduce a
+            // differently-valued flow, so the day keeps the provenance of the
+            // flows that survive. Stamping a source here would invent one.
         }
     }
 
@@ -3070,21 +3069,8 @@ mod tests {
     // provenance must remain at least as unavailable/degraded. Otherwise the
     // downstream TWR/IRR availability gates can be silently bypassed.
 
-    const ALL_FLOW_SOURCES: [ExternalFlowSource; 13] = [
-        ExternalFlowSource::NoFlow,
-        ExternalFlowSource::Unknown,
-        ExternalFlowSource::CashAmount,
-        ExternalFlowSource::QuoteDerivedMarketValue,
-        ExternalFlowSource::CostBasisFallback,
-        ExternalFlowSource::RemovedLotBasisFallback,
-        ExternalFlowSource::LegacyActivityAmountFallback,
-        ExternalFlowSource::UnknownBoundaryTransfer,
-        ExternalFlowSource::UnpricedHoldingsTransition,
-        ExternalFlowSource::ActivityDerived,
-        ExternalFlowSource::StoredGross,
-        ExternalFlowSource::NetContributionFallback,
-        ExternalFlowSource::Mixed,
-    ];
+    // The enum's own exhaustive list, so a new variant is covered here too.
+    const ALL_FLOW_SOURCES: [ExternalFlowSource; 14] = ExternalFlowSource::ALL;
 
     #[test]
     fn combiner_is_idempotent_for_every_source() {
@@ -3148,12 +3134,20 @@ mod tests {
 
     #[test]
     fn combiner_mixes_two_distinct_known_gross_sources() {
+        // Both inputs are exact, so the mixture is the exact one (#1609).
         assert_eq!(
             ValuationService::combine_activity_flow_sources(
                 ExternalFlowSource::CashAmount,
                 ExternalFlowSource::QuoteDerivedMarketValue,
             ),
-            ExternalFlowSource::Mixed,
+            ExternalFlowSource::MixedExact,
+        );
+        assert_eq!(
+            ValuationService::combine_activity_flow_sources(
+                ExternalFlowSource::QuoteDerivedMarketValue,
+                ExternalFlowSource::CashAmount,
+            ),
+            ExternalFlowSource::MixedExact,
         );
     }
 
@@ -3378,6 +3372,64 @@ mod tests {
                         "combine({a:?}, {b:?}) = {combined:?} dropped degradation",
                     );
                 }
+            }
+        }
+    }
+
+    // Issue #1609: the converse contract. Merging two exact provenances must
+    // never manufacture degradation.
+    #[test]
+    fn combiner_never_adds_degradation() {
+        for a in ALL_FLOW_SOURCES {
+            for b in ALL_FLOW_SOURCES {
+                let combined = ValuationService::combine_activity_flow_sources(a, b);
+                if !a.is_degraded() && !b.is_degraded() {
+                    assert!(
+                        !combined.is_degraded(),
+                        "combine({a:?}, {b:?}) = {combined:?} invented degradation",
+                    );
+                    assert!(
+                        !combined.is_unavailable_for_returns(),
+                        "combine({a:?}, {b:?}) = {combined:?} invented unavailability",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn combiner_mixes_exact_with_degraded_into_mixed() {
+        for (exact, degraded) in [
+            (
+                ExternalFlowSource::CashAmount,
+                ExternalFlowSource::StoredGross,
+            ),
+            (
+                ExternalFlowSource::QuoteDerivedMarketValue,
+                ExternalFlowSource::ActivityDerived,
+            ),
+            (
+                ExternalFlowSource::MixedExact,
+                ExternalFlowSource::NetContributionFallback,
+            ),
+            (
+                ExternalFlowSource::CashAmount,
+                ExternalFlowSource::CostBasisFallback,
+            ),
+            (
+                ExternalFlowSource::CashAmount,
+                ExternalFlowSource::LegacyActivityAmountFallback,
+            ),
+        ] {
+            for (left, right) in [(exact, degraded), (degraded, exact)] {
+                let combined = ValuationService::combine_activity_flow_sources(left, right);
+                assert_eq!(
+                    combined,
+                    ExternalFlowSource::Mixed,
+                    "combine({left:?}, {right:?}) must be the degraded mixture",
+                );
+                assert!(combined.is_degraded());
+                assert!(combined.is_explicit_gross());
             }
         }
     }
@@ -5428,7 +5480,690 @@ mod tests {
 
         assert_eq!(aggregate[1].external_inflow_base, Decimal::ZERO);
         assert_eq!(aggregate[1].external_outflow_base, Decimal::ZERO);
+        // Netting only subtracts; the row keeps the provenance it had before
+        // (the stored-gross marker the fixture rows carry), never a stamped one.
+        assert_eq!(
+            aggregate[1].external_flow_source,
+            ExternalFlowSource::StoredGross
+        );
+    }
+
+    /// Two-account scope where an internal transfer moves 100 from `a1` to
+    /// `a2` on 2026-05-02 and every per-account leg carries `source`.
+    fn internal_transfer_histories(source: ExternalFlowSource) -> Vec<Vec<DailyAccountValuation>> {
+        let mut out_leg = valuation(
+            "a1",
+            "2026-05-02",
+            Decimal::ZERO,
+            Decimal::ZERO,
+            Decimal::ZERO,
+            dec!(100),
+        );
+        out_leg.external_flow_source = source;
+        let mut in_leg = valuation(
+            "a2",
+            "2026-05-02",
+            dec!(100),
+            dec!(100),
+            dec!(100),
+            Decimal::ZERO,
+        );
+        in_leg.external_flow_source = source;
+        vec![
+            vec![
+                valuation(
+                    "a1",
+                    "2026-05-01",
+                    dec!(100),
+                    dec!(100),
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                ),
+                out_leg,
+            ],
+            vec![
+                valuation(
+                    "a2",
+                    "2026-05-01",
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                ),
+                in_leg,
+            ],
+        ]
+    }
+
+    fn internal_transfer_adjustments() -> HashMap<NaiveDate, (Decimal, Decimal)> {
+        let flow_date = NaiveDate::parse_from_str("2026-05-02", "%Y-%m-%d").unwrap();
+        HashMap::from([(flow_date, (dec!(100), dec!(100)))])
+    }
+
+    // Issue #1609, defect 2: an in-kind transfer whose both legs sit inside the
+    // scope never reaches the authoritative activity map, so the netting pass
+    // runs. It must leave the quote-derived provenance alone instead of
+    // stamping CashAmount and manufacturing a degraded Mixed day.
+    #[test]
+    fn netting_keeps_quote_derived_source_for_in_kind_internal_transfer() {
+        let account_ids = vec!["a1".to_string(), "a2".to_string()];
+        let no_authoritative_flows: HashMap<NaiveDate, DailyFlowAmounts> = HashMap::new();
+        let adjustments = internal_transfer_adjustments();
+
+        let aggregate = ValuationService::aggregate_scoped_valuations(
+            "accounts:test",
+            &account_ids,
+            "USD",
+            internal_transfer_histories(ExternalFlowSource::QuoteDerivedMarketValue),
+            Some(&no_authoritative_flows),
+            Some(&adjustments),
+        )
+        .expect("complete scoped histories should aggregate");
+
+        assert_eq!(aggregate[1].external_inflow_base, Decimal::ZERO);
+        assert_eq!(aggregate[1].external_outflow_base, Decimal::ZERO);
+        assert_eq!(
+            aggregate[1].external_flow_source,
+            ExternalFlowSource::QuoteDerivedMarketValue
+        );
+        assert!(!aggregate[1].external_flow_source.is_degraded());
+        assert!(!aggregate[1]
+            .external_flow_source
+            .is_unavailable_for_returns());
+    }
+
+    #[test]
+    fn netting_keeps_cash_source_for_cash_internal_transfer() {
+        let account_ids = vec!["a1".to_string(), "a2".to_string()];
+        let no_authoritative_flows: HashMap<NaiveDate, DailyFlowAmounts> = HashMap::new();
+        let adjustments = internal_transfer_adjustments();
+
+        let aggregate = ValuationService::aggregate_scoped_valuations(
+            "accounts:test",
+            &account_ids,
+            "USD",
+            internal_transfer_histories(ExternalFlowSource::CashAmount),
+            Some(&no_authoritative_flows),
+            Some(&adjustments),
+        )
+        .expect("complete scoped histories should aggregate");
+
+        assert_eq!(aggregate[1].external_inflow_base, Decimal::ZERO);
+        assert_eq!(aggregate[1].external_outflow_base, Decimal::ZERO);
+        assert_eq!(
+            aggregate[1].external_flow_source,
+            ExternalFlowSource::CashAmount
+        );
+        assert!(!aggregate[1].external_flow_source.is_degraded());
+    }
+
+    // Absorbing markers must survive the netting pass untouched: it may only
+    // shrink amounts, never relabel a day that still gates returns.
+    #[test]
+    fn netting_preserves_absorbing_sources() {
+        for source in [
+            ExternalFlowSource::Unknown,
+            ExternalFlowSource::UnknownBoundaryTransfer,
+            ExternalFlowSource::UnpricedHoldingsTransition,
+            ExternalFlowSource::RemovedLotBasisFallback,
+        ] {
+            let mut histories = internal_transfer_histories(ExternalFlowSource::CashAmount);
+            histories[0][1].external_flow_source = source;
+            let account_ids = vec!["a1".to_string(), "a2".to_string()];
+            let no_authoritative_flows: HashMap<NaiveDate, DailyFlowAmounts> = HashMap::new();
+            let adjustments = internal_transfer_adjustments();
+
+            let aggregate = ValuationService::aggregate_scoped_valuations(
+                "accounts:test",
+                &account_ids,
+                "USD",
+                histories,
+                Some(&no_authoritative_flows),
+                Some(&adjustments),
+            )
+            .expect("complete scoped histories should aggregate");
+
+            assert_eq!(
+                aggregate[1].external_flow_source, source,
+                "netting must not relabel {source:?}",
+            );
+        }
+    }
+
+    // A quiet day (no stored flows, no net-contribution movement) that happens
+    // to have an adjustment entry stays NoFlow; it used to be stamped CashAmount.
+    #[test]
+    fn netting_leaves_no_flow_row_untouched() {
+        let histories = vec![
+            vec![
+                valuation(
+                    "a1",
+                    "2026-05-01",
+                    dec!(100),
+                    dec!(100),
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                ),
+                valuation(
+                    "a1",
+                    "2026-05-02",
+                    dec!(100),
+                    dec!(100),
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                ),
+            ],
+            vec![
+                valuation(
+                    "a2",
+                    "2026-05-01",
+                    dec!(50),
+                    dec!(50),
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                ),
+                valuation(
+                    "a2",
+                    "2026-05-02",
+                    dec!(50),
+                    dec!(50),
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                ),
+            ],
+        ];
+        let account_ids = vec!["a1".to_string(), "a2".to_string()];
+        let no_authoritative_flows: HashMap<NaiveDate, DailyFlowAmounts> = HashMap::new();
+        let adjustments = internal_transfer_adjustments();
+
+        let aggregate = ValuationService::aggregate_scoped_valuations(
+            "accounts:test",
+            &account_ids,
+            "USD",
+            histories,
+            Some(&no_authoritative_flows),
+            Some(&adjustments),
+        )
+        .expect("complete scoped histories should aggregate");
+
+        assert_eq!(aggregate[1].external_inflow_base, Decimal::ZERO);
+        assert_eq!(aggregate[1].external_outflow_base, Decimal::ZERO);
+        assert_eq!(
+            aggregate[1].external_flow_source,
+            ExternalFlowSource::NoFlow
+        );
+    }
+
+    // Legacy rows (pre-compiler `UNKNOWN` with empty flow columns) fall back to
+    // the net-contribution delta. The netting pass must not promote that
+    // fallback to an explicit-gross Mixed row, or the performance layer would
+    // trust the floored amounts instead of re-deriving the delta.
+    #[test]
+    fn netting_leaves_net_contribution_fallback_row_untouched() {
+        let legacy = |account_id: &str, date: &str, total: Decimal| {
+            let mut row = valuation(account_id, date, total, total, Decimal::ZERO, Decimal::ZERO);
+            row.external_flow_source = ExternalFlowSource::Unknown;
+            row
+        };
+        let histories = vec![
+            vec![
+                legacy("a1", "2026-05-01", dec!(100)),
+                legacy("a1", "2026-05-02", Decimal::ZERO),
+            ],
+            vec![
+                legacy("a2", "2026-05-01", Decimal::ZERO),
+                legacy("a2", "2026-05-02", dec!(100)),
+            ],
+            vec![
+                legacy("a3", "2026-05-01", Decimal::ZERO),
+                legacy("a3", "2026-05-02", dec!(50)),
+            ],
+        ];
+        let account_ids = vec!["a1".to_string(), "a2".to_string(), "a3".to_string()];
+        let no_authoritative_flows: HashMap<NaiveDate, DailyFlowAmounts> = HashMap::new();
+        let adjustments = internal_transfer_adjustments();
+
+        let aggregate = ValuationService::aggregate_scoped_valuations(
+            "accounts:test",
+            &account_ids,
+            "USD",
+            histories,
+            Some(&no_authoritative_flows),
+            Some(&adjustments),
+        )
+        .expect("complete scoped histories should aggregate");
+
+        assert_eq!(
+            aggregate[1].external_flow_source,
+            ExternalFlowSource::NetContributionFallback
+        );
+        assert!(!aggregate[1].external_flow_source.is_explicit_gross());
+    }
+
+    // Issue #1609 "Evidence": the same transfer day must not flip between
+    // degraded and clean depending on which unrelated accounts share the
+    // scope. P = {a1, a2} runs the netting pass; Q = {a1, a2, a3} has an
+    // unrelated cash withdrawal that makes the day authoritative and skips it.
+    #[test]
+    fn netting_is_deterministic_across_scope_membership() {
+        let flow_date = NaiveDate::parse_from_str("2026-05-02", "%Y-%m-%d").unwrap();
+        let adjustments = internal_transfer_adjustments();
+
+        let smaller_scope_ids = vec!["a1".to_string(), "a2".to_string()];
+        let no_authoritative_flows: HashMap<NaiveDate, DailyFlowAmounts> = HashMap::new();
+        let smaller_scope = ValuationService::aggregate_scoped_valuations(
+            "accounts:p",
+            &smaller_scope_ids,
+            "USD",
+            internal_transfer_histories(ExternalFlowSource::QuoteDerivedMarketValue),
+            Some(&no_authoritative_flows),
+            Some(&adjustments),
+        )
+        .expect("complete scoped histories should aggregate");
+
+        let mut withdrawal_day = valuation(
+            "a3",
+            "2026-05-02",
+            dec!(50),
+            dec!(50),
+            Decimal::ZERO,
+            dec!(50),
+        );
+        withdrawal_day.external_flow_source = ExternalFlowSource::CashAmount;
+        let mut superset_histories =
+            internal_transfer_histories(ExternalFlowSource::QuoteDerivedMarketValue);
+        superset_histories.push(vec![
+            valuation(
+                "a3",
+                "2026-05-01",
+                dec!(100),
+                dec!(100),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            withdrawal_day,
+        ]);
+        let superset_scope_ids = vec!["a1".to_string(), "a2".to_string(), "a3".to_string()];
+        let authoritative_flows = HashMap::from([(
+            flow_date,
+            DailyFlowAmounts {
+                inflow: Decimal::ZERO,
+                outflow: dec!(50),
+                source: ExternalFlowSource::CashAmount,
+            },
+        )]);
+        let superset_scope = ValuationService::aggregate_scoped_valuations(
+            "accounts:q",
+            &superset_scope_ids,
+            "USD",
+            superset_histories,
+            Some(&authoritative_flows),
+            Some(&adjustments),
+        )
+        .expect("complete scoped histories should aggregate");
+
+        assert_eq!(
+            smaller_scope[1].external_flow_source,
+            ExternalFlowSource::QuoteDerivedMarketValue
+        );
+        assert_eq!(smaller_scope[1].external_outflow_base, Decimal::ZERO);
+        assert_eq!(
+            superset_scope[1].external_flow_source,
+            ExternalFlowSource::CashAmount
+        );
+        assert_eq!(superset_scope[1].external_outflow_base, dec!(50));
+        assert!(!smaller_scope[1].external_flow_source.is_degraded());
+        assert!(!superset_scope[1].external_flow_source.is_degraded());
+    }
+
+    // Issue #1609, defect 1 at the day-map level: a cash movement and a
+    // quote-priced in-kind transfer on the same day are both exact, so the
+    // day's provenance is the exact mixture in either arrival order.
+    #[test]
+    fn add_external_flow_amount_merges_same_day_exact_sources_into_mixed_exact() {
+        let flow_date = date("2026-05-02");
+        for order in [
+            [
+                (dec!(50), true, ExternalFlowSource::CashAmount),
+                (dec!(120), true, ExternalFlowSource::QuoteDerivedMarketValue),
+            ],
+            [
+                (dec!(120), true, ExternalFlowSource::QuoteDerivedMarketValue),
+                (dec!(50), true, ExternalFlowSource::CashAmount),
+            ],
+        ] {
+            let mut flows_by_date = HashMap::new();
+            for (amount, is_outflow, source) in order {
+                ValuationService::add_external_flow_amount(
+                    &mut flows_by_date,
+                    flow_date,
+                    amount,
+                    is_outflow,
+                    source,
+                );
+            }
+
+            let day = flows_by_date.get(&flow_date).expect("flow day recorded");
+            assert_eq!(day.inflow, Decimal::ZERO);
+            assert_eq!(day.outflow, dec!(170));
+            assert_eq!(day.source, ExternalFlowSource::MixedExact);
+            assert!(!day.source.is_degraded());
+        }
+    }
+
+    #[test]
+    fn add_external_flow_amount_keeps_mixed_for_degraded_same_day_source() {
+        let flow_date = date("2026-05-02");
+        let mut flows_by_date = HashMap::new();
+        for (amount, is_outflow, source) in [
+            (dec!(50), false, ExternalFlowSource::CashAmount),
+            (dec!(120), true, ExternalFlowSource::QuoteDerivedMarketValue),
+            (dec!(80), true, ExternalFlowSource::CostBasisFallback),
+        ] {
+            ValuationService::add_external_flow_amount(
+                &mut flows_by_date,
+                flow_date,
+                amount,
+                is_outflow,
+                source,
+            );
+        }
+
+        let day = flows_by_date.get(&flow_date).expect("flow day recorded");
+        assert_eq!(day.inflow, dec!(50));
+        assert_eq!(day.outflow, dec!(200));
+        assert_eq!(day.source, ExternalFlowSource::Mixed);
+        assert!(day.source.is_degraded());
+
+        // An unresolved transfer boundary still absorbs an exact mixture.
+        ValuationService::add_external_flow_amount(
+            &mut flows_by_date,
+            flow_date,
+            Decimal::ZERO,
+            true,
+            ExternalFlowSource::UnknownBoundaryTransfer,
+        );
+        let day = flows_by_date.get(&flow_date).expect("flow day recorded");
+        assert_eq!(day.source, ExternalFlowSource::UnknownBoundaryTransfer);
+    }
+
+    #[test]
+    fn add_external_flow_amount_skips_zero_amount_without_touching_source() {
+        let flow_date = date("2026-05-02");
+        let mut flows_by_date = HashMap::new();
+        ValuationService::add_external_flow_amount(
+            &mut flows_by_date,
+            flow_date,
+            dec!(120),
+            true,
+            ExternalFlowSource::QuoteDerivedMarketValue,
+        );
+        ValuationService::add_external_flow_amount(
+            &mut flows_by_date,
+            flow_date,
+            Decimal::ZERO,
+            true,
+            ExternalFlowSource::CashAmount,
+        );
+
+        let day = flows_by_date.get(&flow_date).expect("flow day recorded");
+        assert_eq!(day.outflow, dec!(120));
+        assert_eq!(day.source, ExternalFlowSource::QuoteDerivedMarketValue);
+    }
+
+    /// Two accounts with an exact flow each on 2026-05-02: `a1` carries
+    /// `first` as an inflow of 10, `a2` carries `second` as an outflow of 20.
+    fn same_day_exact_flow_histories(
+        first: ExternalFlowSource,
+        second: ExternalFlowSource,
+    ) -> Vec<Vec<DailyAccountValuation>> {
+        let mut first_day = valuation(
+            "a1",
+            "2026-05-02",
+            dec!(110),
+            dec!(110),
+            dec!(10),
+            Decimal::ZERO,
+        );
+        first_day.external_flow_source = first;
+        let mut second_day = valuation(
+            "a2",
+            "2026-05-02",
+            dec!(180),
+            dec!(180),
+            Decimal::ZERO,
+            dec!(20),
+        );
+        second_day.external_flow_source = second;
+        vec![
+            vec![
+                valuation(
+                    "a1",
+                    "2026-05-01",
+                    dec!(100),
+                    dec!(100),
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                ),
+                first_day,
+            ],
+            vec![
+                valuation(
+                    "a2",
+                    "2026-05-01",
+                    dec!(200),
+                    dec!(200),
+                    Decimal::ZERO,
+                    Decimal::ZERO,
+                ),
+                second_day,
+            ],
+        ]
+    }
+
+    // Issue #1609, defect 1 at the scope level: per-account rows with
+    // different exact sources aggregate into the exact mixture.
+    #[test]
+    fn scoped_aggregation_merges_exact_sources_into_mixed_exact() {
+        let account_ids = vec!["a1".to_string(), "a2".to_string()];
+        let no_authoritative_flows: HashMap<NaiveDate, DailyFlowAmounts> = HashMap::new();
+
+        let aggregate = ValuationService::aggregate_scoped_valuations(
+            "accounts:test",
+            &account_ids,
+            "USD",
+            same_day_exact_flow_histories(
+                ExternalFlowSource::CashAmount,
+                ExternalFlowSource::QuoteDerivedMarketValue,
+            ),
+            Some(&no_authoritative_flows),
+            None,
+        )
+        .expect("complete scoped histories should aggregate");
+
+        assert_eq!(aggregate[1].external_inflow_base, dec!(10));
+        assert_eq!(aggregate[1].external_outflow_base, dec!(20));
+        assert_eq!(
+            aggregate[1].external_flow_source,
+            ExternalFlowSource::MixedExact
+        );
+        assert!(!aggregate[1].external_flow_source.is_degraded());
+        assert!(!aggregate[1]
+            .external_flow_source
+            .is_unavailable_for_returns());
+    }
+
+    #[test]
+    fn scoped_aggregation_absorbs_exact_source_into_mixed_exact() {
+        let account_ids = vec!["a1".to_string(), "a2".to_string()];
+        let no_authoritative_flows: HashMap<NaiveDate, DailyFlowAmounts> = HashMap::new();
+
+        let aggregate = ValuationService::aggregate_scoped_valuations(
+            "accounts:test",
+            &account_ids,
+            "USD",
+            same_day_exact_flow_histories(
+                ExternalFlowSource::MixedExact,
+                ExternalFlowSource::CashAmount,
+            ),
+            Some(&no_authoritative_flows),
+            None,
+        )
+        .expect("complete scoped histories should aggregate");
+
+        assert_eq!(aggregate[1].external_inflow_base, dec!(10));
+        assert_eq!(aggregate[1].external_outflow_base, dec!(20));
+        assert_eq!(
+            aggregate[1].external_flow_source,
+            ExternalFlowSource::MixedExact
+        );
+    }
+
+    // Regression guard: a degraded constituent still makes the aggregate day
+    // the degraded mixture.
+    #[test]
+    fn scoped_aggregation_keeps_mixed_degraded_for_exact_plus_stored_gross() {
+        let account_ids = vec!["a1".to_string(), "a2".to_string()];
+        let no_authoritative_flows: HashMap<NaiveDate, DailyFlowAmounts> = HashMap::new();
+
+        let aggregate = ValuationService::aggregate_scoped_valuations(
+            "accounts:test",
+            &account_ids,
+            "USD",
+            same_day_exact_flow_histories(
+                ExternalFlowSource::CashAmount,
+                ExternalFlowSource::StoredGross,
+            ),
+            Some(&no_authoritative_flows),
+            None,
+        )
+        .expect("complete scoped histories should aggregate");
+
         assert_eq!(aggregate[1].external_flow_source, ExternalFlowSource::Mixed);
+        assert!(aggregate[1].external_flow_source.is_degraded());
+        assert!(!aggregate[1]
+            .external_flow_source
+            .is_unavailable_for_returns());
+    }
+
+    // A stored exact mixture is explicit gross, so the flow-setting pass keeps
+    // its amounts instead of re-deriving them from the net-contribution delta.
+    #[test]
+    fn scoped_aggregation_preserves_stored_mixed_exact_flows() {
+        let mut mixed_exact_day =
+            valuation("a1", "2026-05-02", dec!(130), dec!(130), dec!(50), dec!(20));
+        mixed_exact_day.external_flow_source = ExternalFlowSource::MixedExact;
+        let histories = vec![vec![
+            valuation(
+                "a1",
+                "2026-05-01",
+                dec!(100),
+                dec!(100),
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ),
+            mixed_exact_day,
+        ]];
+        let account_ids = vec!["a1".to_string()];
+        let no_authoritative_flows: HashMap<NaiveDate, DailyFlowAmounts> = HashMap::new();
+
+        let aggregate = ValuationService::aggregate_scoped_valuations(
+            "accounts:test",
+            &account_ids,
+            "USD",
+            histories,
+            Some(&no_authoritative_flows),
+            None,
+        )
+        .expect("complete scoped histories should aggregate");
+
+        assert_eq!(aggregate[1].external_inflow_base, dec!(50));
+        assert_eq!(aggregate[1].external_outflow_base, dec!(20));
+        assert_eq!(
+            aggregate[1].external_flow_source,
+            ExternalFlowSource::MixedExact
+        );
+    }
+
+    // Issue #1609 at the activity level: the real economics resolver stamps a
+    // cash withdrawal `CashAmount` and a quote-priced in-kind transfer
+    // `QuoteDerivedMarketValue`. Folded into one day they form the exact
+    // mixture. An in-kind transfer-in without a quote degrades to its cost
+    // basis, and that day becomes the degraded mixture instead.
+    #[test]
+    fn same_day_cash_and_quoted_transfer_economics_fold_into_mixed_exact() {
+        let flow_date = date("2026-06-01");
+        let withdrawal =
+            transfer_activity(ACTIVITY_TYPE_WITHDRAWAL, None, None, None, Some(dec!(50)));
+        let transfer_out = transfer_activity(
+            ACTIVITY_TYPE_TRANSFER_OUT,
+            Some("AAPL"),
+            Some(dec!(10)),
+            Some(dec!(8)),
+            None,
+        );
+        let transfer_in = transfer_activity(
+            ACTIVITY_TYPE_TRANSFER_IN,
+            Some("AAPL"),
+            Some(dec!(10)),
+            Some(dec!(8)),
+            None,
+        );
+        let quote = quote("AAPL", dec!(12), "USD");
+
+        let cash = ValuationService::resolve_activity_economics_for_boundary(
+            &withdrawal,
+            None,
+            TransferBoundary::External,
+        );
+        let priced = ValuationService::resolve_activity_economics_for_boundary(
+            &transfer_out,
+            Some(&quote),
+            TransferBoundary::External,
+        );
+        let unpriced = ValuationService::resolve_activity_economics_for_boundary(
+            &transfer_in,
+            None,
+            TransferBoundary::External,
+        );
+        assert_eq!(cash.performance_flow_source, ExternalFlowSource::CashAmount);
+        assert_eq!(cash.performance_flow_value, dec!(50));
+        assert_eq!(
+            priced.performance_flow_source,
+            ExternalFlowSource::QuoteDerivedMarketValue
+        );
+        assert_eq!(priced.performance_flow_value, dec!(120));
+        assert_eq!(
+            unpriced.performance_flow_source,
+            ExternalFlowSource::CostBasisFallback
+        );
+        assert_eq!(unpriced.performance_flow_value, dec!(80));
+
+        let fold = |legs: [(&ResolvedActivityEconomics, bool); 2]| {
+            let mut flows_by_date = HashMap::new();
+            for (economics, is_outflow) in legs {
+                ValuationService::add_external_flow_amount(
+                    &mut flows_by_date,
+                    flow_date,
+                    economics.performance_flow_value,
+                    is_outflow,
+                    economics.performance_flow_source,
+                );
+            }
+            *flows_by_date.get(&flow_date).expect("flow day recorded")
+        };
+
+        let exact_day = fold([(&cash, true), (&priced, true)]);
+        assert_eq!(exact_day.inflow, Decimal::ZERO);
+        assert_eq!(exact_day.outflow, dec!(170));
+        assert_eq!(exact_day.source, ExternalFlowSource::MixedExact);
+        assert!(!exact_day.source.is_degraded());
+
+        let degraded_day = fold([(&cash, true), (&unpriced, false)]);
+        assert_eq!(degraded_day.inflow, dec!(80));
+        assert_eq!(degraded_day.outflow, dec!(50));
+        assert_eq!(degraded_day.source, ExternalFlowSource::Mixed);
+        assert!(degraded_day.source.is_degraded());
     }
 
     #[test]
