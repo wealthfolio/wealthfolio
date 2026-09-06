@@ -45,7 +45,7 @@ function ChangeCell({ change, currency }: { change: Change; currency: string }) 
         {sign}
         <CompactAmount value={Math.abs(change.amount)} currency={currency} />
       </span>
-      <span className="text-muted-foreground/60 hidden w-12 shrink-0 text-right text-sm tabular-nums md:block">
+      <span className="text-muted-foreground/60 hidden min-w-12 shrink-0 text-right text-sm tabular-nums md:block">
         {formatChangePercent(change, t("insights:networth.breakdown_table.new"), formatting)}
       </span>
     </div>
