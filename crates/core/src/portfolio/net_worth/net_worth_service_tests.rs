@@ -1174,6 +1174,82 @@ async fn test_net_worth_uses_stored_investment_valuation_and_keeps_alternatives(
 }
 
 #[tokio::test]
+async fn test_net_worth_preserves_signed_cash_balances() {
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    for cash_balances in [
+        vec![dec!(-10000)],
+        vec![dec!(-15000), dec!(5000)],
+        vec![dec!(-5000), dec!(15000)],
+        vec![dec!(-5000), dec!(5000)],
+    ] {
+        for use_stored_valuations in [false, true] {
+            let mut accounts = Vec::new();
+            let mut snapshots = Vec::new();
+            let mut valuations = Vec::new();
+            for (index, cash) in cash_balances.iter().enumerate() {
+                let id = format!("account-{index}");
+                accounts.push(create_test_account(&id, "SECURITIES", "USD"));
+                let investment = if index == 0 { dec!(50000) } else { dec!(0) };
+                let positions = if index == 0 {
+                    vec![create_test_position(
+                        &id,
+                        "AAPL",
+                        dec!(1),
+                        investment,
+                        "USD",
+                    )]
+                } else {
+                    vec![]
+                };
+                snapshots.push(create_test_snapshot(
+                    &id,
+                    positions,
+                    HashMap::from([("USD".to_string(), *cash)]),
+                ));
+                let mut valuation = create_account_valuation(&id, date, investment + *cash);
+                valuation.cash_balance = *cash;
+                valuation.cash_balance_base = *cash;
+                valuation.investment_market_value = investment;
+                valuation.investment_market_value_base = investment;
+                valuations.push(valuation);
+            }
+            let service = create_net_worth_service_with_valuations(
+                accounts,
+                vec![create_test_asset("AAPL", AssetKind::Investment, "USD")],
+                snapshots,
+                vec![create_test_quote("AAPL", dec!(50000), date, "USD")],
+                if use_stored_valuations {
+                    valuations
+                } else {
+                    vec![]
+                },
+            );
+            let result = service.get_net_worth(date).await.unwrap();
+            let cash_total: Decimal = cash_balances.iter().sum();
+            assert_eq!(result.net_worth, dec!(50000) + cash_total);
+            assert_eq!(result.assets.total, result.net_worth);
+            assert_eq!(result.liabilities.total, Decimal::ZERO);
+            let cash = result
+                .assets
+                .breakdown
+                .iter()
+                .find(|item| item.category == "cash");
+            if cash_total.is_zero() {
+                assert!(cash.is_none());
+            } else {
+                let cash = cash.unwrap();
+                assert_eq!(cash.value, cash_total);
+                assert_eq!(cash.children.len(), cash_balances.len());
+                assert_eq!(
+                    cash.children.iter().map(|item| item.value).sum::<Decimal>(),
+                    cash_total
+                );
+            }
+        }
+    }
+}
+
+#[tokio::test]
 async fn test_net_worth_with_liability() {
     // Investment account
     let inv_account = create_test_account("inv1", "SECURITIES", "USD");

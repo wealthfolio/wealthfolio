@@ -235,7 +235,7 @@ impl NetWorthService {
         // Build breakdown items - only include categories with non-zero values
         let mut breakdown: Vec<BreakdownItem> = category_totals
             .into_iter()
-            .filter(|(_, value)| *value > Decimal::ZERO)
+            .filter(|(_, value)| !value.is_zero())
             .map(|(category, value)| {
                 let mut children = category_children.remove(&category).unwrap_or_default();
                 children.sort_by_key(|c| std::cmp::Reverse(c.value));
