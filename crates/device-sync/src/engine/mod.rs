@@ -1918,6 +1918,7 @@ mod tests {
             "019cb093-06a8-7534-8677-546317b17957",
             "spending.enabled",
             "spending.account_ids",
+            "spending.excluded_category_ids",
             "custom_groups",
             "spending_categories",
             "income_sources",

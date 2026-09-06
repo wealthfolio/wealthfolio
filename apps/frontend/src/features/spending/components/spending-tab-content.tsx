@@ -310,8 +310,11 @@ export default function SpendingTabContent() {
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const appTimezone = settings?.timezone ?? undefined;
   const navigate = useNavigate();
-  const { accountIds: spendingAccountIds, isLoading: spendingSettingsLoading } =
-    useSpendingSettings();
+  const {
+    accountIds: spendingAccountIds,
+    excludedCategoryIds,
+    isLoading: spendingSettingsLoading,
+  } = useSpendingSettings();
 
   const [searchParams, setSearchParams] = useSearchParams();
   // URL-driven so `/dashboard?tab=spending&spendingInterval=3M` is shareable
@@ -395,6 +398,13 @@ export default function SpendingTabContent() {
     endDate: reportReq.endDate,
   });
   const taxonomy = useTaxonomy(SPENDING_TAXONOMY);
+  // Hint count: only excluded ids that still exist in the taxonomy (stale ids
+  // keep filtering backend-side but shouldn't inflate the hint).
+  const excludedCategoryCount = useMemo(() => {
+    if (excludedCategoryIds.length === 0) return 0;
+    const liveIds = new Set((taxonomy.data?.categories ?? []).map((c) => c.id));
+    return excludedCategoryIds.filter((id) => liveIds.has(id)).length;
+  }, [excludedCategoryIds, taxonomy.data?.categories]);
   const { data: budget, isError: budgetErrored } = useBudget();
   const todayParts = useMemo(() => getZonedDateParts(new Date(), appTimezone), [appTimezone]);
   const currentBudgetMonthKey = useMemo(() => monthKeyFromParts(todayParts), [todayParts]);
@@ -885,6 +895,19 @@ export default function SpendingTabContent() {
               {selectedIntervalDescription
                 ? ` · ${selectedIntervalDescription.startsWith("spending:") ? t(selectedIntervalDescription) : selectedIntervalDescription}`
                 : ""}
+              {excludedCategoryCount > 0 && (
+                <>
+                  {" · "}
+                  <Link
+                    to="/settings/spending/categories"
+                    className="hover:text-foreground hover:underline"
+                  >
+                    {t("spending:tabContent.excludedCategoriesHint", {
+                      count: excludedCategoryCount,
+                    })}
+                  </Link>
+                </>
+              )}
             </div>
             <Balance
               isLoading={isLoading}

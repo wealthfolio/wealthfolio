@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import type { Activity, TaxonomyCategory } from "@/lib/types";
 import { parseLocalDate } from "@/lib/utils";
 
-import { getActivitySpendingAmount } from "../lib/constants";
+import { getVisibleSpendingAmount } from "../lib/constants";
 import { inclusiveDays } from "../lib/date-utils";
 import type { EventSpendingSummary } from "../types/event";
 import { computeBaselinePace } from "./use-baseline-pace";
@@ -124,7 +124,7 @@ function buildWindowSeries(
   start.setHours(0, 0, 0, 0);
   const series = new Array(windowDays).fill(0);
   for (const a of activities) {
-    const amt = getActivitySpendingAmount(a, accountTypeById?.get(a.accountId));
+    const amt = getVisibleSpendingAmount(a, accountTypeById?.get(a.accountId));
     if (amt <= 0) continue;
     const idx = Math.floor((new Date(a.activityDate).getTime() - start.getTime()) / 86_400_000);
     if (idx >= 0 && idx < windowDays) series[idx] += amt;

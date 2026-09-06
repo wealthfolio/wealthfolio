@@ -22,7 +22,7 @@ import {
 } from "@wealthfolio/ui";
 
 import { createFormatter } from "@wealthfolio/ui/lib/formatting";
-import { isCashActivityOutflow } from "../../lib/constants";
+import { getVisibleSpendingAmount, isCashActivityOutflow } from "../../lib/constants";
 import { createZonedDayHourFormatter } from "../../lib/timezone";
 
 interface HeatmapCellSheetProps {
@@ -80,9 +80,9 @@ export function HeatmapCellSheet({
     const outflowAmounts: number[] = [];
     for (const it of activities) {
       const account = accountById.get(it.accountId);
-      const amt = parseFloat(it.amount ?? "0");
-      if (!Number.isFinite(amt)) continue;
-      if (!isCashActivityOutflow(it.activityType, account?.accountType)) continue;
+      // Same figure the heatmap cell was built from, so the two agree.
+      const amt = getVisibleSpendingAmount(it, account?.accountType);
+      if (amt <= 0) continue;
       total += amt;
       if (amt > largest) largest = amt;
       outflowAmounts.push(amt);

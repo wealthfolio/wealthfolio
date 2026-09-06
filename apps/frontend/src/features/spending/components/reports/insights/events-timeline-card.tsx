@@ -22,7 +22,7 @@ import {
 } from "@wealthfolio/ui";
 
 import { useEventsAggregate } from "../../../hooks/use-events-aggregate";
-import { getActivitySpendingAmount } from "../../../lib/constants";
+import { getVisibleSpendingAmount } from "../../../lib/constants";
 import { inclusiveDays } from "../../../lib/date-utils";
 import type { EventSpendingSummary } from "../../../types/event";
 import { useEventDialog } from "../../event-dialog-provider";
@@ -688,7 +688,7 @@ function buildDailySeries(
     }
   } else {
     for (const a of activities) {
-      const amt = getActivitySpendingAmount(a, accountTypeById?.get(a.accountId));
+      const amt = getVisibleSpendingAmount(a, accountTypeById?.get(a.accountId));
       if (amt <= 0) continue;
       const idx = Math.round((new Date(a.activityDate).getTime() - startMs) / 86_400_000);
       if (idx >= 0 && idx < periodDays) series[idx] += amt;

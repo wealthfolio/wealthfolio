@@ -282,6 +282,7 @@ pub async fn initialize_context(
             activity_events_repo.clone(),
             events_service.clone(),
             fx_service.clone(),
+            taxonomy_service.clone(),
         ),
     );
 

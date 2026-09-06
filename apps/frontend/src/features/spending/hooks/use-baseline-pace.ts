@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import type { Activity } from "@/lib/types";
 
-import { getActivitySpendingAmount } from "../lib/constants";
+import { getVisibleSpendingAmount } from "../lib/constants";
 import type { EventSpendingSummary } from "../types/event";
 
 /**
@@ -49,7 +49,7 @@ export function computeBaselinePace(
     }
   } else {
     for (const a of activities) {
-      const spendingAmount = getActivitySpendingAmount(a, accountTypeById?.get(a.accountId));
+      const spendingAmount = getVisibleSpendingAmount(a, accountTypeById?.get(a.accountId));
       if (spendingAmount === 0) continue;
       const dayKey = a.activityDate.slice(0, 10);
       if (exclude.has(dayKey)) continue;

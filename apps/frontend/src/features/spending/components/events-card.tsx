@@ -7,7 +7,7 @@ import { cn, formatDateISO } from "@/lib/utils";
 import { Icons, PrivacyAmount, Skeleton, useDateFormatting } from "@wealthfolio/ui";
 
 import { useEventSpendingSummaries } from "../hooks/use-spending-events";
-import { getActivitySpendingAmount } from "../lib/constants";
+import { getVisibleSpendingAmount } from "../lib/constants";
 import { themeBg, type Palette } from "../lib/theme";
 import { CategoryIcon, type CategoryMetaMap } from "./category-chips";
 import { useEventDialog } from "./event-dialog-provider";
@@ -112,7 +112,7 @@ export function EventsCard({
     const evStartIso = ev.startDate.slice(0, 10);
     const evEndIso = ev.endDate.slice(0, 10);
     const baseline = activities.filter((a) => {
-      if (getActivitySpendingAmount(a, accountTypeById?.get(a.accountId)) === 0) return false;
+      if (getVisibleSpendingAmount(a, accountTypeById?.get(a.accountId)) === 0) return false;
       const dateIso = a.activityDate.slice(0, 10);
       return dateIso < evStartIso || dateIso > evEndIso;
     });
@@ -120,7 +120,7 @@ export function EventsCard({
     const total = Math.max(
       0,
       baseline.reduce(
-        (s, a) => s + getActivitySpendingAmount(a, accountTypeById?.get(a.accountId)),
+        (s, a) => s + getVisibleSpendingAmount(a, accountTypeById?.get(a.accountId)),
         0,
       ),
     );

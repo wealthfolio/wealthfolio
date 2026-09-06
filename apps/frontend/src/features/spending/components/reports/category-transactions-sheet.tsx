@@ -23,7 +23,8 @@ import {
 } from "@wealthfolio/ui";
 
 import { useCashActivitySearch } from "../../hooks/use-cash-activity-search";
-import { getActivitySpendingAmount } from "../../lib/constants";
+import { useSpendingSettings } from "../../hooks/use-spending-settings";
+import { getActivitySpendingAmount, getVisibleSpendingAmount } from "../../lib/constants";
 import { CategoryIcon } from "../category-chips";
 
 const SPENDING_TAXONOMY = "spending_categories";
@@ -75,16 +76,19 @@ export function CategoryTransactionsSheet({
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const isTopLevel = !!category && !category.parentId;
+  const { excludedCategoryIds } = useSpendingSettings();
 
+  // Excluded subcategories left the breakdown row that opened this sheet, so
+  // they stay out of its query too — the list then matches the number clicked.
   const ids = useMemo(() => {
     if (!category) return [] as string[];
     if (category.parentId) return [category.id];
     const out = [category.id];
     for (const c of taxonomyCategories) {
-      if (c.parentId === category.id) out.push(c.id);
+      if (c.parentId === category.id && !excludedCategoryIds.includes(c.id)) out.push(c.id);
     }
     return out;
-  }, [category, taxonomyCategories]);
+  }, [category, taxonomyCategories, excludedCategoryIds]);
 
   const startIso = rangeStart.toISOString();
   // Inclusive end-of-day so transactions on the final day are included.
@@ -129,7 +133,7 @@ export function CategoryTransactionsSheet({
     let outflowCount = 0;
     for (const it of items) {
       const account = accountById.get(it.accountId);
-      const amt = getActivitySpendingAmount(it, account?.accountType);
+      const amt = getVisibleSpendingAmount(it, account?.accountType);
       if (amt <= 0) continue;
       outflow += amt;
       outflowCount += 1;
@@ -154,7 +158,7 @@ export function CategoryTransactionsSheet({
     let directAmount = 0; // Items tagged directly to the parent (no sub).
     for (const it of items) {
       const account = accountById.get(it.accountId);
-      const amt = getActivitySpendingAmount(it, account?.accountType);
+      const amt = getVisibleSpendingAmount(it, account?.accountType);
       if (amt <= 0) continue;
       const assignment = it.assignments.find((a) => a.taxonomyId === SPENDING_TAXONOMY);
       const subId = assignment?.categoryId;

@@ -635,6 +635,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
             activity_events_repo.clone(),
             events_service.clone(),
             fx_service.clone(),
+            taxonomy_service.clone(),
         ),
     );
 

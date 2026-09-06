@@ -8,7 +8,7 @@ import type { Activity } from "@/lib/types";
 import {} from "@/lib/utils";
 import { useAmountFormatting } from "@wealthfolio/ui";
 
-import { getActivitySpendingAmount } from "../../lib/constants";
+import { getVisibleSpendingAmount } from "../../lib/constants";
 
 interface DayOfWeekChartProps {
   activities: Activity[];
@@ -120,7 +120,7 @@ function buildSeries(
   const totals = new Array(7).fill(0) as number[];
   const counts = new Array(7).fill(0) as number[];
   for (const a of activities) {
-    const spendingAmount = getActivitySpendingAmount(a, accountTypeById?.get(a.accountId));
+    const spendingAmount = getVisibleSpendingAmount(a, accountTypeById?.get(a.accountId));
     if (spendingAmount === 0) continue;
     const dow = (new Date(a.activityDate).getDay() + 6) % 7; // Mon=0
     totals[dow] += spendingAmount;

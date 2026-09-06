@@ -28,6 +28,7 @@ import { useCashActivities } from "../hooks/use-cash-activities";
 import { useEventSpendingSummaries } from "../hooks/use-spending-events";
 import { useSpendingInsight } from "../hooks/use-spending-insight";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
+import { getActivitySpendingAmount, getVisibleSpendingAmount } from "../lib/constants";
 import { insightToReportProjection, UNCATEGORIZED_CATEGORY_ID } from "../lib/insight-projection";
 import {
   addMonthsToMonthKey,
@@ -415,24 +416,33 @@ export default function SpendingInsightsPage() {
     [],
   );
   const getHeatmapDayHour = useMemo(() => createZonedDayHourFormatter(appTimezone), [appTimezone]);
+  const accountTypeById = useMemo(
+    () => new Map(accounts.map((account) => [account.id, account.accountType])),
+    [accounts],
+  );
   const heatmapCellActivities = useMemo(() => {
     if (!heatmapCell) return [];
     return heatmapActivities.filter((a) => {
       const d = new Date(a.activityDate);
       const zoned = getHeatmapDayHour(d);
+      if (
+        zoned?.weekday !== heatmapCell.weekday ||
+        zoned.hour < heatmapCell.startHour ||
+        zoned.hour >= heatmapCell.endHour
+      ) {
+        return false;
+      }
+      // Spend that is entirely excluded left the cell value; keep it out of
+      // the cell's sheet too. Non-spending rows are listed as before.
+      const accountType = accountTypeById.get(a.accountId);
       return (
-        zoned?.weekday === heatmapCell.weekday &&
-        zoned.hour >= heatmapCell.startHour &&
-        zoned.hour < heatmapCell.endHour
+        getVisibleSpendingAmount(a, accountType) !== 0 ||
+        getActivitySpendingAmount(a, accountType) === 0
       );
     });
-  }, [getHeatmapDayHour, heatmapActivities, heatmapCell]);
+  }, [accountTypeById, getHeatmapDayHour, heatmapActivities, heatmapCell]);
 
   const taxonomyCategories = taxonomy.data?.categories ?? EMPTY_TAXONOMY;
-  const accountTypeById = useMemo(
-    () => new Map(accounts.map((account) => [account.id, account.accountType])),
-    [accounts],
-  );
   const maxPickerMonth = useMemo(
     () => addMonthsToMonthKey(currentMonthKey(appTimezone), -1),
     [appTimezone],

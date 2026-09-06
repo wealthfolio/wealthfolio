@@ -12,7 +12,7 @@ import type { Activity } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAmountFormatting } from "@wealthfolio/ui";
 
-import { getActivitySpendingAmount } from "../../../lib/constants";
+import { getVisibleSpendingAmount } from "../../../lib/constants";
 import { createZonedDayHourFormatter, type ZonedDayHour } from "../../../lib/timezone";
 
 const CARD_CLASS = "border-border/60 bg-card/40 rounded-2xl border p-5 backdrop-blur-xl";
@@ -262,7 +262,7 @@ interface WeekdayHourGrid {
 
 function buildWeekdayHourGrid(
   activities: Activity[],
-  accountTypeById?: Map<string, string>,
+  accountTypeById: Map<string, string> | undefined,
   dailySpendByDate?: Map<string, number>,
   cols = 24,
   timezone?: string | null,
@@ -278,7 +278,7 @@ function buildWeekdayHourGrid(
     : undefined;
 
   for (const a of activities) {
-    const rawAmount = getActivitySpendingAmount(a, accountTypeById?.get(a.accountId));
+    const rawAmount = getVisibleSpendingAmount(a, accountTypeById?.get(a.accountId));
     if (rawAmount === 0) continue;
     const date = new Date(a.activityDate);
     const zoned = getZonedDayHour(date);
@@ -323,12 +323,12 @@ function buildWeekdayHourGrid(
 
 function buildRawSpendByDate(
   activities: Activity[],
-  accountTypeById?: Map<string, string>,
+  accountTypeById: Map<string, string> | undefined,
   getZonedDayHour: (date: Date) => ZonedDayHour | null = createZonedDayHourFormatter(),
 ): Map<string, number> {
   const totals = new Map<string, number>();
   for (const a of activities) {
-    const amount = getActivitySpendingAmount(a, accountTypeById?.get(a.accountId));
+    const amount = getVisibleSpendingAmount(a, accountTypeById?.get(a.accountId));
     if (amount === 0) continue;
     const date = new Date(a.activityDate);
     const zoned = getZonedDayHour(date);

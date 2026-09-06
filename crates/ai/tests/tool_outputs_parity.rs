@@ -596,6 +596,7 @@ fn fixture_cash_activity(
         // does not describe.
         net_amount: -12.5,
         net_amount_base: None,
+        visible_spending_amount: 0.0,
     }
 }
 

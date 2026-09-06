@@ -30,6 +30,9 @@ use crate::budget::service::{
     category_meta, resolve_group_for_category, top_category_id, top_level_categories, TargetIndex,
 };
 use crate::budget::BudgetRepositoryTrait;
+use crate::category_exclusions::{
+    excluded_spending_native, split_spending_allocations, ExclusionIndex,
+};
 use crate::error::SpendingError;
 use crate::settings::SpendingSettingsService;
 
@@ -150,7 +153,15 @@ impl InsightService {
         let taxonomy = self.taxonomy_service.get_taxonomy(SPENDING_TAXONOMY)?;
         let spending_categories = taxonomy.map(|t| t.categories).unwrap_or_default();
         let spending_meta = category_meta(&spending_categories);
-        let top_categories = top_level_categories(&spending_categories);
+        // Excluded categories (and their descendants) vanish from every surface:
+        // dropping them from `top_categories` removes their rows and budget
+        // fanout, and `exclusions` filters their spend out of the aggregates
+        // below so the reconciliation invariants keep holding.
+        let exclusions = ExclusionIndex::new(&settings.excluded_category_ids, &spending_meta);
+        let top_categories: Vec<_> = top_level_categories(&spending_categories)
+            .into_iter()
+            .filter(|c| !exclusions.is_excluded(&c.id))
+            .collect();
 
         // "Other" is the catch-all bucket for categories that aren't assigned
         // to any explicit group. It's seeded by the migration + ensured by
@@ -227,6 +238,7 @@ impl InsightService {
             &assignments_by_activity,
             &splits_by_activity,
             &spending_meta,
+            &exclusions,
             self.fx_service.as_ref(),
             currency,
             fx_as_of,
@@ -238,6 +250,7 @@ impl InsightService {
             &assignments_by_activity,
             &splits_by_activity,
             &spending_meta,
+            &exclusions,
             self.fx_service.as_ref(),
             currency,
             // Prior window converts at its own end date so the prior period's
@@ -384,6 +397,9 @@ impl InsightService {
         let pace = compute_pace(
             &current_acts,
             &account_types,
+            &assignments_by_activity,
+            &splits_by_activity,
+            &exclusions,
             start,
             end,
             now,
@@ -418,6 +434,9 @@ impl InsightService {
         let by_day = compute_by_day(
             &current_acts,
             &account_types,
+            &assignments_by_activity,
+            &splits_by_activity,
+            &exclusions,
             timezone,
             self.fx_service.as_ref(),
             currency,
@@ -428,6 +447,7 @@ impl InsightService {
             &account_types,
             &assignments_by_activity,
             &splits_by_activity,
+            &exclusions,
             timezone,
             self.fx_service.as_ref(),
             currency,
@@ -437,6 +457,9 @@ impl InsightService {
             &current_acts,
             &account_types,
             &transfer_groups,
+            &assignments_by_activity,
+            &splits_by_activity,
+            &exclusions,
             &period.months,
             timezone,
             self.fx_service.as_ref(),
@@ -550,6 +573,7 @@ fn aggregate_spend(
         Vec<crate::activity_assignments::ActivityTaxonomyAssignment>,
     >,
     spending_meta: &HashMap<String, wealthfolio_core::taxonomies::Category>,
+    exclusions: &ExclusionIndex,
     fx: &dyn FxServiceTrait,
     target_currency: &str,
     fx_as_of: NaiveDate,
@@ -562,6 +586,7 @@ fn aggregate_spend(
         assignments_by_activity,
         &splits_by_activity,
         spending_meta,
+        exclusions,
         fx,
         target_currency,
         fx_as_of,
@@ -576,6 +601,7 @@ fn aggregate_spend_with_splits(
     assignments_by_activity: &AssignmentsByActivity,
     splits_by_activity: &SplitsByActivity,
     spending_meta: &HashMap<String, wealthfolio_core::taxonomies::Category>,
+    exclusions: &ExclusionIndex,
     fx: &dyn FxServiceTrait,
     target_currency: &str,
     fx_as_of: NaiveDate,
@@ -599,9 +625,6 @@ fn aggregate_spend_with_splits(
         {
             continue;
         }
-        let spending_converted =
-            crate::fx::convert(fx, spending_native, &a.currency, target_currency, fx_as_of);
-        let spending = spending_converted.unwrap_or(Decimal::ZERO);
         let income = crate::fx::convert(fx, income_native, &a.currency, target_currency, fx_as_of)
             .unwrap_or(Decimal::ZERO);
         let saved = crate::fx::convert(fx, saving_native, &a.currency, target_currency, fx_as_of)
@@ -638,28 +661,41 @@ fn aggregate_spend_with_splits(
             );
         }
 
-        if spending == Decimal::ZERO {
-            continue;
-        }
-
-        agg.total_outflow += spending;
-        if spending_native != Decimal::ZERO && spending_converted.is_some() {
-            *agg.native_outflow_by_currency
-                .entry(a.currency.clone())
-                .or_insert(Decimal::ZERO) += spending_native;
-        }
-
-        let allocations = allocations_for_taxonomy(
+        // Excluded-category portions come out of the headline before the
+        // native/converted totals accumulate, so `total_outflow`,
+        // `spending_by_top`, and `uncategorized` all describe the same
+        // (included-only) money and the reconciliation invariants keep holding.
+        let (allocations, excluded_native) = split_spending_allocations(
             &a.id,
             SPENDING_TAXONOMY,
             spending_native,
             assignments_by_activity,
             splits_by_activity,
+            exclusions,
         );
+        let included_native = spending_native - excluded_native;
+        let spending_converted =
+            crate::fx::convert(fx, included_native, &a.currency, target_currency, fx_as_of);
+        let spending = spending_converted.unwrap_or(Decimal::ZERO);
+        if spending == Decimal::ZERO {
+            continue;
+        }
+
+        agg.total_outflow += spending;
+        if included_native != Decimal::ZERO && spending_converted.is_some() {
+            *agg.native_outflow_by_currency
+                .entry(a.currency.clone())
+                .or_insert(Decimal::ZERO) += included_native;
+        }
 
         if allocations.is_empty() {
-            agg.uncategorized_spend += spending;
-            agg.uncategorized_count += 1;
+            // No allocations at all means uncategorized (never excluded); an
+            // activity whose every allocation was excluded lands here too but
+            // contributes nothing.
+            if excluded_native == Decimal::ZERO {
+                agg.uncategorized_spend += spending;
+                agg.uncategorized_count += 1;
+            }
             continue;
         }
 
@@ -766,9 +802,13 @@ fn category_breakdown_rows(
     rows
 }
 
+#[allow(clippy::too_many_arguments)]
 fn compute_by_day(
     acts: &[&Activity],
     account_types: &HashMap<String, String>,
+    assignments_by_activity: &AssignmentsByActivity,
+    splits_by_activity: &SplitsByActivity,
+    exclusions: &ExclusionIndex,
     timezone: &str,
     fx: &dyn FxServiceTrait,
     target_currency: &str,
@@ -785,6 +825,20 @@ fn compute_by_day(
         let amount = activity_abs_amount(a);
         let spending_native = classification.spending_amount(amount);
         let income_native = classification.income_amount(amount);
+        if spending_native == Decimal::ZERO && income_native == Decimal::ZERO {
+            continue;
+        }
+        // Excluded-category portions come out here too so the daily series
+        // stays reconciled with the headline (Σ by_day.spent == headline.spent).
+        let spending_native = spending_native
+            - excluded_spending_native(
+                &a.id,
+                SPENDING_TAXONOMY,
+                spending_native,
+                assignments_by_activity,
+                splits_by_activity,
+                exclusions,
+            );
         if spending_native == Decimal::ZERO && income_native == Decimal::ZERO {
             continue;
         }
@@ -822,6 +876,7 @@ fn compute_by_day(
 }
 
 #[cfg(test)]
+#[allow(clippy::too_many_arguments)]
 fn compute_by_day_by_category(
     acts: &[&Activity],
     account_types: &HashMap<String, String>,
@@ -829,6 +884,7 @@ fn compute_by_day_by_category(
         String,
         Vec<crate::activity_assignments::ActivityTaxonomyAssignment>,
     >,
+    exclusions: &ExclusionIndex,
     timezone: &str,
     fx: &dyn FxServiceTrait,
     target_currency: &str,
@@ -840,6 +896,7 @@ fn compute_by_day_by_category(
         account_types,
         assignments_by_activity,
         &splits_by_activity,
+        exclusions,
         timezone,
         fx,
         target_currency,
@@ -853,6 +910,7 @@ fn compute_by_day_by_category_with_splits(
     account_types: &HashMap<String, String>,
     assignments_by_activity: &AssignmentsByActivity,
     splits_by_activity: &SplitsByActivity,
+    exclusions: &ExclusionIndex,
     timezone: &str,
     fx: &dyn FxServiceTrait,
     target_currency: &str,
@@ -882,23 +940,28 @@ fn compute_by_day_by_category_with_splits(
             timezone,
         );
         let date = format_date(date);
-        let allocations = allocations_for_taxonomy(
+        let (allocations, excluded_native) = split_spending_allocations(
             &a.id,
             SPENDING_TAXONOMY,
             spending_native,
             assignments_by_activity,
             splits_by_activity,
+            exclusions,
         );
         if allocations.is_empty() {
-            let entry = map
-                .entry((
-                    date,
-                    SPENDING_TAXONOMY.to_string(),
-                    UNCATEGORIZED_CATEGORY_ID.to_string(),
-                ))
-                .or_insert((Decimal::ZERO, 0));
-            entry.0 += amount;
-            entry.1 += 1;
+            // Uncategorized only when the activity truly has no allocations —
+            // a fully-excluded activity lands here too but must emit nothing.
+            if excluded_native == Decimal::ZERO {
+                let entry = map
+                    .entry((
+                        date,
+                        SPENDING_TAXONOMY.to_string(),
+                        UNCATEGORIZED_CATEGORY_ID.to_string(),
+                    ))
+                    .or_insert((Decimal::ZERO, 0));
+                entry.0 += amount;
+                entry.1 += 1;
+            }
             continue;
         }
 
@@ -953,6 +1016,9 @@ fn compute_by_month(
     acts: &[&Activity],
     account_types: &HashMap<String, String>,
     transfer_groups: &HashSet<String>,
+    assignments_by_activity: &AssignmentsByActivity,
+    splits_by_activity: &SplitsByActivity,
+    exclusions: &ExclusionIndex,
     months: &[String],
     timezone: &str,
     fx: &dyn FxServiceTrait,
@@ -978,6 +1044,17 @@ fn compute_by_month(
         {
             continue;
         }
+        // Match the headline: excluded-category portions leave the monthly
+        // spend series so `Σ by_month.spent == headline.spent` keeps holding.
+        let spending_native = spending_native
+            - excluded_spending_native(
+                &a.id,
+                SPENDING_TAXONOMY,
+                spending_native,
+                assignments_by_activity,
+                splits_by_activity,
+                exclusions,
+            );
         let spending =
             crate::fx::convert(fx, spending_native, &a.currency, target_currency, fx_as_of)
                 .unwrap_or(Decimal::ZERO);
@@ -1255,6 +1332,9 @@ fn is_leap(year: i32) -> bool {
 fn compute_pace(
     acts: &[&Activity],
     account_types: &HashMap<String, String>,
+    assignments_by_activity: &AssignmentsByActivity,
+    splits_by_activity: &SplitsByActivity,
+    exclusions: &ExclusionIndex,
     start: DateTime<Utc>,
     end: DateTime<Utc>,
     now: DateTime<Utc>,
@@ -1315,6 +1395,17 @@ fn compute_pace(
             }
             let classification = classify_activity(a, account_type);
             let native = classification.spending_amount(activity_abs_amount(a));
+            // Pace projects visible spend only — excluded categories don't
+            // count toward the run-rate, matching the headline they project.
+            let native = native
+                - excluded_spending_native(
+                    &a.id,
+                    SPENDING_TAXONOMY,
+                    native,
+                    assignments_by_activity,
+                    splits_by_activity,
+                    exclusions,
+                );
             if let Some(amount) =
                 crate::fx::convert(fx, native, &a.currency, target_currency, fx_as_of)
             {
@@ -1856,6 +1947,9 @@ mod tests {
         let pace = compute_pace(
             &[],
             &HashMap::new(),
+            &AssignmentsByActivity::new(),
+            &SplitsByActivity::new(),
+            &ExclusionIndex::empty(),
             dt(2026, 3, 1),
             dt(2026, 5, 19),
             dt(2026, 5, 19),
@@ -1894,6 +1988,9 @@ mod tests {
         let pace = compute_pace(
             &refs,
             &account_types,
+            &AssignmentsByActivity::new(),
+            &SplitsByActivity::new(),
+            &ExclusionIndex::empty(),
             dt(2026, 5, 1),
             dt(2026, 5, 31),
             dt(2026, 5, 19),
@@ -2038,6 +2135,7 @@ mod tests {
             &within_spending_transfer_groups(&acts),
             &assignments,
             &meta,
+            &ExclusionIndex::empty(),
             &fx(),
             "USD",
             NaiveDate::from_ymd_opt(2026, 5, 31).unwrap(),
@@ -2055,6 +2153,7 @@ mod tests {
             &acts,
             &account_types,
             &assignments,
+            &ExclusionIndex::empty(),
             "UTC",
             &fx(),
             "USD",
@@ -2067,6 +2166,200 @@ mod tests {
         assert_eq!(day_categories.len(), 2);
         assert_eq!(by_category.get("cat_food"), Some(&100.0));
         assert_eq!(by_category.get(UNCATEGORIZED_CATEGORY_ID), Some(&50.0));
+    }
+
+    #[test]
+    fn aggregate_excludes_category_spend_from_headline_and_series() {
+        use rust_decimal::Decimal;
+        use serde_json::Value;
+        use wealthfolio_core::accounts::account_types;
+        use wealthfolio_core::activities::{Activity, ActivityStatus};
+        use wealthfolio_core::taxonomies::Category;
+
+        let excluded_spend = Activity {
+            id: "a-travel".to_string(),
+            account_id: "acct".to_string(),
+            asset_id: None,
+            activity_type: "WITHDRAWAL".to_string(),
+            activity_type_override: None,
+            source_type: None,
+            subtype: None,
+            status: ActivityStatus::Posted,
+            activity_date: dt(2026, 5, 10),
+            settlement_date: None,
+            quantity: None,
+            unit_price: None,
+            amount: Some(Decimal::new(10000, 2)), // 100.00
+            fee: None,
+            tax: None,
+            currency: "USD".to_string(),
+            fx_rate: None,
+            notes: None,
+            metadata: None::<Value>,
+            source_system: None,
+            source_record_id: None,
+            source_group_id: None,
+            idempotency_key: None,
+            import_run_id: None,
+            is_user_modified: false,
+            needs_review: false,
+            created_at: dt(2026, 5, 10),
+            updated_at: dt(2026, 5, 10),
+        };
+        let included_spend = Activity {
+            id: "a-food".to_string(),
+            amount: Some(Decimal::new(5000, 2)), // 50.00
+            ..excluded_spend.clone()
+        };
+        let split_spend = Activity {
+            id: "a-split".to_string(),
+            amount: Some(Decimal::new(12000, 2)), // 120.00 = 80 food + 40 travel
+            ..excluded_spend.clone()
+        };
+        let uncategorized = Activity {
+            id: "a-unc".to_string(),
+            amount: Some(Decimal::new(2500, 2)), // 25.00
+            ..excluded_spend.clone()
+        };
+
+        let acts: Vec<&Activity> = vec![
+            &excluded_spend,
+            &included_spend,
+            &split_spend,
+            &uncategorized,
+        ];
+        let mut account_types = HashMap::new();
+        account_types.insert("acct".to_string(), account_types::CREDIT_CARD.to_string());
+
+        let now = chrono::Utc::now().naive_utc();
+        let make_assignment = |activity_id: &str, category_id: &str| {
+            crate::activity_assignments::ActivityTaxonomyAssignment {
+                id: format!("asg-{activity_id}"),
+                activity_id: activity_id.to_string(),
+                taxonomy_id: SPENDING_TAXONOMY.to_string(),
+                category_id: category_id.to_string(),
+                weight: 10_000,
+                source: "manual".to_string(),
+                created_at: now,
+                updated_at: now,
+            }
+        };
+        let mut assignments = HashMap::new();
+        assignments.insert(
+            "a-travel".to_string(),
+            vec![make_assignment("a-travel", "cat_travel")],
+        );
+        assignments.insert(
+            "a-food".to_string(),
+            vec![make_assignment("a-food", "cat_food")],
+        );
+        let make_split =
+            |category_id: &str, amount: Decimal| crate::activity_splits::ActivitySplit {
+                id: format!("split-{category_id}"),
+                activity_id: "a-split".to_string(),
+                taxonomy_id: SPENDING_TAXONOMY.to_string(),
+                category_id: category_id.to_string(),
+                amount,
+                note: None,
+                sort_order: 0,
+                created_at: now,
+                updated_at: now,
+            };
+        let mut splits = SplitsByActivity::new();
+        splits.insert(
+            "a-split".to_string(),
+            vec![
+                make_split("cat_food", Decimal::new(8000, 2)),
+                make_split("cat_travel", Decimal::new(4000, 2)),
+            ],
+        );
+
+        let make_category = |id: &str| Category {
+            id: id.to_string(),
+            taxonomy_id: SPENDING_TAXONOMY.to_string(),
+            parent_id: None,
+            name: id.to_string(),
+            key: id.to_string(),
+            color: "#000".to_string(),
+            icon: None,
+            description: None,
+            sort_order: 0,
+            created_at: now,
+            updated_at: now,
+        };
+        let mut meta = HashMap::new();
+        meta.insert("cat_food".to_string(), make_category("cat_food"));
+        meta.insert("cat_travel".to_string(), make_category("cat_travel"));
+        let exclusions = ExclusionIndex::new(&["cat_travel".to_string()], &meta);
+
+        let fx_as_of = NaiveDate::from_ymd_opt(2026, 5, 31).unwrap();
+        let agg = aggregate_spend_with_splits(
+            &acts,
+            &account_types,
+            &within_spending_transfer_groups(&acts),
+            &assignments,
+            &splits,
+            &meta,
+            &exclusions,
+            &fx(),
+            "USD",
+            fx_as_of,
+        );
+
+        // 50 (food) + 80 (included split lines) + 25 (uncategorized) = 155.
+        assert_eq!(agg.total_outflow, Decimal::new(155, 0));
+        assert!(!agg.spending_by_top.contains_key("cat_travel"));
+        assert_eq!(
+            agg.spending_by_top.get("cat_food").unwrap().0,
+            Decimal::new(130, 0)
+        );
+        assert_eq!(agg.uncategorized_spend, Decimal::new(25, 0));
+        assert_eq!(agg.uncategorized_count, 1);
+        // Headline == Σ by-top + uncategorized (reconciliation invariant 1).
+        let by_top_total: Decimal = agg.spending_by_top.values().map(|(v, _)| *v).sum();
+        assert_eq!(agg.total_outflow, by_top_total + agg.uncategorized_spend);
+        // Only included native outflow is attributed to the source currency.
+        assert_eq!(
+            agg.native_outflow_by_currency.get("USD").copied(),
+            Some(Decimal::new(155, 0))
+        );
+
+        // Daily series filters identically, so Σ by_day.spent == headline.
+        let by_day = compute_by_day(
+            &acts,
+            &account_types,
+            &assignments,
+            &splits,
+            &exclusions,
+            "UTC",
+            &fx(),
+            "USD",
+            fx_as_of,
+        );
+        let day_total: f64 = by_day.iter().map(|b| b.spent).sum();
+        assert!((day_total - 155.0).abs() < 1e-9);
+
+        // Per-category daily series drops excluded lines and keeps the rest.
+        let day_categories = compute_by_day_by_category_with_splits(
+            &acts,
+            &account_types,
+            &assignments,
+            &splits,
+            &exclusions,
+            "UTC",
+            &fx(),
+            "USD",
+            fx_as_of,
+        );
+        let by_category: HashMap<String, f64> = day_categories
+            .iter()
+            .map(|bucket| (bucket.category_id.clone(), bucket.amount))
+            .collect();
+        assert_eq!(by_category.get("cat_food"), Some(&130.0));
+        assert_eq!(by_category.get(UNCATEGORIZED_CATEGORY_ID), Some(&25.0));
+        assert!(!by_category.contains_key("cat_travel"));
+        let day_cat_total: f64 = day_categories.iter().map(|b| b.amount).sum();
+        assert!((day_cat_total - 155.0).abs() < 1e-9);
     }
 
     #[test]
@@ -2153,6 +2446,7 @@ mod tests {
             &transfer_groups,
             &assignments,
             &HashMap::new(),
+            &ExclusionIndex::empty(),
             &fx(),
             "USD",
             NaiveDate::from_ymd_opt(2026, 5, 31).unwrap(),
@@ -2173,6 +2467,9 @@ mod tests {
             &acts,
             &account_types,
             &transfer_groups,
+            &assignments,
+            &SplitsByActivity::new(),
+            &ExclusionIndex::empty(),
             &["2026-05".to_string()],
             "UTC",
             &fx(),
@@ -2230,6 +2527,7 @@ mod tests {
             &within_spending_transfer_groups(&acts),
             &HashMap::new(),
             &HashMap::new(),
+            &ExclusionIndex::empty(),
             &failing_cross_currency_fx(),
             "USD",
             NaiveDate::from_ymd_opt(2026, 5, 31).unwrap(),

@@ -1,12 +1,14 @@
-// Spending settings (toggle + opted-in account list)
+// Spending settings (toggle + opted-in account list + excluded categories)
 export interface SpendingSettings {
   enabled: boolean;
   accountIds: string[];
+  excludedCategoryIds: string[];
 }
 
 export interface SpendingSettingsUpdate {
   enabled?: boolean;
   accountIds?: string[];
+  excludedCategoryIds?: string[];
 }
 
 // SpendingSummary — multi-period rollup consumed by the spending overview UI
