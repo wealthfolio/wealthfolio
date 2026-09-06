@@ -479,6 +479,13 @@ Compatibility values such as `ACTIVITY_DERIVED`, `STORED_GROSS`,
 rows or aggregate views, but they are not valid new producer sources for
 compiled activity economics.
 
+A day that combines several distinct flow sources is stored as one of two
+mixture values. `MIXED_EXACT` means every constituent was exact (`CASH_AMOUNT`
+or `QUOTE_DERIVED_MARKET_VALUE`, for example a cash withdrawal and a
+quote-priced in-kind transfer on the same day); it is explicit gross and not
+degraded. `MIXED` means at least one constituent was degraded, and stays
+degraded. Merging exact sources never produces `MIXED`.
+
 ### Event Finalizer And Attribution Ledger
 
 Use a two-stage pipeline:
@@ -699,7 +706,8 @@ The architecture is complete only when these criteria are all true:
 - New compiled activity flows write only compiler-owned producer sources:
   `CASH_AMOUNT`, `QUOTE_DERIVED_MARKET_VALUE`, `COST_BASIS_FALLBACK`,
   `REMOVED_LOT_BASIS_FALLBACK`, `LEGACY_ACTIVITY_AMOUNT_FALLBACK`,
-  `UNKNOWN_BOUNDARY_TRANSFER`, or `UNKNOWN`.
+  `UNKNOWN_BOUNDARY_TRANSFER`, or `UNKNOWN`. A stored day that merges several of
+  them carries `MIXED_EXACT` when all were exact and `MIXED` otherwise.
 - Legacy source values remain readable and degraded, but they are not normal
   producers for new calculation rows.
 - Performance attribution is built from finalized event effects. Residual is a

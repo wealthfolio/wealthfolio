@@ -1057,7 +1057,8 @@ export interface AccountValuation {
     | "ACTIVITY_DERIVED"
     | "STORED_GROSS"
     | "NET_CONTRIBUTION_FALLBACK"
-    | "MIXED";
+    | "MIXED"
+    | "MIXED_EXACT";
   performanceEligibleValueBase: number;
   valueStatus: ValuationStatus;
   basisStatus: BasisStatus;

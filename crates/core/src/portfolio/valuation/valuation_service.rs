@@ -3069,21 +3069,8 @@ mod tests {
     // provenance must remain at least as unavailable/degraded. Otherwise the
     // downstream TWR/IRR availability gates can be silently bypassed.
 
-    const ALL_FLOW_SOURCES: [ExternalFlowSource; 13] = [
-        ExternalFlowSource::NoFlow,
-        ExternalFlowSource::Unknown,
-        ExternalFlowSource::CashAmount,
-        ExternalFlowSource::QuoteDerivedMarketValue,
-        ExternalFlowSource::CostBasisFallback,
-        ExternalFlowSource::RemovedLotBasisFallback,
-        ExternalFlowSource::LegacyActivityAmountFallback,
-        ExternalFlowSource::UnknownBoundaryTransfer,
-        ExternalFlowSource::UnpricedHoldingsTransition,
-        ExternalFlowSource::ActivityDerived,
-        ExternalFlowSource::StoredGross,
-        ExternalFlowSource::NetContributionFallback,
-        ExternalFlowSource::Mixed,
-    ];
+    // The enum's own exhaustive list, so a new variant is covered here too.
+    const ALL_FLOW_SOURCES: [ExternalFlowSource; 14] = ExternalFlowSource::ALL;
 
     #[test]
     fn combiner_is_idempotent_for_every_source() {
@@ -3147,12 +3134,20 @@ mod tests {
 
     #[test]
     fn combiner_mixes_two_distinct_known_gross_sources() {
+        // Both inputs are exact, so the mixture is the exact one (#1609).
         assert_eq!(
             ValuationService::combine_activity_flow_sources(
                 ExternalFlowSource::CashAmount,
                 ExternalFlowSource::QuoteDerivedMarketValue,
             ),
-            ExternalFlowSource::Mixed,
+            ExternalFlowSource::MixedExact,
+        );
+        assert_eq!(
+            ValuationService::combine_activity_flow_sources(
+                ExternalFlowSource::QuoteDerivedMarketValue,
+                ExternalFlowSource::CashAmount,
+            ),
+            ExternalFlowSource::MixedExact,
         );
     }
 
