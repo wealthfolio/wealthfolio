@@ -10973,6 +10973,12 @@ mod tests {
         );
         assert_eq!(scoped[2].external_inflow_base, Decimal::ZERO);
         assert_eq!(scoped[2].external_outflow_base, Decimal::ZERO);
+        // Netting the internal legs must not relabel the day: it keeps the
+        // per-account provenance instead of a stamped CashAmount mixture.
+        assert_eq!(
+            scoped[2].external_flow_source,
+            ExternalFlowSource::ActivityDerived
+        );
     }
 
     #[tokio::test]

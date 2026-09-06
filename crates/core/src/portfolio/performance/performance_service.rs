@@ -10243,6 +10243,31 @@ mod tests {
         );
     }
 
+    // Issue #1609: a scope-internal in-kind transfer nets to zero flow but keeps
+    // its quote-derived provenance. That day is exact, so it must not raise the
+    // provenance warning or downgrade data quality.
+    #[test]
+    fn netted_in_kind_transfer_day_is_clean() {
+        let mut history = vec![
+            valuation("2026-04-01", dec!(1000), dec!(1000), dec!(1000), dec!(1000)),
+            valuation("2026-04-02", dec!(1010), dec!(1000), dec!(1010), dec!(1000)),
+        ];
+        history[1].external_flow_source = ExternalFlowSource::QuoteDerivedMarketValue;
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("netted in-kind transfer day should compute");
+
+        assert_eq!(result.returns.twr.unwrap().round_dp(4), dec!(0.0100));
+        assert_eq!(result.data_quality.status, DataQualityStatus::Ok);
+        assert!(result.data_quality.warnings.is_empty());
+        assert!(result.data_quality.not_applicable_reasons.is_empty());
+    }
+
     #[test]
     fn partial_unpriced_valuation_warns_but_still_computes_priced_subset() {
         let mut history = vec![
