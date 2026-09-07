@@ -4,6 +4,8 @@ import esActivity from "./locales/es/activity.json";
 import frActivity from "./locales/fr/activity.json";
 import itActivity from "./locales/it/activity.json";
 import ptActivity from "./locales/pt/activity.json";
+import zhHantActivity from "./locales/zh-Hant/activity.json";
+import zhHantAi from "./locales/zh-Hant/ai.json";
 import deCommon from "./locales/de/common.json";
 import enCommon from "./locales/en/common.json";
 import esCommon from "./locales/es/common.json";
@@ -12,8 +14,10 @@ import itCommon from "./locales/it/common.json";
 import jaCommon from "./locales/ja/common.json";
 import koCommon from "./locales/ko/common.json";
 import ptCommon from "./locales/pt/common.json";
+import zhHantSettings from "./locales/zh-Hant/settings.json";
 import zhCommon from "./locales/zh/common.json";
 import zhHantCommon from "./locales/zh-Hant/common.json";
+import { NAMESPACES } from "./locales";
 import i18next from "i18next";
 import { describe, expect, it } from "vitest";
 
@@ -202,3 +206,100 @@ function collectKeys(node: Record<string, unknown>, prefix: string, out: Set<str
     }
   }
 }
+
+describe("zh-Hant plural output", () => {
+  it.each([0, 1, 2])("keeps classifiers and nouns for count %s", async (count) => {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      defaultNS: "activity",
+      fallbackLng: false,
+      interpolation: { escapeValue: false },
+      lng: "zh-Hant",
+      ns: ["activity", "ai", "settings"],
+      resources: {
+        "zh-Hant": {
+          activity: zhHantActivity,
+          ai: zhHantAi,
+          settings: zhHantSettings,
+        },
+      },
+    });
+
+    expect(i18n.t("activity:datagrid.approve_count", { count })).toBe(`核准 ${count} 筆`);
+    expect(i18n.t("ai:accounts.of", { count })).toBe(`共 ${count} 個`);
+    expect(i18n.t("ai:goals.of", { count })).toBe(`共 ${count} 個`);
+    expect(
+      i18n.t("ai:assetTaxonomy.loadedCategoriesTotal", {
+        count,
+        taxonomy: "產業",
+        total: 5,
+      }),
+    ).toBe(`已為 產業 載入 ${count} 個類別 · 共 5 個`);
+    expect(i18n.t("settings:addons_updates_critical", { count })).toBe(`（${count} 項重大更新）`);
+  });
+});
+
+type Catalog = Record<string, unknown>;
+
+const englishCatalogs = import.meta.glob<Catalog>("./locales/en/*.json", {
+  eager: true,
+  import: "default",
+});
+
+const zhHantCatalogs = import.meta.glob<Catalog>("./locales/zh-Hant/*.json", {
+  eager: true,
+  import: "default",
+});
+
+function flattenCatalog(
+  value: unknown,
+  path: string[] = [],
+  output: Record<string, unknown> = {},
+): Record<string, unknown> {
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    for (const [key, child] of Object.entries(value)) {
+      flattenCatalog(child, [...path, key], output);
+    }
+    return output;
+  }
+
+  output[path.join(".")] = value;
+  return output;
+}
+
+function interpolationTokens(value: string): string[] {
+  return (value.match(/\{\{[^{}]+\}\}/g) ?? []).sort();
+}
+
+describe("zh-Hant catalog contract", () => {
+  it("matches English files, structure, interpolation, and non-empty values", () => {
+    const expectedEnglishFiles = NAMESPACES.map(
+      (namespace) => `./locales/en/${namespace}.json`,
+    ).sort();
+    const expectedZhHantFiles = NAMESPACES.map(
+      (namespace) => `./locales/zh-Hant/${namespace}.json`,
+    ).sort();
+
+    expect(Object.keys(englishCatalogs).sort()).toEqual(expectedEnglishFiles);
+    expect(Object.keys(zhHantCatalogs).sort()).toEqual(expectedZhHantFiles);
+
+    for (const namespace of NAMESPACES) {
+      const english = flattenCatalog(englishCatalogs[`./locales/en/${namespace}.json`]);
+      const zhHant = flattenCatalog(zhHantCatalogs[`./locales/zh-Hant/${namespace}.json`]);
+
+      expect(Object.keys(zhHant).sort(), `${namespace} keys`).toEqual(Object.keys(english).sort());
+
+      for (const [key, value] of Object.entries(zhHant)) {
+        const location = `${namespace}:${key}`;
+        expect(typeof value, `${location} must be a string`).toBe("string");
+        if (typeof value !== "string") continue;
+
+        expect(value.trim(), `${location} must not be empty`).not.toBe("");
+        expect(
+          interpolationTokens(value),
+          `${location} must preserve interpolation tokens`,
+        ).toEqual(interpolationTokens(english[key] as string));
+      }
+    }
+  });
+});

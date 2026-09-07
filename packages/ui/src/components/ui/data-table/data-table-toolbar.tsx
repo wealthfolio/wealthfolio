@@ -1,7 +1,7 @@
 import { Table } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "../../../lib/utils";
+import { cn, isKeyboardEventComposing } from "../../../lib/utils";
 import { Button } from "../button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "../dropdown-menu";
 import { Icons } from "../icons";
@@ -125,6 +125,8 @@ function SearchInput({
   }, [initialValue]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isKeyboardEventComposing(e.nativeEvent)) return;
+
     if (e.key === "Enter") {
       onChange(value);
     }

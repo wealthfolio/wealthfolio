@@ -26,6 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Icons,
+  isKeyboardEventComposing,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -1008,6 +1009,8 @@ function GroupEditDialogBody({
               value={draftName}
               onChange={(event) => setDraftName(event.target.value)}
               onKeyDown={(event) => {
+                if (isKeyboardEventComposing(event.nativeEvent)) return;
+
                 if (event.key === "Enter") handleSave();
               }}
               className="text-foreground placeholder:text-muted-foreground/50 w-full bg-transparent text-sm outline-none"

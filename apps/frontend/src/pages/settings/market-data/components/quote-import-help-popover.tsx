@@ -68,11 +68,11 @@ export function QuoteImportHelpPopover() {
                 </p>
                 <pre className="bg-muted mt-2 select-all overflow-x-auto rounded-md p-3 text-xs leading-relaxed">
                   <span className="text-muted-foreground">
-                    # Required columns: symbol, date, close
+                    {t("settings:quote_help_format_comment_1")}
                   </span>
                   <br />
                   <span className="text-muted-foreground">
-                    # Optional: open, high, low, volume, currency
+                    {t("settings:quote_help_format_comment_2")}
                   </span>
                   <br />
                   symbol,date,open,high,low,close,volume,currency
@@ -85,7 +85,7 @@ export function QuoteImportHelpPopover() {
                   <br />
                   <br />
                   <span className="text-muted-foreground">
-                    # Alternative date formats supported:
+                    {t("settings:quote_help_format_comment_3")}
                   </span>
                   <br />
                   AAPL,01/03/2023,130.28,130.90,124.17,125.07,112117500,USD

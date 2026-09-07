@@ -29,6 +29,7 @@ import {
   FormMessage,
   Icons,
   Input,
+  isKeyboardEventComposing,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -489,6 +490,8 @@ export function EventFormDialog({
                           if (typeError) setTypeError(null);
                         }}
                         onKeyDown={(e) => {
+                          if (isKeyboardEventComposing(e.nativeEvent)) return;
+
                           if (e.key === "Enter") {
                             e.preventDefault();
                             handleCreateType();

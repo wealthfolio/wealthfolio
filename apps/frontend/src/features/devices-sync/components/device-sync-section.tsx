@@ -13,7 +13,7 @@ import {
 } from "@/adapters";
 import { getPlatform as getRuntimePlatform } from "@/hooks/use-platform";
 import { useQueryClient } from "@tanstack/react-query";
-import { Icons, Skeleton } from "@wealthfolio/ui";
+import { Icons, isKeyboardEventComposing, Skeleton } from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -1534,6 +1534,8 @@ function DeviceCard({
                 maxLength={64}
                 autoFocus
                 onKeyDown={(e) => {
+                  if (isKeyboardEventComposing(e.nativeEvent)) return;
+
                   if (e.key === "Enter") handleRename();
                   if (e.key === "Escape") handleCancelRename();
                 }}
