@@ -37,7 +37,7 @@ use super::{
     PerformanceReturns, PerformanceRisk, PerformanceScopeDescriptor, PerformanceSummary,
     PerformanceSummaryBasis, PerformanceSummaryBatchResult, PerformanceSummaryBatchScope,
     PerformanceSummaryProfile, PerformanceSummaryScopeTiming, PerformanceSummaryStatus,
-    ReturnMethod, SimplePerformanceMetrics,
+    ReturnMethod, SimplePerformanceMetrics, VarMethod,
 };
 use crate::portfolio::valuation::{
     DailyAccountValuation, ExternalFlowSource as ValuationExternalFlowSource,
@@ -298,6 +298,14 @@ pub struct PerformanceService {
 const DAYS_PER_YEAR_DECIMAL: Decimal = dec!(365.25);
 const SQRT_DAYS_PER_YEAR_APPROX: Decimal = dec!(19.111514854); // sqrt(365.25)
 const MIN_ANNUALIZATION_DAYS: i64 = 30;
+/// One in every `N` observations falls in the tail at each VaR confidence level,
+/// so a series shorter than `N` has no observation there and no historical
+/// estimate to report.
+const VAR_95_TAIL_DENOMINATOR: usize = 20;
+const VAR_99_TAIL_DENOMINATOR: usize = 100;
+/// The classic Sterling adjustment. Adding it to the drawdown is the only thing
+/// that separates the Sterling ratio from Calmar.
+const STERLING_DRAWDOWN_ADJUSTMENT: Decimal = dec!(0.10);
 const MIN_RETURN_BASE: Decimal = Decimal::ONE;
 const ATTRIBUTION_RESIDUAL_TOLERANCE_RATE: Decimal = dec!(0.002);
 const ATTRIBUTION_RESIDUAL_LEGACY_WARNING_PREFIX: &str = "Attribution residual ";
@@ -342,6 +350,7 @@ struct DrawdownComputation {
     trough_date: Option<NaiveDate>,
     recovery_date: Option<NaiveDate>,
     duration_days: Option<i64>,
+    ulcer_index: Option<Decimal>,
 }
 
 #[derive(Clone, Debug)]
@@ -503,14 +512,7 @@ impl PerformanceService {
     }
 
     fn empty_risk() -> PerformanceRisk {
-        PerformanceRisk {
-            volatility: None,
-            max_drawdown: None,
-            peak_date: None,
-            trough_date: None,
-            recovery_date: None,
-            drawdown_duration_days: None,
-        }
+        PerformanceRisk::default()
     }
 
     fn today_in_user_timezone(&self) -> NaiveDate {
@@ -1447,6 +1449,17 @@ impl PerformanceService {
     ) -> PerformanceRisk {
         let returns: Vec<Decimal> = samples.iter().map(|sample| sample.simple_return).collect();
         let drawdown = Self::calculate_max_drawdown(samples, opening_date);
+
+        let mut sorted_returns = returns.clone();
+        sorted_returns.sort();
+        let tail_95 = Self::historical_var_cvar(&sorted_returns, VAR_95_TAIL_DENOMINATOR);
+        let tail_99 = Self::historical_var_cvar(&sorted_returns, VAR_99_TAIL_DENOMINATOR);
+
+        let (calmar_ratio, sterling_ratio) = Self::drawdown_ratios(
+            Self::annualized_return_from_samples(samples, opening_date),
+            drawdown.max_drawdown,
+        );
+
         PerformanceRisk {
             volatility: Self::calculate_volatility(&returns),
             max_drawdown: drawdown.max_drawdown,
@@ -1454,6 +1467,17 @@ impl PerformanceService {
             trough_date: drawdown.trough_date,
             recovery_date: drawdown.recovery_date,
             drawdown_duration_days: drawdown.duration_days,
+            ulcer_index: drawdown.ulcer_index,
+            calmar_ratio,
+            sterling_ratio,
+            var_95: tail_95.map(|(value_at_risk, _)| value_at_risk),
+            var_99: tail_99.map(|(value_at_risk, _)| value_at_risk),
+            cvar_95: tail_95.map(|(_, conditional)| conditional),
+            cvar_99: tail_99.map(|(_, conditional)| conditional),
+            var_method: (tail_95.is_some() || tail_99.is_some()).then_some(VarMethod::Historical),
+            skewness: Self::calculate_skewness(&returns),
+            excess_kurtosis: Self::calculate_excess_kurtosis(&returns),
+            period_count: Some(returns.len()),
         }
     }
 
@@ -4813,14 +4837,7 @@ impl PerformanceService {
                 annualized_value_return: None,
             },
             PerformanceAttribution::default(),
-            PerformanceRisk {
-                volatility: None,
-                max_drawdown: None,
-                peak_date: None,
-                trough_date: None,
-                recovery_date: None,
-                drawdown_duration_days: None,
-            },
+            PerformanceRisk::default(),
             PerformanceDataQuality::no_data(reason),
             Vec::new(),
             false,
@@ -4850,14 +4867,7 @@ impl PerformanceService {
                 annualized_value_return: None,
             },
             PerformanceAttribution::default(),
-            PerformanceRisk {
-                volatility: None,
-                max_drawdown: None,
-                peak_date: None,
-                trough_date: None,
-                recovery_date: None,
-                drawdown_duration_days: None,
-            },
+            PerformanceRisk::default(),
             PerformanceDataQuality {
                 status: DataQualityStatus::Partial,
                 warnings: vec![warning],
@@ -5009,6 +5019,7 @@ impl PerformanceService {
                 trough_date: None,
                 recovery_date: None,
                 duration_days: None,
+                ulcer_index: None,
             };
         }
 
@@ -5020,6 +5031,7 @@ impl PerformanceService {
         let mut trough_date = samples[0].date;
         let mut recovery_date = None;
         let mut in_max_drawdown = false;
+        let mut sum_squared_drawdown = Decimal::ZERO;
 
         for sample in samples {
             cumulative_value *= Decimal::ONE + sample.simple_return;
@@ -5033,6 +5045,7 @@ impl PerformanceService {
 
             if peak_value > Decimal::ZERO {
                 let drawdown = (cumulative_value - peak_value) / peak_value;
+                sum_squared_drawdown += drawdown * drawdown;
                 if drawdown < max_drawdown {
                     max_drawdown = drawdown;
                     max_peak_date = peak_date;
@@ -5044,13 +5057,172 @@ impl PerformanceService {
         }
 
         let duration_end = recovery_date.unwrap_or(trough_date);
+        // Every sample contributes a drawdown term: `peak_value` starts at one and
+        // only ever rises, so the guard above never skips one.
+        let ulcer_index = (sum_squared_drawdown / Decimal::from(samples.len()))
+            .sqrt()
+            .map(|value| value.round_dp(DECIMAL_PRECISION));
         DrawdownComputation {
             max_drawdown: Some(max_drawdown.round_dp(DECIMAL_PRECISION)),
             peak_date: Some(max_peak_date),
             trough_date: Some(trough_date),
             recovery_date,
             duration_days: Some((duration_end - max_peak_date).num_days()),
+            ulcer_index,
         }
+    }
+
+    /// Historical VaR and the conditional loss beyond it, read off the sorted
+    /// return series. `tail_denominator` is the reciprocal of the tail
+    /// probability - 20 for 95%, 100 for 99%.
+    ///
+    /// A series shorter than that denominator has no observation in the tail at
+    /// all, so there is nothing to measure and the answer is `None` rather than
+    /// the worst return dressed up as a quantile.
+    fn historical_var_cvar(
+        sorted_returns: &[Decimal],
+        tail_denominator: usize,
+    ) -> Option<(Decimal, Decimal)> {
+        let count = sorted_returns.len();
+        if count < tail_denominator {
+            return None;
+        }
+
+        let tail_size = count.div_ceil(tail_denominator);
+        let tail = &sorted_returns[..tail_size];
+        let value_at_risk = tail[tail_size - 1];
+        let conditional = tail.iter().sum::<Decimal>() / Decimal::from(tail_size);
+
+        Some((
+            value_at_risk.round_dp(DECIMAL_PRECISION),
+            conditional.round_dp(DECIMAL_PRECISION),
+        ))
+    }
+
+    /// Compounds the shared return series and annualises it over the window the
+    /// drawdown is measured on, so both halves of Calmar and Sterling come from
+    /// one series. Windows too short to annualise honestly return `None`, on the
+    /// same threshold the reported annualised returns already use.
+    fn annualized_return_from_samples(
+        samples: &[RiskSample],
+        opening_date: Option<NaiveDate>,
+    ) -> Option<Decimal> {
+        let start_date = opening_date.unwrap_or(samples.first()?.date);
+        let end_date = samples.last()?.date;
+        if (end_date - start_date).num_days() < MIN_ANNUALIZATION_DAYS {
+            return None;
+        }
+
+        let growth = samples.iter().try_fold(Decimal::ONE, |acc, sample| {
+            acc.checked_mul(Decimal::ONE + sample.simple_return)
+        })?;
+
+        Some(Self::calculate_annualized_return(
+            start_date,
+            end_date,
+            growth - Decimal::ONE,
+        ))
+    }
+
+    /// Calmar and Sterling, both annualised return over drawdown depth. Calmar is
+    /// undefined without a drawdown to divide by; Sterling stays defined because
+    /// its adjustment keeps the denominator away from zero.
+    fn drawdown_ratios(
+        annualized_return: Option<Decimal>,
+        max_drawdown: Option<Decimal>,
+    ) -> (Option<Decimal>, Option<Decimal>) {
+        let (Some(annualized_return), Some(max_drawdown)) = (annualized_return, max_drawdown)
+        else {
+            return (None, None);
+        };
+
+        let depth = max_drawdown.abs();
+        let calmar =
+            (!depth.is_zero()).then(|| (annualized_return / depth).round_dp(DECIMAL_PRECISION));
+        let sterling = (annualized_return / (depth + STERLING_DRAWDOWN_ADJUSTMENT))
+            .round_dp(DECIMAL_PRECISION);
+
+        (calmar, Some(sterling))
+    }
+
+    /// Sample standard deviation of the raw returns, on the same n-1 divisor the
+    /// volatility above uses. `None` for a flat series, where the standardised
+    /// moments below have nothing to divide by.
+    fn sample_standard_deviation(returns: &[Decimal], mean: Decimal) -> Option<Decimal> {
+        if returns.len() < 2 {
+            return None;
+        }
+
+        let sum_squared_diff: Decimal = returns
+            .iter()
+            .map(|value| {
+                let diff = *value - mean;
+                diff * diff
+            })
+            .sum();
+        let variance = sum_squared_diff / (Decimal::from(returns.len()) - Decimal::ONE);
+        if variance.is_sign_negative() {
+            return None;
+        }
+
+        let deviation = variance.sqrt()?;
+        (!deviation.is_zero()).then_some(deviation)
+    }
+
+    /// Sum of the standardised deviations raised to `power`. Checked throughout:
+    /// a near-flat series with one outlier produces a large standardised value,
+    /// and the fourth power of one can leave the range a `Decimal` holds.
+    fn standardized_moment_sum(
+        returns: &[Decimal],
+        mean: Decimal,
+        deviation: Decimal,
+        power: u32,
+    ) -> Option<Decimal> {
+        returns.iter().try_fold(Decimal::ZERO, |acc, value| {
+            let standardized = (*value - mean).checked_div(deviation)?;
+            let mut term = Decimal::ONE;
+            for _ in 0..power {
+                term = term.checked_mul(standardized)?;
+            }
+            acc.checked_add(term)
+        })
+    }
+
+    /// Sample skewness, adjusted Fisher-Pearson - the estimator Excel `SKEW`
+    /// reports, chosen to match the n-1 divisor already used for volatility.
+    fn calculate_skewness(returns: &[Decimal]) -> Option<Decimal> {
+        if returns.len() < 3 {
+            return None;
+        }
+
+        let count = Decimal::from(returns.len());
+        let mean = returns.iter().sum::<Decimal>() / count;
+        let deviation = Self::sample_standard_deviation(returns, mean)?;
+        let cubed = Self::standardized_moment_sum(returns, mean, deviation, 3)?;
+        let factor = count / ((count - Decimal::ONE) * (count - dec!(2)));
+
+        Some((factor * cubed).round_dp(DECIMAL_PRECISION))
+    }
+
+    /// Sample excess kurtosis, matching Excel `KURT`. Already net of the 3.0 a
+    /// normal distribution carries, so zero means normal-tailed and positive
+    /// means a normal tail assumption is optimistic.
+    fn calculate_excess_kurtosis(returns: &[Decimal]) -> Option<Decimal> {
+        if returns.len() < 4 {
+            return None;
+        }
+
+        let count = Decimal::from(returns.len());
+        let mean = returns.iter().sum::<Decimal>() / count;
+        let deviation = Self::sample_standard_deviation(returns, mean)?;
+        let quartic = Self::standardized_moment_sum(returns, mean, deviation, 4)?;
+
+        let scale = (count * (count + Decimal::ONE))
+            / ((count - Decimal::ONE) * (count - dec!(2)) * (count - dec!(3)));
+        let normal_correction = (dec!(3) * (count - Decimal::ONE) * (count - Decimal::ONE))
+            / ((count - dec!(2)) * (count - dec!(3)));
+
+        Some((scale * quartic - normal_correction).round_dp(DECIMAL_PRECISION))
     }
 
     pub fn calculate_simple_performance(
@@ -11982,6 +12154,217 @@ mod tests {
         let volatility = PerformanceService::calculate_volatility(&[dec!(0), dec!(0.1)]);
 
         assert_eq!(volatility, Some(dec!(1.2880105)));
+    }
+
+    fn risk_samples_from(returns: &[Decimal], opening_date: NaiveDate) -> Vec<RiskSample> {
+        returns
+            .iter()
+            .enumerate()
+            .map(|(index, simple_return)| RiskSample {
+                date: opening_date + Duration::days(index as i64 + 1),
+                simple_return: *simple_return,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn historical_var_reads_the_worst_observation_in_the_tail() {
+        let mut returns = vec![dec!(-0.05)];
+        returns.extend(std::iter::repeat_n(dec!(0.01), 19));
+        let samples = risk_samples_from(&returns, date("2026-01-01"));
+
+        let risk = PerformanceService::risk_from_samples(&samples, Some(date("2026-01-01")));
+
+        // One observation in twenty falls in the 95% tail, so the threshold and the
+        // mean beyond it are both the single worst return.
+        assert_eq!(risk.var_95, Some(dec!(-0.05)));
+        assert_eq!(risk.cvar_95, Some(dec!(-0.05)));
+        assert_eq!(risk.var_method, Some(VarMethod::Historical));
+        // Twenty observations put nothing in the 99% tail.
+        assert_eq!(risk.var_99, None);
+        assert_eq!(risk.cvar_99, None);
+    }
+
+    #[test]
+    fn conditional_var_averages_the_whole_tail() {
+        let mut returns = vec![dec!(-0.05), dec!(-0.03)];
+        returns.extend(std::iter::repeat_n(dec!(0.01), 38));
+        let samples = risk_samples_from(&returns, date("2026-01-01"));
+
+        let risk = PerformanceService::risk_from_samples(&samples, Some(date("2026-01-01")));
+
+        // Two of forty observations reach the 95% tail: VaR is the better of the
+        // two, CVaR the mean of both.
+        assert_eq!(risk.var_95, Some(dec!(-0.03)));
+        assert_eq!(risk.cvar_95, Some(dec!(-0.04)));
+    }
+
+    #[test]
+    fn each_var_level_sizes_its_own_tail() {
+        let mut returns = vec![dec!(-0.08), dec!(-0.06), dec!(-0.04), dec!(-0.02)];
+        returns.extend(std::iter::repeat_n(dec!(0.001), 96));
+        let samples = risk_samples_from(&returns, date("2026-01-01"));
+
+        let risk = PerformanceService::risk_from_samples(&samples, Some(date("2026-01-01")));
+
+        assert_eq!(risk.var_99, Some(dec!(-0.08)));
+        assert_eq!(risk.cvar_99, Some(dec!(-0.08)));
+        // Five of a hundred observations reach the 95% tail and only four are
+        // losses, so the threshold itself is a gain while the mean past it is not.
+        assert_eq!(risk.var_95, Some(dec!(0.001)));
+        assert_eq!(risk.cvar_95, Some(dec!(-0.0398)));
+        assert_eq!(risk.period_count, Some(100));
+    }
+
+    #[test]
+    fn var_is_absent_when_no_observation_reaches_the_tail() {
+        let samples = risk_samples_from(&[dec!(-0.01); 19], date("2026-01-01"));
+
+        let risk = PerformanceService::risk_from_samples(&samples, Some(date("2026-01-01")));
+
+        assert_eq!(risk.var_95, None);
+        assert_eq!(risk.cvar_95, None);
+        assert_eq!(risk.var_method, None);
+        assert_eq!(risk.period_count, Some(19));
+    }
+
+    #[test]
+    fn ulcer_index_weights_a_drawdown_by_its_duration() {
+        let opening = date("2026-04-30");
+        let short_decline = risk_samples_from(&[dec!(0.1), dec!(-0.2), dec!(-0.1)], opening);
+        let long_decline = risk_samples_from(
+            &[
+                dec!(0.1),
+                dec!(-0.2),
+                dec!(-0.1),
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ],
+            opening,
+        );
+
+        let short = PerformanceService::calculate_max_drawdown(&short_decline, Some(opening));
+        let long = PerformanceService::calculate_max_drawdown(&long_decline, Some(opening));
+
+        // Identical depth, different time spent under water. Volatility cannot tell
+        // these apart; the ulcer index is the figure that can.
+        assert_eq!(short.max_drawdown, long.max_drawdown);
+        assert_eq!(short.ulcer_index, Some(dec!(0.19866219)));
+        assert_eq!(long.ulcer_index, Some(dec!(0.24276189)));
+    }
+
+    #[test]
+    fn calmar_and_sterling_divide_annualized_return_by_drawdown_depth() {
+        let samples = vec![
+            RiskSample {
+                date: date("2025-07-01"),
+                simple_return: dec!(0.2),
+            },
+            RiskSample {
+                date: date("2025-12-31"),
+                simple_return: dec!(-0.1),
+            },
+        ];
+
+        let risk = PerformanceService::risk_from_samples(&samples, Some(date("2025-01-01")));
+
+        // 1.2 x 0.9 compounds to 1.08, which over 364 days annualises to 8.0285%,
+        // against a 10% drawdown.
+        assert_eq!(risk.max_drawdown, Some(dec!(-0.1)));
+        assert_eq!(risk.calmar_ratio.unwrap().round_dp(6), dec!(0.802855));
+        // Sterling adds ten points to the same denominator, doubling it here.
+        assert_eq!(risk.sterling_ratio.unwrap().round_dp(6), dec!(0.401427));
+    }
+
+    #[test]
+    fn calmar_is_absent_without_a_drawdown_to_divide_by() {
+        let samples = risk_samples_from(&[Decimal::ZERO; 40], date("2026-01-01"));
+
+        let risk = PerformanceService::risk_from_samples(&samples, Some(date("2026-01-01")));
+
+        assert_eq!(risk.max_drawdown, Some(Decimal::ZERO));
+        assert_eq!(risk.ulcer_index, Some(Decimal::ZERO));
+        assert_eq!(risk.calmar_ratio, None);
+        // Sterling stays defined: its adjustment keeps the denominator off zero.
+        assert_eq!(risk.sterling_ratio, Some(Decimal::ZERO));
+    }
+
+    #[test]
+    fn drawdown_ratios_need_a_window_long_enough_to_annualize() {
+        let samples = vec![
+            RiskSample {
+                date: date("2026-05-02"),
+                simple_return: dec!(0.1),
+            },
+            RiskSample {
+                date: date("2026-05-20"),
+                simple_return: dec!(-0.2),
+            },
+        ];
+
+        let risk = PerformanceService::risk_from_samples(&samples, Some(date("2026-05-01")));
+
+        assert!(risk.max_drawdown.is_some());
+        assert_eq!(risk.calmar_ratio, None);
+        assert_eq!(risk.sterling_ratio, None);
+    }
+
+    #[test]
+    fn skewness_and_excess_kurtosis_use_the_sample_estimators() {
+        let returns = [dec!(0.01), dec!(-0.02), dec!(0.03), dec!(-0.04), dec!(0.1)];
+
+        assert_eq!(
+            PerformanceService::calculate_skewness(&returns)
+                .unwrap()
+                .round_dp(6),
+            dec!(0.979827)
+        );
+        assert_eq!(
+            PerformanceService::calculate_excess_kurtosis(&returns)
+                .unwrap()
+                .round_dp(6),
+            dec!(0.931519)
+        );
+    }
+
+    #[test]
+    fn a_symmetric_series_has_no_skew() {
+        let returns = [dec!(-0.02), dec!(-0.01), dec!(0.01), dec!(0.02)];
+
+        assert_eq!(
+            PerformanceService::calculate_skewness(&returns)
+                .unwrap()
+                .round_dp(6),
+            Decimal::ZERO
+        );
+        assert_eq!(
+            PerformanceService::calculate_excess_kurtosis(&returns)
+                .unwrap()
+                .round_dp(6),
+            dec!(-3.3)
+        );
+    }
+
+    #[test]
+    fn moments_need_enough_observations_and_some_dispersion() {
+        assert_eq!(
+            PerformanceService::calculate_skewness(&[dec!(0.01), dec!(0.02)]),
+            None
+        );
+        assert_eq!(
+            PerformanceService::calculate_excess_kurtosis(&[dec!(0.01), dec!(0.02), dec!(0.03)]),
+            None
+        );
+        // A flat series has no dispersion to standardise the deviations by.
+        assert_eq!(
+            PerformanceService::calculate_skewness(&[Decimal::ZERO; 5]),
+            None
+        );
+        assert_eq!(
+            PerformanceService::calculate_excess_kurtosis(&[Decimal::ZERO; 5]),
+            None
+        );
     }
 
     #[test]
