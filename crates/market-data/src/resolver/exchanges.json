@@ -119,7 +119,7 @@
       "alpha_vantage": { "suffix": ".LON", "currency": "GBP" }
     },
     {
-      "mic": "CXE",
+      "mic": "BCXE",
       "name": "Cboe UK",
       "long_name": "Cboe Europe Equities UK",
       "currency": "GBP",
@@ -128,7 +128,7 @@
       "yahoo": { "suffix": ".XC", "codes": ["CXE"] }
     },
     {
-      "mic": "DXE",
+      "mic": "CCXE",
       "name": "Cboe Europe",
       "long_name": "Cboe Europe Equities (EUR)",
       "currency": "EUR",
@@ -587,7 +587,7 @@
       "yahoo": { "suffix": ".TW", "codes": ["TAI", "TPE"] }
     },
     {
-      "mic": "XTAI_OTC",
+      "mic": "ROCO",
       "name": "TPEx",
       "long_name": "Taipei Exchange",
       "currency": "TWD",
@@ -730,6 +730,6 @@
     "ILS": ["XTAE"],
     "ILA": ["XTAE"],
     "ZAR": ["XJSE"],
-    "TWD": ["XTAI", "XTAI_OTC"]
+    "TWD": ["XTAI", "ROCO"]
   }
 }

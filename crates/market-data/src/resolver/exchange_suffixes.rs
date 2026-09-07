@@ -309,11 +309,11 @@ mod tests {
 
         // Cboe UK (Yahoo .XC) - provider reports GBP for this venue
         assert_eq!(
-            map.get_suffix(&Cow::Borrowed("CXE"), &Cow::Borrowed("YAHOO")),
+            map.get_suffix(&Cow::Borrowed("BCXE"), &Cow::Borrowed("YAHOO")),
             Some(".XC")
         );
         assert_eq!(
-            map.get_currency(&Cow::Borrowed("CXE"), &Cow::Borrowed("YAHOO")),
+            map.get_currency(&Cow::Borrowed("BCXE"), &Cow::Borrowed("YAHOO")),
             Some("GBP")
         );
 
@@ -359,16 +359,16 @@ mod tests {
         // Cboe UK Yahoo exchange code resolves to dedicated Cboe UK MIC.
         assert_eq!(
             yahoo_exchange_to_mic("CXE"),
-            Some(Cow::Owned("CXE".to_string()))
+            Some(Cow::Owned("BCXE".to_string()))
         );
         assert_eq!(
             yahoo_exchange_to_mic(" cxe "),
-            Some(Cow::Owned("CXE".to_string()))
+            Some(Cow::Owned("BCXE".to_string()))
         );
         // Cboe Europe EUR (DXE) — used by SXLPM.XD and similar instruments
         assert_eq!(
             yahoo_exchange_to_mic("DXE"),
-            Some(Cow::Owned("DXE".to_string()))
+            Some(Cow::Owned("CCXE".to_string()))
         );
         assert_eq!(
             yahoo_exchange_to_mic("xice"),
@@ -465,9 +465,9 @@ mod tests {
 
         // UK & Europe
         assert_eq!(yahoo_suffix_to_mic("L"), Some("XLON"));
-        assert_eq!(yahoo_suffix_to_mic("XC"), Some("CXE"));
-        assert_eq!(yahoo_suffix_to_mic("xc"), Some("CXE"));
-        assert_eq!(yahoo_suffix_to_mic("XD"), Some("DXE")); // Cboe Europe EUR
+        assert_eq!(yahoo_suffix_to_mic("XC"), Some("BCXE"));
+        assert_eq!(yahoo_suffix_to_mic("xc"), Some("BCXE"));
+        assert_eq!(yahoo_suffix_to_mic("XD"), Some("CCXE")); // Cboe Europe EUR
         assert_eq!(yahoo_suffix_to_mic("DE"), Some("XETR"));
         assert_eq!(yahoo_suffix_to_mic("PA"), Some("XPAR"));
         assert_eq!(yahoo_suffix_to_mic("AE"), None); // Ambiguous between XDFM and XADS
