@@ -296,7 +296,6 @@ pub struct PerformanceService {
 }
 
 const DAYS_PER_YEAR_DECIMAL: Decimal = dec!(365.25);
-const SQRT_DAYS_PER_YEAR_APPROX: Decimal = dec!(19.111514854); // sqrt(365.25)
 const MIN_ANNUALIZATION_DAYS: i64 = 30;
 const MIN_RETURN_BASE: Decimal = Decimal::ONE;
 const ATTRIBUTION_RESIDUAL_TOLERANCE_RATE: Decimal = dec!(0.002);
@@ -1445,10 +1444,9 @@ impl PerformanceService {
         samples: &[RiskSample],
         opening_date: Option<NaiveDate>,
     ) -> PerformanceRisk {
-        let returns: Vec<Decimal> = samples.iter().map(|sample| sample.simple_return).collect();
         let drawdown = Self::calculate_max_drawdown(samples, opening_date);
         PerformanceRisk {
-            volatility: Self::calculate_volatility(&returns),
+            volatility: Self::calculate_volatility(samples),
             max_drawdown: drawdown.max_drawdown,
             peak_date: drawdown.peak_date,
             trough_date: drawdown.trough_date,
@@ -4950,15 +4948,46 @@ impl PerformanceService {
         base.powd(years) - Decimal::ONE
     }
 
-    fn calculate_volatility(daily_returns: &[Decimal]) -> Option<Decimal> {
-        if daily_returns.len() < 2 {
+    /// Observations per year implied by how far apart the samples actually sit.
+    ///
+    /// Both risk paths feed [`risk_from_samples`](Self::risk_from_samples), and
+    /// they do not sample at the same frequency. Account risk is built from
+    /// `daily_account_valuation`, which carries a row for every calendar day
+    /// including weekends, so its series really does have ~365 observations a
+    /// year. Per-symbol risk is built from `quotes`, which only has rows on
+    /// trading days, so its series has ~252. Annualising both by a single
+    /// constant overstates one of them by `sqrt(365.25 / 252)` = 1.20.
+    ///
+    /// Measuring the spacing rather than naming a convention keeps this correct
+    /// for a weekly or monthly series too, and means a caller cannot get it
+    /// wrong by picking the constant that matches the path it happens to know
+    /// about.
+    fn periods_per_year(samples: &[RiskSample]) -> Option<Decimal> {
+        let first = samples.first()?.date;
+        let last = samples.last()?.date;
+        let intervals = i64::try_from(samples.len()).ok()?.checked_sub(1)?;
+        if intervals <= 0 {
             return None;
         }
 
-        let log_returns: Vec<Decimal> = daily_returns
+        let elapsed_days = (last - first).num_days();
+        if elapsed_days <= 0 {
+            return None;
+        }
+
+        // (intervals / elapsed_days) observations a day, over a calendar year.
+        Some(Decimal::from(intervals) * DAYS_PER_YEAR_DECIMAL / Decimal::from(elapsed_days))
+    }
+
+    fn calculate_volatility(samples: &[RiskSample]) -> Option<Decimal> {
+        if samples.len() < 2 {
+            return None;
+        }
+
+        let log_returns: Vec<Decimal> = samples
             .iter()
-            .filter_map(|daily_return| {
-                let factor = Decimal::ONE + *daily_return;
+            .filter_map(|sample| {
+                let factor = Decimal::ONE + sample.simple_return;
                 if factor <= Decimal::ZERO {
                     return None;
                 }
@@ -4989,13 +5018,11 @@ impl PerformanceService {
             return None;
         }
 
-        let daily_volatility = variance.sqrt().unwrap_or(Decimal::ZERO);
+        let period_volatility = variance.sqrt().unwrap_or(Decimal::ZERO);
 
-        let annualization_factor = DAYS_PER_YEAR_DECIMAL
-            .sqrt()
-            .unwrap_or(SQRT_DAYS_PER_YEAR_APPROX);
+        let annualization_factor = Self::periods_per_year(samples)?.sqrt()?;
 
-        Some((daily_volatility * annualization_factor).round_dp(DECIMAL_PRECISION))
+        Some((period_volatility * annualization_factor).round_dp(DECIMAL_PRECISION))
     }
 
     fn calculate_max_drawdown(
@@ -11979,9 +12006,108 @@ mod tests {
 
     #[test]
     fn volatility_annualizes_calendar_daily_returns() {
-        let volatility = PerformanceService::calculate_volatility(&[dec!(0), dec!(0.1)]);
+        let samples = vec![
+            RiskSample {
+                date: date("2026-05-01"),
+                simple_return: dec!(0),
+            },
+            RiskSample {
+                date: date("2026-05-02"),
+                simple_return: dec!(0.1),
+            },
+        ];
+
+        let volatility = PerformanceService::calculate_volatility(&samples);
 
         assert_eq!(volatility, Some(dec!(1.2880105)));
+    }
+
+    /// The account path samples `daily_account_valuation`, which holds a row for
+    /// every calendar day, so a year of it is ~365 observations and 365.25 is
+    /// the right annualisation.
+    #[test]
+    fn periods_per_year_reads_a_calendar_daily_series_as_calendar_daily() {
+        let samples: Vec<RiskSample> = (0..366)
+            .map(|offset| RiskSample {
+                date: date("2025-01-01") + Duration::days(offset),
+                simple_return: Decimal::ZERO,
+            })
+            .collect();
+
+        let periods = PerformanceService::periods_per_year(&samples).unwrap();
+
+        assert_eq!(periods.round_dp(2), dec!(365.25));
+    }
+
+    /// The per-symbol path samples `quotes`, which only has rows on trading
+    /// days. Annualising that by 365.25 is what overstated per-asset volatility
+    /// by `sqrt(365.25 / 252)` = 1.20.
+    #[test]
+    fn periods_per_year_reads_a_trading_day_series_as_trading_days() {
+        // 2025-01-06 is a Monday, so offsets with `offset % 7 < 5` are weekdays.
+        let samples: Vec<RiskSample> = (0..364)
+            .filter(|offset| offset % 7 < 5)
+            .map(|offset| RiskSample {
+                date: date("2025-01-06") + Duration::days(offset),
+                simple_return: Decimal::ZERO,
+            })
+            .collect();
+
+        let periods = PerformanceService::periods_per_year(&samples).unwrap();
+
+        // Five sessions a week is ~261 observations a year before holidays, so
+        // the series lands near 252 rather than near 365.
+        assert!(
+            periods > dec!(250) && periods < dec!(266),
+            "expected a trading-day frequency, got {periods}"
+        );
+    }
+
+    /// The same dispersion sampled weekly must not be annualised as if it were
+    /// daily. This is the property the old single constant could not express.
+    #[test]
+    fn volatility_scales_with_the_frequency_of_the_series() {
+        let returns = [dec!(0), dec!(0.01), dec!(-0.01), dec!(0.02), dec!(-0.02)];
+
+        let build = |step: i64| -> Vec<RiskSample> {
+            returns
+                .iter()
+                .enumerate()
+                .map(|(index, simple_return)| RiskSample {
+                    date: date("2026-01-05") + Duration::days(index as i64 * step),
+                    simple_return: *simple_return,
+                })
+                .collect()
+        };
+
+        let daily = PerformanceService::calculate_volatility(&build(1)).unwrap();
+        let weekly = PerformanceService::calculate_volatility(&build(7)).unwrap();
+
+        // Same numbers, one seventh the sampling rate: sqrt(1/7) = 0.378 of the
+        // annualised figure.
+        let ratio = weekly / daily;
+        assert!(
+            (ratio - dec!(0.3779)).abs() < dec!(0.001),
+            "expected sqrt(1/7) scaling, got {ratio}"
+        );
+    }
+
+    /// Samples that span no time carry no frequency, so there is nothing to
+    /// annualise by and the metric declines rather than inventing one.
+    #[test]
+    fn volatility_declines_when_the_series_spans_no_time() {
+        let samples = vec![
+            RiskSample {
+                date: date("2026-05-01"),
+                simple_return: dec!(0),
+            },
+            RiskSample {
+                date: date("2026-05-01"),
+                simple_return: dec!(0.1),
+            },
+        ];
+
+        assert!(PerformanceService::calculate_volatility(&samples).is_none());
     }
 
     #[test]
