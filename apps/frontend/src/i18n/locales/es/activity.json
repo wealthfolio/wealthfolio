@@ -317,7 +317,23 @@
   "delete_modal": {
     "title": "¿Eliminar actividad?",
     "description": "Esta actividad se eliminará de forma permanente. Esta acción no se puede deshacer.",
-    "linked_transfer_desc": "Esta actividad está vinculada a un par de transferencia. Ambas partes se eliminarán de forma permanente. Esta acción no se puede deshacer."
+    "linked_transfer_desc": "Esta actividad está vinculada a un par de transferencia. Ambas partes se eliminarán de forma permanente. Esta acción no se puede deshacer.",
+    "broker_synced_desc": "Esta actividad proviene de una sincronización con el bróker. Al eliminarla también se excluirá de las próximas sincronizaciones, así que no volverá. Puedes restaurarla más tarde desde la página de actividades."
+  },
+  "suppressed": {
+    "summary_one": "{{count}} actividad del bróker eliminada se mantiene fuera de las próximas sincronizaciones.",
+    "summary_other": "{{count}} actividades del bróker eliminadas se mantienen fuera de las próximas sincronizaciones.",
+    "summary_many": "{{count}} actividades del bróker eliminadas se mantienen fuera de las próximas sincronizaciones.",
+    "review": "Revisar",
+    "title": "Actividades del bróker eliminadas",
+    "description": "Tu bróker sigue informando estos registros, por lo que cada sincronización volvería a añadirlos. Permanecerán excluidos hasta que los restaures.",
+    "deleted_on": "Eliminada el {{date}}",
+    "restore": "Restaurar",
+    "restore_all": "Restaurar todas",
+    "restored_one": "{{count}} actividad restaurada. La próxima sincronización volverá a actualizarla.",
+    "restored_other": "{{count}} actividades restauradas. La próxima sincronización volverá a actualizarlas.",
+    "restored_many": "{{count}} actividades restauradas. La próxima sincronización volverá a actualizarlas.",
+    "restore_failed": "No se pudo restaurar"
   },
   "form_renderer": {
     "select_type": "Selecciona un tipo de actividad arriba para continuar",

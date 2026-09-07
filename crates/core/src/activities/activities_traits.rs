@@ -201,6 +201,28 @@ pub trait ActivityRepositoryTrait: Send + Sync {
     async fn create_activity(&self, new_activity: NewActivity) -> Result<Activity>;
     async fn update_activity(&self, activity_update: ActivityUpdate) -> Result<Activity>;
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
+    /// Broker records the user deleted, which a re-sync suppresses rather than
+    /// bringing back. Defaults to none, for repositories that keep no tombstones.
+    fn list_suppressed_activities(
+        &self,
+        account_ids: Option<Vec<String>>,
+    ) -> Result<Vec<SuppressedActivity>> {
+        let _ = account_ids;
+        Ok(Vec::new())
+    }
+    /// Drops the tombstones and puts the recorded rows back, so the next sync
+    /// updates them in place rather than inserting duplicates. Passing every id
+    /// is how a user asks for the whole feed again.
+    async fn restore_suppressed_activities(
+        &self,
+        deletion_ids: Vec<String>,
+    ) -> Result<Vec<Activity>> {
+        Err(crate::activities::ActivityError::NotFound(format!(
+            "No suppressed activities with ids {}",
+            deletion_ids.join(", ")
+        ))
+        .into())
+    }
     /// Pairs two existing transfer activities by writing a shared `source_group_id`
     /// and clearing `metadata.flow.is_external` on both. Order of `activity_a_id` /
     /// `activity_b_id` is irrelevant; the impl resolves which is IN vs OUT.
@@ -403,6 +425,18 @@ pub trait ActivityServiceTrait: Send + Sync {
     async fn create_activity(&self, activity: NewActivity) -> Result<Activity>;
     async fn update_activity(&self, activity: ActivityUpdate) -> Result<Activity>;
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
+    /// Broker records the user deleted, which a re-sync suppresses rather than
+    /// bringing back.
+    fn list_suppressed_activities(
+        &self,
+        account_ids: Option<Vec<String>>,
+    ) -> Result<Vec<SuppressedActivity>>;
+    /// Un-suppresses them, putting the recorded rows back. Passing every id is
+    /// how a user asks for the whole feed again.
+    async fn restore_suppressed_activities(
+        &self,
+        deletion_ids: Vec<String>,
+    ) -> Result<Vec<Activity>>;
     fn get_transfer_pair_for_activity(
         &self,
         activity_id: String,

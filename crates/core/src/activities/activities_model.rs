@@ -1866,10 +1866,24 @@ pub struct BulkUpsertResult {
     pub updated: usize,
     /// Number of activities skipped (e.g., user-modified)
     pub skipped: usize,
+    /// Number of activities not re-imported because the user deleted them
+    pub suppressed: usize,
     /// Asset ids of pre-existing SPLIT rows that were overwritten, so callers can
     /// emit asset-level split events even when the incoming row is no longer a SPLIT
     #[serde(skip)]
     pub updated_split_asset_ids: Vec<String>,
+}
+
+/// A broker-sourced activity the user deleted, kept so the next sync suppresses
+/// it instead of resurrecting it, and so the deletion can be undone.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SuppressedActivity {
+    /// Id of the deletion record, not of the activity — the activity is gone.
+    pub id: String,
+    pub deleted_at: String,
+    /// The row as it was when it was deleted.
+    pub activity: Activity,
 }
 
 /// Activity ready for persistence

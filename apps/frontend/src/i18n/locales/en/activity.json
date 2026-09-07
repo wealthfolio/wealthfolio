@@ -316,7 +316,21 @@
   "delete_modal": {
     "title": "Delete activity?",
     "description": "This activity will be permanently deleted. This action cannot be undone.",
-    "linked_transfer_desc": "This activity is linked to a transfer pair. Both sides will be permanently deleted. This action cannot be undone."
+    "linked_transfer_desc": "This activity is linked to a transfer pair. Both sides will be permanently deleted. This action cannot be undone.",
+    "broker_synced_desc": "This activity came from a broker sync. Deleting it also keeps it out of future syncs, so it will not come back. You can restore it later from the activities page."
+  },
+  "suppressed": {
+    "summary_one": "{{count}} deleted broker activity is being kept out of future syncs.",
+    "summary_other": "{{count}} deleted broker activities are being kept out of future syncs.",
+    "review": "Review",
+    "title": "Deleted broker activities",
+    "description": "Your broker still reports these records, so every sync would add them back. They stay out until you restore them.",
+    "deleted_on": "Deleted {{date}}",
+    "restore": "Restore",
+    "restore_all": "Restore all",
+    "restored_one": "{{count}} activity restored. The next sync will update it again.",
+    "restored_other": "{{count}} activities restored. The next sync will update them again.",
+    "restore_failed": "Could not restore"
   },
   "form_renderer": {
     "select_type": "Select an activity type above to continue",

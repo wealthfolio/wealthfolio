@@ -20,6 +20,7 @@ import type {
   TransferMatchCandidateRequest,
   BrokerSyncProfileData,
   SaveBrokerSyncProfileRulesRequest,
+  SuppressedActivity,
 } from "@/lib/types";
 
 import { invoke, logger } from "./platform";
@@ -158,6 +159,26 @@ export const deleteActivity = async (activityId: string): Promise<Activity> => {
     return await invoke<Activity>("delete_activity", { activityId });
   } catch (err) {
     logger.error("Error deleting activity.");
+    throw err;
+  }
+};
+
+export const getSuppressedActivities = async (
+  accountIds?: string[],
+): Promise<SuppressedActivity[]> => {
+  try {
+    return await invoke<SuppressedActivity[]>("list_suppressed_activities", { accountIds });
+  } catch (err) {
+    logger.error("Error fetching suppressed activities.");
+    throw err;
+  }
+};
+
+export const restoreSuppressedActivities = async (deletionIds: string[]): Promise<Activity[]> => {
+  try {
+    return await invoke<Activity[]>("restore_suppressed_activities", { deletionIds });
+  } catch (err) {
+    logger.error("Error restoring suppressed activities.");
     throw err;
   }
 };

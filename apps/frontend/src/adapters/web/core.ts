@@ -109,6 +109,8 @@ export const COMMANDS: CommandMap = {
   update_activity: { method: "PUT", path: "/activities" },
   save_activities: { method: "POST", path: "/activities/bulk" },
   delete_activity: { method: "DELETE", path: "/activities" },
+  list_suppressed_activities: { method: "GET", path: "/activities/suppressed" },
+  restore_suppressed_activities: { method: "POST", path: "/activities/suppressed/restore" },
   get_transfer_pair_for_activity: { method: "GET", path: "/activities" },
   find_transfer_match_candidates: { method: "POST", path: "/activities/transfer-match-candidates" },
   save_internal_transfer_pair: { method: "POST", path: "/activities/transfer-pair" },
@@ -878,6 +880,20 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     case "delete_activity": {
       const { activityId } = payload as { activityId: string };
       url += `/${encodeURIComponent(activityId)}`;
+      break;
+    }
+    case "list_suppressed_activities": {
+      const { accountIds } = payload as { accountIds?: string[] };
+      if (accountIds?.length) {
+        const params = new URLSearchParams();
+        params.set("accountIds", accountIds.join(","));
+        url += `?${params.toString()}`;
+      }
+      break;
+    }
+    case "restore_suppressed_activities": {
+      const { deletionIds } = payload as { deletionIds: string[] };
+      body = JSON.stringify({ deletionIds });
       break;
     }
     case "get_transfer_pair_for_activity": {

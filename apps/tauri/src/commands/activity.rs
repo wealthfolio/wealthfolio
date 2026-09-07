@@ -9,7 +9,7 @@ use wealthfolio_core::activities::{
     ActivitySearchResponse, ActivityUpdate, ImportActivitiesResult, ImportAssetCandidate,
     ImportAssetPreviewItem, ImportMappingData, ImportTemplateData, InternalTransferPairRequest,
     InternalTransferPairResponse, NewActivity, ParseConfig, ParsedCsvResult, Sort,
-    TransferMatchCandidate, TransferMatchCandidateRequest,
+    SuppressedActivity, TransferMatchCandidate, TransferMatchCandidateRequest,
 };
 use wealthfolio_core::health::HealthServiceTrait;
 use wealthfolio_core::utils::time_utils::{
@@ -110,6 +110,33 @@ pub async fn delete_activity(
         .map_err(|e| e.to_string())?;
     state.health_service().clear_cache().await;
     Ok(deleted)
+}
+
+#[tauri::command]
+pub async fn list_suppressed_activities(
+    account_ids: Option<Vec<String>>,
+    state: State<'_, Arc<ServiceContext>>,
+) -> Result<Vec<SuppressedActivity>, String> {
+    debug!("Listing suppressed activities...");
+    state
+        .activity_service()
+        .list_suppressed_activities(account_ids)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn restore_suppressed_activities(
+    deletion_ids: Vec<String>,
+    state: State<'_, Arc<ServiceContext>>,
+) -> Result<Vec<Activity>, String> {
+    debug!("Restoring suppressed activities...");
+    let restored = state
+        .activity_service()
+        .restore_suppressed_activities(deletion_ids)
+        .await
+        .map_err(|e| e.to_string())?;
+    state.health_service().clear_cache().await;
+    Ok(restored)
 }
 
 #[tauri::command]

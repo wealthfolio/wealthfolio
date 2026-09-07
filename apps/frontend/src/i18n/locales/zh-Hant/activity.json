@@ -316,7 +316,8 @@
   "delete_modal": {
     "title": "刪除活動？",
     "description": "此活動將被永久刪除。此操作無法撤銷。",
-    "linked_transfer_desc": "此活動關聯到一對轉帳。雙方都將被永久刪除。此操作無法撤銷。"
+    "linked_transfer_desc": "此活動關聯到一對轉帳。雙方都將被永久刪除。此操作無法撤銷。",
+    "broker_synced_desc": "此活動來自券商同步。刪除後也會將它排除在日後的同步之外，因此它不會再出現。您之後可以在活動頁面恢復它。"
   },
   "form_renderer": {
     "select_type": "請在上方選擇一種活動類型以繼續",
@@ -1332,5 +1333,18 @@
       "issuesTitle_other": "{{count}} 條活動條目存在問題。",
       "issuesTitle_one": "{{count}} 條活動條目存在問題。"
     }
+  },
+  "suppressed": {
+    "summary_one": "已刪除的 {{count}} 筆券商活動正被排除在日後的同步之外。",
+    "summary_other": "已刪除的 {{count}} 筆券商活動正被排除在日後的同步之外。",
+    "review": "檢視",
+    "title": "已刪除的券商活動",
+    "description": "您的券商仍會提供這些紀錄，因此每次同步都會把它們加回來。在您恢復它們之前，它們會一直被排除在外。",
+    "deleted_on": "刪除於 {{date}}",
+    "restore": "恢復",
+    "restore_all": "全部恢復",
+    "restored_one": "已恢復 {{count}} 筆活動。下次同步會再次更新它。",
+    "restored_other": "已恢復 {{count}} 筆活動。下次同步會再次更新它們。",
+    "restore_failed": "無法恢復"
   }
 }

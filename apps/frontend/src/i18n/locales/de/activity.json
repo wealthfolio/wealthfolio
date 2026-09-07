@@ -211,7 +211,21 @@
   "delete_modal": {
     "title": "Aktivität löschen?",
     "description": "Diese Aktivität wird dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
-    "linked_transfer_desc": "Diese Aktivität ist mit einem Übertragungspaar verknüpft. Beide Seiten werden dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden."
+    "linked_transfer_desc": "Diese Aktivität ist mit einem Übertragungspaar verknüpft. Beide Seiten werden dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
+    "broker_synced_desc": "Diese Aktivität stammt aus einer Broker-Synchronisierung. Beim Löschen wird sie auch von künftigen Synchronisierungen ausgeschlossen und kommt nicht zurück. Sie können sie später auf der Aktivitätsseite wiederherstellen."
+  },
+  "suppressed": {
+    "summary_one": "{{count}} gelöschte Broker-Aktivität wird von künftigen Synchronisierungen ausgeschlossen.",
+    "summary_other": "{{count}} gelöschte Broker-Aktivitäten werden von künftigen Synchronisierungen ausgeschlossen.",
+    "review": "Ansehen",
+    "title": "Gelöschte Broker-Aktivitäten",
+    "description": "Ihr Broker meldet diese Datensätze weiterhin, sodass jede Synchronisierung sie erneut hinzufügen würde. Sie bleiben ausgeschlossen, bis Sie sie wiederherstellen.",
+    "deleted_on": "Gelöscht am {{date}}",
+    "restore": "Wiederherstellen",
+    "restore_all": "Alle wiederherstellen",
+    "restored_one": "{{count}} Aktivität wiederhergestellt. Die nächste Synchronisierung aktualisiert sie wieder.",
+    "restored_other": "{{count}} Aktivitäten wiederhergestellt. Die nächste Synchronisierung aktualisiert sie wieder.",
+    "restore_failed": "Wiederherstellung fehlgeschlagen"
   },
   "form_renderer": {
     "select_type": "Wählen Sie oben einen Aktivitätstyp aus, um fortzufahren",
