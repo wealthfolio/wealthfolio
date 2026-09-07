@@ -262,14 +262,24 @@ fn asset_class_assignments_from_input(input: &ClassificationInput) -> Vec<(Strin
 
 /// Maps InstrumentType enum to instrument_type taxonomy category ID.
 /// Used at asset creation time when no provider profile is available yet.
+///
+/// `InstrumentType` is deliberately coarser than this taxonomy, so a variant only
+/// resolves as far as it actually knows. A variant that names one container resolves
+/// to the container rather than to an arbitrary leaf beneath it; the provider profile
+/// refines it later via `map_quote_type_to_instrument_type`. `Equity` resolves to
+/// nothing at all, because it covers "Stocks, ETFs, funds" and those are three
+/// *sibling* top-level categories (`EQUITY_SECURITY`, `ETP`, `FUND`) with no common
+/// node — the same reason `ECNQUOTE` is skipped above. The asset is not left
+/// uncategorised by that: `map_instrument_type_to_asset_class` still records `EQUITY`
+/// in `asset_classes`, which is true of all three.
 fn map_instrument_type_to_taxonomy_category(
     instrument_type: &InstrumentType,
 ) -> Option<&'static str> {
     match instrument_type {
-        InstrumentType::Equity => Some("STOCK_COMMON"),
-        InstrumentType::Crypto => Some("CRYPTO_NATIVE"),
+        InstrumentType::Equity => None,
+        InstrumentType::Crypto => Some("DIGITAL_ASSET"),
         InstrumentType::Option => Some("OPTION"),
-        InstrumentType::Bond => Some("BOND_CORPORATE"),
+        InstrumentType::Bond => Some("DEBT_SECURITY"),
         InstrumentType::Metal => Some("PHYSICAL_METAL"),
         InstrumentType::Fx => None,
     }
@@ -1435,6 +1445,117 @@ mod tests {
             created_at: now,
             updated_at: now,
         }
+    }
+
+    #[test]
+    fn test_map_instrument_type_stops_short_of_a_leaf_it_cannot_justify() {
+        // Equity spans EQUITY_SECURITY, ETP and FUND -- three sibling top-level
+        // categories -- so the enum alone cannot pick one. Assigning STOCK_COMMON
+        // here recorded every broker-synced ETF as common stock.
+        assert_eq!(
+            map_instrument_type_to_taxonomy_category(&InstrumentType::Equity),
+            None
+        );
+        // Bond and Crypto each name exactly one container, so they resolve to it
+        // rather than to an arbitrary child. A bond of unknown flavour is not a
+        // corporate bond, and a stablecoin is not native crypto.
+        assert_eq!(
+            map_instrument_type_to_taxonomy_category(&InstrumentType::Bond),
+            Some("DEBT_SECURITY")
+        );
+        assert_eq!(
+            map_instrument_type_to_taxonomy_category(&InstrumentType::Crypto),
+            Some("DIGITAL_ASSET")
+        );
+        // These two are already as precise as the taxonomy gets.
+        assert_eq!(
+            map_instrument_type_to_taxonomy_category(&InstrumentType::Option),
+            Some("OPTION")
+        );
+        assert_eq!(
+            map_instrument_type_to_taxonomy_category(&InstrumentType::Metal),
+            Some("PHYSICAL_METAL")
+        );
+        assert_eq!(
+            map_instrument_type_to_taxonomy_category(&InstrumentType::Fx),
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn test_classify_from_spec_leaves_instrument_type_open_for_coarse_equity() {
+        let service = Arc::new(MockTaxonomyService::default());
+        let classifier = AutoClassificationService::new(service.clone());
+
+        classifier
+            .classify_from_spec(
+                "asset-1",
+                Some(&InstrumentType::Equity),
+                &AssetKind::Investment,
+            )
+            .await;
+
+        // No instrument type: a broker-synced ETF must not land on STOCK_COMMON
+        // just because the enum has nowhere finer than Equity to put it.
+        assert!(service
+            .assignments_for("asset-1", INSTRUMENT_TYPE_TAXONOMY)
+            .is_empty());
+        // The asset class is still recorded, because EQUITY is true of a stock,
+        // an ETF and a fund alike -- so this is a narrower answer, not a blank one.
+        let asset_classes = service.assignments_for("asset-1", ASSET_CLASSES_TAXONOMY);
+        assert_eq!(asset_classes.len(), 1);
+        assert_eq!(asset_classes[0].category_id, "EQUITY");
+    }
+
+    #[tokio::test]
+    async fn test_classify_from_spec_files_a_coarse_bond_under_the_container() {
+        let service = Arc::new(MockTaxonomyService::default());
+        let classifier = AutoClassificationService::new(service.clone());
+
+        classifier
+            .classify_from_spec(
+                "asset-1",
+                Some(&InstrumentType::Bond),
+                &AssetKind::Investment,
+            )
+            .await;
+
+        // A Treasury arriving from a broker that sent no symbol type code is a bond
+        // and nothing more precise, so it must not be filed as a corporate bond.
+        let instrument_types = service.assignments_for("asset-1", INSTRUMENT_TYPE_TAXONOMY);
+        assert_eq!(instrument_types.len(), 1);
+        assert_eq!(instrument_types[0].category_id, "DEBT_SECURITY");
+    }
+
+    #[tokio::test]
+    async fn test_a_later_profile_refines_the_container_to_a_leaf() {
+        let service = Arc::new(MockTaxonomyService::with_assignments(vec![assignment(
+            "auto-instrument",
+            "asset-1",
+            INSTRUMENT_TYPE_TAXONOMY,
+            "DEBT_SECURITY",
+            10000,
+            AUTO_SOURCE,
+        )]));
+        let classifier = AutoClassificationService::new(service.clone());
+
+        classifier
+            .classify_asset(
+                "asset-1",
+                &ClassificationInput {
+                    quote_type: Some("BOND".to_string()),
+                    name: Some("US TREASURY N/B - T 3.25 05/15/42".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+        // The container is a placeholder, not a terminus: once the provider profile
+        // lands it gives way to the real leaf.
+        let refined = service.assignments_for("asset-1", INSTRUMENT_TYPE_TAXONOMY);
+        assert_eq!(refined.len(), 1);
+        assert_eq!(refined[0].category_id, "BOND_GOVERNMENT");
     }
 
     #[derive(Default)]
