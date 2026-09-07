@@ -3,7 +3,7 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { ProgressIndicator } from "@wealthfolio/ui/components/ui/progress-indicator";
 import { FacetedFilter } from "@wealthfolio/ui";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useNameCollator } from "@/hooks/use-name-collator";
+import { useNameComparator } from "@/hooks/use-name-comparator";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ImportAlert } from "../components/import-alert";
@@ -93,7 +93,7 @@ function findDuplicateContextRowIndexes(drafts: DraftActivity[]): number[] {
 export function ReviewStep() {
   const { state, dispatch, validateDrafts } = useImportContext();
   const { t } = useTranslation();
-  const compareNames = useNameCollator();
+  const compareNames = useNameComparator();
   const { parsedRows, mapping, draftActivities } = state;
   const isValidating = state.isValidating;
   const { accounts = [] } = useAccounts({ filterActive: true, includeArchived: false });

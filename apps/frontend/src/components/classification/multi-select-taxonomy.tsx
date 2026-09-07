@@ -21,7 +21,7 @@ import {
   useAssignAssetToCategory,
   useRemoveAssetTaxonomyAssignment,
 } from "@/hooks/use-taxonomies";
-import { useNameCollator } from "@/hooks/use-name-collator";
+import { useNameComparator } from "@/hooks/use-name-comparator";
 import type { TaxonomyCategory, AssetTaxonomyAssignment } from "@/lib/types";
 
 interface MultiSelectTaxonomyProps {
@@ -106,7 +106,7 @@ export function MultiSelectTaxonomy({
   disabled = false,
 }: MultiSelectTaxonomyProps) {
   const { t } = useTranslation();
-  const compareNames = useNameCollator();
+  const compareNames = useNameComparator();
   const [open, setOpen] = useState(false);
   const [pendingCategory, setPendingCategory] = useState<PendingCategory | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);

@@ -126,7 +126,7 @@
       "fi_reached_prefix": "你已實現",
       "financial_independence": "財務獨立",
       "fi_reached_suffix": "，以上依目前假設計算。",
-      "fi_at_prefix": "預計可於",
+      "fi_at_prefix": "預計達成財務獨立的年齡：",
       "years_after_one": "晚 {{count}} 年",
       "years_after_other": "晚 {{count}} 年",
       "years_before_one": "早 {{count}} 年",

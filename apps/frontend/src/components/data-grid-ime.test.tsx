@@ -5,7 +5,7 @@ import {
   MultiSelectCell,
   SymbolCell,
 } from "@wealthfolio/ui/components/data-grid/data-grid-cell-variants";
-import type { Cell, TableMeta } from "@tanstack/react-table";
+import type { Cell, ColumnDef, TableMeta } from "@tanstack/react-table";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 interface TestRow {
@@ -47,10 +47,15 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
+const gridData: TestRow[] = [{ name: null }, { name: null }];
+const gridColumns: ColumnDef<TestRow>[] = [
+  { accessorKey: "name", meta: { cell: { variant: "short-text" } } },
+];
+
 function GridHarness() {
   const grid = useDataGrid<TestRow>({
-    data: [{ name: null }, { name: null }],
-    columns: [{ accessorKey: "name", meta: { cell: { variant: "short-text" } } }],
+    data: gridData,
+    columns: gridColumns,
   });
 
   return (

@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { useNameCollator } from "./use-name-collator";
+import { useNameComparator } from "./use-name-comparator";
 
 const localization = vi.hoisted(() => ({ uiLocale: "en" }));
 
@@ -14,14 +14,14 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("useNameCollator", () => {
+describe("useNameComparator", () => {
   it("recreates the name comparator when the UI locale changes", () => {
     const collator = vi.spyOn(Intl, "Collator").mockImplementation(function () {
       return {
         compare: vi.fn(() => 0),
       } as unknown as Intl.Collator;
     });
-    const { result, rerender } = renderHook(() => useNameCollator());
+    const { result, rerender } = renderHook(() => useNameComparator());
     const englishComparator = result.current;
 
     expect(collator).toHaveBeenCalledWith("en");
@@ -35,7 +35,7 @@ describe("useNameCollator", () => {
 
   it("uses canonical Traditional Chinese collation", () => {
     localization.uiLocale = "zh-Hant";
-    const { result } = renderHook(() => useNameCollator());
+    const { result } = renderHook(() => useNameComparator());
     const names = ["王", "陳", "李", "張"];
 
     expect([...names].sort(result.current)).toEqual(["王", "李", "張", "陳"]);

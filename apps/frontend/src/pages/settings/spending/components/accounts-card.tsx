@@ -2,7 +2,7 @@ import { useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAccounts } from "@/hooks/use-accounts";
-import { useNameCollator } from "@/hooks/use-name-collator";
+import { useNameComparator } from "@/hooks/use-name-comparator";
 import type { Account } from "@/lib/types";
 import {
   Card,
@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 
 export function AccountsCard() {
   const { t } = useTranslation();
-  const compareNames = useNameCollator();
+  const compareNames = useNameComparator();
   const { settings } = useSpendingSettings();
   const mutation = useSpendingSettingsMutation();
   const { accounts } = useAccounts({ filterActive: false });

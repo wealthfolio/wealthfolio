@@ -1,5 +1,5 @@
 import type { AddonStoreListing } from "@/lib/types";
-import { useNameCollator } from "@/hooks/use-name-collator";
+import { useNameComparator } from "@/hooks/use-name-comparator";
 import {
   Badge,
   Button,
@@ -37,7 +37,7 @@ const isAddonDisplayable = (listing: AddonStoreListing) => {
 
 export function AddonStoreBrowser({ installedAddonIds, onInstallSuccess }: AddonStoreBrowserProps) {
   const { t } = useTranslation();
-  const compareNames = useNameCollator();
+  const compareNames = useNameComparator();
   const {
     storeListings,
     isLoadingStore,

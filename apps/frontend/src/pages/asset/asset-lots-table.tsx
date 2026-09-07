@@ -1,5 +1,5 @@
 import type { AssetLotView } from "@/lib/types";
-import { useNameCollator } from "@/hooks/use-name-collator";
+import { useNameComparator } from "@/hooks/use-name-comparator";
 import { cn, formatDate, normalizeCurrency } from "@/lib/utils";
 import {
   Button,
@@ -53,7 +53,7 @@ export const AssetLotsTable = ({
   dayChangePct = null,
 }: AssetLotsTableProps) => {
   const { t } = useTranslation();
-  const compareNames = useNameCollator();
+  const compareNames = useNameComparator();
   const groups = useMemo(
     () =>
       lots && lots.length > 0

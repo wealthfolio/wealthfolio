@@ -24,7 +24,7 @@ import {
 } from "@wealthfolio/ui";
 import { cn } from "@/lib/utils";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useNameCollator } from "@/hooks/use-name-collator";
+import { useNameComparator } from "@/hooks/use-name-comparator";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import type { TaxonomyCategory } from "@/lib/types";
 
@@ -60,7 +60,7 @@ const SAVINGS_TAXONOMY = "savings_categories";
 
 export default function SpendingRulesPage() {
   const { t } = useTranslation();
-  const compareNames = useNameCollator();
+  const compareNames = useNameComparator();
   const { isEnabled, isLoading: settingsLoading, accountIds } = useSpendingSettings();
   const { accounts } = useAccounts({ filterActive: false });
   const {
