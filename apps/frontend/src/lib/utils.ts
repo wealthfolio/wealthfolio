@@ -22,11 +22,10 @@ export type DateOrder = "DMY" | "MDY";
 
 /**
  * Numeric dates the formats below can actually parse: two small fields, a
- * repeated separator, four-digit year. Detection deliberately matches no more
- * than parsing supports — claiming an order for "03/08/26" would be useless,
- * since no pattern here reads a two-digit year.
+ * repeated separator, and a two- or four-digit year. Detection deliberately
+ * matches no more than parsing supports.
  */
-const NUMERIC_DATE_RE = /^(\d{1,2})([/.-])(\d{1,2})\2(\d{4})(?:\D|$)/;
+const NUMERIC_DATE_RE = /^(\d{1,2})([/.-])(\d{1,2})\2(\d{4}|\d{2})(?:\D|$)/;
 
 /**
  * The two field orders NUMERIC_DATE_RE can report, each covering every
@@ -40,6 +39,9 @@ export const MONTH_FIRST_NUMERIC_FORMATS = [
   "M.d.yyyy", // "5.1.2024"
   "MM-dd-yyyy", // "05-01-2024"
   "M-d-yyyy", // "5-1-2024"
+  "MM/dd/yy", // "05/01/24"
+  "MM.dd.yy", // "05.01.24"
+  "MM-dd-yy", // "05-01-24"
 ];
 
 export const DAY_FIRST_NUMERIC_FORMATS = [
@@ -49,6 +51,9 @@ export const DAY_FIRST_NUMERIC_FORMATS = [
   "d.M.yyyy", // "1.5.2024" - German/Swiss Relaxed
   "dd-MM-yyyy", // "01-05-2024" - Dutch/Danish
   "d-M-yyyy", // "1-5-2024"
+  "dd/MM/yy", // "01/05/24"
+  "dd.MM.yy", // "01.05.24"
+  "dd-MM-yy", // "01-05-24"
 ];
 
 /**
@@ -65,6 +70,12 @@ const NUMERIC_FORMATS_BY_ORDER = {
     "dd.MM.yyyy",
     "d.M.yyyy",
     "dd-MM-yyyy",
+    "MM/dd/yy",
+    "dd/MM/yy",
+    "dd.MM.yy",
+    "MM.dd.yy",
+    "dd-MM-yy",
+    "MM-dd-yy",
   ],
   DMY: [...DAY_FIRST_NUMERIC_FORMATS, ...MONTH_FIRST_NUMERIC_FORMATS],
   MDY: [...MONTH_FIRST_NUMERIC_FORMATS, ...DAY_FIRST_NUMERIC_FORMATS],
@@ -207,7 +218,7 @@ export function tryParseDate(dateStr: string, order?: DateOrder): Date | null {
 }
 
 // Helper to check if date is within reasonable range (1900-2100)
-function isDateInRange(date: Date): boolean {
+export function isDateInRange(date: Date): boolean {
   const year = date.getFullYear();
   return year >= 1900 && year <= 2100;
 }
