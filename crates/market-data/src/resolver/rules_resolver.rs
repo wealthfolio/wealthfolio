@@ -88,17 +88,19 @@ impl RulesResolver {
         let symbol = match mic {
             Some(mic) => {
                 // Look up suffix for this MIC and provider, fallback to ticker only if not found
-                match self.exchange_map.get_suffix(mic, provider) {
-                    Some(suffix) => Arc::from(format!("{}{}", provider_ticker, suffix)),
-                    None => {
-                        // The registry has no suffix for this venue on this
-                        // provider, so the bare ticker is a guess rather than a
-                        // resolution: it addresses whichever listing the
-                        // provider indexes under that ticker, which is
-                        // routinely a different instrument on a different
-                        // exchange. Report it and mark the result untrusted.
+                match self.exchange_map.get_suffix_checked(mic, provider) {
+                    Some((suffix, true)) => Arc::from(format!("{}{}", provider_ticker, suffix)),
+                    // Either the registry has no suffix for this venue on this
+                    // provider, or it has an empty one on a venue that does not
+                    // write its tickers bare. Both produce the same bare
+                    // ticker, and it is a guess rather than a resolution: it
+                    // addresses whichever listing the provider indexes under
+                    // that ticker, which is routinely a different instrument on
+                    // a different exchange. Report it and mark the result
+                    // untrusted so `check_profile` confirms what came back.
+                    Some((_, false)) | None => {
                         warn!(
-                            "No {} symbol mapping for MIC '{}' - falling back to the bare ticker '{}', which is unverified and may be a different listing",
+                            "No usable {} symbol mapping for MIC '{}' - falling back to the bare ticker '{}', which is unverified and may be a different listing",
                             provider, mic, provider_ticker
                         );
                         source = ResolutionSource::RulesFallback;
@@ -665,6 +667,28 @@ mod tests {
             .unwrap();
 
         assert_eq!(resolved.source, ResolutionSource::Rules);
+    }
+
+    /// Euronext Amsterdam carries `alpha_vantage.suffix = ""`, which appends
+    /// nothing and lands on whatever Alpha Vantage indexes under the bare
+    /// ticker - the US listing. An empty suffix on a venue that does not write
+    /// its tickers bare is a hole in the registry, not a resolution, so it must
+    /// reach `check_profile` the same way an absent one does.
+    #[test]
+    fn test_resolve_empty_suffix_on_non_us_venue_is_a_fallback() {
+        let resolver = RulesResolver::new();
+        let context = make_equity_context("ASML", Some("XAMS"));
+
+        let resolved = resolver
+            .resolve(&"ALPHA_VANTAGE".into(), &context)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(resolved.source, ResolutionSource::RulesFallback);
+        match resolved.instrument {
+            ProviderInstrument::EquitySymbol { symbol } => assert_eq!(symbol.as_ref(), "ASML"),
+            _ => panic!("Expected EquitySymbol"),
+        }
     }
 
     /// The registry has no Alpha Vantage suffix for the Korea Exchange - 42 of

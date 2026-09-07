@@ -102,6 +102,37 @@ impl ExchangeMap {
             .map(|s| s.currency.as_ref())
     }
 
+    /// Whether an empty suffix for this venue is the provider's convention
+    /// rather than a hole in the registry.
+    ///
+    /// Yahoo and Alpha Vantage both write US tickers bare, so an empty suffix
+    /// is a real answer on a US venue — `AAPL` addresses exactly one listing.
+    /// Anywhere else it appends nothing to a ticker the provider then resolves
+    /// against its own default namespace, which *is* the US market, so the
+    /// symbol silently addresses a different instrument while looking like a
+    /// resolution.
+    ///
+    /// Currency is the discriminator because it is the only signal the catalog
+    /// carries, and it is exact for all 75 venues: the six that write bare
+    /// tickers (`XNYS`, `XNAS`, `XASE`, `ARCX`, `BATS`, `OTCM`) are precisely
+    /// the six the registry prices in USD.
+    fn empty_suffix_is_conventional(&self, mic: &Mic, provider: &ProviderId) -> bool {
+        self.get_currency(mic, provider) == Some("USD")
+    }
+
+    /// Resolve a MIC to a provider suffix, saying whether the result can be
+    /// trusted to address the venue that was asked for.
+    ///
+    /// `None` means the registry has no entry at all. `Some((suffix, false))`
+    /// means it has one that resolves to a bare ticker on a venue where bare
+    /// tickers are not the convention — which is a gap wearing a resolution's
+    /// clothes, and the caller must treat it as a fallback.
+    pub fn get_suffix_checked(&self, mic: &Mic, provider: &ProviderId) -> Option<(&str, bool)> {
+        let suffix = self.get_suffix(mic, provider)?;
+        let trusted = !suffix.is_empty() || self.empty_suffix_is_conventional(mic, provider);
+        Some((suffix, trusted))
+    }
+
     /// Check if a MIC is supported.
     pub fn has_mic(&self, mic: &Mic) -> bool {
         self.mappings.contains_key(mic)
@@ -322,6 +353,81 @@ mod tests {
             map.get_suffix(&Cow::Borrowed("XETR"), &Cow::Borrowed("YAHOO")),
             Some(".DE")
         );
+    }
+
+    /// An empty suffix means "write the ticker bare", which is only an answer
+    /// on the venues where that is the provider's convention. Everywhere else
+    /// it is an unfilled entry, and `get_suffix` alone cannot tell the caller
+    /// which it is holding.
+    #[test]
+    fn test_empty_suffix_is_only_trusted_on_a_bare_ticker_venue() {
+        let map = ExchangeMap::new();
+
+        // NASDAQ writes tickers bare, so an empty suffix is the real answer.
+        assert_eq!(
+            map.get_suffix_checked(&Cow::Borrowed("XNAS"), &Cow::Borrowed("YAHOO")),
+            Some(("", true))
+        );
+
+        // Amsterdam does not, so its empty Alpha Vantage suffix is a gap.
+        assert_eq!(
+            map.get_suffix_checked(&Cow::Borrowed("XAMS"), &Cow::Borrowed("ALPHA_VANTAGE")),
+            Some(("", false))
+        );
+
+        // A venue with a real suffix is trusted whatever its currency.
+        assert_eq!(
+            map.get_suffix_checked(&Cow::Borrowed("XLON"), &Cow::Borrowed("YAHOO")),
+            Some((".L", true))
+        );
+
+        // No entry at all stays distinct from an empty one.
+        assert_eq!(
+            map.get_suffix_checked(&Cow::Borrowed("XKRX"), &Cow::Borrowed("ALPHA_VANTAGE")),
+            None
+        );
+    }
+
+    /// The venues that write bare tickers are the ones the catalog prices in
+    /// USD, which is what makes currency a sound discriminator.
+    ///
+    /// One entry is knowingly not: Euronext Amsterdam carries an empty Alpha
+    /// Vantage suffix and trades in EUR. The change above makes that resolve as
+    /// a fallback so it is checked rather than trusted, but the real fix is to
+    /// give the venue its Alpha Vantage suffix — which needs confirming against
+    /// the provider, not guessing from the pattern of its Euronext siblings.
+    /// Naming it here keeps it from being mistaken for an intended bare-ticker
+    /// venue, and this list should shrink to empty rather than grow.
+    #[test]
+    fn test_only_known_venues_carry_an_empty_suffix() {
+        const KNOWN_EMPTY_NON_USD: &[(&str, &str)] = &[("XAMS", "ALPHA_VANTAGE")];
+
+        for entry in &REGISTRY.catalog.exchanges {
+            let fallback = entry.currency.as_deref();
+
+            let check = |provider: &str, suffix: &str, currency: Option<&str>| {
+                if !suffix.is_empty() {
+                    return;
+                }
+                if currency.or(fallback) == Some("USD") {
+                    return;
+                }
+                assert!(
+                    KNOWN_EMPTY_NON_USD.contains(&(entry.mic.as_str(), provider)),
+                    "{} has an empty {} suffix but does not write bare tickers - \
+                     give it a real suffix, or add it to KNOWN_EMPTY_NON_USD with a reason",
+                    entry.mic,
+                    provider
+                );
+            };
+
+            if let Some(yahoo) = &entry.yahoo {
+                check("YAHOO", &yahoo.suffix, yahoo.currency.as_deref());
+            }
+            if let Some(av) = &entry.alpha_vantage {
+                check("ALPHA_VANTAGE", &av.suffix, av.currency.as_deref());
+            }
+        }
     }
 
     #[test]
