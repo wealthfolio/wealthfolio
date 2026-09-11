@@ -1,0 +1,48 @@
+id: EDGE-LIVE-01
+title: Current (live) valuation with missing quotes and FX
+intent: >
+  Facts for the legacy live path (`current_account_valuation`), which the
+  in-memory harness does not capture: the historical valuation is the only
+  path exercised by `legacy_capture`, and the in-memory quote service does
+  not implement the latest-quote-pair read the live path needs. Legacy live
+  behavior to be pinned at shell level: a held asset with NO quotes is
+  valued at ZERO, an account currency with NO FX to base is converted at
+  RATE 1 (the rate-1 amount is summed into portfolio totals while a
+  structured warning is emitted and fx_rate_to_base is nulled), and
+  expired options are skipped using the UTC date. The kernel runs the same
+  `value` stage for live and historical facts with typed statuses, so
+  live == historical for identical facts. Marked [L, S].
+  Shell-level only: no legacy golden and no ledger entry.
+markers: [S]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: EUR
+assets:
+  - id: noquote
+    symbol: NOQUOTE
+    quote_ccy: EUR
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: noquote
+    quantity: 5
+    unit_price: 100
+    amount: 500
+expected_notes: >
+  Legacy live: cash 500 EUR + investment 0 (missing quote) = 500, reported
+  as 500 "USD" at rate 1 with warnings for the missing quote and the
+  missing EUR->USD rate. Legacy historical (not captured here either: the
+  account fails on the missing base FX, see EDGE-FX-04). Kernel: cash 500
+  EUR, investment unavailable, base columns unavailable, both paths
+  identical.

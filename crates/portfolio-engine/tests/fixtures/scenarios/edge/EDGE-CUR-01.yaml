@@ -1,0 +1,62 @@
+id: EDGE-CUR-01
+title: Activities with an EMPTY currency in a USD account
+intent: >
+  The #1388 shape: rows whose currency is "" reach the calculator. Legacy
+  books the DEPOSIT into a `""` cash bucket (cash_booking uses the activity
+  currency verbatim), converts it to the account currency by "using the
+  original amount" when the FX lookup rejects the empty code, skips the base
+  leg of net_contribution, and adds the unconverted bucket into the
+  end-of-day cash totals. The BUY with currency "" is REJECTED at the
+  position-currency conversion step (""->USD is an invalid currency code) and
+  leaves no state behind. The valuation stage then fails the whole account
+  because the `""` cash bucket needs an FX rate ""->USD that cannot exist.
+  Kernel: account-currency fallback + diagnostic, never a "" bucket.
+markers: [L]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-usd
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: dep-empty
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-03T10:00:00Z
+    amount: 500
+    currency: ""
+  - id: buy-empty
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T11:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+    currency: ""
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 104 }
+expected_notes: >
+  LEGACY BEHAVIOR: keyframe 01-03 has cash {USD: 1000, "": 500} and NO aapl
+  position (buy-empty is rejected at the ""->USD unit-price conversion,
+  logged only). net_contribution 1500 (the "" deposit is added at face
+  value), net_contribution_base 1000 (base leg skipped),
+  cash_total_account_currency 1500 and cash_total_base_currency 1500
+  (unconverted add of the "" bucket). The valuation batch fails acc-1
+  (VALUATION_CALCULATION_FAILED) before any day is valued: the activity flow
+  pass cannot convert the "" deposit ("Failed to convert external flow 500
+  ->USD ... Invalid currency code"), so there are no valuation rows and no
+  flows, and the same error poisons the scoped read for the WHOLE portfolio
+  ("flows/portfolio: error", portfolio performance "partially unavailable").
+  Economically the account should hold USD 1500 - 500 = 1000 cash and 5
+  aapl.

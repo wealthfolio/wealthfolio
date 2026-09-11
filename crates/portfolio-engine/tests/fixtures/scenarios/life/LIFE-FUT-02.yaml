@@ -1,0 +1,52 @@
+id: LIFE-FUT-02
+title: Empty timeline with a deferred future-dated observed snapshot
+markers: [S]
+intent: >
+  Shell-level (coordinator layer, clock-relative). A HOLDINGS account whose
+  only observed snapshot is dated 2025-01-20, ten days AFTER as_of
+  (2025-01-10). Legacy `get_holdings_timeline` flags keyframes dated after
+  today as deferred (`has_deferred_future_snapshots`), which leaves the
+  timeline empty; `calculate_prepared_valuation_account_from_facts` then
+  turns a Full or SinceDate valuation request into `ValuationPersistence::Noop`
+  instead of `Replace`, so any stale valuation rows already persisted for the
+  account survive untouched. The coordinator's consistency check must
+  surface this as an issue (facts fingerprint: observed snapshot newer than
+  the projection watermark) rather than silently no-op. Harness note: the
+  legacy capture harness seeds observed snapshots through
+  `save_manual_snapshot`, whose `validate_snapshot_write_date` uses a strict
+  `> today` ceiling (no grace, unlike the 2-day read grace), so with the
+  clock frozen at as_of the future-dated row is REJECTED at save time and
+  reported in `diagnostics` as `observed-snapshot/acc-h/2025-01-20: ...`;
+  that rejection is itself the pinned write-side behavior. A shell test has
+  to persist the row through the repository (as a broker/CSV import or a
+  clock that later moves backwards would) to exercise the Noop path.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-h
+    name: Observed
+    currency: USD
+    tracking_mode: HOLDINGS
+assets:
+  - id: aapl
+    quote_ccy: USD
+quotes:
+  - { asset: aapl, day: 2025-01-10, close: 100 }
+  - { asset: aapl, day: 2025-01-20, close: 110 }
+observed_snapshots:
+  - account: acc-h
+    date: 2025-01-20
+    source: BROKER_IMPORTED
+    positions: [{ asset: aapl, quantity: 10, average_cost: 90 }]
+    cash: { USD: 500 }
+expected_notes: >
+  Through the production write API the snapshot is rejected (date 01-20 >
+  today 01-10) and the account has no keyframes and no valuations. If the
+  row is persisted directly, legacy produces an empty timeline with
+  deferred_future_snapshots = true: no valuation rows are written for
+  01-10, a Full/SinceDate request is a Noop (stale rows would survive), and
+  once the clock passes 01-20 the row becomes a normal observed keyframe
+  (10 aapl @ 90 + cash 500 = value 1600 at 110). The coordinator must report
+  the deferred snapshot as a consistency issue in the meantime.

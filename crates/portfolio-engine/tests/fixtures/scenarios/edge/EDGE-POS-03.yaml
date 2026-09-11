@@ -1,0 +1,77 @@
+id: EDGE-POS-03
+title: Position below QUANTITY_THRESHOLD after a trade (1e-8 dust)
+intent: >
+  Two dust shapes around `is_quantity_significant` (threshold 1e-8).
+  `frac`: buy 1.000000005 then sell 1 - the residual 0.000000005 is
+  insignificant, so `reduce_lots_fifo` consumes the lot ENTIRELY (closed
+  lot, disposal for the sold 1 unit), silently dropping the residual
+  0.0000005 of cost basis; the position aggregates go to zero with NO lots
+  retained. `dust`: a standalone buy of 0.000000005 - the lot IS retained
+  but `recalculate_aggregates` zeroes quantity, cost basis and average cost
+  because the total is insignificant. Both are current behavior, pinned.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: frac
+    symbol: FRAC
+    quote_ccy: USD
+  - id: dust
+    symbol: DUST
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-frac
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: frac
+    quantity: "1.000000005"
+    unit_price: 100
+    amount: "100.0000005"
+  - id: buy-dust
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T11:00:00Z
+    asset: dust
+    quantity: "0.000000005"
+    unit_price: 100
+    amount: "0.0000005"
+  - id: sell-frac
+    account: acc-1
+    type: SELL
+    date: 2025-01-06T10:00:00Z
+    asset: frac
+    quantity: 1
+    unit_price: 100
+    amount: 100
+quotes:
+  - { asset: frac, day: 2025-01-03, close: 100 }
+  - { asset: dust, day: 2025-01-03, close: 100 }
+expected_notes: >
+  01-03: cash 899.999999; frac position quantity 1.000000005, basis
+  100.0000005; dust position quantity 0, average_cost 0, total_cost_basis
+  0 (aggregates zeroed) while lot buy-dust remains with remaining_quantity
+  0.000000005 and remaining_cost_basis 0.0000005; the keyframe cost_basis
+  (100.000001) still includes the dust lot's 0.0000005 via the lot walk, and
+  the dust position keeps cost_basis_account/base 0.0000005. 01-06: cash
+  999.999999; frac position quantity 0 with NO lots; lot buy-frac is CLOSED
+  (original_quantity 1.000000005, close_activity sell-frac); disposal
+  sell-frac quantity 1, proceeds 100, cost_basis 100 (prorated 100.0000005 x
+  1/1.000000005), realized 0. Valuations: dust (zero quantity) and closed
+  frac contribute nothing and the valuation cost_basis skips the
+  zero-aggregate dust position (0 on 01-06 vs 0.0000005 on the keyframe);
+  01-03 investment 100.0000005, total 999.9999995; 01-06 onward cash-only
+  999.999999 (the 0.0000005 dust residual is the missing money). NOTE: the
+  golden is rendered at 8 dp with half-even rounding, so 1.000000005 prints
+  as 1 and 0.000000005 prints as 0 (the dust lot shows
+  original/remaining_quantity 0) - only the cost columns (7 dp) reveal the
+  dust.

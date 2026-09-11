@@ -1,0 +1,60 @@
+id: LIFE-INC-01
+title: Append a new activity after the high-water mark
+intent: >
+  A deposit is appended after every existing activity and the legacy
+  incremental modes (SinceDate seeded from the prior keyframe, and
+  IncrementalFromLast) are run. Each result is compared with a full rebuild of
+  the same facts (I1).
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 505
+    fee: 5
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 110 }
+  - { asset: aapl, day: 2025-01-10, close: 120 }
+lifecycle:
+  - label: append_then_since_date
+    as_of: 2025-01-12
+    add_activities:
+      - id: dep-2
+        account: acc-1
+        type: DEPOSIT
+        date: 2025-01-11T10:00:00Z
+        amount: 200
+    recalc: { snapshots: SINCE_DATE, valuations: SINCE_DATE, since: 2025-01-11 }
+  - label: append_then_incremental_from_last
+    as_of: 2025-01-14
+    add_activities:
+      - id: wd-1
+        account: acc-1
+        type: WITHDRAWAL
+        date: 2025-01-13T10:00:00Z
+        amount: 50
+    recalc: { snapshots: INCREMENTAL_FROM_LAST, valuations: INCREMENTAL_FROM_LAST }
+expected_notes: >
+  Baseline: cash 1000 → 495 after the buy, position 5 AAPL priced 100/110/120.
+  Step 1: cash 695 from 01-11; step 2: cash 645 from 01-13. Both incremental
+  results should equal a full rebuild; any difference is a finding for the
+  ledger (LIFE-INC-01 pins current behavior either way).

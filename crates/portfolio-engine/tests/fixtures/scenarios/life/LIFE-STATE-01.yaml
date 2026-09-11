@@ -1,0 +1,53 @@
+id: LIFE-STATE-01
+title: project with a prior state whose date does not match the range start
+markers: [K]
+intent: >
+  Kernel-only (§4.3 project contract, §4.4 error model). Simple history: a
+  deposit on 01-02 and a buy on 01-06. The kernel golden runner first
+  projects 01-02..01-04 to obtain a `ProjectionState` checkpoint dated 01-04,
+  then calls `project` for the range starting 01-08 while passing that
+  checkpoint (a two-day gap: the 01-06 buy would be silently skipped if the
+  call were accepted), and again for a range starting 01-03 (checkpoint
+  dated AFTER the range start, which would double-apply nothing but
+  overwrite a committed day). Both calls must return an `EngineError`
+  (state/range mismatch) before any keyframe, lot or valuation is produced:
+  no partial output, no corruption of the checkpoint. The well-formed call
+  (range starting 01-05 with the 01-04 checkpoint) must succeed and equal
+  the one-shot projection from inception. No legacy golden: legacy has no
+  explicit state contract (it seeds from whatever keyframe precedes the
+  range and carries it forward).
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+    fee: 0
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 100 }
+  - { asset: aapl, day: 2025-01-10, close: 110 }
+expected_notes: >
+  One-shot economics: cash 1000 from 01-02, 500 from 01-06 with 5 aapl
+  (basis 500); total value 1000 through 01-09 and 5 x 110 + 500 = 1050 on
+  01-10. The mismatched-state calls produce an EngineError and zero output
+  rows; the matched call (checkpoint 01-04, range from 01-05) reproduces the
+  01-06 keyframe and the same valuations as the one-shot run.

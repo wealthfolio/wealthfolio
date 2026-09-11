@@ -1,0 +1,88 @@
+id: NOM-TXF-04
+title: Paired TRANSFER_IN of long lots into an account that is short the asset
+intent: >
+  acc-b is short 4 aapl (SELL with POSITION_OPEN) when a paired transfer
+  brings in 10 long aapl lots (basis 100.5/unit) from acc-a. The incoming
+  lots first cover the short (4 units, prorated basis 402 as cover
+  proceeds), a disposal is recorded against the short lot, and only the
+  residual 6 units are added as lots. net_contribution is relieved of the
+  covered short basis and increased by the residual lots' basis.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-a
+    name: Long
+    currency: USD
+  - id: acc-b
+    name: Short
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: dep-2
+    account: acc-b
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-a
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1005
+    fee: 5
+  - id: short-1
+    account: acc-b
+    type: SELL
+    subtype: POSITION_OPEN
+    date: 2025-01-03T11:00:00Z
+    asset: aapl
+    quantity: 4
+    unit_price: 100
+    amount: 400
+    fee: 0
+  - id: out-1
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-08T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100.5
+    source_group_id: g1
+  - id: in-1
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-08T11:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100.5
+    source_group_id: g1
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 105 }
+  - { asset: aapl, day: 2025-01-12, close: 108 }
+expected_notes: >
+  acc-a: as in NOM-TXF-02 (cash 995, lot removed on 01-08, disposal at
+  basis, net_contribution 995, flow 01-08 outflow 1050). acc-b before 01-08:
+  cash 2400, position -4 with cost basis -400, market value -4 x price. On
+  01-08: disposal in-1:short-1:0 with quantity -4, proceeds -402 (the cover
+  lots' basis), cost basis -400, realized -2; lot short-1 closed by in-1;
+  residual lot in-1 of 6 units, basis 603 (fee 3), open_date 01-03;
+  keyframe position +6, total_cost_basis 603, average 100.5. Flow 01-08
+  inflow 1050 QUOTE_DERIVED_MARKET_VALUE; portfolio row nets to zero
+  (MIXED). LEGACY BEHAVIOR: net_contribution 2000 -> 3003 = 2000 + 400
+  (covered short basis relieved) + 603 (residual lots), while acc-a gave up
+  1005: the pair is asymmetric by the -2 cover P&L, which leaks into the
+  contribution instead of staying in performance. Candidate for the
+  divergence ledger. Attribution diagnostics: acc-a difference 50, acc-b
+  difference -47 (transfer valued at market vs lots at basis).

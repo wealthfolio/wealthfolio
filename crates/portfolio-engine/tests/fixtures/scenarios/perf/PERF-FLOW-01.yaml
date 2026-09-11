@@ -1,0 +1,79 @@
+id: PERF-FLOW-01
+title: Unpaired transfer without external metadata vs paired transfer with stale metadata
+intent: >
+  acc-a receives an unpaired cash TRANSFER_IN with no metadata: the boundary is
+  Unknown, the day is stamped UNKNOWN_BOUNDARY_TRANSFER and TWR/IRR are nulled.
+  acc-b receives a TRANSFER_IN carrying stale metadata flow.is_external=true
+  but linked by source_group_id g1 to a TRANSFER_OUT in acc-c. The resolved
+  pair wins over the metadata: at account scope (counterparty outside) the leg
+  is External (CASH_AMOUNT 300), while in the pair_scope window (both accounts
+  in scope) it is Internal and the attribution pass warns that the metadata was
+  ignored. all_time (all three accounts) inherits acc-a's unknown day.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-a
+    currency: USD
+  - id: acc-b
+    currency: USD
+  - id: acc-c
+    currency: USD
+activities:
+  - id: dep-a
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: tin-a
+    account: acc-a
+    type: TRANSFER_IN
+    date: 2025-01-04T10:00:00Z
+    amount: 200
+  - id: dep-b
+    account: acc-b
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: 1000
+  - id: tin-b
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-05T10:00:00Z
+    amount: 300
+    source_group_id: g1
+    metadata: { flow: { is_external: true } }
+  - id: dep-c
+    account: acc-c
+    type: DEPOSIT
+    date: 2025-01-02T12:00:00Z
+    amount: 1000
+  - id: tout-c
+    account: acc-c
+    type: TRANSFER_OUT
+    date: 2025-01-05T09:00:00Z
+    amount: 300
+    source_group_id: g1
+performance_windows:
+  - { label: pair_scope, accounts: [acc-b, acc-c] }
+expected_notes: >
+  acc-a: cash 1200 from 01-04; flow 01-04 0/0 UNKNOWN_BOUNDARY_TRANSFER; TWR and
+  IRR null ("external flow amount or transfer boundary is unknown"), warning
+  "External cash flow provenance is incomplete". LEGACY BEHAVIOR: value_return
+  0.2 and an attribution-incomplete warning (difference 200, tolerance max(1,
+  0.2% x 1200) = 2.4) because the transfer is neither a flow nor a P&L
+  component.
+  acc-b: cash 1300 from 01-05; account-scope flow 01-05 inflow 300 CASH_AMOUNT
+  (pair resolved, acc-c outside the scope -> External); TWR 0, IRR 0,
+  contributions 1300 (1000 opening + 300), quality ok. acc-c: outflow 300
+  CASH_AMOUNT, distributions 300, TWR 0.
+  pair_scope (acc-b + acc-c): the pair is Internal; the aggregated 01-05 row
+  keeps the stored per-account gross 300/300 and the internal-transfer
+  adjustment nets it to 0/0 (source stays CASH_AMOUNT, so the day is still
+  listed in portfolio_flows); TWR 0 on 2000; contributions 2000; quality
+  partial only because of the warning "Transfer group g1 ignored external
+  transfer metadata because the valid pair is internal to the selected scope."
+  all_time (a+b+c): 01-04 UNKNOWN_BOUNDARY_TRANSFER -> TWR/IRR null,
+  value_return (3200 - 3000)/3000 = 0.06666667, warnings for tin-a ("treated
+  as external" although stamped Unknown) and for g1; attribution difference
+  200, tolerance 6.4.

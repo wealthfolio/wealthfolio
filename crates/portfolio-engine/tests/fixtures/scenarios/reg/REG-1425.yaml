@@ -1,0 +1,59 @@
+id: REG-1425
+title: Pre-funding junk rows before the first real deposit (issue #1425, PR #1443)
+intent: >
+  A FEE is booked two days before the account is funded, so the first
+  valuation rows are negative (-5). PR #1443 semantics (the pinned baseline):
+  the leading negative prefix is skipped silently for TWR - neither the -5 ->
+  -5 day nor the -5 -> 995 funding day nulls the headline or emits a reason -
+  and the chain starts on the first day whose opening value is positive.
+  Value return is rebased on the first row worth >= 1 base unit (01-04, 995)
+  excluding the flows that established that base, so it equals the TWR.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: fee-1
+    account: acc-1
+    type: FEE
+    date: 2025-01-02T10:00:00Z
+    amount: 5
+    fee: 5
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-04T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-05T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+quotes:
+  - { asset: aapl, day: 2025-01-05, close: 100 }
+  - { asset: aapl, day: 2025-01-07, close: 106 }
+  - { asset: aapl, day: 2025-01-09, close: 110 }
+expected_notes: >
+  Cash -5 (01-02), 995 (01-04), 495 (01-05). Values: -5, -5, 995, 995, 995,
+  1025, 1025, 1045, 1045. Flow 01-04 inflow 1000 CASH_AMOUNT. TWR samples:
+  01-03 and 01-04 excluded (leading negative prefix, series 0, no reason),
+  01-05 0 (chain starts on opening 995), 01-07 30/995 = 0.03015075, 01-09
+  20/1025 = 0.0195122 -> headline 1045/995 - 1 = 0.05025126 = last series
+  point; no not-applicable reasons. value_return rebased at 01-04:
+  (1045 - 995 - 0)/995 = 0.05025126. IRR: -1000 @01-04, +1045 @01-10 (period
+  0.06044558). Attribution (inception): contributions 1000, unrealized 50,
+  fees 0. LEGACY BEHAVIOR (ledger candidate): the FEE sits on the inception
+  day and activities dated on the period start are excluded from attribution,
+  so fees stay 0, the components sum to 1050 against a delta of 1045 and the
+  warning "Performance attribution is incomplete ... Difference: -5;
+  tolerance: 2.090" fires (quality partial) although the headline returns
+  are exactly right. Risk: max_drawdown 0, peak_date 01-02 (opening date).

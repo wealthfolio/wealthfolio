@@ -1,0 +1,75 @@
+id: NOM-SHORT-01
+title: Equity sell-short, partial buy-to-cover, rejected excess cover
+intent: >
+  Equities need explicit intent to go negative. short-1 (SELL, POSITION_OPEN)
+  opens a -10 lot with the fee capitalized into a negative basis; cover-1
+  (BUY, POSITION_CLOSE, 4 units) relieves 4 units FIFO and books cash for
+  the covered quantity (equal to the requested quantity here, so no
+  proration remainder); excess-1 (BUY, POSITION_CLOSE, 10 units while only 6
+  are short) is rejected and must leave cash, lots and disposals untouched.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-1
+    name: Margin
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: short-1
+    account: acc-1
+    type: SELL
+    subtype: POSITION_OPEN
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 50
+    amount: 495
+    fee: 5
+  - id: cover-1
+    account: acc-1
+    type: BUY
+    subtype: POSITION_CLOSE
+    date: 2025-01-07T10:00:00Z
+    asset: aapl
+    quantity: 4
+    unit_price: 45
+    amount: 182
+    fee: 2
+  - id: excess-1
+    account: acc-1
+    type: BUY
+    subtype: POSITION_CLOSE
+    date: 2025-01-09T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 44
+    amount: 442
+    fee: 2
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 50 }
+  - { asset: aapl, day: 2025-01-07, close: 45 }
+  - { asset: aapl, day: 2025-01-09, close: 44 }
+  - { asset: aapl, day: 2025-01-12, close: 46 }
+expected_notes: >
+  Keyframe 01-03: cash 2495, position -10, total_cost_basis -495 (-500 + 5
+  fee), average_cost 49.5, lot short-1 quantity -10, cost_per_unit 50.
+  Market value -500, total value 1995. Keyframe 01-07: cash 2313, position
+  -6, basis -297; disposal cover-1 quantity -4, proceeds -182, cost basis
+  -198, realized +16. Keyframe 01-09 is emitted and identical to 01-07:
+  excess-1 is rejected, no disposal, no lot change, cash still 2313 (the
+  rejection is only logged; the harness diagnostics do not surface it).
+  Market value 01-12 = -6 x 46 = -276; total value 2037; TWR 1.85%.
+  net_contribution 2000 throughout. LEGACY BEHAVIOR (attribution): fees 9 =
+  5 + 2 + 2, i.e. the rejected excess-1 fee is still attributed although it
+  never booked; realized 20 (16 grossed up by the disposed short fee 2 and
+  the cover fee 2), unrealized 24 (21 + remaining fee 3); summary 35 vs the
+  true value change of 37.

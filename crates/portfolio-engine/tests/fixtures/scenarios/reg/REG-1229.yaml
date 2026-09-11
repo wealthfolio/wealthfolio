@@ -1,0 +1,66 @@
+id: REG-1229
+title: Account funded purely by DRIP, then all shares transferred out (issue #1229)
+intent: >
+  A DIVIDEND with subtype DRIP creates 2 shares (dividend 100 reinvested at
+  50) with no deposit, so net_contribution stays 0 and the cash bucket nets to
+  exactly 0. An external security TRANSFER_OUT of all shares relieves the
+  removed lot basis from net_contribution, which ends at -100 = -(DRIP basis)
+  BY DESIGN; the transfer merely unmasks that the position was never funded
+  by a contribution. The external transfer is priced at the transfer-day quote
+  (2 x 60 = 120 QUOTE_DERIVED_MARKET_VALUE outflow) while the disposal is
+  recorded at basis (P&L 0), so the 20 of unrealized gain that leaves with
+  the shares is not attributed anywhere and the attribution residual warning
+  fires. Pins cash buckets (USD 0 stays as a bucket) and the portfolio view.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: drip-1
+    account: acc-1
+    type: DIVIDEND
+    subtype: DRIP
+    date: 2025-01-02T10:00:00Z
+    asset: aapl
+    quantity: 2
+    unit_price: 50
+    amount: 100
+  - id: tout-1
+    account: acc-1
+    type: TRANSFER_OUT
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: 2
+    metadata: { flow: { is_external: true } }
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 50 }
+  - { asset: aapl, day: 2025-01-04, close: 55 }
+  - { asset: aapl, day: 2025-01-06, close: 60 }
+expected_notes: >
+  Keyframe 01-02: position aapl 2 @ 50 (basis 100), cash {USD: 0},
+  net_contribution 0. Keyframe 01-06: aapl quantity 0, cash {USD: 0},
+  net_contribution -100 (removed basis). Lot drip-1:buy closed on 01-06
+  (open_activity_id is null in the harness because the synthetic leg id is
+  not a stored activity); disposal proceeds 100 = cost basis, realized 0.
+  Values: 100 (01-02/03), 110 (01-04/05), 0 from 01-06. Flow 01-06: outflow
+  120 QUOTE_DERIVED_MARKET_VALUE (2 x 60), no other flows. TWR: 01-04 0.1,
+  01-06 (0 + 120 - 110)/110 = 0.0909 -> headline 0.2, later days paused
+  (denominator 0); value_return (0 - 100 + 120)/100 = 0.2. IRR: -100 @01-02
+  / +120 @01-06 is +20% in four days, beyond the solver bracket (high
+  10 x 2^16) -> warning "IRR unavailable: solver did not converge.", irr
+  null. Attribution (inception): contributions 0, distributions 120,
+  income 0, realized 0, unrealized 0 -> components -120 vs delta 0: warning
+  "Performance attribution is incomplete ... Difference: 120; tolerance: 1".
+  LEGACY BEHAVIOR (ledger candidates): (1) the DRIP row sits on the inception
+  day and activities dated on the period start are excluded from attribution
+  (activity_date <= start_date), so the 100 of dividend income is never
+  attributed; (2) the external transfer flow is valued at market (120) while
+  the disposal is valued at basis (100), leaving 20 of unrealized gain
+  unattributed even when the income is counted. Portfolio all_time equals
+  the account; portfolio_flows carry the same 120 outflow.

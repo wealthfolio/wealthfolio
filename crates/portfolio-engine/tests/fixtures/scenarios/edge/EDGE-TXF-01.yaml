@@ -1,0 +1,150 @@
+id: EDGE-TXF-01
+title: Invalid transfer groups are unpaired (unknown boundary), no diagnostics
+intent: >
+  Five malformed source_group_id groups, one per rule in
+  `transfer_pairs::build_transfer_pair`: (g-three) three legs; (g-two-in)
+  two TRANSFER_INs; (g-asset) a security group whose legs name different
+  assets; (g-qty) a security group whose quantities differ by more than
+  1e-6; (g-same) same-account same-currency cash legs. The flow resolver
+  treats every leg as unpaired and, lacking an explicit external marker,
+  stamps UNKNOWN_BOUNDARY_TRANSFER provenance (which makes TWR unavailable
+  on those days) with only log warnings - no diagnostic reaches the
+  result. The holdings calculator does NOT validate groups at all: it keys
+  the removed-lot cache on the group id alone, so the mismatched-asset and
+  mismatched-quantity groups still move A's aapl lots into B (the g-asset
+  lots land in B's msft position, and B's 5.001 aapl leg receives exactly
+  the 5 cached shares). Kernel: same unpairing plus an InvalidTransferGroup
+  diagnostic, and no lot movement for invalid groups.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-14
+accounts:
+  - id: acc-a
+    currency: USD
+  - id: acc-b
+    currency: USD
+  - id: acc-c
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+  - id: msft
+    quote_ccy: USD
+activities:
+  - id: dep-a
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 5000
+  - id: buy-aapl
+    account: acc-a
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 20
+    unit_price: 100
+    amount: 2000
+  - id: three-out-a
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-06T10:00:00Z
+    amount: 300
+    source_group_id: g-three
+  - id: three-in-b
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-06T10:01:00Z
+    amount: 300
+    source_group_id: g-three
+  - id: three-in-c
+    account: acc-c
+    type: TRANSFER_IN
+    date: 2025-01-06T10:02:00Z
+    amount: 300
+    source_group_id: g-three
+  - id: twoin-b
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-07T10:00:00Z
+    amount: 100
+    source_group_id: g-two-in
+  - id: twoin-c
+    account: acc-c
+    type: TRANSFER_IN
+    date: 2025-01-07T10:01:00Z
+    amount: 100
+    source_group_id: g-two-in
+  - id: asset-out-a
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-08T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    source_group_id: g-asset
+  - id: asset-in-b
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-08T10:01:00Z
+    asset: msft
+    quantity: 5
+    unit_price: 100
+    source_group_id: g-asset
+  - id: qty-out-a
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-09T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    source_group_id: g-qty
+  - id: qty-in-b
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-09T10:01:00Z
+    asset: aapl
+    quantity: 5.001
+    unit_price: 100
+    source_group_id: g-qty
+  - id: same-out-a
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-10T10:00:00Z
+    amount: 200
+    source_group_id: g-same
+  - id: same-in-a
+    account: acc-a
+    type: TRANSFER_IN
+    date: 2025-01-10T10:01:00Z
+    amount: 200
+    source_group_id: g-same
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 110 }
+  - { asset: aapl, day: 2025-01-13, close: 112 }
+  - { asset: msft, day: 2025-01-03, close: 200 }
+  - { asset: msft, day: 2025-01-08, close: 210 }
+  - { asset: msft, day: 2025-01-13, close: 212 }
+expected_notes: >
+  Holdings: A cash 5000 -> 3000 (01-03) -> 2700 (01-06) -> 2700 (01-10,
+  -200 +200); A aapl 20 -> 15 (01-08) -> 10 (01-09), basis 1000 at the
+  end; A net_contribution 5000 -> 4700 -> 4200 -> 3700 (removed lot basis
+  relieved). B cash 300 (01-06) -> 400 (01-07); B msft position from 01-08
+  holding the 5 cached AAPL lots (quantity 5, basis 500, lot open_date
+  2025-01-03, id asset-in-b) - legacy cross-asset lot movement; B aapl
+  position from 01-09 quantity 5 (not 5.001), basis 500; B net_contribution
+  300 -> 400 -> 900 -> 1400. C cash 300 -> 400. Disposals in A on 01-08 and
+  01-09: 5 units each, proceeds = basis = 500, P&L 0. Flows: every unpaired
+  leg is stamped UNKNOWN_BOUNDARY_TRANSFER; CASH legs carry a ZERO amount
+  (the resolver returns no value for an unknown-boundary cash transfer) so
+  01-06, 01-07 and 01-10 show 0/0 markers, while the SECURITY legs carry the
+  quote-derived market value: 01-08 A outflow 550 (5 x 110) / B inflow 1050
+  (5 x msft 210), 01-09 A outflow 550 / B inflow 550.11 (5.001 x 110 even
+  though only 5 shares were booked). TWR and IRR are not applicable on
+  those days ("transfer boundary is unknown") at account and portfolio
+  scope. Diagnostics: the valuation flow path only logs, but the
+  portfolio-scope performance emits one "Transfer group X is invalid (...)"
+  warning per group (five), plus "External cash flow provenance is
+  incomplete" and attribution-incomplete warnings; the account-scope
+  performance carries no invalid-group warning.

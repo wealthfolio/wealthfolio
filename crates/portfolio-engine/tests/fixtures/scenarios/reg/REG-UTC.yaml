@@ -1,0 +1,69 @@
+id: REG-UTC
+title: Activities near midnight under a non-UTC policy timezone
+intent: >
+  Policy timezone Europe/London during BST (UTC+1). A deposit at
+  2025-06-02T23:30Z lands on the local date 06-03, a CAD deposit at
+  06-04T23:15Z lands on 06-05 and is converted to USD at the 06-05 rate (0.74,
+  not the UTC-date rate 0.72), and a buy at 06-06T22:59Z (23:59 local) stays
+  on 06-06. One timezone policy end-to-end: keyframe dates, valuation dates
+  and stamped flow dates all use the local calendar date, and the clock is
+  frozen at local noon on as_of so every row ends on 06-08.
+policy:
+  base_currency: USD
+  timezone: Europe/London
+  as_of: 2025-06-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-06-01T10:00:00Z
+    amount: 500
+  - id: dep-2
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-06-02T23:30:00Z
+    amount: 1000
+  - id: dep-cad
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-06-04T23:15:00Z
+    amount: 100
+    currency: CAD
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-06-06T22:59:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+quotes:
+  - { asset: aapl, day: 2025-06-06, close: 100 }
+  - { asset: aapl, day: 2025-06-08, close: 104 }
+fx_rates:
+  - { from: CAD, to: USD, day: 2025-06-01, rate: 0.71 }
+  - { from: CAD, to: USD, day: 2025-06-02, rate: 0.715 }
+  - { from: CAD, to: USD, day: 2025-06-03, rate: 0.72 }
+  - { from: CAD, to: USD, day: 2025-06-04, rate: 0.72 }
+  - { from: CAD, to: USD, day: 2025-06-05, rate: 0.74 }
+  - { from: CAD, to: USD, day: 2025-06-06, rate: 0.745 }
+  - { from: CAD, to: USD, day: 2025-06-07, rate: 0.75 }
+  - { from: CAD, to: USD, day: 2025-06-08, rate: 0.75 }
+expected_notes: >
+  Keyframes: 06-01 (cash USD 500), 06-03 (cash USD 1500, NOT 06-02), 06-05
+  (cash {CAD: 100, USD: 1500}, net_contribution 1574 = 1500 + 100 x 0.74 at
+  the local date 06-05, net_contribution_base 1574), 06-06 (5 aapl basis 500,
+  cash USD 1000). Valuations 06-01..06-08: 500, 500, 1500, 1500, 1574,
+  1574.5, 1575, 1595 (aapl 104). Flows: 06-03 inflow 1000 and 06-05 inflow 74
+  (100 CAD at the 06-05 rate), both CASH_AMOUNT; nothing on 06-02 or 06-04.
+  TWR: 06-06 (1574.5 - 1574)/1574, 06-07 0.5/1574.5, 06-08 20/1575 ->
+  headline 0.013341; value_return (1595 - 500 - 1074)/500 = 0.042.
+  Attribution: contributions 1574, unrealized 20, fx_effect 0 (not a CASH
+  account, so the CAD cash drift of 1 USD is unattributed but under
+  tolerance).

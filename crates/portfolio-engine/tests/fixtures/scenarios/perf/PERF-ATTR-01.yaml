@@ -1,0 +1,129 @@
+id: PERF-ATTR-01
+title: Attribution reconciles within tolerance with an FX effect
+intent: >
+  Base CAD. acc-1 is a CAD account trading a USD-quoted asset while USD/CAD
+  drifts from 1.35 to 1.38; every attribution component is exercised:
+  contributions, gross income with withholding tax, a standalone fee, trade
+  fees on the buy and the sell (grossed up out of lot basis / disposal
+  proceeds), realized P&L on a FIFO disposal and unrealized change. Legacy
+  only separates fx_effect when the ACCOUNT currency differs from base, so
+  acc-1 (CAD account, CAD base) reports fx_effect 0 with the position's FX
+  drift folded into unrealized P&L. acc-2 is a USD account holding the same
+  asset: there fx_effect = base unrealized change - local unrealized change x
+  end FX. In both accounts the unattributed FX drift of idle foreign cash
+  stays under the tolerance max(1, 0.2% x max(|delta|, |end value|)), so no
+  residual warning fires; the golden's `residual` field is always 0 (legacy
+  only surfaces the unreconciled delta as a warning when it exceeds
+  tolerance).
+policy:
+  base_currency: CAD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    currency: CAD
+  - id: acc-2
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1005
+    fee: 5
+    currency: USD
+    fx_rate: 1.35
+  - id: div-1
+    account: acc-1
+    type: DIVIDEND
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    amount: 40
+    tax: 10
+    currency: USD
+  - id: fee-1
+    account: acc-1
+    type: FEE
+    date: 2025-01-07T10:00:00Z
+    amount: 20
+    fee: 20
+  - id: sell-1
+    account: acc-1
+    type: SELL
+    date: 2025-01-08T10:00:00Z
+    asset: aapl
+    quantity: 4
+    unit_price: 120
+    amount: 476
+    fee: 4
+    currency: USD
+    fx_rate: 1.37
+  - id: dep-2
+    account: acc-2
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: 1000
+  - id: buy-2
+    account: acc-2
+    type: BUY
+    date: 2025-01-03T11:00:00Z
+    asset: aapl
+    quantity: 9
+    unit_price: 100
+    amount: 900
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 115 }
+  - { asset: aapl, day: 2025-01-08, close: 120 }
+  - { asset: aapl, day: 2025-01-10, close: 125 }
+fx_rates:
+  - { from: USD, to: CAD, day: 2025-01-02, rate: 1.35 }
+  - { from: USD, to: CAD, day: 2025-01-03, rate: 1.35 }
+  - { from: USD, to: CAD, day: 2025-01-04, rate: 1.355 }
+  - { from: USD, to: CAD, day: 2025-01-05, rate: 1.355 }
+  - { from: USD, to: CAD, day: 2025-01-06, rate: 1.36 }
+  - { from: USD, to: CAD, day: 2025-01-07, rate: 1.365 }
+  - { from: USD, to: CAD, day: 2025-01-08, rate: 1.37 }
+  - { from: USD, to: CAD, day: 2025-01-09, rate: 1.375 }
+  - { from: USD, to: CAD, day: 2025-01-10, rate: 1.38 }
+expected_notes: >
+  acc-1: cash CAD 2000 - 1356.75 (buy at fx 1.35) - 20 + 652.12 (sell at
+  1.37) = 1275.37; cash USD 40 (net dividend, activity-currency bucket). Lot
+  buy-1: 10 @ 100.5 USD basis 1005 incl. fee 5, fx_rate_to_account 1.35;
+  after the sell 6 remain (basis 603 USD = 814.05 CAD). Disposal sell-1:
+  proceeds 476 USD, cost 402, realized 74 USD; base 652.12 - 542.7 = 109.42.
+  End value 01-10: 1275.37 + 40 x 1.38 + 6 x 125 x 1.38 = 2365.57; TWR and
+  value_return = 2365.57/2000 - 1 = 0.182785 (no flows after day 1).
+  Attribution (inception): contributions 2000; income 50 x 1.36 = 68; taxes
+  10 x 1.36 = 13.6; fees 5 x 1.35 + 4 x 1.37 + 20 = 32.23; realized 109.42 +
+  gross-up (sell fee 5.48 + disposed share of the buy fee 6.75 x 4/10 = 2.7)
+  = 117.6; unrealized (1035 - 814.05) + remaining buy-fee gross-up 4.05 =
+  225; fx_effect 0 (account currency == base: the 18.09 of position FX
+  drift stays inside unrealized). Components sum to 2364.77 vs delta
+  2365.57: unreconciled 0.8 (USD cash drift) < tolerance 4.73, no warning,
+  residual field 0, summary amount 364.77.
+  acc-2: cash USD 100, lot buy-2 9 @ 100 (base 1215 at 1.35); values CAD
+  1350 -> 1690.5 (100 x 1.38 + 1125 x 1.38); TWR = value_return =
+  1690.5/1350 - 1 = 0.25222222; contributions 1350; unrealized = local change
+  225 USD x 1.38 = 310.5; fx_effect = (1552.5 - 1215) - 310.5 = 27;
+  components 1687.5 vs delta 1690.5: unreconciled 3 (cash drift) <
+  tolerance 3.381, no warning.
+  Portfolio (both, base CAD): fx_effect 27 (scoped pass: acc-1 contributes 0
+  because its account currency is the base), unrealized 535.5, realized
+  117.6, income 68, fees 32.23, taxes 13.6, contributions 3350; delta
+  4056.07 vs components 4052.27, unreconciled 3.8 < tolerance 8.11.
+  LEGACY BEHAVIOR (ledger candidates): fx_effect is an account-vs-base
+  quantity only (position-currency FX inside a base-currency account is
+  never separated), and idle foreign-cash FX drift is silently absorbed by
+  the tolerance rather than reported as an explicit unreconciled term (I8).

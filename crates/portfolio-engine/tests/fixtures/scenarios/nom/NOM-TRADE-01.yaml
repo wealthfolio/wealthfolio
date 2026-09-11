@@ -1,0 +1,107 @@
+id: NOM-TRADE-01
+title: Buy, buy, partial sell, sell-all with FIFO lots and disposal base attribution
+intent: >
+  Two BUY lots of a USD asset in a CAD account (base CAD), a partial SELL that
+  closes the first lot and half of the second (FIFO), then a SELL that closes
+  the rest. Realized P&L per disposal slice; base attribution converts
+  proceeds at the disposal-date FX and cost basis at each lot's
+  acquisition-date FX. Daily USD/CAD rates avoid nearest-neighbour ambiguity.
+policy:
+  base_currency: CAD
+  timezone: UTC
+  as_of: 2025-01-16
+accounts:
+  - id: acc-1
+    name: CAD brokerage
+    currency: CAD
+assets:
+  - id: msft
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 5000
+    currency: USD
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: msft
+    quantity: 10
+    unit_price: 100
+    amount: 1005
+    fee: 5
+    currency: USD
+  - id: buy-2
+    account: acc-1
+    type: BUY
+    date: 2025-01-06T10:00:00Z
+    asset: msft
+    quantity: 10
+    unit_price: 110
+    amount: 1105
+    fee: 5
+    currency: USD
+  - id: sell-1
+    account: acc-1
+    type: SELL
+    date: 2025-01-09T10:00:00Z
+    asset: msft
+    quantity: 15
+    unit_price: 120
+    amount: 1795
+    fee: 5
+    currency: USD
+  - id: sell-2
+    account: acc-1
+    type: SELL
+    date: 2025-01-13T10:00:00Z
+    asset: msft
+    quantity: 5
+    unit_price: 125
+    amount: 620
+    fee: 5
+    currency: USD
+quotes:
+  - { asset: msft, day: 2025-01-03, close: 100 }
+  - { asset: msft, day: 2025-01-06, close: 110 }
+  - { asset: msft, day: 2025-01-09, close: 120 }
+  - { asset: msft, day: 2025-01-13, close: 125 }
+  - { asset: msft, day: 2025-01-16, close: 130 }
+fx_rates:
+  - { from: USD, to: CAD, day: 2025-01-02, rate: 1.30 }
+  - { from: USD, to: CAD, day: 2025-01-03, rate: 1.30 }
+  - { from: USD, to: CAD, day: 2025-01-04, rate: 1.30 }
+  - { from: USD, to: CAD, day: 2025-01-05, rate: 1.31 }
+  - { from: USD, to: CAD, day: 2025-01-06, rate: 1.32 }
+  - { from: USD, to: CAD, day: 2025-01-07, rate: 1.32 }
+  - { from: USD, to: CAD, day: 2025-01-08, rate: 1.34 }
+  - { from: USD, to: CAD, day: 2025-01-09, rate: 1.35 }
+  - { from: USD, to: CAD, day: 2025-01-10, rate: 1.35 }
+  - { from: USD, to: CAD, day: 2025-01-11, rate: 1.36 }
+  - { from: USD, to: CAD, day: 2025-01-12, rate: 1.37 }
+  - { from: USD, to: CAD, day: 2025-01-13, rate: 1.38 }
+  - { from: USD, to: CAD, day: 2025-01-14, rate: 1.39 }
+  - { from: USD, to: CAD, day: 2025-01-15, rate: 1.39 }
+  - { from: USD, to: CAD, day: 2025-01-16, rate: 1.40 }
+expected_notes: >
+  Cash (USD bucket): 5000 -> 3995 -> 2890 -> 4685 -> 4305 (5305 on the
+  01-13 keyframe is 4685 + 620). net_contribution (CAD) = 5000 x 1.30 = 6500
+  throughout. Keyframe cost_basis (CAD, acquisition FX): 1306.5 (01-03),
+  2765.1 (01-06 = 1306.5 + 1105 x 1.32), 729.3 (01-09), 0 (01-13). Lots:
+  buy-1 10 @ 100 (basis 1005, fee 5, fx_rate_to_base 1.30, base 1306.5);
+  buy-2 10 @ 110 (basis 1105, 1.32, base 1458.6); both closed (01-09 by
+  sell-1, 01-13 by sell-2). sell-1 (01-09, FX 1.35): closes buy-1 fully
+  (proceeds 1795 x 10/15 = 1196.66666667, basis 1005, P&L 191.66666667;
+  base 1615.5 / 1306.5 / 309) and 5 of buy-2 (proceeds 598.33333333, basis
+  552.5, P&L 45.83333333; base 807.75 / 729.3 / 78.45). sell-2 (01-13, FX
+  1.38): proceeds 620, basis 552.5, P&L 67.5; base 855.6 / 729.3 / 126.3.
+  Realized total 305 USD / 513.75 CAD. Valuation cash_balance is the USD
+  bucket at the day's rate (01-05: 3995 x 1.31 = 5233.45). TWR = 7427/6500
+  - 1 = 14.261538% (no external flows). LEGACY BEHAVIOR (attribution):
+  realized_pnl is grossed up by the trade charges to 540.5 with fees 26.75
+  attributed separately (6.5 + 6.6 + 6.75 + 6.9); the FX gain on the USD
+  cash balance (413.25 CAD) is not attributed (fx_effect 0), so the
+  diagnostics report "attribution incomplete, difference 413.25".

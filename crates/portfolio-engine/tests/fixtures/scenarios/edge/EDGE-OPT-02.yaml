@@ -1,0 +1,51 @@
+id: EDGE-OPT-02
+title: Expired option still held at as_of - historical path keeps valuing it
+intent: >
+  An OPTION asset whose OCC symbol encodes expiry 2025-01-17
+  (AAPL250117C00150000, default contract multiplier 100) is still held on
+  as_of 2025-01-24. The legacy LIVE path (`current_account_valuation`)
+  skips expired options using the UTC calendar date; the HISTORICAL path
+  captured here has no expiry logic at all and keeps pricing the contracts
+  at the last quote (0.05) carried forward through as_of. The kernel uses
+  the policy timezone for the expiry test and values consistently across
+  both paths.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-24
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl-call
+    symbol: AAPL250117C00150000
+    quote_ccy: USD
+    instrument_type: OPTION
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-06T10:00:00Z
+    amount: 2000
+  - id: buy-call
+    account: acc-1
+    type: BUY
+    date: 2025-01-07T10:00:00Z
+    asset: aapl-call
+    quantity: 2
+    unit_price: 3.00
+    fee: 1
+    amount: 601
+quotes:
+  - { asset: aapl-call, day: 2025-01-07, close: 3.00 }
+  - { asset: aapl-call, day: 2025-01-10, close: 2.50 }
+  - { asset: aapl-call, day: 2025-01-16, close: 1.00 }
+  - { asset: aapl-call, day: 2025-01-17, close: 0.05 }
+expected_notes: >
+  Cash 2000 -> 1399. Position 2 contracts, contract_multiplier 100, lot
+  cost_per_unit 300 (multiplier-inclusive), basis 601, average_cost 300.5.
+  Valuations: 01-07 investment 600 (2 x 3.00 x 100), total 1999; 01-10
+  500 -> 1899; 01-16 200 -> 1599; 01-17 through 01-24 investment 10 (2 x
+  0.05 x 100) and total 1409 - the expired contracts are still valued
+  after 01-17 with complete status and no diagnostic; the position is
+  never removed (no OPTION_EXPIRY adjustment in the facts).

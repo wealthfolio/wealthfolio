@@ -1,0 +1,71 @@
+id: PERF-MIX-01
+title: Mixed transactions and holdings scope with incomplete holdings basis
+intent: >
+  The portfolio scope mixes a TRANSACTIONS account (acc-t) with a HOLDINGS
+  account (acc-h) whose observed position carries no average_cost, so its
+  basis status is Unknown. All-time: the transaction component contributes
+  amount 100 over denominator 1000, but the holdings component has no
+  book-basis amount and no denominator, so the percent is nulled ("summary
+  amount and denominator coverage differ") while the amount (100) survives.
+  The dated window needs no basis: acc-h contributes its flow-adjusted value
+  change, coverage is complete and value_return = (100 + 50) / (1000 + 700).
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-t
+    currency: USD
+  - id: acc-h
+    currency: USD
+    tracking_mode: HOLDINGS
+assets:
+  - id: aapl
+    quote_ccy: USD
+  - id: msft
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-t
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-t
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 110 }
+  - { asset: aapl, day: 2025-01-12, close: 120 }
+  - { asset: msft, day: 2025-01-02, close: 50 }
+  - { asset: msft, day: 2025-01-08, close: 52 }
+  - { asset: msft, day: 2025-01-12, close: 55 }
+observed_snapshots:
+  - account: acc-h
+    date: 2025-01-02
+    positions: [{ asset: msft, quantity: 10 }]
+    cash: { USD: 200 }
+performance_windows:
+  - { label: dated, start: 2025-01-05, end: 2025-01-12 }
+expected_notes: >
+  acc-t: value 1000 -> 1050 (01-08) -> 1100 (01-12); TWR 0.1. acc-h: value 700
+  -> 720 -> 750, cost_basis 0, book_basis 200, basis_status unknown,
+  performance_eligible 200; all-time holdings value return unavailable ("book
+  basis is incomplete"); its dated window computes value_return 0.07142857
+  (50/700) but the summary amount/percent stay unavailable because the
+  holdings basis is unknown. Portfolio all_time: method valueReturn,
+  is_mixed_tracking_mode true, basis mixed, basis_status unknown; TWR/IRR
+  reasons "unavailable for mixed transaction and holdings scopes"; warnings
+  that acc-h is excluded from all-time gain/loss and that the percentage is
+  unavailable because acc-h is in scope with no complete amount/denominator;
+  value_return null with reason "summary amount and denominator coverage
+  differ", summary amount 100 (acc-t unrealized), percent unavailable, no
+  series, risk null. Portfolio dated (01-05..01-12): acc-t amount 100 / 1000,
+  acc-h amount 750 - 700 = 50 / 700 -> value_return 150/1700 = 0.08823529,
+  attribution unrealized 150, series 0 through 01-07, 0.04117647 from 01-08
+  and 0.08823529 on 01-12; no reconciliation warning.

@@ -76,3 +76,4 @@ wealthfolio-ai = { path = "crates/ai" }
 wealthfolio-spending = { path = "crates/spending" }
 wealthfolio-agent-tools = { path = "crates/agent-tools" }
 wealthfolio-mcp = { path = "crates/wealthfolio-mcp" }
+wealthfolio-portfolio-engine = { path = "crates/portfolio-engine" }

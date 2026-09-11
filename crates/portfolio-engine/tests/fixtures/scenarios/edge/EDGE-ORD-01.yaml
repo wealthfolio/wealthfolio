@@ -1,0 +1,53 @@
+id: EDGE-ORD-01
+title: Same-day activities with equal timestamps (kernel total order)
+intent: >
+  Kernel-only. The kernel orders same-day activities by user-local date,
+  then source timestamp, then created_at, then ActivityId, so a fixture whose
+  rows share the SAME instant must produce identical output regardless of
+  input order (EDGE-ORD-04 covers created_at beating the id).
+  The legacy pipeline has no tiebreaker (SQLite scan order), so an
+  equal-timestamp fixture would make the oracle nondeterministic - the
+  loader therefore REJECTS duplicate instants. This file carries the
+  activities with distinct timestamps one second apart; the kernel golden
+  runner collapses them onto the same instant and shuffles the input order
+  before asserting identical output. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: a-deposit
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-03T10:00:00Z
+    amount: 1000
+  - id: b-buy
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:01Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+  - id: c-sell
+    account: acc-1
+    type: SELL
+    date: 2025-01-03T10:00:02Z
+    asset: aapl
+    quantity: 2
+    unit_price: 110
+    amount: 220
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 110 }
+expected_notes: >
+  Kernel golden: with ids a-deposit < b-buy < c-sell the deposit lands
+  first, the buy opens 5 @ 100 and the sell closes 2 with realized +20; cash
+  720, position 3 (basis 300), total 1050 on 01-03. Any shuffled input
+  order must reproduce exactly this.

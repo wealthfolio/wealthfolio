@@ -1,0 +1,50 @@
+id: EDGE-FX-02
+title: FX resolved through a two-hop path (triangulation via CHF)
+intent: >
+  No direct rate exists for any pair the scenario needs (EUR->USD for the
+  base leg, GBP->EUR for the position and its cash bucket, GBP->USD for the
+  lot base rate). The table only has EUR/CHF, CHF/USD and GBP/CHF, a star
+  around CHF, so every needed pair has exactly ONE shortest path of two
+  hops and the BFS in `CurrencyConverter::convert_amount` is deterministic:
+  EUR->USD = 0.94 x 1.10 = 1.034; GBP->EUR = 1.12 / 0.94; GBP->USD = 1.12 x
+  1.10 = 1.232. A single observation day makes the rates static.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    currency: EUR
+assets:
+  - id: uk
+    symbol: UKS
+    quote_ccy: GBP
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: uk
+    quantity: 10
+    unit_price: 10
+    amount: 100
+    currency: GBP
+quotes:
+  - { asset: uk, day: 2025-01-03, close: 10 }
+  - { asset: uk, day: 2025-01-08, close: 11 }
+fx_rates:
+  - { from: EUR, to: CHF, day: 2025-01-02, rate: 0.94 }
+  - { from: CHF, to: USD, day: 2025-01-02, rate: 1.10 }
+  - { from: GBP, to: CHF, day: 2025-01-02, rate: 1.12 }
+expected_notes: >
+  Cash buckets from 01-03: EUR 1000, GBP -100. Lot buy-1: fx_rate_to_account
+  1.19148936 (GBP->EUR via CHF), fx_rate_to_base 1.232, basis_base 123.2,
+  cost_basis_account 119.15. Valuations: 01-03 investment 119.15 EUR, cash
+  880.85, total 1000, fx_rate_to_base 1.034, total_base 1034; 01-08
+  investment 131.06 (110 GBP), total 1011.91, base 1046.32.
+  net_contribution 1000 EUR / 1034 USD. No FX diagnostics.

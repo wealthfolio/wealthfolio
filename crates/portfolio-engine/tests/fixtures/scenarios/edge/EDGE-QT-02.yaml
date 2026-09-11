@@ -1,0 +1,41 @@
+id: EDGE-QT-02
+title: Months-stale quote still prices with complete status
+intent: >
+  The only quote for the asset is dated 60 days before as_of (2024-11-11)
+  and nothing follows. The valuation fact loader seeds each asset with the
+  latest quote on or before the day preceding the timeline start and the
+  quote cursor carries it forward without any age bound, so every day of the
+  position is priced at the stale close and reported `complete`. The kernel
+  keeps the value and status but adds a carried-quote-age diagnostic.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: stale
+    symbol: STALE
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-06T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-07T10:00:00Z
+    asset: stale
+    quantity: 10
+    unit_price: 52
+    amount: 520
+quotes:
+  - { asset: stale, day: 2024-11-11, close: 50 }
+expected_notes: >
+  Cash 1000 -> 480. From 01-07 the 10 shares are valued at the 2024-11-11
+  close of 50: investment 500, total 980, cost basis 520, value_status
+  complete on all rows 01-06..01-10 (no partialUnpriced, no diagnostics).
+  TWR shows the -20/1000 mark-to-stale loss on 01-07.

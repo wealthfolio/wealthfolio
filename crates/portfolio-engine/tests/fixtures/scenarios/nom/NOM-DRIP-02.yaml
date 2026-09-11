@@ -1,0 +1,50 @@
+id: NOM-DRIP-02
+title: DRIP with a stale unit_price of 0 and a positive amount
+intent: >
+  A DRIP row imported with unit_price 0 (stale form value) but a positive
+  final amount: the buy leg's price is derived as amount / quantity, so the
+  lot carries a real basis instead of a zero-cost lot.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+    fee: 0
+  - id: drip-1
+    account: acc-1
+    type: DIVIDEND
+    subtype: DRIP
+    date: 2025-01-08T10:00:00Z
+    asset: aapl
+    quantity: 0.25
+    unit_price: 0
+    amount: 25
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 100 }
+  - { asset: aapl, day: 2025-01-12, close: 100 }
+expected_notes: >
+  Cash 1000 before and after 01-08 (income +25, buy -25). Lot `drip-1:buy`:
+  0.25 units at cost_per_unit 100 (25 / 0.25), basis 25. Keyframe 01-08:
+  10.25 units, total_cost_basis 1025. Income attribution 25, taxes 0.
+  net_contribution 2000; TWR = 2025/2000 - 1 = 1.25%.

@@ -1,0 +1,53 @@
+id: NOM-DIK-01
+title: DIVIDEND_IN_KIND two-leg expansion
+intent: >
+  A DIVIDEND row with subtype DIVIDEND_IN_KIND (one extra share received,
+  FMV 42, amount 42) compiles into `dik-1:dividend` (+42 income cash) and
+  `dik-1:buy` (1 @ 42, -42 cash): net cash zero, a new lot at FMV, position
+  grows by one share.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - id: xyz
+    symbol: XYZ
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: xyz
+    quantity: 10
+    unit_price: 40
+    amount: 400
+    fee: 0
+  - id: dik-1
+    account: acc-1
+    type: DIVIDEND
+    subtype: DIVIDEND_IN_KIND
+    date: 2025-01-08T10:00:00Z
+    asset: xyz
+    quantity: 1
+    unit_price: 42
+    amount: 42
+quotes:
+  - { asset: xyz, day: 2025-01-03, close: 40 }
+  - { asset: xyz, day: 2025-01-08, close: 42 }
+  - { asset: xyz, day: 2025-01-12, close: 45 }
+expected_notes: >
+  Cash 2000 -> 1600 and still 1600 on 01-08. Lots buy-1 (10 @ 40, basis
+  400) and `dik-1:buy` (1 @ 42, basis 42, fee 0, tax 0). Keyframe 01-08: xyz
+  11 units, total_cost_basis 442, average 40.181818. Market value 01-08 = 11
+  x 42 = 462, 01-12 = 495. Income attribution 42 (gross), taxes 0.
+  net_contribution 2000; TWR = 2095/2000 - 1 = 4.75%.

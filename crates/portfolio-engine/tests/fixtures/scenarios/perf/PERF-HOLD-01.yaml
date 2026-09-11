@@ -1,0 +1,59 @@
+id: PERF-HOLD-01
+title: Holdings-mode returns, dated window vs all-time book basis
+intent: >
+  A HOLDINGS account with two observed snapshots. The 01-12 transition adds
+  300 of cash with unchanged positions, so the valuation layer infers a
+  QUOTE_DERIVED_MARKET_VALUE inflow of 300 by pricing both keyframes at 01-12
+  quotes. All-time reports the book-basis return (end value - end book basis)
+  / end book basis, while the dated `mid` window chains daily flow-adjusted
+  returns so its headline equals the final series point. TWR and IRR are
+  not-applicable for holdings scopes.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-16
+accounts:
+  - id: acc-h
+    currency: USD
+    tracking_mode: HOLDINGS
+assets:
+  - id: aapl
+    quote_ccy: USD
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-05, close: 102 }
+  - { asset: aapl, day: 2025-01-08, close: 105 }
+  - { asset: aapl, day: 2025-01-12, close: 108 }
+  - { asset: aapl, day: 2025-01-16, close: 110 }
+observed_snapshots:
+  - account: acc-h
+    date: 2025-01-02
+    positions: [{ asset: aapl, quantity: 10, average_cost: 90 }]
+    cash: { USD: 500 }
+  - account: acc-h
+    date: 2025-01-12
+    positions: [{ asset: aapl, quantity: 10, average_cost: 90 }]
+    cash: { USD: 800 }
+performance_windows:
+  - { label: mid, start: 2025-01-05, end: 2025-01-16 }
+expected_notes: >
+  Keyframes: the two MANUAL_ENTRY rows, net_contribution 0, cost_basis 900.
+  Values: 01-02..01-04 1500; 01-05..01-07 1520; 01-08..01-11 1550; 01-12..01-15
+  1880 (1080 + 800); 01-16 1900. book_basis 1400 until 01-11, 1700 after.
+  Flow 01-12: inflow 300 QUOTE_DERIVED_MARKET_VALUE (1880 - 1580); every other
+  day NO_FLOW. all_time: method valueReturn, basis bookBasis, TWR/IRR reasons
+  "unavailable for holdings-only scopes"; value_return = (1900 - 1700)/1700 =
+  0.11764706, amount 200 (unrealized_pnl_change 200, contributions 0). The
+  all-time series is the chained daily path 1520/1500 x 1550/1520 x 1580/1550
+  x 1900/1880 - 1 = 0.06453901 on 01-16, which deliberately differs from the
+  book-basis headline (chart final point != headline for all-time holdings).
+  mid (01-05..01-16): value_return 1550/1520 x 1580/1550 x 1900/1880 - 1 =
+  0.05053191 equal to the last series point; amount 1900 - 1520 - 300 = 80;
+  warning that flows are estimated from snapshot changes.
+  LEGACY BEHAVIOR (ledger candidates): (1) both windows carry a spurious
+  "Performance attribution is incomplete" warning (all_time difference 200 =
+  (1900 - 1500) - 200, mid difference 300 = the inferred inflow that holdings
+  attribution never books as a contribution), so quality is partial; (2) the
+  portfolio scope over the same account reports amount 100 (period-start
+  unrealized delta (1100 - 900) - (1000 - 900)) next to the book-basis percent
+  0.11764706, while the account scope reports amount 200 for the same 11.76%.

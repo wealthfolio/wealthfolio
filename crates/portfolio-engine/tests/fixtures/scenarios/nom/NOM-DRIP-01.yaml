@@ -1,0 +1,57 @@
+id: NOM-DRIP-01
+title: DIVIDEND + DRIP two-leg expansion with withholding tax
+intent: >
+  One stored DIVIDEND row with subtype DRIP (amount = net dividend cash,
+  quantity = shares bought, unit_price = reinvestment price, tax =
+  withholding) compiles into `drip-1:dividend` (income, keeps the tax) and
+  `drip-1:buy` (qty @ unit_price, amount = income, fee = tax = 0). Net cash
+  is zero and a new lot appears under the synthetic id.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+    fee: 0
+  - id: drip-1
+    account: acc-1
+    type: DIVIDEND
+    subtype: DRIP
+    date: 2025-01-08T10:00:00Z
+    asset: aapl
+    quantity: 0.2
+    unit_price: 100
+    amount: 20
+    tax: 3
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 100 }
+  - { asset: aapl, day: 2025-01-12, close: 100 }
+expected_notes: >
+  Cash 2000 -> 1000 (buy) and still 1000 on 01-08 (+20 income leg, -20 buy
+  leg). Keyframe 01-08: aapl 10.2 units, total_cost_basis 1020, average
+  100. Lots: buy-1 (10 @ 100) and a lot with id `drip-1:buy` (0.2 @ 100,
+  basis 20, fee 0, tax 0) whose open_activity_id is null because the
+  synthetic id is not a stored activity row (lot sync nulls unknown ids).
+  net_contribution 2000 throughout, no flows. Attribution reads the stored
+  row: income 23 (gross = 20 + 3), taxes 3, fees 0. Total value 2000 ->
+  2020 on 01-08 (value of the reinvested shares); TWR 1%.

@@ -1,0 +1,99 @@
+id: LIFE-INC-04
+title: Delete then reinsert the same activity (same id, same date)
+intent: >
+  Step 1 hard-deletes a middle buy and recalculates SinceDate at its date;
+  step 2 re-adds the identical activity (same id, same date, same amounts)
+  through `add_activities` and recalculates SinceDate at the same date. Both
+  `since` values are on/before the high-water mark (the 01-13 sell keyframe),
+  so legacy upgrades each run to Full. After step 2 the facts are exactly the
+  baseline facts again, so the step-2 body must equal the baseline body
+  (same as_of, no new quotes) and both steps must match a full rebuild. The
+  reinsert stamps a fresh updated_at (here the step instant), which is what
+  the kernel's facts fingerprint relies on.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-15
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 505
+    fee: 5
+  - id: buy-2
+    account: acc-1
+    type: BUY
+    date: 2025-01-08T10:00:00Z
+    asset: aapl
+    quantity: 4
+    unit_price: 105
+    amount: 425
+    fee: 5
+  - id: sell-1
+    account: acc-1
+    type: SELL
+    date: 2025-01-13T10:00:00Z
+    asset: aapl
+    quantity: 3
+    unit_price: 110
+    amount: 325
+    fee: 5
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 105 }
+  - { asset: aapl, day: 2025-01-13, close: 110 }
+  - { asset: aapl, day: 2025-01-15, close: 120 }
+lifecycle:
+  - label: delete_middle_buy_since_date
+    remove_activities: [buy-2]
+    recalc: { snapshots: SINCE_DATE, valuations: SINCE_DATE, since: 2025-01-08 }
+  - label: reinsert_same_activity_since_date
+    add_activities:
+      - id: buy-2
+        account: acc-1
+        type: BUY
+        date: 2025-01-08T10:00:00Z
+        asset: aapl
+        quantity: 4
+        unit_price: 105
+        amount: 425
+        fee: 5
+    recalc: { snapshots: SINCE_DATE, valuations: SINCE_DATE, since: 2025-01-08 }
+expected_notes: >
+  Baseline (as_of 01-15): cash 2000 -> 1495 -> 1070 -> 1395; keyframes
+  01-02, 01-03, 01-08 (9 aapl), 01-13 (6 aapl: buy-1 remaining 2, buy-2
+  remaining 4, basis 627); total value 01-15 = 6 x 120 + 1395 = 2115.
+  Step 1 (buy-2 deleted, SinceDate 01-08 -> upgraded to Full): keyframes
+  01-02, 01-03, 01-13 (2 aapl, cash 1820, basis 202); lots buy-1 only; one
+  disposal; 01-15 value = 2 x 120 + 1820 = 2060. Expected to MATCH the full
+  rebuild.
+  Step 2 (buy-2 re-added unchanged, SinceDate 01-08 -> upgraded to Full):
+  the state must return to the baseline: 01-08 keyframe back (9 aapl, cash
+  1070), 01-13 = 6 aapl / cash 1395 / basis 627, lots buy-1 (remaining 2)
+  and buy-2 (remaining 4), 01-15 value 2115. Expected to MATCH the full
+  rebuild AND to equal the baseline body field for field.
+  LEGACY BEHAVIOR (golden LIFE-INC-04.snap): step 1 matches_full_rebuild =
+  true, differences = [] (keyframes 01-02, 01-03, 01-13 with 2 aapl / cash
+  1820 / cost_basis 202; lot buy-1 remaining 2; one disposal; 01-15 total
+  value 2060). Step 2 matches_full_rebuild = true, differences = [], and its
+  body is textually identical to the golden's baseline body (verified by
+  dedenting and diffing the two blocks): keyframe 01-08 (9 aapl, cash 1070,
+  basis 930) is back, 01-13 = 6 aapl / cash 1395 / basis 627, lots buy-1
+  (remaining 2) and buy-2 (remaining 4), 01-15 total value 2115. Delete +
+  reinsert round-trips exactly through two Full-upgraded SinceDate runs.

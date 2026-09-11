@@ -1,0 +1,44 @@
+id: EDGE-CASH-02
+title: Posted BUY with no stored amount - zero cash effect, lot still opens
+intent: >
+  A legacy row the final-cash migration could not verify: quantity,
+  unit_price and fee are present but `amount` is NULL. Runtime cash
+  resolution is final-only (`resolve_cash_inputs` never derives qty x price
+  from a missing amount), so the BUY moves NO cash, while the lot handler
+  falls back to unit_price x quantity + fee for the book basis. The kernel
+  keeps this and adds a MissingFinalCash diagnostic.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-no-amount
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    fee: 2
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 104 }
+expected_notes: >
+  Cash stays 1000 after the BUY (zero cash effect). Lot buy-no-amount:
+  cost_per_unit 100, original_cost_basis 502, position 5 with average_cost
+  100.4. Valuation 01-03: investment 500 + cash 1000 = 1500 (a phantom 500
+  of value appears from nowhere), cost_basis 502, book_basis 1502; 01-06
+  investment 520, total 1520. TWR shows the phantom +52% (no flow explains
+  the value increase), IRR does not converge, and attribution is
+  incomplete by 502.

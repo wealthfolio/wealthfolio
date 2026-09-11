@@ -1,0 +1,112 @@
+id: LIFE-CHK-01
+title: Chunked quarterly project/value equals one-shot (kernel property)
+markers: [K]
+intent: >
+  Kernel-only (I2). A month of activity that straddles a quarter boundary:
+  two accounts, deposits, a buy, a 2-for-1 SPLIT in March, a paired cash
+  transfer on 01 April (the first day of Q2), a buy in the destination
+  account and a sell in the source account. The kernel golden runner runs
+  `project` and `value` over the whole range in one shot, then again as
+  quarterly chunks (Q1: 03-10..03-31 carrying the buy and the split; Q2:
+  04-01..04-10 carrying the transfer pair, the second buy and the sell),
+  feeding each chunk the `ProjectionState` checkpoint of the previous one.
+  The chunked keyframes, lots, disposals, valuations and stamped flows must
+  be byte-identical to the one-shot output; the transfer pair must still net
+  to zero at portfolio scope even though its legs open the second chunk, and
+  the split_ratio carried in the Q1 checkpoint must survive into Q2 lots. No
+  legacy golden: legacy has no chunked mode.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-04-10
+accounts:
+  - id: acc-a
+    name: Source
+    currency: USD
+  - id: acc-b
+    name: Destination
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-a
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-03-10T10:00:00Z
+    amount: 5000
+  - id: dep-b
+    account: acc-b
+    type: DEPOSIT
+    date: 2025-03-10T11:00:00Z
+    amount: 1000
+  - id: buy-a1
+    account: acc-a
+    type: BUY
+    date: 2025-03-12T10:00:00Z
+    asset: aapl
+    quantity: 20
+    unit_price: 100
+    amount: 2005
+    fee: 5
+  - id: split-1
+    account: acc-a
+    type: SPLIT
+    date: 2025-03-25T10:00:00Z
+    asset: aapl
+    amount: 2
+  - id: out-1
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-04-01T10:00:00Z
+    amount: 800
+    source_group_id: g1
+  - id: in-1
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-04-01T11:00:00Z
+    amount: 800
+    source_group_id: g1
+  - id: buy-b1
+    account: acc-b
+    type: BUY
+    date: 2025-04-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 52
+    amount: 520
+    fee: 0
+  - id: sell-a1
+    account: acc-a
+    type: SELL
+    date: 2025-04-07T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 55
+    amount: 545
+    fee: 5
+quotes:
+  - { asset: aapl, day: 2025-03-10, close: 100 }
+  - { asset: aapl, day: 2025-03-12, close: 100 }
+  - { asset: aapl, day: 2025-03-25, close: 50 }
+  - { asset: aapl, day: 2025-03-31, close: 51 }
+  - { asset: aapl, day: 2025-04-01, close: 52 }
+  - { asset: aapl, day: 2025-04-03, close: 52 }
+  - { asset: aapl, day: 2025-04-07, close: 55 }
+  - { asset: aapl, day: 2025-04-10, close: 56 }
+expected_notes: >
+  One-shot economics the chunked run must reproduce exactly. acc-a: cash
+  5000 -> 2995 (buy 20 @ 100 + 5 fee) -> 2195 (transfer out 800) -> 2740
+  (sell 10 post-split units @ 55 - 5 fee); position 20 -> 40 on 03-25
+  (split_ratio 2 on lot buy-a1, basis 2005 unchanged, average_cost 50.125)
+  -> 30 after the sell (disposal of 10 post-split = 5 as-acquired units of
+  buy-a1). acc-b: cash 1000 -> 1800 (transfer in) -> 1280 (buy 10 @ 52);
+  position 10 aapl basis 520. Account-scope flows: acc-a outflow 800 and
+  acc-b inflow 800 on 04-01 (CASH_AMOUNT); portfolio scope: no flow row on
+  04-01 (pair resolved). Values: acc-a 03-12 = 20 x 100 + 2995 = 4995, 03-25
+  = 40 x 50 + 2995 = 4995 (no return booked on the split day), 03-31 = 40 x
+  51 + 2995 = 5035, 04-01 = 40 x 52 + 2195 = 4275, 04-07 = 30 x 55 + 2740 =
+  4390, 04-10 = 30 x 56 + 2740 = 4420; acc-b 04-03 = 10 x 52 + 1280 = 1800,
+  04-10 = 10 x 56 + 1280 = 1840. Chunk boundary: the Q1 checkpoint (03-31)
+  carries acc-a 40 aapl / cash 2995 / lot buy-a1 split_ratio 2 and acc-b
+  cash 1000.

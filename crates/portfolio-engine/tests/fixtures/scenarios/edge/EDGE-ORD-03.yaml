@@ -1,0 +1,80 @@
+id: EDGE-ORD-03
+title: activity_type_override to TRANSFER_OUT and SPLIT - raw vs effective type
+intent: >
+  Two rows are stored as type UNKNOWN with an override: one becomes a
+  TRANSFER_OUT paired (source_group_id) with a real TRANSFER_IN in another
+  account on the same day, the other becomes a SPLIT. Every economic rule
+  keys on `effective_type()` (dispatch, transfer pairing, split detection
+  in valuation), BUT the legacy cross-account same-day ordering
+  (`order_accounts_by_transfer_deps`) and the split-restart check
+  (`first_split_date_in_range`) read the RAW `activity_type`, so no
+  TRANSFER_OUT->TRANSFER_IN edge is built and the two accounts are folded
+  in hash-map order. For a CASH transfer the fold order does not change any
+  number, which keeps this capture deterministic; with a SECURITY transfer
+  the receiving account may be folded first and miss the cached lots, a
+  hash-order-dependent outcome that cannot be captured as a legacy golden
+  (noted in findings). The kernel keys the ordering on the effective type.
+  Parity: the kernel reproduces the legacy result exactly, so there is no ledger entry.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-a
+    currency: USD
+  - id: acc-b
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-a
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: buy-a
+    account: acc-a
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+  - id: xfer-out-override
+    account: acc-a
+    type: UNKNOWN
+    override: TRANSFER_OUT
+    date: 2025-01-06T11:00:00Z
+    amount: 400
+    source_group_id: g1
+  - id: xfer-in
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-06T11:01:00Z
+    amount: 400
+    source_group_id: g1
+  - id: split-override
+    account: acc-a
+    type: UNKNOWN
+    override: SPLIT
+    date: 2025-01-07T10:00:00Z
+    asset: aapl
+    amount: 2
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 100 }
+  - { asset: aapl, day: 2025-01-07, close: 50 }
+  - { asset: aapl, day: 2025-01-09, close: 52 }
+expected_notes: >
+  LEGACY BEHAVIOR (numbers are order-independent for cash): A cash 1000 ->
+  600 on 01-06, B cash 400; net_contribution A 1600, B 400. The pair IS
+  recognized (effective type): account-scope flows show A outflow 400 and B
+  inflow 400 (CASH_AMOUNT); portfolio flows show only the 2000 deposit.
+  The override SPLIT is applied by the holdings calculator: 01-07 keyframe
+  A holds 20 aapl (lot buy-a split_ratio 2, basis 1000); the raw quote
+  series (100 -> 50) is detected as unadjusted so no price factor applies;
+  valuations A: 01-03 2000, 01-06 1600, 01-07 1600 (20 x 50 + 600), 01-09
+  1640. What the raw-type reads change is invisible here: the accounts are
+  folded in undefined order (no topological edge) and, in an incremental
+  recalc, the split would not trigger a restart from inception.

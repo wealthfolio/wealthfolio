@@ -1,0 +1,51 @@
+id: LIFE-SYNC-01
+title: Market sync fails before the recalculation
+markers: [S]
+intent: >
+  Shell-level. One account, a deposit and a buy, with quotes that stop on
+  01-06 although as_of is 01-10: the shell test makes the market-data sync
+  fail before the recalculation runs. Today the behavior depends on the
+  entry path — the two queue workers recalculate anyway (`6c2e3c573`) while
+  the Tauri listener path and the server API path skip the calculation
+  entirely when the sync errors — so identical facts end in different stored
+  states. The coordinator applies one rule: recalculate with the quotes that
+  are available and report the sync failure as a diagnostic / health issue.
+  Expected: keyframes and valuations are produced for every day through
+  as_of using the last available quote (01-06 close carried forward), the
+  valuation rows after 01-06 carry a stale-price provenance rather than
+  being absent, and the sync error is surfaced instead of swallowed. No
+  legacy golden: the sync step is outside the capture harness.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+    fee: 0
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 100 }
+expected_notes: >
+  Cash 1000 -> 500 with 5 aapl from 01-06. With the sync failed, 01-06..01-10
+  value 5 x 100 + 500 = 1000 using the carried-forward 01-06 close; the
+  01-07..01-10 rows must exist (recalculation not skipped) and the sync
+  failure must be reported; nothing about the stored state may depend on
+  which host path triggered the job.
