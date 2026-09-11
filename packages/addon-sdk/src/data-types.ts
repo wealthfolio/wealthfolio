@@ -264,6 +264,8 @@ export interface ActivityDetails {
   sourceRecordId?: string;
   idempotencyKey?: string;
   importRunId?: string;
+  /** Shared id of a linked internal transfer pair; absent when the leg is unlinked. */
+  sourceGroupId?: string;
   isUserModified?: boolean;
   metadata?: Record<string, unknown>;
   subRows?: ActivityDetails[];
@@ -337,6 +339,36 @@ export interface ActivityUpdate {
   comment?: string | null;
   fxRate?: string | number | null;
   metadata?: string | Record<string, unknown>;
+}
+
+/** Request for `ActivitiesAPI.findTransferMatchCandidates`. */
+export interface TransferMatchCandidateRequest {
+  /** Id of the `TRANSFER_IN` or `TRANSFER_OUT` leg to find a counterpart for. */
+  activityId: string;
+  /** Days either side of the activity date to search; host default when omitted. */
+  windowDays?: number;
+  /** Maximum number of candidates to return; host default when omitted. */
+  limit?: number;
+}
+
+/** How a transfer counterpart matches the source leg. */
+export type TransferMatchKind = 'cash' | 'security' | 'cash_fx_conversion';
+
+/** Host confidence that a candidate is the other leg of the same transfer. */
+export type TransferMatchConfidence = 'high' | 'medium' | 'low';
+
+/** One ranked counterpart candidate returned by the host's transfer matcher. */
+export interface TransferMatchCandidate {
+  /** The candidate counterpart activity. */
+  activity: Activity;
+  matchKind: TransferMatchKind;
+  confidence: TransferMatchConfidence;
+  /** Higher is a better match; only meaningful relative to other candidates. */
+  score: number;
+  /** Human-readable reasons the candidate matched (e.g. "Same amount"). */
+  reasons: string[];
+  /** Human-readable caveats (e.g. "Dates differ by 1 day(s)."). */
+  warnings: string[];
 }
 
 export interface ActivityBulkMutationRequest {

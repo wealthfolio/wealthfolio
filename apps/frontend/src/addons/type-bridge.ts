@@ -39,6 +39,8 @@ import type {
   SymbolSearchResult,
   Settings,
   SimplePerformanceResult,
+  TransferMatchCandidate,
+  TransferMatchCandidateRequest,
   UpdateAssetProfile,
 } from "@/lib/types";
 import type { HoldingInput } from "@/adapters";
@@ -201,6 +203,11 @@ export interface InternalHostAPI {
   createActivity(activity: ActivityCreate): Promise<Activity>;
   updateActivity(activity: ActivityUpdate): Promise<Activity>;
   saveActivities(request: ActivityBulkMutationRequest): Promise<ActivityBulkMutationResult>;
+  findTransferMatchCandidates(
+    request: TransferMatchCandidateRequest,
+  ): Promise<TransferMatchCandidate[]>;
+  linkTransferActivities(activityAId: string, activityBId: string): Promise<[Activity, Activity]>;
+  unlinkTransferActivities(activityAId: string, activityBId: string): Promise<[Activity, Activity]>;
 
   // File operations
   openCsvFileDialog(): Promise<null | string | string[]>;
@@ -484,6 +491,9 @@ export function createSDKHostAPIBridge(
         internalAPI.checkActivitiesImport({ activities }),
       getImportMapping: internalAPI.getAccountImportMapping,
       saveImportMapping: internalAPI.saveAccountImportMapping,
+      findTransferMatchCandidates: internalAPI.findTransferMatchCandidates,
+      linkTransfer: internalAPI.linkTransferActivities,
+      unlinkTransfer: internalAPI.unlinkTransferActivities,
     },
     "activities",
     guard,

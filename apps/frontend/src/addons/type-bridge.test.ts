@@ -139,6 +139,54 @@ describe("Addon Type Bridge", () => {
       expect(getPermissionCategory("currency")?.functions).toContain("getRatesForDates");
     });
 
+    it("should guard and forward transfer linking", async () => {
+      const findTransferMatchCandidates = vi.fn().mockResolvedValue([]);
+      const linkTransferActivities = vi.fn().mockResolvedValue([]);
+      const unlinkTransferActivities = vi.fn().mockResolvedValue([]);
+      const guard = createPermissionGuard("test-addon", [
+        {
+          category: "activities",
+          purpose: "Transfer linking",
+          functions: [
+            { name: "findTransferMatchCandidates", isDeclared: true, isDetected: false },
+            { name: "linkTransfer", isDeclared: true, isDetected: false },
+          ],
+        },
+      ]);
+      const sdkAPI = createSDKHostAPIBridge(
+        {
+          findTransferMatchCandidates,
+          linkTransferActivities,
+          unlinkTransferActivities,
+          logError: vi.fn(),
+          logInfo: vi.fn(),
+          logWarn: vi.fn(),
+          logTrace: vi.fn(),
+          logDebug: vi.fn(),
+        } as unknown as InternalHostAPI,
+        "test-addon",
+        guard,
+      );
+      const request = { activityId: "out-1", windowDays: 3, limit: 5 };
+
+      await sdkAPI.activities.findTransferMatchCandidates(request);
+      await sdkAPI.activities.linkTransfer("out-1", "in-1");
+
+      expect(findTransferMatchCandidates).toHaveBeenCalledWith(request);
+      expect(linkTransferActivities).toHaveBeenCalledWith("out-1", "in-1");
+      expect(() => sdkAPI.activities.unlinkTransfer("out-1", "in-1")).toThrow(
+        "Addon 'test-addon' is not allowed to call activities.unlinkTransfer",
+      );
+      expect(unlinkTransferActivities).not.toHaveBeenCalled();
+    });
+
+    it("registers transfer linking in activities permissions", () => {
+      const functions = getPermissionCategory("activities")?.functions;
+      expect(functions).toContain("findTransferMatchCandidates");
+      expect(functions).toContain("linkTransfer");
+      expect(functions).toContain("unlinkTransfer");
+    });
+
     it("should not grant detected-only function permissions", () => {
       const guard = createPermissionGuard("test-addon", [
         {

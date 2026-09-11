@@ -26,6 +26,15 @@ and this project adheres to
   [Addon Localization guide](../../docs/addons/addon-localization.md).
 - Optional `status` and `needsReview` fields on `ActivityCreate` and
   `ActivityUpdate`.
+- Transfer linking on `ActivitiesAPI`: `findTransferMatchCandidates(request)`,
+  `linkTransfer(a, b)` and `unlinkTransfer(a, b)`, exposing the host's own
+  transfer matcher and link validation to addons, plus the
+  `TransferMatchCandidateRequest` and `TransferMatchCandidate` types. Requires a
+  Wealthfolio release that ships this bridge (unreleased at the time of
+  writing). See the
+  [Activities API reference](../../docs/addons/addon-api-reference.md#transfer-linking).
+- `ActivityDetails.sourceGroupId`, so `activities.getAll()` reveals which
+  transfer legs are already linked.
 
 ### Changed
 

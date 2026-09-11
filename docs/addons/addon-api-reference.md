@@ -488,6 +488,61 @@ Saves import mapping configuration.
 const savedMapping = await ctx.api.activities.saveImportMapping(mapping);
 ```
 
+### Transfer linking
+
+Wealthfolio records a transfer between two of your accounts as two activities: a
+`TRANSFER_OUT` and a `TRANSFER_IN`. Linking them tells Wealthfolio the money
+never left the portfolio, so the pair is excluded from income and spending and
+holdings stay consistent. Linked legs share a `sourceGroupId`
+(`ActivityDetails.sourceGroupId`); unlinked legs have none.
+
+These methods call the same matcher and validation as the app's Link Transfer
+dialog. They require `findTransferMatchCandidates`, `linkTransfer`, and
+`unlinkTransfer` in the `activities` permission, and an addon using them must
+set `minWealthfolioVersion` to the first release that ships them.
+
+#### `findTransferMatchCandidates(request: TransferMatchCandidateRequest): Promise<TransferMatchCandidate[]>`
+
+Returns ranked counterpart candidates for one transfer leg. Each candidate
+carries the host's `confidence`, `score`, `reasons` (for example `Same amount`)
+and `warnings` (for example `Dates differ by 1 day(s).`).
+
+```typescript
+const candidates = await ctx.api.activities.findTransferMatchCandidates({
+  activityId: transferOut.id,
+  windowDays: 3, // optional
+  limit: 5, // optional
+});
+const best = candidates.find((c) => c.confidence === "high");
+if (best) {
+  await ctx.api.activities.linkTransfer(transferOut.id, best.activity.id);
+}
+```
+
+#### `linkTransfer(activityAId: string, activityBId: string): Promise<[Activity, Activity]>`
+
+Links two legs as one internal transfer. The host rejects the call unless the
+pair is one in and one out, neither is already linked, and the asset and
+currency are compatible (or the pair is an FX conversion). On success both
+activities are returned with their shared `sourceGroupId`, and holdings and
+spending are recalculated.
+
+```typescript
+const [outLeg, inLeg] = await ctx.api.activities.linkTransfer(
+  transferOut.id,
+  transferIn.id,
+);
+```
+
+#### `unlinkTransfer(activityAId: string, activityBId: string): Promise<[Activity, Activity]>`
+
+Reverses `linkTransfer`. Both legs keep their activity type and revert to
+unlinked transfers.
+
+```typescript
+await ctx.api.activities.unlinkTransfer(outLeg.id, inLeg.id);
+```
+
 ---
 
 ## Error Handling

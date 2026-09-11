@@ -33,6 +33,9 @@ export const FUNCTION_DISPLAY_NAMES: Record<string, string> = {
   "activities.checkImport": "Validate import data",
   "activities.getImportMapping": "View import settings",
   "activities.saveImportMapping": "Save import settings",
+  "activities.findTransferMatchCandidates": "Suggest matching transfer legs",
+  "activities.linkTransfer": "Link transfers between accounts",
+  "activities.unlinkTransfer": "Unlink transfers between accounts",
 
   // MarketDataAPI functions
   "market.searchTicker": "Search for stocks/funds",

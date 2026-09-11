@@ -43,6 +43,8 @@ import type {
   SpendCategory,
   SpendCategoryKind,
   SymbolSearchResult,
+  TransferMatchCandidate,
+  TransferMatchCandidateRequest,
   UpdateAssetProfile,
 } from './data-types';
 
@@ -210,6 +212,36 @@ export interface ActivitiesAPI {
    * @returns Promise resolving to saved mapping data
    */
   saveImportMapping(mapping: ImportMappingData): Promise<ImportMappingData>;
+
+  /**
+   * Find candidate counterparts for one leg of a transfer, ranked by the host's
+   * transfer matcher (same rules as the app's Link Transfer dialog).
+   * @param request Source activity id plus optional search window and limit
+   * @returns Promise resolving to ranked candidates, best first
+   */
+  findTransferMatchCandidates(
+    request: TransferMatchCandidateRequest,
+  ): Promise<TransferMatchCandidate[]>;
+
+  /**
+   * Link two transfer legs as one internal transfer. The host validates the
+   * pair (one in, one out, neither already linked, compatible asset and
+   * currency), assigns a shared `sourceGroupId`, marks both legs internal, and
+   * recalculates holdings and spending.
+   * @param activityAId One leg of the transfer
+   * @param activityBId The other leg of the transfer
+   * @returns Promise resolving to both updated activities
+   */
+  linkTransfer(activityAId: string, activityBId: string): Promise<[Activity, Activity]>;
+
+  /**
+   * Unlink a previously linked transfer pair. Both legs keep their type and
+   * revert to unlinked, external-boundary transfers.
+   * @param activityAId One leg of the linked pair
+   * @param activityBId The other leg of the linked pair
+   * @returns Promise resolving to both updated activities
+   */
+  unlinkTransfer(activityAId: string, activityBId: string): Promise<[Activity, Activity]>;
 }
 
 /**

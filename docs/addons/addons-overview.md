@@ -113,7 +113,7 @@ const accounts = await ctx.api.accounts.getAll();
 | --------------------- | ---------- | -------------------------------------------------------------------- |
 | `accounts`            | High       | getAll, create                                                       |
 | `portfolio`           | High       | getHoldings, getHolding, update, recalculate                         |
-| `activities`          | High       | getAll, search, create, update, saveMany, import                     |
+| `activities`          | High       | getAll, search, create, update, saveMany, import, linkTransfer       |
 | `market-data`         | Low        | searchTicker, syncHistory, sync, getProviders, fetchDividends        |
 | `assets`              | Medium     | getProfile, updateProfile, updateQuoteMode                           |
 | `quotes`              | Low        | update, getHistory                                                   |
