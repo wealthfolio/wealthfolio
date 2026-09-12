@@ -62,6 +62,10 @@ pub struct PerformanceReturns {
     pub annualized_irr: Option<Decimal>,
     pub value_return: Option<Decimal>,
     pub annualized_value_return: Option<Decimal>,
+    /// Change in value that would bring the account back to a 0% return
+    /// against its current cost basis. Always relative to the account's
+    /// present cost basis, not the selected period's start.
+    pub return_to_break_even: Option<Decimal>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -198,6 +202,7 @@ pub fn unavailable_performance_metrics(
             annualized_irr: None,
             value_return: None,
             annualized_value_return: None,
+            return_to_break_even: None,
         },
         attribution: PerformanceAttribution::default(),
         risk: PerformanceRisk {
@@ -457,6 +462,7 @@ mod tests {
                 annualized_irr: None,
                 value_return: Some(Decimal::new(12, 2)),
                 annualized_value_return: None,
+                return_to_break_even: None,
             },
             attribution: PerformanceAttribution::default(),
             risk: PerformanceRisk {

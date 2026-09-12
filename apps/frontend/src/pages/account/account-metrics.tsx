@@ -195,6 +195,7 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
   );
   const unrealizedPnl = valuation.investmentMarketValue - valuation.costBasis;
   const canShowUnrealizedPnl = valuation.basisStatus === "complete";
+
   const unrealizedPnlValue = canShowUnrealizedPnl ? (
     <GainAmount value={unrealizedPnl} currency={displayCurrency} className="text-sm" />
   ) : (

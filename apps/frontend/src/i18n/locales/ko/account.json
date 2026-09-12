@@ -149,6 +149,7 @@
     "irr": "IRR",
     "cumulative_twr": "누적 TWR",
     "period_irr": "기간 IRR",
+    "return_to_break_even": "손익분기점까지 수익률",
     "twr_hover_hint": " 값 위에 마우스를 올리면 누적 TWR을 볼 수 있습니다.",
     "irr_hover_hint": " 값 위에 마우스를 올리면 선택한 기간의 IRR을 볼 수 있습니다."
   },

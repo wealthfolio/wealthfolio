@@ -150,6 +150,7 @@
     "irr": "IRR",
     "cumulative_twr": "TWR acumulada",
     "period_irr": "IRR del periodo",
+    "return_to_break_even": "Retorno al punto de equilibrio",
     "twr_hover_hint": " Pasa el cursor sobre el valor para ver la TWR acumulada.",
     "irr_hover_hint": " Pasa el cursor sobre el valor para ver la IRR del periodo seleccionado."
   },

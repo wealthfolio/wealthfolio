@@ -3753,6 +3753,36 @@ impl PerformanceService {
             Self::refresh_data_quality_status(&mut data_quality);
         }
 
+        // Always relative to the account's current cost basis (the period's
+        // end point), regardless of the selected period's start — unlike TWR/
+        // IRR/value_return, this is not a "selected-period" return. Requires a
+        // fully known cost basis: a position with unrecorded lots would
+        // otherwise understate cost_basis and silently misstate the result.
+        //
+        // Always computed in account currency, independent of `flow_basis`:
+        // it must match the Investments/Cost Basis figures the account page
+        // displays alongside it (also account currency). Using the base-
+        // currency fields here would mix in FX drift between when the cost
+        // basis was accumulated and now, producing a different number than
+        // what's shown on screen for accounts whose currency isn't the
+        // portfolio's base currency.
+        let return_to_break_even = if !Self::holdings_basis_is_complete(end_point) {
+            None
+        } else {
+            let end_market_value =
+                Self::return_investment_market_value(end_point, ExternalFlowBasis::AccountCurrency);
+            if end_market_value == Decimal::ZERO {
+                None
+            } else {
+                Some(
+                    (Self::return_cost_basis(end_point, ExternalFlowBasis::AccountCurrency)
+                        / end_market_value
+                        - Decimal::ONE)
+                        .round_dp(DECIMAL_PRECISION),
+                )
+            }
+        };
+
         let mut result = Self::build_result(
             String::new(),
             currency,
@@ -3792,6 +3822,7 @@ impl PerformanceService {
                 } else {
                     None
                 },
+                return_to_break_even,
             },
             attribution,
             risk,
@@ -4154,6 +4185,7 @@ impl PerformanceService {
                     annualized_irr: None,
                     value_return: None,
                     annualized_value_return: None,
+                    return_to_break_even: None,
                 },
                 PerformanceAttribution::default(),
                 Self::empty_risk(),
@@ -4268,6 +4300,7 @@ impl PerformanceService {
                 } else {
                     None
                 },
+                return_to_break_even: None,
             },
             attribution,
             Self::empty_risk(),
@@ -4613,6 +4646,7 @@ impl PerformanceService {
                 } else {
                     None
                 },
+                return_to_break_even: None,
             },
             attribution,
             risk,
@@ -4772,6 +4806,7 @@ impl PerformanceService {
                 annualized_irr: None,
                 value_return: Some(total_return.round_dp(DECIMAL_PRECISION)),
                 annualized_value_return: annualized_return,
+                return_to_break_even: None,
             },
             PerformanceAttribution::default(),
             Self::risk_from_samples(&risk_samples, Some(actual_start_date)),
@@ -4811,6 +4846,7 @@ impl PerformanceService {
                 annualized_irr: None,
                 value_return: None,
                 annualized_value_return: None,
+                return_to_break_even: None,
             },
             PerformanceAttribution::default(),
             PerformanceRisk {
@@ -4848,6 +4884,7 @@ impl PerformanceService {
                 annualized_irr: None,
                 value_return: None,
                 annualized_value_return: None,
+                return_to_break_even: None,
             },
             PerformanceAttribution::default(),
             PerformanceRisk {
@@ -7345,6 +7382,7 @@ mod tests {
                 annualized_irr: None,
                 value_return: None,
                 annualized_value_return: None,
+                return_to_break_even: None,
             },
             PerformanceAttribution::default(),
             PerformanceService::empty_risk(),
@@ -7469,6 +7507,7 @@ mod tests {
                 annualized_irr: None,
                 value_return: None,
                 annualized_value_return: None,
+                return_to_break_even: None,
             },
             PerformanceAttribution::default(),
             PerformanceService::empty_risk(),
@@ -7566,6 +7605,7 @@ mod tests {
                 annualized_irr: None,
                 value_return: None,
                 annualized_value_return: None,
+                return_to_break_even: None,
             },
             PerformanceAttribution::default(),
             PerformanceService::empty_risk(),
@@ -7684,6 +7724,7 @@ mod tests {
                 annualized_irr: None,
                 value_return: None,
                 annualized_value_return: None,
+                return_to_break_even: None,
             },
             PerformanceAttribution::default(),
             PerformanceService::empty_risk(),
@@ -7801,6 +7842,7 @@ mod tests {
                 annualized_irr: None,
                 value_return: None,
                 annualized_value_return: None,
+                return_to_break_even: None,
             },
             PerformanceAttribution::default(),
             PerformanceService::empty_risk(),
@@ -7896,6 +7938,7 @@ mod tests {
                 annualized_irr: None,
                 value_return: None,
                 annualized_value_return: None,
+                return_to_break_even: None,
             },
             PerformanceAttribution::default(),
             PerformanceService::empty_risk(),
@@ -7980,6 +8023,7 @@ mod tests {
                 annualized_irr: None,
                 value_return: None,
                 annualized_value_return: None,
+                return_to_break_even: None,
             },
             PerformanceAttribution::default(),
             PerformanceService::empty_risk(),
@@ -8037,6 +8081,7 @@ mod tests {
                 annualized_irr: None,
                 value_return: None,
                 annualized_value_return: None,
+                return_to_break_even: None,
             },
             PerformanceAttribution::default(),
             PerformanceService::empty_risk(),
@@ -8163,6 +8208,7 @@ mod tests {
                 annualized_irr: None,
                 value_return: None,
                 annualized_value_return: None,
+                return_to_break_even: None,
             },
             PerformanceAttribution::default(),
             PerformanceService::empty_risk(),
@@ -8580,6 +8626,121 @@ mod tests {
         assert!(summary.returns.irr.is_none());
         assert!(summary.returns.annualized_twr.is_none());
         assert!(summary.risk.volatility.is_none());
+    }
+
+    /// Return-to-break-even is relative to the account's current cost basis
+    /// (the period's end point), so it must not change when the selected
+    /// period's start date changes — unlike TWR/IRR/value_return, which are
+    /// genuinely period-scoped.
+    #[test]
+    fn perf_return_to_break_even_is_independent_of_selected_period() {
+        let history = fixture_small_seed_then_large_deposit();
+
+        let all_time = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("all-time should compute");
+
+        let dated = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            Some(date("2026-04-01")),
+            false,
+        )
+        .expect("dated period should compute");
+
+        // End-of-history row: investment_market_value 1809.16, cost_basis 1820.
+        let expected = (dec!(1820) / dec!(1809.16) - Decimal::ONE).round_dp(DECIMAL_PRECISION);
+
+        assert_eq!(
+            all_time.returns.return_to_break_even.unwrap().round_dp(DECIMAL_PRECISION),
+            expected
+        );
+        assert_eq!(
+            all_time.returns.return_to_break_even,
+            dated.returns.return_to_break_even
+        );
+    }
+
+    /// The other half of the sign convention: market value above cost basis
+    /// (a gain) must produce a negative result — the decline that would
+    /// erase the gain — not just the positive/at-a-loss case covered above.
+    #[test]
+    fn perf_return_to_break_even_is_negative_when_account_is_at_a_gain() {
+        let mut history = fixture_small_seed_then_large_deposit();
+        let end = history.last_mut().unwrap();
+        end.investment_market_value = dec!(2000.00);
+        end.investment_market_value_base = dec!(2000.00);
+        end.cost_basis = dec!(1600.00);
+        end.cost_basis_base = dec!(1600.00);
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("should compute");
+
+        assert_eq!(result.returns.return_to_break_even, Some(dec!(-0.2)));
+    }
+
+    /// Must match the account-currency Investments/Cost Basis figures shown
+    /// alongside it on the account page, not a base-currency conversion —
+    /// otherwise FX drift between when the cost basis was accumulated and
+    /// now produces a different number than what's on screen for accounts
+    /// whose currency isn't the portfolio's base currency.
+    #[test]
+    fn perf_return_to_break_even_ignores_base_currency_fx_drift() {
+        let mut history = fixture_small_seed_then_large_deposit();
+        let end = history.last_mut().unwrap();
+        end.investment_market_value_base = dec!(2000.00);
+        end.cost_basis_base = dec!(1600.00);
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("should compute");
+
+        // Account-currency fields (1809.16 / 1820), not the base-currency
+        // ones set above (which would give a very different +25% figure).
+        let expected = (dec!(1820) / dec!(1809.16) - Decimal::ONE).round_dp(DECIMAL_PRECISION);
+        assert_eq!(
+            result
+                .returns
+                .return_to_break_even
+                .unwrap()
+                .round_dp(DECIMAL_PRECISION),
+            expected
+        );
+    }
+
+    /// A position with unrecorded lots (e.g. an import missing purchase
+    /// price) understates `cost_basis` rather than leaving it unknown, so
+    /// the field must be suppressed instead of reporting a plausible-looking
+    /// but wrong percentage — the same guarantee `unrealized_pnl_percent`
+    /// gets from `AccountValuation.basisStatus` on the current-valuation
+    /// path.
+    #[test]
+    fn perf_return_to_break_even_is_none_when_cost_basis_is_incomplete() {
+        let mut history = fixture_small_seed_then_large_deposit();
+        history.last_mut().unwrap().basis_status = BasisStatus::Unknown;
+
+        let result = PerformanceService::compute_account_performance(
+            &history,
+            Some(TrackingMode::Transactions),
+            None,
+            false,
+        )
+        .expect("should compute");
+
+        assert!(result.returns.return_to_break_even.is_none());
     }
 
     /// Well-formed account (`start_value == net_contribution`) stays sane —
