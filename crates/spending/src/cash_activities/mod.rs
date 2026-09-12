@@ -7,8 +7,9 @@ pub mod service;
 pub mod traits;
 
 pub use model::{
-    CashActivity, CashActivityFilter, CashActivitySearchRequest, CashActivitySearchResponse,
-    CashActivitySortField, CashActivityStatusFilter, SortDirection,
+    BulkAssignRejection, BulkAssignResult, CashActivity, CashActivityFilter,
+    CashActivitySearchRequest, CashActivitySearchResponse, CashActivitySortField,
+    CashActivityStatusFilter, SortDirection,
 };
 pub use service::CashActivityService;
 pub use traits::CashActivityServiceTrait;

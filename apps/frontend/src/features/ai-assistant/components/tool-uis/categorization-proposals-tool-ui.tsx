@@ -1,6 +1,10 @@
 import { updateToolResult } from "@/adapters";
-import { QuickCategorizePopover } from "@/features/spending/components/quick-categorize-popover";
 import { useBulkAssignCategories } from "@/features/spending/hooks/use-cash-activities";
+import {
+  QuickCategorizePopover,
+  type QuickCategorizeScope,
+} from "@/features/spending/components/quick-categorize-popover";
+import type { CashFlowBucket } from "@/features/spending/types/cash-activity";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { cn } from "@/lib/utils";
@@ -51,6 +55,20 @@ interface RowDraft {
   source: string;
   explanation: string;
   selected: boolean;
+  cashFlowBucket: CashFlowBucket;
+}
+
+/** Categories label the cash-flow bucket; they never move an activity between
+ * buckets, so the picker only offers the taxonomy matching this row's bucket. */
+function scopeForBucket(bucket: CashFlowBucket): QuickCategorizeScope {
+  switch (bucket) {
+    case "income":
+      return "income";
+    case "saving":
+      return "saving";
+    default:
+      return "expense";
+  }
 }
 
 function confidencePillClass(confidence: number): string {
@@ -142,6 +160,7 @@ function CategorizationProposalsContentImpl({
       source: p.source,
       explanation: p.explanation,
       selected: p.confidence >= 0.6,
+      cashFlowBucket: p.cashFlowBucket,
     }));
   }, [result, categoryColorMap]);
 
@@ -242,7 +261,7 @@ function CategorizationProposalsContentImpl({
 
     const accepted = rows.filter((r) => r.selected);
     try {
-      const applied = await bulkAssign.mutateAsync(
+      const { applied, rejected } = await bulkAssign.mutateAsync(
         accepted.map((r) => ({
           activityId: r.activityId,
           taxonomyId: r.taxonomyId,
@@ -250,8 +269,24 @@ function CategorizationProposalsContentImpl({
         })),
       );
 
-      setLocalSubmitted(true);
-      setLocalAppliedCount(applied.length);
+      const appliedIds = new Set(applied.map((a) => a.activityId));
+      const totalApplied = (localAppliedCount ?? 0) + applied.length;
+      setLocalAppliedCount(totalApplied);
+
+      const fullyApplied = rejected.length === 0;
+      if (fullyApplied) {
+        setLocalSubmitted(true);
+      } else {
+        // Drop the rows that succeeded; leave the rejected ones selected so
+        // the user can fix their category and resubmit.
+        setRows((prev) => prev.filter((r) => !appliedIds.has(r.activityId)));
+        setSubmitError(
+          t("ai:categorization.partialApplyFailed", {
+            count: rejected.length,
+            reason: rejected[0].message,
+          }),
+        );
+      }
 
       if (threadId && toolCallId) {
         try {
@@ -259,9 +294,9 @@ function CategorizationProposalsContentImpl({
             threadId,
             toolCallId,
             resultPatch: {
-              submitted: true,
-              draftStatus: "applied",
-              appliedCount: applied.length,
+              submitted: fullyApplied,
+              draftStatus: fullyApplied ? "applied" : "draft",
+              appliedCount: totalApplied,
               submittedAt: new Date().toISOString(),
             },
           });
@@ -384,7 +419,7 @@ function CategorizationProposalsContentImpl({
                   </button>
                 }
                 selectedCategoryId={row.categoryId}
-                scope="both"
+                scope={scopeForBucket(row.cashFlowBucket)}
                 onSelect={(taxonomyId, categoryId) =>
                   updateRowCategory(row.activityId, taxonomyId, categoryId)
                 }
@@ -438,7 +473,7 @@ function CategorizationProposalsContentImpl({
                         {t("ai:categorization.pickCategory")}
                       </button>
                     }
-                    scope="both"
+                    scope={scopeForBucket(row.cashFlowBucket)}
                     onSelect={(taxonomyId, categoryId) => {
                       const cat = categoryPathMap.get(categoryId);
                       setPickedUnproposedIds((prev) => {
@@ -462,6 +497,7 @@ function CategorizationProposalsContentImpl({
                           source: "manual",
                           explanation: t("ai:categorization.pickedManually"),
                           selected: true,
+                          cashFlowBucket: row.cashFlowBucket,
                         },
                       ]);
                     }}

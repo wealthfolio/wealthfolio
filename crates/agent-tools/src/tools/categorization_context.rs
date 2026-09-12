@@ -18,6 +18,7 @@ use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
 use wealthfolio_core::accounts::account_types;
+use wealthfolio_spending::cash_activities::model::CashFlowBucket;
 use wealthfolio_spending::cash_activities::{
     CashActivity, CashActivitySearchRequest, CashActivityStatusFilter,
 };
@@ -102,6 +103,10 @@ pub struct Proposal {
     /// "rule" | "history" | "ai"
     pub source: String,
     pub explanation: String,
+    /// Accounting bucket this activity belongs to. The widget uses this to
+    /// restrict which taxonomy a row's category can be changed to — categories
+    /// label the bucket, they never move an activity between buckets.
+    pub cash_flow_bucket: CashFlowBucket,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,6 +118,24 @@ pub struct UnproposedActivity {
     pub currency: String,
     pub notes: Option<String>,
     pub reason: String,
+    /// Accounting bucket this activity belongs to. Constrains which taxonomy
+    /// the agent (or the widget's manual picker) may pick a category from.
+    pub cash_flow_bucket: CashFlowBucket,
+}
+
+/// The single taxonomy a row's `cashFlowBucket` may be categorized under.
+/// `None` for `Neutral` — those rows (e.g. internal transfers) cannot be
+/// categorized at all. Mirrors `taxonomy_for_bucket` in
+/// `cash_activities::service`, which is the source of truth enforced at
+/// commit time; kept in sync manually since that function is private to the
+/// `spending` crate.
+pub(crate) fn taxonomy_id_for_bucket(bucket: CashFlowBucket) -> Option<&'static str> {
+    match bucket {
+        CashFlowBucket::Spending => Some("spending_categories"),
+        CashFlowBucket::Income => Some("income_sources"),
+        CashFlowBucket::Saving => Some("savings_categories"),
+        CashFlowBucket::Neutral => None,
+    }
 }
 
 /// Filters shared by `list_categorization_context` and
@@ -333,6 +356,8 @@ pub async fn compute_categorization_state(
     let mut unproposed = Vec::new();
     for target in &targets {
         let act = &target.activity;
+        let bucket = target.cash_flow_bucket;
+        let expected_taxonomy = taxonomy_id_for_bucket(bucket);
         let amount = act.amount.and_then(|d| d.to_f64()).unwrap_or(0.0);
         let date = act.activity_date.format("%Y-%m-%d").to_string();
         let notes_trimmed = act.notes.as_deref().map(truncate_notes);
@@ -351,21 +376,28 @@ pub async fn compute_categorization_state(
             if let (Some(tax_id), Some(cat_id)) =
                 (m.rule.taxonomy_id.clone(), m.rule.category_id.clone())
             {
-                if let Some((_, _, _, path, _)) = category_lookup.get(&cat_id) {
-                    proposals.push(Proposal {
-                        activity_id: act.id.clone(),
-                        activity_date: date.clone(),
-                        amount,
-                        currency: act.currency.clone(),
-                        notes: notes_trimmed.clone(),
-                        taxonomy_id: tax_id,
-                        category_id: cat_id,
-                        category_path: path.clone(),
-                        confidence: 0.95,
-                        source: "rule".to_string(),
-                        explanation: format!("Matched rule \"{}\".", m.rule.name),
-                    });
-                    continue;
+                // A rule can be configured with a taxonomy that no longer
+                // matches this activity's bucket (e.g. the activity's account
+                // type changed). Fall through rather than propose a category
+                // the commit step will reject.
+                if expected_taxonomy == Some(tax_id.as_str()) {
+                    if let Some((_, _, _, path, _)) = category_lookup.get(&cat_id) {
+                        proposals.push(Proposal {
+                            activity_id: act.id.clone(),
+                            activity_date: date.clone(),
+                            amount,
+                            currency: act.currency.clone(),
+                            notes: notes_trimmed.clone(),
+                            taxonomy_id: tax_id,
+                            category_id: cat_id,
+                            category_path: path.clone(),
+                            confidence: 0.95,
+                            source: "rule".to_string(),
+                            explanation: format!("Matched rule \"{}\".", m.rule.name),
+                            cash_flow_bucket: bucket,
+                        });
+                        continue;
+                    }
                 }
             }
         }
@@ -388,28 +420,37 @@ pub async fn compute_categorization_state(
             });
 
         if let Some((tax_id, cat_id, count)) = history_match {
-            if let Some((_, _, _, path, _)) = category_lookup.get(&cat_id) {
-                let confidence = if count >= 3 {
-                    0.92
-                } else if count == 2 {
-                    0.82
-                } else {
-                    0.7
-                };
-                proposals.push(Proposal {
-                    activity_id: act.id.clone(),
-                    activity_date: date,
-                    amount,
-                    currency: act.currency.clone(),
-                    notes: notes_trimmed,
-                    taxonomy_id: tax_id,
-                    category_id: cat_id,
-                    category_path: path.clone(),
-                    confidence,
-                    source: "history".to_string(),
-                    explanation: format!("Matched same payee in {} prior transaction(s).", count),
-                });
-                continue;
+            // Same guard as the rule pass above — a payee's past category can
+            // predate an account re-type or transfer-link change that moved
+            // this row into a different bucket.
+            if expected_taxonomy == Some(tax_id.as_str()) {
+                if let Some((_, _, _, path, _)) = category_lookup.get(&cat_id) {
+                    let confidence = if count >= 3 {
+                        0.92
+                    } else if count == 2 {
+                        0.82
+                    } else {
+                        0.7
+                    };
+                    proposals.push(Proposal {
+                        activity_id: act.id.clone(),
+                        activity_date: date,
+                        amount,
+                        currency: act.currency.clone(),
+                        notes: notes_trimmed,
+                        taxonomy_id: tax_id,
+                        category_id: cat_id,
+                        category_path: path.clone(),
+                        confidence,
+                        source: "history".to_string(),
+                        explanation: format!(
+                            "Matched same payee in {} prior transaction(s).",
+                            count
+                        ),
+                        cash_flow_bucket: bucket,
+                    });
+                    continue;
+                }
             }
         }
 
@@ -419,6 +460,7 @@ pub async fn compute_categorization_state(
             amount,
             currency: act.currency.clone(),
             notes: notes_trimmed,
+            cash_flow_bucket: bucket,
             reason: "No rule or history match — needs AI or manual judgement.".to_string(),
         });
     }
@@ -621,6 +663,9 @@ impl AgentTool for ListCategorizationContext {
          `needsAiJudgement` is 0, call it with `aiProposals: []`; otherwise infer the best \
          `taxonomyId` + `categoryKey` pair for each `unproposed` row from `taxonomies` \
          using `examples` + merchant-name knowledge, then pass those as `aiProposals`. \
+         Each row's `cashFlowBucket` ('spending' | 'income' | 'saving') fixes which \
+         taxonomy is valid for it (spending_categories / income_sources / \
+         savings_categories) — picking from another taxonomy is rejected. \
          Never tell the user categories were applied from this context result alone. \
          Do NOT pass `accountIds` for generic mentions like 'credit card' — the \
          spending settings already restrict to opted-in accounts."
@@ -732,7 +777,6 @@ mod tests {
     use rust_decimal::Decimal;
     use wealthfolio_core::activities::{Activity, ActivityStatus};
     use wealthfolio_core::taxonomies::Category;
-    use wealthfolio_spending::cash_activities::model::CashFlowBucket;
 
     // ----- normalize_payee -------------------------------------------------
 
