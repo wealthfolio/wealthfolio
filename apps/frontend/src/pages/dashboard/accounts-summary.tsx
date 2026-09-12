@@ -40,6 +40,7 @@ interface AccountSummaryDisplayData {
   accountGroup?: string | null;
   trackingMode?: TrackingMode;
   isGroup?: boolean;
+  isActive?: boolean;
   accountCount?: number;
   accounts?: AccountSummaryDisplayData[];
   displayInAccountCurrency?: boolean;
@@ -69,33 +70,41 @@ function getDashboardAccountPerformanceScopes(
   const seenScopeKeys = new Set<string>();
 
   if (!accountsGrouped) {
-    accounts.forEach((account) => addPerformanceScope(scopes, seenScopeKeys, [account.id]));
+    accounts
+      .filter((account) => account.isActive)
+      .forEach((account) => addPerformanceScope(scopes, seenScopeKeys, [account.id]));
     return scopes;
   }
 
-  const groupedAccountIds = new Map<string, string[]>();
+  // Hidden accounts still count toward their group's totals, so groups are bucketed over
+  // every non-archived account. Only visible accounts get a row, and therefore a scope, of
+  // their own.
+  const groupedAccounts = new Map<string, Account[]>();
   const standaloneAccountIds: string[] = [];
 
   for (const account of accounts) {
     const groupName = account.group ?? "Uncategorized";
     if (groupName === "Uncategorized") {
-      standaloneAccountIds.push(account.id);
+      if (account.isActive) standaloneAccountIds.push(account.id);
       continue;
     }
 
-    groupedAccountIds.set(groupName, [...(groupedAccountIds.get(groupName) ?? []), account.id]);
+    groupedAccounts.set(groupName, [...(groupedAccounts.get(groupName) ?? []), account]);
   }
 
-  for (const [groupName, accountIds] of groupedAccountIds) {
-    if (accountIds.length === 1) {
-      standaloneAccountIds.push(accountIds[0]);
-      continue;
-    }
+  for (const [groupName, groupAccounts] of groupedAccounts) {
+    if (!groupAccounts.some((account) => account.isActive)) continue;
 
-    addPerformanceScope(scopes, seenScopeKeys, accountIds);
+    addPerformanceScope(
+      scopes,
+      seenScopeKeys,
+      groupAccounts.map((account) => account.id),
+    );
 
     if (expandedGroups[groupName]) {
-      accountIds.forEach((accountId) => addPerformanceScope(scopes, seenScopeKeys, [accountId]));
+      groupAccounts
+        .filter((account) => account.isActive)
+        .forEach((account) => addPerformanceScope(scopes, seenScopeKeys, [account.id]));
     }
   }
 
@@ -380,12 +389,14 @@ export const AccountsSummary = React.memo(
     const { accountsGrouped, setAccountsGrouped, settings } = useSettingsContext();
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
+    // Hidden accounts are excluded from the rendered rows below, but they still carry value
+    // and gain history that belongs to their group's totals.
     const {
       accounts: allAccounts,
       isLoading: isLoadingAccounts,
       isError: isErrorAccounts,
       error: errorAccounts,
-    } = useAccounts({ accountPurpose: AccountPurpose.PERFORMANCE });
+    } = useAccounts({ accountPurpose: AccountPurpose.PERFORMANCE, filterActive: false });
 
     const accounts = useMemo(() => allAccounts ?? [], [allAccounts]);
 
@@ -459,6 +470,7 @@ export const AccountsSummary = React.memo(
             accountGroup: acc.group ?? null,
             trackingMode: acc.trackingMode,
             isGroup: false,
+            isActive: acc.isActive,
           };
         }
 
@@ -490,6 +502,7 @@ export const AccountsSummary = React.memo(
           accountGroup: acc.group ?? null,
           trackingMode: acc.trackingMode,
           isGroup: false,
+          isActive: acc.isActive,
         };
       });
     }, [accounts, currentAccountValuations, performanceSummaries, settings?.baseCurrency]);
@@ -536,7 +549,7 @@ export const AccountsSummary = React.memo(
         );
       }
 
-      if (!combinedAccountViews || combinedAccountViews.length === 0) {
+      if (!combinedAccountViews.some((account) => account.isActive)) {
         return (
           <div className="border-border/50 bg-success/10 rounded-xl border p-6 text-center md:p-8">
             <p className="text-sm">{t("dashboard:no_accounts_found")}</p>
@@ -560,7 +573,7 @@ export const AccountsSummary = React.memo(
         combinedAccountViews.forEach((account) => {
           const groupName = account.accountGroup ?? "Uncategorized";
           if (groupName === "Uncategorized") {
-            standaloneAccounts.push(account);
+            if (account.isActive) standaloneAccounts.push(account);
           } else {
             if (!groups[groupName]) {
               groups[groupName] = [];
@@ -572,42 +585,43 @@ export const AccountsSummary = React.memo(
         const actualGroups: AccountSummaryDisplayData[] = [];
 
         Object.entries(groups).forEach(([groupName, groupAccounts]) => {
-          if (groupAccounts.length === 1) {
-            standaloneAccounts.push(groupAccounts[0]);
-          } else {
-            const baseCurrency = groupAccounts[0]?.baseCurrency ?? settings?.baseCurrency ?? "USD";
-            const groupAccountIds = groupAccounts
-              .map((account) => account.accountId)
-              .filter((id): id is string => Boolean(id));
-            const groupPerformance =
-              performanceSummaries?.[performanceSummaryScopeKey(groupAccountIds)];
+          const visibleAccounts = groupAccounts.filter((account) => account.isActive);
+          if (visibleAccounts.length === 0) return;
 
-            const totalValueBaseCurrency = groupAccounts.reduce(
-              (sum, acc) => sum + Number(acc.totalValueBaseCurrency),
-              0,
-            );
+          const baseCurrency = groupAccounts[0]?.baseCurrency ?? settings?.baseCurrency ?? "USD";
+          // Totals span every group member, hidden included, so value and gain are computed
+          // over the same set — and match the scope key emitted for this group.
+          const groupAccountIds = groupAccounts
+            .map((account) => account.accountId)
+            .filter((id): id is string => Boolean(id));
+          const groupPerformance =
+            performanceSummaries?.[performanceSummaryScopeKey(groupAccountIds)];
 
-            const totalGainLossAmountBase = performancePeriodPnl(groupPerformance);
-            const groupTotalReturnPercentBase = performanceSummaryReturn(groupPerformance);
+          const totalValueBaseCurrency = groupAccounts.reduce(
+            (sum, acc) => sum + Number(acc.totalValueBaseCurrency),
+            0,
+          );
 
-            actualGroups.push({
-              accountName: groupName,
-              totalValueBaseCurrency,
-              baseCurrency,
-              totalGainLossAmountBaseCurrency: totalGainLossAmountBase,
-              totalGainLossPercent: groupTotalReturnPercentBase,
-              accountCurrency: baseCurrency,
-              totalValueAccountCurrency: totalValueBaseCurrency,
-              totalGainLossAmountAccountCurrency: totalGainLossAmountBase,
-              isGroup: true,
-              accountCount: groupAccounts.length,
-              accounts: groupAccounts,
-              trackingMode: groupAccounts.every((account) => account.trackingMode === "HOLDINGS")
-                ? "HOLDINGS"
-                : undefined,
-              displayInAccountCurrency: false,
-            });
-          }
+          const totalGainLossAmountBase = performancePeriodPnl(groupPerformance);
+          const groupTotalReturnPercentBase = performanceSummaryReturn(groupPerformance);
+
+          actualGroups.push({
+            accountName: groupName,
+            totalValueBaseCurrency,
+            baseCurrency,
+            totalGainLossAmountBaseCurrency: totalGainLossAmountBase,
+            totalGainLossPercent: groupTotalReturnPercentBase,
+            accountCurrency: baseCurrency,
+            totalValueAccountCurrency: totalValueBaseCurrency,
+            totalGainLossAmountAccountCurrency: totalGainLossAmountBase,
+            isGroup: true,
+            accountCount: visibleAccounts.length,
+            accounts: visibleAccounts,
+            trackingMode: groupAccounts.every((account) => account.trackingMode === "HOLDINGS")
+              ? "HOLDINGS"
+              : undefined,
+            displayInAccountCurrency: false,
+          });
         });
 
         actualGroups.sort(
@@ -673,9 +687,9 @@ export const AccountsSummary = React.memo(
           </>
         );
       } else {
-        const sortedAccounts = [...combinedAccountViews].sort(
-          (a, b) => Number(b.totalValueBaseCurrency) - Number(a.totalValueBaseCurrency),
-        );
+        const sortedAccounts = combinedAccountViews
+          .filter((account) => account.isActive)
+          .sort((a, b) => Number(b.totalValueBaseCurrency) - Number(a.totalValueBaseCurrency));
 
         return sortedAccounts.map((account) => (
           <AccountSummaryComponent
