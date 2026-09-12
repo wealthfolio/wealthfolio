@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub struct SpendingSettings {
     pub enabled: bool,
     pub account_ids: Vec<String>,
+    #[serde(default)]
+    pub excluded_category_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -13,4 +15,5 @@ pub struct SpendingSettings {
 pub struct SpendingSettingsUpdate {
     pub enabled: Option<bool>,
     pub account_ids: Option<Vec<String>>,
+    pub excluded_category_ids: Option<Vec<String>>,
 }

@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 
 use super::model::{SpendingSettings, SpendingSettingsUpdate};
 use super::traits::SpendingSettingsRepositoryTrait;
-use super::{SETTING_KEY_ACCOUNT_IDS, SETTING_KEY_ENABLED};
+use super::{SETTING_KEY_ACCOUNT_IDS, SETTING_KEY_ENABLED, SETTING_KEY_EXCLUDED_CATEGORY_IDS};
 
 pub struct SpendingSettingsService {
     repo: Arc<dyn SpendingSettingsRepositoryTrait>,
@@ -40,9 +40,17 @@ impl SpendingSettingsService {
             .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok())
             .unwrap_or_default();
 
+        let excluded_category_ids = self
+            .repo
+            .get_setting(SETTING_KEY_EXCLUDED_CATEGORY_IDS)
+            .await?
+            .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok())
+            .unwrap_or_default();
+
         Ok(SpendingSettings {
             enabled,
             account_ids,
+            excluded_category_ids,
         })
     }
 
@@ -67,6 +75,13 @@ impl SpendingSettingsService {
         if let Some(ids) = patch.account_ids {
             let json = serde_json::to_string(&ids)?;
             values.push((SETTING_KEY_ACCOUNT_IDS.to_string(), json));
+        }
+        if let Some(mut ids) = patch.excluded_category_ids {
+            // Stable payloads keep device-sync diffs deterministic.
+            ids.sort();
+            ids.dedup();
+            let json = serde_json::to_string(&ids)?;
+            values.push((SETTING_KEY_EXCLUDED_CATEGORY_IDS.to_string(), json));
         }
         if !values.is_empty() {
             self.repo.set_settings(values).await?;

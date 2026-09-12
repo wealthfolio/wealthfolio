@@ -190,7 +190,9 @@ impl SyncRowFilter {
                 "UPPER(run_type) = 'IMPORT' AND UPPER(source_system) IN ('CSV', 'MANUAL')"
             }
             Self::UserSyncableActivities => USER_SYNCABLE_ACTIVITIES_FILTER_SQL,
-            Self::SpendingSettings => "setting_key IN ('spending.enabled', 'spending.account_ids')",
+            Self::SpendingSettings => {
+                "setting_key IN ('spending.enabled', 'spending.account_ids', 'spending.excluded_category_ids')"
+            }
             Self::UserTaxonomies => "is_system = 0",
             // Spending/income seed category IDs use the `cat_` prefix; user-created rows use UUIDs.
             Self::SyncableTaxonomyCategories => {
@@ -7751,6 +7753,10 @@ mod tests {
                     app_settings::setting_value.eq("[\"acc-1\"]"),
                 ),
                 (
+                    app_settings::setting_key.eq("spending.excluded_category_ids"),
+                    app_settings::setting_value.eq("[\"cat-1\"]"),
+                ),
+                (
                     app_settings::setting_key.eq("theme"),
                     app_settings::setting_value.eq("dark"),
                 ),
@@ -7773,7 +7779,7 @@ mod tests {
         let settings_count: CountRow = diesel::sql_query("SELECT COUNT(*) AS c FROM app_settings")
             .get_result(&mut exported_conn)
             .expect("count settings");
-        assert_eq!(settings_count.c, 2);
+        assert_eq!(settings_count.c, 3);
 
         let theme_count: CountRow =
             diesel::sql_query("SELECT COUNT(*) AS c FROM app_settings WHERE setting_key = 'theme'")

@@ -19,12 +19,11 @@ use super::model::{
     NewBudgetRolloverSetting, NewBudgetTarget, UpdateBudgetGroup,
 };
 use super::traits::BudgetRepositoryTrait;
-use crate::activity_allocations::{
-    allocations_for_taxonomy, group_assignments, group_splits, SplitsByActivity,
-};
+use crate::activity_allocations::{group_assignments, group_splits, SplitsByActivity};
 use crate::activity_assignments::ActivityTaxonomyAssignmentRepositoryTrait;
 use crate::activity_classification::{activity_abs_amount, classify_activity, decimal_to_f64};
 use crate::activity_splits::ActivitySplitRepositoryTrait;
+use crate::category_exclusions::{split_spending_allocations, ExclusionIndex};
 use crate::error::SpendingError;
 use crate::settings::SpendingSettingsService;
 
@@ -245,7 +244,12 @@ impl BudgetService {
         let income_categories = self.taxonomy_categories(INCOME_TAXONOMY)?;
         let spending_category_meta = category_meta(&spending_categories);
         let income_meta = category_meta(&income_categories);
-        let top_spending_categories = top_level_categories(&spending_categories);
+        // Excluded categories disappear from the budget snapshot; their
+        // targets/rollover settings persist and reappear on re-include.
+        let exclusions =
+            ExclusionIndex::new(&settings.excluded_category_ids, &spending_category_meta);
+        let mut top_spending_categories = top_level_categories(&spending_categories);
+        top_spending_categories.retain(|c| !exclusions.is_excluded(&c.id));
         let top_income_categories = top_level_categories(&income_categories);
 
         let is_month_view = period_key != DEFAULT_PERIOD_KEY;
@@ -921,6 +925,10 @@ impl BudgetService {
         // months in this window get the same rate per pair.
         let fx_as_of = local_month_end_date(end_period, timezone)?;
         let fx = self.fx_service.as_ref();
+        // Excluded spending categories leave budget actuals (and, via the
+        // filter in `get`, the snapshot rows); income actuals never filter.
+        let exclusions = ExclusionIndex::new(&settings.excluded_category_ids, spending_meta);
+        let no_exclusions = ExclusionIndex::empty();
         let mut actuals: HashMap<String, MonthActuals> = HashMap::new();
         for activity in activities {
             let Some(account_type) = account_types.get(&activity.account_id) else {
@@ -946,6 +954,7 @@ impl BudgetService {
                 spending_meta,
                 &assignments_by_activity,
                 &splits_by_activity,
+                &exclusions,
                 fx,
                 &activity.currency,
                 currency,
@@ -959,6 +968,7 @@ impl BudgetService {
                 income_meta,
                 &assignments_by_activity,
                 &splits_by_activity,
+                &no_exclusions,
                 fx,
                 &activity.currency,
                 currency,
@@ -978,18 +988,23 @@ fn add_allocated_actuals(
     meta: &HashMap<String, Category>,
     assignments_by_activity: &crate::activity_allocations::AssignmentsByActivity,
     splits_by_activity: &SplitsByActivity,
+    exclusions: &ExclusionIndex,
     fx: &dyn wealthfolio_core::fx::FxServiceTrait,
     from_currency: &str,
     target_currency: &str,
     fx_as_of: NaiveDate,
 ) {
-    for allocation in allocations_for_taxonomy(
+    // Filter before the top_category_id rollup — an excluded subcategory must
+    // not roll its spend into an included parent.
+    let (allocations, _excluded_native) = split_spending_allocations(
         activity_id,
         taxonomy_id,
         amount,
         assignments_by_activity,
         splits_by_activity,
-    ) {
+        exclusions,
+    );
+    for allocation in allocations {
         let amount = crate::fx::convert(
             fx,
             allocation.amount,
@@ -1442,9 +1457,75 @@ fn parse_month(period_key: &str) -> Result<(i32, u32)> {
 
 #[cfg(test)]
 mod tests {
+    use async_trait::async_trait;
     use chrono::{NaiveDate, NaiveDateTime};
+    use wealthfolio_core::fx::{ExchangeRate, FxServiceTrait, NewExchangeRate};
 
     use super::*;
+
+    type CoreResult<T> = std::result::Result<T, wealthfolio_core::Error>;
+
+    /// Identity FX stub — same pattern as the analytics/insight test stubs.
+    struct PassthroughFx;
+
+    #[async_trait]
+    impl FxServiceTrait for PassthroughFx {
+        fn initialize(&self) -> CoreResult<()> {
+            Ok(())
+        }
+        fn get_historical_rates(&self, _: &str, _: &str, _: i64) -> CoreResult<Vec<ExchangeRate>> {
+            Ok(vec![])
+        }
+        fn get_latest_exchange_rate(&self, _: &str, _: &str) -> CoreResult<Decimal> {
+            Ok(Decimal::ONE)
+        }
+        fn get_exchange_rate_for_date(
+            &self,
+            _: &str,
+            _: &str,
+            _: NaiveDate,
+        ) -> CoreResult<Decimal> {
+            Ok(Decimal::ONE)
+        }
+        fn convert_currency(&self, amount: Decimal, _: &str, _: &str) -> CoreResult<Decimal> {
+            Ok(amount)
+        }
+        fn convert_currency_for_date(
+            &self,
+            amount: Decimal,
+            _: &str,
+            _: &str,
+            _: NaiveDate,
+        ) -> CoreResult<Decimal> {
+            Ok(amount)
+        }
+        fn get_latest_exchange_rates(&self) -> CoreResult<Vec<ExchangeRate>> {
+            Ok(vec![])
+        }
+        async fn add_exchange_rate(&self, _: NewExchangeRate) -> CoreResult<ExchangeRate> {
+            unimplemented!("PassthroughFx is read-only")
+        }
+        async fn update_exchange_rate(
+            &self,
+            _: &str,
+            _: &str,
+            _: Decimal,
+        ) -> CoreResult<ExchangeRate> {
+            unimplemented!("PassthroughFx is read-only")
+        }
+        async fn delete_exchange_rate(&self, _: &str) -> CoreResult<()> {
+            Ok(())
+        }
+        async fn register_currency_pair(&self, _: &str, _: &str) -> CoreResult<()> {
+            Ok(())
+        }
+        async fn register_currency_pair_manual(&self, _: &str, _: &str) -> CoreResult<()> {
+            Ok(())
+        }
+        async fn ensure_fx_pairs(&self, _: Vec<(String, String)>) -> CoreResult<()> {
+            Ok(())
+        }
+    }
 
     fn ts() -> NaiveDateTime {
         NaiveDate::from_ymd_opt(2026, 1, 1)
@@ -1492,6 +1573,67 @@ mod tests {
             created_at: ts(),
             updated_at: ts(),
         }
+    }
+
+    #[test]
+    fn excluded_subcategory_does_not_roll_into_parent_actuals() {
+        use crate::activity_assignments::ActivityTaxonomyAssignment;
+        use wealthfolio_core::taxonomies::Category;
+
+        let make_category = |id: &str, parent_id: Option<&str>| Category {
+            id: id.to_string(),
+            taxonomy_id: SPENDING_TAXONOMY.to_string(),
+            parent_id: parent_id.map(str::to_string),
+            name: id.to_string(),
+            key: id.to_string(),
+            color: "#000".to_string(),
+            icon: None,
+            description: None,
+            sort_order: 0,
+            created_at: ts(),
+            updated_at: ts(),
+        };
+        let categories = vec![
+            make_category("cat_shopping", None),
+            make_category("cat_reimbursable", Some("cat_shopping")),
+        ];
+        let meta = category_meta(&categories);
+        let exclusions = ExclusionIndex::new(&["cat_reimbursable".to_string()], &meta);
+
+        let mut assignments = crate::activity_allocations::AssignmentsByActivity::new();
+        assignments.insert(
+            "a1".to_string(),
+            vec![ActivityTaxonomyAssignment {
+                id: "asg-1".to_string(),
+                activity_id: "a1".to_string(),
+                taxonomy_id: SPENDING_TAXONOMY.to_string(),
+                category_id: "cat_reimbursable".to_string(),
+                weight: 10_000,
+                source: "manual".to_string(),
+                created_at: ts(),
+                updated_at: ts(),
+            }],
+        );
+        let splits = SplitsByActivity::new();
+
+        let mut month_actuals = MonthActuals::new();
+        add_allocated_actuals(
+            &mut month_actuals,
+            "a1",
+            SPENDING_TAXONOMY,
+            Decimal::new(75, 0),
+            &meta,
+            &assignments,
+            &splits,
+            &exclusions,
+            &PassthroughFx,
+            "USD",
+            "USD",
+            NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(),
+        );
+
+        // The excluded subcategory's spend must not roll up into the parent.
+        assert!(month_actuals.is_empty());
     }
 
     #[test]

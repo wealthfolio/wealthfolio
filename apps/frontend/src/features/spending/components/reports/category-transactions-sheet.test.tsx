@@ -37,6 +37,12 @@ vi.mock("../../hooks/use-cash-activity-search", () => ({
   },
 }));
 
+const spendingSettings = vi.hoisted(() => ({ excludedCategoryIds: [] as string[] }));
+
+vi.mock("../../hooks/use-spending-settings", () => ({
+  useSpendingSettings: () => ({ excludedCategoryIds: spendingSettings.excludedCategoryIds }),
+}));
+
 const categories: TaxonomyCategory[] = [
   {
     id: "housing",
@@ -141,6 +147,7 @@ describe("CategoryTransactionsSheet", () => {
   beforeEach(() => {
     // One page loaded out of 144 rows — the state the drawer opens in.
     setSearchResult(page(50, 1_686));
+    spendingSettings.excludedCategoryIds = [];
   });
 
   it("reports the whole period, not just the transactions loaded so far", () => {
@@ -201,5 +208,12 @@ describe("CategoryTransactionsSheet", () => {
 
     const rent = screen.getByText("Rent").closest("div")?.parentElement;
     expect(rent?.textContent).toMatch(/85%/);
+  });
+
+  it("leaves excluded subcategories out of the query, like the stats do", () => {
+    spendingSettings.excludedCategoryIds = ["rent"];
+    render(sheet());
+
+    expect(searchResult.lastRequest).toMatchObject({ categoryIds: ["housing"] });
   });
 });

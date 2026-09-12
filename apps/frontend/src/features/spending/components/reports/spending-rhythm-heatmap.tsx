@@ -7,7 +7,7 @@ import type { Activity } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
 import { PrivacyAmount, useDateFormatting } from "@wealthfolio/ui";
 
-import { getActivitySpendingAmount } from "../../lib/constants";
+import { getVisibleSpendingAmount } from "../../lib/constants";
 
 interface SpendingRhythmHeatmapProps {
   activities: Activity[];
@@ -185,7 +185,7 @@ function buildRhythm(
   }
 
   for (const a of activities) {
-    const spendingAmount = getActivitySpendingAmount(a, accountTypeById?.get(a.accountId));
+    const spendingAmount = getVisibleSpendingAmount(a, accountTypeById?.get(a.accountId));
     if (spendingAmount === 0) continue;
     const key = formatDateISO(new Date(a.activityDate));
     const cell = cellByKey.get(key);
