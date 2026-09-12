@@ -176,3 +176,22 @@ export const setAddonStorageItem = async (
 export const deleteAddonStorageItem = async (addonId: string, key: string): Promise<void> => {
   return tauriInvoke<void>("delete_addon_storage_item", { addonId, key });
 };
+
+// ============================================================================
+// Dev-server Addon Network Broker
+// ============================================================================
+
+/**
+ * Registers a dev-server addon's manifest with the backend so `addonNetworkRequest` can
+ * resolve permissions/approved hosts for it (desktop/Tauri only — see addons-dev-mode.ts).
+ */
+export const registerDevAddonManifest = async (
+  addonId: string,
+  manifestJson: string,
+): Promise<void> => {
+  return tauriInvoke<void>("register_dev_addon_manifest", { addonId, manifestJson });
+};
+
+export const unregisterDevAddonManifest = async (addonId: string): Promise<void> => {
+  return tauriInvoke<void>("unregister_dev_addon_manifest", { addonId });
+};
