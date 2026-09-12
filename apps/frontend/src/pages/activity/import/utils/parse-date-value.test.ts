@@ -72,3 +72,13 @@ describe("parseDateValue — month-name dates", () => {
     expect({ y: r.y, mo: r.mo, day: r.day }).toEqual({ y: 2023, mo: 5, day: 19 });
   });
 });
+
+describe("parseDateValue — two-digit years (issue #1341)", () => {
+  it("auto-detects a day-first dot date instead of interpreting it as a timestamp", () => {
+    expect(local(parseDateValue("26.06.26", "auto"))).toMatchObject({
+      y: 2026,
+      mo: 6,
+      day: 26,
+    });
+  });
+});

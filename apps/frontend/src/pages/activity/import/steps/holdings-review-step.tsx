@@ -179,13 +179,13 @@ export function HoldingsReviewStep() {
   // Backend check state
   const [checkResult, setCheckResult] = useState<CheckHoldingsImportResult | null>(null);
   const [checkLoading, setCheckLoading] = useState(
-    () => Boolean(accountId) && validationSnapshots.length > 0,
+    () => Boolean(accountId) && validationSnapshots.length > 0 && !dateColumn.needsExplicitFormat,
   );
   const [checkFailed, setCheckFailed] = useState(false);
   const [checkRetryRevision, setCheckRetryRevision] = useState(0);
 
   useEffect(() => {
-    if (!accountId || validationSnapshots.length === 0) {
+    if (!accountId || validationSnapshots.length === 0 || dateColumn.needsExplicitFormat) {
       setCheckLoading(false);
       setCheckFailed(false);
       setCheckResult(null);
@@ -229,7 +229,7 @@ export function HoldingsReviewStep() {
       dispatch(setIsValidating(false));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountId, validationSnapshots, checkRetryRevision]);
+  }, [accountId, validationSnapshots, checkRetryRevision, dateColumn.needsExplicitFormat]);
 
   // Handle data changes from the grid (quantity, avgCost, currency edits)
   const handleDataChange = useCallback(
@@ -299,62 +299,63 @@ export function HoldingsReviewStep() {
           icon={Icons.Wallet}
           className="mb-0"
         />
-        {checkLoading ? (
-          <div role="status" aria-live="polite">
+        {!dateColumn.needsExplicitFormat &&
+          (checkLoading ? (
+            <div role="status" aria-live="polite">
+              <ImportAlert
+                variant="info"
+                size="sm"
+                title={t("activity:import.holdings.validating")}
+                description={t("activity:import.holdings.validatingRows", {
+                  count: holdingsRows.length,
+                })}
+                icon={Icons.Spinner}
+                iconClassName="animate-spin"
+                className="mb-0"
+              />
+            </div>
+          ) : checkFailed ? (
             <ImportAlert
-              variant="info"
+              variant="destructive"
               size="sm"
-              title={t("activity:import.holdings.validating")}
-              description={t("activity:import.holdings.validatingRows", {
-                count: holdingsRows.length,
+              title={t("activity:import.holdings.validationFailed")}
+              description={t("activity:import.holdings.validationFailedDescription")}
+              icon={Icons.AlertTriangle}
+              className="mb-0"
+            >
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2 h-7"
+                onClick={() => setCheckRetryRevision((revision) => revision + 1)}
+              >
+                <Icons.RefreshCw className="mr-2 h-3.5 w-3.5" />
+                {t("activity:import.validationAlert.retry")}
+              </Button>
+            </ImportAlert>
+          ) : checkResult?.validationErrors.length ? (
+            <ImportAlert
+              variant={checkResult.validSnapshotDates.length > 0 ? "warning" : "destructive"}
+              size="sm"
+              title={t("activity:import.holdings.validationErrors")}
+              description={t("activity:import.holdings.validationErrorsCount", {
+                count: checkResult.validationErrors.length,
               })}
-              icon={Icons.Spinner}
-              iconClassName="animate-spin"
+              icon={Icons.AlertTriangle}
               className="mb-0"
             />
-          </div>
-        ) : checkFailed ? (
-          <ImportAlert
-            variant="destructive"
-            size="sm"
-            title={t("activity:import.holdings.validationFailed")}
-            description={t("activity:import.holdings.validationFailedDescription")}
-            icon={Icons.AlertTriangle}
-            className="mb-0"
-          >
-            <Button
-              type="button"
-              variant="outline"
+          ) : (
+            <ImportAlert
+              variant="success"
               size="sm"
-              className="mt-2 h-7"
-              onClick={() => setCheckRetryRevision((revision) => revision + 1)}
-            >
-              <Icons.RefreshCw className="mr-2 h-3.5 w-3.5" />
-              {t("activity:import.validationAlert.retry")}
-            </Button>
-          </ImportAlert>
-        ) : checkResult?.validationErrors.length ? (
-          <ImportAlert
-            variant={checkResult.validSnapshotDates.length > 0 ? "warning" : "destructive"}
-            size="sm"
-            title={t("activity:import.holdings.validationErrors")}
-            description={t("activity:import.holdings.validationErrorsCount", {
-              count: checkResult.validationErrors.length,
-            })}
-            icon={Icons.AlertTriangle}
-            className="mb-0"
-          />
-        ) : (
-          <ImportAlert
-            variant="success"
-            size="sm"
-            title={t("activity:import.holdings.readyToImport")}
-            description={t("activity:import.holdings.readyRows", { count: holdingsRows.length })}
-            icon={Icons.CheckCircle}
-            className="mb-0"
-            rightIcon={Icons.CheckCircle}
-          />
-        )}
+              title={t("activity:import.holdings.readyToImport")}
+              description={t("activity:import.holdings.readyRows", { count: holdingsRows.length })}
+              icon={Icons.CheckCircle}
+              className="mb-0"
+              rightIcon={Icons.CheckCircle}
+            />
+          ))}
       </div>
 
       {/* Backend check alerts */}
