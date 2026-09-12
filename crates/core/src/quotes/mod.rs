@@ -62,8 +62,9 @@ pub use types::{quote_id, AssetId, Currency, Day, ProviderId, QuoteSource};
 
 // Re-export sync state types
 pub use sync_state::{
-    MarketSyncMode, ProviderSyncStats, QuoteSyncState, QuoteSyncStateUpdate, SymbolSyncPlan,
-    SyncCategory, SyncMode, SyncStateStore,
+    profile_enrichment_cutoff, profile_enrichment_ttl, set_profile_enrichment_ttl, MarketSyncMode,
+    ProviderSyncStats, QuoteSyncState, QuoteSyncStateUpdate, SymbolSyncPlan, SyncCategory,
+    SyncMode, SyncStateStore, DEFAULT_PROFILE_ENRICHMENT_TTL_DAYS,
 };
 
 // Re-export sync service types
