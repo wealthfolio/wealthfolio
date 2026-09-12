@@ -1,4 +1,11 @@
-import { createGoal, deleteGoal, getGoals, updateGoal } from "@/adapters";
+import {
+  createGoal,
+  deleteGoal,
+  getGoals,
+  removeGoalCoverImage,
+  setGoalCoverImage,
+  updateGoal,
+} from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Goal, NewGoal } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -66,5 +73,39 @@ export function useGoalMutations() {
     onError: () => toast.error("Failed to delete goal."),
   });
 
-  return { createMutation, updateMutation, deleteMutation };
+  const setCoverImageMutation = useMutation({
+    mutationFn: ({
+      goalId,
+      contentBase64,
+      fileExtension,
+    }: {
+      goalId: string;
+      contentBase64: string;
+      fileExtension: string;
+    }) => setGoalCoverImage(goalId, contentBase64, fileExtension),
+    onSuccess: (_, { goalId }) => {
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: QueryKeys.goal(goalId) });
+      toast.success("Cover image updated.");
+    },
+    onError: () => toast.error("Failed to update cover image."),
+  });
+
+  const removeCoverImageMutation = useMutation({
+    mutationFn: (goalId: string) => removeGoalCoverImage(goalId),
+    onSuccess: (_, goalId) => {
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: QueryKeys.goal(goalId) });
+      toast.success("Cover image removed.");
+    },
+    onError: () => toast.error("Failed to remove cover image."),
+  });
+
+  return {
+    createMutation,
+    updateMutation,
+    deleteMutation,
+    setCoverImageMutation,
+    removeCoverImageMutation,
+  };
 }

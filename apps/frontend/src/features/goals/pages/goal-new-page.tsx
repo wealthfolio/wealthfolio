@@ -1,3 +1,4 @@
+import { CoverImageField } from "@/features/goals/components/cover-image-field";
 import type { Goal, GoalType, PlannerMode } from "@/lib/types";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { formatDateISO } from "@/lib/utils";
@@ -24,7 +25,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useCreateGoalFlow } from "../hooks/use-create-goal-flow";
-import { useGoals } from "../hooks/use-goals";
+import { useGoalMutations, useGoals } from "../hooks/use-goals";
 import { toast } from "sonner";
 import {
   DEFAULT_RETIREMENT_PLAN,
@@ -63,6 +64,7 @@ export default function GoalNewPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const createGoalFlow = useCreateGoalFlow();
+  const { setCoverImageMutation } = useGoalMutations();
   const { goals } = useGoals();
   const { settings } = useSettingsContext();
   const [selectedType, setSelectedType] = useState<GoalType | null>(null);
@@ -77,6 +79,8 @@ export default function GoalNewPage() {
   const [retirementTargetAge, setRetirementTargetAge] = useState(
     DEFAULT_TRADITIONAL_RETIREMENT_AGE,
   );
+  const [stagedCoverImage, setStagedCoverImage] = useState<string | null>(null);
+  const [isUploadingCoverImage, setIsUploadingCoverImage] = useState(false);
 
   const goalTemplates = useMemo<GoalTemplate[]>(
     () => [
@@ -211,7 +215,22 @@ export default function GoalNewPage() {
         initialPlan,
       },
       {
-        onSuccess: ({ goal }) => {
+        onSuccess: async ({ goal }) => {
+          if (stagedCoverImage) {
+            setIsUploadingCoverImage(true);
+            try {
+              await setCoverImageMutation.mutateAsync({
+                goalId: goal.id,
+                contentBase64: stagedCoverImage,
+                fileExtension: "png",
+              });
+            } catch {
+              // setCoverImageMutation's own onError already toasts; the goal
+              // itself was created successfully either way.
+            } finally {
+              setIsUploadingCoverImage(false);
+            }
+          }
           navigate(`/goals/${goal.id}`);
         },
       },
@@ -314,6 +333,17 @@ export default function GoalNewPage() {
                       rows={3}
                     />
                   </div>
+
+                  {selectedType === "custom_save_up" && (
+                    <div className="sm:col-span-2">
+                      <CoverImageField
+                        mode="staged"
+                        value={stagedCoverImage}
+                        onStagedChange={setStagedCoverImage}
+                        goalType="custom_save_up"
+                      />
+                    </div>
+                  )}
 
                   {template?.requiresPlannerMode && (
                     <div className="border-border/60 space-y-3 border-t pt-4 sm:col-span-2">
@@ -447,6 +477,7 @@ export default function GoalNewPage() {
                   setPlannerMode("traditional");
                   setRetirementBirthYearMonth(DEFAULT_RETIREMENT_BIRTH_YEAR_MONTH);
                   setRetirementTargetAge(DEFAULT_TRADITIONAL_RETIREMENT_AGE);
+                  setStagedCoverImage(null);
                 }}
               >
                 {t("common:back")}
@@ -454,9 +485,11 @@ export default function GoalNewPage() {
               <Button
                 className="flex-1"
                 onClick={handleCreate}
-                disabled={createGoalFlow.isPending || !trimmedTitle}
+                disabled={createGoalFlow.isPending || isUploadingCoverImage || !trimmedTitle}
               >
-                {createGoalFlow.isPending ? t("goals:new.creating") : t("goals:new.create_goal")}
+                {createGoalFlow.isPending || isUploadingCoverImage
+                  ? t("goals:new.creating")
+                  : t("goals:new.create_goal")}
               </Button>
             </div>
           </div>

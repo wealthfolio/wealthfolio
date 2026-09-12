@@ -104,6 +104,7 @@ export * from "../shared/custom-provider";
 
 // Goal Commands
 export * from "../shared/goals";
+export { loadGoalCoverImage } from "./goals";
 
 // Taxonomy Commands
 export * from "../shared/taxonomies";

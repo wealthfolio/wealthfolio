@@ -58,6 +58,28 @@ export const deleteGoal = async (goalId: string): Promise<void> => {
   }
 };
 
+export const setGoalCoverImage = async (
+  goalId: string,
+  contentBase64: string,
+  fileExtension: string,
+): Promise<Goal> => {
+  try {
+    return await invoke<Goal>("save_goal_cover_image", { goalId, contentBase64, fileExtension });
+  } catch (error) {
+    logger.error("Error saving goal cover image.");
+    throw error;
+  }
+};
+
+export const removeGoalCoverImage = async (goalId: string): Promise<Goal> => {
+  try {
+    return await invoke<Goal>("remove_goal_cover_image", { goalId });
+  } catch (error) {
+    logger.error("Error removing goal cover image.");
+    throw error;
+  }
+};
+
 export const getGoalFunding = async (goalId: string): Promise<GoalFundingRule[]> => {
   try {
     return await invoke<GoalFundingRule[]>("get_goal_funding", { goalId });
