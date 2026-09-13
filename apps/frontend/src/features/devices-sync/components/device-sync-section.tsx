@@ -281,7 +281,7 @@ export function DeviceSyncSection() {
           }
           backupLocation = await backupDatabaseToPath(selectedDir);
         } else {
-          if (runtimePlatform.os !== "ios") {
+          if (!runtimePlatform.is_mobile) {
             throw new Error(t("sync:errors.backupPlatformUnsupported"));
           }
           const { relativePath, filename } = await backupDatabaseToPendingExport();

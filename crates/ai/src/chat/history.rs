@@ -14,7 +14,6 @@ use rig::{
         AssistantContent, Document, DocumentMediaType, DocumentSourceKind, Image, ImageDetail,
         ImageMediaType, Text, UserContent,
     },
-    OneOrMany,
 };
 
 use crate::error::AiError;
@@ -23,14 +22,16 @@ use crate::types::{MessageAttachment, SimpleChatMessage};
 pub(super) fn build_user_prompt(user_message: &str, attachments: &[MessageAttachment]) -> Message {
     if attachments.is_empty() {
         return Message::User {
-            content: OneOrMany::one(UserContent::Text(Text {
+            content: vec![UserContent::Text(Text {
+                additional_params: None,
                 text: user_message.to_string(),
-            })),
+            })],
         };
     }
 
     let mut parts: Vec<UserContent> = Vec::new();
     parts.push(UserContent::Text(Text {
+        additional_params: None,
         text: user_message.to_string(),
     }));
 
@@ -38,6 +39,7 @@ pub(super) fn build_user_prompt(user_message: &str, attachments: &[MessageAttach
         match att.content_type.as_str() {
             "text/csv" | "application/csv" => {
                 parts.push(UserContent::Text(Text {
+                    additional_params: None,
                     text: format!(
                         "[BEGIN UNTRUSTED CSV DATA: {}]\n{}\n[END UNTRUSTED CSV DATA]",
                         att.name, att.data
@@ -72,13 +74,7 @@ pub(super) fn build_user_prompt(user_message: &str, attachments: &[MessageAttach
         }
     }
 
-    Message::User {
-        content: OneOrMany::many(parts).unwrap_or_else(|_| {
-            OneOrMany::one(UserContent::Text(Text {
-                text: user_message.to_string(),
-            }))
-        }),
-    }
+    Message::User { content: parts }
 }
 
 /// Build rig `(prompt, history)` from a `SimpleChatMessage` list.
@@ -101,9 +97,10 @@ pub(super) fn build_history(
         .unwrap_or_default();
 
     let prompt = Message::User {
-        content: OneOrMany::one(UserContent::Text(Text {
+        content: vec![UserContent::Text(Text {
+            additional_params: None,
             text: prompt_content,
-        })),
+        })],
     };
 
     let mut history = Vec::new();
@@ -116,17 +113,19 @@ pub(super) fn build_history(
         match msg.role.as_str() {
             role if role.eq_ignore_ascii_case("user") => {
                 history.push(Message::User {
-                    content: OneOrMany::one(UserContent::Text(Text {
+                    content: vec![UserContent::Text(Text {
+                        additional_params: None,
                         text: msg.content.clone(),
-                    })),
+                    })],
                 });
             }
             role if role.eq_ignore_ascii_case("assistant") => {
                 history.push(Message::Assistant {
                     id: None,
-                    content: OneOrMany::one(AssistantContent::Text(Text {
+                    content: vec![AssistantContent::Text(Text {
+                        additional_params: None,
                         text: msg.content.clone(),
-                    })),
+                    })],
                 });
             }
             _ => {}

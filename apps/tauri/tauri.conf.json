@@ -53,8 +53,9 @@
     },
     "deep-link": {
       "mobile": [
-        { "host": "connect.wealthfolio.app", "pathPrefix": ["/deeplink"] },
-        { "host": "connect-staging.wealthfolio.app", "pathPrefix": ["/deeplink"] }
+        { "scheme": ["wealthfolio"], "appLink": false },
+        { "scheme": ["https"], "host": "connect.wealthfolio.app", "pathPrefix": ["/deeplink"] },
+        { "scheme": ["https"], "host": "connect-staging.wealthfolio.app", "pathPrefix": ["/deeplink"] }
       ],
       "desktop": {
         "schemes": ["wealthfolio"]

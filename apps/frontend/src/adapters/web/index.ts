@@ -449,6 +449,7 @@ export {
   openFileSaveDialog,
   openFolderDialog,
   saveAppDataFileViaPicker,
+  stagePickedDatabaseFileForRestore,
   openUrlInBrowser,
 } from "./files";
 

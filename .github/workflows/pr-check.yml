@@ -7,13 +7,75 @@ on:
       - develop
       - "feature/**"
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect changes
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      rust: ${{ steps.filter.outputs.rust }}
+      formatting: ${{ steps.filter.outputs.formatting }}
+      android: ${{ steps.filter.outputs.android }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Test change detection
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+      - name: Classify changed files
+        id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git diff --no-renames --name-only -z "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
+          python3 .github/scripts/ci_changes.py < "$RUNNER_TEMP/changed-files" >> "$GITHUB_OUTPUT"
+
+  translation-parity:
+    name: Translation parity
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Test translation checker
+        run: node --test apps/frontend/scripts/check-translations.test.mjs
+      - name: Check every language and namespace
+        run: node apps/frontend/scripts/check-translations.mjs
+
+  formatting:
+    name: Formatting
+    needs: changes
+    if: needs.changes.outputs.formatting == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm format:check
+
   frontend-check:
     name: Frontend Check
+    timeout-minutes: 30
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -34,9 +96,6 @@ jobs:
 
       - name: Build package types
         run: pnpm run build:types
-
-      - name: Check formatting
-        run: pnpm format:check
 
       - name: Lint
         run: pnpm lint
@@ -63,6 +122,9 @@ jobs:
 
   rust-check:
     name: Rust Check
+    timeout-minutes: 45
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: 0
@@ -95,32 +157,93 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
         env:
           # Required for outbox tests in storage-sqlite
           CONNECT_API_URL: http://test.local
 
+      - name: Test AI tools with fixture support
+        run: cargo test --locked -p wealthfolio-ai --features test-utils
+
       - name: Check release build (src-server)
-        run: cargo check -p wealthfolio-server --release
+        run: cargo check --locked -p wealthfolio-server --release
+
+  android-build:
+    name: Android debug build
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android
+      - name: Install Android SDK and NDK
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - run: pnpm install --frozen-lockfile
+      - name: Initialize local Android build files
+        run: |
+          pnpm tauri android init --ci --skip-targets-install
+          # Keep the reviewed scaffold customizations; retain ignored local SDK/plugin files.
+          git restore -- apps/tauri/gen/android
+      - name: Build ARM64 debug APK
+        run: pnpm tauri android build --ci --debug --apk --target aarch64 -- --locked
 
   build-status:
     name: Build Status
+    timeout-minutes: 5
     runs-on: ubuntu-latest
-    needs: [frontend-check, rust-check]
+    needs: [changes, formatting, translation-parity, frontend-check, rust-check, android-build]
     if: always()
 
     steps:
       - name: Check build status
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          FORMATTING_REQUIRED: ${{ needs.changes.outputs.formatting }}
+          FORMATTING_RESULT: ${{ needs.formatting.result }}
+          ANDROID_REQUIRED: ${{ needs.changes.outputs.android }}
+          ANDROID_RESULT: ${{ needs.android-build.result }}
+          FRONTEND_REQUIRED: ${{ needs.changes.outputs.frontend }}
+          RUST_REQUIRED: ${{ needs.changes.outputs.rust }}
+          TRANSLATION_RESULT: ${{ needs.translation-parity.result }}
+          FRONTEND_RESULT: ${{ needs.frontend-check.result }}
+          RUST_RESULT: ${{ needs.rust-check.result }}
         run: |
-          if [[ "${{ needs.frontend-check.result }}" == "failure" ]] || [[ "${{ needs.rust-check.result }}" == "failure" ]]; then
-            echo "❌ Build failed"
-            exit 1
-          elif [[ "${{ needs.frontend-check.result }}" == "cancelled" ]] || [[ "${{ needs.rust-check.result }}" == "cancelled" ]]; then
-            echo "⚠️ Build was cancelled"
-            exit 1
-          else
-            echo "✅ All checks passed"
+          test "$CHANGES_RESULT" = success
+          if [ "$FRONTEND_REQUIRED" = true ]; then
+            test "$FRONTEND_RESULT" = success
+            test "$TRANSLATION_RESULT" = success
           fi
+          if [ "$RUST_REQUIRED" = true ]; then
+            test "$RUST_RESULT" = success
+          fi
+          if [ "$FORMATTING_REQUIRED" = true ]; then
+            test "$FORMATTING_RESULT" = success
+          fi
+          if [ "$ANDROID_REQUIRED" = true ]; then
+            test "$ANDROID_RESULT" = success
+          fi
+          echo "All required checks passed."

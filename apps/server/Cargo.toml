@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+wealthfolio-http = { workspace = true }
 # Internal crates
 wealthfolio-market-data = { workspace = true }
 wealthfolio-core = { workspace = true }
@@ -32,13 +33,14 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true }
 reqwest = { workspace = true }
+# Stable openidconnect 4 uses reqwest 0.12 for its HTTP transport.
+reqwest-oidc = { package = "reqwest", version = "0.12.28", default-features = false, features = ["json", "rustls-tls"] }
 
 # Additional dependencies
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "json"] }
 dotenvy = "0.15"
 utoipa = { version = "4", features = ["axum_extras", "uuid", "chrono"] }
-utoipa-swagger-ui = { version = "4", features = ["axum"] }
 serde_with = "3"
 serde_urlencoded = "0.7"
 base64 = "0.21"
@@ -54,7 +56,6 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 futures = "0.3"
 futures-core = "0.3"
 semver = "1"
-hyper = { version = "0.14", features = ["full"] }
 openidconnect = { version = "4", default-features = false, features = ["reqwest", "rustls-tls"] }
 rmcp = { workspace = true }
 subtle = "2"

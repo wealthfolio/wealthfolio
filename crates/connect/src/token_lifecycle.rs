@@ -315,7 +315,7 @@ async fn refresh_access_token(
     refresh_token: &str,
     config: &TokenLifecycleConfig,
 ) -> Result<RefreshTokenResponse, RefreshRequestError> {
-    let client = reqwest::Client::builder()
+    let client = wealthfolio_http::client_builder()
         .timeout(Duration::from_secs(config.refresh_timeout_secs))
         .build()
         .map_err(|e| {
