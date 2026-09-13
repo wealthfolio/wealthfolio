@@ -38,7 +38,7 @@ impl CustomScraperProvider {
         repo: Arc<dyn CustomProviderRepository>,
         secret_store: Arc<dyn SecretStore>,
     ) -> Self {
-        let client = reqwest::Client::builder()
+        let client = wealthfolio_http::client_builder()
             .timeout(Duration::from_secs(15))
             .redirect(reqwest::redirect::Policy::limited(5))
             .user_agent(CUSTOM_PROVIDER_USER_AGENT)

@@ -22,7 +22,7 @@ wealthfolio-spending = { workspace = true }
 wealthfolio-agent-tools = { workspace = true }
 
 # Tauri
-tauri = { version = "2.10", features = [] }
+tauri = { version = "2.11.5", features = [] }
 tauri-plugin-fs = "2.5"
 tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
@@ -44,8 +44,8 @@ rust_decimal = { workspace = true }
 async-trait = { workspace = true }
 
 # Additional dependencies
+keyring-core = "1.0.0"
 dotenvy = "0.15.7"
-keyring = "2.0"
 local-ip-address = "0.6"
 hostname = "0.3"
 base64 = "0.22"
@@ -92,7 +92,29 @@ wealthfolio-mcp = { workspace = true }
 tauri-plugin-haptics = "2"
 # Using git version for iOS camera view fix (PR #2440)
 tauri-plugin-barcode-scanner = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v2" }
+tauri-plugin-web-auth = "1"
 
 [target.'cfg(target_os = "ios")'.dependencies]
-tauri-plugin-web-auth = "1"
 tauri-plugin-mobile-share = "0.1.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1.0.2", features = ["keychain"] }
+
+[target.'cfg(target_os = "ios")'.dependencies.apple-native-keyring-store]
+version = "1.0.2"
+features = ["protected"]
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-native-keyring-store = { version = "1.1.0", default-features = false }
+
+[target.'cfg(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android"))))'.dependencies]
+zbus-secret-service-keyring-store = { version = "1.0.1", features = ["crypto-rust"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+android-native-keyring-store = "1.0.0"
+# The Android store's initialization API uses jni 0.21 types.
+jni = "0.21"
+
+[target.'cfg(not(target_os = "android"))'.dev-dependencies]
+# Compatibility fixture only: verify credentials written by our previous backend.
+legacy-keyring = { package = "keyring", version = "=2.3.3" }

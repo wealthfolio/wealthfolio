@@ -3,7 +3,9 @@ import { BenchmarkSymbolSelector } from "@/components/benchmark-symbol-selector"
 import {
   ANNUALIZED_RETURN_INFO as annualizedReturnInfo,
   MAX_DRAWDOWN_INFO as maxDrawdownInfo,
+  MetricInfoPopoverBody,
   MetricLabelWithInfo,
+  metricWarningItems,
   MONEY_WEIGHTED_RETURN_INFO,
   PRICE_RETURN_INFO,
   SIMPLE_RETURN_INFO,
@@ -450,19 +452,52 @@ function StripMetric({
   value,
   tone = "gain",
   reason,
-  hasWarning = false,
+  infoText,
+  warningText,
+  boldTerms,
 }: {
   label: string;
   value: number | null;
   tone?: "gain" | "neutral";
   reason?: string;
-  hasWarning?: boolean;
+  infoText: string;
+  warningText?: string | string[];
+  boldTerms?: string[];
 }) {
+  const { t } = useTranslation();
+  const warningItems = metricWarningItems(warningText);
+
   return (
     <div className="flex min-w-0 flex-col items-start gap-2">
       <div className="flex max-w-full items-center gap-1">
         <span className={STRIP_LABEL_CLASS}>{label}</span>
-        {hasWarning && <Icons.AlertTriangle className="text-warning h-3 w-3 shrink-0" />}
+        {warningItems.length > 0 && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-warning hover:text-warning h-4 w-4 shrink-0 rounded-full p-0"
+              >
+                <Icons.AlertTriangle className="h-3 w-3" />
+                <span className="sr-only">
+                  {t("common:component.calculation_note_for", { label })}
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-[34rem] max-w-[calc(100vw-2rem)] p-0 text-sm"
+              side="bottom"
+              align="start"
+            >
+              <MetricInfoPopoverBody
+                infoText={infoText}
+                warningItems={warningItems}
+                boldTerms={boldTerms}
+              />
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
       {value == null && reason ? (
         <span className="text-muted-foreground line-clamp-2 max-w-[12rem] text-xs leading-snug">
@@ -1735,24 +1770,29 @@ export default function PerformancePage() {
                                 label={stripReturnLabel(selectedItemData?.label, t)}
                                 value={selectedItemData?.selectedMetricValue ?? null}
                                 reason={selectedItemData?.selectedMetricReason}
-                                hasWarning={Boolean(
-                                  selectedItemData?.returnWarnings.length ||
-                                  selectedItemData?.selectedMetricReason,
-                                )}
+                                infoText={selectedItemData?.infoText ?? SIMPLE_RETURN_INFO}
+                                warningText={[
+                                  ...(selectedItemData?.returnWarnings ?? []),
+                                  ...(selectedItemData?.selectedMetricReason
+                                    ? [selectedItemData.selectedMetricReason]
+                                    : []),
+                                ]}
+                                boldTerms={selectedItemData?.warningTerms}
                               />
                               {selectedItemData?.showMoneyWeightedReturn && (
                                 <StripMetric
                                   label={selectedItemData.moneyWeightedReturnLabel}
                                   value={selectedItemData.moneyWeightedReturn}
                                   reason={selectedItemData.moneyWeightedReason}
-                                  hasWarning={Boolean(
-                                    selectedItemData.moneyWeightedWarnings.length,
-                                  )}
+                                  infoText={MONEY_WEIGHTED_RETURN_INFO}
+                                  warningText={selectedItemData.moneyWeightedWarnings}
+                                  boldTerms={selectedItemData.warningTerms}
                                 />
                               )}
                               <StripMetric
                                 label={t("performance:metric.annualized_short")}
                                 value={selectedItemData?.annualizedReturn ?? null}
+                                infoText={annualizedReturnInfo}
                               />
                             </div>
                           </StripSection>
@@ -1763,11 +1803,14 @@ export default function PerformancePage() {
                                 label={t("performance:metric.volatility")}
                                 value={selectedItemData?.volatility ?? null}
                                 tone="neutral"
-                                hasWarning={Boolean(selectedItemData?.volatilityWarnings.length)}
+                                infoText={volatilityInfo}
+                                warningText={selectedItemData?.volatilityWarnings}
+                                boldTerms={selectedItemData?.warningTerms}
                               />
                               <StripMetric
                                 label={t("performance:metric.max_drawdown_short")}
                                 value={selectedItemData?.maxDrawdown ?? null}
+                                infoText={maxDrawdownInfo}
                               />
                             </div>
                           </StripSection>

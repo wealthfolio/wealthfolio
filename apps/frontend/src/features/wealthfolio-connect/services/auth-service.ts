@@ -1,5 +1,6 @@
 import {
   logger,
+  getSyncSessionStatus as getSyncSessionStatusApi,
   storeSyncSession as storeSyncSessionApi,
   clearSyncSession as clearSyncSessionApi,
   postLoginBootstrap as postLoginBootstrapApi,
@@ -49,4 +50,8 @@ export const clearSyncSession = async (): Promise<void> => {
     logger.error("Error clearing sync session from backend");
     throw error;
   }
+};
+
+export const getSyncSessionStatus = (): Promise<{ isConfigured: boolean }> => {
+  return getSyncSessionStatusApi();
 };

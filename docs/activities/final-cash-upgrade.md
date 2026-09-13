@@ -1,9 +1,9 @@
-# Upgrade notes: authoritative final cash (v3.7)
+# Upgrade notes: authoritative final cash (v3.8)
 
-From this version, an activity's **amount** is the final cash that moved — fees
-and taxes included. Readers book it as-is; nothing re-derives it at read time.
-On first launch after upgrading, a one-shot migration rewrites legacy rows to
-this contract. Make a normal database backup before updating. The application
+From this version, an activity's **amount** is the final cash that moved,
+including fees and taxes. Readers book it as-is; nothing re-derives it at read
+time. On first launch after upgrading, a one-shot migration rewrites legacy rows
+to this contract. Make a normal database backup before updating. The application
 does not create a potentially large automatic startup backup. What you may
 notice:
 
@@ -12,7 +12,7 @@ notice:
 - A trade whose stored amount was the pre-fee **gross** now stores the final
   total (for example, a buy of `10 × $100` with a `$9.99` fee changes from
   `$1,000` to `$1,009.99`). The replaced value is recorded on the row's metadata
-  (`final_cash_migration.legacy_amount`) — nothing is lost.
+  (`final_cash_migration.legacy_amount`) so you can inspect the previous value.
 - A trade whose stored amount **contradicts** its own quantity × price ± charges
   keeps your number untouched and is flagged for review instead.
 - Flagged rows appear in the review banner on the Activities page; open each one
@@ -59,3 +59,22 @@ missing trade total is derived, a gross total is converted to final, and a
 contradicting total is kept but flagged. A row whose final cash cannot be
 established is imported as a **draft** for review instead of silently booking
 zero.
+
+## Review and zero amounts
+
+The upgrade preserves lifecycle status. `needs_review` is a separate flag, so
+Posted activities still count while flagged. A Posted row with no final amount
+has no runtime cash movement until corrected. Legacy Draft rows are added to the
+review queue without becoming Posted.
+
+Legacy zero trade totals are treated as missing when trustworthy inputs can
+calculate a final total. This is an upgrade-only rule; a user-confirmed zero
+remains zero during normal use.
+
+Affected accounts rebuild their holdings and valuation histories. Failed
+rebuilds remain pending and retry on a later launch. Update all synced devices
+before recording more activities: each device runs its own migration and the
+rewrites do not emit sync events.
+
+For field meanings and examples, see the
+[Activity Fields reference](https://wealthfolio.app/docs/concepts/activity-fields/).

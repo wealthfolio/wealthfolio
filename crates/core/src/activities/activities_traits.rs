@@ -403,10 +403,12 @@ pub trait ActivityServiceTrait: Send + Sync {
     async fn create_activity(&self, activity: NewActivity) -> Result<Activity>;
     async fn update_activity(&self, activity: ActivityUpdate) -> Result<Activity>;
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
+    /// Returns the internal transfer pair for the activity, or `None` when the
+    /// activity exists but is not part of a valid internal transfer pair.
     fn get_transfer_pair_for_activity(
         &self,
         activity_id: String,
-    ) -> Result<InternalTransferPairResponse>;
+    ) -> Result<Option<InternalTransferPairResponse>>;
     fn find_transfer_match_candidates(
         &self,
         request: TransferMatchCandidateRequest,

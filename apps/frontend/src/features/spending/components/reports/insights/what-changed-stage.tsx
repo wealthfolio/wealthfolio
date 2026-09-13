@@ -929,9 +929,9 @@ function formatDateSpan(
     day: "2-digit",
   } as const;
   if (formatting.formatDate(start, dateKeyOptions) === formatting.formatDate(end, dateKeyOptions)) {
-    return formatting.formatDate(start, { month: "short", day: "numeric" });
+    return formatting.formatDate(start, { month: "short", day: "numeric", year: "numeric" });
   }
-  return `${formatting.formatDate(start, { month: "short", day: "numeric" })}-${formatting.formatDate(end, { month: "short", day: "numeric" })}`;
+  return `${formatting.formatDate(start, { month: "short", day: "numeric", year: "numeric" })} – ${formatting.formatDate(end, { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
 function formatMonthNameInZone(date: Date, formatting: Pick<FormattingApi, "formatDate">): string {

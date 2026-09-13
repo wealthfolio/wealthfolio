@@ -90,8 +90,28 @@ impl ConnectService {
         .map_err(|err| err.to_string())
     }
 
-    pub async fn clear_cached_token(&self) {
-        self.token_lifecycle.clear_cache().await;
+    pub fn is_session_configured(&self) -> Result<bool, String> {
+        self.token_lifecycle
+            .is_session_configured(self.secret_store.as_ref())
+            .map_err(|err| err.to_string())
+    }
+
+    pub async fn store_session(&self, token: &str) -> Result<(), String> {
+        self.token_lifecycle
+            .store_session(self.secret_store.as_ref(), token)
+            .await
+            .map_err(|err| err.to_string())
+    }
+
+    pub async fn clear_session_with<F, Fut>(&self, after_clear: F) -> Result<bool, String>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = ()>,
+    {
+        self.token_lifecycle
+            .clear_session_with(self.secret_store.as_ref(), after_clear)
+            .await
+            .map_err(|err| err.to_string())
     }
 
     /// Get an authenticated API client using the stored access token.
@@ -112,6 +132,23 @@ impl ConnectService {
         let access_token = self.get_valid_access_token().await?;
 
         ConnectApiClient::new(&cloud_api_base_url, &access_token).map_err(|e| e.to_string())
+    }
+
+    pub async fn has_device_sync(&self) -> Result<bool, String> {
+        let token = self.get_valid_access_token().await?;
+        let url = cloud_api_base_url().ok_or("Cloud sync is disabled")?;
+        ConnectApiClient::new(&url, &token)
+            .map_err(|err| err.to_string())?
+            .has_device_sync()
+            .await
+            .map_err(|err| err.to_string())
+    }
+
+    pub async fn ensure_device_sync_subscription(&self) -> Result<(), String> {
+        if !self.has_device_sync().await? {
+            return Err("Device sync is paused: an active subscription is required.".to_string());
+        }
+        Ok(())
     }
 
     /// Check if the current user's plan includes broker sync.

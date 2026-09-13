@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useWealthfolioConnect } from "../providers/wealthfolio-connect-provider";
-import { hasBrokerSync } from "../lib/plan-capabilities";
+import { hasBrokerSync, isSubscriptionStatusActive } from "../lib/plan-capabilities";
 import { useSyncStates } from "./use-sync-states";
 import type { AggregatedSyncStatus, BrokerSyncState } from "../types";
 
@@ -46,17 +46,17 @@ export function useAggregatedSyncStatus() {
 
   // Determine if user has an active subscription
   const hasSubscription = useMemo(() => {
-    if (!userInfo?.team) return false;
-    const status = userInfo.team.subscription_status;
-    return status === "active" || status === "trialing";
+    return isSubscriptionStatusActive(userInfo?.team?.subscription_status);
   }, [userInfo]);
 
   const status = useMemo<AggregatedSyncStatus>(() => {
     if (!isEnabled) return "not_connected";
-    if (!isConnected || !hasSubscription) return "not_connected";
+    if (!isConnected) return "not_connected";
+    if (userInfo && !hasSubscription) return "subscription_required";
+    if (!hasSubscription) return "not_connected";
     if (!showBrokerSync) return "idle";
     return determineAggregatedStatus(isConnected, hasSubscription, syncStates);
-  }, [isEnabled, showBrokerSync, isConnected, hasSubscription, syncStates]);
+  }, [isEnabled, showBrokerSync, isConnected, hasSubscription, userInfo, syncStates]);
 
   // Find the last successful sync time across all states
   const lastSyncTime = useMemo(() => {

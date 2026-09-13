@@ -5,7 +5,7 @@ import { parseLocalDate } from "@/lib/utils";
 
 import { inclusiveDays } from "../lib/date-utils";
 import type { EventSpendingSummary } from "../types/event";
-import { computeBaselinePace } from "./use-baseline-pace";
+import { computeBaselinePace, type BaselinePeriod } from "./use-baseline-pace";
 
 export interface EventsAggregate {
   totalSpent: number;
@@ -20,6 +20,7 @@ export function computeEventsAggregate(
   heatmapActivities: Activity[],
   accountTypeById?: Map<string, string>,
   dailySpendByDate?: Map<string, number>,
+  baselinePeriod?: BaselinePeriod,
 ): EventsAggregate {
   let totalSpent = 0;
   let totalEventDays = 0;
@@ -34,16 +35,13 @@ export function computeEventsAggregate(
     if (!topEvent || ev.totalSpending > topEvent.totalSpending) topEvent = ev;
   }
 
-  // Heatmap is a fixed 12-week window (see spending-insights-page.tsx
-  // HEATMAP_WEEKS) — use 84 calendar days as the divisor so the baseline
-  // reflects pace across the whole window, not just days that saw spending.
-  const HEATMAP_PERIOD_DAYS = 12 * 7;
   const normalPace = computeBaselinePace(
     heatmapActivities,
     events,
-    HEATMAP_PERIOD_DAYS,
+    baselinePeriod?.days ?? 12 * 7,
     accountTypeById,
     dailySpendByDate,
+    baselinePeriod,
   );
   const expected = normalPace * totalEventDays;
   const lift = totalSpent - expected;
@@ -62,9 +60,17 @@ export function useEventsAggregate(
   heatmapActivities: Activity[],
   accountTypeById?: Map<string, string>,
   dailySpendByDate?: Map<string, number>,
+  baselinePeriod?: BaselinePeriod,
 ): EventsAggregate {
   return useMemo(
-    () => computeEventsAggregate(events, heatmapActivities, accountTypeById, dailySpendByDate),
-    [events, heatmapActivities, accountTypeById, dailySpendByDate],
+    () =>
+      computeEventsAggregate(
+        events,
+        heatmapActivities,
+        accountTypeById,
+        dailySpendByDate,
+        baselinePeriod,
+      ),
+    [events, heatmapActivities, accountTypeById, dailySpendByDate, baselinePeriod],
   );
 }

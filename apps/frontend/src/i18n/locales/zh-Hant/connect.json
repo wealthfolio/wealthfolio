@@ -1,4 +1,5 @@
 {
+  "opensInBrowser": "在瀏覽器中開啟",
   "page": {
     "title": "同步與連線",
     "subtitle": "所有裝置，集中管理。",
@@ -37,6 +38,7 @@
     }
   },
   "flow": {
+    "aggregatorExample": "（例如 SnapTrade）",
     "yourDevice": "你的裝置",
     "localDatabase": "本機資料庫",
     "dataStaysHere": "資料保留在此",
@@ -222,6 +224,10 @@
     "lastUsed": "上次使用"
   },
   "subscription": {
+    "copySupportEmail": "複製支援電子郵件地址",
+    "syncPausedTooltip": "同步已暫停 — 需要有效訂閱",
+    "syncPausedTitle": "同步已暫停",
+    "syncPausedDescription": "同步需要有效訂閱。您的本機資料和待同步的變更會保留。",
     "comingSoon": "敬請期待",
     "getStarted": "開始使用",
     "perMonthShort": "月",

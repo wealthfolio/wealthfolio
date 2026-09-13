@@ -1,3 +1,4 @@
+import type { SpendingDateRange } from "../../lib/date-range-params";
 import type { TFunction } from "i18next";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -38,6 +39,7 @@ interface HeatmapCellSheetProps {
   endHour: number | null;
   timezone?: string | null;
   currency: string;
+  customRange?: SpendingDateRange;
 }
 
 /**
@@ -54,6 +56,7 @@ export function HeatmapCellSheet({
   endHour,
   timezone,
   currency,
+  customRange,
 }: HeatmapCellSheetProps) {
   const localizationSettings = useLocalizationSettings();
   const amountFormatting = useAmountFormatting();
@@ -118,10 +121,10 @@ export function HeatmapCellSheet({
     start.setDate(end.getDate() - 12 * 7);
     const params = new URLSearchParams();
     params.set("tab", "spending");
-    params.set("from", formatDateISO(start));
-    params.set("to", formatDateISO(end));
+    params.set("from", formatDateISO(customRange?.from ?? start));
+    params.set("to", formatDateISO(customRange?.to ?? end));
     return `/activities?${params.toString()}`;
-  }, []);
+  }, [customRange]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -162,7 +165,11 @@ export function HeatmapCellSheet({
                 {dayLabel ? `${dayLabel} · ${hourLabel}` : t("spending:heatmapSheet.activity")}
               </SheetTitle>
               <p className="text-muted-foreground mt-0.5 text-xs">
-                {t("spending:heatmapSheet.subtitle")}
+                {t(
+                  customRange
+                    ? "spending:heatmapSheet.customSubtitle"
+                    : "spending:heatmapSheet.subtitle",
+                )}
               </p>
             </div>
           </div>

@@ -1,4 +1,5 @@
 {
+  "opensInBrowser": "Abre no navegador",
   "page": {
     "title": "Sincronização e conexões",
     "subtitle": "Seus dispositivos, todos em um só lugar.",
@@ -37,6 +38,7 @@
     }
   },
   "flow": {
+    "aggregatorExample": "(por exemplo, SnapTrade)",
     "yourDevice": "Seu dispositivo",
     "localDatabase": "Banco de dados local",
     "dataStaysHere": "Os dados ficam aqui",
@@ -239,6 +241,10 @@
     "lastUsed": "Usado pela última vez"
   },
   "subscription": {
+    "copySupportEmail": "Copiar e-mail do suporte",
+    "syncPausedTooltip": "Sincronização pausada — assinatura ativa necessária",
+    "syncPausedTitle": "A sincronização está pausada",
+    "syncPausedDescription": "É necessária uma assinatura ativa para sincronizar. Seus dados locais e alterações pendentes são preservados.",
     "comingSoon": "Em breve",
     "getStarted": "Começar",
     "perMonthShort": "mês",

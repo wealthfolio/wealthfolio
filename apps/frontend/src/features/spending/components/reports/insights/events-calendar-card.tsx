@@ -2,7 +2,7 @@ import { useMemo, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { cn } from "@/lib/utils";
+import { cn, parseLocalDate } from "@/lib/utils";
 import {
   Button,
   Icons,
@@ -13,6 +13,7 @@ import {
 } from "@wealthfolio/ui";
 
 import { useMonthCalendar } from "../../../hooks/use-month-calendar";
+import { getZonedDateParts } from "../../../lib/timezone";
 import type { EventSpendingSummary } from "../../../types/event";
 import { useEventDialog } from "../../event-dialog-provider";
 import { getEventColors } from "./event-colors";
@@ -25,9 +26,20 @@ interface Props {
   currency: string;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  rangeStart?: Date;
+  rangeEnd?: Date;
+  timezone?: string | null;
 }
 
-export const EventsCalendarCard: FC<Props> = ({ events, currency, selectedId, onSelect }) => {
+export const EventsCalendarCard: FC<Props> = ({
+  events,
+  currency,
+  selectedId,
+  onSelect,
+  rangeStart,
+  rangeEnd,
+  timezone,
+}) => {
   const formatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
   const numberFormatting = useNumberFormatting();
@@ -35,7 +47,28 @@ export const EventsCalendarCard: FC<Props> = ({ events, currency, selectedId, on
   const { isBalanceHidden } = useBalancePrivacy();
   const { openEventDialog } = useEventDialog();
   const today = useMemo(() => stripTime(new Date()), []);
-  const [cursor, setCursor] = useState<Date>(() => startOfMonth(today));
+  const firstMonth = rangeStart ? monthInTimezone(rangeStart, timezone) : null;
+  const lastMonth = rangeEnd ? monthInTimezone(rangeEnd, timezone) : null;
+  const selectedStart = firstMonth
+    ? events.find((event) => event.eventId === selectedId)?.startDate
+    : undefined;
+  const eventMonth = selectedStart ? startOfMonth(parseLocalDate(selectedStart)) : null;
+  const initialMonth =
+    eventMonth && firstMonth
+      ? new Date(
+          Math.max(
+            firstMonth.getTime(),
+            Math.min(eventMonth.getTime(), lastMonth?.getTime() ?? Infinity),
+          ),
+        )
+      : (firstMonth ?? startOfMonth(today));
+  const rangeKey = `${rangeStart?.getTime() ?? ""}:${rangeEnd?.getTime() ?? ""}:${timezone ?? ""}:${selectedStart ?? ""}`;
+  const [cursorBinding, setCursorBinding] = useState(() => ({
+    rangeKey,
+    month: initialMonth,
+  }));
+  const cursor = cursorBinding.rangeKey === rangeKey ? cursorBinding.month : initialMonth;
+  const setCursor = (month: Date) => setCursorBinding({ rangeKey, month });
 
   const { monthLabel, weekStartsOn, monthStart, monthEnd, weeks, monthEvents } = useMonthCalendar(
     events,
@@ -61,6 +94,7 @@ export const EventsCalendarCard: FC<Props> = ({ events, currency, selectedId, on
               variant="outline"
               size="icon"
               aria-label={t("spending:calendar.previousMonth")}
+              disabled={!!firstMonth && cursor <= firstMonth}
               className="h-7 w-7"
               onClick={() => setCursor(addMonths(cursor, -1))}
             >
@@ -70,6 +104,7 @@ export const EventsCalendarCard: FC<Props> = ({ events, currency, selectedId, on
               variant="outline"
               size="icon"
               aria-label={t("spending:calendar.nextMonth")}
+              disabled={!!lastMonth && cursor >= lastMonth}
               className="h-7 w-7"
               onClick={() => setCursor(addMonths(cursor, 1))}
             >
@@ -187,6 +222,11 @@ function stripTime(d: Date): Date {
 
 function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function monthInTimezone(date: Date, timezone?: string | null): Date {
+  const parts = getZonedDateParts(date, timezone);
+  return new Date(parts.year, parts.month - 1, 1);
 }
 
 function addMonths(d: Date, n: number): Date {

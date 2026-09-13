@@ -246,6 +246,10 @@ pub async fn sync_bootstrap_snapshot_if_needed(
     handle: AppHandle,
     context: &Arc<ServiceContext>,
 ) -> Result<SyncBootstrapResult, String> {
+    context
+        .connect_service()
+        .ensure_device_sync_subscription()
+        .await?;
     let identity = get_sync_identity_from_store()
         .ok_or_else(|| "No sync identity configured. Please enable sync first.".to_string())?;
     let device_id = identity
@@ -580,6 +584,10 @@ pub async fn generate_snapshot_now_internal(
     handle: Option<&AppHandle>,
     context: Arc<ServiceContext>,
 ) -> Result<SyncSnapshotUploadResult, String> {
+    context
+        .connect_service()
+        .ensure_device_sync_subscription()
+        .await?;
     context
         .device_sync_runtime()
         .snapshot_upload_cancelled

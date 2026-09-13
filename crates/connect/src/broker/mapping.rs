@@ -642,11 +642,15 @@ pub fn map_broker_activity(
         source_system: normalize_source_system(activity.source_system.as_deref())
             .or_else(|| normalize_source_system(activity.provider_type.as_deref()))
             .or_else(|| Some("SNAPTRADE".to_string())),
-        source_record_id: activity
-            .source_record_id
-            .clone()
-            .or(activity.external_reference_id.clone())
-            .or(activity.id.clone()),
+        source_record_id: [
+            activity.source_record_id.as_ref(),
+            activity.provider_activity_id.as_ref(),
+            activity.id.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .find(|value| !value.trim().is_empty())
+        .cloned(),
         source_group_id: activity.source_group_id.clone(),
         idempotency_key: None,
         import_run_id: None,
@@ -780,7 +784,7 @@ mod tests {
     }
 
     #[test]
-    fn test_map_broker_activity_uses_provider_and_external_reference_fallbacks() {
+    fn test_map_broker_activity_preserves_external_reference_without_using_it_as_identity() {
         let activity = AccountUniversalActivity {
             id: Some("act-1".to_string()),
             activity_type: Some("BUY".to_string()),
@@ -792,12 +796,66 @@ mod tests {
         let mapped = map_test_activity(&activity);
 
         assert_eq!(mapped.source_system.as_deref(), Some("SNAPTRADE"));
-        assert_eq!(mapped.source_record_id.as_deref(), Some("ext-123"));
+        assert_eq!(mapped.source_record_id.as_deref(), Some("act-1"));
 
         let metadata_json = mapped.metadata.expect("metadata should be present");
         let metadata: serde_json::Value = serde_json::from_str(&metadata_json).unwrap();
         assert_eq!(metadata["provider_type"], "snaptrade");
         assert_eq!(metadata["external_reference_id"], "ext-123");
+    }
+
+    #[test]
+    fn source_identity_uses_first_nonblank_candidate() {
+        for source in [
+            None,
+            Some(""),
+            Some(" \t\n"),
+            Some("kraken:composite:1"),
+            Some("external-1"),
+            Some(" supplied-id "),
+        ] {
+            for provider in [None, Some(""), Some(" \t\n"), Some("provider-1")] {
+                let activity: AccountUniversalActivity =
+                    serde_json::from_value(serde_json::json!({
+                        "id": "act-1",
+                        "type": "BUY",
+                        "source_record_id": source,
+                        "provider_activity_id": provider,
+                        "source_group_id": "group-1",
+                        "external_reference_id": "external-1",
+                    }))
+                    .unwrap();
+                let mapped = map_test_activity(&activity);
+                let expected = source
+                    .filter(|s| !s.trim().is_empty())
+                    .or(provider.filter(|s| !s.trim().is_empty()))
+                    .unwrap_or("act-1");
+                assert_eq!(mapped.source_record_id.as_deref(), Some(expected));
+                assert_eq!(mapped.id.as_deref(), Some("act-1"));
+                assert_eq!(mapped.source_group_id.as_deref(), Some("group-1"));
+                let metadata: serde_json::Value =
+                    serde_json::from_str(mapped.metadata.as_deref().unwrap()).unwrap();
+                assert_eq!(metadata["source_group_id"], "group-1");
+                assert_eq!(metadata["external_reference_id"], "external-1");
+                if let Some(source) = source {
+                    assert_eq!(metadata["source_record_id"], source);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn source_identity_does_not_replace_required_incoming_id() {
+        for id in [None, Some(""), Some(" \t\n")] {
+            let activity: AccountUniversalActivity = serde_json::from_value(serde_json::json!({
+                "id": id,
+                "source_record_id": "composite-1",
+                "provider_activity_id": "provider-1",
+                "external_reference_id": "external-1",
+            }))
+            .unwrap();
+            assert!(map_broker_activity(&activity, "acct-1", Some("USD"), Some("USD")).is_none());
+        }
     }
 
     #[test]

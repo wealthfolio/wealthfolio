@@ -1,3 +1,4 @@
+import type { BaselinePeriod } from "../../../hooks/use-baseline-pace";
 /**
  * Desktop SVG timeline of events overlaid on a daily-spend area chart, with a
  * 4-cell summary strip below. The mobile alternative is `events-calendar-card`.
@@ -38,6 +39,7 @@ export interface EventsTimelineCardProps {
   heatmapActivities: Activity[];
   accountTypeById?: Map<string, string>;
   dailySpendByDate?: Map<string, number>;
+  baselinePeriod?: BaselinePeriod;
   selectedId: string | null;
   onSelect: (id: string) => void;
   /** 0 = current window, 1+ = N windows back. */
@@ -54,6 +56,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
   heatmapActivities,
   accountTypeById,
   dailySpendByDate,
+  baselinePeriod,
   selectedId,
   onSelect,
   windowOffset,
@@ -78,7 +81,13 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
     return () => ro.disconnect();
   }, []);
 
-  const computed = useEventsAggregate(events, heatmapActivities, accountTypeById, dailySpendByDate);
+  const computed = useEventsAggregate(
+    events,
+    heatmapActivities,
+    accountTypeById,
+    dailySpendByDate,
+    baselinePeriod,
+  );
 
   const dailySeries = useMemo(
     () =>

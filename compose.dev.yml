@@ -23,7 +23,9 @@ services:
     environment:
       WF_LISTEN_ADDR: "0.0.0.0:8088"
       WF_DB_PATH: "/data/wealthfolio.db"
-      WF_SECRET_KEY: "${WF_SECRET_KEY:?Set WF_SECRET_KEY}"
+      WF_SECRET_KEY: "${WF_SECRET_KEY:-}"
+      # Alternative: path inside the container to a separately mounted secret.
+      WF_SECRET_KEY_FILE: "${WF_SECRET_KEY_FILE:-}"
       WF_CORS_ALLOW_ORIGINS: "http://localhost:1420,http://localhost:3000"
       WF_AUTH_PASSWORD_HASH: ""
       WF_AUTH_REQUIRED: "false"

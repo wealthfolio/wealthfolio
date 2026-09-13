@@ -333,6 +333,9 @@ pub struct AccountUniversalActivity {
     /// Unique identifier for this activity from the API
     pub id: Option<String>,
 
+    /// Unique activity identifier from the upstream provider
+    pub provider_activity_id: Option<String>,
+
     /// Symbol information for the security
     pub symbol: Option<AccountUniversalActivitySymbol>,
 
@@ -386,7 +389,7 @@ pub struct AccountUniversalActivity {
     /// Institution/brokerage name
     pub institution: Option<String>,
 
-    /// External reference ID from the provider
+    /// Grouping reference from the provider; not a unique activity identity
     #[serde(rename = "external_reference_id")]
     pub external_reference_id: Option<String>,
 

@@ -147,6 +147,10 @@ pub struct ConnectApiClient {
     auth_header: HeaderValue,
 }
 
+fn subscription_allows_sync(status: Option<&str>) -> bool {
+    matches!(status, Some("active" | "trialing" | "past_due"))
+}
+
 impl ConnectApiClient {
     /// Create a new Connect API client.
     ///
@@ -163,7 +167,7 @@ impl ConnectApiClient {
         let auth_header = HeaderValue::from_str(&format!("Bearer {}", access_token))
             .map_err(|e| Error::Unexpected(format!("Invalid access token format: {}", e)))?;
 
-        let client = reqwest::Client::builder()
+        let client = wealthfolio_http::client_builder()
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
             .build()
             .map_err(|e| Error::Unexpected(format!("Failed to initialize HTTP client: {}", e)))?;
@@ -410,6 +414,15 @@ impl ConnectApiClient {
         self.get("/api/v1/subscription/plans").await
     }
 
+    /// Every paid plan includes device sync. Unknown/inactive subscriptions deny access.
+    pub async fn has_device_sync(&self) -> Result<bool> {
+        let info = self.get_user_info().await?;
+        Ok(info
+            .team
+            .as_ref()
+            .is_some_and(|team| subscription_allows_sync(team.subscription_status.as_deref())))
+    }
+
     /// Check if the current user's plan includes broker sync.
     ///
     /// Returns true when the user has an active subscription AND their plan
@@ -425,10 +438,7 @@ impl ConnectApiClient {
             }
         };
 
-        let is_active = matches!(
-            team.subscription_status.as_deref(),
-            Some("active") | Some("trialing")
-        );
+        let is_active = subscription_allows_sync(team.subscription_status.as_deref());
         if !is_active {
             debug!("[ConnectApi] No active subscription, broker sync not available");
             return Ok(false);
@@ -579,7 +589,7 @@ impl BrokerApiClient for ConnectApiClient {
 /// let plans = fetch_subscription_plans_public("https://api.wealthfolio.app").await?;
 /// ```
 pub async fn fetch_subscription_plans_public(base_url: &str) -> Result<PlansResponse> {
-    let client = reqwest::Client::builder()
+    let client = wealthfolio_http::client_builder()
         .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
         .build()
         .map_err(|e| Error::Unexpected(format!("Failed to initialize HTTP client: {}", e)))?;
@@ -773,6 +783,61 @@ mod tests {
         assert!(error.contains("temporary failure"));
         assert!(error.contains(&format!("clientRequestId={}", client_request_id)));
         assert!(error.contains("requestId=server-req-123"));
+        handle.join().expect("server thread");
+    }
+
+    #[test]
+    fn subscription_status_gates_sync_without_affecting_authentication() {
+        for status in ["active", "trialing", "past_due"] {
+            assert!(subscription_allows_sync(Some(status)));
+        }
+        for status in [
+            None,
+            Some("canceled"),
+            Some("unpaid"),
+            Some("incomplete"),
+            Some("incomplete_expired"),
+            Some("paused"),
+            Some("unknown"),
+        ] {
+            assert!(!subscription_allows_sync(status));
+        }
+    }
+
+    #[tokio::test]
+    async fn device_sync_requires_subscription_but_accepts_basic_plan() {
+        for (body, allowed) in [
+            (r#"{"id":"user-1","team":null}"#, false),
+            (
+                r#"{"id":"user-1","team":{"id":"team-1","plan":"basic","subscriptionStatus":null}}"#,
+                false,
+            ),
+            (
+                r#"{"id":"user-1","team":{"id":"team-1","plan":"basic","subscriptionStatus":"canceled"}}"#,
+                false,
+            ),
+            (
+                r#"{"id":"user-1","team":{"id":"team-1","plan":"basic","subscriptionStatus":"active"}}"#,
+                true,
+            ),
+        ] {
+            let (base_url, _captured, handle) = start_one_request_server(200, body, None);
+            let client = ConnectApiClient::new(&base_url, "test-token").unwrap();
+            assert_eq!(client.has_device_sync().await.unwrap(), allowed);
+            handle.join().unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn broker_sync_allows_past_due_grace_period() {
+        let (base_url, _captured, handle) = start_one_request_server(
+            200,
+            r#"{"id":"user-1","team":{"id":"team-1","plan":"essentials","subscriptionStatus":"past_due"}}"#,
+            None,
+        );
+        let client = ConnectApiClient::new(&base_url, "test-token").unwrap();
+
+        assert!(client.has_broker_sync().await.unwrap());
         handle.join().expect("server thread");
     }
 

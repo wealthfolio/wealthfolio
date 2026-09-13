@@ -11,6 +11,7 @@ import {
   openFolderDialog,
   saveAppDataFileViaPicker,
 } from "@/adapters";
+import { PortalLink } from "@/features/wealthfolio-connect/components/portal-link";
 import { getPlatform as getRuntimePlatform } from "@/hooks/use-platform";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icons, isKeyboardEventComposing, Skeleton } from "@wealthfolio/ui";
@@ -280,7 +281,7 @@ export function DeviceSyncSection() {
           }
           backupLocation = await backupDatabaseToPath(selectedDir);
         } else {
-          if (runtimePlatform.os !== "ios") {
+          if (!runtimePlatform.is_mobile) {
             throw new Error(t("sync:errors.backupPlatformUnsupported"));
           }
           const { relativePath, filename } = await backupDatabaseToPendingExport();
@@ -760,7 +761,7 @@ export function DeviceSyncSection() {
       <Card>
         <CardContent className="p-4">
           {/* Header row - matches Broker connections / Accounts pattern */}
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
                 <Icons.Smartphone className="text-muted-foreground h-4 w-4" />
@@ -772,7 +773,10 @@ export function DeviceSyncSection() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-muted-foreground hover:text-foreground h-8 w-8 sm:hidden"
+                className="text-muted-foreground hover:text-foreground size-11 sm:hidden"
+                aria-label={t(
+                  isBackgroundRunning ? "sync:engine.pauseSync" : "sync:engine.resumeSync",
+                )}
                 onClick={handleToggleEngine}
                 disabled={isTogglingEngine}
               >
@@ -811,31 +815,14 @@ export function DeviceSyncSection() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-muted-foreground hover:text-foreground h-8 w-8"
+                className="text-muted-foreground hover:text-foreground size-11 sm:size-8"
+                aria-label={t("common:refresh")}
                 onClick={handleRefreshDevices}
                 disabled={isRefreshing}
               >
                 <Icons.RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
               </Button>
-              {/* Mobile: icon only */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground sm:hidden"
-                onClick={() => window.open(PORTAL_DEVICES_URL, "_blank")}
-              >
-                <Icons.ExternalLink className="h-4 w-4" />
-              </Button>
-              {/* Desktop: full text */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-foreground hidden sm:inline-flex"
-                onClick={() => window.open(PORTAL_DEVICES_URL, "_blank")}
-              >
-                {t("sync:section.manageDevices")}
-                <Icons.ArrowRight className="ml-1 h-3.5 w-3.5" />
-              </Button>
+              <PortalLink href={PORTAL_DEVICES_URL} label={t("sync:section.manageDevices")} />
             </div>
           </div>
 
@@ -1353,7 +1340,7 @@ function PairThisDeviceItem({ onPair }: { onPair: () => void }) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-muted-foreground h-8 w-8 shrink-0"
+                className="text-muted-foreground size-11 shrink-0 sm:size-8"
               >
                 <Icons.MoreVertical className="h-4 w-4" />
                 <span className="sr-only">{t("sync:section.options")}</span>
@@ -1543,7 +1530,8 @@ function DeviceCard({
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-7 w-7 shrink-0"
+                className="size-11 shrink-0 sm:size-7"
+                aria-label={t("common:save")}
                 onClick={handleRename}
                 disabled={renameDevice.isPending}
               >
@@ -1556,7 +1544,8 @@ function DeviceCard({
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-7 w-7 shrink-0"
+                className="size-11 shrink-0 sm:size-7"
+                aria-label={t("common:cancel")}
                 onClick={handleCancelRename}
               >
                 <Icons.Close className="h-3.5 w-3.5" />
@@ -1618,7 +1607,7 @@ function DeviceCard({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100"
+                  className="text-muted-foreground size-11 shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 max-md:opacity-100 sm:size-7"
                 >
                   <Icons.MoreVertical className="h-4 w-4" />
                   <span className="sr-only">{t("sync:section.deviceActions")}</span>

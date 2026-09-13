@@ -190,7 +190,11 @@
     "codePlaceholder": "ABC 123",
     "paste": "붙여넣기",
     "connecting": "연결하는 중...",
-    "connect": "연결"
+    "connect": "연결",
+    "scanInstructions": "QR 코드를 프레임 안에 맞춰 주세요.",
+    "cameraOpenError": "카메라를 열 수 없습니다. 다시 시도해 주세요.",
+    "cameraCloseError": "카메라를 닫을 수 없습니다. 다시 시도해 주세요.",
+    "cameraUnavailable": "사용 가능한 카메라가 없습니다. 실제 기기로 스캔하거나 아래에 페어링 코드를 입력해 주세요."
   },
   "sas": {
     "sameCodeQuestion": "두 기기에 같은 코드가 표시되나요?"

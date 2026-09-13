@@ -248,10 +248,15 @@ mod mobile {
         let _ = handle.plugin(tauri_plugin_haptics::init());
         let _ = handle.plugin(tauri_plugin_barcode_scanner::init());
 
-        // iOS-specific: Web Auth plugin for ASWebAuthenticationSession (required for Google OAuth)
-        #[cfg(target_os = "ios")]
+        // Native mobile web auth for OAuth callbacks.
+        #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             let _ = handle.plugin(tauri_plugin_web_auth::init());
+        }
+
+        // iOS-only native share sheet.
+        #[cfg(target_os = "ios")]
+        {
             let _ = handle.plugin(tauri_plugin_mobile_share::init());
         }
     }
@@ -697,6 +702,8 @@ pub fn run() {
             commands::wealthfolio_connect::post_login_bootstrap,
             #[cfg(any(feature = "connect-sync", feature = "device-sync"))]
             commands::wealthfolio_connect::clear_sync_session,
+            #[cfg(any(feature = "connect-sync", feature = "device-sync"))]
+            commands::wealthfolio_connect::get_sync_session_status,
             #[cfg(any(feature = "connect-sync", feature = "device-sync"))]
             commands::wealthfolio_connect::restore_sync_session,
             #[cfg(feature = "connect-sync")]

@@ -1,4 +1,5 @@
 {
+  "opensInBrowser": "S’ouvre dans le navigateur",
   "page": {
     "title": "Synchronisation et connexions",
     "subtitle": "Vos appareils, tous au même endroit.",
@@ -37,6 +38,7 @@
     }
   },
   "flow": {
+    "aggregatorExample": "(p. ex. SnapTrade)",
     "yourDevice": "Votre appareil",
     "localDatabase": "Base de données locale",
     "dataStaysHere": "Les données restent ici",
@@ -239,6 +241,10 @@
     "lastUsed": "Dernier utilisé"
   },
   "subscription": {
+    "copySupportEmail": "Copier l’adresse e-mail du support",
+    "syncPausedTooltip": "Synchronisation suspendue — abonnement actif requis",
+    "syncPausedTitle": "La synchronisation est suspendue",
+    "syncPausedDescription": "Un abonnement actif est nécessaire pour synchroniser. Vos données locales et vos modifications en attente sont conservées.",
     "comingSoon": "Bientôt disponible",
     "getStarted": "Commencer",
     "perMonthShort": "mois",

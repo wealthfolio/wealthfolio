@@ -1,6 +1,8 @@
 import { openUrlInBrowser, syncTriggerCycle } from "@/adapters";
 import { Page, PageContent, PageHeader } from "@/components/page";
 import { useDevices, useSyncStatus } from "@/features/devices-sync/hooks";
+import { PortalLink } from "../components/portal-link";
+import { ConnectedView } from "../components/connected-view";
 import { ConnectEmptyState } from "@/features/wealthfolio-connect/components/connect-empty-state";
 import {
   useAggregatedSyncStatus,
@@ -9,6 +11,7 @@ import {
 } from "@/features/wealthfolio-connect/hooks";
 import { useSyncBrokerData } from "@/features/wealthfolio-connect/hooks/use-sync-broker-data";
 import { useWealthfolioConnect } from "@/features/wealthfolio-connect/providers/wealthfolio-connect-provider";
+import { isSubscriptionStatusActive } from "@/features/wealthfolio-connect/lib/plan-capabilities";
 import { useAccounts } from "@/hooks/use-accounts";
 import { WEALTHFOLIO_CONNECT_PORTAL_URL } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
@@ -149,9 +152,7 @@ export default function ConnectPage() {
   }, [localAccounts]);
 
   const hasSubscription = useMemo(() => {
-    if (!userInfo?.team) return false;
-    const subStatus = userInfo.team.subscription_status;
-    return subStatus === "active" || subStatus === "trialing";
+    return isSubscriptionStatusActive(userInfo?.team?.subscription_status);
   }, [userInfo]);
 
   if (isInitializing) {
@@ -221,7 +222,7 @@ export default function ConnectPage() {
       <Page>
         <PageHeader heading={t("connect:page.title")} />
         <PageContent>
-          <ConnectEmptyState />
+          {isEnabled && isConnected ? <ConnectedView /> : <ConnectEmptyState />}
         </PageContent>
       </Page>
     );
@@ -234,7 +235,13 @@ export default function ConnectPage() {
         text={showBrokerSync ? t("connect:page.subtitleWithBrokers") : t("connect:page.subtitle")}
         actions={
           <div className="flex items-center gap-2 sm:gap-3">
-            <Button onClick={handleSyncAll} disabled={isSyncRunning} size="sm">
+            <Button
+              onClick={handleSyncAll}
+              disabled={isSyncRunning}
+              size="sm"
+              className="min-h-11 min-w-11 sm:min-h-0 sm:min-w-0"
+              aria-label={t(isSyncRunning ? "connect:sync.syncingShort" : "connect:sync.syncNow")}
+            >
               {isSyncRunning ? (
                 <>
                   <Icons.Spinner className="h-4 w-4 animate-spin sm:mr-2" />
@@ -247,6 +254,18 @@ export default function ConnectPage() {
                 </>
               )}
             </Button>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="size-11 sm:size-9" asChild>
+                    <Link to="/settings/connect" aria-label={t("common:settings")}>
+                      <Icons.Settings className="size-4" />
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("common:settings")}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         }
       />
@@ -308,27 +327,10 @@ export default function ConnectPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground hover:text-foreground h-8 w-8 sm:hidden"
-                        onClick={() =>
-                          openUrlInBrowser(`${WEALTHFOLIO_CONNECT_PORTAL_URL}/connections`)
-                        }
-                      >
-                        <Icons.ExternalLink className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground hover:text-foreground hidden sm:inline-flex"
-                        onClick={() =>
-                          openUrlInBrowser(`${WEALTHFOLIO_CONNECT_PORTAL_URL}/connections`)
-                        }
-                      >
-                        {t("connect:page.manage")}
-                        <Icons.ArrowRight className="ml-1 h-3.5 w-3.5" />
-                      </Button>
+                      <PortalLink
+                        href={`${WEALTHFOLIO_CONNECT_PORTAL_URL}/connections`}
+                        label={t("connect:connections.manage")}
+                      />
                     </div>
                   </CardTitle>
                 </CardHeader>
@@ -380,25 +382,10 @@ export default function ConnectPage() {
                     <DeviceSyncStatusBadge engineStatus={deviceSyncEngineStatus} />
                   </div>
                   <div className="flex items-center gap-1">
-                    <Link to="/settings/connect">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground hover:text-foreground h-8 w-8 sm:hidden"
-                      >
-                        <Icons.Settings className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                    <Link to="/settings/connect">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground hover:text-foreground hidden sm:inline-flex"
-                      >
-                        {t("connect:page.manage")}
-                        <Icons.ArrowRight className="ml-1 h-3.5 w-3.5" />
-                      </Button>
-                    </Link>
+                    <PortalLink
+                      href={`${WEALTHFOLIO_CONNECT_PORTAL_URL}/settings/devices`}
+                      label={t("sync:section.manageDevices")}
+                    />
                   </div>
                 </CardTitle>
               </CardHeader>
@@ -480,12 +467,13 @@ export default function ConnectPage() {
                   </div>
                   <Button
                     size="sm"
+                    title={t("connect:opensInBrowser")}
                     onClick={() =>
                       openUrlInBrowser(`${WEALTHFOLIO_CONNECT_PORTAL_URL}/settings/billing`)
                     }
                   >
                     {t("connect:upgrade.button")}
-                    <Icons.ArrowRight className="ml-1 h-3.5 w-3.5" />
+                    <Icons.ExternalLink className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
                   </Button>
                 </div>
               </CardContent>
@@ -757,7 +745,12 @@ function BrokerSyncAttentionSection({
               )}
               {t("common:retry")}
             </Button>
-            <Button size="sm" variant="ghost" onClick={onManage}>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onManage}
+              title={t("connect:opensInBrowser")}
+            >
               <Icons.ExternalLink className="mr-2 h-4 w-4" />
               {t("connect:page.manage")}
             </Button>

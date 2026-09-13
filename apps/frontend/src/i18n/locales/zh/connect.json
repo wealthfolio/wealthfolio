@@ -1,4 +1,5 @@
 {
+  "opensInBrowser": "在浏览器中打开",
   "page": {
     "title": "同步与连接",
     "subtitle": "您的所有设备,尽在一处。",
@@ -37,6 +38,7 @@
     }
   },
   "flow": {
+    "aggregatorExample": "（例如 SnapTrade）",
     "yourDevice": "您的设备",
     "localDatabase": "本地数据库",
     "dataStaysHere": "数据保留在此",
@@ -220,6 +222,10 @@
     "lastUsed": "上次使用"
   },
   "subscription": {
+    "copySupportEmail": "复制支持邮箱地址",
+    "syncPausedTooltip": "同步已暂停 — 需要有效订阅",
+    "syncPausedTitle": "同步已暂停",
+    "syncPausedDescription": "同步需要有效订阅。您的本地数据和待同步的更改会保留。",
     "comingSoon": "敬请期待",
     "getStarted": "开始使用",
     "perMonthShort": "月",

@@ -223,6 +223,28 @@ where
         pulled_count: 0,
     };
 
+    match ports.is_sync_allowed().await {
+        Ok(true) => {}
+        Ok(false) => {
+            return ctx
+                .fail(
+                    "subscription_required",
+                    "Device sync is paused: an active subscription is required.".to_string(),
+                    Some(300),
+                )
+                .await
+        }
+        Err(err) => {
+            return ctx
+                .fail(
+                    "subscription_check_error",
+                    format!("Could not verify sync subscription: {}", err),
+                    Some(60),
+                )
+                .await
+        }
+    }
+
     let identity = match ports.get_sync_identity() {
         Some(value) => value,
         None => {
@@ -309,6 +331,11 @@ where
     let reconcile = match ports.get_reconcile_ready_state(&token, &device_id).await {
         Ok(response) => response,
         Err(err) => {
+            if err.is_subscription_blocked() {
+                return ctx
+                    .fail("subscription_required", err.to_string(), Some(300))
+                    .await;
+            }
             return ctx
                 .fail(
                     "reconcile_error",
@@ -567,6 +594,11 @@ where
                 server_cursor = push_response.server_cursor;
             }
             Err(err) => {
+                if err.is_subscription_blocked() {
+                    return ctx
+                        .fail("subscription_required", err.to_string(), Some(300))
+                        .await;
+                }
                 let err_str = err.to_string();
 
                 if err_str.contains("KEY_VERSION_MISMATCH") {
@@ -721,6 +753,11 @@ where
             {
                 Ok(value) => value,
                 Err(err) => {
+                    if err.is_subscription_blocked() {
+                        return ctx
+                            .fail("subscription_required", err.to_string(), Some(300))
+                            .await;
+                    }
                     if err.retry_class == ApiRetryClass::ReauthRequired {
                         warn!("[DeviceSync] Auth error during pull — token may need refresh");
                         return ctx
@@ -1153,8 +1190,13 @@ where
     P: OutboxStore + ReplayStore + Send + Sync,
 {
     let mut delay_ms = DEVICE_SYNC_PERIODIC_INTERVAL_SECS.saturating_mul(1000) + jitter_ms;
+    let mut subscription_paused = false;
 
     if let Ok(engine_status) = ports.get_engine_status().await {
+        subscription_paused = matches!(
+            engine_status.last_cycle_status.as_deref(),
+            Some("subscription_required" | "subscription_check_error")
+        );
         if let Some(next_retry_at) = engine_status.next_retry_at.as_deref() {
             if let Some(wait_ms) = millis_until_rfc3339(next_retry_at) {
                 delay_ms = wait_ms.saturating_add(jitter_ms).max(1_000);
@@ -1162,7 +1204,7 @@ where
         }
     }
 
-    if ports.has_pending_outbox().await.unwrap_or(false) {
+    if !subscription_paused && ports.has_pending_outbox().await.unwrap_or(false) {
         delay_ms = delay_ms.min(2_000 + (jitter_ms % 500));
     }
 
@@ -1245,6 +1287,20 @@ where
     let mut next_prune_at =
         tokio::time::Instant::now() + Duration::from_secs(DEVICE_SYNC_OUTBOX_PRUNE_INTERVAL_SECS);
     loop {
+        // A wake can race logout's startup check. Never keep a worker alive
+        // without a session, even if it was spawned just after shutdown.
+        match ports.has_cloud_session() {
+            Ok(true) => {}
+            Ok(false) => break,
+            Err(err) => {
+                warn!(
+                    "[DeviceSync] Could not read cloud session; retrying: {}",
+                    err
+                );
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                continue;
+            }
+        }
         let identity = ports.get_sync_identity();
         if !sync_identity_can_run_background(identity.clone()) {
             if sync_identity_is_revoked(identity) {
@@ -1316,6 +1372,9 @@ mod tests {
 
     #[derive(Clone)]
     struct TestPorts {
+        has_cloud_session: bool,
+        session_read_results: Arc<std::sync::Mutex<VecDeque<Result<bool, String>>>>,
+        sync_allowed: Result<bool, String>,
         cursor: i64,
         identity: Option<SyncIdentity>,
         sync_state: Result<SyncState, String>,
@@ -1340,6 +1399,9 @@ mod tests {
     impl TestPorts {
         fn new(identity: Option<SyncIdentity>, sync_state: Result<SyncState, String>) -> Self {
             Self {
+                has_cloud_session: true,
+                session_read_results: Arc::new(std::sync::Mutex::new(VecDeque::new())),
+                sync_allowed: Ok(true),
                 cursor: 0,
                 identity,
                 sync_state,
@@ -1498,7 +1560,7 @@ mod tests {
                 last_error: None,
                 consecutive_failures: 0,
                 next_retry_at: None,
-                last_cycle_status: None,
+                last_cycle_status: self.cycle_outcomes.lock().await.last().cloned(),
                 last_cycle_duration_ms: None,
             })
         }
@@ -1585,6 +1647,18 @@ mod tests {
 
     #[async_trait]
     impl CredentialStore for TestPorts {
+        fn has_cloud_session(&self) -> Result<bool, String> {
+            self.session_read_results
+                .lock()
+                .unwrap()
+                .pop_front()
+                .unwrap_or(Ok(self.has_cloud_session))
+        }
+
+        async fn is_sync_allowed(&self) -> Result<bool, String> {
+            self.sync_allowed.clone()
+        }
+
         fn get_sync_identity(&self) -> Option<SyncIdentity> {
             self.identity.clone()
         }
@@ -1679,6 +1753,120 @@ mod tests {
             );
             tokio::time::sleep(std::time::Duration::from_millis(25)).await;
         }
+    }
+
+    #[tokio::test]
+    async fn inactive_subscription_preserves_pending_changes_and_resumes() {
+        let mut ports = TestPorts::new(Some(ready_identity()), Ok(SyncState::Ready));
+        ports.sync_allowed = Ok(false);
+        ports.pending_outbox.lock().await.push(outbox_event(
+            "event-1",
+            "019cb093-06a8-7534-8677-546317b17957",
+            1,
+        ));
+        let paused = run_sync_cycle(&ports, false).await.unwrap();
+        assert_eq!(paused.status, "subscription_required");
+        assert_eq!(ports.pending_outbox.lock().await.len(), 1);
+        assert!(ports.persisted_trust_states.lock().await.is_empty());
+        assert_eq!(ports.max_active_reconcile_count.load(Ordering::SeqCst), 0);
+        assert!(compute_cycle_delay_ms(&ports, 0).await >= 300_000);
+        ports.sync_allowed = Ok(true);
+        let resumed = run_sync_cycle(&ports, false).await.unwrap();
+        assert_eq!(resumed.status, "ok");
+        assert_eq!(ports.push_batches.lock().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn subscription_denied_during_push_preserves_pending_changes() {
+        let mut ports = TestPorts::new(Some(ready_identity()), Ok(SyncState::Ready));
+        ports.push_error = Some(TransportError {
+            message: "Subscription required".to_string(),
+            retry_class: ApiRetryClass::Permanent,
+            error_code: Some("SUBSCRIPTION_REQUIRED".to_string()),
+            details: None,
+        });
+        ports.pending_outbox.lock().await.push(outbox_event(
+            "event-1",
+            "019cb093-06a8-7534-8677-546317b17957",
+            1,
+        ));
+        assert_eq!(
+            run_sync_cycle(&ports, false).await.unwrap().status,
+            "subscription_required"
+        );
+        assert_eq!(ports.pending_outbox.lock().await.len(), 1);
+        assert!(ports.dead_outbox_batches.lock().await.is_empty());
+        ports.push_error = None;
+        assert_eq!(run_sync_cycle(&ports, false).await.unwrap().status, "ok");
+        assert_eq!(
+            *ports.push_batches.lock().await,
+            vec![vec!["event-1".to_string()], vec!["event-1".to_string()]]
+        );
+    }
+
+    #[tokio::test]
+    async fn subscription_lookup_failure_cannot_push_or_pull() {
+        let mut ports = TestPorts::new(Some(ready_identity()), Ok(SyncState::Ready));
+        ports.sync_allowed = Err("service unavailable".to_string());
+        assert_eq!(
+            run_sync_cycle(&ports, false).await.unwrap().status,
+            "subscription_check_error"
+        );
+        assert!(ports.push_batches.lock().await.is_empty());
+        assert!(ports.applied_events.lock().await.is_empty());
+        assert!(ports.persisted_trust_states.lock().await.is_empty());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn background_recovers_from_session_read_error_without_a_wake() {
+        let ports = Arc::new(TestPorts::new(Some(ready_identity()), Ok(SyncState::Ready)));
+        ports
+            .session_read_results
+            .lock()
+            .unwrap()
+            .push_back(Err("storage unavailable".into()));
+        let runtime = Arc::new(DeviceSyncRuntimeState::new());
+        runtime.ensure_background_started(Arc::clone(&ports)).await;
+        tokio::task::yield_now().await;
+        assert!(runtime.is_background_running().await);
+        assert!(ports.cycle_outcomes.lock().await.is_empty());
+        tokio::time::advance(Duration::from_secs(59)).await;
+        assert!(ports.cycle_outcomes.lock().await.is_empty());
+        tokio::time::advance(Duration::from_secs(1)).await;
+        wait_for_cycle_outcomes(&ports, 1, 1_000).await;
+        assert_eq!(ports.cycle_outcomes.lock().await[0], "ok");
+        runtime.ensure_background_stopped().await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn background_stops_if_session_is_missing_after_read_error() {
+        let ports = Arc::new(TestPorts::new(Some(ready_identity()), Ok(SyncState::Ready)));
+        ports
+            .session_read_results
+            .lock()
+            .unwrap()
+            .extend([Err("storage unavailable".into()), Ok(false)]);
+        let runtime = Arc::new(DeviceSyncRuntimeState::new());
+        runtime.ensure_background_started(Arc::clone(&ports)).await;
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_secs(60)).await;
+        wait_for_background_stopped(&runtime, 1_000).await;
+        assert!(ports.cycle_outcomes.lock().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn background_wake_without_session_exits_without_cloud_requests() {
+        let mut ports = TestPorts::new(Some(ready_identity()), Ok(SyncState::Ready));
+        ports.has_cloud_session = false;
+        let ports = Arc::new(ports);
+        let runtime = Arc::new(DeviceSyncRuntimeState::new());
+        for _ in 0..2 {
+            runtime.ensure_background_started(Arc::clone(&ports)).await;
+            runtime.notify_sync_work_available();
+            wait_for_background_stopped(&runtime, 1_000).await;
+        }
+        assert!(ports.cycle_outcomes.lock().await.is_empty());
+        assert_eq!(ports.max_active_reconcile_count.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]

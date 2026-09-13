@@ -1,5 +1,5 @@
-import { renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { usePostLoginConnectSync } from "./use-post-login-connect-sync";
 
 const adapterMocks = vi.hoisted(() => ({
@@ -24,6 +24,11 @@ const toastMocks = vi.hoisted(() => ({
   },
 }));
 
+vi.mock("react-i18next", () => {
+  const t = (key: string) =>
+    key === "connect:sync.syncingBrokerData" ? "Syncing broker data..." : key;
+  return { useTranslation: () => ({ t }) };
+});
 vi.mock("@/adapters", () => adapterMocks);
 vi.mock("../providers/wealthfolio-connect-provider", () => connectMocks);
 vi.mock("../services/auth-service", () => authServiceMocks);
@@ -63,6 +68,10 @@ function mockConnectContext(overrides: Record<string, unknown> = {}) {
 }
 
 describe("usePostLoginConnectSync", () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     authServiceMocks.postLoginBootstrap.mockResolvedValue(brokerStartedResult);
@@ -93,10 +102,10 @@ describe("usePostLoginConnectSync", () => {
 
     renderHook(() => usePostLoginConnectSync({ enabled: true }));
 
-    expect(consumePostLoginSyncRequest).toHaveBeenCalledWith("request-1");
     await waitFor(() => {
-      expect(authServiceMocks.postLoginBootstrap).toHaveBeenCalledTimes(1);
+      expect(consumePostLoginSyncRequest).toHaveBeenCalledWith("request-1");
     });
+    expect(authServiceMocks.postLoginBootstrap).toHaveBeenCalledTimes(1);
   });
 
   it("does not start the same request twice across rerenders", async () => {
@@ -168,18 +177,109 @@ describe("usePostLoginConnectSync", () => {
     expect(toastMocks.toast.loading).not.toHaveBeenCalled();
   });
 
-  it("logs bootstrap rejection and consumes the request", async () => {
+  it("logs bootstrap rejection and keeps the request pending", async () => {
     const consumePostLoginSyncRequest = vi.fn();
     authServiceMocks.postLoginBootstrap.mockRejectedValue(new Error("network down"));
     mockConnectContext({ consumePostLoginSyncRequest });
 
     renderHook(() => usePostLoginConnectSync({ enabled: true }));
 
-    expect(consumePostLoginSyncRequest).toHaveBeenCalledWith("request-1");
+    expect(consumePostLoginSyncRequest).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(adapterMocks.logger.warn).toHaveBeenCalledWith(
         "Post-login sync bootstrap failed: network down",
       );
     });
+  });
+  it.each(["rejection", "broker-error", "device-error"])(
+    "retries %s and consumes the unchanged request only after recovery",
+    async (failure) => {
+      vi.useFakeTimers();
+      const consume = vi.fn();
+      mockConnectContext({ consumePostLoginSyncRequest: consume });
+      if (failure === "rejection") {
+        authServiceMocks.postLoginBootstrap.mockRejectedValueOnce(new Error("offline"));
+      } else {
+        authServiceMocks.postLoginBootstrap.mockResolvedValueOnce({
+          ...skippedResult,
+          [failure === "broker-error" ? "brokerSync" : "deviceSync"]: {
+            status: "skipped",
+            reason: "error",
+          },
+        });
+      }
+      renderHook(() => usePostLoginConnectSync({ enabled: true }));
+      await act(() => vi.advanceTimersByTimeAsync(59_999));
+      expect(authServiceMocks.postLoginBootstrap).toHaveBeenCalledTimes(1);
+      expect(consume).not.toHaveBeenCalled();
+      await act(() => vi.advanceTimersByTimeAsync(1));
+      expect(authServiceMocks.postLoginBootstrap).toHaveBeenCalledTimes(2);
+      expect(consume).toHaveBeenCalledWith("request-1");
+      await act(() => vi.advanceTimersByTimeAsync(120_000));
+      expect(authServiceMocks.postLoginBootstrap).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each(["logout", "account-change", "inactive-subscription", "unmount"])(
+    "cancels scheduled retries on %s",
+    async (change) => {
+      vi.useFakeTimers();
+      authServiceMocks.postLoginBootstrap.mockRejectedValue(new Error("offline"));
+      const { rerender, unmount } = renderHook(() => usePostLoginConnectSync({ enabled: true }));
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      if (change === "unmount") {
+        unmount();
+      } else {
+        mockConnectContext(
+          change === "logout"
+            ? { isConnected: false }
+            : change === "account-change"
+              ? { user: { id: "user-2" }, session: { user: { id: "user-2" } } }
+              : { userInfo: { team: { subscription_status: null } } },
+        );
+        rerender();
+      }
+      await act(() => vi.advanceTimersByTimeAsync(120_000));
+      expect(authServiceMocks.postLoginBootstrap).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("ignores an in-flight failure after logout", async () => {
+    vi.useFakeTimers();
+    let reject!: (error: Error) => void;
+    authServiceMocks.postLoginBootstrap.mockReturnValueOnce(
+      new Promise((_, rejectPromise) => {
+        reject = rejectPromise;
+      }),
+    );
+    const consume = vi.fn();
+    mockConnectContext({ consumePostLoginSyncRequest: consume });
+    const { rerender } = renderHook(() => usePostLoginConnectSync({ enabled: true }));
+    mockConnectContext({ isConnected: false });
+    rerender();
+    await act(async () => {
+      reject(new Error("late failure"));
+    });
+    await act(() => vi.advanceTimersByTimeAsync(120_000));
+    expect(authServiceMocks.postLoginBootstrap).toHaveBeenCalledTimes(1);
+    expect(consume).not.toHaveBeenCalled();
+  });
+
+  it("reuses an in-flight request across effect restarts", async () => {
+    let resolve!: (result: typeof skippedResult) => void;
+    authServiceMocks.postLoginBootstrap.mockReturnValueOnce(
+      new Promise((resolvePromise) => {
+        resolve = resolvePromise;
+      }),
+    );
+    const { rerender } = renderHook(() => usePostLoginConnectSync({ enabled: true }));
+    const consume = vi.fn();
+    mockConnectContext({ consumePostLoginSyncRequest: consume });
+    rerender();
+    expect(authServiceMocks.postLoginBootstrap).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolve(skippedResult);
+    });
+    expect(consume).toHaveBeenCalledWith("request-1");
   });
 });

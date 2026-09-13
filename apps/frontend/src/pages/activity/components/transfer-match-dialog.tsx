@@ -509,6 +509,10 @@ export function TransferMatchDialog({
       setCounterpartLoading(true);
       getTransferPairForActivity(sourceActivity.id)
         .then((pair) => {
+          if (!pair) {
+            setCounterpartError(t("activity:transfer_match.error_load_pair"));
+            return;
+          }
           setCounterpart(
             sourceActivity.id === pair.transferIn.id ? pair.transferOut : pair.transferIn,
           );
@@ -543,8 +547,8 @@ export function TransferMatchDialog({
     void Promise.all(
       groupedCandidates.map(async (activity) => {
         try {
-          await getTransferPairForActivity(activity.id);
-          return activity.id;
+          const pair = await getTransferPairForActivity(activity.id);
+          return pair ? activity.id : null;
         } catch {
           return null;
         }

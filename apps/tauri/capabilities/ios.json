@@ -1,6 +1,6 @@
 {
   "identifier": "ios-mobile-share-capability",
-  "description": "iOS mobile share permission",
+  "description": "iOS mobile share permissions",
   "local": true,
   "windows": [
     "main"

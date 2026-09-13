@@ -5567,6 +5567,124 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bulk_upsert_broker_activities_keeps_grouped_records_distinct() {
+        use wealthfolio_connect::broker::{mapping::map_broker_activity, AccountUniversalActivity};
+
+        // Exercise provider fallback, incoming ID fallback, and generated composite IDs.
+        for identity in ["provider", "id", "composite"] {
+            let (pool, writer) = setup_db();
+            let repo = ActivityRepository::new(pool.clone(), writer);
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account(&mut conn, "acc-sync");
+
+            let rows: Vec<ActivityUpsert> = ["BUY", "FEE", "TAX"]
+                .into_iter()
+                .map(|kind| {
+                    let incoming: AccountUniversalActivity =
+                        serde_json::from_value(serde_json::json!({
+                            "id": format!("activity-{kind}"),
+                            "type": kind,
+                            "amount": 10.0,
+                            "trade_date": "2024-01-15",
+                            "provider_activity_id": if identity == "id" {
+                                None
+                            } else {
+                                Some(format!("provider-{kind}"))
+                            },
+                            "source_record_id": if identity == "composite" {
+                                Some(format!("kraken:composite:{kind}"))
+                            } else {
+                                None
+                            },
+                            "source_group_id": "shared-reference",
+                            "external_reference_id": "shared-reference",
+                        }))
+                        .unwrap();
+                    let mapped =
+                        map_broker_activity(&incoming, "acc-sync", Some("USD"), Some("USD"))
+                            .expect("mapped broker activity");
+                    ActivityUpsert {
+                        id: mapped.id.unwrap(),
+                        account_id: mapped.account_id,
+                        asset_id: None,
+                        activity_type: mapped.activity_type,
+                        subtype: mapped.subtype,
+                        activity_date: mapped.activity_date,
+                        quantity: mapped.quantity,
+                        unit_price: mapped.unit_price,
+                        currency: mapped.currency,
+                        fee: mapped.fee,
+                        tax: mapped.tax,
+                        amount: mapped.amount,
+                        status: mapped.status,
+                        notes: mapped.notes,
+                        fx_rate: mapped.fx_rate,
+                        metadata: mapped.metadata,
+                        needs_review: mapped.needs_review,
+                        source_system: mapped.source_system,
+                        source_record_id: mapped.source_record_id,
+                        source_group_id: mapped.source_group_id,
+                        idempotency_key: mapped.idempotency_key,
+                        import_run_id: mapped.import_run_id,
+                    }
+                })
+                .collect();
+
+            let first = repo.bulk_upsert(rows.clone()).await.unwrap();
+            assert_eq!((first.created, first.updated, first.skipped), (3, 0, 0));
+
+            let reimport = repo.bulk_upsert(rows.clone()).await.unwrap();
+            assert_eq!(
+                (reimport.created, reimport.updated, reimport.skipped),
+                (0, 3, 0)
+            );
+
+            diesel::update(activities::table.filter(activities::id.eq("activity-BUY")))
+                .set((
+                    activities::is_user_modified.eq(1),
+                    activities::notes.eq("user correction"),
+                ))
+                .execute(&mut conn)
+                .unwrap();
+
+            // Churn local IDs to exercise matching and protection by source identity.
+            let mut changed = rows.clone();
+            for row in &mut changed {
+                row.id = format!("reimport-{}", row.id);
+                row.notes = Some("provider update".to_string());
+            }
+            let protected = repo.bulk_upsert(changed).await.unwrap();
+            assert_eq!(
+                (protected.created, protected.updated, protected.skipped),
+                (0, 2, 1)
+            );
+
+            let stored = activities::table
+                .filter(activities::account_id.eq("acc-sync"))
+                .select(ActivityDB::as_select())
+                .load(&mut conn)
+                .unwrap();
+            assert_eq!(stored.len(), 3);
+            for expected in &rows {
+                let row = stored.iter().find(|row| row.id == expected.id).unwrap();
+                assert_eq!(row.activity_type, expected.activity_type);
+                assert_eq!(row.source_record_id, expected.source_record_id);
+                assert_eq!(row.source_group_id.as_deref(), Some("shared-reference"));
+                let metadata: serde_json::Value =
+                    serde_json::from_str(row.metadata.as_deref().unwrap()).unwrap();
+                assert_eq!(metadata["external_reference_id"], "shared-reference");
+                assert_eq!(metadata["source_group_id"], "shared-reference");
+                if row.id == "activity-BUY" {
+                    assert_eq!(row.notes.as_deref(), Some("user correction"));
+                    assert_eq!(row.is_user_modified, 1);
+                } else {
+                    assert_eq!(row.notes.as_deref(), Some("provider update"));
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
     async fn bulk_upsert_prefers_source_identity_over_idempotency_fallback() {
         let (pool, writer) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);

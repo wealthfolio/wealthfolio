@@ -339,3 +339,7 @@ export const storeSyncSession = async (refreshToken: string): Promise<void> => {
 export const clearSyncSession = async (): Promise<void> => {
   return invoke<void>("clear_sync_session");
 };
+
+export const getSyncSessionStatus = (): Promise<{ isConfigured: boolean }> => {
+  return invoke("get_sync_session_status");
+};

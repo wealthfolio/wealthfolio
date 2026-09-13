@@ -225,6 +225,52 @@ function renderWarningText(text: string, boldTerms: string[]): React.ReactNode {
   );
 }
 
+/** Normalize the `string | string[] | undefined` warning prop into a deduped, trimmed list. */
+export function metricWarningItems(warningText?: string | string[]): string[] {
+  return Array.from(
+    new Set(
+      (Array.isArray(warningText) ? warningText : warningText ? [warningText] : [])
+        .map((warning) => warning.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+/** Shared body of a metric's info popover: explanatory text plus any calculation notes. */
+export const MetricInfoPopoverBody: React.FC<{
+  infoText: string;
+  warningItems: string[];
+  boldTerms?: string[];
+}> = ({ infoText, warningItems, boldTerms = [] }) => {
+  const { t } = useTranslation();
+
+  return (
+    <div className="space-y-3 p-5">
+      <p className="text-muted-foreground leading-relaxed">{infoText}</p>
+      {warningItems.length > 0 && (
+        <div className="space-y-2 border-t pt-3">
+          <div className="text-warning flex items-center gap-1.5 font-medium">
+            <Icons.AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>
+              {warningItems.length === 1
+                ? t("common:component.calculation_note")
+                : t("common:component.calculation_notes", { count: warningItems.length })}
+            </span>
+          </div>
+          <ul className="text-muted-foreground max-h-[60vh] space-y-2 overflow-y-auto pr-1 leading-relaxed">
+            {warningItems.map((warning, index) => (
+              <li key={`${warning}-${index}`} className="flex gap-1.5">
+                <span className="bg-warning/70 mt-1.5 h-1 w-1 shrink-0 rounded-full" />
+                <span className="min-w-0 break-words">{renderWarningText(warning, boldTerms)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const MetricLabelWithInfo: React.FC<MetricLabelWithInfoProps> = ({
   label,
   infoText,
@@ -233,13 +279,7 @@ export const MetricLabelWithInfo: React.FC<MetricLabelWithInfoProps> = ({
   className,
 }) => {
   const { t } = useTranslation();
-  const warningItems = Array.from(
-    new Set(
-      (Array.isArray(warningText) ? warningText : warningText ? [warningText] : [])
-        .map((warning) => warning.trim())
-        .filter(Boolean),
-    ),
-  );
+  const warningItems = metricWarningItems(warningText);
   const hasWarnings = warningItems.length > 0;
 
   return (
@@ -272,31 +312,11 @@ export const MetricLabelWithInfo: React.FC<MetricLabelWithInfoProps> = ({
           side="top"
           align="center"
         >
-          <div className="space-y-3 p-5">
-            <p className="text-muted-foreground leading-relaxed">{infoText}</p>
-            {hasWarnings && (
-              <div className="space-y-2 border-t pt-3">
-                <div className="text-warning flex items-center gap-1.5 font-medium">
-                  <Icons.AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>
-                    {warningItems.length === 1
-                      ? t("common:component.calculation_note")
-                      : t("common:component.calculation_notes", { count: warningItems.length })}
-                  </span>
-                </div>
-                <ul className="text-muted-foreground max-h-[60vh] space-y-2 overflow-y-auto pr-1 leading-relaxed">
-                  {warningItems.map((warning, index) => (
-                    <li key={`${warning}-${index}`} className="flex gap-1.5">
-                      <span className="bg-warning/70 mt-1.5 h-1 w-1 shrink-0 rounded-full" />
-                      <span className="min-w-0 break-words">
-                        {renderWarningText(warning, boldTerms)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
+          <MetricInfoPopoverBody
+            infoText={infoText}
+            warningItems={warningItems}
+            boldTerms={boldTerms}
+          />
         </PopoverContent>
       </Popover>
     </div>

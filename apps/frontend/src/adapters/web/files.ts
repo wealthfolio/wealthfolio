@@ -69,6 +69,12 @@ export const saveAppDataFileViaPicker = (
   );
 };
 
+export const stagePickedDatabaseFileForRestore = (
+  _pickedFilePath: string,
+): Promise<{ relativePath: string; pendingDir: string }> => {
+  return Promise.reject(new Error("Database restore staging is only supported in the Tauri app"));
+};
+
 // ============================================================================
 // Shell & Browser
 // ============================================================================

@@ -1,4 +1,5 @@
 {
+  "opensInBrowser": "Opens in browser",
   "page": {
     "title": "Sync & Connections",
     "subtitle": "Your devices, all in one place.",
@@ -37,6 +38,7 @@
     }
   },
   "flow": {
+    "aggregatorExample": "(e.g. SnapTrade)",
     "yourDevice": "Your Device",
     "localDatabase": "Local database",
     "dataStaysHere": "Data stays here",
@@ -222,6 +224,10 @@
     "lastUsed": "Last used"
   },
   "subscription": {
+    "copySupportEmail": "Copy support email",
+    "syncPausedTooltip": "Sync paused — active subscription required",
+    "syncPausedTitle": "Sync is paused",
+    "syncPausedDescription": "An active subscription is required to sync. Your local data and pending changes are preserved.",
     "comingSoon": "Coming Soon",
     "getStarted": "Get Started",
     "perMonthShort": "mo",

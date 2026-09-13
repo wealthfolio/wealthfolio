@@ -582,10 +582,21 @@ mod tests {
     #[derive(Clone, Debug)]
     struct MockActivityRepositoryWithData {
         activities: Vec<Activity>,
+        /// Mirrors the SQLite repository, whose account-scoped queries join on
+        /// `accounts.is_archived = false` and so never return an archived
+        /// account's activities, even when its id is requested explicitly.
+        archived_account_ids: HashSet<String>,
     }
     impl MockActivityRepositoryWithData {
         fn new(activities: Vec<Activity>) -> Self {
-            Self { activities }
+            Self {
+                activities,
+                archived_account_ids: HashSet::new(),
+            }
+        }
+        fn with_archived_accounts(mut self, account_ids: &[&str]) -> Self {
+            self.archived_account_ids = account_ids.iter().map(|id| id.to_string()).collect();
+            self
         }
     }
     #[async_trait]
@@ -599,10 +610,14 @@ mod tests {
         }
         fn find_transfer_counterpart(
             &self,
-            _group_id: &str,
-            _exclude_id: &str,
+            group_id: &str,
+            exclude_id: &str,
         ) -> AppResult<Option<Activity>> {
-            Ok(None)
+            Ok(self
+                .activities
+                .iter()
+                .find(|a| a.source_group_id.as_deref() == Some(group_id) && a.id != exclude_id)
+                .cloned())
         }
         fn get_activities(&self) -> AppResult<Vec<Activity>> {
             Ok(self.activities.clone())
@@ -612,6 +627,7 @@ mod tests {
                 .activities
                 .iter()
                 .filter(|&a| a.account_id == account_id)
+                .filter(|&a| !self.archived_account_ids.contains(&a.account_id))
                 .cloned()
                 .collect())
         }
@@ -623,6 +639,7 @@ mod tests {
                 .activities
                 .iter()
                 .filter(|&a| account_ids.contains(&a.account_id))
+                .filter(|&a| !self.archived_account_ids.contains(&a.account_id))
                 .cloned()
                 .collect())
         }
@@ -5935,6 +5952,617 @@ mod tests {
         assert!(
             pos_a.is_none() || pos_a.unwrap().quantity == dec!(0),
             "Account A should have 0 AAPL after transfer out"
+        );
+    }
+
+    // ── Scope expansion to paired transfer sources (issue #1677) ──────────────
+
+    /// `BUY` 10 AAPL @ $100 in `account` on `date` (basis $1000).
+    fn buy_10_aapl_at_100(id: &str, account: &str, date: NaiveDate) -> Activity {
+        create_test_activity(
+            id,
+            account,
+            Some("AAPL"),
+            "BUY",
+            date,
+            Some(dec!(10)),
+            Some(dec!(100)),
+            Some(dec!(1000)),
+            "USD",
+        )
+    }
+
+    /// Paired in-kind transfer of 10 AAPL from `source` to `dest` on `date`.
+    /// Both legs are stamped at $150 so a unit-price fallback ($1500) is
+    /// distinguishable from a carried-over $1000 basis.
+    fn in_kind_transfer_10_aapl_at_150(
+        id_prefix: &str,
+        source: &str,
+        dest: &str,
+        group_id: &str,
+        date: NaiveDate,
+    ) -> (Activity, Activity) {
+        let mut out = create_test_activity(
+            &format!("{id_prefix}_out"),
+            source,
+            Some("AAPL"),
+            "TRANSFER_OUT",
+            date,
+            Some(dec!(10)),
+            Some(dec!(150)),
+            Some(dec!(1500)),
+            "USD",
+        );
+        out.source_group_id = Some(group_id.to_string());
+        let mut incoming = create_test_activity(
+            &format!("{id_prefix}_in"),
+            dest,
+            Some("AAPL"),
+            "TRANSFER_IN",
+            date,
+            Some(dec!(10)),
+            Some(dec!(150)),
+            Some(dec!(1500)),
+            "USD",
+        );
+        incoming.source_group_id = Some(group_id.to_string());
+        (out, incoming)
+    }
+
+    /// (quantity, total_cost_basis) of `asset` in `account`'s latest snapshot.
+    fn latest_position(
+        repo: &MockSnapshotRepository,
+        account: &str,
+        asset: &str,
+    ) -> (Decimal, Decimal) {
+        let snaps = repo.get_snapshots_by_account(account, None, None).unwrap();
+        let latest = snaps
+            .iter()
+            .max_by_key(|s| s.snapshot_date)
+            .unwrap_or_else(|| panic!("{account} should have a snapshot"));
+        latest
+            .positions
+            .get(asset)
+            .map(|p| (p.quantity, p.total_cost_basis))
+            .unwrap_or((Decimal::ZERO, Decimal::ZERO))
+    }
+
+    fn sorted(mut ids: Vec<String>) -> Vec<String> {
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
+    fn scope_test_service(
+        accounts: Vec<Account>,
+        activities: Vec<Activity>,
+    ) -> (SnapshotService, Arc<MockSnapshotRepository>) {
+        scope_test_service_with_repo(accounts, MockActivityRepositoryWithData::new(activities))
+    }
+
+    fn scope_test_service_with_repo(
+        accounts: Vec<Account>,
+        activity_repo: MockActivityRepositoryWithData,
+    ) -> (SnapshotService, Arc<MockSnapshotRepository>) {
+        let mut account_repo = MockAccountRepository::new();
+        for account in accounts {
+            account_repo.add_account(account);
+        }
+        let snapshot_repo = Arc::new(MockSnapshotRepository::new());
+        let svc = SnapshotService::new(
+            Arc::new(RwLock::new("USD".to_string())),
+            Arc::new(account_repo),
+            Arc::new(activity_repo),
+            snapshot_repo.clone(),
+            Arc::new(MockAssetRepository::new()),
+            Arc::new(MockFxService::new()),
+        );
+        (svc, snapshot_repo)
+    }
+
+    fn d(y: i32, m: u32, day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, day).unwrap()
+    }
+
+    /// A rebuild scoped to the TRANSFER_IN destination pulls the TRANSFER_OUT
+    /// source into the run, so the transferred lots keep their basis.
+    #[tokio::test]
+    async fn test_scoped_rebuild_of_destination_only_preserves_transferred_cost_basis() {
+        let (out, incoming) =
+            in_kind_transfer_10_aapl_at_150("xfer", "acc_a", "acc_b", "grp", d(2025, 1, 15));
+        let (svc, snapshot_repo) = scope_test_service(
+            vec![
+                create_test_account("acc_a", "USD", "Account A"),
+                create_test_account("acc_b", "USD", "Account B"),
+            ],
+            vec![
+                buy_10_aapl_at_100("buy1", "acc_a", d(2025, 1, 10)),
+                out,
+                incoming,
+            ],
+        );
+
+        // Full rebuild: both legs are replayed in one run, basis carries over.
+        svc.recalculate_holdings_snapshots(None, SnapshotRecalcMode::Full)
+            .await
+            .unwrap();
+        assert_eq!(
+            latest_position(&snapshot_repo, "acc_b", "AAPL"),
+            (dec!(10), dec!(1000)),
+            "full rebuild must carry the original $1000 basis into Account B"
+        );
+
+        // Destination-only rebuild: without scope expansion the source's
+        // TRANSFER_OUT is never processed and the basis falls back to 10 x $150.
+        svc.recalculate_holdings_snapshots(Some(&["acc_b".to_string()]), SnapshotRecalcMode::Full)
+            .await
+            .unwrap();
+        assert_eq!(
+            latest_position(&snapshot_repo, "acc_b", "AAPL"),
+            (dec!(10), dec!(1000)),
+            "destination-only rebuild must not replace the carried-over basis \
+             with the transfer-day unit_price (10 x $150 = $1500)"
+        );
+        assert_eq!(
+            latest_position(&snapshot_repo, "acc_a", "AAPL").0,
+            dec!(0),
+            "source account must still show the shares as transferred out"
+        );
+    }
+
+    /// Expansion is one-directional: the destination needs the source, the
+    /// source does not need the destination.
+    #[tokio::test]
+    async fn test_scope_expansion_pulls_in_source_but_not_destination() {
+        let (out, incoming) =
+            in_kind_transfer_10_aapl_at_150("xfer", "acc_a", "acc_b", "grp", d(2025, 1, 15));
+        let (svc, snapshot_repo) = scope_test_service(
+            vec![
+                create_test_account("acc_a", "USD", "Account A"),
+                create_test_account("acc_b", "USD", "Account B"),
+                create_test_account("acc_c", "USD", "Unrelated"),
+            ],
+            vec![
+                buy_10_aapl_at_100("buy1", "acc_a", d(2025, 1, 10)),
+                out,
+                incoming,
+                buy_10_aapl_at_100("buy_c", "acc_c", d(2025, 1, 10)),
+            ],
+        );
+
+        // Source only: nothing depends on another account.
+        svc.recalculate_holdings_snapshots(Some(&["acc_a".to_string()]), SnapshotRecalcMode::Full)
+            .await
+            .unwrap();
+        assert_eq!(
+            sorted(snapshot_repo.overwrite_all_calls()),
+            vec!["acc_a".to_string()],
+            "rebuilding the source alone must not touch the destination"
+        );
+
+        // Destination only: the source is pulled in, the unrelated account is not.
+        let (svc, snapshot_repo) = {
+            let (out, incoming) =
+                in_kind_transfer_10_aapl_at_150("xfer", "acc_a", "acc_b", "grp", d(2025, 1, 15));
+            scope_test_service(
+                vec![
+                    create_test_account("acc_a", "USD", "Account A"),
+                    create_test_account("acc_b", "USD", "Account B"),
+                    create_test_account("acc_c", "USD", "Unrelated"),
+                ],
+                vec![
+                    buy_10_aapl_at_100("buy1", "acc_a", d(2025, 1, 10)),
+                    out,
+                    incoming,
+                    buy_10_aapl_at_100("buy_c", "acc_c", d(2025, 1, 10)),
+                ],
+            )
+        };
+        svc.recalculate_holdings_snapshots(Some(&["acc_b".to_string()]), SnapshotRecalcMode::Full)
+            .await
+            .unwrap();
+        assert_eq!(
+            sorted(snapshot_repo.overwrite_all_calls()),
+            vec!["acc_a".to_string(), "acc_b".to_string()],
+            "rebuilding the destination must pull in exactly the source"
+        );
+        assert_eq!(
+            latest_position(&snapshot_repo, "acc_b", "AAPL"),
+            (dec!(10), dec!(1000))
+        );
+    }
+
+    /// Z→A→B across different days, rebuild scoped to B: the expansion must
+    /// follow the chain back to Z, where the lots were originally bought.
+    #[tokio::test]
+    async fn test_scope_expansion_follows_transfer_chain_to_original_source() {
+        let (out_za, in_za) =
+            in_kind_transfer_10_aapl_at_150("za", "acc_z", "acc_a", "grp_za", d(2025, 1, 15));
+        let (out_ab, in_ab) =
+            in_kind_transfer_10_aapl_at_150("ab", "acc_a", "acc_b", "grp_ab", d(2025, 1, 20));
+        let (svc, snapshot_repo) = scope_test_service(
+            vec![
+                create_test_account("acc_z", "USD", "Account Z"),
+                create_test_account("acc_a", "USD", "Account A"),
+                create_test_account("acc_b", "USD", "Account B"),
+            ],
+            vec![
+                buy_10_aapl_at_100("buy_z", "acc_z", d(2025, 1, 10)),
+                out_za,
+                in_za,
+                out_ab,
+                in_ab,
+            ],
+        );
+
+        svc.recalculate_holdings_snapshots(Some(&["acc_b".to_string()]), SnapshotRecalcMode::Full)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            sorted(snapshot_repo.overwrite_all_calls()),
+            vec![
+                "acc_a".to_string(),
+                "acc_b".to_string(),
+                "acc_z".to_string()
+            ],
+            "the whole chain must be in the run"
+        );
+        assert_eq!(
+            latest_position(&snapshot_repo, "acc_b", "AAPL"),
+            (dec!(10), dec!(1000)),
+            "basis from the original buy in Z must survive two hops"
+        );
+        assert_eq!(latest_position(&snapshot_repo, "acc_a", "AAPL").0, dec!(0));
+        assert_eq!(latest_position(&snapshot_repo, "acc_z", "AAPL").0, dec!(0));
+    }
+
+    /// The activity repository never returns an archived account's activities,
+    /// so an archived source cannot be replayed. It must be left out of the
+    /// run (pulling it in would overwrite its snapshots with empty state) and
+    /// the leg keeps the unit-price fallback. Checked for both a full rebuild
+    /// and a rebuild scoped to the destination.
+    #[tokio::test]
+    async fn test_scope_expansion_skips_archived_transfer_source() {
+        for requested in [None, Some(vec!["acc_b".to_string()])] {
+            let mut archived_source = create_test_account("acc_a", "USD", "Archived A");
+            archived_source.is_archived = true;
+            let (out, incoming) =
+                in_kind_transfer_10_aapl_at_150("xfer", "acc_a", "acc_b", "grp", d(2025, 1, 15));
+            let activity_repo = MockActivityRepositoryWithData::new(vec![
+                buy_10_aapl_at_100("buy1", "acc_a", d(2025, 1, 10)),
+                out,
+                incoming,
+            ])
+            .with_archived_accounts(&["acc_a"]);
+            let (svc, snapshot_repo) = scope_test_service_with_repo(
+                vec![
+                    archived_source,
+                    create_test_account("acc_b", "USD", "Account B"),
+                ],
+                activity_repo,
+            );
+
+            svc.recalculate_holdings_snapshots(requested.as_deref(), SnapshotRecalcMode::Full)
+                .await
+                .unwrap();
+
+            assert_eq!(
+                sorted(snapshot_repo.overwrite_all_calls()),
+                vec!["acc_b".to_string()],
+                "archived source must not be rebuilt (requested = {requested:?})"
+            );
+            assert_eq!(
+                latest_position(&snapshot_repo, "acc_b", "AAPL"),
+                (dec!(10), dec!(1500)),
+                "leg falls back to the transfer's unit price (requested = {requested:?})"
+            );
+        }
+    }
+
+    /// Synced activities can be re-typed through `activity_type_override`.
+    /// Scope discovery and the same-day ordering must match transfer legs on
+    /// the effective type, not the raw synced type.
+    #[tokio::test]
+    async fn test_scope_expansion_respects_activity_type_overrides() {
+        let (mut out, mut incoming) =
+            in_kind_transfer_10_aapl_at_150("xfer", "acc_a", "acc_b", "grp", d(2025, 1, 15));
+        out.activity_type = "SELL".to_string();
+        out.activity_type_override = Some("TRANSFER_OUT".to_string());
+        incoming.activity_type = "BUY".to_string();
+        incoming.activity_type_override = Some("TRANSFER_IN".to_string());
+        let (svc, snapshot_repo) = scope_test_service(
+            vec![
+                create_test_account("acc_a", "USD", "Account A"),
+                create_test_account("acc_b", "USD", "Account B"),
+            ],
+            vec![
+                buy_10_aapl_at_100("buy1", "acc_a", d(2025, 1, 10)),
+                out,
+                incoming,
+            ],
+        );
+
+        svc.recalculate_holdings_snapshots(Some(&["acc_b".to_string()]), SnapshotRecalcMode::Full)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            sorted(snapshot_repo.overwrite_all_calls()),
+            vec!["acc_a".to_string(), "acc_b".to_string()],
+            "overridden TRANSFER_IN must still pull its source in"
+        );
+        assert_eq!(
+            latest_position(&snapshot_repo, "acc_b", "AAPL"),
+            (dec!(10), dec!(1000)),
+            "basis must carry over through the overridden legs"
+        );
+        assert_eq!(latest_position(&snapshot_repo, "acc_a", "AAPL").0, dec!(0));
+    }
+
+    /// HOLDINGS-mode accounts never replay activities, so a HOLDINGS source is
+    /// not pulled in and the leg keeps today's unit-price fallback.
+    #[tokio::test]
+    async fn test_scope_expansion_skips_holdings_mode_transfer_source() {
+        let mut holdings_source = create_test_account("acc_a", "USD", "Holdings A");
+        holdings_source.tracking_mode = crate::accounts::TrackingMode::Holdings;
+        let (out, incoming) =
+            in_kind_transfer_10_aapl_at_150("xfer", "acc_a", "acc_b", "grp", d(2025, 1, 15));
+        let (svc, snapshot_repo) = scope_test_service(
+            vec![
+                holdings_source,
+                create_test_account("acc_b", "USD", "Account B"),
+            ],
+            vec![out, incoming],
+        );
+
+        svc.recalculate_holdings_snapshots(Some(&["acc_b".to_string()]), SnapshotRecalcMode::Full)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            sorted(snapshot_repo.overwrite_all_calls()),
+            vec!["acc_b".to_string()],
+            "HOLDINGS-mode source must not be rebuilt"
+        );
+        assert_eq!(
+            latest_position(&snapshot_repo, "acc_b", "AAPL"),
+            (dec!(10), dec!(1500)),
+            "leg falls back to the transfer's unit price"
+        );
+    }
+
+    /// Unpaired groups (no counterpart) and dangling counterparts (account no
+    /// longer exists) must not break the run; the leg keeps the fallback.
+    #[tokio::test]
+    async fn test_scope_expansion_ignores_unpaired_and_dangling_transfer_groups() {
+        // Unpaired: TRANSFER_IN carries a group id but no other leg exists.
+        let (_dropped_out, unpaired_in) = in_kind_transfer_10_aapl_at_150(
+            "unpaired",
+            "acc_x",
+            "acc_b",
+            "grp_unpaired",
+            d(2025, 1, 15),
+        );
+        // Dangling: the counterpart exists but its account does not.
+        let (dangling_out, dangling_in) = in_kind_transfer_10_aapl_at_150(
+            "dangling",
+            "acc_gone",
+            "acc_b",
+            "grp_gone",
+            d(2025, 1, 16),
+        );
+        let (svc, snapshot_repo) = scope_test_service(
+            vec![create_test_account("acc_b", "USD", "Account B")],
+            vec![unpaired_in, dangling_out, dangling_in],
+        );
+
+        svc.recalculate_holdings_snapshots(Some(&["acc_b".to_string()]), SnapshotRecalcMode::Full)
+            .await
+            .expect("missing counterparts must not fail the rebuild");
+
+        assert_eq!(
+            sorted(snapshot_repo.overwrite_all_calls()),
+            vec!["acc_b".to_string()]
+        );
+        assert_eq!(
+            latest_position(&snapshot_repo, "acc_b", "AAPL"),
+            (dec!(20), dec!(3000)),
+            "both legs fall back to 10 x $150"
+        );
+    }
+
+    /// A→B then B→A: the expansion must terminate on the cycle and the lots
+    /// must come home with their original basis.
+    #[tokio::test]
+    async fn test_scope_expansion_terminates_on_transfer_cycle() {
+        let (out_ab, in_ab) =
+            in_kind_transfer_10_aapl_at_150("ab", "acc_a", "acc_b", "grp_ab", d(2025, 1, 15));
+        let (out_ba, in_ba) =
+            in_kind_transfer_10_aapl_at_150("ba", "acc_b", "acc_a", "grp_ba", d(2025, 1, 20));
+        let (svc, snapshot_repo) = scope_test_service(
+            vec![
+                create_test_account("acc_a", "USD", "Account A"),
+                create_test_account("acc_b", "USD", "Account B"),
+            ],
+            vec![
+                buy_10_aapl_at_100("buy1", "acc_a", d(2025, 1, 10)),
+                out_ab,
+                in_ab,
+                out_ba,
+                in_ba,
+            ],
+        );
+
+        svc.recalculate_holdings_snapshots(Some(&["acc_a".to_string()]), SnapshotRecalcMode::Full)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            sorted(snapshot_repo.overwrite_all_calls()),
+            vec!["acc_a".to_string(), "acc_b".to_string()]
+        );
+        assert_eq!(
+            latest_position(&snapshot_repo, "acc_a", "AAPL"),
+            (dec!(10), dec!(1000))
+        );
+        assert_eq!(latest_position(&snapshot_repo, "acc_b", "AAPL").0, dec!(0));
+    }
+
+    /// Same-account paired legs (e.g. an internal cash FX conversion) must not
+    /// expand the scope at all.
+    #[tokio::test]
+    async fn test_scope_expansion_ignores_same_account_pairs() {
+        let mut out = create_test_activity(
+            "fx_out",
+            "acc_a",
+            Some("CASH:USD"),
+            "TRANSFER_OUT",
+            d(2025, 1, 15),
+            None,
+            None,
+            Some(dec!(1000)),
+            "USD",
+        );
+        out.source_group_id = Some("grp_fx".to_string());
+        let mut incoming = create_test_activity(
+            "fx_in",
+            "acc_a",
+            Some("CASH:EUR"),
+            "TRANSFER_IN",
+            d(2025, 1, 15),
+            None,
+            None,
+            Some(dec!(900)),
+            "EUR",
+        );
+        incoming.source_group_id = Some("grp_fx".to_string());
+        let (svc, snapshot_repo) = scope_test_service(
+            vec![
+                create_test_account("acc_a", "USD", "Account A"),
+                create_test_account("acc_b", "USD", "Account B"),
+            ],
+            vec![
+                create_test_activity(
+                    "dep",
+                    "acc_a",
+                    Some("CASH:USD"),
+                    "DEPOSIT",
+                    d(2025, 1, 10),
+                    None,
+                    None,
+                    Some(dec!(5000)),
+                    "USD",
+                ),
+                out,
+                incoming,
+            ],
+        );
+
+        svc.recalculate_holdings_snapshots(Some(&["acc_a".to_string()]), SnapshotRecalcMode::Full)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            sorted(snapshot_repo.overwrite_all_calls()),
+            vec!["acc_a".to_string()]
+        );
+    }
+
+    /// Append-only `SinceDate` stays incremental for the pulled-in source as
+    /// well; expansion must not force a Full rebuild on its own.
+    #[tokio::test]
+    async fn test_scoped_since_date_keeps_incremental_mode_for_expanded_source() {
+        let today = valuation_date_today();
+        let inception = days_before(today, 10);
+        let transfer_day = days_before(today, 9);
+        let hwm = days_before(today, 5);
+        let append_since = days_before(today, 2);
+
+        let (out, incoming) =
+            in_kind_transfer_10_aapl_at_150("xfer", "acc_a", "acc_b", "grp", transfer_day);
+        let (svc, snapshot_repo) = scope_test_service(
+            vec![
+                create_test_account("acc_a", "USD", "Account A"),
+                create_test_account("acc_b", "USD", "Account B"),
+            ],
+            vec![
+                buy_10_aapl_at_100("buy1", "acc_a", inception),
+                out,
+                incoming,
+            ],
+        );
+        let hwm_str = hwm.format("%Y-%m-%d").to_string();
+        snapshot_repo.add_snapshots(vec![
+            create_blank_snapshot("acc_a", "USD", &hwm_str),
+            create_blank_snapshot("acc_b", "USD", &hwm_str),
+        ]);
+
+        svc.recalculate_holdings_snapshots(
+            Some(&["acc_b".to_string()]),
+            SnapshotRecalcMode::SinceDate(append_since),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            sorted(snapshot_repo.overwrite_range_calls()),
+            vec!["acc_a".to_string(), "acc_b".to_string()],
+            "both accounts run through the incremental range path"
+        );
+        assert!(snapshot_repo.overwrite_all_calls().is_empty());
+    }
+
+    /// The recalculation gate must be acquired for the expanded scope: a source
+    /// account pending migration forces the whole run to Full even when only
+    /// the destination was requested.
+    #[tokio::test]
+    async fn test_scoped_rebuild_acquires_gate_for_expanded_source() {
+        use crate::portfolio::recalculation_gate::PortfolioRecalculationGate;
+
+        let today = valuation_date_today();
+        let inception = days_before(today, 10);
+        let transfer_day = days_before(today, 9);
+        let hwm = days_before(today, 5);
+        let append_since = days_before(today, 2);
+
+        let (out, incoming) =
+            in_kind_transfer_10_aapl_at_150("xfer", "acc_a", "acc_b", "grp", transfer_day);
+        let (svc, snapshot_repo) = scope_test_service(
+            vec![
+                create_test_account("acc_a", "USD", "Account A"),
+                create_test_account("acc_b", "USD", "Account B"),
+            ],
+            vec![
+                buy_10_aapl_at_100("buy1", "acc_a", inception),
+                out,
+                incoming,
+            ],
+        );
+        let hwm_str = hwm.format("%Y-%m-%d").to_string();
+        snapshot_repo.add_snapshots(vec![
+            create_blank_snapshot("acc_a", "USD", &hwm_str),
+            create_blank_snapshot("acc_b", "USD", &hwm_str),
+        ]);
+        let gate = Arc::new(PortfolioRecalculationGate::new(["acc_a".to_string()]));
+        let svc = svc.with_recalculation_gate(gate);
+
+        svc.recalculate_holdings_snapshots(
+            Some(&["acc_b".to_string()]),
+            SnapshotRecalcMode::SinceDate(append_since),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            sorted(snapshot_repo.overwrite_all_calls()),
+            vec!["acc_a".to_string(), "acc_b".to_string()],
+            "pending source in the gate must force Full for the expanded run"
+        );
+        assert!(snapshot_repo.overwrite_range_calls().is_empty());
+        assert_eq!(
+            latest_position(&snapshot_repo, "acc_b", "AAPL"),
+            (dec!(10), dec!(1000))
         );
     }
 

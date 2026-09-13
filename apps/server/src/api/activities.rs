@@ -160,7 +160,7 @@ async fn delete_activity(
 async fn get_transfer_pair_for_activity(
     Path(id): Path<String>,
     State(state): State<Arc<AppState>>,
-) -> ApiResult<Json<InternalTransferPairResponse>> {
+) -> ApiResult<Json<Option<InternalTransferPairResponse>>> {
     let pair = state.activity_service.get_transfer_pair_for_activity(id)?;
     Ok(Json(pair))
 }

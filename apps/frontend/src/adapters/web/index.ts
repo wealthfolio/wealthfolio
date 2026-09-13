@@ -299,6 +299,7 @@ export {
   claimPairing,
   clearDeviceSyncData,
   clearSyncSession,
+  getSyncSessionStatus,
   completePairing,
   completePairingWithTransfer,
   confirmPairing,
@@ -446,6 +447,7 @@ export {
   openFileSaveDialog,
   openFolderDialog,
   saveAppDataFileViaPicker,
+  stagePickedDatabaseFileForRestore,
   openUrlInBrowser,
 } from "./files";
 

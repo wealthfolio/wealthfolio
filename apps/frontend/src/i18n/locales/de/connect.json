@@ -1,4 +1,5 @@
 {
+  "opensInBrowser": "Wird im Browser geöffnet",
   "page": {
     "title": "Synchronisierung & Verbindungen",
     "subtitle": "Ihre Geräte, alle an einem Ort.",
@@ -37,6 +38,7 @@
     }
   },
   "flow": {
+    "aggregatorExample": "(z. B. SnapTrade)",
     "yourDevice": "Ihr Gerät",
     "localDatabase": "Lokale Datenbank",
     "dataStaysHere": "Daten bleiben hier",
@@ -222,6 +224,10 @@
     "lastUsed": "Zuletzt verwendet"
   },
   "subscription": {
+    "copySupportEmail": "Support-E-Mail-Adresse kopieren",
+    "syncPausedTooltip": "Synchronisierung pausiert — aktives Abonnement erforderlich",
+    "syncPausedTitle": "Synchronisierung pausiert",
+    "syncPausedDescription": "Für die Synchronisierung ist ein aktives Abonnement erforderlich. Deine lokalen Daten und ausstehenden Änderungen bleiben erhalten.",
     "comingSoon": "Demnächst verfügbar",
     "getStarted": "Loslegen",
     "perMonthShort": "Mon.",

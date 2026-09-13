@@ -306,8 +306,10 @@ export function useActivityForm({
             if (activity.sourceGroupId && (!transferOutId || !transferInId)) {
               try {
                 const pair = await getTransferPairForActivity(activity.id);
-                transferOutId = pair.transferOut.id;
-                transferInId = pair.transferIn.id;
+                if (pair) {
+                  transferOutId = pair.transferOut.id;
+                  transferInId = pair.transferIn.id;
+                }
               } catch {
                 // Invalid/orphan groups are cleared by the single-row external update below.
               }

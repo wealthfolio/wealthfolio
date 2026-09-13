@@ -227,7 +227,8 @@ export function SubscriptionPlans({
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-7 w-7"
+                      className="size-11 sm:size-7"
+                      aria-label={t("connect:subscription.copySupportEmail")}
                       onClick={() => {
                         navigator.clipboard.writeText("support@wealthfolio.app");
                         toast.success(t("connect:subscription.emailCopied"));
@@ -290,7 +291,8 @@ export function SubscriptionPlans({
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-7 w-7"
+                      className="size-11 sm:size-7"
+                      aria-label={t("connect:subscription.copySupportEmail")}
                       onClick={() => {
                         navigator.clipboard.writeText("support@wealthfolio.app");
                         toast.success(t("connect:subscription.emailCopied"));

@@ -145,7 +145,7 @@ impl DeviceSyncError {
         match self {
             Self::Api { status, .. } => match *status {
                 401 | 403 => ApiRetryClass::ReauthRequired,
-                408 | 409 | 423 | 425 | 429 => ApiRetryClass::Retryable,
+                402 | 408 | 409 | 423 | 425 | 429 => ApiRetryClass::Retryable,
                 500..=599 => ApiRetryClass::Retryable,
                 _ => ApiRetryClass::Permanent,
             },

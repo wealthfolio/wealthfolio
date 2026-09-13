@@ -21,13 +21,16 @@ export function ConnectNavItem({ collapsed }: ConnectNavItemProps) {
   const { status, lastSyncTime } = useAggregatedSyncStatus();
   const isActive = isPathActive(location.pathname, "/connect");
 
-  const tooltipContent = lastSyncTime
-    ? t("common:layout.connect_last_synced", {
-        time: formatDistanceToNow(new Date(lastSyncTime), localizationSettings, {
-          addSuffix: true,
-        }),
-      })
-    : t("common:connect");
+  const tooltipContent =
+    status === "subscription_required"
+      ? t("connect:subscription.syncPausedTooltip")
+      : lastSyncTime
+        ? t("common:layout.connect_last_synced", {
+            time: formatDistanceToNow(new Date(lastSyncTime), localizationSettings, {
+              addSuffix: true,
+            }),
+          })
+        : t("common:connect");
 
   return (
     <Tooltip>
@@ -42,7 +45,12 @@ export function ConnectNavItem({ collapsed }: ConnectNavItemProps) {
         >
           <Link
             to="/connect"
-            title={t("common:connect")}
+            title={tooltipContent}
+            aria-label={
+              status === "subscription_required"
+                ? `${t("common:connect")}: ${tooltipContent}`
+                : undefined
+            }
             aria-current={isActive ? "page" : undefined}
           >
             <span aria-hidden="true">

@@ -20,6 +20,7 @@ use wealthfolio_device_sync::{
     DeviceSyncClient, ReconcileReadyStateResponse, SyncPullResponse, SyncPushRequest,
     SyncPushResponse, SyncState,
 };
+use wealthfolio_storage_sqlite::sync::{SqliteSyncEngineDbPorts, SyncTableRowCount};
 
 fn transport_err_from_sync(e: wealthfolio_device_sync::DeviceSyncError) -> TransportError {
     TransportError {
@@ -32,7 +33,6 @@ fn transport_err_from_sync(e: wealthfolio_device_sync::DeviceSyncError) -> Trans
         },
     }
 }
-use wealthfolio_storage_sqlite::sync::{SqliteSyncEngineDbPorts, SyncTableRowCount};
 
 const SYNC_IDENTITY_KEY: &str = "sync_identity";
 const DEVICE_ID_KEY: &str = "sync_device_id";
@@ -636,6 +636,17 @@ impl SyncTransport for ServerEnginePorts {
 
 #[async_trait]
 impl CredentialStore for ServerEnginePorts {
+    fn has_cloud_session(&self) -> Result<bool, String> {
+        self.state
+            .token_lifecycle
+            .is_session_configured(self.state.secret_store.as_ref())
+            .map_err(|err| err.to_string())
+    }
+
+    async fn is_sync_allowed(&self) -> Result<bool, String> {
+        crate::api::connect::has_device_sync(&self.state).await
+    }
+
     fn get_sync_identity(&self) -> Option<SyncIdentity> {
         get_sync_identity_from_store(&self.state)
     }
@@ -908,6 +919,13 @@ pub async fn reconcile_ready_state(
 
 pub async fn ensure_background_engine_started(state: Arc<AppState>) -> Result<(), String> {
     ensure_device_sync_enabled()?;
+    let has_session = state
+        .token_lifecycle
+        .is_session_configured(state.secret_store.as_ref())
+        .map_err(|err| err.to_string())?;
+    if !has_session {
+        return Ok(());
+    }
     let Some(identity) = get_sync_identity_from_store(&state) else {
         return Ok(());
     };
@@ -1036,6 +1054,7 @@ async fn snapshot_satisfies_freshness_gate(
 pub async fn sync_bootstrap_snapshot_if_needed(
     state: Arc<AppState>,
 ) -> Result<SyncBootstrapResult, String> {
+    crate::api::connect::ensure_device_sync_subscription(&state).await?;
     ensure_device_sync_enabled()?;
     let identity = get_sync_identity_from_store(&state)
         .ok_or_else(|| "No sync identity configured. Please enable sync first.".to_string())?;
@@ -1346,6 +1365,7 @@ pub async fn sync_bootstrap_snapshot_if_needed(
 pub async fn generate_snapshot_now(
     state: Arc<AppState>,
 ) -> Result<SyncSnapshotUploadResult, String> {
+    crate::api::connect::ensure_device_sync_subscription(&state).await?;
     ensure_device_sync_enabled()?;
     state
         .device_sync_runtime

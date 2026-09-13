@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+wealthfolio-http = { workspace = true }
 # Core (for SecretStore trait)
 wealthfolio-core = { path = "../core" }
 
@@ -37,4 +38,4 @@ rand = "0.8"
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["full", "test-util"] }

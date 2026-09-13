@@ -1,4 +1,5 @@
 {
+  "opensInBrowser": "ブラウザで開きます",
   "page": {
     "title": "同期と連携",
     "subtitle": "すべてのデバイスを一元管理。",
@@ -37,6 +38,7 @@
     }
   },
   "flow": {
+    "aggregatorExample": "（例：SnapTrade）",
     "yourDevice": "お使いのデバイス",
     "localDatabase": "ローカルデータベース",
     "dataStaysHere": "データはここに保存されます",
@@ -220,6 +222,10 @@
     "lastUsed": "前回使用"
   },
   "subscription": {
+    "copySupportEmail": "サポートのメールアドレスをコピー",
+    "syncPausedTooltip": "同期は一時停止中です — 有効なサブスクリプションが必要です",
+    "syncPausedTitle": "同期は一時停止中です",
+    "syncPausedDescription": "同期には有効なサブスクリプションが必要です。ローカルデータと未同期の変更は保持されます。",
     "comingSoon": "近日公開",
     "getStarted": "始める",
     "perMonthShort": "月",

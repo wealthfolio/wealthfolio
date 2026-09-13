@@ -6,7 +6,7 @@ import { parseLocalDate } from "@/lib/utils";
 import { getActivitySpendingAmount } from "../lib/constants";
 import { inclusiveDays } from "../lib/date-utils";
 import type { EventSpendingSummary } from "../types/event";
-import { computeBaselinePace } from "./use-baseline-pace";
+import { computeBaselinePace, type BaselinePeriod } from "./use-baseline-pace";
 
 export interface EventCategoryRow {
   id: string;
@@ -176,6 +176,7 @@ export function useEventChartData(
   accountTypeById: Map<string, string> | undefined,
   taxonomyCategories: TaxonomyCategory[],
   dailySpendByDate?: Map<string, number>,
+  baselinePeriod?: BaselinePeriod,
 ): EventChartData {
   const startDate = useMemo(() => parseLocalDate(event.startDate), [event.startDate]);
   const endDate = useMemo(() => parseLocalDate(event.endDate), [event.endDate]);
@@ -185,8 +186,15 @@ export function useEventChartData(
 
   const baseline = useMemo(
     () =>
-      computeBaselinePace(heatmapActivities, [event], 12 * 7, accountTypeById, dailySpendByDate),
-    [accountTypeById, dailySpendByDate, heatmapActivities, event],
+      computeBaselinePace(
+        heatmapActivities,
+        [event],
+        baselinePeriod?.days ?? 12 * 7,
+        accountTypeById,
+        dailySpendByDate,
+        baselinePeriod,
+      ),
+    [accountTypeById, dailySpendByDate, heatmapActivities, event, baselinePeriod],
   );
 
   // Floor `expected` at zero before computing lift. `computeBaselinePace`

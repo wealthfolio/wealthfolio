@@ -1,9 +1,9 @@
-use std::{collections::HashMap, fs, path::PathBuf, sync::Mutex};
+use std::{collections::HashMap, fmt, fs, path::PathBuf, sync::Mutex};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use chacha20poly1305::{
     aead::{Aead, KeyInit},
-    ChaCha20Poly1305, Key, Nonce,
+    ChaCha20Poly1305, Nonce,
 };
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -16,11 +16,18 @@ use wealthfolio_core::{
 
 const CURRENT_VERSION: u32 = 1;
 
-#[derive(Debug)]
 pub struct FileSecretStore {
     path: PathBuf,
     encryption_key: Option<[u8; 32]>,
     lock: Mutex<()>,
+}
+
+impl fmt::Debug for FileSecretStore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FileSecretStore")
+            .field("path", &self.path)
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -89,7 +96,6 @@ impl FileSecretStore {
         self.load_store_locked()
     }
 
-    #[allow(deprecated)]
     fn load_store_locked(&self) -> Result<HashMap<String, String>> {
         if !self.path.exists() {
             return Ok(HashMap::new());
@@ -107,17 +113,19 @@ impl FileSecretStore {
                 Error::Secret("WF_SECRET_KEY must be set to decrypt the secrets file".into())
             })?;
             let enc: EncryptedSecrets = serde_json::from_value(value)?;
-            let nonce_bytes = BASE64
+            let nonce_bytes: [u8; 12] = BASE64
                 .decode(enc.nonce)
-                .map_err(|e| Error::Secret(format!("Failed to decode nonce: {e}")))?;
+                .map_err(|e| Error::Secret(format!("Failed to decode nonce: {e}")))?
+                .try_into()
+                .map_err(|_| Error::Secret("Invalid nonce length in secrets file".into()))?;
             let cipher_bytes = BASE64
                 .decode(enc.ciphertext)
                 .map_err(|e| Error::Secret(format!("Failed to decode ciphertext: {e}")))?;
 
-            let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
-            let nonce = Nonce::from_slice(&nonce_bytes);
+            let cipher = ChaCha20Poly1305::new((&key).into());
+            let nonce = Nonce::from(nonce_bytes);
             let plaintext = cipher
-                .decrypt(nonce, cipher_bytes.as_ref())
+                .decrypt(&nonce, cipher_bytes.as_ref())
                 .map_err(|_| Error::Secret("Failed to decrypt secrets file".into()))?;
             let plain: PlainSecrets = serde_json::from_slice(&plaintext)?;
             Ok(plain.secrets)
@@ -127,7 +135,6 @@ impl FileSecretStore {
         }
     }
 
-    #[allow(deprecated)]
     fn persist_store_locked(&self, store: &HashMap<String, String>) -> Result<()> {
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent)?;
@@ -142,10 +149,10 @@ impl FileSecretStore {
             let serialized = serde_json::to_vec(&plain)?;
             let mut nonce_bytes = [0u8; 12];
             OsRng.fill_bytes(&mut nonce_bytes);
-            let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
-            let nonce = Nonce::from_slice(&nonce_bytes);
+            let cipher = ChaCha20Poly1305::new((&key).into());
+            let nonce = Nonce::from(nonce_bytes);
             let ciphertext = cipher
-                .encrypt(nonce, serialized.as_ref())
+                .encrypt(&nonce, serialized.as_ref())
                 .map_err(|_| Error::Secret("Failed to encrypt secrets".into()))?;
             let enc = EncryptedSecrets {
                 version: CURRENT_VERSION,
@@ -255,36 +262,4 @@ fn decode_encryption_key(raw: &str) -> Result<[u8; 32]> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    #[test]
-    fn round_trip_without_encryption() {
-        let dir = tempdir().unwrap();
-        let file = dir.path().join("secrets.json");
-        let store = FileSecretStore::new(file.clone(), None).unwrap();
-
-        store.set_secret("alpha", "value").unwrap();
-        assert_eq!(store.get_secret("alpha").unwrap().as_deref(), Some("value"));
-
-        store.delete_secret("alpha").unwrap();
-        assert!(store.get_secret("alpha").unwrap().is_none());
-        assert!(file.exists());
-    }
-
-    #[test]
-    fn round_trip_with_encryption() {
-        let dir = tempdir().unwrap();
-        let file = dir.path().join("secrets.json");
-        let key = BASE64.encode([7u8; 32]);
-        let store = FileSecretStore::new(file.clone(), Some(&key)).unwrap();
-
-        store.set_secret("beta", "secret").unwrap();
-        assert_eq!(store.get_secret("beta").unwrap().as_deref(), Some("secret"));
-        assert!(file.exists());
-
-        let raw = fs::read_to_string(file).unwrap();
-        assert!(raw.contains("ciphertext"));
-    }
-}
+mod tests;

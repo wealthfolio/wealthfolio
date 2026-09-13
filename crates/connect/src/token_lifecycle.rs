@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::{engine::general_purpose, Engine as _};
@@ -43,6 +44,7 @@ impl TokenLifecycleConfig {
 pub struct TokenLifecycleState {
     cache: RwLock<Option<CachedAccessToken>>,
     refresh_lock: Mutex<()>,
+    terminated: AtomicBool,
 }
 
 impl TokenLifecycleState {
@@ -50,7 +52,74 @@ impl TokenLifecycleState {
         Self {
             cache: RwLock::new(None),
             refresh_lock: Mutex::new(()),
+            terminated: AtomicBool::new(false),
         }
+    }
+
+    pub fn is_session_configured(
+        &self,
+        store: &dyn SecretStore,
+    ) -> Result<bool, TokenLifecycleError> {
+        if self.terminated.load(Ordering::SeqCst) {
+            return Ok(false);
+        }
+        store
+            .get_secret(CLOUD_REFRESH_TOKEN_KEY)
+            .map(|token| token.is_some_and(|token| !token.trim().is_empty()))
+            .map_err(|err| TokenLifecycleError::Internal(err.to_string()))
+    }
+
+    /// Explicit login and logout share the refresh lock, preventing token resurrection.
+    pub async fn store_session(
+        &self,
+        store: &dyn SecretStore,
+        token: &str,
+    ) -> Result<(), TokenLifecycleError> {
+        let _guard = self.refresh_lock.lock().await;
+        store
+            .set_secret(CLOUD_REFRESH_TOKEN_KEY, token)
+            .map_err(|err| TokenLifecycleError::Internal(err.to_string()))?;
+        self.terminated.store(false, Ordering::SeqCst);
+        self.clear_cache().await;
+        let _ = store.delete_secret(CLOUD_ACCESS_TOKEN_KEY);
+        Ok(())
+    }
+
+    /// Explicit logout removes persistent credentials and stops future refreshes.
+    pub async fn clear_session(
+        &self,
+        store: &dyn SecretStore,
+    ) -> Result<bool, TokenLifecycleError> {
+        self.clear_session_with(store, || async {}).await
+    }
+
+    /// Keep worker shutdown in the same transition as credential cleanup so a
+    /// replacement login cannot start a worker that the old logout then aborts.
+    pub async fn clear_session_with<F, Fut>(
+        &self,
+        store: &dyn SecretStore,
+        after_clear: F,
+    ) -> Result<bool, TokenLifecycleError>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = ()>,
+    {
+        let _guard = self.refresh_lock.lock().await;
+        let result = self.clear_session_locked(store).await;
+        after_clear().await;
+        result.map(|_| true)
+    }
+
+    async fn clear_session_locked(
+        &self,
+        store: &dyn SecretStore,
+    ) -> Result<(), TokenLifecycleError> {
+        self.terminated.store(true, Ordering::SeqCst);
+        self.clear_cache().await;
+        let _ = store.delete_secret(CLOUD_ACCESS_TOKEN_KEY);
+        store
+            .delete_secret(CLOUD_REFRESH_TOKEN_KEY)
+            .map_err(|err| TokenLifecycleError::Internal(err.to_string()))
     }
 
     pub async fn clear_cache(&self) {
@@ -107,11 +176,12 @@ pub async fn ensure_valid_access_token(
     state: &TokenLifecycleState,
     config: Option<&TokenLifecycleConfig>,
 ) -> Result<String, TokenLifecycleError> {
-    if let Some(token) = read_cached_token(state).await {
-        return Ok(token);
-    }
-
     let _refresh_guard = state.refresh_lock.lock().await;
+    if state.terminated.load(Ordering::SeqCst) {
+        return Err(TokenLifecycleError::Unauthorized(
+            "Cloud session has ended. Please sign in again.".to_string(),
+        ));
+    }
 
     if let Some(token) = read_cached_token(state).await {
         return Ok(token);
@@ -165,9 +235,7 @@ pub async fn ensure_valid_access_token(
         }
         Err(err) => {
             if err.is_session_invalid() {
-                let _ = secret_store.delete_secret(CLOUD_ACCESS_TOKEN_KEY);
-                let _ = secret_store.delete_secret(CLOUD_REFRESH_TOKEN_KEY);
-                state.clear_cache().await;
+                state.clear_session_locked(secret_store).await?;
                 return Err(TokenLifecycleError::Unauthorized(format!(
                     "Session expired. Please sign in again. ({})",
                     err.message
@@ -247,7 +315,7 @@ async fn refresh_access_token(
     refresh_token: &str,
     config: &TokenLifecycleConfig,
 ) -> Result<RefreshTokenResponse, RefreshRequestError> {
-    let client = reqwest::Client::builder()
+    let client = wealthfolio_http::client_builder()
         .timeout(Duration::from_secs(config.refresh_timeout_secs))
         .build()
         .map_err(|e| {
@@ -426,5 +494,134 @@ mod tests {
             fallback_refresh_error_message(400, "non-json response: invalid refresh token");
 
         assert!(is_session_invalid(400, "", &message));
+    }
+    #[derive(Default)]
+    struct MemorySecrets(std::sync::Mutex<std::collections::HashMap<String, String>>);
+
+    impl SecretStore for MemorySecrets {
+        fn get_secret(&self, key: &str) -> wealthfolio_core::errors::Result<Option<String>> {
+            Ok(self.0.lock().unwrap().get(key).cloned())
+        }
+        fn set_secret(&self, key: &str, value: &str) -> wealthfolio_core::errors::Result<()> {
+            self.0
+                .lock()
+                .unwrap()
+                .insert(key.to_string(), value.to_string());
+            Ok(())
+        }
+        fn delete_secret(&self, key: &str) -> wealthfolio_core::errors::Result<()> {
+            self.0.lock().unwrap().remove(key);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn logout_clears_credentials_even_without_a_ui_listener() {
+        let store = MemorySecrets::default();
+        let state = TokenLifecycleState::new();
+        state.store_session(&store, "account-a").await.unwrap();
+        state.clear_session(&store).await.unwrap();
+        assert!(!state.is_session_configured(&store).unwrap());
+        assert!(!TokenLifecycleState::new()
+            .is_session_configured(&store)
+            .unwrap());
+        assert!(ensure_valid_access_token(&store, &state, None)
+            .await
+            .is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn termination_waits_for_refresh_and_removes_rotated_credentials() {
+        use std::io::{Read, Write};
+        use std::sync::Arc;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let config = TokenLifecycleConfig::new(
+            format!("http://{}", listener.local_addr().unwrap()),
+            "test-key".into(),
+        );
+        let (received_tx, received_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 4096];
+            assert!(stream.read(&mut request).unwrap() > 0);
+            received_tx.send(()).unwrap();
+            release_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+            let body = r#"{"access_token":"test-access","refresh_token":"rotated-refresh","expires_in":3600}"#;
+            write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).unwrap();
+        });
+        let state = Arc::new(TokenLifecycleState::new());
+        let store = Arc::new(MemorySecrets::default());
+        state
+            .store_session(store.as_ref(), "original-refresh")
+            .await
+            .unwrap();
+        let refresh = tokio::spawn({
+            let state = Arc::clone(&state);
+            let store = Arc::clone(&store);
+            async move { ensure_valid_access_token(store.as_ref(), &state, Some(&config)).await }
+        });
+        received_rx.await.unwrap();
+        let mut terminate = tokio::spawn({
+            let state = Arc::clone(&state);
+            let store = Arc::clone(&store);
+            async move { state.clear_session(store.as_ref()).await }
+        });
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), &mut terminate)
+                .await
+                .is_err()
+        );
+        release_tx.send(()).unwrap();
+        refresh.await.unwrap().unwrap();
+        terminate.await.unwrap().unwrap();
+        assert!(store.get_secret(CLOUD_REFRESH_TOKEN_KEY).unwrap().is_none());
+        assert!(state.cache.read().await.is_none());
+        assert!(!state.is_session_configured(store.as_ref()).unwrap());
+        server.join().unwrap();
+    }
+    #[tokio::test]
+    async fn replacement_login_waits_until_old_worker_shutdown_finishes() {
+        use std::sync::Arc;
+        let state = Arc::new(TokenLifecycleState::new());
+        let store = Arc::new(MemorySecrets::default());
+        state
+            .store_session(store.as_ref(), "account-a")
+            .await
+            .unwrap();
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+        let terminate = tokio::spawn({
+            let state = Arc::clone(&state);
+            let store = Arc::clone(&store);
+            async move {
+                state
+                    .clear_session_with(store.as_ref(), || async {
+                        shutdown_tx.send(()).unwrap();
+                        release_rx.await.unwrap();
+                    })
+                    .await
+            }
+        });
+        shutdown_rx.await.unwrap();
+        let mut login = tokio::spawn({
+            let state = Arc::clone(&state);
+            let store = Arc::clone(&store);
+            async move { state.store_session(store.as_ref(), "account-b").await }
+        });
+        assert!(tokio::time::timeout(Duration::from_millis(20), &mut login)
+            .await
+            .is_err());
+        release_tx.send(()).unwrap();
+        terminate.await.unwrap().unwrap();
+        login.await.unwrap().unwrap();
+        assert_eq!(
+            store
+                .get_secret(CLOUD_REFRESH_TOKEN_KEY)
+                .unwrap()
+                .as_deref(),
+            Some("account-b")
+        );
+        assert!(state.is_session_configured(store.as_ref()).unwrap());
     }
 }

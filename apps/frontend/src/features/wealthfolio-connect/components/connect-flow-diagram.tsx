@@ -171,7 +171,7 @@ export function ConnectFlowDiagram() {
             className="fill-[#b5b0a6] dark:fill-white/30"
             fontSize="10"
           >
-            (e.g. SnapTrade)
+            {t("connect:flow.aggregatorExample")}
           </text>
         </g>
 

@@ -189,12 +189,16 @@
   "enterCode": {
     "openingCamera": "Opening camera...",
     "scanQrCode": "Scan QR Code",
+    "scanInstructions": "Align the QR code inside the frame.",
     "quickAndEasy": "Quick and easy",
     "or": "Or",
     "codePlaceholder": "ABC 123",
     "paste": "Paste",
     "connecting": "Connecting...",
-    "connect": "Connect"
+    "connect": "Connect",
+    "cameraOpenError": "Unable to open camera. Please try again.",
+    "cameraCloseError": "Unable to close camera. Please try again.",
+    "cameraUnavailable": "No camera is available. Use a physical device to scan, or enter the pairing code below."
   },
   "sas": {
     "sameCodeQuestion": "Same code on both devices?"
@@ -212,6 +216,6 @@
     "tryAgain": "Try Again"
   },
   "errors": {
-    "backupPlatformUnsupported": "Backup before device sync is currently supported on desktop, web, and iOS only"
+    "backupPlatformUnsupported": "Backup before device sync is currently supported on desktop, web, and mobile only"
   }
 }

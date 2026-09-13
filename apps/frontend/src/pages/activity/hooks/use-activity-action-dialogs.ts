@@ -26,21 +26,23 @@ export function useActivityActionDialogs() {
     if (activity?.id && isInternalTransfer(activity)) {
       try {
         const pair = await getTransferPairForActivity(activity.id);
-        const counterpart =
-          activity.activityType === ActivityType.TRANSFER_IN ? pair.transferOut : pair.transferIn;
+        if (pair) {
+          const counterpart =
+            activity.activityType === ActivityType.TRANSFER_IN ? pair.transferOut : pair.transferIn;
 
-        setSelectedActivity({
-          ...activity,
-          transferOutId: pair.transferOut.id,
-          transferInId: pair.transferIn.id,
-          counterpartActivityId: counterpart.id,
-          counterpartAccountId: counterpart.accountId,
-          counterpartAmount: counterpart.amount ?? null,
-          counterpartCurrency: counterpart.currency,
-          counterpartFxRate: pair.transferIn.fxRate ?? null,
-        });
-        setFormOpen(true);
-        return;
+          setSelectedActivity({
+            ...activity,
+            transferOutId: pair.transferOut.id,
+            transferInId: pair.transferIn.id,
+            counterpartActivityId: counterpart.id,
+            counterpartAccountId: counterpart.accountId,
+            counterpartAmount: counterpart.amount ?? null,
+            counterpartCurrency: counterpart.currency,
+            counterpartFxRate: pair.transferIn.fxRate ?? null,
+          });
+          setFormOpen(true);
+          return;
+        }
       } catch {
         // Fall back to single-leg editing for invalid groups.
       }

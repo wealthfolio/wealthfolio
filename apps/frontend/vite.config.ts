@@ -32,7 +32,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   publicDir: "public",
   optimizeDeps: {
-    include: ["lucide-react", "recharts"],
+    include: ["lucide-react", "recharts", "@tauri-apps/plugin-barcode-scanner"],
   },
   define: {
     __BUILD_TARGET__: JSON.stringify(buildTarget),
@@ -106,6 +106,6 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
-    include: ["**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
+    include: ["src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
   },
 } as unknown as import("vitest/config").UserConfigExport);

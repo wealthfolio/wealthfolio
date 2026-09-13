@@ -13,6 +13,7 @@ use wealthfolio_device_sync::engine::{
 use wealthfolio_device_sync::{
     ReconcileReadyStateResponse, SyncPullResponse, SyncPushRequest, SyncPushResponse, SyncState,
 };
+use wealthfolio_storage_sqlite::sync::SqliteSyncEngineDbPorts;
 
 fn transport_err_from_sync(e: wealthfolio_device_sync::DeviceSyncError) -> TransportError {
     TransportError {
@@ -34,7 +35,6 @@ fn transport_err_permanent(message: String) -> TransportError {
         details: None,
     }
 }
-use wealthfolio_storage_sqlite::sync::SqliteSyncEngineDbPorts;
 
 use super::{
     create_client, decrypt_sync_payload, encrypt_sync_payload, get_sync_identity_from_store,
@@ -241,6 +241,14 @@ impl SyncTransport for TauriEnginePorts {
 
 #[async_trait]
 impl CredentialStore for TauriEnginePorts {
+    fn has_cloud_session(&self) -> Result<bool, String> {
+        self.context.connect_service().is_session_configured()
+    }
+
+    async fn is_sync_allowed(&self) -> Result<bool, String> {
+        self.context.connect_service().has_device_sync().await
+    }
+
     fn get_sync_identity(&self) -> Option<SyncIdentity> {
         get_sync_identity_from_store().map(|identity| SyncIdentity {
             device_id: identity.device_id,
@@ -326,6 +334,10 @@ pub(super) async fn run_sync_cycle(
 }
 
 pub async fn ensure_background_engine_started(context: Arc<ServiceContext>) -> Result<(), String> {
+    let has_session = context.connect_service().is_session_configured()?;
+    if !has_session {
+        return Ok(());
+    }
     let Some(identity) = get_sync_identity_from_store() else {
         return Ok(());
     };

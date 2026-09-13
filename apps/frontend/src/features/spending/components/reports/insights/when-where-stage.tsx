@@ -13,6 +13,7 @@ import { useIsMobileViewport } from "@/hooks/use-platform";
 import type { Activity, TaxonomyCategory } from "@/lib/types";
 
 import { useEventDialog } from "../../event-dialog-provider";
+import type { BaselinePeriod } from "../../../hooks/use-baseline-pace";
 import type { EventSpendingSummary } from "../../../types/event";
 import { EventDetailPanel } from "./event-detail-panel";
 import { EventsCalendarCard } from "./events-calendar-card";
@@ -21,8 +22,10 @@ import { CARD_CLASS } from "./insights-shared";
 import { WhenYouSpendCard } from "./when-you-spend-card";
 
 export interface WhenWhereStageProps {
-  /** Last 12 weeks of cash activities (for the heatmap). */
+  /** Selected custom range, or the last 12 weeks for preset periods. */
   heatmapActivities: Activity[];
+  customRange?: boolean;
+  baselinePeriod?: BaselinePeriod;
   accountTypeById?: Map<string, string>;
   dailySpendByDate?: Map<string, number>;
   events: EventSpendingSummary[];
@@ -46,6 +49,8 @@ export interface WhenWhereStageProps {
 
 export function WhenWhereStage({
   heatmapActivities,
+  customRange,
+  baselinePeriod,
   accountTypeById,
   dailySpendByDate,
   events,
@@ -81,6 +86,7 @@ export function WhenWhereStage({
   return (
     <div className="flex flex-col gap-6">
       <WhenYouSpendCard
+        customRange={customRange}
         activities={heatmapActivities}
         accountTypeById={accountTypeById}
         dailySpendByDate={dailySpendByDate}
@@ -103,6 +109,9 @@ export function WhenWhereStage({
           <>
             {useCalendar ? (
               <EventsCalendarCard
+                rangeStart={customRange ? rangeStart : undefined}
+                rangeEnd={customRange ? rangeEnd : undefined}
+                timezone={timezone}
                 events={events}
                 currency={currency}
                 selectedId={selectedId}
@@ -110,6 +119,7 @@ export function WhenWhereStage({
               />
             ) : (
               <EventsTimelineCard
+                baselinePeriod={baselinePeriod}
                 events={events}
                 currency={currency}
                 rangeStart={rangeStart}
@@ -126,6 +136,7 @@ export function WhenWhereStage({
             )}
             {selected && (
               <EventDetailPanel
+                baselinePeriod={baselinePeriod}
                 event={selected}
                 events={events}
                 taxonomyCategories={taxonomyCategories}

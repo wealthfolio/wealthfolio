@@ -1,4 +1,5 @@
 {
+  "opensInBrowser": "브라우저에서 열립니다",
   "page": {
     "title": "동기화 및 연결",
     "subtitle": "모든 기기를 한 곳에서 관리하세요.",
@@ -37,6 +38,7 @@
     }
   },
   "flow": {
+    "aggregatorExample": "(예: SnapTrade)",
     "yourDevice": "내 기기",
     "localDatabase": "로컬 데이터베이스",
     "dataStaysHere": "데이터는 여기 저장됩니다",
@@ -220,6 +222,10 @@
     "lastUsed": "마지막 사용"
   },
   "subscription": {
+    "copySupportEmail": "지원 이메일 주소 복사",
+    "syncPausedTooltip": "동기화 일시 중지 — 활성 구독 필요",
+    "syncPausedTitle": "동기화가 일시 중지되었습니다",
+    "syncPausedDescription": "동기화하려면 활성 구독이 필요합니다. 로컬 데이터와 대기 중인 변경 사항은 유지됩니다.",
     "comingSoon": "곧 출시 예정",
     "getStarted": "시작하기",
     "perMonthShort": "월",

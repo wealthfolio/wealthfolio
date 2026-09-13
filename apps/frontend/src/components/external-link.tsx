@@ -11,13 +11,15 @@ interface ExternalLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement
  * Renders a normal `<a>` for semantics/accessibility; click is handled by `openUrlInBrowser`.
  */
 export const ExternalLink = forwardRef<HTMLAnchorElement, ExternalLinkProps>(
-  ({ href, children, ...props }, ref) => {
+  ({ href, children, onClick, ...props }, ref) => {
     const handleClick = useCallback(
       (e: React.MouseEvent<HTMLAnchorElement>) => {
+        onClick?.(e);
+        if (e.defaultPrevented) return;
         e.preventDefault();
         openUrlInBrowser(href);
       },
-      [href],
+      [href, onClick],
     );
 
     return (

@@ -59,6 +59,32 @@ const accounts = [
   { id: "b", name: "Hidden TFSA", accountType: "SECURITIES", isActive: false },
   { id: "card", name: "Credit Card", accountType: "CREDIT_CARD", isActive: true },
 ].map((account) => ({ ...account, isArchived: false, currency: "USD" })) as Account[];
+const TWR_WARNING = "Some holdings are missing valuations for part of the period.";
+
+const resultWithWarning = {
+  id: ALL_PORTFOLIO_ITEM.id,
+  type: "account",
+  name: ALL_PORTFOLIO_ITEM.name,
+  scope: { id: ALL_PORTFOLIO_ITEM.id, currency: "USD" },
+  period: { startDate: "2026-01-01", endDate: "2026-03-01" },
+  mode: "timeWeighted",
+  returns: { twr: 0.1, annualizedTwr: 0.2, irr: null, annualizedIrr: null, valueReturn: null },
+  attribution: {
+    contributions: 0,
+    distributions: 0,
+    income: 0,
+    realizedPnl: 0,
+    unrealizedPnlChange: 0,
+    fxEffect: 0,
+    fees: 0,
+    taxes: 0,
+    residual: 0,
+  },
+  risk: { volatility: 0.05, maxDrawdown: -0.02 },
+  dataQuality: { status: "partial", warnings: [TWR_WARNING], notApplicableReasons: [] },
+  series: [{ date: "2026-01-01", value: 0 }],
+};
+
 const initialState = useAccountScopeStore.getState();
 
 function setScope(scope: AccountScope) {
@@ -303,6 +329,23 @@ describe("PerformancePage shared scope", () => {
     );
     expect(JSON.parse(localStorage.getItem("performance:selectedItemId")!)).toBe("b");
     expect(useAccountScopeStore.getState().bridgedItemId).toBe("b");
+  });
+
+  it("opens the TWR calculation notes from the desktop strip warning icon", async () => {
+    mocks.performance.mockReturnValue({
+      data: [resultWithWarning],
+      isLoading: false,
+      hasErrors: false,
+      errorMessages: [],
+      displayDateRange: "",
+    });
+    renderPage();
+    const trigger = await screen.findByRole("button", {
+      name: /calculation note for/i,
+    });
+    expect(screen.queryByText(TWR_WARNING)).toBeNull();
+    await userEvent.click(trigger);
+    expect(await screen.findByText(TWR_WARNING)).toBeInTheDocument();
   });
 
   it("does not request unvalidated persisted scopes during a cold load", async () => {

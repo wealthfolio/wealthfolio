@@ -8,10 +8,16 @@ expression: snapshot
   "parameters": {
     "properties": {
       "accountId": {
-        "type": "string"
+        "type": [
+          "string",
+          "null"
+        ]
       },
       "categoryId": {
-        "type": "string"
+        "type": [
+          "string",
+          "null"
+        ]
       },
       "groupBy": {
         "default": "class",
@@ -25,7 +31,10 @@ expression: snapshot
         "type": "string"
       },
       "taxonomyId": {
-        "type": "string"
+        "type": [
+          "string",
+          "null"
+        ]
       }
     },
     "required": [],

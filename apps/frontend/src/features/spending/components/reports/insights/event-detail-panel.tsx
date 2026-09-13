@@ -1,3 +1,4 @@
+import type { BaselinePeriod } from "../../../hooks/use-baseline-pace";
 /**
  * Rich, focused panel that renders the currently-selected event:
  *   header  → stat block → takeaway → DAY BY DAY + WHAT DROVE IT →
@@ -48,6 +49,7 @@ export interface EventDetailPanelProps {
   heatmapActivities: Activity[];
   accountTypeById?: Map<string, string>;
   dailySpendByDate?: Map<string, number>;
+  baselinePeriod?: BaselinePeriod;
   onSelect: (id: string) => void;
 }
 
@@ -59,6 +61,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
   heatmapActivities,
   accountTypeById,
   dailySpendByDate,
+  baselinePeriod,
   onSelect,
 }) => {
   const localizationSettings = useLocalizationSettings();
@@ -75,6 +78,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
     accountTypeById,
     taxonomyCategories,
     dailySpendByDate,
+    baselinePeriod,
   );
   const {
     startDate,

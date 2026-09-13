@@ -15,7 +15,7 @@
 
 #![cfg(feature = "test-utils")]
 
-use rig::tool::{Tool, ToolDyn};
+use rig::tool::PortableTool as Tool;
 use std::sync::Arc;
 use wealthfolio_agent_tools::AgentTool;
 use wealthfolio_ai::env::test_env::MockEnvironment;
@@ -47,7 +47,11 @@ fn adapted(tool: impl AgentTool + 'static) -> RigAgentTool {
 /// embed (e.g. record_activity's `activityDate` includes today's date) all
 /// drift legitimately and shouldn't fail CI.
 async fn schema_snapshot<T: Tool>(tool: T) -> serde_json::Value {
-    let def = tool.definition(String::new()).await;
+    let def = rig::completion::ToolDefinition {
+        name: T::NAME.into(),
+        description: tool.description(),
+        parameters: tool.parameters(),
+    };
     let mut params = def.parameters;
     strip_descriptions(&mut params);
     serde_json::json!({
@@ -56,10 +60,10 @@ async fn schema_snapshot<T: Tool>(tool: T) -> serde_json::Value {
     })
 }
 
-/// Same capture for migrated tools, which reach rig as `dyn ToolDyn`
+/// Same capture for migrated tools, which reach rig as dynamic tools
 /// through the adapter instead of implementing `Tool` directly.
-async fn schema_snapshot_dyn(tool: &dyn ToolDyn) -> serde_json::Value {
-    let def = tool.definition(String::new()).await;
+async fn schema_snapshot_dyn(tool: &RigAgentTool) -> serde_json::Value {
+    let def = tool.definition();
     let mut params = def.parameters;
     strip_descriptions(&mut params);
     serde_json::json!({
@@ -199,9 +203,9 @@ async fn snapshot_get_health_status() {
 #[tokio::test]
 async fn categorization_tool_descriptions_require_widget_for_deterministic_matches() {
     let list_tool = adapted(ListCategorizationContext);
-    let list_def = list_tool.definition(String::new()).await;
+    let list_def = list_tool.definition();
     let propose_tool = adapted(ProposeCategories);
-    let propose_def = propose_tool.definition(String::new()).await;
+    let propose_def = propose_tool.definition();
 
     assert!(list_def.description.contains("summary.total > 0"));
     assert!(list_def.description.contains("aiProposals: []"));

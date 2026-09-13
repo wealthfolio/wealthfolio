@@ -7,7 +7,8 @@ imports.
 
 ## Overview
 
-Wealthfolio uses a closed set of **14 canonical activity types**. Each activity
+Wealthfolio uses a closed set of **14 canonical activity types**. Activities can
+affect:
 
 - **Cash Balance**: The cash position in the account (by currency)
 - **Asset Quantity**: The number of shares/units held
@@ -17,24 +18,63 @@ Wealthfolio uses a closed set of **14 canonical activity types**. Each activity
 
 ---
 
+## Final amounts (3.8 and later)
+
+`amount` is the saved final cash magnitude, including fees and taxes. Runtime
+calculations use it as-is. They do not derive a missing total or deduct charges
+again. Type normally determines direction; a SELL can be an outflow when its
+trade details prove charges exceed proceeds. Explicit zero remains zero.
+
+Writers can derive missing trade totals from quantity × unit price × asset
+multiplier, plus charges for BUY or minus charges for SELL. Import can convert a
+matching gross total to final; a conflicting total is preserved for review.
+Plain cash and income require an explicit amount. Standalone charges and
+recognized asset-income composites have their own missing-amount derivation.
+
+All monetary inputs use activity currency. `fx_rate` converts activity currency
+to account currency. A positive supplied rate settles BUY/SELL cash in account
+currency; otherwise trade cash stays in activity currency. Non-trade cash stays
+in activity currency, even with a rate. The rate can still affect contribution
+reporting, while displayed cash valuation uses FX service data. Asset quote
+currency does not participate in calculating the trade total. The asset owns the
+multiplier.
+
+Cash and gross flows differ: a deposit's final amount plus included charges is
+its pre-charge contribution; a withdrawal's final amount minus included charges
+is its pre-charge withdrawal. Income uses final amount plus included charges to
+recover its gross value. This does not create another cash movement.
+
+Exceptions: SPLIT uses amount as a ratio; security transfers move holdings and
+only their fee affects cash; DRIP, staking rewards, and in-kind dividends
+compile into matching income/acquisition legs. These cancel in the same currency
+without FX. With a supplied positive FX rate and different activity/account
+currencies, the income stays in activity currency while the synthetic BUY uses
+account currency, so both cash balances change. Do not supply a rate for a
+reinvestment that had no currency conversion.
+
+See [upgrade notes](final-cash-upgrade.md) and the consumer
+[Activity Fields reference](https://wealthfolio.app/docs/concepts/activity-fields/).
+`needs_review` is independent of status: a Posted row still counts while
+flagged. Incomplete imported final amounts are kept as Draft for review.
+
 ## Summary Table
 
-| Type             | Category | Cash Impact          | Holdings Impact   | Cost Basis         | Net Contribution                 | Required Asset |
-| ---------------- | -------- | -------------------- | ----------------- | ------------------ | -------------------------------- | -------------- |
-| **BUY**          | Trading  | -(qty × price + fee) | +quantity         | +cost              | No change                        | Yes            |
-| **SELL**         | Trading  | +(qty × price - fee) | -quantity         | -cost (FIFO)       | No change                        | Yes            |
-| **SPLIT**        | Trading  | No change            | Adjusted          | Per-share adjusted | No change                        | Yes            |
-| **DEPOSIT**      | Cash     | +(amount - fee)      | N/A               | N/A                | +amount                          | No             |
-| **WITHDRAWAL**   | Cash     | -(amount + fee)      | N/A               | N/A                | -amount                          | No             |
-| **TRANSFER_IN**  | Transfer | +amount or +quantity | +quantity (asset) | Preserved/set      | +amount (ordinary account scope) | Optional       |
-| **TRANSFER_OUT** | Transfer | -amount or -quantity | -quantity (asset) | Removed (FIFO)     | -amount (ordinary account scope) | Optional       |
-| **DIVIDEND**     | Income   | +(amount - fee)      | No change         | No change          | No change                        | Yes            |
-| **INTEREST**     | Income   | +(amount - fee)      | No change         | No change          | No change                        | Optional       |
-| **CREDIT**       | Income   | +(amount - fee)      | No change         | No change          | Depends on subtype               | No             |
-| **FEE**          | Charge   | -amount              | No change         | No change          | No change                        | Optional       |
-| **TAX**          | Charge   | -amount              | No change         | No change          | No change                        | Optional       |
-| **ADJUSTMENT**   | Other    | Varies               | Varies            | Varies             | No change                        | Yes (required) |
-| **UNKNOWN**      | Other    | No auto impact       | No auto impact    | No auto impact     | No change                        | Optional       |
+| Type             | Category | Cash Impact          | Holdings Impact   | Cost Basis         | Net Contribution                     | Required Asset |
+| ---------------- | -------- | -------------------- | ----------------- | ------------------ | ------------------------------------ | -------------- |
+| **BUY**          | Trading  | -amount              | +quantity         | +cost              | No change                            | Yes            |
+| **SELL**         | Trading  | +amount              | -quantity         | -cost (FIFO)       | No change                            | Yes            |
+| **SPLIT**        | Trading  | No change            | Adjusted          | Per-share adjusted | No change                            | Yes            |
+| **DEPOSIT**      | Cash     | +amount              | N/A               | N/A                | +gross flow                          | No             |
+| **WITHDRAWAL**   | Cash     | -amount              | N/A               | N/A                | -gross flow                          | No             |
+| **TRANSFER_IN**  | Transfer | +amount or +quantity | +quantity (asset) | Preserved/set      | +gross flow (ordinary account scope) | Optional       |
+| **TRANSFER_OUT** | Transfer | -amount or -quantity | -quantity (asset) | Removed (FIFO)     | -gross flow (ordinary account scope) | Optional       |
+| **DIVIDEND**     | Income   | +amount              | No change         | No change          | No change                            | Yes            |
+| **INTEREST**     | Income   | +amount              | No change         | No change          | No change                            | Optional       |
+| **CREDIT**       | Income   | +amount              | No change         | No change          | Depends on subtype                   | No             |
+| **FEE**          | Charge   | -amount              | No change         | No change          | No change                            | Optional       |
+| **TAX**          | Charge   | -amount              | No change         | No change          | No change                            | Optional       |
+| **ADJUSTMENT**   | Other    | Varies               | Varies            | Varies             | No change                            | Yes (required) |
+| **UNKNOWN**      | Other    | No auto impact       | No auto impact    | No auto impact     | No change                            | Optional       |
 
 ---
 
@@ -46,15 +86,15 @@ Wealthfolio uses a closed set of **14 canonical activity types**. Each activity
 
 **Purpose**: Purchase of a security or other asset.
 
-| Impact               | Description                                                       |
-| -------------------- | ----------------------------------------------------------------- |
-| **Cash**             | Decreases by `(quantity × unit_price) + fee` in activity currency |
-| **Holdings**         | Increases quantity; new lot created with cost basis               |
-| **Cost Basis**       | Increases by `(quantity × unit_price) + fee`                      |
-| **Net Contribution** | No change (internal reallocation of cash to asset)                |
+| Impact               | Description                                                                    |
+| -------------------- | ------------------------------------------------------------------------------ |
+| **Cash**             | Decreases by `amount` (final total including fee and tax) in activity currency |
+| **Holdings**         | Increases quantity; new lot created with cost basis                            |
+| **Cost Basis**       | Increases by `amount` (final total including fee and tax)                      |
+| **Net Contribution** | No change (internal reallocation of cash to asset)                             |
 
-**Required Fields**: `asset`, `quantity`, `unit_price`, `currency` **Optional
-Fields**: `fee`, `amount`
+**Entry Fields**: `asset`, `quantity`, `unit_price`, `currency`, final `amount`.
+The writer can calculate an omitted amount. **Optional Fields**: `fee`, `tax`.
 
 **Example**: Buy 10 shares of AAPL at $150 with $5 fee
 
@@ -68,15 +108,15 @@ Fields**: `fee`, `amount`
 
 **Purpose**: Disposal of a security or other asset.
 
-| Impact               | Description                                                       |
-| -------------------- | ----------------------------------------------------------------- |
-| **Cash**             | Increases by `(quantity × unit_price) - fee` in activity currency |
-| **Holdings**         | Decreases quantity; lots reduced using FIFO                       |
-| **Cost Basis**       | Decreases by cost basis of sold lots (FIFO matching)              |
-| **Net Contribution** | No change (internal reallocation of asset to cash)                |
+| Impact               | Description                                                                   |
+| -------------------- | ----------------------------------------------------------------------------- |
+| **Cash**             | Increases by `amount` (final proceeds after fee and tax) in activity currency |
+| **Holdings**         | Decreases quantity; lots reduced using FIFO                                   |
+| **Cost Basis**       | Decreases by cost basis of sold lots (FIFO matching)                          |
+| **Net Contribution** | No change (internal reallocation of asset to cash)                            |
 
-**Required Fields**: `asset`, `quantity`, `unit_price`, `currency` **Optional
-Fields**: `fee`, `amount`
+**Entry Fields**: `asset`, `quantity`, `unit_price`, `currency`, final `amount`.
+The writer can calculate an omitted amount. **Optional Fields**: `fee`, `tax`.
 
 **Note**: Realized gain/loss = proceeds - cost basis of sold lots.
 
@@ -110,12 +150,12 @@ for ratio)
 
 **Purpose**: Incoming funds from outside Wealthfolio (external source).
 
-| Impact               | Description                                            |
-| -------------------- | ------------------------------------------------------ |
-| **Cash**             | Increases by `amount - fee` in activity currency       |
-| **Holdings**         | N/A                                                    |
-| **Cost Basis**       | N/A                                                    |
-| **Net Contribution** | Increases by `amount` (new capital entering portfolio) |
+| Impact               | Description                                           |
+| -------------------- | ----------------------------------------------------- |
+| **Cash**             | Increases by `amount` in activity currency            |
+| **Holdings**         | N/A                                                   |
+| **Cost Basis**       | N/A                                                   |
+| **Net Contribution** | Increases by the pre-charge flow (amount + fee + tax) |
 
 **Required Fields**: `amount`, `currency` **Optional Fields**: `fee`
 
@@ -128,12 +168,12 @@ calculation.
 
 **Purpose**: Outgoing funds to an external destination.
 
-| Impact               | Description                                       |
-| -------------------- | ------------------------------------------------- |
-| **Cash**             | Decreases by `amount + fee` in activity currency  |
-| **Holdings**         | N/A                                               |
-| **Cost Basis**       | N/A                                               |
-| **Net Contribution** | Decreases by `amount` (capital leaving portfolio) |
+| Impact               | Description                                           |
+| -------------------- | ----------------------------------------------------- |
+| **Cash**             | Decreases by `amount` in activity currency            |
+| **Holdings**         | N/A                                                   |
+| **Cost Basis**       | N/A                                                   |
+| **Net Contribution** | Decreases by the pre-charge flow (amount - fee - tax) |
 
 **Required Fields**: `amount`, `currency` **Optional Fields**: `fee`
 
@@ -163,7 +203,7 @@ automatically contribution-neutral.
 
 | Scenario                            | Cash Impact         | Holdings Impact     | Net Contribution            |
 | ----------------------------------- | ------------------- | ------------------- | --------------------------- |
-| **Ordinary cash transfer**          | +amount             | N/A                 | +amount (account scope)     |
+| **Ordinary cash transfer**          | +amount             | N/A                 | +gross flow (account scope) |
 | **Recognized same-account FX pair** | +destination amount | N/A                 | No change                   |
 | **Asset transfer**                  | -fee only           | +quantity (new lot) | +cost_basis (account scope) |
 
@@ -172,7 +212,7 @@ automatically contribution-neutral.
 - Cash: `amount`, `currency`
 - Asset: `asset`, `quantity`, `unit_price`, `currency`
 
-**Optional Fields**: `fee`, `metadata.flow.is_external`
+**Optional Fields**: `fee`, `tax` (cash transfers), `metadata.flow.is_external`
 
 **Flow Behavior**:
 
@@ -193,18 +233,18 @@ automatically contribution-neutral.
 
 **Purpose**: Move cash or assets out of this account.
 
-| Scenario                            | Cash Impact     | Holdings Impact  | Net Contribution            |
-| ----------------------------------- | --------------- | ---------------- | --------------------------- |
-| **Ordinary cash transfer**          | -(amount + fee) | N/A              | -amount (account scope)     |
-| **Recognized same-account FX pair** | -source amount  | N/A              | No change                   |
-| **Asset transfer**                  | -fee only       | -quantity (FIFO) | -cost_basis (account scope) |
+| Scenario                            | Cash Impact    | Holdings Impact  | Net Contribution            |
+| ----------------------------------- | -------------- | ---------------- | --------------------------- |
+| **Ordinary cash transfer**          | -amount        | N/A              | -gross flow (account scope) |
+| **Recognized same-account FX pair** | -source amount | N/A              | No change                   |
+| **Asset transfer**                  | -fee only      | -quantity (FIFO) | -cost_basis (account scope) |
 
 **Required Fields**:
 
 - Cash: `amount`, `currency`
 - Asset: `asset`, `quantity`, `currency`
 
-**Optional Fields**: `fee`, `metadata.flow.is_external`
+**Optional Fields**: `fee`, `tax` (cash transfers), `metadata.flow.is_external`
 
 **Flow Behavior**: Ordinary transfers use the opposite sign from TRANSFER_IN.
 Recognized same-account cash FX pairs use the contribution-neutral behavior
@@ -226,7 +266,7 @@ described above.
 
 | Impact               | Description                                         |
 | -------------------- | --------------------------------------------------- |
-| **Cash**             | Increases by `amount - fee` in activity currency    |
+| **Cash**             | Increases by `amount` in activity currency          |
 | **Holdings**         | No change (unless DRIP or DIVIDEND_IN_KIND subtype) |
 | **Cost Basis**       | No change                                           |
 | **Net Contribution** | No change (income, not new capital)                 |
@@ -242,12 +282,12 @@ described above.
 
 **Purpose**: Interest earned on cash or fixed-income positions.
 
-| Impact               | Description                                      |
-| -------------------- | ------------------------------------------------ |
-| **Cash**             | Increases by `amount - fee` in activity currency |
-| **Holdings**         | No change (unless STAKING_REWARD subtype)        |
-| **Cost Basis**       | No change                                        |
-| **Net Contribution** | No change (income, not new capital)              |
+| Impact               | Description                                |
+| -------------------- | ------------------------------------------ |
+| **Cash**             | Increases by `amount` in activity currency |
+| **Holdings**         | No change (unless STAKING_REWARD subtype)  |
+| **Cost Basis**       | No change                                  |
+| **Net Contribution** | No change (income, not new capital)        |
 
 **Required Fields**: `amount`, `currency` **Optional Fields**: `asset`, `fee`
 
@@ -259,12 +299,12 @@ described above.
 
 **Purpose**: Cash-only credit such as refunds, rebates, or bonuses.
 
-| Impact               | Description                                      |
-| -------------------- | ------------------------------------------------ |
-| **Cash**             | Increases by `amount - fee` in activity currency |
-| **Holdings**         | N/A                                              |
-| **Cost Basis**       | N/A                                              |
-| **Net Contribution** | Depends on subtype (see below)                   |
+| Impact               | Description                                |
+| -------------------- | ------------------------------------------ |
+| **Cash**             | Increases by `amount` in activity currency |
+| **Holdings**         | N/A                                        |
+| **Cost Basis**       | N/A                                        |
+| **Net Contribution** | Depends on subtype (see below)             |
 
 **Required Fields**: `amount`, `currency` **Optional Fields**: `subtype`
 
@@ -272,7 +312,7 @@ described above.
 
 | Subtype   | Net Contribution | Rationale                                   |
 | --------- | ---------------- | ------------------------------------------- |
-| `BONUS`   | +amount          | New capital (sign-up bonus, referral bonus) |
+| `BONUS`   | +gross flow      | New capital (sign-up bonus, referral bonus) |
 | `REBATE`  | No change        | Reduced trading cost, not new capital       |
 | `REFUND`  | No change        | Reversal of existing fee, not new capital   |
 | (default) | No change        | Internal adjustment                         |
@@ -285,15 +325,15 @@ described above.
 
 **Purpose**: Stand-alone brokerage or platform fee not tied to a trade.
 
-| Impact               | Description                                                 |
-| -------------------- | ----------------------------------------------------------- |
-| **Cash**             | Decreases by `amount` (or `fee` field) in activity currency |
-| **Holdings**         | No change                                                   |
-| **Cost Basis**       | No change                                                   |
-| **Net Contribution** | No change                                                   |
+| Impact               | Description                                          |
+| -------------------- | ---------------------------------------------------- |
+| **Cash**             | Decreases by the saved `amount` in activity currency |
+| **Holdings**         | No change                                            |
+| **Cost Basis**       | No change                                            |
+| **Net Contribution** | No change                                            |
 
-**Required Fields**: `amount` or `fee`, `currency` **Optional Fields**: `asset`
-(for asset-specific fees)
+**Required saved Fields**: `amount`, `currency`. A writer can fill a missing
+amount from `fee`. **Optional Fields**: `asset` (for asset-specific fees)
 
 **Common Subtypes**:
 
@@ -399,9 +439,11 @@ The compiler expands these into canonical activity postings.
 **Compiled Postings**:
 
 1. **DIVIDEND**: `amount = $100` (income recognition)
-2. **BUY**: `quantity = 0.5, unit_price = $200` (share acquisition)
+2. **BUY**: `quantity = 0.5, unit_price = $200, amount = $100` (share
+   acquisition)
 
-**Net Cash Effect**: ~$0 (dividend received equals purchase cost)
+**Net Cash Effect**: $0 without a supplied FX rate (both legs use the same
+currency).
 
 ---
 
@@ -423,7 +465,8 @@ The compiler expands these into canonical activity postings.
 **Compiled Postings**:
 
 1. **DIVIDEND**: `amount = $250` (income recognition)
-2. **BUY**: `asset = AAPL, quantity = 10, unit_price = $25` (share acquisition)
+2. **BUY**: `asset = AAPL, quantity = 10, unit_price = $25, amount = $250`
+   (share acquisition)
 
 ---
 
@@ -453,9 +496,11 @@ The compiler expands these into canonical activity postings.
 **Compiled Postings**:
 
 1. **INTEREST**: `amount = $20` (income recognition)
-2. **BUY**: `quantity = 0.01, unit_price = $2000` (token acquisition)
+2. **BUY**: `quantity = 0.01, unit_price = $2000, amount = $20` (token
+   acquisition)
 
-**Net Cash Effect**: $0 (income equals acquisition cost)
+**Net Cash Effect**: $0 without a supplied FX rate (both legs use the same
+currency).
 
 ---
 
@@ -547,13 +592,17 @@ DIVIDEND, INTEREST
 DEPOSIT, WITHDRAWAL, FEE, TAX, CREDIT
 ```
 
-**Note**: TRANSFER_IN/TRANSFER_OUT can be cash OR asset depending on whether
-quantity/price is provided. INTEREST can have an optional asset (e.g., bond
-interest).
+**Note**: TRANSFER_IN/TRANSFER_OUT can be cash OR asset depending on whether an
+asset is linked. INTEREST can have an optional asset (e.g., bond interest).
 
 ---
 
 ## Form Field Requirements
+
+Trade entry can calculate an omitted final amount before saving. Cash and income
+amounts are final, including any charges. Asset-income subtypes also use
+quantity and price. These entry requirements do not imply runtime fallback
+calculations.
 
 | Type             | Required Fields                                              |
 | ---------------- | ------------------------------------------------------------ |
@@ -609,8 +658,8 @@ For precise IRR, cash-flow, and tax analytics:
 4. **Use subtypes for semantic variations** - Instead of custom types, use
    subtypes (e.g., DIVIDEND with subtype DRIP).
 
-5. **Include fees in the activity** - Fees are automatically factored into cost
-   basis and cash calculations.
+5. **Include charges in the final amount** - Record fee and tax details too, but
+   never deduct them again or duplicate them as standalone activities.
 
 6. **Set currency explicitly** - Always specify the activity currency for proper
    multi-currency handling.

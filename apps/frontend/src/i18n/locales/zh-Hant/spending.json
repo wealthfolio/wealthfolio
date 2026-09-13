@@ -219,7 +219,13 @@
     "viewingMonth": "正在查看 {{label}}，點選可變更",
     "pickMonth": "選取特定月份",
     "selectMonth": "選取月份",
-    "clearMonth": "清除月份選取"
+    "clearMonth": "清除月份選取",
+    "selectDates": "選擇日期",
+    "chooseCustomDates": "選擇自訂日期",
+    "chooseMonth": "選擇月份",
+    "startDate": "開始日期",
+    "endDate": "結束日期",
+    "invalidRange": "結束日期必須與開始日期相同或晚於開始日期"
   },
   "presets": {
     "loading": "正在載入預設……",
@@ -394,7 +400,8 @@
     "largest": "最大",
     "noSpending": "此時段內無支出。",
     "outlier": "異常值",
-    "weekOf": "{{date}} 所在週"
+    "weekOf": "{{date}} 所在週",
+    "customSubtitle": "所選期間的交易"
   },
   "split": {
     "title": "拆分交易",
@@ -542,7 +549,11 @@
     "brighter": "更亮",
     "moreSpend": "代表支出較多。",
     "less": "更少",
-    "more": "更多"
+    "more": "更多",
+    "customSubtitle": "所選期間 · 依星期與時段顯示支出強度。",
+    "customSubtitleShort": "所選期間",
+    "customNoActivity": "所選期間沒有現金活動。",
+    "customLegendIntro": "每一格代表所選期間內的一個星期與時段。"
   },
   "eventDetail": {
     "previousEvent": "上一個事件",
@@ -716,7 +727,8 @@
     "categoriesShown_other": "顯示 {{shown}} 個類別，共 {{total}} 個",
     "openTransactions": "開啟交易 →",
     "moreCount_other": "+{{count}} 筆",
-    "moreCount_one": "+{{count}} 筆"
+    "moreCount_one": "+{{count}} 筆",
+    "vsRange": "相較於 {{from}} – {{to}}"
   },
   "budgetChart": {
     "overBudget": "超出預算",

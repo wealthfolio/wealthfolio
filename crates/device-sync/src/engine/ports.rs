@@ -76,6 +76,14 @@ pub struct TransportError {
     pub details: Option<serde_json::Value>,
 }
 
+impl TransportError {
+    pub fn is_subscription_blocked(&self) -> bool {
+        self.error_code
+            .as_deref()
+            .is_some_and(|code| code.starts_with("SUBSCRIPTION_"))
+    }
+}
+
 impl std::fmt::Display for TransportError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message)
@@ -167,6 +175,8 @@ pub trait SyncTransport: Send + Sync {
 
 #[async_trait]
 pub trait CredentialStore: Send + Sync {
+    fn has_cloud_session(&self) -> Result<bool, String>;
+    async fn is_sync_allowed(&self) -> Result<bool, String>;
     fn get_sync_identity(&self) -> Option<SyncIdentity>;
     fn get_access_token(&self) -> Result<String, String>;
     async fn get_sync_state(&self) -> Result<SyncState, String>;

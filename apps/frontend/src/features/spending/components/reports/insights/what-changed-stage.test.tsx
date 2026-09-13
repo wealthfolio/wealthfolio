@@ -66,6 +66,44 @@ const priorRange: ReportsRange = {
 };
 
 describe("WhatChangedStage localization", () => {
+  it("distinguishes current and prior years for explicit date ranges", () => {
+    render(
+      <MemoryRouter>
+        <FormattingProvider locale="en-US" uiLocale="en" timezone="UTC">
+          <WhatChangedStage
+            range={{
+              start: new Date("2026-01-01T00:00:00Z"),
+              end: new Date("2026-12-31T23:59:59Z"),
+              days: 365,
+              months: 12,
+            }}
+            priorRange={{
+              start: new Date("2025-01-01T00:00:00Z"),
+              end: new Date("2025-12-31T23:59:59Z"),
+              days: 365,
+              months: 12,
+            }}
+            timezone="UTC"
+            currentReport={report(0, 0, [])}
+            priorReport={report(100, 1, [
+              { taxonomyId: "spending_categories", categoryId: "shopping", amount: 100, count: 1 },
+            ])}
+            months={[]}
+            taxonomyCategories={categories}
+            currency="USD"
+            isLoading={false}
+          />
+        </FormattingProvider>
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("columnheader", { name: "Jan 1, 2026 – Dec 31, 2026" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Jan 1, 2025 – Dec 31, 2025" }),
+    ).toBeInTheDocument();
+  });
+
   it("formats impact percentages with the formatting locale", () => {
     render(
       <MemoryRouter>
