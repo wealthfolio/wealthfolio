@@ -16,7 +16,8 @@ use wealthfolio_spending::budget::{
     BudgetSnapshot, NewBudgetGroup, NewBudgetRolloverSetting, NewBudgetTarget, UpdateBudgetGroup,
 };
 use wealthfolio_spending::cash_activities::{
-    CashActivity, CashActivityFilter, CashActivitySearchRequest, CashActivitySearchResponse,
+    BulkAssignResult, CashActivity, CashActivityFilter, CashActivitySearchRequest,
+    CashActivitySearchResponse,
 };
 use wealthfolio_spending::categorization_rules::{
     CategorizationRule, CategorizationRulesService, ImportPresetResult, NewCategorizationRule,
@@ -260,14 +261,16 @@ pub async fn clear_activity_splits(
         .map_err(|e| format!("Failed to clear activity splits: {}", e))
 }
 
-/// Atomic batch assign — used by bulk-categorize on the transactions page and
-/// by the AI proposal widget. Each item replaces any existing single-select
-/// assignment for its (activity_id, taxonomy_id) pair.
+/// Batch assign — used by bulk-categorize on the transactions page and by the
+/// AI proposal widget. Each item replaces any existing single-select
+/// assignment for its (activity_id, taxonomy_id) pair. Items that fail the
+/// per-activity cash-flow-bucket check are reported in `rejected` instead of
+/// failing the whole batch; the valid subset is applied atomically.
 #[tauri::command]
 pub async fn bulk_assign_categories(
     items: Vec<BulkCategoryAssignment>,
     state: State<'_, Arc<ServiceContext>>,
-) -> Result<Vec<ActivityTaxonomyAssignment>, String> {
+) -> Result<BulkAssignResult, String> {
     if items.len() > MAX_BULK_CATEGORY_ASSIGNMENTS {
         return Err(format!(
             "At most {MAX_BULK_CATEGORY_ASSIGNMENTS} category assignments can be submitted at once"

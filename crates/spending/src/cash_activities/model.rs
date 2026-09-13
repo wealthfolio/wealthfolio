@@ -208,3 +208,22 @@ pub struct CashActivitySearchResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_currency: Option<String>,
 }
+
+/// One `bulk_assign_categories` item that failed its cash-flow-bucket check
+/// and was not applied.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkAssignRejection {
+    pub activity_id: String,
+    pub message: String,
+}
+
+/// Result of `bulk_assign_categories`. Valid items are applied atomically as
+/// a group; items that fail the per-activity bucket check are reported in
+/// `rejected` instead of failing the whole batch.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkAssignResult {
+    pub applied: Vec<ActivityTaxonomyAssignment>,
+    pub rejected: Vec<BulkAssignRejection>,
+}
