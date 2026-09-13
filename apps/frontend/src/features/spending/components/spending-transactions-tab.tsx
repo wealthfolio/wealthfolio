@@ -1184,7 +1184,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
                 {t("spending:txTab.clearFilters")}
               </Button>
             ) : (
-              <Button onClick={openAddForm}>
+              <Button type="button" onClick={openAddForm}>
                 <Icons.Plus className="mr-2 h-4 w-4" aria-hidden="true" />
                 {t("spending:txTab.addTransaction")}
               </Button>

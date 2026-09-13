@@ -603,7 +603,7 @@ const ActivityPage = () => {
           onOpenChange={setShowActionPalette}
           groups={actionPaletteGroups}
           trigger={
-            <Button data-testid="add-activities-button" size="sm">
+            <Button type="button" data-testid="add-activities-button" size="sm">
               <Icons.Plus className="mr-2 h-4 w-4" />
               {t("activity:page.add_activities")}
             </Button>
@@ -672,7 +672,7 @@ const ActivityPage = () => {
           onOpenChange={setShowSpendingActionPalette}
           groups={spendingActionPaletteGroups}
           trigger={
-            <Button data-testid="add-activities-button" size="sm">
+            <Button type="button" data-testid="add-activities-button" size="sm">
               <Icons.Plus className="mr-2 h-4 w-4" />
               {t("activity:page.add_activities")}
             </Button>
@@ -690,6 +690,7 @@ const ActivityPage = () => {
         <Button
           size="icon"
           title={t("common:add")}
+          type="button"
           onClick={() => spendingTabRef.current?.openAddForm()}
         >
           <Icons.Plus className="size-4" />
