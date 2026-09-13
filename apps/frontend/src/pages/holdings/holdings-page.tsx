@@ -215,13 +215,19 @@ export const HoldingsPage = () => {
 
   // Handler to save asset details
   const handleSaveAssetDetails = useCallback(
-    async (assetId: string, metadata: Record<string, string>, name?: string) => {
+    async (
+      assetId: string,
+      metadata: Record<string, string>,
+      name?: string,
+      notes?: string | null,
+    ) => {
       setIsSavingDetails(true);
       try {
-        await updateAlternativeAssetMetadata(assetId, metadata, name);
-        // Invalidate queries to refresh the list
+        await updateAlternativeAssetMetadata(assetId, metadata, name, notes);
+        // Invalidate queries to refresh the list and the asset detail page
         queryClient.invalidateQueries({ queryKey: [QueryKeys.ALTERNATIVE_HOLDINGS] });
         queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH] });
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA] });
       } finally {
         setIsSavingDetails(false);
       }

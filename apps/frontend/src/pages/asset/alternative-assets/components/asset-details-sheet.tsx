@@ -733,22 +733,41 @@ function LiabilityFields({
         />
       </div>
 
-      <FormField
-        control={form.control}
-        name="originationDate"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{t("asset:detailsSheet.origination_date")}</FormLabel>
-            <FormControl>
-              <DatePickerInput
-                value={field.value ?? undefined}
-                onChange={(date) => field.onChange(date ?? null)}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField
+          control={form.control}
+          name="originationDate"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("asset:detailsSheet.origination_date")}</FormLabel>
+              <FormControl>
+                <DatePickerInput
+                  value={field.value ?? undefined}
+                  onChange={(date) => field.onChange(date ?? null)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="endDate"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("asset:detailsSheet.end_date")}</FormLabel>
+              <FormControl>
+                <DatePickerInput
+                  value={field.value ?? undefined}
+                  onChange={(date) => field.onChange(date ?? null)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
 
       {/* Linked Asset Display/Selector */}
       <FormField

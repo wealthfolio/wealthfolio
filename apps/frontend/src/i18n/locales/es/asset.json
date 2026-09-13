@@ -463,7 +463,8 @@
       "student_loan": "Préstamo estudiantil",
       "credit_card": "Tarjeta de crédito",
       "personal_loan": "Préstamo personal",
-      "heloc": "HELOC"
+      "heloc": "HELOC",
+      "other": "Otro"
     }
   },
   "altContent": {
@@ -535,13 +536,18 @@
       "student_loan": "Préstamo estudiantil",
       "credit_card": "Tarjeta de crédito",
       "personal_loan": "Préstamo personal",
-      "heloc": "HELOC"
+      "heloc": "HELOC",
+      "other": "Otro"
     },
     "weightUnit": {
       "oz": "Onza troy",
       "g": "Gramo",
       "kg": "Kilogramo"
-    }
+    },
+    "monthly_payment": "Cuota mensual",
+    "per_month": "/ mes",
+    "end_date": "Fecha de vencimiento",
+    "end_date_estimated": "Venc. estimado"
   },
   "quickAdd": {
     "add_new_asset": "Añadir nuevo activo",
@@ -603,6 +609,14 @@
       "liability_description": "Préstamos y deuda",
       "other_label": "Otro activo",
       "other_description": "Activos personalizados"
+    },
+    "end_date": "Fecha de vencimiento",
+    "interest_rate": "Tasa de interés (%)",
+    "loan_term": "Plazo del préstamo",
+    "years": "años",
+    "validation": {
+      "invalid": "Introduce datos de préstamo válidos.",
+      "balance_date_before_origination": "La fecha del saldo no puede ser anterior a la fecha de origen."
     }
   },
   "detailsSheet": {
@@ -679,7 +693,8 @@
       "precious_metal": "Metal precioso",
       "liability": "Pasivo",
       "other": "Otro"
-    }
+    },
+    "end_date": "Fecha de vencimiento"
   },
   "updateValuation": {
     "title": "Actualizar valor: {{name}}",
@@ -752,5 +767,34 @@
     "error_encode_failed": "No se pudo convertir la imagen a PNG.",
     "error_too_large_output": "La imagen tiene demasiado detalle para caber en 150 KB. Prueba con una imagen más simple o más pequeña.",
     "error_save_failed": "No se pudo guardar el logo."
+  },
+  "loanActions": {
+    "early_repayment": "Amortización anticipada",
+    "early_repayment_description": "Registre un pago anticipado y recalcule su préstamo.",
+    "close_loan": "Cerrar préstamo",
+    "close_loan_description": "Marque este préstamo como totalmente pagado. Se insertará una entrada de saldo cero.",
+    "repayment_date": "Fecha de pago",
+    "repayment_amount": "Importe del pago",
+    "reduce_duration": "Reducir duración",
+    "reduce_payment": "Reducir cuota",
+    "reduce_duration_description": "Mantener la cuota mensual, acortar el plazo",
+    "reduce_payment_description": "Mantener el plazo restante, reducir la cuota",
+    "new_end_date": "Nueva fecha de vencimiento",
+    "new_monthly_payment": "Nueva cuota mensual",
+    "confirm_repayment": "Confirmar pago",
+    "closure_date": "Fecha de cierre",
+    "confirm_close": "Cerrar préstamo",
+    "recalculate_schedule": "Recalcular plan",
+    "recalculate_description": "Recalcula los pagos futuros según el saldo y la tasa actuales.",
+    "recalculate_current_balance": "Saldo actual",
+    "recalculate_remaining_months": "Meses restantes",
+    "recalculate_new_rate": "Nueva tasa anual (%)",
+    "recalculate_confirm": "Recalcular",
+    "validation": {
+      "invalid": "Introduce un importe de reembolso válido.",
+      "amount_exceeds_balance": "El reembolso no puede superar el saldo actual.",
+      "date_outside_loan": "La fecha de reembolso debe estar dentro del período del préstamo.",
+      "closure_date_invalid": "La fecha de cierre debe estar entre el origen y hoy."
+    }
   }
 }

@@ -1740,11 +1740,13 @@ export interface LiabilityMetadata {
     | "student_loan"
     | "credit_card"
     | "personal_loan"
-    | "heloc";
+    | "heloc"
+    | "other";
   linkedAssetId?: string;
   originalAmount?: string;
   originationDate?: string;
   interestRate?: string;
+  endDate?: string;
 }
 
 /**

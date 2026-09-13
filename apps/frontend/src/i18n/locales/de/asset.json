@@ -459,7 +459,8 @@
       "student_loan": "Studienkredit",
       "credit_card": "Kreditkarte",
       "personal_loan": "Privatkredit",
-      "heloc": "Immobilienkreditlinie"
+      "heloc": "Immobilienkreditlinie",
+      "other": "Sonstige"
     }
   },
   "altContent": {
@@ -531,13 +532,18 @@
       "student_loan": "Studienkredit",
       "credit_card": "Kreditkarte",
       "personal_loan": "Privatkredit",
-      "heloc": "Immobilienkreditlinie"
+      "heloc": "Immobilienkreditlinie",
+      "other": "Sonstige"
     },
     "weightUnit": {
       "oz": "Feinunze",
       "g": "Gramm",
       "kg": "Kilogramm"
-    }
+    },
+    "monthly_payment": "Monatliche Rate",
+    "per_month": "/ Monat",
+    "end_date": "Enddatum",
+    "end_date_estimated": "Gesch. Enddatum"
   },
   "quickAdd": {
     "add_new_asset": "Neue Anlage hinzufügen",
@@ -599,6 +605,14 @@
       "liability_description": "Darlehen und Schulden",
       "other_label": "Sonstige Anlage",
       "other_description": "Benutzerdefinierte Anlagen"
+    },
+    "end_date": "Enddatum",
+    "interest_rate": "Zinssatz (%)",
+    "loan_term": "Laufzeit",
+    "years": "J.",
+    "validation": {
+      "invalid": "Gültige Kreditdaten eingeben.",
+      "balance_date_before_origination": "Das Saldodatum darf nicht vor dem Auszahlungsdatum liegen."
     }
   },
   "detailsSheet": {
@@ -675,7 +689,8 @@
       "precious_metal": "Edelmetall",
       "liability": "Verbindlichkeit",
       "other": "Sonstiges"
-    }
+    },
+    "end_date": "Enddatum"
   },
   "updateValuation": {
     "title": "Wert aktualisieren: {{name}}",
@@ -745,5 +760,34 @@
     "error_encode_failed": "Das Bild konnte nicht in PNG konvertiert werden.",
     "error_too_large_output": "Das Bild ist zu detailliert für 150 KB. Versuchen Sie ein einfacheres oder kleineres Bild.",
     "error_save_failed": "Das Logo konnte nicht gespeichert werden."
+  },
+  "loanActions": {
+    "early_repayment": "Sondertilgung",
+    "early_repayment_description": "Einmalige Sondertilgung erfassen und Darlehen neu berechnen.",
+    "close_loan": "Darlehen abschließen",
+    "close_loan_description": "Dieses Darlehen als vollständig zurückgezahlt markieren. Ein Eintrag mit Nullsaldo wird eingefügt.",
+    "repayment_date": "Tilgungsdatum",
+    "repayment_amount": "Tilgungsbetrag",
+    "reduce_duration": "Laufzeit verkürzen",
+    "reduce_payment": "Rate reduzieren",
+    "reduce_duration_description": "Monatliche Rate beibehalten, Laufzeit verkürzen",
+    "reduce_payment_description": "Restlaufzeit beibehalten, Monatsrate senken",
+    "new_end_date": "Neues Enddatum",
+    "new_monthly_payment": "Neue Monatsrate",
+    "confirm_repayment": "Tilgung bestätigen",
+    "closure_date": "Abschlussdatum",
+    "confirm_close": "Darlehen abschließen",
+    "recalculate_schedule": "Plan neu berechnen",
+    "recalculate_description": "Zukünftige Zahlungen basierend auf aktuellem Saldo und Zinssatz neu berechnen.",
+    "recalculate_current_balance": "Aktueller Saldo",
+    "recalculate_remaining_months": "Verbleibende Monate",
+    "recalculate_new_rate": "Neuer Jahreszinssatz (%)",
+    "recalculate_confirm": "Neu berechnen",
+    "validation": {
+      "invalid": "Gültigen Rückzahlungsbetrag eingeben.",
+      "amount_exceeds_balance": "Die Rückzahlung darf den aktuellen Saldo nicht überschreiten.",
+      "date_outside_loan": "Das Rückzahlungsdatum muss innerhalb der Kreditlaufzeit liegen.",
+      "closure_date_invalid": "Das Abschlussdatum muss zwischen Auszahlung und heute liegen."
+    }
   }
 }

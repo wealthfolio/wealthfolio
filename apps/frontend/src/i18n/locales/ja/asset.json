@@ -414,7 +414,8 @@
     "to_manual_description": "手動トラッキングに切り替えると、市場データプロバイダーからの自動取得が停止します。価格データはご自身で入力・管理する必要があります。",
     "to_manual_warning": "自動的な価格更新が無効になります。",
     "confirm_change": "変更を確定",
-    "delete_count_other": "削除({{count}})"
+    "delete_count_other": "削除({{count}})",
+    "delete_count_one": "{{count}}件削除"
   },
   "quoteTable": {
     "date": "日付",
@@ -458,7 +459,8 @@
       "student_loan": "教育ローン",
       "credit_card": "クレジットカード",
       "personal_loan": "個人向けローン",
-      "heloc": "HELOC"
+      "heloc": "HELOC",
+      "other": "その他"
     }
   },
   "altContent": {
@@ -530,13 +532,18 @@
       "student_loan": "教育ローン",
       "credit_card": "クレジットカード",
       "personal_loan": "個人向けローン",
-      "heloc": "HELOC"
+      "heloc": "HELOC",
+      "other": "その他"
     },
     "weightUnit": {
       "oz": "トロイオンス",
       "g": "グラム",
       "kg": "キログラム"
-    }
+    },
+    "monthly_payment": "月々の支払い",
+    "per_month": "/ 月",
+    "end_date": "終了日",
+    "end_date_estimated": "推定終了日"
   },
   "quickAdd": {
     "add_new_asset": "資産を追加",
@@ -598,6 +605,14 @@
       "liability_description": "ローン・借入",
       "other_label": "その他の資産",
       "other_description": "カスタム資産"
+    },
+    "end_date": "終了日",
+    "interest_rate": "金利 (%)",
+    "loan_term": "返済期間",
+    "years": "年",
+    "validation": {
+      "invalid": "有効なローン情報を入力してください。",
+      "balance_date_before_origination": "残高日は借入日より前にできません。"
     }
   },
   "detailsSheet": {
@@ -674,7 +689,8 @@
       "precious_metal": "貴金属",
       "liability": "負債",
       "other": "その他"
-    }
+    },
+    "end_date": "終了日"
   },
   "updateValuation": {
     "title": "評価額を更新: {{name}}",
@@ -711,7 +727,10 @@
     "save_changes": "変更を保存",
     "delete_count_other": "削除({{count}})",
     "modified_other": "{{count}}件変更",
-    "to_delete_other": "{{count}}件削除予定"
+    "to_delete_other": "{{count}}件削除予定",
+    "delete_count_one": "削除({{count}})",
+    "modified_one": "{{count}}件変更",
+    "to_delete_one": "{{count}}件削除予定"
   },
   "logo": {
     "change": "ロゴを変更",
@@ -741,5 +760,34 @@
     "error_encode_failed": "画像を PNG に変換できませんでした。",
     "error_too_large_output": "画像が複雑すぎて 150 KB に収まりません。よりシンプルな画像か小さい画像をお試しください。",
     "error_save_failed": "ロゴを保存できませんでした。"
+  },
+  "loanActions": {
+    "early_repayment": "繰上返済",
+    "early_repayment_description": "一括返済を記録してローンを再計算します。",
+    "close_loan": "ローンを完済",
+    "close_loan_description": "このローンを完済済みとしてマークします。残高ゼロのエントリーが挿入されます。",
+    "repayment_date": "返済日",
+    "repayment_amount": "返済額",
+    "reduce_duration": "期間短縮",
+    "reduce_payment": "返済額軽減",
+    "reduce_duration_description": "月々の支払いを維持し、期間を短縮",
+    "reduce_payment_description": "残り期間を維持し、月々の支払いを軽減",
+    "new_end_date": "新しい終了日",
+    "new_monthly_payment": "新しい月々の支払い",
+    "confirm_repayment": "返済を確認",
+    "closure_date": "完済日",
+    "confirm_close": "ローンを完済",
+    "recalculate_schedule": "スケジュール再計算",
+    "recalculate_description": "現在の残高と金利から将来の支払いを再計算します。",
+    "recalculate_current_balance": "現在の残高",
+    "recalculate_remaining_months": "残り月数",
+    "recalculate_new_rate": "新しい年率 (%)",
+    "recalculate_confirm": "再計算",
+    "validation": {
+      "invalid": "有効な返済額を入力してください。",
+      "amount_exceeds_balance": "返済額は現在残高を超えることができません。",
+      "date_outside_loan": "返済日はローン期間内である必要があります。",
+      "closure_date_invalid": "完済日は借入日から今日までの範囲にしてください。"
+    }
   }
 }

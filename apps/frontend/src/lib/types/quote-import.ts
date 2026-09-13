@@ -8,6 +8,7 @@ export interface QuoteImport {
   close: number; // Required field
   volume?: number;
   currency: string;
+  notes?: string;
   validationStatus: ImportValidationStatus;
   errorMessage?: string;
 }

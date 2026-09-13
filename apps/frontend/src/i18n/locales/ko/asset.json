@@ -414,7 +414,8 @@
     "to_manual_description": "수동 추적으로 전환하면 시장 데이터 제공업체로부터의 자동 데이터 수집이 중지됩니다. 가격 데이터를 직접 입력하고 관리해야 합니다.",
     "to_manual_warning": "자동 가격 업데이트가 비활성화됩니다.",
     "confirm_change": "변경 확인",
-    "delete_count_other": "삭제 ({{count}})"
+    "delete_count_other": "삭제 ({{count}})",
+    "delete_count_one": "삭제 ({{count}})"
   },
   "quoteTable": {
     "date": "날짜",
@@ -458,7 +459,8 @@
       "student_loan": "학자금 대출",
       "credit_card": "신용카드",
       "personal_loan": "개인 대출",
-      "heloc": "주택담보 신용한도(HELOC)"
+      "heloc": "주택담보 신용한도(HELOC)",
+      "other": "기타"
     }
   },
   "altContent": {
@@ -530,13 +532,18 @@
       "student_loan": "학자금 대출",
       "credit_card": "신용카드",
       "personal_loan": "개인 대출",
-      "heloc": "주택담보 신용한도(HELOC)"
+      "heloc": "주택담보 신용한도(HELOC)",
+      "other": "기타"
     },
     "weightUnit": {
       "oz": "트로이온스",
       "g": "그램",
       "kg": "킬로그램"
-    }
+    },
+    "monthly_payment": "월 납입금",
+    "per_month": "/ 월",
+    "end_date": "종료일",
+    "end_date_estimated": "예상 종료일"
   },
   "quickAdd": {
     "add_new_asset": "새 자산 추가",
@@ -598,6 +605,14 @@
       "liability_description": "대출 및 채무",
       "other_label": "기타 자산",
       "other_description": "사용자 지정 자산"
+    },
+    "end_date": "종료일",
+    "interest_rate": "금리 (%)",
+    "loan_term": "대출 기간",
+    "years": "년",
+    "validation": {
+      "invalid": "유효한 대출 정보를 입력하세요.",
+      "balance_date_before_origination": "잔액 날짜는 대출 실행일보다 빠를 수 없습니다."
     }
   },
   "detailsSheet": {
@@ -674,7 +689,8 @@
       "precious_metal": "귀금속",
       "liability": "부채",
       "other": "기타"
-    }
+    },
+    "end_date": "종료일"
   },
   "updateValuation": {
     "title": "가치 업데이트: {{name}}",
@@ -711,7 +727,10 @@
     "save_changes": "변경사항 저장",
     "delete_count_other": "삭제 ({{count}})",
     "modified_other": "{{count}}개 수정됨",
-    "to_delete_other": "{{count}}개 삭제 예정"
+    "to_delete_other": "{{count}}개 삭제 예정",
+    "delete_count_one": "삭제 ({{count}})",
+    "modified_one": "{{count}}개 수정됨",
+    "to_delete_one": "{{count}}개 삭제 예정"
   },
   "logo": {
     "change": "로고 변경",
@@ -741,5 +760,34 @@
     "error_encode_failed": "이미지를 PNG로 변환할 수 없습니다.",
     "error_too_large_output": "이미지가 너무 복잡하여 150 KB에 맞출 수 없습니다. 더 단순하거나 작은 이미지를 사용해 보세요.",
     "error_save_failed": "로고를 저장할 수 없습니다."
+  },
+  "loanActions": {
+    "early_repayment": "조기 상환",
+    "early_repayment_description": "일시 상환을 기록하고 대출을 재계산합니다.",
+    "close_loan": "대출 종결",
+    "close_loan_description": "이 대출을 완전히 상환된 것으로 표시합니다. 잔액 0 항목이 삽입됩니다.",
+    "repayment_date": "상환일",
+    "repayment_amount": "상환금액",
+    "reduce_duration": "기간 단축",
+    "reduce_payment": "납입금 감소",
+    "reduce_duration_description": "월 납입금 유지, 기간 단축",
+    "reduce_payment_description": "잔여 기간 유지, 월 납입금 감소",
+    "new_end_date": "새 종료일",
+    "new_monthly_payment": "새 월 납입금",
+    "confirm_repayment": "상환 확인",
+    "closure_date": "종결일",
+    "confirm_close": "대출 종결",
+    "recalculate_schedule": "일정 재계산",
+    "recalculate_description": "현재 잔액과 금리를 기반으로 미래 납부액을 재계산합니다.",
+    "recalculate_current_balance": "현재 잔액",
+    "recalculate_remaining_months": "남은 개월",
+    "recalculate_new_rate": "새 연 이율 (%)",
+    "recalculate_confirm": "재계산",
+    "validation": {
+      "invalid": "유효한 상환 금액을 입력하세요.",
+      "amount_exceeds_balance": "상환액은 현재 잔액을 초과할 수 없습니다.",
+      "date_outside_loan": "상환일은 대출 기간 내여야 합니다.",
+      "closure_date_invalid": "완제일은 대출 실행일부터 오늘 사이여야 합니다."
+    }
   }
 }
