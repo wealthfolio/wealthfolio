@@ -1,3 +1,4 @@
+import { useGoalCoverImageSrc } from "@/features/goals/lib/cover-image";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { Goal } from "@/lib/types";
@@ -24,10 +25,6 @@ function defaultQuote(goalType: string, t: TFn): string {
     custom_save_up: t("goals:card.quote_custom_save_up"),
   };
   return quotes[goalType] ?? "";
-}
-
-function coverImageSrc(goalType: string): string {
-  return `/goals/${goalType}.png`;
 }
 
 function formatTimeLeft(t: TFn, targetDate?: string): string {
@@ -89,7 +86,7 @@ export function GoalCard({ goal }: { goal: Goal }) {
   const progress = goal.summaryProgress ?? 0;
   const rawQuote = goal.description?.trim() || defaultQuote(goal.goalType, t) || "";
   const quote = rawQuote.length > 58 ? `${rawQuote.slice(0, 55).trimEnd()}…` : rawQuote;
-  const coverImage = coverImageSrc(goal.coverImageKey ?? goal.goalType);
+  const coverImage = useGoalCoverImageSrc(goal);
 
   const isOnTrack = goal.statusHealth === "on_track";
   const isAtRisk = goal.statusHealth === "at_risk";
@@ -163,7 +160,7 @@ export function GoalCard({ goal }: { goal: Goal }) {
             src={coverImage}
             alt=""
             className="h-full w-full object-cover transition-all duration-500 group-hover:scale-[1.06] dark:brightness-[0.78] dark:contrast-[1.08] dark:saturate-[0.9]"
-            style={{ objectPosition: "70% 50%" }}
+            style={{ objectPosition: goal.coverImagePath ? "50% 50%" : "70% 50%" }}
             onError={(e) => {
               e.currentTarget.style.display = "none";
             }}

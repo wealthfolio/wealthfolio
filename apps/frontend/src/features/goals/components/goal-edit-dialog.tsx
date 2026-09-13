@@ -1,3 +1,4 @@
+import { CoverImageField } from "@/features/goals/components/cover-image-field";
 import type { Goal } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button, Input, Label } from "@wealthfolio/ui";
@@ -132,6 +133,8 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
                 <Badge variant="secondary">{goalTypeLabels[goal.goalType]}</Badge>
               </div>
             </div>
+
+            {goal.goalType === "custom_save_up" && <CoverImageField mode="edit" goal={goal} />}
 
             <div className="space-y-2">
               <Label htmlFor="goal-title">{t("goals:edit.title_label")}</Label>

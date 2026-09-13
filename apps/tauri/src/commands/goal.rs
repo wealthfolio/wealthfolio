@@ -1,9 +1,11 @@
+use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::context::ServiceContext;
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use log::{debug, warn};
 use rust_decimal::prelude::ToPrimitive;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 use wealthfolio_core::goals::{
     Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan, NewGoal, SaveGoalPlan,
 };
@@ -13,6 +15,8 @@ use wealthfolio_core::planning::{
 use wealthfolio_core::portfolio::fire::RetirementOverview;
 use wealthfolio_core::portfolio::valuation::CurrentAccountValuationService;
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
+
+use crate::context::ServiceContext;
 
 #[tauri::command]
 pub async fn get_goals(state: State<'_, Arc<ServiceContext>>) -> Result<Vec<Goal>, String> {
@@ -62,13 +66,120 @@ pub async fn update_goal(
 
 #[tauri::command]
 pub async fn delete_goal(
+    app_handle: AppHandle,
     goal_id: String,
     state: State<'_, Arc<ServiceContext>>,
 ) -> Result<usize, String> {
     debug!("Deleting goal...");
+    remove_goal_cover_image_files(&app_handle, &goal_id)?;
     state
         .goal_service()
         .delete_goal(goal_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+const GOAL_IMAGES_DIR: &str = "goal-images";
+const ALLOWED_GOAL_IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "webp"];
+
+fn goal_images_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
+    let app_data_dir_path = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    Ok(app_data_dir_path.join(GOAL_IMAGES_DIR))
+}
+
+/// Removes any existing cover image file for a goal, regardless of extension
+/// (a prior upload may have used a different format).
+fn remove_goal_cover_image_files(app_handle: &AppHandle, goal_id: &str) -> Result<(), String> {
+    let dir = goal_images_dir(app_handle)?;
+    for extension in ALLOWED_GOAL_IMAGE_EXTENSIONS {
+        let path = dir.join(format!("{}.{}", goal_id, extension));
+        if path.exists() {
+            fs::remove_file(&path)
+                .map_err(|e| format!("Failed to remove {}: {}", path.display(), e))?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn save_goal_cover_image(
+    app_handle: AppHandle,
+    goal_id: String,
+    content_base64: String,
+    file_extension: String,
+    state: State<'_, Arc<ServiceContext>>,
+) -> Result<Goal, String> {
+    debug!("Saving cover image for goal {}...", goal_id);
+    let extension = file_extension.to_ascii_lowercase();
+    if !ALLOWED_GOAL_IMAGE_EXTENSIONS.contains(&extension.as_str()) {
+        return Err(format!("Unsupported image format: {}", file_extension));
+    }
+
+    let content = BASE64_STANDARD
+        .decode(content_base64)
+        .map_err(|e| format!("Failed to decode cover image: {}", e))?;
+
+    let dir = goal_images_dir(&app_handle)?;
+    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create {}: {}", dir.display(), e))?;
+    remove_goal_cover_image_files(&app_handle, &goal_id)?;
+
+    let filename = format!("{}.{}", goal_id, extension);
+    let path = dir.join(&filename);
+    fs::write(&path, content).map_err(|e| format!("Failed to write {}: {}", path.display(), e))?;
+
+    let mut goal = state
+        .goal_service()
+        .get_goal(&goal_id)
+        .map_err(|e| e.to_string())?;
+    goal.cover_image_path = Some(filename);
+    state
+        .goal_service()
+        .update_goal(goal)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn load_goal_cover_image(
+    app_handle: AppHandle,
+    goal_id: String,
+    state: State<'_, Arc<ServiceContext>>,
+) -> Result<tauri::ipc::Response, String> {
+    let goal = state
+        .goal_service()
+        .get_goal(&goal_id)
+        .map_err(|e| e.to_string())?;
+    let filename = goal
+        .cover_image_path
+        .ok_or_else(|| "Goal has no cover image".to_string())?;
+    let path = goal_images_dir(&app_handle)?.join(filename);
+    let bytes = tokio::task::spawn_blocking(move || fs::read(&path))
+        .await
+        .map_err(|e| format!("Cover image read task failed: {}", e))?
+        .map_err(|e| format!("Failed to read cover image: {}", e))?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+#[tauri::command]
+pub async fn remove_goal_cover_image(
+    app_handle: AppHandle,
+    goal_id: String,
+    state: State<'_, Arc<ServiceContext>>,
+) -> Result<Goal, String> {
+    debug!("Removing cover image for goal {}...", goal_id);
+    remove_goal_cover_image_files(&app_handle, &goal_id)?;
+
+    let mut goal = state
+        .goal_service()
+        .get_goal(&goal_id)
+        .map_err(|e| e.to_string())?;
+    goal.cover_image_path = None;
+    state
+        .goal_service()
+        .update_goal(goal)
         .await
         .map_err(|e| e.to_string())
 }

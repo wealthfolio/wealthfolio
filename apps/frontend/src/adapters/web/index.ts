@@ -135,10 +135,13 @@ export {
   previewSaveUpOverview,
   refreshAllGoalSummaries,
   refreshGoalSummary,
+  removeGoalCoverImage,
   saveGoalFunding,
   saveGoalPlan,
+  setGoalCoverImage,
   updateGoal,
 } from "../shared/goals";
+export { loadGoalCoverImage } from "./goals";
 
 // Secrets Commands
 export {
