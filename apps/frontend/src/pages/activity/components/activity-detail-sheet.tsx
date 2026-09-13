@@ -1,4 +1,8 @@
-import { localizeActivitySubtypeName, localizeActivityTypeName } from "@/lib/activity-utils";
+import {
+  isIncomeActivity,
+  localizeActivitySubtypeName,
+  localizeActivityTypeName,
+} from "@/lib/activity-utils";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
 import { formatOptionExpiration, parseOccSymbol } from "@/lib/occ-symbol";
 import type { ActivityDetails } from "@/lib/types";
@@ -27,13 +31,9 @@ function StoredAmount({ activity, isHidden }: { activity: ActivityDetails; isHid
   if (activity.amount === null || activity.amount.trim() === "") {
     return <span className="text-muted-foreground">—</span>;
   }
-  return (
-    <AmountDisplay
-      value={Number(activity.amount)}
-      currency={activity.currency}
-      isHidden={isHidden}
-    />
-  );
+  const net = Number(activity.amount);
+  const tax = isIncomeActivity(activity.activityType) ? Number(activity.tax ?? 0) : 0;
+  return <AmountDisplay value={net + tax} currency={activity.currency} isHidden={isHidden} />;
 }
 
 interface ActivityDetailSheetProps {

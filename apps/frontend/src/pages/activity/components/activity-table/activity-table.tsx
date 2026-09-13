@@ -392,12 +392,24 @@ export const ActivityTable = ({
           if (activityType === "SPLIT") {
             return <div className="text-right">{formatSplitRatio(Number(amount))}</div>;
           }
+          if (isIncomeActivity(activityType)) {
+            const tax = Number(row.original.tax ?? 0);
+            return (
+              <div className="text-right">
+                <AmountDisplay
+                  value={Number(amount) + tax}
+                  currency={currency}
+                  isHidden={isBalanceHidden}
+                />
+              </div>
+            );
+          }
+
           if (
             (isCashActivity(activityType) &&
               !isAssetBackedIncome &&
               !isSecuritiesTransfer(activityType, assetSymbol, row.original.assetId)) ||
-            isCashTransfer(activityType, assetSymbol, row.original.assetId) ||
-            (isIncomeActivity(activityType) && !isAssetBackedIncome)
+            isCashTransfer(activityType, assetSymbol, row.original.assetId)
           ) {
             return (
               <div className="text-right">
