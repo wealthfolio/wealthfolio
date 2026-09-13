@@ -113,11 +113,11 @@ impl Default for BoerseFrankfurtProvider {
 
 impl BoerseFrankfurtProvider {
     pub fn new() -> Self {
-        let client = Client::builder()
+        let client = wealthfolio_http::client_builder()
             .timeout(REQUEST_TIMEOUT)
             .default_headers(default_headers())
             .build()
-            .unwrap_or_else(|_| Client::new());
+            .unwrap_or_else(|_| wealthfolio_http::client());
         let request_limiter = RateLimiter::new();
         let provider_id: ProviderId = Cow::Borrowed(PROVIDER_ID);
         request_limiter.configure(

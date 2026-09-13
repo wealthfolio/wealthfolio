@@ -200,7 +200,11 @@
     "codePlaceholder": "ABC 123",
     "paste": "Pegar",
     "connecting": "Conectando...",
-    "connect": "Conectar"
+    "connect": "Conectar",
+    "scanInstructions": "Alinea el código QR dentro del marco.",
+    "cameraOpenError": "No se pudo abrir la cámara. Inténtalo de nuevo.",
+    "cameraCloseError": "No se pudo cerrar la cámara. Inténtalo de nuevo.",
+    "cameraUnavailable": "No hay ninguna cámara disponible. Usa un dispositivo físico para escanear o introduce el código de vinculación a continuación."
   },
   "sas": {
     "sameCodeQuestion": "¿El mismo código en ambos dispositivos?"
@@ -218,6 +222,6 @@
     "tryAgain": "Intentar de nuevo"
   },
   "errors": {
-    "backupPlatformUnsupported": "La copia de seguridad antes de la sincronización de dispositivos solo se admite actualmente en escritorio, web e iOS"
+    "backupPlatformUnsupported": "La copia de seguridad antes de la sincronización de dispositivos solo se admite actualmente en escritorio, web y dispositivos móviles"
   }
 }

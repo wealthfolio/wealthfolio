@@ -63,11 +63,11 @@ export function useBackupRestore() {
         return { location: "local" as const, value: backupPath };
       }
 
-      if (runtimePlatform.os !== "ios") {
-        throw new Error("Backup export is currently supported on desktop, web, and iOS only");
+      if (!runtimePlatform.is_mobile) {
+        throw new Error("Backup export is currently supported on desktop, web, and mobile only");
       }
 
-      // iOS: create backup and let user choose file destination.
+      // Mobile: create backup and let user choose file destination.
       const { relativePath, filename } = await backupDatabaseToPendingExport();
       const saved = await saveAppDataFileViaPicker(relativePath, filename);
       if (!saved) {
@@ -128,12 +128,12 @@ export function useBackupRestore() {
   const { mutateAsync: restoreFromBackup, isPending: isRestoring } = useMutation({
     mutationFn: async () => {
       if (isWeb) {
-        throw new Error("Restore is only supported in the desktop app");
+        throw new Error("Restore is only supported in the desktop or mobile app");
       }
 
       const runtimePlatform = await getRuntimePlatform();
-      if (!runtimePlatform.is_desktop && runtimePlatform.os !== "ios") {
-        throw new Error("Restore is currently supported on desktop and iOS only");
+      if (!runtimePlatform.is_desktop && !runtimePlatform.is_mobile) {
+        throw new Error("Restore is currently supported on desktop and mobile only");
       }
 
       // Open file dialog to let user choose backup file
@@ -156,9 +156,18 @@ export function useBackupRestore() {
     },
     onError: (error) => {
       logger.error(`Error during restore: ${String(error)}`);
+      const message =
+        typeof error === "string"
+          ? error
+          : error &&
+              typeof error === "object" &&
+              "message" in error &&
+              typeof error.message === "string"
+            ? error.message
+            : "";
       toast({
         title: "Restore failed",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description: message || "An unknown error occurred",
         variant: "destructive",
       });
     },
@@ -174,10 +183,10 @@ export function useBackupRestore() {
 
   const performRestore = async () => {
     const runtimePlatform = await getRuntimePlatform();
-    if (!runtimePlatform.is_desktop && runtimePlatform.os !== "ios") {
+    if (!runtimePlatform.is_desktop && !runtimePlatform.is_mobile) {
       toast({
         title: "Restore unavailable",
-        description: "Please use the desktop app or iOS app to restore backups.",
+        description: "Please use the desktop or mobile app to restore backups.",
       });
       return;
     }
@@ -204,9 +213,8 @@ export function useBackupRestore() {
         ? webBackupsError.message
         : "Unable to load database backups"
       : null,
-    canBackup: platformMode !== "mobile" || platform?.os === "ios",
-    canRestore: platformMode === "desktop" || platform?.os === "ios",
-    isIOS: platform?.os === "ios",
+    canBackup: platformMode !== "mobile" || Boolean(platform?.is_mobile),
+    canRestore: platformMode === "desktop" || Boolean(platform?.is_mobile),
     isDesktop: platformMode === "desktop",
     isMobile: platformMode === "mobile",
     isWeb,

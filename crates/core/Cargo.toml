@@ -11,6 +11,7 @@ repository = "https://github.com/wealthfolio/wealthfolio"
 default = []
 
 [dependencies]
+wealthfolio-http = { workspace = true }
 # Workspace dependencies
 tokio = { workspace = true }
 serde = { workspace = true }

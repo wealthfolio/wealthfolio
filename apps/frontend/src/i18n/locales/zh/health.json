@@ -183,7 +183,7 @@
     "pricesByInvestment": "按投资项目分类的价格",
     "pricesByInvestmentHint": "打开某项投资以重新获取或添加价格。如果这些日期是节假日或非交易日，请忽略此问题。",
     "priceHistoryNeedsReview": "价格历史需要检查",
-    "missingTradingDay_one": "缺失 {{count}} 个交易日：{{dates}}",
+    "missingTradingDay_one": "缺失 1 个交易日：{{dates}}",
     "missingTradingDay_other": "缺失 {{count}} 个交易日：{{dates}}",
     "dateRange": "{{from}} 至 {{to}}",
     "priceIssueSummary": "{{assetCount}} 项{{assetWord}}的 {{diagnosticCount}} 个价格{{dateWord}}",

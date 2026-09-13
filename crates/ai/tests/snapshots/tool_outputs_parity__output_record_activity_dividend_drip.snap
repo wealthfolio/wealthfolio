@@ -1,6 +1,6 @@
 ---
 source: crates/ai/tests/tool_outputs_parity.rs
-assertion_line: 681
+assertion_line: 696
 expression: result
 ---
 {
@@ -41,6 +41,7 @@ expression: result
       "quantity": 2.0,
       "subtype": "DRIP",
       "symbol": "VTI",
+      "tax": null,
       "unitPrice": null
     },
     "resolvedAsset": null,

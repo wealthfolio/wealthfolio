@@ -219,7 +219,13 @@
     "viewingMonth": "{{label}} wird angezeigt, zum Ändern klicken",
     "pickMonth": "Bestimmten Monat auswählen",
     "selectMonth": "Monat auswählen",
-    "clearMonth": "Monatsauswahl aufheben"
+    "clearMonth": "Monatsauswahl aufheben",
+    "chooseMonth": "Monat auswählen",
+    "selectDates": "Daten auswählen",
+    "startDate": "Startdatum",
+    "chooseCustomDates": "Benutzerdefinierte Daten auswählen",
+    "invalidRange": "Das Enddatum muss am oder nach dem Startdatum liegen",
+    "endDate": "Enddatum"
   },
   "presets": {
     "loading": "Vorlagen werden geladen…",
@@ -394,7 +400,8 @@
     "largest": "Größte",
     "noSpending": "Keine Ausgaben in diesem Zeitfenster.",
     "outlier": "Ausreißer",
-    "weekOf": "Woche vom {{date}}"
+    "weekOf": "Woche vom {{date}}",
+    "customSubtitle": "Transaktionen im ausgewählten Zeitraum"
   },
   "split": {
     "title": "Transaktion aufteilen",
@@ -542,7 +549,11 @@
     "brighter": "Heller",
     "moreSpend": "= mehr Ausgaben.",
     "less": "weniger",
-    "more": "mehr"
+    "more": "mehr",
+    "customSubtitleShort": "Ausgewählter Zeitraum",
+    "customNoActivity": "Keine Geldbewegungen im ausgewählten Zeitraum.",
+    "customLegendIntro": "Jede Zelle steht für eine Stunde eines Wochentags im ausgewählten Zeitraum.",
+    "customSubtitle": "Ausgewählter Zeitraum · Ausgabenintensität nach Wochentag und Stunde."
   },
   "eventDetail": {
     "previousEvent": "Vorheriges Ereignis",
@@ -716,7 +727,8 @@
     "categoriesShown_other": "{{shown}} von {{total}} Kategorien angezeigt",
     "openTransactions": "Transaktionen öffnen →",
     "moreCount_one": "+{{count}} weitere",
-    "moreCount_other": "+{{count}} weitere"
+    "moreCount_other": "+{{count}} weitere",
+    "vsRange": "gegenüber {{from}} – {{to}}"
   },
   "budgetChart": {
     "overBudget": "Über Budget",

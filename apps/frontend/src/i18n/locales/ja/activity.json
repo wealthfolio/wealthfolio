@@ -1196,7 +1196,9 @@
       "importSnapshots_other": "{{count}}件のスナップショットをインポート",
       "failedToPrepareAssets": "インポート用の資産の準備に失敗しました。",
       "positionsCount_other": "{{count}}件の保有銘柄",
-      "readyRows_other": "{{count}}行"
+      "readyRows_other": "{{count}}行",
+      "ambiguousDateTitle": "日付の順序を判別できません",
+      "ambiguousDateHint": "{{example}} のような日付は日/月とも月/日とも解釈でき、このファイルからは判断できません。戻って、自動検出ではなく日付形式を選択してください。"
     },
     "symbolPanel": {
       "unrecognized_one": "認識できない銘柄が{{count}}件",

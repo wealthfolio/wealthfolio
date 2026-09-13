@@ -194,7 +194,11 @@
     "codePlaceholder": "ABC 123",
     "paste": "貼上",
     "connecting": "正在連線…",
-    "connect": "連線"
+    "connect": "連線",
+    "scanInstructions": "將 QR 碼對準框內。",
+    "cameraOpenError": "無法開啟相機，請再試一次。",
+    "cameraCloseError": "無法關閉相機，請再試一次。",
+    "cameraUnavailable": "沒有可用的相機。請使用實體裝置掃描，或在下方輸入配對碼。"
   },
   "sas": {
     "sameCodeQuestion": "兩台裝置上的代碼相同嗎？"

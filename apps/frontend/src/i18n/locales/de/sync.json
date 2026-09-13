@@ -194,7 +194,11 @@
     "codePlaceholder": "ABC 123",
     "paste": "Einfügen",
     "connecting": "Verbindung wird hergestellt...",
-    "connect": "Verbinden"
+    "connect": "Verbinden",
+    "scanInstructions": "Richte den QR-Code innerhalb des Rahmens aus.",
+    "cameraOpenError": "Die Kamera konnte nicht geöffnet werden. Bitte versuche es erneut.",
+    "cameraCloseError": "Die Kamera konnte nicht geschlossen werden. Bitte versuche es erneut.",
+    "cameraUnavailable": "Keine Kamera verfügbar. Verwende zum Scannen ein physisches Gerät oder gib unten den Kopplungscode ein."
   },
   "sas": {
     "sameCodeQuestion": "Derselbe Code auf beiden Geräten?"
@@ -212,6 +216,6 @@
     "tryAgain": "Erneut versuchen"
   },
   "errors": {
-    "backupPlatformUnsupported": "Die Sicherung vor der Gerätesynchronisierung wird derzeit nur auf Desktop, Web und iOS unterstützt"
+    "backupPlatformUnsupported": "Die Sicherung vor der Gerätesynchronisierung wird derzeit nur auf Desktop, Web und Mobilgeräten unterstützt"
   }
 }

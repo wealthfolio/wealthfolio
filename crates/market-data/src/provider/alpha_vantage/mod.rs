@@ -523,10 +523,10 @@ impl AlphaVantageProvider {
     ///
     /// Returns an error if the HTTP client cannot be created.
     pub fn new(api_key: String) -> Self {
-        let client = Client::builder()
+        let client = wealthfolio_http::client_builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .unwrap_or_else(|_| Client::new());
+            .unwrap_or_else(|_| wealthfolio_http::client());
 
         Self { client, api_key }
     }

@@ -1,5 +1,6 @@
 ---
 source: crates/ai/tests/tool_schemas.rs
+assertion_line: 193
 expression: snapshot
 ---
 {
@@ -51,6 +52,9 @@ expression: snapshot
             },
             "symbol": {
               "type": "string"
+            },
+            "tax": {
+              "type": "number"
             },
             "unitPrice": {
               "type": "number"

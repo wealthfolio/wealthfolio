@@ -9,6 +9,7 @@
 //! a short-lived **encrypted** cookie rather than server memory, so the flow is
 //! stateless and survives restarts.
 
+use reqwest_oidc as reqwest;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 

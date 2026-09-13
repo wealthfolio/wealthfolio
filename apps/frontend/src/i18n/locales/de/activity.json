@@ -1213,7 +1213,9 @@
       "positionsCount_one": "{{count}} Bestand",
       "positionsCount_other": "{{count}} Bestände",
       "readyRows_one": "{{count}} Zeile",
-      "readyRows_other": "{{count}} Zeilen"
+      "readyRows_other": "{{count}} Zeilen",
+      "ambiguousDateTitle": "Datumsreihenfolge ist mehrdeutig",
+      "ambiguousDateHint": "Datumsangaben wie {{example}} können als Tag/Monat oder Monat/Tag gelesen werden. Diese Datei enthält keine eindeutigen Hinweise. Gehe zurück und wähle ein Datumsformat statt der automatischen Erkennung."
     },
     "symbolPanel": {
       "unrecognized_one": "{{count}} nicht erkanntes Symbol",
