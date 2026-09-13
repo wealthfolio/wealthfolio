@@ -337,7 +337,7 @@ function ActivitySummaryRow({
       <div className="text-muted-foreground flex items-center justify-between gap-3 text-xs">
         <span className="min-w-0 truncate">{normalized.notes || symbol}</span>
         <span className="shrink-0">
-          {quantity != null ? `${Math.abs(quantity)} ${symbol}` : normalized.accountCurrency}
+          {quantity != null ? `${Math.abs(quantity)} ${symbol}` : normalized.currency}
         </span>
       </div>
     </div>
