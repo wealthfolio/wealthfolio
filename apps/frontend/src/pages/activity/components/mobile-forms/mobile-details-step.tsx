@@ -375,7 +375,7 @@ export function MobileDetailsStep({
     const currentCurrency = currency?.trim();
     if (currentCurrency === selected.currency) return;
 
-    const shouldAutoSetCurrency = !getFieldState("currency").isDirty || !currentCurrency;
+    const shouldAutoSetCurrency = !currentCurrency && !getFieldState("currency").isDirty;
     if (!shouldAutoSetCurrency) return;
 
     setValue("currency", selected.currency, {
