@@ -1,5 +1,6 @@
 ---
 source: crates/ai/tests/tool_outputs_parity.rs
+assertion_line: 465
 expression: result
 ---
 {
@@ -32,6 +33,7 @@ expression: result
       "currency": "USD",
       "displayCode": "AAPL",
       "exchangeMic": "XNAS",
+      "instrumentType": "EQUITY",
       "label": "AAPL - Apple Inc.",
       "matchedBy": "asset_id",
       "name": "Apple Inc.",

@@ -112,10 +112,10 @@ impl Default for UsTreasuryCalcProvider {
 
 impl UsTreasuryCalcProvider {
     pub fn new() -> Self {
-        let client = reqwest::Client::builder()
+        let client = wealthfolio_http::client_builder()
             .timeout(REQUEST_TIMEOUT)
             .build()
-            .unwrap_or_else(|_| reqwest::Client::new());
+            .unwrap_or_else(|_| wealthfolio_http::client());
 
         Self {
             client,

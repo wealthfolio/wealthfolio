@@ -1,4 +1,6 @@
-use std::{net::SocketAddr, time::Duration};
+use std::{ffi::OsString, net::SocketAddr, time::Duration};
+
+use anyhow::Context;
 
 use crate::auth::{decode_secret_key, derive_keys, AuthConfig, CookieSecurePolicy};
 use crate::oidc::OidcConfig;
@@ -54,15 +56,11 @@ impl Config {
             .parse()
             .unwrap_or(300000);
         let static_dir = std::env::var("WF_STATIC_DIR").unwrap_or_else(|_| "dist".into());
-        let secret_key = std::env::var("WF_SECRET_KEY")
-            .unwrap_or_else(|_| panic!("WF_SECRET_KEY must be set and contain a 32-byte key"))
-            .trim()
-            .to_string();
-        if secret_key.is_empty() {
-            panic!("WF_SECRET_KEY must not be empty");
-        }
-        let raw_secret_key = decode_secret_key(&secret_key)
-            .unwrap_or_else(|e| panic!("Failed to decode WF_SECRET_KEY: {e}"));
+        let raw_secret_key = load_secret_key(
+            std::env::var_os("WF_SECRET_KEY"),
+            std::env::var_os("WF_SECRET_KEY_FILE"),
+        )
+        .unwrap_or_else(|e| panic!("Failed to load server secret key: {e:#}"));
         let (jwt_key, secrets_encryption_key) = derive_keys(&raw_secret_key);
         let addons_root = std::env::var("WF_ADDONS_DIR").unwrap_or_else(|_| {
             std::path::Path::new(&db_path)
@@ -184,5 +182,130 @@ impl Config {
             mcp_audit_enabled,
             mcp_allowed_hosts,
         }
+    }
+}
+
+// Empty environment values are unset, allowing Compose to pass optional inputs.
+// File paths are OS-native and must not be trimmed or converted lossily.
+fn load_secret_key(key: Option<OsString>, key_file: Option<OsString>) -> anyhow::Result<Vec<u8>> {
+    let key = key.filter(|value| !value.is_empty());
+    let key_file = key_file.filter(|value| !value.is_empty());
+    let (value, source) = match (key, key_file) {
+        (Some(_), Some(_)) => anyhow::bail!("Set only one of WF_SECRET_KEY or WF_SECRET_KEY_FILE"),
+        (None, None) => anyhow::bail!("WF_SECRET_KEY or WF_SECRET_KEY_FILE must be set"),
+        (Some(value), None) => (
+            value
+                .into_string()
+                .map_err(|_| anyhow::anyhow!("WF_SECRET_KEY must be valid UTF-8"))?,
+            "WF_SECRET_KEY",
+        ),
+        (None, Some(path)) => (
+            std::fs::read_to_string(path).context("Cannot read WF_SECRET_KEY_FILE")?,
+            "WF_SECRET_KEY_FILE",
+        ),
+    };
+    decode_secret_key(&value).with_context(|| format!("Invalid {source}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const KEY: &str = "--------------------------------";
+
+    #[test]
+    fn file_and_environment_derive_identical_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("master key é.txt");
+        for value in [
+            KEY.to_string(),
+            format!("{KEY}\n"),
+            format!("{KEY}\r\n"),
+            "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=".to_string(),
+        ] {
+            std::fs::write(&path, &value).unwrap();
+            let env = load_secret_key(Some(value.into()), Some(OsString::new())).unwrap();
+            let file = load_secret_key(Some(OsString::new()), Some(path.clone().into())).unwrap();
+            assert_eq!(env, file);
+            assert_eq!(derive_keys(&env), derive_keys(&file));
+        }
+    }
+
+    #[test]
+    fn startup_reads_file_key_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("startup key.txt");
+        std::fs::write(&path, format!("{KEY}\r\n")).unwrap();
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "config::tests::startup_worker", "--nocapture"])
+            .current_dir(dir.path())
+            .env_clear()
+            .env("WF_KEY_INPUT_TEST", "1")
+            .env("WF_LISTEN_ADDR", "127.0.0.1:8088")
+            .env("WF_SECRET_KEY_FILE", &path)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(!path.exists(), "startup worker must execute");
+    }
+
+    #[test]
+    fn startup_worker() {
+        if std::env::var_os("WF_KEY_INPUT_TEST").is_none() {
+            return;
+        }
+        let config = Config::from_env();
+        std::fs::remove_file(std::env::var_os("WF_SECRET_KEY_FILE").unwrap()).unwrap();
+        assert_eq!(config.raw_secret_key, KEY.as_bytes());
+        assert_eq!(config.secrets_encryption_key, derive_keys(KEY.as_bytes()).1);
+    }
+
+    #[test]
+    fn rejects_conflicting_or_missing_sources() {
+        assert!(load_secret_key(None, None).is_err());
+        assert!(load_secret_key(Some(OsString::new()), Some(OsString::new())).is_err());
+        let error = load_secret_key(Some(KEY.into()), Some("missing-file".into())).unwrap_err();
+        assert!(error.to_string().contains("Set only one"));
+        assert!(!error.to_string().contains(KEY));
+        assert!(load_secret_key(Some("   ".into()), None).is_err());
+    }
+
+    #[test]
+    fn invalid_files_fail_without_fallback() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("key");
+        assert!(load_secret_key(None, Some(path.clone().into())).is_err());
+        assert!(load_secret_key(None, Some(dir.path().into())).is_err());
+        for bytes in [b"".as_slice(), b"  \r\n", b"invalid-key", &[0xff]] {
+            std::fs::write(&path, bytes).unwrap();
+            let error = load_secret_key(None, Some(path.clone().into())).unwrap_err();
+            assert!(format!("{error:#}").contains("WF_SECRET_KEY_FILE"));
+            assert!(!format!("{error:#}").contains("invalid-key"));
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn supports_non_utf8_file_paths() {
+        use std::os::unix::ffi::OsStringExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(OsString::from_vec(vec![0xff]));
+        std::fs::write(&path, KEY).unwrap();
+        assert_eq!(
+            load_secret_key(None, Some(path.into())).unwrap(),
+            KEY.as_bytes()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_non_utf8_keys() {
+        use std::os::unix::ffi::OsStringExt;
+        assert!(load_secret_key(Some(OsString::from_vec(vec![0xff])), None).is_err());
     }
 }

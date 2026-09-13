@@ -1,6 +1,6 @@
 ---
 source: crates/ai/tests/tool_outputs_parity.rs
-assertion_line: 693
+assertion_line: 708
 expression: result
 ---
 {
@@ -34,6 +34,7 @@ expression: result
           "quantity": null,
           "subtype": null,
           "symbol": null,
+          "tax": null,
           "unitPrice": null
         },
         "errors": [],
@@ -65,6 +66,7 @@ expression: result
           "quantity": null,
           "subtype": null,
           "symbol": null,
+          "tax": null,
           "unitPrice": null
         },
         "errors": [

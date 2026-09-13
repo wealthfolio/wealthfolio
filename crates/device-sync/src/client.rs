@@ -344,7 +344,7 @@ impl DeviceSyncClient {
     ///
     /// * `base_url` - The base URL of the cloud API (e.g., "https://api.wealthfolio.app")
     pub fn new(base_url: &str) -> Self {
-        let client = reqwest::Client::builder()
+        let client = wealthfolio_http::client_builder()
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
             .build()
             .expect("Failed to build HTTP client");

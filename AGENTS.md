@@ -80,15 +80,18 @@ crates/
 
 ## Run Targets
 
-| Task         | Command            |
-| ------------ | ------------------ |
-| Desktop dev  | `pnpm tauri dev`   |
-| Web dev      | `pnpm run dev:web` |
-| Tests (TS)   | `pnpm test`        |
-| Tests (Rust) | `cargo test`       |
-| Type check   | `pnpm type-check`  |
-| Lint         | `pnpm lint`        |
-| All checks   | `pnpm check`       |
+| Task         | Command                          |
+| ------------ | -------------------------------- |
+| Desktop dev  | `pnpm tauri dev`                 |
+| Android init | `pnpm tauri android init`        |
+| Android dev  | `pnpm tauri android dev`         |
+| Android APK  | `pnpm tauri android build --apk` |
+| Web dev      | `pnpm run dev:web`               |
+| Tests (TS)   | `pnpm test`                      |
+| Tests (Rust) | `cargo test`                     |
+| Type check   | `pnpm type-check`                |
+| Lint         | `pnpm lint`                      |
+| All checks   | `pnpm check`                     |
 
 ---
 

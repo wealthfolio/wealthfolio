@@ -19,7 +19,9 @@ services:
       WF_LISTEN_ADDR: "0.0.0.0:8088"
       WF_DB_PATH: "/data/wealthfolio.db"
       # Required — generate with: openssl rand -base64 32
-      WF_SECRET_KEY: "${WF_SECRET_KEY:?Set WF_SECRET_KEY}"
+      WF_SECRET_KEY: "${WF_SECRET_KEY:-}"
+      # Alternative: path inside the container to a separately mounted secret.
+      WF_SECRET_KEY_FILE: "${WF_SECRET_KEY_FILE:-}"
 
       # ── Authentication ────────────────────────────────────────────────
       # Required when listening on 0.0.0.0 (the default for Docker).

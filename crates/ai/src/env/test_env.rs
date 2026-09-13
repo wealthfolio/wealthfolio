@@ -1689,19 +1689,19 @@ impl AgentEnvironment for MockEnvironment {
     }
 
     fn portfolio_service(&self) -> Arc<dyn wealthfolio_core::portfolios::PortfolioServiceTrait> {
-        unimplemented!("portfolio_service not used in AI mock environment")
+        Arc::new(EmptyPortfolioService)
     }
 
     fn net_worth_service(
         &self,
     ) -> Arc<dyn wealthfolio_core::portfolio::net_worth::NetWorthServiceTrait> {
-        unimplemented!("net_worth_service not used in AI mock environment")
+        Arc::new(EmptyNetWorthService)
     }
 
     fn contribution_limit_service(
         &self,
     ) -> Arc<dyn wealthfolio_core::limits::ContributionLimitServiceTrait> {
-        unimplemented!("contribution_limit_service not used in AI mock environment")
+        Arc::new(EmptyContributionLimitService)
     }
 
     fn cash_activity_service(&self) -> Arc<dyn CashActivityServiceTrait> {
@@ -1808,6 +1808,104 @@ impl HealthServiceTrait for MockHealthService {
     }
 }
 
+struct EmptyPortfolioService;
+#[async_trait::async_trait]
+impl wealthfolio_core::portfolios::PortfolioServiceTrait for EmptyPortfolioService {
+    async fn create_portfolio(
+        &self,
+        _: wealthfolio_core::portfolios::NewPortfolio,
+    ) -> wealthfolio_core::errors::Result<wealthfolio_core::portfolios::PortfolioWithAccounts> {
+        unimplemented!("read-only fixture")
+    }
+    async fn update_portfolio(
+        &self,
+        _: wealthfolio_core::portfolios::PortfolioUpdate,
+    ) -> wealthfolio_core::errors::Result<wealthfolio_core::portfolios::PortfolioWithAccounts> {
+        unimplemented!("read-only fixture")
+    }
+    async fn delete_portfolio(&self, _: &str) -> wealthfolio_core::errors::Result<()> {
+        unimplemented!("read-only fixture")
+    }
+    fn get_portfolio(
+        &self,
+        _: &str,
+    ) -> wealthfolio_core::errors::Result<wealthfolio_core::portfolios::PortfolioWithAccounts> {
+        unimplemented!("read-only fixture")
+    }
+    fn list_portfolios(
+        &self,
+    ) -> wealthfolio_core::errors::Result<Vec<wealthfolio_core::portfolios::PortfolioWithAccounts>>
+    {
+        Ok(vec![])
+    }
+    fn resolve_account_filter(
+        &self,
+        _: &wealthfolio_core::portfolios::AccountScope,
+    ) -> wealthfolio_core::errors::Result<Vec<String>> {
+        Ok(vec![])
+    }
+    fn resolve_account_scope_for_purpose(
+        &self,
+        filter: &wealthfolio_core::portfolios::AccountScope,
+        currency: &str,
+        _: wealthfolio_core::accounts::AccountPurpose,
+    ) -> wealthfolio_core::errors::Result<wealthfolio_core::portfolios::ResolvedAccountScope> {
+        self.resolve_account_scope(filter, currency)
+    }
+}
+struct EmptyNetWorthService;
+#[async_trait::async_trait]
+impl wealthfolio_core::portfolio::net_worth::NetWorthServiceTrait for EmptyNetWorthService {
+    async fn get_net_worth(
+        &self,
+        date: chrono::NaiveDate,
+    ) -> wealthfolio_core::errors::Result<wealthfolio_core::portfolio::net_worth::NetWorthResponse>
+    {
+        Ok(wealthfolio_core::portfolio::net_worth::NetWorthResponse::empty(date, "USD".into()))
+    }
+    fn get_net_worth_history(
+        &self,
+        _: chrono::NaiveDate,
+        _: chrono::NaiveDate,
+    ) -> wealthfolio_core::errors::Result<
+        Vec<wealthfolio_core::portfolio::net_worth::NetWorthHistoryPoint>,
+    > {
+        Ok(vec![])
+    }
+}
+struct EmptyContributionLimitService;
+#[async_trait::async_trait]
+impl wealthfolio_core::limits::ContributionLimitServiceTrait for EmptyContributionLimitService {
+    fn get_contribution_limits(
+        &self,
+    ) -> wealthfolio_core::errors::Result<Vec<wealthfolio_core::limits::ContributionLimit>> {
+        Ok(vec![])
+    }
+    async fn create_contribution_limit(
+        &self,
+        _: wealthfolio_core::limits::NewContributionLimit,
+    ) -> wealthfolio_core::errors::Result<wealthfolio_core::limits::ContributionLimit> {
+        unimplemented!("read-only fixture")
+    }
+    async fn update_contribution_limit(
+        &self,
+        _: &str,
+        _: wealthfolio_core::limits::NewContributionLimit,
+    ) -> wealthfolio_core::errors::Result<wealthfolio_core::limits::ContributionLimit> {
+        unimplemented!("read-only fixture")
+    }
+    async fn delete_contribution_limit(&self, _: &str) -> wealthfolio_core::errors::Result<()> {
+        unimplemented!("read-only fixture")
+    }
+    fn calculate_deposits_for_contribution_limit(
+        &self,
+        _: &str,
+        _: &str,
+    ) -> wealthfolio_core::errors::Result<wealthfolio_core::limits::DepositsCalculation> {
+        unimplemented!("empty fixture")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1842,3 +1940,5 @@ mod tests {
         assert_eq!(ids, vec!["visible"]);
     }
 }
+
+// Empty read fixtures for assistant tools added after the original mock environment.

@@ -200,7 +200,11 @@
     "codePlaceholder": "ABC 123",
     "paste": "Coller",
     "connecting": "Connexion...",
-    "connect": "Connecter"
+    "connect": "Connecter",
+    "scanInstructions": "Placez le code QR dans le cadre.",
+    "cameraOpenError": "Impossible d’ouvrir la caméra. Veuillez réessayer.",
+    "cameraCloseError": "Impossible de fermer la caméra. Veuillez réessayer.",
+    "cameraUnavailable": "Aucune caméra disponible. Utilisez un appareil physique pour scanner ou saisissez le code d’association ci-dessous."
   },
   "sas": {
     "sameCodeQuestion": "Le même code sur les deux appareils ?"
@@ -218,6 +222,6 @@
     "tryAgain": "Réessayer"
   },
   "errors": {
-    "backupPlatformUnsupported": "La sauvegarde avant la synchronisation des appareils est actuellement prise en charge uniquement sur ordinateur, web et iOS"
+    "backupPlatformUnsupported": "La sauvegarde avant la synchronisation des appareils est actuellement prise en charge uniquement sur ordinateur, web et mobile"
   }
 }

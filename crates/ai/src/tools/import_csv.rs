@@ -14,7 +14,7 @@
 //! 4. Return `(ParseConfig, ImportMappingData)` plus a small sample for UI
 
 use log::debug;
-use rig::{completion::ToolDefinition, tool::Tool};
+use rig::tool::PortableTool as Tool;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -858,10 +858,8 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
     type Args = ImportCsvArgs;
     type Output = ImportCsvMappingOutput;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "REQUIRED for CSV file imports. When a user attaches a CSV file or provides CSV content, \
+    fn description(&self) -> String {
+        "REQUIRED for CSV file imports. When a user attaches a CSV file or provides CSV content, \
                 you MUST call this tool. Pass the complete CSV text to csvContent. \
                 The tool returns a mapping (column→field, value normalization, symbol translations, parse config); \
                 the app then parses/validates the file and shows the user an inline review grid in the chat. \
@@ -880,74 +878,76 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
                 thousandsSeparator, defaultCurrency): detect non-defaults from the sample rows. European brokers \
                 often use `;` delimiter, `,` decimal, `.` thousands, and DD/MM/YYYY dates. Many broker exports have \
                 a multi-line preamble before the real header row — pass skipTopRows to skip it. Totals/disclaimer \
-                lines at the end need skipBottomRows.".to_string(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "csvContent": {
-                        "type": "string",
-                        "description": "Raw CSV content to parse. Include the full CSV text including headers."
-                    },
-                    "accountId": {
-                        "type": ["string", "null"],
-                        "description": "Account UUID to assign to all imported activities. If the user mentions an account by name (e.g. 'Joint', 'RRSP'), call get_accounts first to resolve the name to an ID. Pass null only if the user didn't specify an account."
-                    },
-                    "fieldMappings": {
-                        "type": ["object", "null"],
-                        "description": "Maps field names to CSV header names. Investment keys: date, activityType, symbol, quantity, unitPrice, amount, fee, fxRate, subtype, currency, account, comment. For CASH/CREDIT_CARD statements, prefer only date, activityType, amount, fee, fxRate, subtype, currency, account, comment.",
-                        "additionalProperties": { "type": "string" }
-                    },
-                    "activityMappings": {
-                        "type": ["object", "null"],
-                        "description": "Maps canonical activity types (BUY, SELL, DIVIDEND, INTEREST, DEPOSIT, WITHDRAWAL, TRANSFER_IN, TRANSFER_OUT, SPLIT, FEE, TAX) to CSV values. Common English verbs (Buy/Bought/Purchase, Sell/Sold, Dividend/Div, etc.) are already covered by defaults — you only need to add non-English or broker-specific terms. E.g., {\"BUY\": [\"Achat\", \"Kopen\"], \"DIVIDEND\": [\"Dividende\"]}. Pass null if all CSV values are covered by defaults.",
-                        "additionalProperties": {
-                            "type": "array",
-                            "items": { "type": "string" }
-                        }
-                    },
-                    "symbolMappings": {
-                        "type": ["object", "null"],
-                        "description": "Maps CSV symbol values (tickers OR public-company names) to canonical tickers for investment activity imports only. For CASH/CREDIT_CARD statements, pass null and map merchant/payee text to comment instead.",
-                        "additionalProperties": { "type": "string" }
-                    },
-                    "accountMappings": {
-                        "type": ["object", "null"],
-                        "description": "Maps CSV account values to app account IDs. Pass null if using accountId or no mapping needed.",
-                        "additionalProperties": { "type": "string" }
-                    },
-                    "delimiter": {
-                        "type": ["string", "null"],
-                        "description": "CSV delimiter: \",\", \";\", \"\\t\". Pass null for auto-detection."
-                    },
-                    "skipTopRows": {
-                        "type": ["integer", "null"],
-                        "description": "Number of NON-HEADER rows to skip at the top (preamble/disclaimer lines BEFORE the column header row). Do NOT count the header row itself — only count text like account names, date ranges, disclaimers that appear before the row with column headers. Example: if rows 1-3 are preamble and row 4 is 'Date,Symbol,Qty,...', pass 3 (not 4). Pass null or 0 if the header is the first row."
-                    },
-                    "skipBottomRows": {
-                        "type": ["integer", "null"],
-                        "description": "Number of rows to skip at the bottom (totals/disclaimer footer rows). Pass null or 0 if no rows to skip."
-                    },
-                    "dateFormat": {
-                        "type": ["string", "null"],
-                        "description": "Date format hint using strftime: \"%Y-%m-%d\", \"%d/%m/%Y\", \"%m/%d/%Y\". Pass null for auto-detection."
-                    },
-                    "decimalSeparator": {
-                        "type": ["string", "null"],
-                        "description": "Decimal separator: \".\", \",\". Pass null for auto-detection."
-                    },
-                    "thousandsSeparator": {
-                        "type": ["string", "null"],
-                        "description": "Thousands separator: \",\", \".\", \" \", \"none\". Pass null for auto-detection."
-                    },
-                    "defaultCurrency": {
-                        "type": ["string", "null"],
-                        "description": "Default currency when rows don't specify one (e.g., \"EUR\" for European broker statements)."
+                lines at the end need skipBottomRows.".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "csvContent": {
+                    "type": "string",
+                    "description": "Raw CSV content to parse. Include the full CSV text including headers."
+                },
+                "accountId": {
+                    "type": ["string", "null"],
+                    "description": "Account UUID to assign to all imported activities. If the user mentions an account by name (e.g. 'Joint', 'RRSP'), call get_accounts first to resolve the name to an ID. Pass null only if the user didn't specify an account."
+                },
+                "fieldMappings": {
+                    "type": ["object", "null"],
+                    "description": "Maps field names to CSV header names. Investment keys: date, activityType, symbol, quantity, unitPrice, amount, fee, fxRate, subtype, currency, account, comment. For CASH/CREDIT_CARD statements, prefer only date, activityType, amount, fee, fxRate, subtype, currency, account, comment.",
+                    "additionalProperties": { "type": "string" }
+                },
+                "activityMappings": {
+                    "type": ["object", "null"],
+                    "description": "Maps canonical activity types (BUY, SELL, DIVIDEND, INTEREST, DEPOSIT, WITHDRAWAL, TRANSFER_IN, TRANSFER_OUT, SPLIT, FEE, TAX) to CSV values. Common English verbs (Buy/Bought/Purchase, Sell/Sold, Dividend/Div, etc.) are already covered by defaults — you only need to add non-English or broker-specific terms. E.g., {\"BUY\": [\"Achat\", \"Kopen\"], \"DIVIDEND\": [\"Dividende\"]}. Pass null if all CSV values are covered by defaults.",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
                     }
                 },
-                "required": ["csvContent"],
-                "additionalProperties": false
-            }),
-        }
+                "symbolMappings": {
+                    "type": ["object", "null"],
+                    "description": "Maps CSV symbol values (tickers OR public-company names) to canonical tickers for investment activity imports only. For CASH/CREDIT_CARD statements, pass null and map merchant/payee text to comment instead.",
+                    "additionalProperties": { "type": "string" }
+                },
+                "accountMappings": {
+                    "type": ["object", "null"],
+                    "description": "Maps CSV account values to app account IDs. Pass null if using accountId or no mapping needed.",
+                    "additionalProperties": { "type": "string" }
+                },
+                "delimiter": {
+                    "type": ["string", "null"],
+                    "description": "CSV delimiter: \",\", \";\", \"\\t\". Pass null for auto-detection."
+                },
+                "skipTopRows": {
+                    "type": ["integer", "null"],
+                    "description": "Number of NON-HEADER rows to skip at the top (preamble/disclaimer lines BEFORE the column header row). Do NOT count the header row itself — only count text like account names, date ranges, disclaimers that appear before the row with column headers. Example: if rows 1-3 are preamble and row 4 is 'Date,Symbol,Qty,...', pass 3 (not 4). Pass null or 0 if the header is the first row."
+                },
+                "skipBottomRows": {
+                    "type": ["integer", "null"],
+                    "description": "Number of rows to skip at the bottom (totals/disclaimer footer rows). Pass null or 0 if no rows to skip."
+                },
+                "dateFormat": {
+                    "type": ["string", "null"],
+                    "description": "Date format hint using strftime: \"%Y-%m-%d\", \"%d/%m/%Y\", \"%m/%d/%Y\". Pass null for auto-detection."
+                },
+                "decimalSeparator": {
+                    "type": ["string", "null"],
+                    "description": "Decimal separator: \".\", \",\". Pass null for auto-detection."
+                },
+                "thousandsSeparator": {
+                    "type": ["string", "null"],
+                    "description": "Thousands separator: \",\", \".\", \" \", \"none\". Pass null for auto-detection."
+                },
+                "defaultCurrency": {
+                    "type": ["string", "null"],
+                    "description": "Default currency when rows don't specify one (e.g., \"EUR\" for European broker statements)."
+                }
+            },
+            "required": ["csvContent"],
+            "additionalProperties": false
+        })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

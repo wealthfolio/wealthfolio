@@ -44,5 +44,16 @@
 	<string>Wealthfolio needs camera access to scan QR codes for device pairing.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>wealthfolio</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>wealthfolio</string>
+		</dict>
+	</array>
 </dict>
 </plist>

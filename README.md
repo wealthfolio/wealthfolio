@@ -130,6 +130,10 @@ See [ROADMAP.md](./ROADMAP.md).
 
 ### Architecture
 
+- **[Credential Storage](docs/architecture/credential-storage.md)** - Native
+  backends, server encryption, Android backup, and recovery
+- **[Android Testing](docs/android-testing.md)** - Setup, emulator/device
+  commands, APK builds, and smoke tests
 - **[Adapter System](docs/architecture/adapters.md)** - Compile-time environment
   detection for Desktop/Web builds
 
@@ -270,12 +274,14 @@ All configuration is done via environment variables in `.env.web`.
 - `WF_CORS_ALLOW_ORIGINS` - Comma-separated list of allowed CORS origins
   (default: `*`). **Required when auth is enabled** — wildcard `*` is rejected.
   - Example: `https://wealthfolio.example.com`
-- `WF_REQUEST_TIMEOUT_MS` - Request timeout in milliseconds (default: `30000`)
+- `WF_REQUEST_TIMEOUT_MS` - Request timeout in milliseconds (default: `300000`)
 - `WF_STATIC_DIR` - Directory for serving static frontend assets (default:
   `dist`)
-- `WF_SECRET_KEY` - **Required** 32-byte key used for secrets encryption and JWT
-  signing
+- `WF_SECRET_KEY` - 32-byte key used for secrets encryption and JWT signing
+  (required unless `WF_SECRET_KEY_FILE` is set)
   - Generate with: `openssl rand -base64 32`
+- `WF_SECRET_KEY_FILE` - Optional master-key file; see
+  [setup and mount instructions](docs/self-host/README.md#master-key-configuration)
 - `WF_AUTH_PASSWORD_HASH` - Argon2id PHC string enabling password-only
   authentication for web mode
 - `WF_AUTH_TOKEN_TTL_MINUTES` - Optional JWT access token expiry in minutes
@@ -580,10 +586,22 @@ The container supports all `WF_*` environment variables documented in the
   `127.0.0.1`)
 - `WF_DB_PATH` - Database path (typically `/data/wealthfolio.db`)
 - `WF_CORS_ALLOW_ORIGINS` - CORS origins (set for dev/frontend access)
-- `WF_SECRET_KEY` - Required 32-byte key used for secrets encryption and JWT
-  signing
+- `WF_SECRET_KEY` - 32-byte key used for secrets encryption and JWT signing
+  (required unless `WF_SECRET_KEY_FILE` is set)
+- `WF_SECRET_KEY_FILE` - Optional master-key file; see
+  [setup and mount instructions](docs/self-host/README.md#master-key-configuration)
 
 ### Volumes
+
+Existing vault files retain their ownership, permissions, ACLs, symlinks, and
+file mounts. Updates write to the existing file; a writable parent directory is
+only needed to create a new vault. File creation uses the existing operating
+system permissions and umask behavior. Use one server process per vault, as
+before. Keep the matching master key separately protected when backing up the
+encrypted file. Corrupt or wrong-key vaults report errors when secrets are
+accessed and are not silently reset; other server features can still start.
+Existing-file updates retain their previous in-place write behavior and are not
+crash-atomic.
 
 - `/data` - Persistent storage for database and secrets
   - Database: `/data/wealthfolio.db`

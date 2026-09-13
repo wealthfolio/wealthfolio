@@ -17,7 +17,7 @@ use std::{future::Future, sync::Arc, time::Duration};
 
 use chrono::NaiveDateTime;
 use futures::StreamExt;
-use rig::{client::CompletionClient, completion::Prompt};
+use rig::{client::AgentClientExt, completion::Prompt};
 use serde::Deserialize;
 use serde_json::Value;
 use wealthfolio_core::{

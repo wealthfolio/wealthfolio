@@ -1255,7 +1255,9 @@
       "positionsCount_many": "{{count}} positions",
       "readyRows_one": "{{count}} ligne",
       "readyRows_other": "{{count}} lignes",
-      "readyRows_many": "{{count}} lignes"
+      "readyRows_many": "{{count}} lignes",
+      "ambiguousDateTitle": "L’ordre des éléments de la date est ambigu",
+      "ambiguousDateHint": "Les dates comme {{example}} peuvent se lire jour/mois ou mois/jour, et rien dans ce fichier ne permet de trancher. Revenez en arrière et choisissez un format de date plutôt que la détection automatique."
     },
     "symbolPanel": {
       "unrecognized_one": "{{count}} symbole non reconnu",
