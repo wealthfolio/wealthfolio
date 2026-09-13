@@ -87,11 +87,21 @@ pub struct YahooProvider {
 impl YahooProvider {
     /// Create a new Yahoo Finance provider.
     pub async fn new() -> Result<Self, MarketDataError> {
-        let connector =
-            yahoo::YahooConnector::new().map_err(|e| MarketDataError::ProviderError {
+        let client = wealthfolio_http::client_builder()
+            .https_only(true)
+            .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| MarketDataError::ProviderError {
+                provider: "YAHOO".to_string(),
+                message: format!("Failed to initialize Yahoo HTTP client: {}", e),
+            })?;
+        let connector = yahoo::YahooConnectorBuilder::build_with_client(client).map_err(|e| {
+            MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
                 message: format!("Failed to initialize Yahoo connector: {}", e),
-            })?;
+            }
+        })?;
         Ok(Self { connector })
     }
 
@@ -166,7 +176,7 @@ impl YahooProvider {
 
     /// Fetch a new Yahoo authentication crumb.
     async fn fetch_crumb(&self) -> Result<CrumbData, MarketDataError> {
-        let client = reqwest::Client::new();
+        let client = wealthfolio_http::client();
 
         // Step 1: Get cookie from fc.yahoo.com
         let response = client
@@ -248,7 +258,7 @@ impl YahooProvider {
             urlencoding::encode(&crumb_data.crumb)
         );
 
-        let client = reqwest::Client::new();
+        let client = wealthfolio_http::client();
         let resp = client
             .get(&url)
             .header(header::ACCEPT, "application/json")
@@ -477,7 +487,7 @@ impl YahooProvider {
             encoded_query
         );
 
-        let payload = reqwest::Client::new()
+        let payload = wealthfolio_http::client()
             .get(&url)
             .header(
                 header::USER_AGENT,
@@ -540,7 +550,7 @@ impl YahooProvider {
             encode(&crumb.crumb)
         );
 
-        let client = reqwest::Client::new();
+        let client = wealthfolio_http::client();
         let response = client
             .get(&url)
             .header(
@@ -644,7 +654,7 @@ impl YahooProvider {
             encode(&crumb.crumb)
         );
 
-        let client = reqwest::Client::new();
+        let client = wealthfolio_http::client();
         let response = client
             .get(&url)
             .header(

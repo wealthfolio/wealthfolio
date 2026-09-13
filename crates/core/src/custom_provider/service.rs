@@ -135,7 +135,7 @@ impl CustomProviderService {
             to: payload.to.as_deref(),
         };
 
-        let client = reqwest::Client::builder()
+        let client = wealthfolio_http::client_builder()
             .timeout(std::time::Duration::from_secs(15))
             .redirect(reqwest::redirect::Policy::limited(5))
             .user_agent(CUSTOM_PROVIDER_USER_AGENT)

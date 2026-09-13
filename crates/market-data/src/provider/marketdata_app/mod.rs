@@ -87,10 +87,10 @@ pub struct MarketDataAppProvider {
 impl MarketDataAppProvider {
     /// Create a new MarketData.app provider with the given API key.
     pub fn new(api_key: String) -> Self {
-        let client = Client::builder()
+        let client = wealthfolio_http::client_builder()
             .timeout(REQUEST_TIMEOUT)
             .build()
-            .unwrap_or_else(|_| Client::new());
+            .unwrap_or_else(|_| wealthfolio_http::client());
 
         Self { client, api_key }
     }

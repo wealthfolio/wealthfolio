@@ -1,4 +1,7 @@
+use futures::FutureExt;
 use log::{error, info, warn};
+use std::future::Future;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::{async_runtime::spawn, AppHandle, Emitter, Listener, Manager};
@@ -8,7 +11,7 @@ use wealthfolio_core::portfolio::snapshot::{
     SnapshotRecalcMode,
 };
 use wealthfolio_core::portfolio::valuation::ValuationRecalcMode;
-use wealthfolio_core::quotes::MarketSyncMode;
+use wealthfolio_core::quotes::{MarketSyncMode, SyncResult};
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 use crate::context::ServiceContext;
@@ -70,6 +73,21 @@ fn recalculation_modes(
     }
 }
 
+// Keep an unwinding provider panic inside the market-sync error path so the
+// background task still emits a terminal event. Never expose the panic payload.
+async fn run_market_sync(
+    operation: impl Future<Output = wealthfolio_core::Result<SyncResult>>,
+) -> wealthfolio_core::Result<SyncResult> {
+    AssertUnwindSafe(operation)
+        .catch_unwind()
+        .await
+        .unwrap_or_else(|_| {
+            Err(wealthfolio_core::Error::Unexpected(
+                "Price refresh stopped unexpectedly".to_string(),
+            ))
+        })
+}
+
 /// Handles the common logic for both portfolio update and recalculation requests.
 fn handle_portfolio_request(handle: AppHandle, payload_str: &str, force_recalc: bool) {
     let event_name = if force_recalc {
@@ -126,7 +144,10 @@ fn handle_portfolio_request(handle: AppHandle, payload_str: &str, force_recalc: 
 
                         // Convert MarketSyncMode to SyncMode for the quote service
                         let sync_result = match market_sync_mode.to_sync_mode() {
-                            Some(sync_mode) => market_data_service.sync(sync_mode, asset_ids).await,
+                            Some(sync_mode) => {
+                                run_market_sync(market_data_service.sync(sync_mode, asset_ids))
+                                    .await
+                            }
                             None => {
                                 // This shouldn't happen since we checked requires_sync()
                                 warn!(
@@ -376,6 +397,48 @@ fn handle_portfolio_calculation(
 mod tests {
     use super::*;
     use chrono::NaiveDate;
+
+    #[tokio::test]
+    async fn market_sync_panic_becomes_safe_error_and_allows_next_refresh() {
+        let result = run_market_sync(async {
+            tokio::task::yield_now().await;
+            panic!("provider internal detail that must not reach the UI");
+        })
+        .await;
+
+        match result {
+            Err(wealthfolio_core::Error::Unexpected(message)) => {
+                assert_eq!(message, "Price refresh stopped unexpectedly");
+            }
+            other => panic!("Expected a safe refresh error, got {other:?}"),
+        }
+
+        let next = run_market_sync(async {
+            Ok(SyncResult {
+                synced: 1,
+                quotes_synced: 2,
+                ..Default::default()
+            })
+        })
+        .await
+        .unwrap();
+        assert_eq!(next.synced, 1);
+        assert_eq!(next.quotes_synced, 2);
+    }
+
+    #[tokio::test]
+    async fn market_sync_preserves_returned_errors() {
+        let result = run_market_sync(async {
+            Err(wealthfolio_core::Error::Unexpected(
+                "Provider request timed out".to_string(),
+            ))
+        })
+        .await;
+        assert!(
+            matches!(result, Err(wealthfolio_core::Error::Unexpected(message))
+            if message == "Provider request timed out")
+        );
+    }
 
     #[test]
     fn dated_recalculation_request_uses_since_date_for_both_engines() {

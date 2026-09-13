@@ -105,7 +105,7 @@ impl AgentTool for GetAssetAllocation {
             "type": "object",
             "properties": {
                 "accountId": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "description": "Account ID to get allocation for. Omit for all accounts."
                 },
                 "groupBy": {
@@ -115,11 +115,11 @@ impl AgentTool for GetAssetAllocation {
                     "default": "class"
                 },
                 "taxonomyId": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "description": "For drill-down: taxonomy ID (use value from previous allocation response)"
                 },
                 "categoryId": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "description": "For drill-down: category ID to show holdings for (use value from previous allocation response)"
                 }
             },
@@ -275,5 +275,29 @@ impl AgentTool for GetAssetAllocation {
         Ok(AgentToolResult {
             content: serde_json::to_value(output)?,
         })
+    }
+}
+
+#[cfg(test)]
+mod nullable_schema_tests {
+    use super::*;
+
+    #[test]
+    fn optional_ids_accept_null_in_schema_and_arguments() {
+        let schema = GetAssetAllocation.input_schema();
+        for field in ["accountId", "taxonomyId", "categoryId"] {
+            assert_eq!(
+                schema["properties"][field]["type"],
+                serde_json::json!(["string", "null"])
+            );
+        }
+        let args: GetAssetAllocationArgs = serde_json::from_value(
+            serde_json::json!({"accountId":null,"taxonomyId":null,"categoryId":null}),
+        )
+        .unwrap();
+        assert!(args.account_id.is_none());
+        assert!(args.taxonomy_id.is_none());
+        assert!(args.category_id.is_none());
+        assert_eq!(args.group_by, "class");
     }
 }

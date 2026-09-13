@@ -30,8 +30,9 @@ log = { workspace = true }
 reqwest = { workspace = true }
 sha2 = { workspace = true }
 
-# LLM orchestration (rig-core crate exports as "rig")
-rig = { package = "rig-core", version = "0.30", default-features = false, features = ["reqwest-rustls"] }
+# LLM orchestration facade (portable contracts + agent runtime)
+rig = { version = "0.42.0", default-features = false, features = ["agent", "reqwest"] }
+wealthfolio-http = { workspace = true }
 
 # Lazy static initialization
 once_cell = "1"

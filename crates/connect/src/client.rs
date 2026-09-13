@@ -167,7 +167,7 @@ impl ConnectApiClient {
         let auth_header = HeaderValue::from_str(&format!("Bearer {}", access_token))
             .map_err(|e| Error::Unexpected(format!("Invalid access token format: {}", e)))?;
 
-        let client = reqwest::Client::builder()
+        let client = wealthfolio_http::client_builder()
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
             .build()
             .map_err(|e| Error::Unexpected(format!("Failed to initialize HTTP client: {}", e)))?;
@@ -589,7 +589,7 @@ impl BrokerApiClient for ConnectApiClient {
 /// let plans = fetch_subscription_plans_public("https://api.wealthfolio.app").await?;
 /// ```
 pub async fn fetch_subscription_plans_public(base_url: &str) -> Result<PlansResponse> {
-    let client = reqwest::Client::builder()
+    let client = wealthfolio_http::client_builder()
         .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
         .build()
         .map_err(|e| Error::Unexpected(format!("Failed to initialize HTTP client: {}", e)))?;

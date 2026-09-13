@@ -226,7 +226,13 @@
     "viewingMonth": "Vendo {{label}}, clique para alterar",
     "pickMonth": "Escolher um mês específico",
     "selectMonth": "Selecionar mês",
-    "clearMonth": "Limpar seleção de mês"
+    "clearMonth": "Limpar seleção de mês",
+    "chooseMonth": "Escolha um mês",
+    "selectDates": "Selecionar datas",
+    "startDate": "Data de início",
+    "chooseCustomDates": "Escolher datas personalizadas",
+    "invalidRange": "A data de término deve ser igual ou posterior à data de início",
+    "endDate": "Data de término"
   },
   "presets": {
     "loading": "Carregando conjuntos predefinidos…",
@@ -413,7 +419,8 @@
     "largest": "Maior",
     "noSpending": "Não há gasto nesta faixa.",
     "outlier": "Atípico",
-    "weekOf": "Semana de {{date}}"
+    "weekOf": "Semana de {{date}}",
+    "customSubtitle": "Transações no período selecionado"
   },
   "split": {
     "title": "Dividir transação",
@@ -570,7 +577,11 @@
     "brighter": "Mais claro",
     "moreSpend": "= mais gasto.",
     "less": "menos",
-    "more": "mais"
+    "more": "mais",
+    "customSubtitleShort": "Período selecionado",
+    "customNoActivity": "Nenhuma movimentação de caixa no período selecionado.",
+    "customLegendIntro": "Cada célula representa uma hora de um dia da semana no período selecionado.",
+    "customSubtitle": "Período selecionado · intensidade dos gastos por dia da semana e hora."
   },
   "eventDetail": {
     "previousEvent": "Evento anterior",
@@ -757,7 +768,8 @@
     "openTransactions": "Abrir transações →",
     "moreCount_one": "+{{count}} mais",
     "moreCount_other": "+{{count}} mais",
-    "moreCount_many": "+{{count}} mais"
+    "moreCount_many": "+{{count}} mais",
+    "vsRange": "em relação a {{from}} – {{to}}"
   },
   "budgetChart": {
     "overBudget": "Orçamento excedido",

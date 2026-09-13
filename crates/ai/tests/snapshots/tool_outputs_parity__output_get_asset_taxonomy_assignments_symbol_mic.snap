@@ -1,5 +1,6 @@
 ---
 source: crates/ai/tests/tool_outputs_parity.rs
+assertion_line: 489
 expression: result
 ---
 {
@@ -11,6 +12,7 @@ expression: result
       "currency": "USD",
       "displayCode": "VT",
       "exchangeMic": "XNAS",
+      "instrumentType": "EQUITY",
       "label": "VT - Vanguard Total World Stock Index Fund ETF Shares",
       "matchedBy": "symbol_exchange_mic",
       "name": "Vanguard Total World Stock Index Fund ETF Shares",

@@ -68,11 +68,11 @@ export function useExportData() {
           return { mode: "sqlite", target: "local" as const, value: backupPath };
         }
 
-        if (runtimePlatform.os !== "ios") {
-          throw new Error("SQLite export is currently supported on desktop, web, and iOS only");
+        if (!runtimePlatform.is_mobile) {
+          throw new Error("SQLite export is currently supported on desktop, web, and mobile only");
         }
 
-        // iOS: create backup and let user pick destination file.
+        // Mobile: create backup and let user pick destination file.
         const { relativePath, filename } = await backupDatabaseToPendingExport();
         const saved = await saveAppDataFileViaPicker(relativePath, filename);
         if (!saved) {

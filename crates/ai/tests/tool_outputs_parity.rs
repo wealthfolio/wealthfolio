@@ -13,7 +13,7 @@
 #![cfg(feature = "test-utils")]
 
 use chrono::{DateTime, NaiveDate, Utc};
-use rig::tool::ToolDyn;
+
 use rust_decimal::Decimal;
 use std::sync::Arc;
 use wealthfolio_agent_tools::AgentTool;
@@ -74,23 +74,31 @@ fn env() -> Arc<MockEnvironment> {
 }
 
 /// Call a migrated tool exactly as a rig agent would — through the
-/// `RigAgentTool` adapter (`ToolDyn`), with args as a JSON string —
+/// `RigAgentTool` adapter, with parsed JSON arguments —
 /// normalized to the same `{"ok"|"err"}` shape as `call_json`.
-/// rig prefixes adapter errors with "ToolCallError: "; strip it so error
-/// snapshots stay comparable with the pre-migration captures.
 async fn call_json_dyn(
     tool: impl AgentTool + 'static,
     env: Arc<MockEnvironment>,
     args: serde_json::Value,
 ) -> serde_json::Value {
+    let direct = tool
+        .call(env.clone(), args.clone())
+        .await
+        .map(|result| result.content)
+        .map_err(|error| error.to_string());
     let adapter = RigAgentTool::new(Arc::new(tool), env);
-    match adapter.call(args.to_string()).await {
+    let adapted = adapter.call(args).await;
+    assert_eq!(
+        adapted.as_ref().map_err(ToString::to_string),
+        direct.as_ref().map_err(Clone::clone),
+        "Rig adapter must preserve the catalog result"
+    );
+    match adapted {
         Ok(output) => serde_json::json!({
-            "ok": serde_json::from_str::<serde_json::Value>(&output).unwrap()
+            "ok": output
         }),
         Err(e) => {
             let msg = e.to_string();
-            let msg = msg.strip_prefix("ToolCallError: ").unwrap_or(&msg);
             serde_json::json!({ "err": msg })
         }
     }
@@ -748,3 +756,161 @@ output_test_dyn_env!(
         ]
     }
 );
+
+/// Live model regression using only in-memory fixture services. No user data.
+#[tokio::test]
+#[ignore = "requires Ollama and WF_TEST_OLLAMA_MODEL"]
+async fn live_ollama_each_assistant_tool() {
+    use futures::StreamExt;
+    use rig::{
+        agent::MultiTurnStreamItem,
+        client::{AgentClientExt, Nothing},
+        streaming::StreamedAssistantContent,
+        tool::{DynamicTool, PortableTool, ToolOutput},
+    };
+    use std::sync::Mutex;
+    use wealthfolio_ai::tools::{agent_catalog, ImportCsvTool};
+    let thinking = std::env::var("WF_TEST_OLLAMA_THINKING").as_deref() == Ok("true");
+    let model = std::env::var("WF_TEST_OLLAMA_MODEL").expect("set model");
+    let mut names: Vec<_> = agent_catalog()
+        .iter()
+        .map(|t| t.name().to_string())
+        .collect();
+    names.push("import_csv".into());
+    let mut report = Vec::new();
+    for name in names {
+        let test_env = match name.as_str() {
+            "create_categorization_rule"
+            | "propose_transaction_categories"
+            | "list_categorization_context" => categorization_env(),
+            "prepare_asset_classification"
+            | "get_asset_taxonomy_assignments"
+            | "list_asset_taxonomies" => classification_env(),
+            _ => env(),
+        };
+        let args = match name.as_str() {
+            "record_activity" => {
+                serde_json::json!({"activityType":"DEPOSIT","activityDate":"2024-06-15","amount":100,"account":"acc-1"})
+            }
+            "record_activities" => {
+                serde_json::json!({"activities":[{"activityType":"DEPOSIT","activityDate":"2024-06-15","amount":100,"account":"acc-1"}]})
+            }
+            "create_categorization_rule" => {
+                serde_json::json!({"pattern":"COFFEE","matchType":"contains","categoryKey":"coffee","taxonomyId":"spending"})
+            }
+            "propose_transaction_categories" => {
+                serde_json::json!({"activityIds":["cash-a"],"aiProposals":[{"activityId":"cash-a","taxonomyId":"spending","categoryKey":"coffee","confidence":0.95}]})
+            }
+            "get_asset_taxonomy_assignments" => serde_json::json!({"assetQuery":"AAPL"}),
+            "prepare_asset_classification" => {
+                serde_json::json!({"assetQuery":"AAPL","taxonomyId":"asset-tax","assignments":[{"categoryId":"equity","weightBasisPoints":10000,"sourceLabel":"test"}]})
+            }
+            "get_performance" => serde_json::json!({"period":"ALL"}),
+            "import_csv" => {
+                serde_json::json!({"csvContent":"Date,Type,Amount\n2024-06-15,DEPOSIT,100\n","accountId":"acc-1"})
+            }
+            _ => serde_json::json!({}),
+        };
+        let observations = Arc::new(Mutex::new(Vec::<serde_json::Value>::new()));
+        let mut tools = Vec::new();
+        for tool in agent_catalog().iter() {
+            let adapter = Arc::new(RigAgentTool::new(tool.clone(), test_env.clone()));
+            let definition = adapter.definition();
+            let tool_name = definition.name.clone();
+            let observed = observations.clone();
+            tools.push(DynamicTool::new(definition.name, definition.description, definition.parameters, move |_, args| {
+                let adapter=adapter.clone(); let observed=observed.clone(); let tool_name=tool_name.clone();
+                Box::pin(async move {
+                    let result=adapter.call(args).await;
+                    observed.lock().unwrap().push(serde_json::json!({"tool":tool_name,"ok":result.is_ok(),"result":result.as_ref().ok(),"error":result.as_ref().err().map(ToString::to_string)}));
+                    result.map(ToolOutput::json)
+                })
+            }));
+        }
+        let csv = Arc::new(ImportCsvTool::new(test_env.clone(), "USD".into()));
+        let def = rig::completion::ToolDefinition {
+            name: "import_csv".into(),
+            description: csv.description(),
+            parameters: csv.parameters(),
+        };
+        let observed = observations.clone();
+        tools.push(DynamicTool::new(def.name,def.description,def.parameters,move |_,args| {
+            let csv=csv.clone();let observed=observed.clone();
+            Box::pin(async move {
+                let parsed=serde_json::from_value(args).map_err(rig::tool::ToolExecutionError::from_error)?;
+                let result=csv.call(parsed).await.map_err(rig::tool::ToolExecutionError::from_error);
+                observed.lock().unwrap().push(serde_json::json!({"tool":"import_csv","ok":result.is_ok(),"result":result.as_ref().ok(),"error":result.as_ref().err().map(ToString::to_string)}));
+                result.map(|r| ToolOutput::json(serde_json::to_value(r).unwrap()))
+            })
+        }));
+        let client = rig::providers::ollama::Client::builder()
+            .api_key(Nothing)
+            .http_client(wealthfolio_http::client())
+            .build()
+            .unwrap();
+        let agent=client.agent(&model).temperature(0.0)
+            .preamble("You are testing tool integration against synthetic fixtures. Call the specifically requested tool once with the supplied arguments. Do not call other tools. After its response, briefly report the result and stop.")
+            .additional_params(serde_json::json!({"think":thinking,"options":{"num_ctx":32768,"num_predict":1024}}))
+            .dynamic_tools(tools).build();
+        let prompt =
+            format!("Call {name} with these arguments: {args}. Then briefly report its result.");
+        let mut stream = agent.runner(prompt).max_turns(2).stream().await;
+        let mut text = String::new();
+        let mut stream_error = None;
+        let finished = tokio::time::timeout(std::time::Duration::from_secs(120), async {
+            while let Some(item) = stream.next().await {
+                match item {
+                    Ok(MultiTurnStreamItem::StreamAssistantItem(
+                        StreamedAssistantContent::Text(t),
+                    )) => text.push_str(&t.text),
+                    Err(e) => {
+                        stream_error = Some(e.to_string());
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        })
+        .await
+        .is_ok();
+        let calls = observations.lock().unwrap().clone();
+        let target = calls.iter().find(|c| c["tool"] == name);
+        let valid_result = target.is_some_and(|c| {
+            let r = &c["result"];
+            match name.as_str() {
+                "record_activity" => r["validation"]["isValid"] == true,
+                "record_activities" => r["validation"]["validRows"] == 1,
+                "propose_transaction_categories" => {
+                    r["summary"]["proposed"].as_u64().unwrap_or(0) > 0
+                }
+                "create_categorization_rule" | "prepare_asset_classification" => {
+                    r["draftStatus"] == "draft"
+                }
+                _ => true,
+            }
+        });
+        let passed = valid_result
+            && calls.len() == 1
+            && finished
+            && stream_error.is_none()
+            && !text.trim().is_empty()
+            && target.is_some_and(|c| c["ok"] == true);
+        println!(
+            "{name}: {} (calls={}, final_text={}, timeout={})",
+            if passed { "PASS" } else { "FAIL" },
+            calls.len(),
+            !text.trim().is_empty(),
+            !finished
+        );
+        report.push(serde_json::json!({"tool":name,"passed":passed,"calls":calls,"streamError":stream_error,"timedOut":!finished,"hasFinalText":!text.trim().is_empty()}));
+        std::fs::write(
+            format!("/tmp/wealthfolio-ollama-all-tools-thinking-{thinking}.json"),
+            serde_json::to_vec_pretty(&report).unwrap(),
+        )
+        .unwrap();
+    }
+    assert!(
+        report.iter().all(|r| r["passed"] == true),
+        "See /tmp/wealthfolio-ollama-all-tools.json for per-tool results"
+    );
+}

@@ -35,7 +35,7 @@ r2d2 = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
 
 # HTTP
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "query", "form", "stream"] }
 
 # Error handling
 thiserror = "1"
@@ -67,6 +67,7 @@ sha2 = "0.10"
 rand = "0.8"
 
 # Internal crates
+wealthfolio-http = { path = "crates/http" }
 wealthfolio-market-data = { path = "crates/market-data" }
 wealthfolio-core = { path = "crates/core" }
 wealthfolio-connect = { path = "crates/connect" }

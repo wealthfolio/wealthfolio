@@ -635,23 +635,26 @@
   }
 }
 
-/* QR scanning transparency overrides */
-body.qr-scan-active,
-body.qr-scan-active #root,
-body.qr-scan-active .app-shell {
-  background: transparent !important;
-  background-color: transparent !important;
-}
-body.qr-scan-active .app-shell * {
+/* Keep the native camera visible while the scanner controls remain usable. */
+html:has(body.qr-scan-active),
+body.qr-scan-active {
   background: transparent !important;
 }
-body.qr-scan-active .qr-overlay {
-  backdrop-filter: none;
-}
-body.qr-scan-active .scan-hide-target {
-  opacity: 0 !important;
+body.qr-scan-active > :not(.qr-overlay) {
   visibility: hidden !important;
-  pointer-events: none !important;
+}
+body.qr-scan-active > :not(.qr-overlay) * {
+  visibility: hidden !important;
+}
+.qr-overlay {
+  visibility: hidden;
+}
+.qr-scan-frame {
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 65%);
+}
+body.qr-scan-active > .qr-overlay {
+  visibility: visible;
+  pointer-events: auto;
 }
 
 /* Mobile optimizations for native feel */
