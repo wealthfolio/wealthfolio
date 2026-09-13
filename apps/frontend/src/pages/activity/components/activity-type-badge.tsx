@@ -14,6 +14,7 @@ function getActivityBadgeVariant(type: ActivityType) {
   switch (type) {
     case ActivityType.DIVIDEND:
     case ActivityType.INTEREST:
+      return "info";
     case ActivityType.BUY:
     case ActivityType.DEPOSIT:
     case ActivityType.TRANSFER_IN:

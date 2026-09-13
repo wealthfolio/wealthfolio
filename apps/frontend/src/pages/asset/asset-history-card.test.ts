@@ -68,7 +68,7 @@ describe("asset history marker helpers", () => {
     expect(isAssetMarkerActivity(activity, "BTC-USD")).toBe(true);
     expect(activityMarkerVariant(activity.activityType)).toBe("activity");
     expect(activityMarkerLabel(activity.activityType)).toBe("D");
-    expect(activityMarkerTone(activity.activityType)).toBe("success");
+    expect(activityMarkerTone(activity.activityType)).toBe("info");
   });
 
   it("uses badge tones for other relevant asset activity types", () => {

@@ -4,6 +4,7 @@ export type HistoryChartMarkerTone =
   | "destructive"
   | "secondary"
   | "warning"
+  | "info"
   | "default";
 export type TradeMarkerVariant = Extract<HistoryChartMarkerVariant, "buy" | "sell">;
 
@@ -104,6 +105,8 @@ function markerColors(tone: HistoryChartMarkerTone) {
       return { fill: "var(--secondary)", foreground: "var(--secondary-foreground)" };
     case "warning":
       return { fill: "var(--warning)", foreground: "var(--warning-foreground)" };
+    case "info":
+      return { fill: "var(--info)", foreground: "var(--info-foreground)" };
     default:
       return { fill: "var(--primary)", foreground: "var(--primary-foreground)" };
   }

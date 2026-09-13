@@ -448,7 +448,7 @@ function getActivityTone(type: ActivityType) {
     case ActivityType.DIVIDEND:
     case ActivityType.INTEREST:
       return {
-        text: "text-success",
+        text: "text-info",
       };
     case ActivityType.SELL:
     case ActivityType.WITHDRAWAL:

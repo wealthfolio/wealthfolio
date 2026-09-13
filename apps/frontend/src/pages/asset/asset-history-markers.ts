@@ -62,6 +62,7 @@ export function activityMarkerTone(activityType: ActivityType): HistoryChartMark
   switch (activityType) {
     case ActivityType.DIVIDEND:
     case ActivityType.INTEREST:
+      return "info";
     case ActivityType.BUY:
     case ActivityType.DEPOSIT:
     case ActivityType.TRANSFER_IN:
