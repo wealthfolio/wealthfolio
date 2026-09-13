@@ -190,7 +190,11 @@
     "codePlaceholder": "ABC 123",
     "paste": "貼り付け",
     "connecting": "接続中...",
-    "connect": "接続"
+    "connect": "接続",
+    "scanInstructions": "枠内にQRコードを合わせてください。",
+    "cameraOpenError": "カメラを開けませんでした。もう一度お試しください。",
+    "cameraCloseError": "カメラを閉じられませんでした。もう一度お試しください。",
+    "cameraUnavailable": "カメラが利用できません。実機でスキャンするか、下にペアリングコードを入力してください。"
   },
   "sas": {
     "sameCodeQuestion": "両方のデバイスで同じコードですか?"

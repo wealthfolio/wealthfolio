@@ -208,7 +208,7 @@ async fn check_update(
         target, arch, current_version_str
     );
 
-    let client = reqwest::Client::new();
+    let client = wealthfolio_http::client();
     let response = client
         .get(&request_url)
         .header("X-Client-Runtime", WEB_RUNTIME_TARGET)

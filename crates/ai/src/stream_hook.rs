@@ -1,17 +1,17 @@
 //! Stream-level guard rails for the agentic loop.
 //!
-//! Implements rig's `StreamingPromptHook` to prevent three failure modes we see
+//! Implements rig's `AgentHook` to prevent three failure modes we see
 //! with small open-source models (qwen, ministral, etc.):
 //!
 //! 1. **Tool-call storms** — the model re-emits the same tool call dozens of
 //!    times per turn. Detected via a per-`(tool, args)` counter in
 //!    [`WealthfolioStreamHook::on_tool_call`]. Repeated calls are short-circuited
-//!    with `ToolCallHookAction::Skip { reason }` — which rig feeds back to the
+//!    with `ToolCallAction::Skip(reason)` — which rig feeds back to the
 //!    model as the tool result, so the model sees the cached data it already
 //!    received and a nudge to stop re-calling.
 //!
 //! 2. **Global runaway** — total tool calls across a turn can still blow up even
-//!    with dedup. Hard cap via `ToolCallHookAction::Terminate` when over
+//!    with dedup. Hard cap via `ToolCallAction::Stop` when over
 //!    [`MAX_TOTAL_TOOL_CALLS`].
 //!
 //! 3. **Token-level repetition loops** — the model streams
@@ -21,22 +21,24 @@
 //!    that already appears many times in the trailing buffer, or by the
 //!    stream exceeding [`MAX_STREAM_CHARS`].
 //!
-//! The hook is `Clone` per rig's trait bound; cheap because state is behind
+//! The hook is cheaply cloneable because state is behind
 //! an `Arc<Mutex<_>>`.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use log::{debug, warn};
-use rig::agent::{HookAction, StreamingPromptHook, ToolCallHookAction};
-use rig::completion::CompletionModel;
-use rig::message::Message;
+use rig::agent::hook::{
+    AgentHook, CompletionCall, CompletionCallAction, HookContext, ObservationAction, RequestPatch,
+    TextDelta, ToolCall, ToolCallAction, ToolResultAction, ToolResultEvent,
+};
 
 /// Maximum distinct identical `(tool_name, args_json)` calls we'll execute.
 /// Beyond this count the hook returns a "stop calling this" skip. Two is
 /// enough: first call executes, second re-request serves as a tolerance for
 /// benign retries, third and beyond get the nudge.
 const MAX_DUPLICATE_CALLS: usize = 2;
+const ASSET_SELECTION_PAUSE: &str = "Waiting for asset selection";
 
 /// Absolute cap on tool calls across one streamed turn. Calibrated against
 /// LibreChat's `recursionLimit` (default 25) — we're slightly tighter because
@@ -67,11 +69,13 @@ struct HookState {
     tool_result_cache: HashMap<String, String>,
     /// Total tool calls seen this stream.
     total_tool_calls: usize,
+    pause_for_asset_selection: bool,
 }
 
 #[derive(Default, Clone)]
 pub struct WealthfolioStreamHook {
     state: Arc<Mutex<HookState>>,
+    omit_reasoning_history: bool,
 }
 
 impl WealthfolioStreamHook {
@@ -79,26 +83,74 @@ impl WealthfolioStreamHook {
         Self::default()
     }
 
+    pub fn for_provider(provider_id: &str) -> Self {
+        Self {
+            omit_reasoning_history: provider_id == "groq",
+            ..Self::default()
+        }
+    }
+
+    pub fn paused_for_asset_selection(&self) -> bool {
+        self.state
+            .lock()
+            .map(|state| state.pause_for_asset_selection)
+            .unwrap_or(false)
+    }
+
+    pub fn is_asset_selection_pause(&self, error: &rig::agent::StreamingError) -> bool {
+        self.paused_for_asset_selection()
+            && matches!(error, rig::agent::StreamingError::Prompt(error)
+                if matches!(error.as_ref(), rig::completion::PromptError::PromptCancelled { reason, .. } if reason == ASSET_SELECTION_PAUSE))
+    }
+
     fn key(tool_name: &str, args: &str) -> String {
         format!("{}::{}", tool_name, args)
     }
 }
 
-impl<M: CompletionModel> StreamingPromptHook<M> for WealthfolioStreamHook {
+impl AgentHook for WealthfolioStreamHook {
+    async fn on_completion_call(
+        &self,
+        _ctx: &HookContext,
+        event: CompletionCall<'_>,
+    ) -> CompletionCallAction {
+        if self.paused_for_asset_selection() {
+            CompletionCallAction::Stop(ASSET_SELECTION_PAUSE.into())
+        } else if self.omit_reasoning_history {
+            // Groq rejects reasoning_content on assistant input messages. Keep
+            // streamed reasoning in the UI, but omit it from provider requests.
+            let mut history = event.history.to_vec();
+            for message in &mut history {
+                if let rig::completion::Message::Assistant { content, .. } = message {
+                    content.retain(|part| {
+                        !matches!(part, rig::message::AssistantContent::Reasoning(_))
+                    });
+                }
+            }
+            history.retain(|message| !matches!(message, rig::completion::Message::Assistant { content, .. } if content.is_empty()));
+            CompletionCallAction::Patch(RequestPatch {
+                history: Some(history),
+                ..Default::default()
+            })
+        } else {
+            CompletionCallAction::Continue
+        }
+    }
+
     fn on_tool_call(
         &self,
-        tool_name: &str,
-        _tool_call_id: Option<String>,
-        _internal_call_id: &str,
-        args: &str,
-    ) -> impl std::future::Future<Output = ToolCallHookAction> + Send {
+        _ctx: &HookContext,
+        event: ToolCall<'_>,
+    ) -> impl std::future::Future<Output = ToolCallAction> + Send {
+        let tool_name = event.tool_name;
+        let args = event.args;
         let state = self.state.clone();
         let tool_name = tool_name.to_string();
         let args = args.to_string();
         async move {
             let key = Self::key(&tool_name, &args);
             let Ok(mut state) = state.lock() else {
-                return ToolCallHookAction::Continue;
+                return ToolCallAction::Run;
             };
 
             state.total_tool_calls += 1;
@@ -107,7 +159,7 @@ impl<M: CompletionModel> StreamingPromptHook<M> for WealthfolioStreamHook {
                     "Tool-call cap tripped: {} total calls this turn — terminating",
                     state.total_tool_calls
                 );
-                return ToolCallHookAction::terminate(
+                return ToolCallAction::stop(
                     "The model exceeded the tool-call limit for a single turn. \
                      Ending the run; ask the user to rephrase or switch to a more capable model.",
                 );
@@ -134,41 +186,50 @@ impl<M: CompletionModel> StreamingPromptHook<M> for WealthfolioStreamHook {
                          you already have in the conversation."
                     ),
                 };
-                return ToolCallHookAction::skip(reason);
+                return ToolCallAction::skip(reason);
             }
 
             debug!(
                 "Tool call allowed: {}({}) [hit {}/{}]",
                 tool_name, args, hits, MAX_DUPLICATE_CALLS
             );
-            ToolCallHookAction::Continue
+            ToolCallAction::Run
         }
     }
 
     fn on_tool_result(
         &self,
-        tool_name: &str,
-        _tool_call_id: Option<String>,
-        _internal_call_id: &str,
-        args: &str,
-        result: &str,
-    ) -> impl std::future::Future<Output = HookAction> + Send {
+        _ctx: &HookContext,
+        event: ToolResultEvent<'_>,
+    ) -> impl std::future::Future<Output = ToolResultAction> + Send {
         let state = self.state.clone();
-        let key = Self::key(tool_name, args);
-        let result = result.to_string();
+        let key = Self::key(event.tool_name, event.args);
+        let result = (!event.raw_result.is_skipped()).then(|| event.presentation.render());
+        let pause = event.tool_name == "prepare_asset_classification"
+            && result
+                .as_deref()
+                .and_then(|text| serde_json::from_str::<serde_json::Value>(text).ok())
+                .is_some_and(|data| {
+                    data.get("draftStatus").and_then(serde_json::Value::as_str)
+                        == Some("needsAssetSelection")
+                });
         async move {
-            if let Ok(mut state) = state.lock() {
-                state.tool_result_cache.insert(key, result);
+            if let Some(result) = result {
+                if let Ok(mut state) = state.lock() {
+                    state.tool_result_cache.insert(key, result);
+                    state.pause_for_asset_selection |= pause;
+                }
             }
-            HookAction::Continue
+            ToolResultAction::Keep
         }
     }
 
     fn on_text_delta(
         &self,
-        _text_delta: &str,
-        aggregated_text: &str,
-    ) -> impl std::future::Future<Output = HookAction> + Send {
+        _ctx: &HookContext,
+        event: TextDelta<'_>,
+    ) -> impl std::future::Future<Output = ObservationAction> + Send {
+        let aggregated_text = event.aggregated;
         let is_repetitive = is_repetitive(aggregated_text);
         let total = aggregated_text.chars().count();
         async move {
@@ -177,24 +238,20 @@ impl<M: CompletionModel> StreamingPromptHook<M> for WealthfolioStreamHook {
                     "Stream length cap tripped ({} > {} chars) — terminating",
                     total, MAX_STREAM_CHARS
                 );
-                return HookAction::terminate(
+                return ObservationAction::stop(
                     "The model produced more text than allowed for a single turn. \
                      Ending the run; it was likely stuck.",
                 );
             }
             if is_repetitive {
                 warn!("Repetition guard tripped on streamed text — terminating");
-                return HookAction::terminate(
+                return ObservationAction::stop(
                     "The model got stuck repeating itself. \
                      Ending the run; try rephrasing the question or switching to a more capable model.",
                 );
             }
-            HookAction::Continue
+            ObservationAction::Continue
         }
-    }
-
-    async fn on_completion_call(&self, _prompt: &Message, _history: &[Message]) -> HookAction {
-        HookAction::Continue
     }
 }
 

@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+wealthfolio-http = { workspace = true }
 # Core (for SecretStore trait)
 wealthfolio-core = { path = "../core" }
 

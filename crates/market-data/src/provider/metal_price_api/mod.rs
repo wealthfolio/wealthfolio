@@ -82,10 +82,10 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 impl MetalPriceApiProvider {
     /// Create a new Metal Price API provider with the given API key.
     pub fn new(api_key: String) -> Self {
-        let client = Client::builder()
+        let client = wealthfolio_http::client_builder()
             .timeout(REQUEST_TIMEOUT)
             .build()
-            .unwrap_or_else(|_| Client::new());
+            .unwrap_or_else(|_| wealthfolio_http::client());
 
         Self { client, api_key }
     }

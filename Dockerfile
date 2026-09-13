@@ -1,5 +1,5 @@
 # Global build args
-ARG RUST_IMAGE=rust:1.91-alpine
+ARG RUST_IMAGE=rust:1.95-alpine
 
 # Stage 1: build frontend
 # Use --platform=$BUILDPLATFORM to run on the native runner (fast)
