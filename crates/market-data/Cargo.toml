@@ -9,6 +9,7 @@ chrono = { version = "0.4", features = ["serde"] }
 log = "0.4"
 num-traits = "0.2"
 reqwest = { workspace = true }
+wealthfolio-http = { workspace = true }
 rust_decimal = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
@@ -17,7 +18,7 @@ time = "0.3"
 tokio = { version = "1", features = ["sync", "time"] }
 tracing = "0.1"
 urlencoding = "2"
-yahoo_finance_api = "4.2"
+yahoo_finance_api = "5.0.0"
 lazy_static = "1.4"
 
 [dev-dependencies]

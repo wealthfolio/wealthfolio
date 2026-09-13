@@ -217,7 +217,13 @@
     "viewingMonth": "{{label}}を表示中。クリックで変更",
     "pickMonth": "特定の月を選択",
     "selectMonth": "月を選択",
-    "clearMonth": "月の選択をクリア"
+    "clearMonth": "月の選択をクリア",
+    "chooseMonth": "月を選択",
+    "selectDates": "日付を選択",
+    "startDate": "開始日",
+    "chooseCustomDates": "任意の日付を選択",
+    "invalidRange": "終了日は開始日以降にしてください",
+    "endDate": "終了日"
   },
   "presets": {
     "loading": "プリセットを読み込み中…",
@@ -388,7 +394,8 @@
     "largest": "最大",
     "noSpending": "この枠に支出はありません。",
     "outlier": "外れ値",
-    "weekOf": "{{date}}の週"
+    "weekOf": "{{date}}の週",
+    "customSubtitle": "選択した期間の取引"
   },
   "split": {
     "title": "取引を分割",
@@ -536,7 +543,11 @@
     "brighter": "明るい",
     "moreSpend": "= 支出が多い。",
     "less": "少ない",
-    "more": "多い"
+    "more": "多い",
+    "customSubtitleShort": "選択した期間",
+    "customNoActivity": "選択した期間に現金の取引はありません。",
+    "customLegendIntro": "各セルは、選択した期間における曜日ごとの1時間を表します。",
+    "customSubtitle": "選択した期間 · 曜日と時間帯ごとの支出の集中度。"
   },
   "eventDetail": {
     "previousEvent": "前のイベント",
@@ -708,7 +719,8 @@
     "categoriesShown_one": "{{total}}カテゴリ中{{shown}}件を表示",
     "categoriesShown_other": "{{total}}カテゴリ中{{shown}}件を表示",
     "openTransactions": "取引一覧を開く →",
-    "moreCount_other": "他{{count}}件"
+    "moreCount_other": "他{{count}}件",
+    "vsRange": "{{from}} – {{to}} と比較"
   },
   "budgetChart": {
     "overBudget": "予算超過",

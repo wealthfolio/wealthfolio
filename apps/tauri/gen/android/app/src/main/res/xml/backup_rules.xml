@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Android Keystore keys are device-bound and cannot accompany restored ciphertext. -->
+    <exclude domain="sharedpref" path="keyring-default.xml" />
+</full-backup-content>

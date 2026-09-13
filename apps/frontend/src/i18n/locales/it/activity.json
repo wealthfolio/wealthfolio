@@ -1255,7 +1255,9 @@
       "positionsCount_other": "{{count}} posizioni",
       "readyRows_one": "{{count}} riga",
       "readyRows_many": "{{count}} righe",
-      "readyRows_other": "{{count}} righe"
+      "readyRows_other": "{{count}} righe",
+      "ambiguousDateTitle": "L’ordine della data è ambiguo",
+      "ambiguousDateHint": "Date come {{example}} possono essere interpretate come giorno/mese o mese/giorno e il file non permette di stabilirlo. Torna indietro e scegli un formato data invece del rilevamento automatico."
     },
     "symbolPanel": {
       "unrecognized_one": "{{count}} simbolo non riconosciuto",

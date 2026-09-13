@@ -200,7 +200,11 @@
     "codePlaceholder": "ABC 123",
     "paste": "Colar",
     "connecting": "Conectando...",
-    "connect": "Conectar"
+    "connect": "Conectar",
+    "scanInstructions": "Alinhe o código QR dentro da moldura.",
+    "cameraOpenError": "Não foi possível abrir a câmera. Tente novamente.",
+    "cameraCloseError": "Não foi possível fechar a câmera. Tente novamente.",
+    "cameraUnavailable": "Nenhuma câmera disponível. Use um dispositivo físico para escanear ou insira o código de emparelhamento abaixo."
   },
   "sas": {
     "sameCodeQuestion": "O mesmo código nos dois dispositivos?"

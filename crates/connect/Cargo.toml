@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+wealthfolio-http = { workspace = true }
 wealthfolio-core = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

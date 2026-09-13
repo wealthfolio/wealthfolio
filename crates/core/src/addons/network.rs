@@ -69,7 +69,7 @@ pub async fn perform_addon_network_request(
         return Err("Addon network request body is too large".to_string());
     }
 
-    let client = reqwest::Client::builder()
+    let client = wealthfolio_http::client_builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
         .resolve_to_addrs(&host, &resolved_addresses)

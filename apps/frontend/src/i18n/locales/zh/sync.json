@@ -190,7 +190,11 @@
     "codePlaceholder": "ABC 123",
     "paste": "粘贴",
     "connecting": "正在连接...",
-    "connect": "连接"
+    "connect": "连接",
+    "scanInstructions": "将二维码对准框内。",
+    "cameraOpenError": "无法打开相机，请重试。",
+    "cameraCloseError": "无法关闭相机，请重试。",
+    "cameraUnavailable": "没有可用的相机。请使用实体设备扫描，或在下方输入配对码。"
   },
   "sas": {
     "sameCodeQuestion": "两台设备上的代码相同吗?"
@@ -208,6 +212,6 @@
     "tryAgain": "重试"
   },
   "errors": {
-    "backupPlatformUnsupported": "设备同步前的备份目前仅支持桌面端、网页端和 iOS"
+    "backupPlatformUnsupported": "设备同步前的备份目前仅支持桌面端、网页端和移动端"
   }
 }

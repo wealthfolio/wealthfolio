@@ -11,6 +11,9 @@
   ],
   "permissions": [
     "core:default",
+    "fs:allow-open",
+    "fs:allow-read",
+    "fs:allow-write",
     "fs:allow-read-file",
     "fs:allow-write-file",
     "fs:allow-read-dir",
@@ -35,6 +38,8 @@
     "dialog:default",
     "shell:default",
     "deep-link:default",
+    "web-auth:default",
+    "web-auth:allow-authenticate",
     "core:app:allow-set-app-theme",
     "core:window:allow-set-theme",
     "core:window:allow-theme",

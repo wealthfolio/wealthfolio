@@ -200,7 +200,11 @@
     "codePlaceholder": "ABC 123",
     "paste": "Incolla",
     "connecting": "Connessione in corso...",
-    "connect": "Collega"
+    "connect": "Collega",
+    "scanInstructions": "Allinea il codice QR all’interno della cornice.",
+    "cameraOpenError": "Impossibile aprire la fotocamera. Riprova.",
+    "cameraCloseError": "Impossibile chiudere la fotocamera. Riprova.",
+    "cameraUnavailable": "Nessuna fotocamera disponibile. Usa un dispositivo fisico per scansionare o inserisci il codice di abbinamento qui sotto."
   },
   "sas": {
     "sameCodeQuestion": "Stesso codice su entrambi i dispositivi?"

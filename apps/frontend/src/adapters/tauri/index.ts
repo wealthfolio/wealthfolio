@@ -248,6 +248,7 @@ export {
   openDatabaseFileDialog,
   openFileSaveDialog,
   saveAppDataFileViaPicker,
+  stagePickedDatabaseFileForRestore,
   openUrlInBrowser,
 } from "./files";
 

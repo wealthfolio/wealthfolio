@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use log::{debug, warn};
 use reqwest::Client as HttpClient;
 use rig::{
-    client::{CompletionClient, Nothing},
+    client::{AgentClientExt, Nothing},
     completion::Prompt,
     providers::{anthropic, gemini, groq, ollama, openai, openrouter},
 };
@@ -111,7 +111,9 @@ Title:",
         let response = match provider_id {
             "anthropic" => {
                 let key = api_key.ok_or_else(|| AiError::MissingApiKey(provider_id.to_string()))?;
-                let mut builder = anthropic::Client::<HttpClient>::builder().api_key(&key);
+                let mut builder = anthropic::Client::<HttpClient>::builder()
+                    .api_key(&key)
+                    .http_client(wealthfolio_http::client());
                 if let Some(url) = provider_url {
                     builder = builder.base_url(&url);
                 }
@@ -128,7 +130,9 @@ Title:",
             }
             "gemini" | "google" => {
                 let key = api_key.ok_or_else(|| AiError::MissingApiKey(provider_id.to_string()))?;
-                let mut builder = gemini::Client::<HttpClient>::builder().api_key(&key);
+                let mut builder = gemini::Client::<HttpClient>::builder()
+                    .api_key(&key)
+                    .http_client(wealthfolio_http::client());
                 if let Some(url) = provider_url {
                     builder = builder.base_url(&url);
                 }
@@ -144,7 +148,9 @@ Title:",
             }
             "groq" => {
                 let key = api_key.ok_or_else(|| AiError::MissingApiKey(provider_id.to_string()))?;
-                let mut builder = groq::Client::<HttpClient>::builder().api_key(&key);
+                let mut builder = groq::Client::<HttpClient>::builder()
+                    .api_key(&key)
+                    .http_client(wealthfolio_http::client());
                 if let Some(url) = provider_url {
                     let normalized = ensure_openai_v1_base_url(&url);
                     builder = builder.base_url(&normalized);
@@ -160,7 +166,9 @@ Title:",
                     .map_err(|e| AiError::Provider(e.to_string()))?
             }
             "ollama" => {
-                let mut builder = ollama::Client::<HttpClient>::builder().api_key(Nothing);
+                let mut builder = ollama::Client::<HttpClient>::builder()
+                    .api_key(Nothing)
+                    .http_client(wealthfolio_http::client());
                 if let Some(url) = provider_url {
                     builder = builder.base_url(&url);
                 }
@@ -176,7 +184,9 @@ Title:",
             }
             "openrouter" => {
                 let key = api_key.ok_or_else(|| AiError::MissingApiKey(provider_id.to_string()))?;
-                let mut builder = openrouter::Client::<HttpClient>::builder().api_key(&key);
+                let mut builder = openrouter::Client::<HttpClient>::builder()
+                    .api_key(&key)
+                    .http_client(wealthfolio_http::client());
                 if let Some(url) = provider_url {
                     let normalized = ensure_openai_v1_base_url(&url);
                     builder = builder.base_url(&normalized);
@@ -194,7 +204,9 @@ Title:",
             _ => {
                 // Default to OpenAI-compatible
                 let key = api_key.ok_or_else(|| AiError::MissingApiKey(provider_id.to_string()))?;
-                let mut builder = openai::CompletionsClient::<HttpClient>::builder().api_key(&key);
+                let mut builder = openai::CompletionsClient::<HttpClient>::builder()
+                    .api_key(&key)
+                    .http_client(wealthfolio_http::client());
                 if let Some(url) = provider_url {
                     let normalized = ensure_openai_v1_base_url(&url);
                     builder = builder.base_url(&normalized);

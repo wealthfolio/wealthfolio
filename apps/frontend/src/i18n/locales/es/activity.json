@@ -1255,7 +1255,9 @@
       "positionsCount_many": "{{count}} posiciones",
       "readyRows_one": "{{count}} fila",
       "readyRows_other": "{{count}} filas",
-      "readyRows_many": "{{count}} filas"
+      "readyRows_many": "{{count}} filas",
+      "ambiguousDateTitle": "El orden de la fecha es ambiguo",
+      "ambiguousDateHint": "Fechas como {{example}} pueden interpretarse como día/mes o mes/día, y nada en este archivo lo aclara. Vuelve atrás y elige un formato de fecha en lugar de la detección automática."
     },
     "symbolPanel": {
       "unrecognized_one": "{{count}} símbolo no reconocido",

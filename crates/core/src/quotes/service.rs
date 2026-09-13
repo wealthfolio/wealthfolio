@@ -1656,7 +1656,7 @@ where
                     upper
                 };
                 if isin.starts_with("US912") {
-                    let http = reqwest::Client::new();
+                    let http = wealthfolio_http::client();
                     wealthfolio_market_data::provider::us_treasury_calc::UsTreasuryCalcProvider::fetch_bond_details(&http, &isin).await
                         .map(|details| {
                             let spec = crate::assets::BondSpec {

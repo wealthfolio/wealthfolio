@@ -1196,7 +1196,9 @@
       "importSnapshots_other": "스냅샷 {{count}}개 가져오기",
       "failedToPrepareAssets": "가져오기용 자산 준비에 실패했습니다.",
       "positionsCount_other": "보유 종목 {{count}}개",
-      "readyRows_other": "{{count}}행"
+      "readyRows_other": "{{count}}행",
+      "ambiguousDateTitle": "날짜 순서가 모호합니다",
+      "ambiguousDateHint": "{{example}} 같은 날짜는 일/월 또는 월/일로 해석할 수 있으며, 이 파일만으로는 구분할 수 없습니다. 돌아가서 자동 감지 대신 날짜 형식을 선택해 주세요."
     },
     "symbolPanel": {
       "unrecognized_one": "인식되지 않은 종목 코드 {{count}}개",

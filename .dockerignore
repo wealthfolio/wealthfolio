@@ -30,3 +30,6 @@ tmp
 # OS/editor files
 .DS_Store
 Thumbs.db
+
+# Generated native projects are not used by the web image
+apps/tauri/gen

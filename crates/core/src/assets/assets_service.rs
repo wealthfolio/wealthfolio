@@ -1294,7 +1294,7 @@ impl AssetService {
             if needs_bond_enrichment {
                 if let Some(isin) = existing_asset.instrument_symbol.as_deref() {
                     if isin.starts_with("US912") {
-                        let http = reqwest::Client::new();
+                        let http = wealthfolio_http::client();
                         match wealthfolio_market_data::provider::us_treasury_calc::UsTreasuryCalcProvider::fetch_bond_details(&http, isin).await {
                             Some(details) => {
                                 let spec = super::assets_model::BondSpec {
