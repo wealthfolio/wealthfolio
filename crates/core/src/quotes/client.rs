@@ -1024,7 +1024,7 @@ mod tests {
 
         let result = MarketDataClient::convert_search_result(provider_result);
         assert_eq!(result.symbol, "VWRPL.XC");
-        assert_eq!(result.exchange_mic.as_deref(), Some("CXE"));
+        assert_eq!(result.exchange_mic.as_deref(), Some("BCXE"));
         assert_eq!(result.currency.as_deref(), Some("GBP"));
         assert_eq!(result.currency_source.as_deref(), Some("exchange_inferred"));
     }
@@ -1035,7 +1035,7 @@ mod tests {
             MarketSearchResult::new("VWRPL.XC", "Vanguard ETF", "cxe", "ETF").with_score(20001.0);
 
         let result = MarketDataClient::convert_search_result(provider_result);
-        assert_eq!(result.exchange_mic.as_deref(), Some("CXE"));
+        assert_eq!(result.exchange_mic.as_deref(), Some("BCXE"));
     }
 
     #[test]

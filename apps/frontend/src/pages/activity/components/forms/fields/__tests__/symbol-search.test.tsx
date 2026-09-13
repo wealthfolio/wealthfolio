@@ -25,11 +25,11 @@ vi.mock("@/components/ticker-search", () => ({
           onSelectResult("VWRPL.XC", {
             symbol: "VWRPL.XC",
             canonicalSymbol: "VWRPL",
-            canonicalExchangeMic: "CXE",
+            canonicalExchangeMic: "BCXE",
             longName: "Vanguard FTSE All-World UCITS ETF",
             shortName: "VWRP",
             exchange: "CXE",
-            exchangeMic: "CXE",
+            exchangeMic: "BCXE",
             quoteType: "EQUITY",
             currency: "GBp",
             // Intentionally omitted to reproduce the regression path.
@@ -184,9 +184,15 @@ describe("SymbolSearch", () => {
     });
 
     expect(screen.getByTestId("asset-id")).toHaveTextContent("VWRPL");
-    expect(screen.getByTestId("exchange-mic")).toHaveTextContent("CXE");
+    expect(screen.getByTestId("exchange-mic")).toHaveTextContent("BCXE");
     expect(screen.getByTestId("asset-name")).toHaveTextContent("Vanguard FTSE All-World UCITS ETF");
-    expect(resolveSymbolQuoteMock).toHaveBeenCalledWith("VWRPL", "CXE", "EQUITY", undefined, "GBp");
+    expect(resolveSymbolQuoteMock).toHaveBeenCalledWith(
+      "VWRPL",
+      "BCXE",
+      "EQUITY",
+      undefined,
+      "GBp",
+    );
   });
 
   it("does not overwrite an existing asset quote currency with resolver output", async () => {

@@ -47,7 +47,7 @@ mod tests {
         // Cboe Canada's ISO 10383 MIC. Not every MIC starts with `X`.
         assert_eq!(mic_to_exchange_name("NEOE"), Some("Cboe Canada"));
         assert_eq!(mic_to_exchange_name("XLON"), Some("LSE"));
-        assert_eq!(mic_to_exchange_name("CXE"), Some("Cboe UK"));
+        assert_eq!(mic_to_exchange_name("BCXE"), Some("Cboe UK"));
         assert_eq!(mic_to_exchange_name("XETR"), Some("XETRA"));
         assert_eq!(mic_to_exchange_name("UNKNOWN"), None);
     }
@@ -58,7 +58,7 @@ mod tests {
         assert_eq!(mic_to_currency("XNAS"), Some("USD"));
         assert_eq!(mic_to_currency("XTSE"), Some("CAD"));
         assert_eq!(mic_to_currency("XLON"), Some("GBp")); // LSE quotes in pence
-        assert_eq!(mic_to_currency("CXE"), Some("GBP"));
+        assert_eq!(mic_to_currency("BCXE"), Some("GBP"));
         assert_eq!(mic_to_currency("XTAE"), Some("ILA"));
         assert_eq!(mic_to_currency("XETR"), Some("EUR"));
         assert_eq!(mic_to_currency("XTKS"), Some("JPY"));
