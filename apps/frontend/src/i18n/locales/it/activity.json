@@ -317,7 +317,8 @@
   "delete_modal": {
     "title": "Eliminare il movimento?",
     "description": "Questo movimento verrà eliminato definitivamente. Questa azione non può essere annullata.",
-    "linked_transfer_desc": "Questo movimento è collegato a una coppia di trasferimenti. Entrambe le corrispondenze verranno eliminate definitivamente. Questa azione non può essere annullata."
+    "linked_transfer_desc": "Questo movimento è collegato a una coppia di trasferimenti. Entrambe le corrispondenze verranno eliminate definitivamente. Questa azione non può essere annullata.",
+    "broker_synced_desc": "Questo movimento proviene da una sincronizzazione con il broker. Eliminandolo verrà escluso anche dalle prossime sincronizzazioni, quindi non tornerà. Potrai ripristinarlo più tardi dalla pagina dei movimenti."
   },
   "form_renderer": {
     "select_type": "Seleziona un tipo di movimento sopra per continuare",
@@ -1379,5 +1380,20 @@
       "issuesTitle_many": "Sono presenti problemi con {{count}} voci di movimento.",
       "issuesTitle_other": "Sono presenti problemi con {{count}} voci di movimento."
     }
+  },
+  "suppressed": {
+    "summary_one": "{{count}} movimento del broker eliminato è escluso dalle prossime sincronizzazioni.",
+    "summary_other": "{{count}} movimenti del broker eliminati sono esclusi dalle prossime sincronizzazioni.",
+    "summary_many": "{{count}} movimenti del broker eliminati sono esclusi dalle prossime sincronizzazioni.",
+    "review": "Rivedi",
+    "title": "Movimenti del broker eliminati",
+    "description": "Il tuo broker continua a segnalare questi record, quindi ogni sincronizzazione li aggiungerebbe di nuovo. Restano esclusi finché non li ripristini.",
+    "deleted_on": "Eliminato il {{date}}",
+    "restore": "Ripristina",
+    "restore_all": "Ripristina tutti",
+    "restored_one": "{{count}} movimento ripristinato. La prossima sincronizzazione lo aggiornerà di nuovo.",
+    "restored_other": "{{count}} movimenti ripristinati. La prossima sincronizzazione li aggiornerà di nuovo.",
+    "restored_many": "{{count}} movimenti ripristinati. La prossima sincronizzazione li aggiornerà di nuovo.",
+    "restore_failed": "Ripristino non riuscito"
   }
 }

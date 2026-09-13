@@ -55,6 +55,18 @@ diesel::table! {
 }
 
 diesel::table! {
+    activity_deletions (id) {
+        id -> Text,
+        account_id -> Text,
+        source_system -> Text,
+        source_record_id -> Nullable<Text>,
+        idempotency_key -> Nullable<Text>,
+        activity_snapshot -> Text,
+        deleted_at -> Text,
+    }
+}
+
+diesel::table! {
     import_account_templates (id) {
         id -> Text,
         account_id -> Text,
@@ -892,6 +904,7 @@ diesel::joinable!(import_account_templates -> import_templates (template_id));
 diesel::allow_tables_to_appear_in_same_query!(
     import_account_templates,
     accounts,
+    activity_deletions,
     portfolios,
     portfolio_accounts,
     activities,

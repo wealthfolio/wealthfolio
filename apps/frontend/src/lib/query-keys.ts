@@ -19,6 +19,7 @@ export const QueryKeys = {
   // Activity related keys
   ACTIVITY_DATA: "activity-data",
   ACTIVITIES: "activities",
+  SUPPRESSED_ACTIVITIES: "suppressed-activities",
 
   // Portfolio related keys
   HOLDINGS: "holdings",

@@ -99,6 +99,8 @@ export {
   createActivity,
   deleteImportTemplate,
   deleteActivity,
+  getSuppressedActivities,
+  restoreSuppressedActivities,
   getImportTemplate,
   getBrokerSyncProfile,
   findTransferMatchCandidates,

@@ -4694,6 +4694,48 @@ impl ActivityServiceTrait for ActivityService {
         Ok(deleted)
     }
 
+    fn list_suppressed_activities(
+        &self,
+        account_ids: Option<Vec<String>>,
+    ) -> Result<Vec<SuppressedActivity>> {
+        self.activity_repository
+            .list_suppressed_activities(account_ids)
+    }
+
+    async fn restore_suppressed_activities(
+        &self,
+        deletion_ids: Vec<String>,
+    ) -> Result<Vec<Activity>> {
+        let restored = self
+            .activity_repository
+            .restore_suppressed_activities(deletion_ids)
+            .await?;
+        if restored.is_empty() {
+            return Ok(restored);
+        }
+
+        let mut account_ids_set: HashSet<String> = HashSet::new();
+        let mut asset_ids_set: HashSet<String> = HashSet::new();
+        let mut currencies_set: HashSet<String> = HashSet::new();
+        for activity in &restored {
+            Self::add_activity_to_event_sets(
+                activity,
+                &mut account_ids_set,
+                &mut asset_ids_set,
+                &mut currencies_set,
+            );
+        }
+        self.emit_activities_changed(
+            account_ids_set.into_iter().collect(),
+            asset_ids_set.into_iter().collect(),
+            currencies_set.into_iter().collect(),
+            Self::earliest_activity_at_utc(restored.iter()),
+        );
+        self.emit_asset_split_activities_changed(restored.iter());
+
+        Ok(restored)
+    }
+
     fn get_transfer_pair_for_activity(
         &self,
         activity_id: String,

@@ -480,6 +480,20 @@ impl ActivityServiceTrait for MockActivityService {
         unimplemented!("MockActivityService::delete_activity")
     }
 
+    fn list_suppressed_activities(
+        &self,
+        _account_ids: Option<Vec<String>>,
+    ) -> CoreResult<Vec<wealthfolio_core::activities::SuppressedActivity>> {
+        unimplemented!("MockActivityService::list_suppressed_activities")
+    }
+
+    async fn restore_suppressed_activities(
+        &self,
+        _deletion_ids: Vec<String>,
+    ) -> CoreResult<Vec<Activity>> {
+        unimplemented!("MockActivityService::restore_suppressed_activities")
+    }
+
     fn get_transfer_pair_for_activity(
         &self,
         _activity_id: String,
