@@ -2,14 +2,14 @@ import { getAccounts } from "@/adapters";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 import { SwipablePage, type SwipablePageView } from "@/components/page";
 import {
-  SpendingTransactionsTab,
-  type SpendingTransactionsTabHandle,
+    SpendingTransactionsTab,
+    type SpendingTransactionsTabHandle,
 } from "@/features/spending/components/spending-transactions-tab";
 import { useSpendingSettings } from "@/features/spending/hooks/use-spending-settings";
 import { SyncButton } from "@/features/wealthfolio-connect/components/sync-button";
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { usePortfolios } from "@/hooks/use-portfolios";
 import { useIsCompactTableViewport, useIsMobileViewport } from "@/hooks/use-platform";
+import { usePortfolios } from "@/hooks/use-portfolios";
 import { getActivityRestrictionLevel } from "@/lib/activity-restrictions";
 import { ActivityType } from "@/lib/constants";
 import { debounce } from "@/lib/debounce";
@@ -32,16 +32,16 @@ import { ActivityPagination } from "./components/activity-pagination";
 import ActivityTable from "./components/activity-table/activity-table";
 import ActivityTableMobile from "./components/activity-table/activity-table-mobile";
 import { ActivityViewControls, type ActivityViewMode } from "./components/activity-view-controls";
-import { NeedsReviewBanner } from "./components/needs-review-banner";
 import { BulkHoldingsModal } from "./components/forms/bulk-holdings-modal";
 import { MobileActivityForm } from "./components/mobile-forms/mobile-activity-form";
+import { NeedsReviewBanner } from "./components/needs-review-banner";
 import { TransferMatchDialog } from "./components/transfer-match-dialog";
 import { useActivityActionDialogs } from "./hooks/use-activity-action-dialogs";
 import { useActivitySearch, type ActivityStatusFilter } from "./hooks/use-activity-search";
 import {
-  clearActivityUrlFilters,
-  resolveActivityTabFromUrlFilters,
-  resolveActivityUrlFilters,
+    clearActivityUrlFilters,
+    resolveActivityTabFromUrlFilters,
+    resolveActivityUrlFilters,
 } from "./utils/url-filters";
 
 interface ActivityDateRangeFilter {

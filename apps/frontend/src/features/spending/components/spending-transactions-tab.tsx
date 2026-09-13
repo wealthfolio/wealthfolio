@@ -1,97 +1,97 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { toast } from "sonner";
-import { useSearchParams } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import {
+    forwardRef,
+    useCallback,
+    useEffect,
+    useImperativeHandle,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import type { DateRange } from "react-day-picker";
+import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 
 import { createActivity, deleteActivity, updateActivity } from "@/adapters";
-import { generateId } from "@/lib/id";
-import { useAccounts } from "@/hooks/use-accounts";
-import { useIsMobileViewport } from "@/hooks/use-platform";
-import { useVirtualScrollContainer } from "@/hooks/use-virtual-scroll-container";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { InfiniteScrollTrigger } from "@/components/infinite-scroll-trigger";
+import { useAccounts } from "@/hooks/use-accounts";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useIsMobileViewport } from "@/hooks/use-platform";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
+import { useVirtualScrollContainer } from "@/hooks/use-virtual-scroll-container";
+import { generateId } from "@/lib/id";
 import { QueryKeys } from "@/lib/query-keys";
-import { formatDateISO } from "@/lib/utils";
-import type { Account, ActivityDetails, TaxonomyCategory } from "@/lib/types";
 import { useSettingsContext } from "@/lib/settings-provider";
+import type { Account, ActivityDetails, TaxonomyCategory } from "@/lib/types";
+import { formatDateISO } from "@/lib/utils";
 
 import {
-  Button,
-  Checkbox,
-  EmptyPlaceholder,
-  Icons,
-  Skeleton,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Button,
+    Checkbox,
+    EmptyPlaceholder,
+    Icons,
+    Skeleton,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from "@wealthfolio/ui";
 
-import { CashActivityForm } from "./cash-activity-form";
+import { getActivityRestrictionLevel } from "@/lib/activity-restrictions";
+import { ActivityType } from "@/lib/constants";
 import { ActivityForm } from "@/pages/activity/components/activity-form";
 import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
 import { TransferMatchDialog } from "@/pages/activity/components/transfer-match-dialog";
-import { getActivityRestrictionLevel } from "@/lib/activity-restrictions";
-import { ActivityType } from "@/lib/constants";
-import type { AmountRange } from "./amount-range-filter";
-import { DeleteTransactionsDialog, type DeletePreview } from "./delete-transactions-dialog";
-import { TransactionCard } from "./transaction-card";
-import { SelectionToolbar } from "./selection-toolbar";
-import { TransactionDayHeader, TransactionDayHeading } from "./transaction-day-header";
-import { TransactionRow } from "./transaction-row";
-import { SplitTransactionSheet } from "./split-transaction-sheet";
-import { TransactionsBulkBar } from "./transactions-bulk-bar";
-import { TransactionsFilterBar, type FilterOption } from "./transactions-filter-bar";
-import type { QuickCategorizeScope } from "./quick-categorize-popover";
 import {
-  CASH_ACTIVITY_TYPES,
-  CASH_ACTIVITY_TYPE_LABELS,
-  getEffectiveCashActivityType,
-  isCreditCardAccountType,
-  isSpendingAccountType,
-} from "../lib/constants";
-import { cashActivityFlowMetadata } from "../lib/cash-activity-form-utils";
-import {
-  isTransferCashActivity,
-  stableArr,
-  toRowVM,
-  groupRowsByDay,
-  flattenDayGroups,
-  netSummary,
-  type TransactionDayGroup,
-  type TransactionRowVM,
-} from "../lib/transactions-helpers";
-import { useCashActivitySearch } from "../hooks/use-cash-activity-search";
-import {
-  useAssignActivityCategory,
-  useBulkAssignCategories,
-  useClearActivitySplits,
-  useReplaceActivitySplits,
-  useSetActivityEvent,
-  useUnassignActivityCategory,
+    useAssignActivityCategory,
+    useBulkAssignCategories,
+    useClearActivitySplits,
+    useReplaceActivitySplits,
+    useSetActivityEvent,
+    useUnassignActivityCategory,
 } from "../hooks/use-cash-activities";
+import { useCashActivitySearch } from "../hooks/use-cash-activity-search";
 import { useEventTypes, useSpendingEvents } from "../hooks/use-spending-events";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
+import { cashActivityFlowMetadata } from "../lib/cash-activity-form-utils";
+import {
+    CASH_ACTIVITY_TYPES,
+    CASH_ACTIVITY_TYPE_LABELS,
+    getEffectiveCashActivityType,
+    isCreditCardAccountType,
+    isSpendingAccountType,
+} from "../lib/constants";
 import { invalidateSpendingCaches } from "../lib/invalidation";
+import {
+    flattenDayGroups,
+    groupRowsByDay,
+    isTransferCashActivity,
+    netSummary,
+    stableArr,
+    toRowVM,
+    type TransactionDayGroup,
+    type TransactionRowVM,
+} from "../lib/transactions-helpers";
 import type {
-  CashActivitySearchRequest,
-  CashActivityStatusFilter,
-  NewActivitySplit,
+    CashActivitySearchRequest,
+    CashActivityStatusFilter,
+    NewActivitySplit,
 } from "../types/cash-activity";
+import type { AmountRange } from "./amount-range-filter";
+import { CashActivityForm } from "./cash-activity-form";
+import { DeleteTransactionsDialog, type DeletePreview } from "./delete-transactions-dialog";
+import type { QuickCategorizeScope } from "./quick-categorize-popover";
+import { SelectionToolbar } from "./selection-toolbar";
+import { SplitTransactionSheet } from "./split-transaction-sheet";
+import { TransactionCard } from "./transaction-card";
+import { TransactionDayHeader, TransactionDayHeading } from "./transaction-day-header";
+import { TransactionRow } from "./transaction-row";
+import { TransactionsBulkBar } from "./transactions-bulk-bar";
+import { TransactionsFilterBar, type FilterOption } from "./transactions-filter-bar";
 
 const SPENDING_TAXONOMY = "spending_categories";
 const INCOME_TAXONOMY = "income_sources";
