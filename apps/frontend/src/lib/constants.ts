@@ -270,10 +270,7 @@ export const IMPORT_REQUIRED_FIELDS = [
   ImportFormat.SYMBOL,
   ImportFormat.QUANTITY,
   ImportFormat.UNIT_PRICE,
-  ImportFormat.AMOUNT,
 ] as const;
-
-export type ImportRequiredField = (typeof IMPORT_REQUIRED_FIELDS)[number];
 
 export const ExportDataType = {
   ACCOUNTS: "accounts",

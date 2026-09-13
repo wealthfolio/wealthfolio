@@ -48,7 +48,7 @@ export {
 
 export type { HoldingCategoryFilterId } from "./constants";
 
-export type { ActivitySubtype, ImportRequiredField } from "./constants";
+export type { ActivitySubtype } from "./constants";
 
 export interface PortfolioWithAccounts {
   id: string;
