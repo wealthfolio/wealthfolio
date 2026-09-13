@@ -114,6 +114,18 @@ export const createDividendFormSchema = (t?: TFunction) =>
       symbolInstrumentType: z.string().nullable().optional(),
     })
     .superRefine((data, ctx) => {
+      if (data.amount !== undefined && (data.tax ?? 0) > data.amount) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["tax"],
+          message: msg(
+            t,
+            "activity:form.err_tax_exceeds_amount",
+            "Withholding tax cannot exceed the dividend amount.",
+          ),
+        });
+      }
+
       const isAssetBacked =
         data.subtype === ACTIVITY_SUBTYPES.DRIP ||
         data.subtype === ACTIVITY_SUBTYPES.DIVIDEND_IN_KIND;

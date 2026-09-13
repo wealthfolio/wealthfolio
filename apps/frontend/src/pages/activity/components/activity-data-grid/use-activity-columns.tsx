@@ -3,6 +3,7 @@ import {
   isAssetBackedIncomeSubtype,
   isAssetIdentityRequired,
   isCashActivity,
+  isIncomeActivity,
   localizeActivitySubtypeName,
   localizeActivityTypeName,
   supportsPerformanceBoundary,
@@ -397,7 +398,21 @@ export function useActivityColumns({
         header: t("activity:datagrid.column.amount"),
         size: 120,
         enableSorting: false,
-        meta: { cell: { variant: "number", step: 0.000001, valueType: "string" } },
+        meta: {
+          cell: {
+            variant: "number",
+            step: 0.000001,
+            valueType: "string",
+            valueRenderer: (value: number | string | null, rowData: unknown) => {
+              const row = rowData as { activityType?: string; tax?: string | number | null };
+              const isIncome = isIncomeActivity(row.activityType ?? "");
+              const net = parseFloat(String(value ?? 0)) || 0;
+              const tax = isIncome ? parseFloat(String(row.tax ?? 0)) || 0 : 0;
+              const gross = net + tax;
+              return formatting.formatDecimal(gross, { maximumFractionDigits: 8 });
+            },
+          },
+        },
       },
       // 11. Currency
       {
