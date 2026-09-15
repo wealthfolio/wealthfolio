@@ -166,6 +166,10 @@ and foreign keys. Supported older schemas migrate only in private staging. A
 legacy standalone database with nonempty WAL sidecar data is rejected to avoid
 silently omitting committed transactions.
 
+Selected backups are treated as trusted inputs. Imported triggers may execute
+during migrations on the private staging copy. The complete schema is compared
+with an app-generated reference database after migration, before restoration.
+
 The resulting `PreparedBackup` owns an encrypted candidate and its temporary
 directory. Confirmation consumes that candidate, not a subsequently reread
 source file. Native previews use bounded, single-use handles with a ten-minute

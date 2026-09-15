@@ -134,22 +134,6 @@ fn validate_database(conn: &Connection, encrypted: bool, file_len: u64) -> anyho
         u64::from(pages).checked_mul(u64::from(size)) == Some(file_len),
         "The backup has an invalid length"
     );
-    // Only application-owned trigger definitions may cross the boundary. Git
-    // checkouts can embed CRLF migrations; backups retain their producer's SQL.
-    let known_triggers =
-        include_str!("../../migrations/2026-05-25-000002_allocation_targets/up.sql")
-            .replace("\r\n", "\n");
-    let mut schema =
-        conn.prepare("SELECT type, sql FROM sqlite_master WHERE type IN ('trigger', 'view')")?;
-    for object in schema.query_map([], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-    })? {
-        let (kind, sql) = object?;
-        ensure!(
-            kind == "trigger" && known_triggers.contains(sql.replace("\r\n", "\n").trim()),
-            "This backup contains an unsupported trigger or view"
-        );
-    }
     for table in ["accounts", "activities", "__diesel_schema_migrations"] {
         let exists: bool = conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",

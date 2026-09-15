@@ -2071,6 +2071,9 @@ fn apply_remote_event_lww_tx(
         } else if let Some((table_name, pk_name)) = entity_storage_mapping(&entity) {
             match op {
                 SyncOperation::Delete => {
+                    if entity == SyncEntity::Account {
+                        crate::accounts::delete_account_references(conn, &entity_id_value)?;
+                    }
                     if entity == SyncEntity::SpendingCategorizationRule {
                         tombstone_remote_preset_rule_delete(
                             conn,

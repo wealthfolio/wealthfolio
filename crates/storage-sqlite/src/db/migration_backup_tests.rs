@@ -2,7 +2,7 @@ use super::*;
 use diesel::RunQueryDsl;
 use tempfile::{tempdir, TempDir};
 
-// Recreate the schema immediately before the two most recent migrations.
+// Leave the two fixture migrations pending, independently of later migrations.
 fn older_database(encrypted: bool) -> (TempDir, DbAccess, DatabaseOwner) {
     let root = tempdir().unwrap();
     let path = root.path().join("app.db");
@@ -15,7 +15,8 @@ fn older_database(encrypted: bool) -> (TempDir, DbAccess, DatabaseOwner) {
     access.run_migrations().unwrap();
     access.connect_rusqlite().unwrap().execute_batch(
         "DROP TABLE asset_logos;
-         DELETE FROM __diesel_schema_migrations WHERE version >= '20260814000001';
+         DELETE FROM __diesel_schema_migrations
+         WHERE version IN ('20260814000001', '20260902000001');
          INSERT INTO app_settings(setting_key, setting_value) VALUES ('migration_test', 'original');",
     ).unwrap();
     assert_eq!(pending(&access), 2);

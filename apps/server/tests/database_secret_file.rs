@@ -86,7 +86,8 @@ fn encrypt_with_pending_migrations_retains_and_reports_plaintext_backup_at_relat
     access.run_migrations().unwrap();
     access.connect_rusqlite().unwrap().execute_batch(
         "DROP TABLE asset_logos;
-         DELETE FROM __diesel_schema_migrations WHERE version >= '20260814000001';
+         DELETE FROM __diesel_schema_migrations
+         WHERE version IN ('20260814000001', '20260902000001');
          INSERT INTO app_settings(setting_key, setting_value) VALUES ('cli_test', 'before upgrade');",
     ).unwrap();
     let output = cli(dir.path(), "encrypt")

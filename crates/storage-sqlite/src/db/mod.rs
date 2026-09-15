@@ -1817,3 +1817,6 @@ mod pool_lifetime_tests;
 
 #[cfg(test)]
 mod migration_backup_tests;
+
+#[cfg(test)]
+mod account_delete_cleanup_tests;
