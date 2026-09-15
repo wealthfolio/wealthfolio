@@ -18,6 +18,9 @@ interface CategoryEditModalProps {
   parentCategory?: CategoryNode;
   onSave: (values: CategoryFormValues) => void;
   isLoading?: boolean;
+  showExcludeToggle?: boolean;
+  initialExcluded?: boolean;
+  parentExcluded?: boolean;
 }
 
 export function CategoryEditModal({
@@ -27,6 +30,9 @@ export function CategoryEditModal({
   parentCategory,
   onSave,
   isLoading,
+  showExcludeToggle,
+  initialExcluded,
+  parentExcluded,
 }: CategoryEditModalProps) {
   const { t } = useTranslation();
   const isEditing = !!category;
@@ -58,6 +64,9 @@ export function CategoryEditModal({
           onSubmit={onSave}
           onCancel={onClose}
           isLoading={isLoading}
+          showExcludeToggle={showExcludeToggle}
+          initialExcluded={initialExcluded}
+          parentExcluded={parentExcluded}
         />
       </DialogContent>
     </Dialog>

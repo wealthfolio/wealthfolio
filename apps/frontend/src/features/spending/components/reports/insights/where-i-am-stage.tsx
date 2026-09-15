@@ -21,6 +21,7 @@ import {
   useLocalizationSettings,
 } from "@wealthfolio/ui";
 
+import { useSpendingSettings } from "../../../hooks/use-spending-settings";
 import { rollUpToTopLevel, topCategoryId } from "../../../lib/category-rollup";
 import { getZonedDateParts } from "../../../lib/timezone";
 import type { ReportsRange } from "../../../lib/reports-period";
@@ -1123,6 +1124,14 @@ function BreakdownCanvas({
     () => countTopLevel(filteredBreakdown, taxonomyCategories),
     [filteredBreakdown, taxonomyCategories],
   );
+  // Count only excluded ids still present in the taxonomy (stale ids keep
+  // filtering backend-side but shouldn't inflate the hint).
+  const { excludedCategoryIds } = useSpendingSettings();
+  const excludedCount = useMemo(() => {
+    if (excludedCategoryIds.length === 0) return 0;
+    const liveIds = new Set(taxonomyCategories.map((c) => c.id));
+    return excludedCategoryIds.filter((id) => liveIds.has(id)).length;
+  }, [excludedCategoryIds, taxonomyCategories]);
 
   const periodLabel = useMemo(
     () => buildPeriodSubtitle(range, dateFormatting),
@@ -1228,6 +1237,14 @@ function BreakdownCanvas({
               total: totalCats,
               count: totalCats,
             })}
+            {excludedCount > 0 && (
+              <>
+                {" · "}
+                <Link to="/settings/spending/categories" className="hover:underline">
+                  {t("spending:whereIAm.excludedInSettings", { count: excludedCount })}
+                </Link>
+              </>
+            )}
           </span>
           <Link
             to="/activities?tab=spending"
@@ -1244,6 +1261,14 @@ function BreakdownCanvas({
               total: totalCats,
               count: totalCats,
             })}
+            {excludedCount > 0 && (
+              <>
+                {" · "}
+                <Link to="/settings/spending/categories" className="hover:underline">
+                  {t("spending:whereIAm.excludedInSettings", { count: excludedCount })}
+                </Link>
+              </>
+            )}
           </span>
           <Link
             to="/activities?tab=spending"

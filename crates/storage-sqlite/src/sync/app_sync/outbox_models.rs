@@ -27,10 +27,15 @@ use uuid::Uuid;
 use wealthfolio_core::portfolio::snapshot::SnapshotSource;
 use wealthfolio_core::sync::SyncEntity;
 use wealthfolio_core::sync::SyncOperation;
-use wealthfolio_spending::settings::{SETTING_KEY_ACCOUNT_IDS, SETTING_KEY_ENABLED};
+use wealthfolio_spending::settings::{
+    SETTING_KEY_ACCOUNT_IDS, SETTING_KEY_ENABLED, SETTING_KEY_EXCLUDED_CATEGORY_IDS,
+};
 
 pub(crate) fn is_syncable_spending_setting_key(key: &str) -> bool {
-    matches!(key, SETTING_KEY_ENABLED | SETTING_KEY_ACCOUNT_IDS)
+    matches!(
+        key,
+        SETTING_KEY_ENABLED | SETTING_KEY_ACCOUNT_IDS | SETTING_KEY_EXCLUDED_CATEGORY_IDS
+    )
 }
 
 impl SyncOutboxModel for AccountDB {

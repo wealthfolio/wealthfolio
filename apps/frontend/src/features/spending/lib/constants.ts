@@ -158,6 +158,22 @@ export function getActivitySpendingAmount(
   return OUTFLOW_TYPES.includes(activityType as CashActivityType) ? absAmount : 0;
 }
 
+/**
+ * Spending amount with excluded-category portions removed. Rows from the
+ * cash-activity `list()`/`search()` carry `visibleSpendingAmount`, computed
+ * server-side with the same allocator and exclusion index as the report
+ * aggregates; a row without it (older backend) falls back to the unfiltered
+ * spending amount.
+ */
+export function getVisibleSpendingAmount(
+  activity: Parameters<typeof getActivitySpendingAmount>[0] & {
+    visibleSpendingAmount?: number;
+  },
+  accountType?: string,
+): number {
+  return activity.visibleSpendingAmount ?? getActivitySpendingAmount(activity, accountType);
+}
+
 export function getPositiveActivitySpendingAmount(
   activity: Parameters<typeof getActivitySpendingAmount>[0],
   accountType?: string,

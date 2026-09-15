@@ -68,9 +68,11 @@ function mockSettings(accountIds: string[]) {
     settings: {
       enabled: true,
       accountIds,
+      excludedCategoryIds: [],
     },
     isEnabled: true,
     accountIds,
+    excludedCategoryIds: [],
     isLoading: false,
     error: null,
   });

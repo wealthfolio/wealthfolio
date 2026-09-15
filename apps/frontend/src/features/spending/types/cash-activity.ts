@@ -93,6 +93,13 @@ export interface CashActivity extends Activity {
    * Absent when no conversion was asked for, or this currency has no rate.
    */
   netAmountBase?: number | null;
+  /**
+   * Signed contribution to spending totals in this row's own currency — the
+   * spending-bucket amount with excluded-category portions removed, computed
+   * server-side with the same allocator and exclusion index as the reports.
+   * Absent only from rows produced by a backend that predates exclusions.
+   */
+  visibleSpendingAmount?: number;
 }
 
 /** A signed net in one currency. */

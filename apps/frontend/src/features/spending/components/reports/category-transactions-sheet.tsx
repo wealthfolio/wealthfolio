@@ -23,6 +23,7 @@ import {
 } from "@wealthfolio/ui";
 
 import { useCashActivitySearch } from "../../hooks/use-cash-activity-search";
+import { useSpendingSettings } from "../../hooks/use-spending-settings";
 import {
   computeCategoryDrilldown,
   DIRECT_ROW_ID,
@@ -99,17 +100,23 @@ export function CategoryTransactionsSheet({
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
   const isTopLevel = !!category && !category.parentId;
+  const { excludedCategoryIds } = useSpendingSettings();
 
   const categoryMeta = useMemo(
     () => new Map(taxonomyCategories.map((c) => [c.id, c] as const)),
     [taxonomyCategories],
   );
 
-  // Whole subtree, so the list covers exactly what the stats roll up.
-  const ids = useMemo(
-    () => (category ? descendantCategoryIds(category.id, taxonomyCategories) : []),
-    [category, taxonomyCategories],
-  );
+  // Whole subtree, so the list covers exactly what the stats roll up — minus
+  // excluded branches (an excluded category and everything beneath it), which
+  // the server aggregates behind those stats already leave out.
+  const ids = useMemo(() => {
+    if (!category) return [] as string[];
+    const excluded = new Set(
+      excludedCategoryIds.flatMap((id) => descendantCategoryIds(id, taxonomyCategories)),
+    );
+    return descendantCategoryIds(category.id, taxonomyCategories).filter((id) => !excluded.has(id));
+  }, [category, excludedCategoryIds, taxonomyCategories]);
 
   // Both bounds are already resolved against the configured app timezone —
   // `rangeEnd` is that day's inclusive end-of-day instant. Re-flooring it to

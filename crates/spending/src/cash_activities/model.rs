@@ -156,6 +156,16 @@ pub struct CashActivity {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub net_amount_base: Option<f64>,
+    /// Signed contribution of this row to spending totals, in the row's own
+    /// currency: the spending-bucket amount (positive for charges, negative
+    /// for refunds) with the portions allocated to excluded categories
+    /// removed. Zero for non-spending rows and for rows whose every
+    /// allocation is excluded; uncategorized spend is never excluded.
+    /// Computed with the same allocator and `ExclusionIndex` as the
+    /// insight/report aggregates, so visuals built client-side from rows
+    /// agree with the server headline without re-deriving either rule.
+    #[serde(default)]
+    pub visible_spending_amount: f64,
 }
 
 /// A signed net in one currency.

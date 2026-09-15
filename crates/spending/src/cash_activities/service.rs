@@ -12,6 +12,7 @@ use wealthfolio_core::activities::{
     Activity, ActivityRepositoryTrait, TransferPairResolution, ACTIVITY_TYPE_TRANSFER_IN,
     ACTIVITY_TYPE_TRANSFER_OUT,
 };
+use wealthfolio_core::taxonomies::TaxonomyServiceTrait;
 use wealthfolio_core::utils::time_utils::{activity_date_in_tz, parse_user_timezone_or_default};
 
 use super::{
@@ -24,6 +25,7 @@ use super::{
 };
 use crate::activity_allocations::{
     group_assignments as group_assignments_owned, group_splits as group_splits_owned,
+    AssignmentsByActivity, SplitsByActivity,
 };
 use crate::activity_assignments::{
     ActivityTaxonomyAssignment, ActivityTaxonomyAssignmentService, BulkCategoryAssignment,
@@ -33,6 +35,7 @@ use crate::activity_classification::{
     net_amount, within_spending_transfer_groups, SpendingClassification,
 };
 use crate::activity_splits::{ActivitySplit, ActivitySplitRepositoryTrait, NewActivitySplit};
+use crate::category_exclusions::{excluded_spending_native, ExclusionIndex};
 use crate::error::SpendingError;
 use crate::events::EventsService;
 use crate::settings::SpendingSettingsService;
@@ -54,6 +57,7 @@ pub struct CashActivityService {
     activity_events: Arc<dyn crate::activity_events::ActivityEventsRepositoryTrait>,
     events: Arc<EventsService>,
     fx: Arc<dyn wealthfolio_core::fx::FxServiceTrait>,
+    taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
 }
 
 /// Accounts in scope for a spending query, with the two lookups callers need.
@@ -84,6 +88,7 @@ impl CashActivityService {
         activity_events: Arc<dyn crate::activity_events::ActivityEventsRepositoryTrait>,
         events: Arc<EventsService>,
         fx: Arc<dyn wealthfolio_core::fx::FxServiceTrait>,
+        taxonomy_service: Arc<dyn TaxonomyServiceTrait>,
     ) -> Self {
         Self {
             activity_repo,
@@ -94,7 +99,28 @@ impl CashActivityService {
             activity_events,
             events,
             fx,
+            taxonomy_service,
         }
+    }
+
+    /// Resolved exclusion set for `visible_spending_amount`. Only touches the
+    /// taxonomy when something is excluded, so the default (empty) setting
+    /// costs no extra read on the list/search paths.
+    fn spending_exclusions(&self, excluded_category_ids: &[String]) -> Result<ExclusionIndex> {
+        if excluded_category_ids.is_empty() {
+            return Ok(ExclusionIndex::empty());
+        }
+        let categories = self
+            .taxonomy_service
+            .get_taxonomy(SPENDING_TAXONOMY)?
+            .map(|taxonomy| taxonomy.categories)
+            .unwrap_or_default();
+        Ok(ExclusionIndex::from_parent_pairs(
+            excluded_category_ids,
+            categories
+                .iter()
+                .map(|c| (c.id.as_str(), c.parent_id.as_deref())),
+        ))
     }
 
     /// List cash activities matching the (legacy) filter, scoped to opted-in
@@ -167,9 +193,18 @@ impl CashActivityService {
         let splits = self.splits.list_for_activities(&ids).await?;
         let mut splits_by_activity = group_splits_owned(splits);
         let mut tag_map = self.activity_events.list_for_activities(&ids).await?;
+        let exclusions = self.spending_exclusions(&s.excluded_category_ids)?;
         let items: Vec<CashActivity> = activities
             .into_iter()
             .map(|a| {
+                let visible_spending_amount = visible_spending_amount(
+                    &a,
+                    &account_types,
+                    &transfer_groups,
+                    &by_activity,
+                    &splits_by_activity,
+                    &exclusions,
+                );
                 let assignments = by_activity.remove(&a.id).unwrap_or_default();
                 let splits = splits_by_activity.remove(&a.id).unwrap_or_default();
                 let event_id = tag_map.remove(&a.id);
@@ -185,6 +220,7 @@ impl CashActivityService {
                     transfer_link_status,
                     net_amount,
                     net_amount_base: None,
+                    visible_spending_amount,
                 }
             })
             .collect();
@@ -597,10 +633,19 @@ impl CashActivityService {
         let splits = self.splits.list_for_activities(&page_ids).await?;
         let mut splits_by_activity = group_splits_owned(splits);
         let mut tag_map = self.activity_events.list_for_activities(&page_ids).await?;
+        let exclusions = self.spending_exclusions(&s.excluded_category_ids)?;
 
         let items: Vec<CashActivity> = page
             .into_iter()
             .map(|a| {
+                let visible_spending_amount = visible_spending_amount(
+                    &a,
+                    &account_types,
+                    &transfer_groups,
+                    &by_activity,
+                    &splits_by_activity,
+                    &exclusions,
+                );
                 let assignments = by_activity.remove(&a.id).unwrap_or_default();
                 let splits = splits_by_activity.remove(&a.id).unwrap_or_default();
                 let event_id = tag_map.remove(&a.id);
@@ -623,6 +668,7 @@ impl CashActivityService {
                     transfer_link_status,
                     net_amount: decimal_to_f64(net),
                     net_amount_base,
+                    visible_spending_amount,
                 }
             })
             .collect();
@@ -677,9 +723,18 @@ impl CashActivityService {
         let splits = self.splits.list_for_activities(&ids).await?;
         let mut splits_by_activity = group_splits_owned(splits);
         let mut tag_map = self.activity_events.list_for_activities(&ids).await?;
+        let exclusions = self.spending_exclusions(&s.excluded_category_ids)?;
         Ok(activities
             .into_iter()
             .map(|activity| {
+                let visible_spending_amount = visible_spending_amount(
+                    &activity,
+                    &account_types,
+                    &transfer_groups,
+                    &by_activity,
+                    &splits_by_activity,
+                    &exclusions,
+                );
                 let assignments = by_activity.remove(&activity.id).unwrap_or_default();
                 let splits = splits_by_activity.remove(&activity.id).unwrap_or_default();
                 let event_id = tag_map.remove(&activity.id);
@@ -697,6 +752,7 @@ impl CashActivityService {
                     transfer_link_status,
                     net_amount,
                     net_amount_base: None,
+                    visible_spending_amount,
                 }
             })
             .collect())
@@ -1069,6 +1125,33 @@ fn cash_flow_bucket_for(
         .unwrap_or(CashFlowBucket::Neutral)
 }
 
+/// `CashActivity::visible_spending_amount`: the spending bucket less the
+/// excluded-category portion, using the same classification as
+/// `cash_flow_bucket_for` and the same allocator as the report aggregates.
+fn visible_spending_amount(
+    activity: &Activity,
+    account_types: &HashMap<String, String>,
+    transfer_groups: &HashSet<String>,
+    assignments_by_activity: &AssignmentsByActivity,
+    splits_by_activity: &SplitsByActivity,
+    exclusions: &ExclusionIndex,
+) -> f64 {
+    let Some(account_type) = account_types.get(&activity.account_id) else {
+        return 0.0;
+    };
+    let bucket = classify_activity_for_aggregation(activity, account_type, transfer_groups)
+        .spending_amount(activity_abs_amount(activity));
+    let excluded = excluded_spending_native(
+        &activity.id,
+        SPENDING_TAXONOMY,
+        bucket,
+        assignments_by_activity,
+        splits_by_activity,
+        exclusions,
+    );
+    decimal_to_f64(bucket - excluded)
+}
+
 fn cash_flow_bucket_from_classification(classification: SpendingClassification) -> CashFlowBucket {
     match classification {
         SpendingClassification::Income => CashFlowBucket::Income,
@@ -1232,6 +1315,11 @@ mod tests {
     use crate::events::{Event, EventType, NewEvent, NewEventType, UpdateEvent};
     use crate::settings::{
         SpendingSettingsRepositoryTrait, SETTING_KEY_ACCOUNT_IDS, SETTING_KEY_ENABLED,
+        SETTING_KEY_EXCLUDED_CATEGORY_IDS,
+    };
+    use wealthfolio_core::taxonomies::{
+        AssetTaxonomyAssignment, Category, NewAssetTaxonomyAssignment, NewCategory, NewTaxonomy,
+        Taxonomy, TaxonomyWithCategories,
     };
 
     fn now_naive() -> NaiveDateTime {
@@ -1272,7 +1360,9 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct MockSettingsRepo;
+    struct MockSettingsRepo {
+        excluded_category_ids: Vec<String>,
+    }
 
     #[async_trait]
     impl SpendingSettingsRepositoryTrait for MockSettingsRepo {
@@ -1280,6 +1370,9 @@ mod tests {
             match key {
                 SETTING_KEY_ENABLED => Ok(Some("true".to_string())),
                 SETTING_KEY_ACCOUNT_IDS => Ok(Some(r#"["account-1"]"#.to_string())),
+                SETTING_KEY_EXCLUDED_CATEGORY_IDS => {
+                    Ok(Some(serde_json::to_string(&self.excluded_category_ids)?))
+                }
                 _ => Ok(None),
             }
         }
@@ -1611,6 +1704,7 @@ mod tests {
     #[derive(Default)]
     struct MockAssignmentRepo {
         cleared: Mutex<Vec<(String, String)>>,
+        assignments: Mutex<Vec<ActivityTaxonomyAssignment>>,
     }
 
     #[async_trait]
@@ -1621,9 +1715,16 @@ mod tests {
 
         async fn list_for_activities(
             &self,
-            _: &[String],
+            ids: &[String],
         ) -> Result<Vec<ActivityTaxonomyAssignment>> {
-            Ok(Vec::new())
+            Ok(self
+                .assignments
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|a| ids.contains(&a.activity_id))
+                .cloned()
+                .collect())
         }
 
         async fn upsert(
@@ -1674,6 +1775,7 @@ mod tests {
         assignment_clears: Mutex<Vec<(String, String)>>,
         cleared: Mutex<Vec<String>>,
         categories_valid: Mutex<bool>,
+        splits: Mutex<Vec<ActivitySplit>>,
     }
 
     #[async_trait]
@@ -1682,8 +1784,15 @@ mod tests {
             Ok(Vec::new())
         }
 
-        async fn list_for_activities(&self, _: &[String]) -> Result<Vec<ActivitySplit>> {
-            Ok(Vec::new())
+        async fn list_for_activities(&self, ids: &[String]) -> Result<Vec<ActivitySplit>> {
+            Ok(self
+                .splits
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|s| ids.contains(&s.activity_id))
+                .cloned()
+                .collect())
         }
 
         async fn categories_belong_to_taxonomy(&self, _: &str, _: &[String]) -> Result<bool> {
@@ -2085,11 +2194,130 @@ mod tests {
         Arc<MockAssignmentRepo>,
         Arc<MockSplitRepo>,
     ) {
+        make_service_full(activities, fx, Vec::new(), Vec::new())
+    }
+
+    /// Spending taxonomy stub: only `get_taxonomy` is exercised by the
+    /// service (to resolve excluded descendants).
+    struct MockTaxonomyService {
+        categories: Vec<Category>,
+    }
+
+    #[async_trait]
+    impl TaxonomyServiceTrait for MockTaxonomyService {
+        fn get_taxonomies(&self) -> wealthfolio_core::Result<Vec<Taxonomy>> {
+            unimplemented!()
+        }
+        fn get_taxonomy(
+            &self,
+            id: &str,
+        ) -> wealthfolio_core::Result<Option<TaxonomyWithCategories>> {
+            if id != SPENDING_TAXONOMY {
+                return Ok(None);
+            }
+            Ok(Some(TaxonomyWithCategories {
+                taxonomy: Taxonomy {
+                    id: SPENDING_TAXONOMY.to_string(),
+                    name: "Spending".to_string(),
+                    color: "#000".to_string(),
+                    description: None,
+                    is_system: true,
+                    is_single_select: true,
+                    sort_order: 0,
+                    created_at: now_naive(),
+                    updated_at: now_naive(),
+                    scope: "activity".to_string(),
+                },
+                categories: self.categories.clone(),
+            }))
+        }
+        fn get_taxonomies_with_categories(
+            &self,
+        ) -> wealthfolio_core::Result<Vec<TaxonomyWithCategories>> {
+            unimplemented!()
+        }
+        async fn create_taxonomy(&self, _: NewTaxonomy) -> wealthfolio_core::Result<Taxonomy> {
+            unimplemented!()
+        }
+        async fn update_taxonomy(&self, _: Taxonomy) -> wealthfolio_core::Result<Taxonomy> {
+            unimplemented!()
+        }
+        async fn delete_taxonomy(&self, _: &str) -> wealthfolio_core::Result<usize> {
+            unimplemented!()
+        }
+        async fn create_category(&self, _: NewCategory) -> wealthfolio_core::Result<Category> {
+            unimplemented!()
+        }
+        async fn update_category(&self, _: Category) -> wealthfolio_core::Result<Category> {
+            unimplemented!()
+        }
+        async fn delete_category(&self, _: &str, _: &str) -> wealthfolio_core::Result<usize> {
+            unimplemented!()
+        }
+        async fn move_category(
+            &self,
+            _: &str,
+            _: &str,
+            _: Option<String>,
+            _: i32,
+        ) -> wealthfolio_core::Result<Category> {
+            unimplemented!()
+        }
+        async fn import_taxonomy_json(&self, _: &str) -> wealthfolio_core::Result<Taxonomy> {
+            unimplemented!()
+        }
+        fn export_taxonomy_json(&self, _: &str) -> wealthfolio_core::Result<String> {
+            unimplemented!()
+        }
+        fn get_asset_assignments(
+            &self,
+            _: &str,
+        ) -> wealthfolio_core::Result<Vec<AssetTaxonomyAssignment>> {
+            unimplemented!()
+        }
+        fn get_category_assignments(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> wealthfolio_core::Result<Vec<AssetTaxonomyAssignment>> {
+            unimplemented!()
+        }
+        async fn assign_asset_to_category(
+            &self,
+            _: NewAssetTaxonomyAssignment,
+        ) -> wealthfolio_core::Result<AssetTaxonomyAssignment> {
+            unimplemented!()
+        }
+        async fn replace_asset_taxonomy_assignments(
+            &self,
+            _: &str,
+            _: &str,
+            _: Vec<NewAssetTaxonomyAssignment>,
+        ) -> wealthfolio_core::Result<Vec<AssetTaxonomyAssignment>> {
+            unimplemented!()
+        }
+        async fn remove_asset_assignment(&self, _: &str) -> wealthfolio_core::Result<usize> {
+            unimplemented!()
+        }
+    }
+
+    fn make_service_full(
+        activities: Vec<Activity>,
+        fx: Arc<dyn wealthfolio_core::fx::FxServiceTrait>,
+        excluded_category_ids: Vec<String>,
+        categories: Vec<Category>,
+    ) -> (
+        CashActivityService,
+        Arc<MockAssignmentRepo>,
+        Arc<MockSplitRepo>,
+    ) {
         let activity_repo = Arc::new(MockActivityRepo { activities });
         let account_repo = Arc::new(MockAccountRepo {
             account: account(account_types::CASH),
         });
-        let settings = Arc::new(SpendingSettingsService::new(Arc::new(MockSettingsRepo)));
+        let settings = Arc::new(SpendingSettingsService::new(Arc::new(MockSettingsRepo {
+            excluded_category_ids,
+        })));
         let assignment_repo = Arc::new(MockAssignmentRepo::default());
         let assignment_service = Arc::new(ActivityTaxonomyAssignmentService::new(
             assignment_repo.clone()
@@ -2113,8 +2341,112 @@ mod tests {
             activity_events,
             events,
             fx,
+            Arc::new(MockTaxonomyService { categories }),
         );
         (service, assignment_repo, split_repo)
+    }
+
+    fn spending_category(id: &str, parent_id: Option<&str>) -> Category {
+        Category {
+            id: id.to_string(),
+            taxonomy_id: SPENDING_TAXONOMY.to_string(),
+            parent_id: parent_id.map(str::to_string),
+            name: id.to_string(),
+            key: id.to_string(),
+            color: "#000".to_string(),
+            description: None,
+            sort_order: 0,
+            created_at: now_naive(),
+            updated_at: now_naive(),
+            icon: None,
+        }
+    }
+
+    fn spending_assignment(activity_id: &str, category_id: &str) -> ActivityTaxonomyAssignment {
+        ActivityTaxonomyAssignment {
+            id: format!("asg-{activity_id}"),
+            activity_id: activity_id.to_string(),
+            taxonomy_id: SPENDING_TAXONOMY.to_string(),
+            category_id: category_id.to_string(),
+            weight: 10_000,
+            source: "manual".to_string(),
+            created_at: now_naive(),
+            updated_at: now_naive(),
+        }
+    }
+
+    fn spending_split(activity_id: &str, category_id: &str, amount: i64) -> ActivitySplit {
+        ActivitySplit {
+            id: format!("split-{activity_id}-{category_id}"),
+            activity_id: activity_id.to_string(),
+            taxonomy_id: SPENDING_TAXONOMY.to_string(),
+            category_id: category_id.to_string(),
+            amount: Decimal::new(amount, 0),
+            note: None,
+            sort_order: 0,
+            created_at: now_naive(),
+            updated_at: now_naive(),
+        }
+    }
+
+    /// `visible_spending_amount` applies the same exclusion rules as the
+    /// report aggregates: excluded descendants and split lines drop out,
+    /// uncategorized spend never does, and non-spending rows stay zero.
+    #[tokio::test]
+    async fn rows_carry_visible_spending_net_of_excluded_categories() {
+        let rows = vec![
+            cash_row("flights", "WITHDRAWAL", 100, "USD"),
+            cash_row("groceries", "WITHDRAWAL", 50, "USD"),
+            cash_row("mixed", "WITHDRAWAL", 120, "USD"),
+            cash_row("uncategorized", "WITHDRAWAL", 25, "USD"),
+            cash_row("salary", "DEPOSIT", 1000, "USD"),
+        ];
+        let categories = vec![
+            spending_category("cat_travel", None),
+            spending_category("cat_flights", Some("cat_travel")),
+            spending_category("cat_groceries", None),
+        ];
+        let (service, assignment_repo, split_repo) = make_service_full(
+            rows,
+            MockFx::none(),
+            vec!["cat_travel".to_string()],
+            categories,
+        );
+        *assignment_repo.assignments.lock().unwrap() = vec![
+            spending_assignment("flights", "cat_flights"),
+            spending_assignment("groceries", "cat_groceries"),
+        ];
+        *split_repo.splits.lock().unwrap() = vec![
+            spending_split("mixed", "cat_groceries", 80),
+            spending_split("mixed", "cat_travel", 40),
+        ];
+
+        let items = service.list(CashActivityFilter::default()).await.unwrap();
+        let visible = |id: &str| {
+            items
+                .iter()
+                .find(|i| i.activity.id == id)
+                .unwrap()
+                .visible_spending_amount
+        };
+        // Excluded via the parent: the whole bucket drops.
+        assert_eq!(visible("flights"), 0.0);
+        assert_eq!(visible("groceries"), 50.0);
+        // Only the excluded split line leaves.
+        assert_eq!(visible("mixed"), 80.0);
+        assert_eq!(visible("uncategorized"), 25.0);
+        assert_eq!(visible("salary"), 0.0);
+    }
+
+    #[tokio::test]
+    async fn visible_spending_is_the_full_bucket_when_nothing_is_excluded() {
+        let (service, assignment_repo, _) =
+            make_service_with(vec![cash_row("flights", "WITHDRAWAL", 100, "USD")]);
+        *assignment_repo.assignments.lock().unwrap() =
+            vec![spending_assignment("flights", "cat_flights")];
+
+        let items = service.list(CashActivityFilter::default()).await.unwrap();
+        assert_eq!(items[0].visible_spending_amount, 100.0);
     }
 
     async fn search_net(service: &CashActivityService, base: Option<&str>) -> NetSummary {
