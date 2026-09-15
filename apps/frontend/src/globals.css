@@ -244,6 +244,8 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-input-bg: var(--input-bg);
@@ -397,6 +399,7 @@
   --flexoki-re: 3 62% 42%;
   --flexoki-gr: 73 84% 27%;
   --flexoki-ye: 45 99% 34%;
+  --flexoki-bl: 214 67% 39%;
 
   /* Shadcn tokens as full HSL colors */
   --background: hsl(var(--flexoki-bg));
@@ -419,6 +422,8 @@
   --success-foreground: hsl(var(--flexoki-bg));
   --warning: hsl(var(--flexoki-ye));
   --warning-foreground: hsl(var(--flexoki-bg));
+  --info: hsl(var(--flexoki-bl));
+  --info-foreground: hsl(var(--flexoki-bg));
   --border: hsl(var(--flexoki-ui));
   --input: hsl(var(--flexoki-ui));
   --input-bg: hsl(var(--flexoki-bg));
@@ -492,6 +497,7 @@
   --flexoki-re: 5 61% 54%;
   --flexoki-gr: 72 46% 41%;
   --flexoki-ye: 45 82% 45%;
+  --flexoki-bl: 210 47% 50%;
 
   /* Dark chart palette — same semantic hues as light (forest / sage / sand /
      clay / plum + stone), tuned for the dark surface: forest is lifted for
