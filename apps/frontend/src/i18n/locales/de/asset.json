@@ -610,6 +610,8 @@
     "asset_description": "Name, Kaufinformationen und andere Details bearbeiten",
     "name": "Name",
     "name_placeholder": "Anlagennamen eingeben...",
+    "ownership_pct": "Eigentumsanteil %",
+    "ownership_pct_description": "Ihr Anteil an diesem Vermögenswert. Wirkt sich nur auf Ihr Gesamtnettovermögen aus — der angezeigte Wert zeigt immer 100 %.",
     "purchase_information": "Kaufinformationen",
     "purchase_information_description": "Optionale Kaufdetails zur Gewinn-/Verlustverfolgung",
     "purchase_price_per_unit": "Kaufpreis (pro Einheit)",

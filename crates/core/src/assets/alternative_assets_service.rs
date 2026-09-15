@@ -393,8 +393,19 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             ))));
         }
 
-        // Update liability metadata with linked_asset_id
-        let new_metadata = Self::set_linked_asset_id(None, &request.target_asset_id);
+        // Update liability metadata with linked_asset_id, preserving any existing
+        // metadata (sub_type, original_amount, interest_rate, etc.) instead of
+        // discarding it. Pre-fill ownership_pct from the target asset if the
+        // liability doesn't already have its own ownership percentage set.
+        let mut new_metadata =
+            Self::set_linked_asset_id(liability.metadata.clone(), &request.target_asset_id);
+        if liability.ownership_pct().is_none() {
+            if let Some(pct) = target.ownership_pct() {
+                if let Some(obj) = new_metadata.as_object_mut() {
+                    obj.insert("ownership_pct".to_string(), json!(pct.to_string()));
+                }
+            }
+        }
         self.alternative_asset_repository
             .update_asset_metadata(&request.liability_id, Some(new_metadata))
             .await?;
@@ -1072,6 +1083,53 @@ mod tests {
         }
     }
 
+    // ---------------------------------------------------------------------------
+    // Mock: AlternativeAssetRepository that records the metadata passed to
+    // update_asset_metadata, so tests can assert on the merged result.
+    // ---------------------------------------------------------------------------
+    struct RecordingAltAssetRepository {
+        recorded: std::sync::Mutex<Option<(String, Option<serde_json::Value>)>>,
+    }
+
+    impl RecordingAltAssetRepository {
+        fn new() -> Self {
+            Self {
+                recorded: std::sync::Mutex::new(None),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl AlternativeAssetRepositoryTrait for RecordingAltAssetRepository {
+        async fn delete_alternative_asset(&self, _asset_id: &str) -> Result<()> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn update_asset_metadata(
+            &self,
+            asset_id: &str,
+            metadata: Option<serde_json::Value>,
+        ) -> Result<()> {
+            *self.recorded.lock().unwrap() = Some((asset_id.to_string(), metadata));
+            Ok(())
+        }
+
+        fn find_liabilities_linked_to(&self, _linked_asset_id: &str) -> Result<Vec<String>> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn update_asset_details(
+            &self,
+            _asset_id: &str,
+            _name: Option<&str>,
+            _display_code: Option<&str>,
+            _metadata: Option<serde_json::Value>,
+            _notes: Option<&str>,
+        ) -> Result<()> {
+            unimplemented!("not used in this test")
+        }
+    }
+
     // Helper: build a minimal Quote for a given asset + close value + date.
     fn make_quote(asset_id: &str, close: Decimal, day: NaiveDate) -> Quote {
         use chrono::{TimeZone, Utc};
@@ -1160,6 +1218,87 @@ mod tests {
 
         let removed = AlternativeAssetService::remove_linked_asset_id(Some(metadata));
         assert!(removed.is_none()); // Only had linked_asset_id, so should be None when removed
+    }
+
+    /// Linking a liability to a property must preserve the liability's existing
+    /// metadata (sub_type, original_amount, etc.) instead of discarding it, and
+    /// should pre-fill ownership_pct from the target asset when the liability
+    /// doesn't already have its own.
+    #[tokio::test]
+    async fn link_liability_preserves_existing_metadata_and_prefills_ownership_pct() {
+        let liability = crate::assets::assets_model::Asset {
+            id: "liability-1".to_string(),
+            kind: AssetKind::Liability,
+            quote_ccy: "USD".to_string(),
+            quote_mode: QuoteMode::Manual,
+            metadata: Some(json!({
+                "sub_type": "mortgage",
+                "original_amount": "300000",
+            })),
+            ..Default::default()
+        };
+        let property = crate::assets::assets_model::Asset {
+            id: "property-1".to_string(),
+            kind: AssetKind::Property,
+            quote_ccy: "USD".to_string(),
+            quote_mode: QuoteMode::Manual,
+            metadata: Some(json!({ "ownership_pct": "50" })),
+            ..Default::default()
+        };
+
+        let asset_repo = MockAssetRepository {
+            assets: vec![liability, property],
+        };
+        let alt_repo = Arc::new(RecordingAltAssetRepository::new());
+        let alt_repo_for_service: Arc<dyn AlternativeAssetRepositoryTrait> = alt_repo.clone();
+        let quote_svc = MockQuoteService {
+            as_of_quotes: HashMap::new(),
+            latest_quotes: HashMap::new(),
+        };
+
+        let service = AlternativeAssetService::new(
+            alt_repo_for_service,
+            Arc::new(asset_repo),
+            Arc::new(quote_svc),
+        );
+
+        let response = service
+            .link_liability(LinkLiabilityRequest {
+                liability_id: "liability-1".to_string(),
+                target_asset_id: "property-1".to_string(),
+            })
+            .await
+            .expect("link_liability should succeed");
+        assert_eq!(response.linked_asset_id.as_deref(), Some("property-1"));
+
+        let (asset_id, metadata) = alt_repo
+            .recorded
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("update_asset_metadata should have been called");
+        assert_eq!(asset_id, "liability-1");
+        let metadata = metadata.expect("metadata should be Some");
+
+        // Pre-existing liability metadata must survive the link.
+        assert_eq!(
+            metadata.get("sub_type").and_then(|v| v.as_str()),
+            Some("mortgage")
+        );
+        assert_eq!(
+            metadata.get("original_amount").and_then(|v| v.as_str()),
+            Some("300000")
+        );
+        // linked_asset_id gets set.
+        assert_eq!(
+            metadata.get("linked_asset_id").and_then(|v| v.as_str()),
+            Some("property-1")
+        );
+        // ownership_pct pre-filled from the property since the liability had none.
+        assert_eq!(
+            metadata.get("ownership_pct").and_then(|v| v.as_str()),
+            Some("50")
+        );
     }
 
     /// Regression test for: liability with a future-dated 0 quote must NOT appear
