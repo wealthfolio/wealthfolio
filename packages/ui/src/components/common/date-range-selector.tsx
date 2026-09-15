@@ -77,9 +77,16 @@ interface DateRangeSelectorProps {
   value: DateRange | undefined;
   onChange: (range: DateRange | undefined) => void;
   hiddenRanges?: readonly DateRangePresetLabel[];
+  /**
+   * Earliest date represented by the ALL preset (e.g. the selected account's
+   * first data point). Only affects what the calendar displays and anchors to;
+   * the stored ALL value keeps its sentinel start so consumers can still
+   * detect all-time ranges.
+   */
+  allTimeFrom?: Date;
 }
 
-export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRangeSelectorProps) {
+export function DateRangeSelector({ value, onChange, hiddenRanges = [], allTimeFrom }: DateRangeSelectorProps) {
   const { t } = useTranslation();
   const formatting = useDateFormatting();
   const isMobile = useIsMobile();
@@ -110,11 +117,15 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
   const isCustomRange = !selectedLabel;
   const isDraftRangeComplete = !draftRange || (!!draftRange.from && !!draftRange.to);
   const allTimeRange = visibleRanges.find((range) => range.label === "ALL")?.getValue();
-  const appliedDraftRange = draftRange ?? allTimeRange;
+  const allTimeDisplayRange = allTimeFrom ? { from: allTimeFrom, to: new Date() } : allTimeRange;
+  // When ALL is active, show the caller's dynamic start in the calendar
+  // instead of the 1970-01-01 sentinel that is kept in state.
+  const calendarRange = selectedLabel === "ALL" ? allTimeDisplayRange : value;
+  const appliedDraftRange = draftRange ?? allTimeDisplayRange;
 
   const handleCustomPickerOpenChange = (open: boolean) => {
     if (open) {
-      setDraftRange(value ?? allTimeRange);
+      setDraftRange(calendarRange ?? allTimeRange);
     }
     setIsCustomPickerOpen(open);
   };
@@ -213,8 +224,8 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
                 type="button"
                 variant="ghost"
                 className="text-muted-foreground hover:text-foreground"
-                onClick={() => setDraftRange(allTimeRange)}
-                disabled={!draftRange && !allTimeRange}
+                onClick={() => setDraftRange(allTimeDisplayRange)}
+                disabled={!draftRange && !allTimeDisplayRange}
               >
                 {t("ui:dateRange.clear", "Clear")}
               </Button>
@@ -238,8 +249,8 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [] }: DateRa
           >
             <Calendar
               mode="range"
-              defaultMonth={value?.from}
-              selected={value as DayPickerDateRange | undefined}
+              defaultMonth={calendarRange?.from}
+              selected={calendarRange as DayPickerDateRange | undefined}
               onSelect={(selectedRange: DayPickerDateRange | undefined) => {
                 onChange(selectedRange as DateRange | undefined);
               }}

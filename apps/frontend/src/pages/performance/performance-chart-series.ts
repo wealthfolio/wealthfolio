@@ -166,3 +166,26 @@ export function comparablePerformanceChartData(
     };
   });
 }
+
+/**
+ * Earliest data date across the given results. For all-time queries the
+ * backend returns series starting at each item's inception, so this resolves
+ * the selected items' earliest start (e.g. an account's first data point).
+ * Used to anchor the custom-range calendar when the ALL preset is active,
+ * instead of the 1970-01-01 sentinel kept in state.
+ */
+export function earliestPerformanceStartDate(
+  results: (PerformanceResult | null | undefined)[] | null | undefined,
+): Date | undefined {
+  let earliestMs: number | undefined;
+  for (const result of results ?? []) {
+    const iso = result?.period?.startDate ?? result?.series?.[0]?.date;
+    if (!iso) continue;
+    const ms = new Date(`${iso.slice(0, 10)}T00:00:00`).getTime();
+    if (Number.isNaN(ms)) continue;
+    if (earliestMs === undefined || ms < earliestMs) {
+      earliestMs = ms;
+    }
+  }
+  return earliestMs === undefined ? undefined : new Date(earliestMs);
+}
