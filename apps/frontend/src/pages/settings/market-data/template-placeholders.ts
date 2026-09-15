@@ -15,10 +15,11 @@ const DATE_PARTS: Record<string, (date: Date) => string> = {
   Y: (date) => String(date.getUTCFullYear()).padStart(4, "0"),
   m: (date) => String(date.getUTCMonth() + 1).padStart(2, "0"),
   d: (date) => String(date.getUTCDate()).padStart(2, "0"),
+  s: (date) => String(Math.floor(date.getTime() / 1000)),
 };
 
 function formatStrftime(format: string, date: Date): string {
-  return format.replace(/%([Ymd])/g, (match, token: string) => {
+  return format.replace(/%([Ymds])/g, (match, token: string) => {
     return DATE_PARTS[token]?.(date) ?? match;
   });
 }
@@ -29,7 +30,7 @@ function hasUnsupportedStrftimeDirective(format: string): boolean {
   while (!character.done) {
     if (character.value === "%") {
       const directive = characters.next();
-      if (directive.done || !["Y", "m", "d"].includes(directive.value)) return true;
+      if (directive.done || !["Y", "m", "d", "s"].includes(directive.value)) return true;
     }
     character = characters.next();
   }
