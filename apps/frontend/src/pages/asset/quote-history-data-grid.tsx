@@ -8,7 +8,7 @@ import {
   DataGrid,
   DatePickerInput,
   Icons,
-  Input,
+  MoneyInput,
   useAmountFormatting,
   useDataGrid,
   useDateFormatting,
@@ -473,17 +473,12 @@ export function QuoteHistoryDataGrid({
                           <label className="text-muted-foreground mb-1 block text-xs">
                             {t("asset:quoteGrid.close")}
                           </label>
-                          <Input
-                            type="number"
-                            value={entry.close || ""}
-                            step={stepValue}
+                          <MoneyInput
+                            value={entry.close}
+                            maxDecimalPlaces={QUOTE_DECIMAL_PRECISION}
                             placeholder="0"
-                            onChange={(e) =>
-                              handleMobileFieldChange(
-                                entry.id,
-                                "close",
-                                parseFloat(e.target.value) || 0,
-                              )
+                            onValueChange={(value) =>
+                              handleMobileFieldChange(entry.id, "close", value ?? 0)
                             }
                           />
                         </div>
@@ -491,17 +486,12 @@ export function QuoteHistoryDataGrid({
                           <label className="text-muted-foreground mb-1 block text-xs">
                             {t("asset:quoteGrid.open")}
                           </label>
-                          <Input
-                            type="number"
-                            value={entry.open || ""}
-                            step={stepValue}
+                          <MoneyInput
+                            value={entry.open}
+                            maxDecimalPlaces={QUOTE_DECIMAL_PRECISION}
                             placeholder="0"
-                            onChange={(e) =>
-                              handleMobileFieldChange(
-                                entry.id,
-                                "open",
-                                parseFloat(e.target.value) || 0,
-                              )
+                            onValueChange={(value) =>
+                              handleMobileFieldChange(entry.id, "open", value ?? 0)
                             }
                           />
                         </div>
@@ -509,17 +499,12 @@ export function QuoteHistoryDataGrid({
                           <label className="text-muted-foreground mb-1 block text-xs">
                             {t("asset:quoteGrid.high")}
                           </label>
-                          <Input
-                            type="number"
-                            value={entry.high || ""}
-                            step={stepValue}
+                          <MoneyInput
+                            value={entry.high}
+                            maxDecimalPlaces={QUOTE_DECIMAL_PRECISION}
                             placeholder="0"
-                            onChange={(e) =>
-                              handleMobileFieldChange(
-                                entry.id,
-                                "high",
-                                parseFloat(e.target.value) || 0,
-                              )
+                            onValueChange={(value) =>
+                              handleMobileFieldChange(entry.id, "high", value ?? 0)
                             }
                           />
                         </div>
@@ -527,17 +512,12 @@ export function QuoteHistoryDataGrid({
                           <label className="text-muted-foreground mb-1 block text-xs">
                             {t("asset:quoteGrid.low")}
                           </label>
-                          <Input
-                            type="number"
-                            value={entry.low || ""}
-                            step={stepValue}
+                          <MoneyInput
+                            value={entry.low}
+                            maxDecimalPlaces={QUOTE_DECIMAL_PRECISION}
                             placeholder="0"
-                            onChange={(e) =>
-                              handleMobileFieldChange(
-                                entry.id,
-                                "low",
-                                parseFloat(e.target.value) || 0,
-                              )
+                            onValueChange={(value) =>
+                              handleMobileFieldChange(entry.id, "low", value ?? 0)
                             }
                           />
                         </div>
@@ -545,16 +525,12 @@ export function QuoteHistoryDataGrid({
                           <label className="text-muted-foreground mb-1 block text-xs">
                             {t("asset:quoteGrid.volume")}
                           </label>
-                          <Input
-                            type="number"
-                            value={entry.volume || ""}
+                          <MoneyInput
+                            value={entry.volume}
+                            maxDecimalPlaces={0}
                             placeholder="0"
-                            onChange={(e) =>
-                              handleMobileFieldChange(
-                                entry.id,
-                                "volume",
-                                parseInt(e.target.value) || 0,
-                              )
+                            onValueChange={(value) =>
+                              handleMobileFieldChange(entry.id, "volume", value ?? 0)
                             }
                           />
                         </div>

@@ -881,7 +881,8 @@ export function MobileDetailsStep({
                       </span>
                       <span>·</span>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         {...register("contractMultiplier" as any, { valueAsNumber: true })}
                         readOnly={isEditing}
                         className="hover:border-input focus:border-input focus:bg-background focus:ring-ring h-5 w-14 rounded border border-transparent bg-transparent px-1 text-center text-xs tabular-nums focus:outline-none focus:ring-1"
