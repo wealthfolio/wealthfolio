@@ -47,6 +47,8 @@ export const createTaxFormSchema = (t?: TFunction) =>
       .string()
       .min(1, { message: msg(t, "activity:form.err_currency_required", "Currency is required.") }),
     subtype: z.string().optional().nullable(),
+    // Only carry an explicit reset; otherwise retain the stored rate on updates.
+    fxRate: z.null().optional(),
   });
 
 // Zod schema for TaxForm validation (English messages; used by tests).
@@ -116,7 +118,13 @@ export function TaxForm({
     <FormProvider {...form}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <FormSection title={t("activity:form.section_account")}>
-          <AccountSelect name="accountId" accounts={accounts} currencyName="currency" />
+          <AccountSelect
+            name="accountId"
+            accounts={accounts}
+            currencyName="currency"
+            fxRateName="fxRate"
+            isEditing={isEditing}
+          />
           <DatePicker name="activityDate" label={t("activity:field_date")} />
         </FormSection>
 

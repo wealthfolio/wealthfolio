@@ -162,7 +162,8 @@ export const createTransferFormSchema = (t?: TFunction) =>
         .positive({
           message: msg(t, "activity:form.err_fxrate_positive", "FX Rate must be positive."),
         })
-        .optional(),
+        .optional()
+        .nullable(),
       subtype: z.string().optional().nullable(),
       // Internal field for manual quote mode
       quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MARKET),
@@ -722,6 +723,8 @@ export function TransferForm({
               name="accountId"
               accounts={externalAccountOptions}
               currencyName="currency"
+              fxRateName="fxRate"
+              isEditing={isEditing}
               label={
                 direction === "in"
                   ? t("activity:form.label_to_account")
@@ -736,6 +739,8 @@ export function TransferForm({
                 name="fromAccountId"
                 accounts={sourceAccountOptions}
                 currencyName="currency"
+                fxRateName="fxRate"
+                isEditing={isEditing}
                 label={t("activity:form.label_from_account")}
                 placeholder={t("activity:form.placeholder_select_source_account")}
               />

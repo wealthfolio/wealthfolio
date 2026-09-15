@@ -65,6 +65,8 @@ export const createSplitFormSchema = (t?: TFunction) =>
       .string()
       .min(1, { message: msg(t, "activity:form.err_currency_required", "Currency is required.") }),
     subtype: z.string().optional().nullable(),
+    // Only carry an explicit reset; otherwise retain the stored rate on updates.
+    fxRate: z.null().optional(),
     symbolQuoteCcy: z.string().nullable().optional(),
     symbolInstrumentType: z.string().nullable().optional(),
   });
@@ -157,7 +159,13 @@ export function SplitForm({
           <input type="hidden" {...form.register("symbolInstrumentType")} />
           <input type="hidden" {...form.register("existingAssetId")} />
 
-          <AccountSelect name="accountId" accounts={accounts} currencyName="currency" />
+          <AccountSelect
+            name="accountId"
+            accounts={accounts}
+            currencyName="currency"
+            fxRateName="fxRate"
+            isEditing={isEditing}
+          />
           <DatePicker name="activityDate" label={t("activity:field_date")} />
         </FormSection>
 

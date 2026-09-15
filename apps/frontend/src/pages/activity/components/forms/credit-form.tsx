@@ -49,7 +49,8 @@ export const createCreditFormSchema = (t?: TFunction) =>
       .positive({
         message: msg(t, "activity:form.err_fxrate_positive", "FX Rate must be positive."),
       })
-      .optional(),
+      .optional()
+      .nullable(),
     subtype: z.string().optional().nullable(),
   });
 
@@ -115,7 +116,13 @@ export function CreditForm({
     <FormProvider {...form}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <FormSection title={t("activity:form.section_account")}>
-          <AccountSelect name="accountId" accounts={accounts} currencyName="currency" />
+          <AccountSelect
+            name="accountId"
+            accounts={accounts}
+            currencyName="currency"
+            fxRateName="fxRate"
+            isEditing={isEditing}
+          />
           <DatePicker name="activityDate" label={t("activity:field_date")} />
         </FormSection>
 
