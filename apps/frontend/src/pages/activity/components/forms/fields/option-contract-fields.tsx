@@ -14,7 +14,7 @@ import {
 } from "@wealthfolio/ui";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { motion } from "motion/react";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useFormContext, type FieldPath, type FieldValues } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
@@ -51,12 +51,23 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
   const latestResolveRequestId = useRef(0);
   const needsCurrencyConfirmation = useRef(false);
   const provisionalCurrency = useRef<string | undefined>(undefined);
+  const [expirationDateDraft, setExpirationDateDraft] = useState<{
+    date: Date;
+    formValue: string | undefined;
+  }>();
 
   // Watch contract fields for summary display and OCC resolve
   const underlying = watch(underlyingName) as string | undefined;
   const strikePrice = watch(strikePriceName) as number | undefined;
   const expirationDate = watch(expirationDateName) as string | undefined;
   const optionType = watch(optionTypeName) as string | undefined;
+
+  // Drop an incomplete edit once the form moves to a different canonical value.
+  useEffect(() => {
+    setExpirationDateDraft((draft) =>
+      draft && draft.formValue !== expirationDate ? undefined : draft,
+    );
+  }, [expirationDate]);
 
   // Format expiration for summary (YYYY-MM-DD → "Mar 29")
   const expirationDisplay = expirationDate
@@ -296,15 +307,32 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
               <FormControl>
                 <DatePickerInput
                   onChange={(date: Date | undefined) => {
-                    if (date) {
-                      const yyyy = date.getFullYear();
-                      if (yyyy < 1000) return;
-                      const mm = String(date.getMonth() + 1).padStart(2, "0");
-                      const dd = String(date.getDate()).padStart(2, "0");
-                      field.onChange(`${yyyy}-${mm}-${dd}`);
+                    if (!date) {
+                      setExpirationDateDraft(undefined);
+                      field.onChange("");
+                      return;
                     }
+
+                    const yyyy = date.getFullYear();
+                    if (yyyy < 1000) {
+                      setExpirationDateDraft({ date, formValue: "" });
+                      if (field.value !== "") {
+                        field.onChange("");
+                      }
+                      return;
+                    }
+
+                    const mm = String(date.getMonth() + 1).padStart(2, "0");
+                    const dd = String(date.getDate()).padStart(2, "0");
+                    const nextExpirationDate = `${yyyy}-${mm}-${dd}`;
+                    setExpirationDateDraft(undefined);
+                    field.onChange(nextExpirationDate);
                   }}
-                  value={field.value as string | undefined}
+                  value={
+                    expirationDateDraft?.formValue === field.value
+                      ? expirationDateDraft?.date
+                      : (field.value as string | undefined)
+                  }
                   disabled={field.disabled}
                 />
               </FormControl>
