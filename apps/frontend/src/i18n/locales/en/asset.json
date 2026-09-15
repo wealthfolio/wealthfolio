@@ -459,7 +459,8 @@
       "student_loan": "Student Loan",
       "credit_card": "Credit Card",
       "personal_loan": "Personal Loan",
-      "heloc": "HELOC"
+      "heloc": "HELOC",
+      "other": "Other"
     }
   },
   "altContent": {
@@ -485,7 +486,11 @@
     "current_balance": "Current Balance",
     "original_amount": "Original Amount",
     "interest_rate": "Interest Rate",
+    "monthly_payment": "Monthly Payment",
+    "per_month": "/ month",
     "origination_date": "Origination Date",
+    "end_date": "End Date",
+    "end_date_estimated": "Est. End Date",
     "delete_asset_title": "Delete Asset",
     "delete_asset_description": "Are you sure you want to delete {{name}}? This will remove all valuation history and cannot be undone.",
     "deleting": "Deleting...",
@@ -531,7 +536,8 @@
       "student_loan": "Student Loan",
       "credit_card": "Credit Card",
       "personal_loan": "Personal Loan",
-      "heloc": "HELOC"
+      "heloc": "HELOC",
+      "other": "Other"
     },
     "weightUnit": {
       "oz": "Troy Ounce",
@@ -568,6 +574,8 @@
     "calculate_gain": "Used to calculate unrealized gain",
     "origination_date": "Origination Date",
     "purchase_date": "Purchase Date",
+    "end_date": "End Date",
+    "interest_rate": "Interest Rate (%)",
     "create_link_mortgage": "Create and link a mortgage",
     "link_to_asset_optional": "Link to Asset (optional)",
     "select_asset_to_link": "Select asset to link (optional)",
@@ -599,6 +607,12 @@
       "liability_description": "Loans & debt",
       "other_label": "Other Asset",
       "other_description": "Custom assets"
+    },
+    "loan_term": "Loan Term",
+    "years": "yrs",
+    "validation": {
+      "invalid": "Enter valid loan details.",
+      "balance_date_before_origination": "The balance date cannot be before the origination date."
     }
   },
   "detailsSheet": {
@@ -654,6 +668,7 @@
     "original_amount": "Original Amount",
     "interest_rate": "Interest Rate (%)",
     "origination_date": "Origination Date",
+    "end_date": "End Date",
     "linked_asset": "Linked Asset",
     "select_asset_to_link": "Select asset to link (optional)",
     "link_to_asset": "Link to Asset",
@@ -701,6 +716,35 @@
     "delete_title": "Delete history entry?",
     "delete_description": "This historical entry will be permanently deleted.",
     "duplicate_date_error": "Each history entry must use a unique date."
+  },
+  "loanActions": {
+    "early_repayment": "Early Repayment",
+    "early_repayment_description": "Record a lump-sum repayment and recalculate your loan.",
+    "close_loan": "Close Loan",
+    "close_loan_description": "Mark this loan as fully repaid. This will insert a zero balance entry.",
+    "repayment_date": "Repayment Date",
+    "repayment_amount": "Repayment Amount",
+    "reduce_duration": "Reduce Duration",
+    "reduce_payment": "Reduce Payment",
+    "reduce_duration_description": "Keep monthly payment, shorten the term",
+    "reduce_payment_description": "Keep remaining term, lower the instalment",
+    "new_end_date": "New end date",
+    "new_monthly_payment": "New monthly payment",
+    "confirm_repayment": "Confirm Repayment",
+    "closure_date": "Closure Date",
+    "confirm_close": "Close Loan",
+    "recalculate_schedule": "Recalculate Schedule",
+    "recalculate_description": "Recompute future payments from the current balance and rate.",
+    "recalculate_current_balance": "Current Balance",
+    "recalculate_remaining_months": "Remaining Months",
+    "recalculate_new_rate": "New Annual Rate (%)",
+    "recalculate_confirm": "Recalculate",
+    "validation": {
+      "invalid": "Enter a valid repayment amount.",
+      "amount_exceeds_balance": "The repayment cannot exceed the current balance.",
+      "date_outside_loan": "The repayment date must be within the loan period.",
+      "closure_date_invalid": "The closure date must be between origination and today."
+    }
   },
   "valueToolbar": {
     "add_balance": "Add Balance",

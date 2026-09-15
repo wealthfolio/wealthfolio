@@ -463,7 +463,8 @@
       "student_loan": "Prestito studentesco",
       "credit_card": "Carta di credito",
       "personal_loan": "Prestito personale",
-      "heloc": "HELOC"
+      "heloc": "HELOC",
+      "other": "Altro"
     }
   },
   "altContent": {
@@ -535,13 +536,18 @@
       "student_loan": "Prestito studentesco",
       "credit_card": "Carta di credito",
       "personal_loan": "Prestito personale",
-      "heloc": "HELOC"
+      "heloc": "HELOC",
+      "other": "Altro"
     },
     "weightUnit": {
       "oz": "Oncia troy",
       "g": "Grammo",
       "kg": "Chilogrammo"
-    }
+    },
+    "monthly_payment": "Rata mensile",
+    "per_month": "/ mese",
+    "end_date": "Data di scadenza",
+    "end_date_estimated": "Scad. stimata"
   },
   "quickAdd": {
     "add_new_asset": "Aggiungi nuovo asset",
@@ -603,6 +609,14 @@
       "liability_description": "Prestiti e debiti",
       "other_label": "Altro asset",
       "other_description": "Asset personalizzati"
+    },
+    "end_date": "Data di scadenza",
+    "interest_rate": "Tasso d'interesse (%)",
+    "loan_term": "Durata del prestito",
+    "years": "anni",
+    "validation": {
+      "invalid": "Inserisci dati del prestito validi.",
+      "balance_date_before_origination": "La data del saldo non può precedere la data di erogazione."
     }
   },
   "detailsSheet": {
@@ -679,7 +693,8 @@
       "precious_metal": "Metallo prezioso",
       "liability": "Passività",
       "other": "Altro"
-    }
+    },
+    "end_date": "Data di scadenza"
   },
   "updateValuation": {
     "title": "Aggiorna valore: {{name}}",
@@ -752,5 +767,34 @@
     "error_encode_failed": "Impossibile convertire l'immagine in PNG.",
     "error_too_large_output": "L'immagine è troppo dettagliata per rientrare in 150 KB. Prova con un'immagine più semplice o più piccola.",
     "error_save_failed": "Impossibile salvare il logo."
+  },
+  "loanActions": {
+    "early_repayment": "Rimborso anticipato",
+    "early_repayment_description": "Registra un rimborso forfettario e ricalcola il tuo prestito.",
+    "close_loan": "Chiudi prestito",
+    "close_loan_description": "Segna questo prestito come completamente rimborsato. Verrà inserita una voce con saldo zero.",
+    "repayment_date": "Data rimborso",
+    "repayment_amount": "Importo rimborso",
+    "reduce_duration": "Riduci durata",
+    "reduce_payment": "Riduci rata",
+    "reduce_duration_description": "Mantieni la rata mensile, accorcia il termine",
+    "reduce_payment_description": "Mantieni il termine restante, abbassa la rata",
+    "new_end_date": "Nuova data di scadenza",
+    "new_monthly_payment": "Nuova rata mensile",
+    "confirm_repayment": "Conferma rimborso",
+    "closure_date": "Data chiusura",
+    "confirm_close": "Chiudi prestito",
+    "recalculate_schedule": "Ricalcola piano",
+    "recalculate_description": "Ricalcola i pagamenti futuri dal saldo e dal tasso attuali.",
+    "recalculate_current_balance": "Saldo attuale",
+    "recalculate_remaining_months": "Mesi rimanenti",
+    "recalculate_new_rate": "Nuovo tasso annuo (%)",
+    "recalculate_confirm": "Ricalcola",
+    "validation": {
+      "invalid": "Inserisci un importo di rimborso valido.",
+      "amount_exceeds_balance": "Il rimborso non può superare il saldo corrente.",
+      "date_outside_loan": "La data di rimborso deve rientrare nel periodo del prestito.",
+      "closure_date_invalid": "La data di chiusura deve essere compresa tra l'erogazione e oggi."
+    }
   }
 }

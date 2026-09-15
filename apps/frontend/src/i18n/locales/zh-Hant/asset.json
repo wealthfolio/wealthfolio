@@ -459,7 +459,8 @@
       "student_loan": "就學貸款",
       "credit_card": "信用卡",
       "personal_loan": "個人貸款",
-      "heloc": "HELOC"
+      "heloc": "HELOC",
+      "other": "其他"
     }
   },
   "altContent": {
@@ -531,13 +532,18 @@
       "student_loan": "就學貸款",
       "credit_card": "信用卡",
       "personal_loan": "個人貸款",
-      "heloc": "HELOC"
+      "heloc": "HELOC",
+      "other": "其他"
     },
     "weightUnit": {
       "oz": "金衡盎司",
       "g": "公克",
       "kg": "公斤"
-    }
+    },
+    "monthly_payment": "每月還款額",
+    "per_month": "/ 月",
+    "end_date": "結束日期",
+    "end_date_estimated": "預計結束日期"
   },
   "quickAdd": {
     "add_new_asset": "新增資產",
@@ -599,6 +605,14 @@
       "liability_description": "貸款與債務",
       "other_label": "其他資產",
       "other_description": "自訂資產"
+    },
+    "end_date": "結束日期",
+    "interest_rate": "利率 (%)",
+    "loan_term": "貸款期限",
+    "years": "年",
+    "validation": {
+      "invalid": "請輸入有效的貸款資料。",
+      "balance_date_before_origination": "餘額日期不能早於貸款發放日期。"
     }
   },
   "detailsSheet": {
@@ -675,7 +689,8 @@
       "precious_metal": "貴金屬",
       "liability": "負債",
       "other": "其他"
-    }
+    },
+    "end_date": "結束日期"
   },
   "updateValuation": {
     "title": "更新價值：{{name}}",
@@ -745,5 +760,34 @@
     "error_encode_failed": "無法將圖片轉換為 PNG。",
     "error_too_large_output": "圖片內容太複雜，無法縮小到 150 KB。請改用較簡單或尺寸較小的圖片。",
     "error_save_failed": "無法儲存 Logo。"
+  },
+  "loanActions": {
+    "early_repayment": "提前還款",
+    "early_repayment_description": "記錄一次性還款並重新計算貸款。",
+    "close_loan": "結清貸款",
+    "close_loan_description": "將此貸款標記為已全額還清。將插入一個餘額為零的條目。",
+    "repayment_date": "還款日期",
+    "repayment_amount": "還款金額",
+    "reduce_duration": "縮短期限",
+    "reduce_payment": "減少還款額",
+    "reduce_duration_description": "保持月還款額，縮短還款期限",
+    "reduce_payment_description": "保持剩餘期限，降低月還款額",
+    "new_end_date": "新結束日期",
+    "new_monthly_payment": "新月還款額",
+    "confirm_repayment": "確認還款",
+    "closure_date": "結清日期",
+    "confirm_close": "結清貸款",
+    "recalculate_schedule": "重新計算計畫",
+    "recalculate_description": "根據目前餘額和利率重新計算未來還款。",
+    "recalculate_current_balance": "目前餘額",
+    "recalculate_remaining_months": "剩餘月數",
+    "recalculate_new_rate": "新年利率 (%)",
+    "recalculate_confirm": "重新計算",
+    "validation": {
+      "invalid": "請輸入有效的還款金額。",
+      "amount_exceeds_balance": "還款金額不能超過目前餘額。",
+      "date_outside_loan": "還款日期必須在貸款期間內。",
+      "closure_date_invalid": "結清日期必須在貸款發放日至今天之間。"
+    }
   }
 }

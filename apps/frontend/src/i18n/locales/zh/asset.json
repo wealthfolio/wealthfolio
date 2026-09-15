@@ -414,7 +414,8 @@
     "to_manual_description": "切换到手动跟踪将停止从市场数据提供商自动获取数据。您需要手动输入并维护价格数据。",
     "to_manual_warning": "自动价格更新将被禁用。",
     "confirm_change": "确认更改",
-    "delete_count_other": "删除（{{count}}）"
+    "delete_count_other": "删除（{{count}}）",
+    "delete_count_one": "删除（{{count}}）"
   },
   "quoteTable": {
     "date": "日期",
@@ -458,7 +459,8 @@
       "student_loan": "助学贷款",
       "credit_card": "信用卡",
       "personal_loan": "个人贷款",
-      "heloc": "HELOC"
+      "heloc": "HELOC",
+      "other": "其他"
     }
   },
   "altContent": {
@@ -530,13 +532,18 @@
       "student_loan": "助学贷款",
       "credit_card": "信用卡",
       "personal_loan": "个人贷款",
-      "heloc": "HELOC"
+      "heloc": "HELOC",
+      "other": "其他"
     },
     "weightUnit": {
       "oz": "金衡盎司",
       "g": "克",
       "kg": "千克"
-    }
+    },
+    "monthly_payment": "月还款额",
+    "per_month": "/ 月",
+    "end_date": "结束日期",
+    "end_date_estimated": "预计结束日期"
   },
   "quickAdd": {
     "add_new_asset": "添加新资产",
@@ -598,6 +605,14 @@
       "liability_description": "贷款与债务",
       "other_label": "其他资产",
       "other_description": "自定义资产"
+    },
+    "end_date": "结束日期",
+    "interest_rate": "利率 (%)",
+    "loan_term": "贷款期限",
+    "years": "年",
+    "validation": {
+      "invalid": "请输入有效的贷款信息。",
+      "balance_date_before_origination": "余额日期不能早于贷款发放日期。"
     }
   },
   "detailsSheet": {
@@ -674,7 +689,8 @@
       "precious_metal": "贵金属",
       "liability": "负债",
       "other": "其他"
-    }
+    },
+    "end_date": "结束日期"
   },
   "updateValuation": {
     "title": "更新价值：{{name}}",
@@ -711,7 +727,10 @@
     "save_changes": "保存更改",
     "delete_count_other": "删除（{{count}}）",
     "modified_other": "{{count}} 项已修改",
-    "to_delete_other": "{{count}} 项待删除"
+    "to_delete_other": "{{count}} 项待删除",
+    "delete_count_one": "删除（{{count}}）",
+    "modified_one": "{{count}} 项已修改",
+    "to_delete_one": "{{count}} 项待删除"
   },
   "logo": {
     "change": "更换 Logo",
@@ -741,5 +760,34 @@
     "error_encode_failed": "无法将图片转换为 PNG。",
     "error_too_large_output": "图片过于复杂，无法压缩到 150 KB 以内。请尝试更简单或更小的图片。",
     "error_save_failed": "无法保存 Logo。"
+  },
+  "loanActions": {
+    "early_repayment": "提前还款",
+    "early_repayment_description": "记录一次性还款并重新计算贷款。",
+    "close_loan": "结清贷款",
+    "close_loan_description": "将此贷款标记为已全额还清。将插入一个余额为零的条目。",
+    "repayment_date": "还款日期",
+    "repayment_amount": "还款金额",
+    "reduce_duration": "缩短期限",
+    "reduce_payment": "减少还款额",
+    "reduce_duration_description": "保持月还款额，缩短还款期限",
+    "reduce_payment_description": "保持剩余期限，降低月还款额",
+    "new_end_date": "新结束日期",
+    "new_monthly_payment": "新月还款额",
+    "confirm_repayment": "确认还款",
+    "closure_date": "结清日期",
+    "confirm_close": "结清贷款",
+    "recalculate_schedule": "重新计算计划",
+    "recalculate_description": "根据当前余额和利率重新计算未来还款。",
+    "recalculate_current_balance": "当前余额",
+    "recalculate_remaining_months": "剩余月数",
+    "recalculate_new_rate": "新年利率 (%)",
+    "recalculate_confirm": "重新计算",
+    "validation": {
+      "invalid": "请输入有效的还款金额。",
+      "amount_exceeds_balance": "还款金额不能超过当前余额。",
+      "date_outside_loan": "还款日期必须在贷款期限内。",
+      "closure_date_invalid": "结清日期必须在贷款发放日至今天之间。"
+    }
   }
 }

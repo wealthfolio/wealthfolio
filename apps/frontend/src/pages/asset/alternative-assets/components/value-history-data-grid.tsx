@@ -71,6 +71,9 @@ interface ValueHistoryDataGridProps {
   onDeleteQuote: (quoteId: string) => Promise<void>;
   /** Refresh quote-dependent queries after a complete persistence operation */
   onPersistComplete: () => Promise<void>;
+  onEarlyRepayment?: () => void;
+  onCloseLoan?: () => void;
+  onRecalculateSchedule?: () => void;
 }
 
 // Generate a temporary ID for new entries
@@ -141,6 +144,9 @@ export function ValueHistoryDataGrid({
   onSaveQuote,
   onDeleteQuote,
   onPersistComplete,
+  onEarlyRepayment,
+  onCloseLoan,
+  onRecalculateSchedule,
 }: ValueHistoryDataGridProps) {
   const { t } = useTranslation();
   const isMobile = useIsMobileViewport();
@@ -760,6 +766,9 @@ export function ValueHistoryDataGrid({
         onCancel={handleCancel}
         isSaving={isPersisting}
         isLiability={isLiability}
+        onEarlyRepayment={onEarlyRepayment}
+        onCloseLoan={onCloseLoan}
+        onRecalculateSchedule={onRecalculateSchedule}
       />
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-md border">
