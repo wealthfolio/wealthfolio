@@ -2782,7 +2782,7 @@ mod tests {
 
     #[test]
     fn test_mic_to_yahoo_suffix_uses_market_data_registry() {
-        assert_eq!(mic_to_yahoo_suffix("CXE").as_deref(), Some("XC"));
+        assert_eq!(mic_to_yahoo_suffix("BCXE").as_deref(), Some("XC"));
         assert_eq!(mic_to_yahoo_suffix("XETR").as_deref(), Some("DE"));
     }
 
