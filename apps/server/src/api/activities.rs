@@ -11,7 +11,7 @@ use wealthfolio_core::activities::{
     import_type, Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityImport,
     ActivitySearchResponse, ActivityUpdate, ImportActivitiesResult, ImportAssetCandidate,
     ImportAssetPreviewItem, ImportMappingData, ImportTemplateData, InternalTransferPairRequest,
-    InternalTransferPairResponse, NewActivity, ParseConfig, ParsedCsvResult,
+    InternalTransferPairResponse, NewActivity, ParseConfig, ParsedCsvResult, SuppressedActivity,
     TransferMatchCandidate, TransferMatchCandidateRequest,
 };
 use wealthfolio_core::utils::time_utils::{
@@ -155,6 +155,47 @@ async fn delete_activity(
     state.health_service.clear_cache().await;
     // Domain events handle portfolio recalculation
     Ok(Json(deleted))
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SuppressedActivityQuery {
+    account_ids: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RestoreSuppressedActivitiesRequest {
+    deletion_ids: Vec<String>,
+}
+
+async fn list_suppressed_activities(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<SuppressedActivityQuery>,
+) -> ApiResult<Json<Vec<SuppressedActivity>>> {
+    let account_ids = query.account_ids.map(|ids| {
+        ids.split(',')
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+    });
+    let suppressed = state
+        .activity_service
+        .list_suppressed_activities(account_ids)?;
+    Ok(Json(suppressed))
+}
+
+async fn restore_suppressed_activities(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<RestoreSuppressedActivitiesRequest>,
+) -> ApiResult<Json<Vec<Activity>>> {
+    let restored = state
+        .activity_service
+        .restore_suppressed_activities(request.deletion_ids)
+        .await?;
+    state.health_service.clear_cache().await;
+    Ok(Json(restored))
 }
 
 async fn get_transfer_pair_for_activity(
@@ -444,6 +485,11 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/activities", post(create_activity).put(update_activity))
         .route("/activities/bulk", post(save_activities))
         .route("/activities/{id}", delete(delete_activity))
+        .route("/activities/suppressed", get(list_suppressed_activities))
+        .route(
+            "/activities/suppressed/restore",
+            post(restore_suppressed_activities),
+        )
         .route(
             "/activities/{id}/transfer-pair",
             get(get_transfer_pair_for_activity),
