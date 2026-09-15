@@ -25,7 +25,7 @@ use crate::portfolio::valuation::valuation_model::{
     DailyAccountValuation, ExternalFlowSource, NegativeBalanceInfo, ValuationStatus,
 };
 use crate::portfolio::valuation::ValuationRepositoryTrait;
-use crate::quotes::{Quote, QuoteServiceTrait};
+use crate::quotes::{Quote, QuoteServiceTrait, OVERLAP_DAYS};
 use crate::utils::time_utils;
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, NaiveDate, Utc};
@@ -382,6 +382,32 @@ fn since_date_calculation_window(date: NaiveDate) -> (NaiveDate, Option<NaiveDat
 
 fn latest_valuation_requires_full_rebuild(last_saved: NaiveDate, today: NaiveDate) -> bool {
     last_saved > today
+}
+
+/// Resume window for `IncrementalFromLast`, as
+/// `(calculation_start, discarded_anchor, replace_since)`.
+///
+/// Replays the last [`OVERLAP_DAYS`] of stored valuations instead of only
+/// extending past `last_saved`. Incremental quote sync re-fetches exactly that
+/// overlap to heal provider corrections, so any quote inside it can still
+/// change; a narrower valuation window strands those days at the values they
+/// were first computed with until a full rebuild. The two windows are
+/// deliberately driven by the same constant.
+///
+/// The day before the replaced range is computed as well but discarded as the
+/// anchor, so the first persisted day has a predecessor to diff its external
+/// flows against. Anchoring on `last_saved` itself — as this did previously —
+/// made every price sync after the first one each day a no-op, because the
+/// anchor is discarded and `last_saved == today` left nothing to persist.
+fn incremental_calculation_window(
+    last_saved: NaiveDate,
+) -> (NaiveDate, Option<NaiveDate>, NaiveDate) {
+    let replace_since = last_saved
+        .checked_sub_signed(Duration::days(OVERLAP_DAYS))
+        .filter(|candidate| *candidate >= min_supported_snapshot_date())
+        .unwrap_or(last_saved);
+    let (start_date, anchor_date) = since_date_calculation_window(replace_since);
+    (start_date, anchor_date, replace_since)
 }
 
 #[derive(Clone)]
@@ -2105,8 +2131,14 @@ impl ValuationService {
                             SnapshotSource::Calculated.as_str(),
                             today,
                         )?;
-                        calculation_start_date = Some(last_saved);
-                        incremental_anchor_date = Some(last_saved);
+                        // Replaces the quote-overlap window ending at
+                        // `last_saved`, so days whose quotes were corrected since
+                        // they were last computed are refreshed too.
+                        let (start_date, anchor_date, replace_since) =
+                            incremental_calculation_window(last_saved);
+                        calculation_start_date = Some(start_date);
+                        incremental_anchor_date = anchor_date;
+                        replace_since_date = Some(Some(replace_since));
                     }
                 }
             }
@@ -3525,6 +3557,33 @@ mod tests {
     }
 
     #[test]
+    fn incremental_recalc_replays_the_quote_overlap_window() {
+        let last_saved = date("2025-03-12");
+        let (start_date, anchor_date, replace_since) = incremental_calculation_window(last_saved);
+
+        // Matches the quote sync overlap, so corrections to any re-fetched day
+        // reach the stored valuations.
+        assert_eq!(replace_since, date("2025-03-07"));
+        assert_eq!(last_saved - replace_since, Duration::days(OVERLAP_DAYS));
+        assert_eq!(start_date, date("2025-03-06"));
+        // The discarded anchor must sit strictly before the first replaced day,
+        // otherwise the newest row is computed and then thrown away.
+        assert_eq!(anchor_date, Some(date("2025-03-06")));
+        assert!(anchor_date.is_none_or(|anchor| anchor < replace_since));
+        assert!(replace_since <= last_saved);
+    }
+
+    #[test]
+    fn incremental_recalc_at_supported_floor_keeps_last_saved() {
+        let floor = min_supported_snapshot_date();
+        let (start_date, anchor_date, replace_since) = incremental_calculation_window(floor);
+
+        assert_eq!(start_date, floor);
+        assert_eq!(anchor_date, None);
+        assert_eq!(replace_since, floor);
+    }
+
+    #[test]
     fn future_latest_valuation_requires_full_rebuild() {
         let today = date("2025-03-02");
 
@@ -3796,6 +3855,125 @@ mod tests {
                 .external_inflow_base,
             dec!(250)
         );
+    }
+
+    #[test]
+    fn incremental_same_day_refresh_persists_todays_valuation() {
+        // An incremental-shaped window — anchor strictly before the replaced
+        // range — standing in for the second and every later price sync of a
+        // day. Today's row must be recomputed from the fresh quote and kept,
+        // not discarded as the anchor. The window bounds themselves are covered
+        // by incremental_recalc_replays_the_quote_overlap_window.
+        let yesterday = date("2026-06-02");
+        let today = date("2026-06-03");
+        let snapshot = snapshot_with_position("2026-06-01", "AAPL", dec!(10));
+        let timeline = HoldingsTimeline::new(Some(yesterday), today, vec![snapshot], None, false);
+        let account = PreparedValuationAccount {
+            account_id: "account-1".to_string(),
+            timeline,
+            incremental_anchor_date: Some(yesterday),
+            replace_since_date: Some(Some(today)),
+            required_asset_ids: HashSet::from(["AAPL".to_string()]),
+            required_fx_pairs: HashSet::new(),
+            acquisition_fx_requests: HashSet::new(),
+            base_currency: "USD".to_string(),
+            account_currency: "USD".to_string(),
+        };
+        let facts = SharedValuationFacts {
+            quotes_by_asset: HashMap::from([(
+                "AAPL".to_string(),
+                vec![
+                    ValuationQuoteFact {
+                        timestamp: activity_time("2026-06-02"),
+                        close: dec!(100),
+                        currency: "USD".to_string(),
+                    },
+                    // price refreshed by the latest sync
+                    ValuationQuoteFact {
+                        timestamp: activity_time("2026-06-03"),
+                        close: dec!(250),
+                        currency: "USD".to_string(),
+                    },
+                ],
+            )]),
+            assets_with_quotes: HashSet::from(["AAPL".to_string()]),
+            split_events: Vec::new(),
+            fx_rates_by_pair: BTreeMap::new(),
+        };
+
+        let valuations = ValuationService::calculate_prepared_valuation_account_from_facts(
+            account, &facts, None,
+        )
+        .expect("valuation should succeed")
+        .valuations;
+
+        let dates: Vec<_> = valuations.iter().map(|v| v.valuation_date).collect();
+        assert_eq!(dates, vec![today], "only the anchor day should be dropped");
+        assert_eq!(valuations[0].investment_market_value, dec!(2500));
+    }
+
+    #[test]
+    fn incremental_resume_next_day_settles_the_previous_day() {
+        // Prices were last updated intraday yesterday, so the stored D-1 row holds
+        // an in-progress price. On the next launch the quote sync re-fetches the
+        // overlap window and D-1 settles to its close; the D-1 valuation must be
+        // rewritten to match, not left at yesterday's intraday value. The window
+        // is trimmed to the two days that matter here; its real bounds are
+        // covered by incremental_recalc_replays_the_quote_overlap_window.
+        let two_days_ago = date("2026-06-02");
+        let yesterday = date("2026-06-03");
+        let today = date("2026-06-04");
+        let snapshot = snapshot_with_position("2026-06-01", "AAPL", dec!(10));
+        let timeline =
+            HoldingsTimeline::new(Some(two_days_ago), today, vec![snapshot], None, false);
+        let account = PreparedValuationAccount {
+            account_id: "account-1".to_string(),
+            timeline,
+            incremental_anchor_date: Some(two_days_ago),
+            replace_since_date: Some(Some(yesterday)),
+            required_asset_ids: HashSet::from(["AAPL".to_string()]),
+            required_fx_pairs: HashSet::new(),
+            acquisition_fx_requests: HashSet::new(),
+            base_currency: "USD".to_string(),
+            account_currency: "USD".to_string(),
+        };
+        let facts = SharedValuationFacts {
+            quotes_by_asset: HashMap::from([(
+                "AAPL".to_string(),
+                vec![
+                    ValuationQuoteFact {
+                        timestamp: activity_time("2026-06-02"),
+                        close: dec!(100),
+                        currency: "USD".to_string(),
+                    },
+                    // yesterday, re-fetched as a settled close (was 200 intraday)
+                    ValuationQuoteFact {
+                        timestamp: activity_time("2026-06-03"),
+                        close: dec!(220),
+                        currency: "USD".to_string(),
+                    },
+                    ValuationQuoteFact {
+                        timestamp: activity_time("2026-06-04"),
+                        close: dec!(250),
+                        currency: "USD".to_string(),
+                    },
+                ],
+            )]),
+            assets_with_quotes: HashSet::from(["AAPL".to_string()]),
+            split_events: Vec::new(),
+            fx_rates_by_pair: BTreeMap::new(),
+        };
+
+        let valuations = ValuationService::calculate_prepared_valuation_account_from_facts(
+            account, &facts, None,
+        )
+        .expect("valuation should succeed")
+        .valuations;
+
+        let dates: Vec<_> = valuations.iter().map(|v| v.valuation_date).collect();
+        assert_eq!(dates, vec![yesterday, today]);
+        assert_eq!(valuations[0].investment_market_value, dec!(2200));
+        assert_eq!(valuations[1].investment_market_value, dec!(2500));
     }
 
     #[test]
