@@ -303,6 +303,111 @@ fn should_allow_inactive_asset(
             ))
 }
 
+fn response_starts_later(
+    existing_earliest: Option<NaiveDate>,
+    response_earliest: Option<NaiveDate>,
+) -> bool {
+    match (existing_earliest, response_earliest) {
+        (Some(existing), Some(response)) => response > existing,
+        // An empty response would delete everything and put nothing back.
+        (Some(_), None) => true,
+        // Nothing stored for this comparison, so there is no coverage to lose.
+        (None, _) => false,
+    }
+}
+
+/// Whether the backfill purge would destroy history rather than replace it.
+///
+/// Deleting the previous provider's rows is the *point* of a rebuild after
+/// switching providers, so a shallower history is an acceptable outcome of a
+/// deliberate choice. What must not happen is a transiently degraded response
+/// silently replacing good data. The two are told apart by:
+///
+/// - a provider returning less than it already gave us for this asset, which is
+///   degradation whoever it is; and
+/// - a provider the user did not choose shrinking overall coverage, which means
+///   a failover deleting a deeper source's history.
+fn purge_would_destroy_history(
+    same_source_earliest: Option<NaiveDate>,
+    any_source_earliest: Option<NaiveDate>,
+    response_earliest: Option<NaiveDate>,
+    response_is_preferred_provider: bool,
+) -> bool {
+    if response_starts_later(same_source_earliest, response_earliest) {
+        return true;
+    }
+
+    !response_is_preferred_provider && response_starts_later(any_source_earliest, response_earliest)
+}
+
+/// Persist a provider response for one asset, applying the backfill purge when
+/// it is safe to do so.
+async fn apply_fetched_quotes<Q>(
+    quote_store: &Q,
+    asset_id: &AssetId,
+    purge_provider_quotes: bool,
+    preferred_provider: Option<&str>,
+    quotes: &[Quote],
+) -> Result<usize>
+where
+    Q: QuoteStore + ?Sized,
+{
+    if purge_provider_quotes {
+        let ids = [asset_id.as_str().to_string()];
+        let response_source = quotes.first().map(|quote| quote.data_source.as_str());
+        let response_earliest = quotes.iter().map(|q| q.timestamp.date_naive()).min();
+
+        // A failed bounds lookup must not licence a destructive replace.
+        let bounds = response_source
+            .map(|source| quote_store.get_quote_bounds_for_assets(&ids, source))
+            .transpose()
+            .and_then(|same| {
+                quote_store
+                    .get_quote_bounds_for_assets_any_source(&ids)
+                    .map(|any| (same, any))
+            });
+        let (same_source, any_source) = match bounds {
+            Ok(bounds) => bounds,
+            Err(e) => {
+                warn!(
+                    "Skipping purge for {}: could not read existing quote bounds: {:?}",
+                    asset_id.as_str(),
+                    e
+                );
+                return quote_store.upsert_quotes(quotes).await;
+            }
+        };
+        let earliest = |bounds: Option<HashMap<String, (NaiveDate, NaiveDate)>>| {
+            bounds.and_then(|b| b.get(asset_id.as_str()).map(|(min, _)| *min))
+        };
+        let response_is_preferred_provider =
+            matches!((preferred_provider, response_source), (Some(p), Some(r)) if p == r);
+
+        if purge_would_destroy_history(
+            earliest(same_source),
+            earliest(Some(any_source)),
+            response_earliest,
+            response_is_preferred_provider,
+        ) {
+            warn!(
+                "Skipping purge for {}: {:?} returned history from {:?}, which is shallower than \
+                 what is already stored; merging instead of replacing.",
+                asset_id.as_str(),
+                response_source,
+                response_earliest
+            );
+        } else if let Err(e) = quote_store.delete_provider_quotes_for_asset(asset_id).await {
+            warn!(
+                "Failed to purge provider quotes for {}: {:?}",
+                asset_id.as_str(),
+                e
+            );
+        }
+    }
+
+    quote_store.upsert_quotes(quotes).await
+}
+
 fn should_purge_provider_quotes(mode: SyncMode, inputs: &SyncPlanningInputs) -> bool {
     matches!(mode, SyncMode::BackfillHistory { .. }) && inputs.activity_min.is_some()
 }
@@ -894,19 +999,17 @@ where
                 let quotes_count = quotes.len();
 
                 if quotes_count > 0 {
-                    // Purge stale provider quotes before inserting fresh data
-                    if plan.purge_provider_quotes {
-                        if let Err(e) = self
-                            .quote_store
-                            .delete_provider_quotes_for_asset(&asset_id)
-                            .await
-                        {
-                            warn!("Failed to purge provider quotes for {}: {:?}", asset.id, e);
-                        }
-                    }
-
-                    // Save to store
-                    match self.quote_store.upsert_quotes(&quotes).await {
+                    // Save to store, purging stale provider quotes first when the
+                    // plan asks for it.
+                    match apply_fetched_quotes(
+                        self.quote_store.as_ref(),
+                        &asset_id,
+                        plan.purge_provider_quotes,
+                        asset.preferred_provider().as_deref(),
+                        &quotes,
+                    )
+                    .await
+                    {
                         Ok(_) => {
                             debug!("Saved {} quotes for {}", quotes_count, asset.id);
 
@@ -2833,5 +2936,432 @@ mod tests {
             // After the grace period, quotes are no longer fetched to save resources.
             // Grace period purpose documented
         }
+    }
+}
+
+/// Coverage for the backfill purge (`purge_provider_quotes`).
+///
+/// The purge is the only operation in quote sync that deletes stored history,
+/// and it deletes across every source. These tests drive the real persistence
+/// step with an in-memory store.
+#[cfg(test)]
+mod purge_tests {
+    use super::*;
+    use crate::quotes::model::LatestQuotePair;
+    use crate::quotes::types::QuoteSource;
+    use std::sync::Mutex as StdMutex;
+
+    /// In-memory `QuoteStore` that records what the purge and upsert actually do.
+    #[derive(Default)]
+    struct RecordingQuoteStore {
+        quotes: StdMutex<Vec<Quote>>,
+        purges: StdMutex<usize>,
+    }
+
+    impl RecordingQuoteStore {
+        fn with_quotes(quotes: Vec<Quote>) -> Self {
+            Self {
+                quotes: StdMutex::new(quotes),
+                purges: StdMutex::new(0),
+            }
+        }
+
+        fn stored(&self) -> Vec<Quote> {
+            let mut quotes = self.quotes.lock().unwrap().clone();
+            quotes.sort_by_key(|quote| (quote.timestamp, quote.data_source.clone()));
+            quotes
+        }
+
+        fn purge_count(&self) -> usize {
+            *self.purges.lock().unwrap()
+        }
+    }
+
+    #[async_trait]
+    impl QuoteStore for RecordingQuoteStore {
+        async fn save_quote(&self, _quote: &Quote) -> Result<Quote> {
+            unimplemented!("unused in this test")
+        }
+
+        async fn delete_quote(&self, _quote_id: &str) -> Result<()> {
+            unimplemented!("unused in this test")
+        }
+
+        async fn upsert_quotes(&self, quotes: &[Quote]) -> Result<usize> {
+            let mut stored = self.quotes.lock().unwrap();
+            for incoming in quotes {
+                // Mirrors the unique index on (asset_id, day, source).
+                let day = incoming.timestamp.date_naive();
+                stored.retain(|existing| {
+                    !(existing.asset_id == incoming.asset_id
+                        && existing.timestamp.date_naive() == day
+                        && existing.data_source == incoming.data_source)
+                });
+                stored.push(incoming.clone());
+            }
+            Ok(quotes.len())
+        }
+
+        async fn delete_quotes_for_asset(&self, _asset_id: &AssetId) -> Result<usize> {
+            unimplemented!("unused in this test")
+        }
+
+        async fn delete_provider_quotes_for_asset(&self, asset_id: &AssetId) -> Result<usize> {
+            *self.purges.lock().unwrap() += 1;
+            let mut stored = self.quotes.lock().unwrap();
+            let before = stored.len();
+            // Mirrors `source != 'MANUAL'` in the SQL delete.
+            stored.retain(|quote| {
+                quote.asset_id != asset_id.as_str() || quote.data_source == "MANUAL"
+            });
+            Ok(before - stored.len())
+        }
+
+        fn latest(
+            &self,
+            _asset_id: &AssetId,
+            _source: Option<&QuoteSource>,
+        ) -> Result<Option<Quote>> {
+            unimplemented!("unused in this test")
+        }
+
+        fn range(
+            &self,
+            _asset_id: &AssetId,
+            _start: Day,
+            _end: Day,
+            _source: Option<&QuoteSource>,
+        ) -> Result<Vec<Quote>> {
+            unimplemented!("unused in this test")
+        }
+
+        fn latest_batch(
+            &self,
+            _asset_ids: &[AssetId],
+            _source: Option<&QuoteSource>,
+        ) -> Result<HashMap<AssetId, Quote>> {
+            unimplemented!("unused in this test")
+        }
+
+        fn latest_with_previous(
+            &self,
+            _asset_ids: &[AssetId],
+        ) -> Result<HashMap<AssetId, LatestQuotePair>> {
+            unimplemented!("unused in this test")
+        }
+
+        fn get_quote_bounds_for_assets(
+            &self,
+            asset_ids: &[String],
+            source: &str,
+        ) -> Result<HashMap<String, (NaiveDate, NaiveDate)>> {
+            let stored = self.quotes.lock().unwrap();
+            let mut bounds: HashMap<String, (NaiveDate, NaiveDate)> = HashMap::new();
+            for quote in stored.iter() {
+                if quote.data_source != source || !asset_ids.contains(&quote.asset_id) {
+                    continue;
+                }
+                let day = quote.timestamp.date_naive();
+                bounds
+                    .entry(quote.asset_id.clone())
+                    .and_modify(|(min, max)| {
+                        *min = (*min).min(day);
+                        *max = (*max).max(day);
+                    })
+                    .or_insert((day, day));
+            }
+            Ok(bounds)
+        }
+
+        fn get_latest_quote(&self, _symbol: &str) -> Result<Quote> {
+            unimplemented!("unused in this test")
+        }
+
+        fn get_latest_quotes(&self, _symbols: &[String]) -> Result<HashMap<String, Quote>> {
+            unimplemented!("unused in this test")
+        }
+
+        fn get_latest_quotes_as_of(
+            &self,
+            _symbols: &[String],
+            _as_of: NaiveDate,
+        ) -> Result<HashMap<String, Quote>> {
+            unimplemented!("unused in this test")
+        }
+
+        fn get_quote_bounds_for_assets_any_source(
+            &self,
+            asset_ids: &[String],
+        ) -> Result<HashMap<String, (NaiveDate, NaiveDate)>> {
+            let stored = self.quotes.lock().unwrap();
+            let mut bounds: HashMap<String, (NaiveDate, NaiveDate)> = HashMap::new();
+            for quote in stored.iter() {
+                if !asset_ids.contains(&quote.asset_id) {
+                    continue;
+                }
+                let day = quote.timestamp.date_naive();
+                bounds
+                    .entry(quote.asset_id.clone())
+                    .and_modify(|(min, max)| {
+                        *min = (*min).min(day);
+                        *max = (*max).max(day);
+                    })
+                    .or_insert((day, day));
+            }
+            Ok(bounds)
+        }
+
+        fn get_latest_quotes_pair(
+            &self,
+            _symbols: &[String],
+        ) -> Result<HashMap<String, LatestQuotePair>> {
+            unimplemented!("unused in this test")
+        }
+
+        fn get_historical_quotes(&self, _symbol: &str) -> Result<Vec<Quote>> {
+            unimplemented!("unused in this test")
+        }
+
+        fn get_all_historical_quotes(&self) -> Result<Vec<Quote>> {
+            unimplemented!("unused in this test")
+        }
+
+        fn get_quotes_in_range(
+            &self,
+            _symbol: &str,
+            _start: NaiveDate,
+            _end: NaiveDate,
+        ) -> Result<Vec<Quote>> {
+            unimplemented!("unused in this test")
+        }
+
+        fn find_duplicate_quotes(&self, _symbol: &str, _date: NaiveDate) -> Result<Vec<Quote>> {
+            unimplemented!("unused in this test")
+        }
+    }
+
+    const ASSET: &str = "asset-1";
+
+    fn quote_on(day: NaiveDate, source: &str, close: i64) -> Quote {
+        let timestamp = Utc.from_utc_datetime(&day.and_hms_opt(0, 0, 0).unwrap());
+        Quote {
+            id: format!("{}_{}_{}", day, ASSET, source),
+            asset_id: ASSET.to_string(),
+            timestamp,
+            open: Decimal::from(close),
+            high: Decimal::from(close),
+            low: Decimal::from(close),
+            close: Decimal::from(close),
+            adjclose: Decimal::from(close),
+            volume: Decimal::ZERO,
+            currency: "EUR".to_string(),
+            data_source: source.to_string(),
+            created_at: timestamp,
+            notes: None,
+        }
+    }
+
+    /// Long stored history: 200 consecutive days from one provider, plus a
+    /// manual override, as an asset looks after months of healthy syncing.
+    fn long_history(source: &str) -> Vec<Quote> {
+        let first = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let mut quotes: Vec<Quote> = (0..200)
+            .map(|offset| quote_on(first + Duration::days(offset), source, 100 + offset))
+            .collect();
+        quotes.push(quote_on(
+            NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
+            "MANUAL",
+            999,
+        ));
+        quotes
+    }
+
+    /// A degraded-but-non-empty provider response: six bars for a window that
+    /// asked for months.
+    fn six_bar_response(source: &str) -> Vec<Quote> {
+        let first = NaiveDate::from_ymd_opt(2026, 7, 14).unwrap();
+        (0..6)
+            .map(|offset| quote_on(first + Duration::days(offset), source, 500 + offset))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn backfill_keeps_history_when_the_response_is_short() {
+        let store = RecordingQuoteStore::with_quotes(long_history("BOERSE_FRANKFURT"));
+        assert_eq!(store.stored().len(), 201);
+
+        apply_fetched_quotes(
+            &store,
+            &AssetId::new(ASSET),
+            true,
+            Some("BOERSE_FRANKFURT"),
+            &six_bar_response("BOERSE_FRANKFURT"),
+        )
+        .await
+        .expect("persisting the response should succeed");
+
+        // A degraded six-bar response must not replace 200 days of history,
+        // even though it came from the provider the user chose.
+        assert_eq!(store.purge_count(), 0);
+        assert_eq!(store.stored().len(), 201);
+        let refreshed = store
+            .stored()
+            .into_iter()
+            .find(|quote| {
+                quote.timestamp.date_naive() == NaiveDate::from_ymd_opt(2026, 7, 14).unwrap()
+                    && quote.data_source != "MANUAL"
+            })
+            .expect("the overlapping day should still be stored");
+        // The response is still merged, so fresh prices land.
+        assert_eq!(refreshed.close, Decimal::from(500));
+    }
+
+    #[tokio::test]
+    async fn backfill_purges_the_previous_provider_on_a_deliberate_switch() {
+        // Yahoo history is stored; the user has since chosen Boerse Frankfurt.
+        let store = RecordingQuoteStore::with_quotes(long_history("YAHOO"));
+
+        apply_fetched_quotes(
+            &store,
+            &AssetId::new(ASSET),
+            true,
+            Some("BOERSE_FRANKFURT"),
+            &six_bar_response("BOERSE_FRANKFURT"),
+        )
+        .await
+        .expect("persisting the response should succeed");
+
+        // Dropping the old provider is the point of rebuilding after a switch,
+        // so a shallower history is an accepted consequence of that choice.
+        assert_eq!(store.purge_count(), 1);
+        let stored = store.stored();
+        assert!(!stored.iter().any(|quote| quote.data_source == "YAHOO"));
+        assert_eq!(
+            stored
+                .iter()
+                .filter(|quote| quote.data_source == "BOERSE_FRANKFURT")
+                .count(),
+            6
+        );
+        // Manual overrides are never purged.
+        assert_eq!(
+            stored
+                .iter()
+                .filter(|quote| quote.data_source == "MANUAL")
+                .count(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn backfill_keeps_history_when_an_unchosen_provider_wins_short() {
+        // Boerse Frankfurt is preferred and holds the history, but it failed and
+        // Yahoo won the failover with a short series. That is not a deliberate
+        // switch, so it must not delete the deeper source.
+        let store = RecordingQuoteStore::with_quotes(long_history("BOERSE_FRANKFURT"));
+
+        apply_fetched_quotes(
+            &store,
+            &AssetId::new(ASSET),
+            true,
+            Some("BOERSE_FRANKFURT"),
+            &six_bar_response("YAHOO"),
+        )
+        .await
+        .expect("persisting the response should succeed");
+
+        assert_eq!(store.purge_count(), 0);
+        assert_eq!(
+            store
+                .stored()
+                .iter()
+                .filter(|quote| quote.data_source == "BOERSE_FRANKFURT")
+                .count(),
+            200
+        );
+    }
+
+    #[tokio::test]
+    async fn backfill_still_purges_when_the_response_covers_the_history() {
+        let store = RecordingQuoteStore::with_quotes(long_history("YAHOO"));
+
+        // A healthy rebuild: the response reaches further back than what is
+        // stored, so replacing is safe and stale rows should still be cleared.
+        let first = NaiveDate::from_ymd_opt(2025, 12, 1).unwrap();
+        let full_response: Vec<Quote> = (0..260)
+            .map(|offset| quote_on(first + Duration::days(offset), "BOERSE_FRANKFURT", offset))
+            .collect();
+
+        apply_fetched_quotes(
+            &store,
+            &AssetId::new(ASSET),
+            true,
+            Some("BOERSE_FRANKFURT"),
+            &full_response,
+        )
+        .await
+        .expect("persisting the response should succeed");
+
+        assert_eq!(store.purge_count(), 1);
+        let stored = store.stored();
+        assert!(
+            !stored.iter().any(|quote| quote.data_source == "YAHOO"),
+            "a covering response should still clear superseded provider rows"
+        );
+        // Manual overrides are never purged.
+        assert_eq!(
+            stored
+                .iter()
+                .filter(|quote| quote.data_source == "MANUAL")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn purge_is_refused_only_when_it_would_destroy_history() {
+        let earlier = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let later = NaiveDate::from_ymd_opt(2026, 7, 14).unwrap();
+
+        // A provider returning less than it already gave us is degradation,
+        // whether or not the user chose it.
+        assert!(purge_would_destroy_history(
+            Some(earlier),
+            Some(earlier),
+            Some(later),
+            true
+        ));
+        // An unchosen provider must not shrink overall coverage: this is a
+        // failover about to delete a deeper source.
+        assert!(purge_would_destroy_history(
+            None,
+            Some(earlier),
+            Some(later),
+            false
+        ));
+        // The same shape, but the user chose this provider: a deliberate switch
+        // to a shallower source is allowed to drop the old one.
+        assert!(!purge_would_destroy_history(
+            None,
+            Some(earlier),
+            Some(later),
+            true
+        ));
+        // A response reaching at least as far back is always safe.
+        assert!(!purge_would_destroy_history(
+            Some(later),
+            Some(later),
+            Some(earlier),
+            false
+        ));
+        // An empty response would delete everything and put nothing back.
+        assert!(purge_would_destroy_history(
+            Some(earlier),
+            Some(earlier),
+            None,
+            true
+        ));
+        // Nothing stored yet: no coverage to lose.
+        assert!(!purge_would_destroy_history(None, None, Some(later), false));
     }
 }
