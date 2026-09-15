@@ -63,16 +63,21 @@ struct TvHistoryResponse {
     s: String,
     #[serde(default)]
     t: Vec<i64>,
+    // Deutsche Boerse emits `null` inside these arrays for days it has no
+    // figure for — volume in particular, on thin trading days. Declaring them
+    // as `Vec<f64>` made serde reject the whole response, so a single missing
+    // volume threw away months of otherwise good bars and silently handed the
+    // asset to the next provider.
     #[serde(default)]
-    o: Vec<f64>,
+    o: Vec<Option<f64>>,
     #[serde(default)]
-    h: Vec<f64>,
+    h: Vec<Option<f64>>,
     #[serde(default)]
-    l: Vec<f64>,
+    l: Vec<Option<f64>>,
     #[serde(default)]
-    c: Vec<f64>,
+    c: Vec<Option<f64>>,
     #[serde(default)]
-    v: Vec<f64>,
+    v: Vec<Option<f64>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -277,6 +282,39 @@ fn map_german_type(t: &str) -> Option<&'static str> {
     }
 }
 
+/// Convert a TradingView history payload into quotes.
+///
+/// A bar without a close carries no usable price, so it is skipped; the rest of
+/// the response is still returned. Missing open/high/low/volume are simply left
+/// unset rather than discarding the bar.
+fn quotes_from_history(body: &TvHistoryResponse, bond: bool, currency: &str) -> Vec<Quote> {
+    let divisor = if bond { 100.0 } else { 1.0 };
+    let scaled =
+        |value: Option<f64>| value.and_then(|value| Decimal::try_from(value / divisor).ok());
+    let at = |values: &[Option<f64>], i: usize| values.get(i).copied().flatten();
+
+    let mut quotes = Vec::with_capacity(body.t.len());
+    for (i, ts) in body.t.iter().enumerate() {
+        let Some(close) = scaled(at(&body.c, i)) else {
+            debug!("BF: skipping bar at index {i} with no usable close");
+            continue;
+        };
+
+        quotes.push(Quote {
+            timestamp: DateTime::from_timestamp(*ts, 0).unwrap_or_else(Utc::now),
+            open: scaled(at(&body.o, i)),
+            high: scaled(at(&body.h, i)),
+            low: scaled(at(&body.l, i)),
+            close,
+            volume: at(&body.v, i).and_then(|v| Decimal::try_from(v).ok()),
+            currency: currency.to_string(),
+            source: PROVIDER_ID.to_string(),
+        });
+    }
+
+    quotes
+}
+
 /// Check if the context instrument is a bond.
 fn is_bond_context(context: &QuoteContext) -> bool {
     matches!(context.instrument, InstrumentId::Bond { .. })
@@ -448,47 +486,7 @@ impl MarketDataProvider for BoerseFrankfurtProvider {
             .map(|c| c.to_string())
             .unwrap_or_else(|| "EUR".to_string());
 
-        let len = body.t.len();
-        let mut quotes = Vec::with_capacity(len);
-
-        for i in 0..len {
-            let ts = body.t[i];
-            let timestamp = DateTime::from_timestamp(ts, 0).unwrap_or_else(Utc::now);
-
-            let divisor = if bond { 100.0 } else { 1.0 };
-
-            let close = Decimal::try_from(body.c.get(i).copied().unwrap_or(0.0) / divisor)
-                .map_err(|_| MarketDataError::ValidationFailed {
-                    message: format!("Failed to convert close to decimal at index {}", i),
-                })?;
-
-            let open = body
-                .o
-                .get(i)
-                .and_then(|&v| Decimal::try_from(v / divisor).ok());
-            let high = body
-                .h
-                .get(i)
-                .and_then(|&v| Decimal::try_from(v / divisor).ok());
-            let low = body
-                .l
-                .get(i)
-                .and_then(|&v| Decimal::try_from(v / divisor).ok());
-            let volume = body.v.get(i).and_then(|&v| Decimal::try_from(v).ok());
-
-            quotes.push(Quote {
-                timestamp,
-                open,
-                high,
-                low,
-                close,
-                volume,
-                currency: currency.clone(),
-                source: PROVIDER_ID.to_string(),
-            });
-        }
-
-        Ok(quotes)
+        Ok(quotes_from_history(&body, bond, &currency))
     }
 
     async fn search(&self, query: &str) -> Result<Vec<SearchResult>, MarketDataError> {
@@ -583,6 +581,63 @@ impl MarketDataProvider for BoerseFrankfurtProvider {
 
 #[cfg(test)]
 mod tests {
+    /// Deutsche Boerse returns `null` inside the OHLCV arrays on thin trading
+    /// days. This used to abort deserialization of the entire response.
+    #[test]
+    fn history_with_null_volume_still_parses() {
+        let raw = r#"{"s":"ok",
+            "t":[1777248000,1777334400,1777420800],
+            "o":[227.0,228.0,229.0],
+            "h":[228.0,229.0,230.0],
+            "l":[226.0,227.0,228.0],
+            "c":[227.75,230.8,230.15],
+            "v":[1000.0,null,2000.0]}"#;
+
+        let body: TvHistoryResponse =
+            serde_json::from_str(raw).expect("null volume must not fail the response");
+        let quotes = quotes_from_history(&body, false, "EUR");
+
+        // All three bars survive; only the missing volume is dropped.
+        assert_eq!(quotes.len(), 3);
+        assert_eq!(quotes[1].close, Decimal::try_from(230.8).unwrap());
+        assert!(quotes[1].volume.is_none());
+        assert!(quotes[0].volume.is_some());
+    }
+
+    #[test]
+    fn history_skips_bars_without_a_close() {
+        let raw = r#"{"s":"ok",
+            "t":[1777248000,1777334400],
+            "o":[227.0,228.0],
+            "h":[228.0,229.0],
+            "l":[226.0,227.0],
+            "c":[227.75,null],
+            "v":[1000.0,2000.0]}"#;
+
+        let body: TvHistoryResponse = serde_json::from_str(raw).expect("should deserialize");
+        let quotes = quotes_from_history(&body, false, "EUR");
+
+        // A bar with no close carries no usable price. It is dropped rather
+        // than emitted as a zero, and the good bar is still returned.
+        assert_eq!(quotes.len(), 1);
+        assert_eq!(quotes[0].close, Decimal::try_from(227.75).unwrap());
+    }
+
+    #[test]
+    fn bond_history_is_scaled_by_par_and_tolerates_nulls() {
+        let raw = r#"{"s":"ok","t":[1777248000,1777334400],
+            "o":[null,99.0],"h":[null,101.0],"l":[null,98.0],
+            "c":[98.5,99.5],"v":[null,null]}"#;
+
+        let body: TvHistoryResponse = serde_json::from_str(raw).expect("should deserialize");
+        let quotes = quotes_from_history(&body, true, "USD");
+
+        assert_eq!(quotes.len(), 2);
+        assert_eq!(quotes[0].close, Decimal::try_from(0.985).unwrap());
+        assert!(quotes[0].open.is_none());
+        assert_eq!(quotes[1].open, Some(Decimal::try_from(0.99).unwrap()));
+    }
+
     use std::borrow::Cow;
 
     use super::*;
@@ -778,8 +833,8 @@ mod tests {
         let resp: TvHistoryResponse = serde_json::from_str(json).unwrap();
         assert_eq!(resp.s, "ok");
         assert_eq!(resp.t.len(), 2);
-        assert_eq!(resp.c[0], 70.02);
-        assert_eq!(resp.v[1], 6062156.3);
+        assert_eq!(resp.c[0], Some(70.02));
+        assert_eq!(resp.v[1], Some(6062156.3));
     }
 
     #[test]
