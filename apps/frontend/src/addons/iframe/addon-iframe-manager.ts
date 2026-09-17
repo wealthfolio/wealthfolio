@@ -357,6 +357,8 @@ export const ALLOWED_API_METHODS = new Set([
   "exchangeRates.add",
   "exchangeRates.getRatesForDates",
   "spending.isEnabled",
+  "spending.searchCashActivities",
+  "spending.getReport",
   "spending.getCategories",
   "spending.getRules",
   "spending.saveRule",

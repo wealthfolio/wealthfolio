@@ -43,6 +43,8 @@ import {
   rerunCategorizationRules,
   upsertCategorizationRule,
 } from "@/adapters";
+import { searchCashActivities } from "@/features/spending/adapters/cash-activities";
+import { getSpendingReport } from "@/features/spending/adapters/reports";
 import { openCsvFileDialog, openFileSaveDialog } from "@/adapters";
 import { createGoal, getGoals, getGoalFunding, saveGoalFunding, updateGoal } from "@/adapters";
 import {
@@ -472,6 +474,8 @@ export function createAddonHostAPI(
       getExchangeRatesForDates,
 
       isSpendingEnabled,
+      searchCashActivities,
+      getSpendingReport,
       getSpendCategories,
       listCategorizationRules,
       upsertCategorizationRule,

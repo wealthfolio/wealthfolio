@@ -578,6 +578,58 @@ describe("Addon Type Bridge", () => {
       expect(mockRerun).toHaveBeenCalledWith(true);
     });
 
+    it("guards and forwards aggregate reports with the spending permission", async () => {
+      const getSpendingReport = vi.fn().mockResolvedValue({ current: { outflow: 120 } });
+      const sdkAPI = createSDKHostAPIBridge(
+        { getSpendingReport, ...loggerMocks } as unknown as InternalHostAPI,
+        "test-addon",
+        spendingGuard("getReport"),
+      );
+      const request = {
+        startDate: "2026-01-01T00:00:00Z",
+        endDate: "2026-01-31T23:59:59Z",
+      };
+
+      await sdkAPI.spending.getReport(request);
+
+      expect(getSpendingReport).toHaveBeenCalledWith(request);
+    });
+
+    it("requires transaction-history permission for cash activity search", async () => {
+      const searchCashActivities = vi.fn().mockResolvedValue({ items: [], totalCount: 0 });
+      const request = {
+        startDate: "2026-01-01T00:00:00Z",
+        endDate: "2026-01-31T23:59:59Z",
+        limit: 100,
+      };
+      const spendingOnlyAPI = createSDKHostAPIBridge(
+        { searchCashActivities, ...loggerMocks } as unknown as InternalHostAPI,
+        "test-addon",
+        spendingGuard("searchCashActivities"),
+      );
+
+      expect(() => spendingOnlyAPI.spending.searchCashActivities(request)).toThrow(
+        "Addon 'test-addon' is not allowed to call activities.searchCashActivities",
+      );
+
+      const activityGuard = createPermissionGuard("test-addon", [
+        {
+          category: "activities",
+          purpose: "Read categorized transactions",
+          functions: [{ name: "searchCashActivities", isDeclared: true, isDetected: false }],
+        },
+      ]);
+      const sdkAPI = createSDKHostAPIBridge(
+        { searchCashActivities, ...loggerMocks } as unknown as InternalHostAPI,
+        "test-addon",
+        activityGuard,
+      );
+
+      await sdkAPI.spending.searchCashActivities(request);
+
+      expect(searchCashActivities).toHaveBeenCalledWith(request);
+    });
+
     it("enforces the spending permission category", () => {
       const guard = createPermissionGuard("test-addon", []);
       const sdkAPI = createSDKHostAPIBridge(
@@ -597,6 +649,7 @@ describe("Addon Type Bridge", () => {
       expect(category?.functions).toEqual(
         expect.arrayContaining([
           "isEnabled",
+          "getReport",
           "getCategories",
           "getRules",
           "saveRule",
@@ -604,6 +657,8 @@ describe("Addon Type Bridge", () => {
           "rerunRules",
         ]),
       );
+      expect(getPermissionCategory("activities")?.riskLevel).toBe("high");
+      expect(getPermissionCategory("activities")?.functions).toContain("searchCashActivities");
     });
   });
 });

@@ -844,14 +844,18 @@ for (const result of results) {
 
 ## Spend Categorization API
 
-Classify activities (e.g. `WITHDRAWAL`s) into the user's existing spend-category
-taxonomy via Wealthfolio's categorization-rules engine, instead of a one-off
-per-activity tag. A rule is reusable — it keeps applying to future matching
-imports, not just the activities that exist when it's created.
+Read aggregate spending reports and categorized cash activities, or classify
+activities (e.g. `WITHDRAWAL`s) into the user's existing spend-category taxonomy
+via Wealthfolio's categorization-rules engine. A rule is reusable — it keeps
+applying to future matching imports, not just the activities that exist when
+it's created.
 
-This API requires Wealthfolio 3.8 or newer and the medium-risk `spending`
-permission. Declare only the methods your addon calls from `isEnabled`,
-`getCategories`, `getRules`, `saveRule`, `deleteRule`, and `rerunRules`.
+The categorization methods require Wealthfolio 3.8 or newer. `getReport` and
+`searchCashActivities` require a Wealthfolio release that ships those methods
+(unreleased at the time of writing). Most methods use the medium-risk `spending`
+permission. Transaction-level `searchCashActivities` uses the high-risk
+`activities` permission because it returns transaction records. Declare only the
+methods your addon calls.
 
 `kind` selects which of Wealthfolio's three fixed activity-scope taxonomies a
 category or rule belongs to: `"expense"`, `"income"`, or `"saving"`. Asset
@@ -869,6 +873,49 @@ this to explain a result of `0`.
 if (!(await ctx.api.spending.isEnabled())) {
   // Nudge the user to enable Spending before offering categorization.
 }
+```
+
+#### `searchCashActivities(request: CashActivitySearchRequest): Promise<CashActivitySearchResponse>`
+
+Searches the accounts enabled for Spending and returns paginated activities with
+their cash-flow bucket, category assignments, splits, and effective spending
+amount. Filters supplied in `accountIds` are intersected with the configured
+Spending accounts. This method requires the high-risk
+`activities.searchCashActivities` permission.
+
+```typescript
+const page = await ctx.api.spending.searchCashActivities({
+  startDate: "2026-01-01T00:00:00Z",
+  endDate: "2026-12-31T23:59:59Z",
+  status: "categorized",
+  sortBy: "date",
+  sortDir: "asc",
+  offset: 0,
+  limit: 250,
+});
+
+for (const activity of page.items) {
+  console.log(
+    activity.activityDate,
+    activity.visibleSpendingAmount,
+    activity.assignments,
+  );
+}
+```
+
+#### `getReport(request: SpendingReportRequest): Promise<SpendingReport>`
+
+Returns aggregate spending, income, and saving totals, category breakdowns, and
+daily series for a date range. This method uses the medium-risk
+`spending.getReport` permission and does not expose transaction notes.
+
+```typescript
+const report = await ctx.api.spending.getReport({
+  startDate: "2026-01-01T00:00:00Z",
+  endDate: "2026-12-31T23:59:59Z",
+});
+
+console.log(report.current.outflow, report.spendingBreakdown);
 ```
 
 #### `getCategories(kind?: SpendCategoryKind): Promise<SpendCategory[]>`

@@ -659,6 +659,139 @@ export interface CategorizationRuleInput {
   priority?: number;
 }
 
+export interface ActivityTaxonomyAssignment {
+  id: string;
+  activityId: string;
+  taxonomyId: string;
+  categoryId: string;
+  weight: number;
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActivitySplit {
+  id: string;
+  activityId: string;
+  taxonomyId: string;
+  categoryId: string;
+  amount: string | number;
+  note?: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CashFlowBucket = 'spending' | 'income' | 'saving' | 'neutral';
+export type TransferLinkStatus = 'linked' | 'unlinked' | 'invalid';
+export type CashActivityStatusFilter =
+  | 'all'
+  | 'needs_review'
+  | 'uncategorized'
+  | 'categorized';
+export type CashActivitySortField = 'date' | 'amount';
+export type CashActivitySortDirection = 'asc' | 'desc';
+
+export interface CashActivitySearchRequest {
+  search?: string;
+  accountIds?: string[];
+  activityTypes?: ActivityType[];
+  categoryIds?: string[];
+  subcategoryIds?: string[];
+  eventIds?: string[];
+  status?: CashActivityStatusFilter;
+  /** Inclusive RFC3339 timestamp. */
+  startDate?: string;
+  /** Inclusive RFC3339 timestamp. */
+  endDate?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  sortBy?: CashActivitySortField;
+  sortDir?: CashActivitySortDirection;
+  offset?: number;
+  limit?: number;
+}
+
+/** A cash activity enriched with its spending classification and category assignments. */
+export interface CashActivity extends Activity {
+  cashFlowBucket: CashFlowBucket;
+  assignments: ActivityTaxonomyAssignment[];
+  splits: ActivitySplit[];
+  eventId?: string | null;
+  transferLinkStatus?: TransferLinkStatus | null;
+  /** Signed cash movement in the activity's own currency. */
+  netAmount: number;
+  /** `netAmount` converted to the response's `baseCurrency`, when available. */
+  netAmountBase?: number | null;
+  /** Spending amount after excluded-category portions have been removed. */
+  visibleSpendingAmount?: number;
+}
+
+export interface CurrencyNet {
+  currency: string;
+  amount: number;
+}
+
+export interface NetSummary {
+  byCurrency: CurrencyNet[];
+  converted?: CurrencyNet | null;
+}
+
+export interface CashActivitySearchResponse {
+  items: CashActivity[];
+  totalCount: number;
+  /** Net over the complete filtered result. Present only on the first page. */
+  net?: NetSummary | null;
+  baseCurrency?: string | null;
+}
+
+export interface SpendingReportRequest {
+  /** Inclusive RFC3339 timestamp. */
+  startDate: string;
+  /** Inclusive RFC3339 timestamp. */
+  endDate: string;
+  accountIds?: string[];
+}
+
+export interface SpendingPeriodSummary {
+  income: number;
+  outflow: number;
+  saved: number;
+  net: number;
+  count: number;
+}
+
+export interface SpendingCategoryBreakdownRow {
+  taxonomyId: string;
+  categoryId: string;
+  amount: number;
+  count: number;
+}
+
+export interface SpendingDayBucket {
+  date: string;
+  income: number;
+  outflow: number;
+}
+
+export interface SpendingDayCategoryBucket {
+  date: string;
+  taxonomyId: string;
+  categoryId: string;
+  amount: number;
+  count: number;
+}
+
+export interface SpendingReport {
+  current: SpendingPeriodSummary;
+  prior: SpendingPeriodSummary;
+  spendingBreakdown: SpendingCategoryBreakdownRow[];
+  incomeBreakdown: SpendingCategoryBreakdownRow[];
+  savingsBreakdown: SpendingCategoryBreakdownRow[];
+  byDay: SpendingDayBucket[];
+  byDayByCategory: SpendingDayCategoryBucket[];
+}
+
 export interface MonetaryValue {
   local: number;
   base: number;
