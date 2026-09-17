@@ -1429,10 +1429,7 @@ fn mock_performance_result(id: &str) -> PerformanceResult {
         risk: PerformanceRisk {
             volatility: Some(rust_decimal::Decimal::ZERO),
             max_drawdown: Some(rust_decimal::Decimal::ZERO),
-            peak_date: None,
-            trough_date: None,
-            recovery_date: None,
-            drawdown_duration_days: None,
+            ..PerformanceRisk::default()
         },
         data_quality: PerformanceDataQuality {
             status: DataQualityStatus::Ok,
