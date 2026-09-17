@@ -507,6 +507,24 @@ impl Asset {
             .and_then(|v| serde_json::from_value(v.clone()).ok())
     }
 
+    /// Ownership percentage (0-100) for alternative assets that are jointly owned
+    /// (e.g. a property split with a spouse). Absence means full (100%) ownership.
+    pub fn ownership_pct(&self) -> Option<Decimal> {
+        self.metadata
+            .as_ref()
+            .and_then(|m| m.get("ownership_pct"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<Decimal>().ok())
+    }
+
+    /// Fraction (0..=1) to apply to this asset's market value for net worth purposes.
+    /// Defaults to 1 (100%) when unset; clamps out-of-range stored values defensively.
+    pub fn ownership_fraction(&self) -> Decimal {
+        self.ownership_pct()
+            .map(|pct| pct.clamp(Decimal::ZERO, Decimal::from(100)) / Decimal::from(100))
+            .unwrap_or(Decimal::ONE)
+    }
+
     fn metadata_identifier(&self, key: &str) -> Option<&str> {
         self.metadata
             .as_ref()
@@ -1515,5 +1533,39 @@ mod tests {
             "US Treasury CUSIP with USD currency should get US prefix, got {}",
             sym
         );
+    }
+
+    fn test_asset_with_metadata(metadata: Option<serde_json::Value>) -> Asset {
+        Asset {
+            id: "test-asset".to_string(),
+            kind: AssetKind::Property,
+            quote_mode: QuoteMode::Manual,
+            quote_ccy: "USD".to_string(),
+            metadata,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_ownership_fraction_defaults_to_full_when_unset() {
+        let asset = test_asset_with_metadata(None);
+        assert_eq!(asset.ownership_pct(), None);
+        assert_eq!(asset.ownership_fraction(), Decimal::ONE);
+    }
+
+    #[test]
+    fn test_ownership_fraction_parses_stored_percentage() {
+        let asset = test_asset_with_metadata(Some(serde_json::json!({ "ownership_pct": "50" })));
+        assert_eq!(asset.ownership_pct(), Some(dec!(50)));
+        assert_eq!(asset.ownership_fraction(), dec!(0.5));
+    }
+
+    #[test]
+    fn test_ownership_fraction_clamps_out_of_range_values() {
+        let over = test_asset_with_metadata(Some(serde_json::json!({ "ownership_pct": "150" })));
+        assert_eq!(over.ownership_fraction(), Decimal::ONE);
+
+        let under = test_asset_with_metadata(Some(serde_json::json!({ "ownership_pct": "-10" })));
+        assert_eq!(under.ownership_fraction(), Decimal::ZERO);
     }
 }

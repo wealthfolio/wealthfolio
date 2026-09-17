@@ -614,6 +614,8 @@
     "asset_description": "Editar nombre, información de compra y otros detalles",
     "name": "Nombre",
     "name_placeholder": "Introduce el nombre del activo...",
+    "ownership_pct": "Porcentaje de propiedad",
+    "ownership_pct_description": "Tu parte de este activo. Solo afecta al total de tu patrimonio neto — el valor mostrado siempre indica el 100%.",
     "purchase_information": "Información de compra",
     "purchase_information_description": "Detalles de compra opcionales para el seguimiento de ganancias/pérdidas",
     "purchase_price_per_unit": "Precio de compra (por unidad)",
