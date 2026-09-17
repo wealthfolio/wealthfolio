@@ -316,7 +316,8 @@
   "delete_modal": {
     "title": "刪除交易紀錄？",
     "description": "系統會永久刪除此交易紀錄。此操作無法復原。",
-    "linked_transfer_desc": "此交易紀錄已與另一筆轉帳配對。系統會永久刪除兩筆轉帳，此操作無法復原。"
+    "linked_transfer_desc": "此交易紀錄已與另一筆轉帳配對。系統會永久刪除兩筆轉帳，此操作無法復原。",
+    "broker_synced_desc": "此交易紀錄來自券商同步。刪除後也會將它排除在日後的同步之外，因此它不會再出現。您日後可以在交易紀錄頁面還原它。"
   },
   "form_renderer": {
     "select_type": "請在上方選取一種交易類型以繼續",
@@ -1332,5 +1333,18 @@
       "issuesTitle_other": "{{count}} 筆交易紀錄有問題。",
       "issuesTitle_one": "{{count}} 筆交易紀錄有問題。"
     }
+  },
+  "suppressed": {
+    "summary_one": "已刪除的 {{count}} 筆券商交易紀錄正被排除在日後的同步之外。",
+    "summary_other": "已刪除的 {{count}} 筆券商交易紀錄正被排除在日後的同步之外。",
+    "review": "檢視",
+    "title": "已刪除的券商交易紀錄",
+    "description": "您的券商仍會提供這些紀錄，因此每次同步都會把它們加回來。在您還原它們之前，它們會一直被排除在外。",
+    "deleted_on": "刪除於 {{date}}",
+    "restore": "還原",
+    "restore_all": "全部還原",
+    "restored_one": "已還原 {{count}} 筆交易紀錄。下次同步會再次更新它。",
+    "restored_other": "已還原 {{count}} 筆交易紀錄。下次同步會再次更新它們。",
+    "restore_failed": "無法還原"
   }
 }

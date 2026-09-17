@@ -317,7 +317,8 @@
   "delete_modal": {
     "title": "Excluir atividade?",
     "description": "Esta atividade será excluída permanentemente. Esta ação não pode ser desfeita.",
-    "linked_transfer_desc": "Esta atividade está vinculada a um par de transferência. Ambas as partes serão excluídas permanentemente. Esta ação não pode ser desfeita."
+    "linked_transfer_desc": "Esta atividade está vinculada a um par de transferência. Ambas as partes serão excluídas permanentemente. Esta ação não pode ser desfeita.",
+    "broker_synced_desc": "Esta atividade veio de uma sincronização com a corretora. Excluí-la também a mantém fora das próximas sincronizações, então ela não voltará. Você pode restaurá-la mais tarde na página de atividades."
   },
   "form_renderer": {
     "select_type": "Selecione um tipo de atividade acima para continuar",
@@ -1379,5 +1380,20 @@
       "issuesTitle_other": "Há problemas com {{count}} entradas de atividade.",
       "issuesTitle_many": "Há problemas com {{count}} entradas de atividade."
     }
+  },
+  "suppressed": {
+    "summary_one": "{{count}} atividade da corretora excluída está sendo mantida fora das próximas sincronizações.",
+    "summary_other": "{{count}} atividades da corretora excluídas estão sendo mantidas fora das próximas sincronizações.",
+    "summary_many": "{{count}} atividades da corretora excluídas estão sendo mantidas fora das próximas sincronizações.",
+    "review": "Revisar",
+    "title": "Atividades da corretora excluídas",
+    "description": "Sua corretora continua informando esses registros, então cada sincronização os adicionaria de volta. Eles permanecem excluídos até que você os restaure.",
+    "deleted_on": "Excluída em {{date}}",
+    "restore": "Restaurar",
+    "restore_all": "Restaurar todas",
+    "restored_one": "{{count}} atividade restaurada. A próxima sincronização vai atualizá-la novamente.",
+    "restored_other": "{{count}} atividades restauradas. A próxima sincronização vai atualizá-las novamente.",
+    "restored_many": "{{count}} atividades restauradas. A próxima sincronização vai atualizá-las novamente.",
+    "restore_failed": "Não foi possível restaurar"
   }
 }
