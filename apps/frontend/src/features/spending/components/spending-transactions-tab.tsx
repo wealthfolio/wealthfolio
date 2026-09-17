@@ -45,6 +45,7 @@ import { CashActivityForm } from "./cash-activity-form";
 import { ActivityForm } from "@/pages/activity/components/activity-form";
 import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
 import { TransferMatchDialog } from "@/pages/activity/components/transfer-match-dialog";
+import { resolveTransferFormActivity } from "../lib/transfer-edit";
 import { getActivityRestrictionLevel } from "@/lib/activity-restrictions";
 import { ActivityType } from "@/lib/constants";
 import type { AmountRange } from "./amount-range-filter";
@@ -175,40 +176,6 @@ export interface SpendingTransactionsTabHandle {
   openAddForm: () => void;
 }
 
-function toActivityDetails(row: TransactionRowVM, account?: Account): Partial<ActivityDetails> {
-  const activity = row.activity;
-  const activityType = getEffectiveCashActivityType(activity);
-  return {
-    id: activity.id,
-    activityType: activityType as ActivityType,
-    subtype: activity.subtype ?? null,
-    status: activity.status,
-    date: new Date(activity.activityDate),
-    quantity: activity.quantity ?? null,
-    unitPrice: activity.unitPrice ?? null,
-    amount: activity.amount ?? null,
-    fee: activity.fee ?? null,
-    currency: activity.currency,
-    needsReview: activity.needsReview,
-    comment: activity.notes ?? undefined,
-    fxRate: activity.fxRate ?? null,
-    createdAt: new Date(activity.createdAt),
-    updatedAt: new Date(activity.updatedAt),
-    accountId: activity.accountId,
-    accountName: account?.name ?? activity.accountId,
-    accountCurrency: account?.currency ?? activity.currency,
-    assetId: activity.assetId ?? "",
-    assetSymbol: activity.assetId ?? "",
-    sourceSystem: activity.sourceSystem,
-    sourceRecordId: activity.sourceRecordId,
-    sourceGroupId: activity.sourceGroupId,
-    idempotencyKey: activity.idempotencyKey,
-    importRunId: activity.importRunId,
-    isUserModified: activity.isUserModified,
-    metadata: activity.metadata,
-  };
-}
-
 export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>(
   function SpendingTransactionsTab(_, ref) {
     const { t } = useTranslation();
@@ -230,6 +197,17 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const { settings } = useSettingsContext();
     const appTimezone = settings?.timezone?.trim() || undefined;
     const applyingUrlParamsRef = useRef(false);
+    /**
+     * Latest transfer row whose Edit was requested. A pair fetch is async, so a
+     * late resolution must not open (or repoint) a different dialog than the
+     * one the user is now looking at.
+     */
+    const latestTransferEditRef = useRef<string | null>(null);
+
+    /** Cancel an in-flight transfer edit when any other dialog takes over. */
+    const cancelPendingTransferEdit = useCallback(() => {
+      latestTransferEditRef.current = null;
+    }, []);
 
     const [editingActivity, setEditingActivity] = useState<TransactionRowVM | undefined>();
     const [splittingActivity, setSplittingActivity] = useState<TransactionRowVM | null>(null);
@@ -409,6 +387,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
 
     const handleTransferClick = useCallback(
       (accountId: string) => {
+        cancelPendingTransferEdit();
         const account = accounts.find((a: Account) => a.id === accountId);
         setTransferFormActivity({
           activityType: isCreditCardAccountType(account?.accountType)
@@ -418,13 +397,14 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         });
         setShowTransferForm(true);
       },
-      [accounts],
+      [accounts, cancelPendingTransferEdit],
     );
 
     const handleTransferFormClose = useCallback(() => {
+      cancelPendingTransferEdit();
       setShowTransferForm(false);
       setTransferFormActivity(undefined);
-    }, []);
+    }, [cancelPendingTransferEdit]);
     const { data: events = [] } = useSpendingEvents();
     const { data: eventTypes = [] } = useEventTypes();
     const spending = useTaxonomy(SPENDING_TAXONOMY);
@@ -646,8 +626,11 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     });
 
     const handleDuplicate = useCallback(
-      (row: TransactionRowVM) => duplicateTransaction(row),
-      [duplicateTransaction],
+      (row: TransactionRowVM) => {
+        cancelPendingTransferEdit();
+        duplicateTransaction(row);
+      },
+      [duplicateTransaction, cancelPendingTransferEdit],
     );
 
     const markReimbursementMutation = useMutation({
@@ -680,6 +663,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           category: null,
           splitCount: 0,
         };
+        cancelPendingTransferEdit();
         setEditingActivity(updatedRow);
         setShowForm(true);
         toast.success(t("spending:txTab.markedReimbursement"));
@@ -788,34 +772,55 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const handleEditRow = useCallback(
       (row: TransactionRowVM) => {
         if (isTransferCashActivity(row.activity)) {
+          latestTransferEditRef.current = row.activity.id;
           setEditingActivity(undefined);
           setShowForm(false);
-          setTransferFormActivity(toActivityDetails(row, accountById.get(row.activity.accountId)));
-          setShowTransferForm(true);
+          // The pair lives server-side; fetch it so the form pre-fills the
+          // counterpart account instead of an empty "To Account" (#1563).
+          void resolveTransferFormActivity(row, accountById.get(row.activity.accountId)).then(
+            (enriched) => {
+              if (latestTransferEditRef.current !== row.activity.id) return;
+              setTransferFormActivity(enriched);
+              setShowTransferForm(true);
+            },
+          );
           return;
         }
+        cancelPendingTransferEdit();
         setTransferFormActivity(undefined);
         setShowTransferForm(false);
         setEditingActivity(row);
         setShowForm(true);
       },
-      [accountById],
+      [accountById, cancelPendingTransferEdit],
     );
-    const handleDeleteRow = useCallback((row: TransactionRowVM) => {
-      const activityType = getEffectiveCashActivityType(row.activity);
-      setDeletingIds([row.activity.id]);
-      setDeletePreview({
-        activityType,
-        amount: row.activity.amount ?? null,
-        currency: row.activity.currency,
-      });
-    }, []);
-    const handleLinkTransfer = useCallback((row: TransactionRowVM) => {
-      setTransferMatchDialog({ open: true, mode: "link", row });
-    }, []);
-    const handleUnlinkTransfer = useCallback((row: TransactionRowVM) => {
-      setTransferMatchDialog({ open: true, mode: "unlink", row });
-    }, []);
+    const handleDeleteRow = useCallback(
+      (row: TransactionRowVM) => {
+        cancelPendingTransferEdit();
+        const activityType = getEffectiveCashActivityType(row.activity);
+        setDeletingIds([row.activity.id]);
+        setDeletePreview({
+          activityType,
+          amount: row.activity.amount ?? null,
+          currency: row.activity.currency,
+        });
+      },
+      [cancelPendingTransferEdit],
+    );
+    const handleLinkTransfer = useCallback(
+      (row: TransactionRowVM) => {
+        cancelPendingTransferEdit();
+        setTransferMatchDialog({ open: true, mode: "link", row });
+      },
+      [cancelPendingTransferEdit],
+    );
+    const handleUnlinkTransfer = useCallback(
+      (row: TransactionRowVM) => {
+        cancelPendingTransferEdit();
+        setTransferMatchDialog({ open: true, mode: "unlink", row });
+      },
+      [cancelPendingTransferEdit],
+    );
 
     const handleToggleRow = useCallback((id: string) => {
       setSelectedRowIds((prev) => {
@@ -861,6 +866,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     };
 
     const handleBulkDelete = () => {
+      cancelPendingTransferEdit();
       setDeletingIds(Array.from(selectedRowIds));
       setDeletePreview(undefined);
     };
@@ -916,9 +922,10 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     );
 
     const openAddForm = useCallback(() => {
+      cancelPendingTransferEdit();
       setEditingActivity(undefined);
       setShowForm(true);
-    }, []);
+    }, [cancelPendingTransferEdit]);
 
     useImperativeHandle(ref, () => ({ openAddForm }), [openAddForm]);
 
@@ -999,8 +1006,14 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         onAssignCategory: handleAssignCategory,
         onClearCategory: handleClearCategory,
         onSetEvent: handleSetEvent,
-        onMarkReimbursement: (row: TransactionRowVM) => markReimbursementMutation.mutate(row),
-        onEditSplits: setSplittingActivity,
+        onMarkReimbursement: (row: TransactionRowVM) => {
+          cancelPendingTransferEdit();
+          markReimbursementMutation.mutate(row);
+        },
+        onEditSplits: (row: TransactionRowVM) => {
+          cancelPendingTransferEdit();
+          setSplittingActivity(row);
+        },
         onEdit: handleEditRow,
         onDuplicate: handleDuplicate,
         onDelete: handleDeleteRow,
