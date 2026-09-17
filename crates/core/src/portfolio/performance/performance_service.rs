@@ -296,7 +296,6 @@ pub struct PerformanceService {
 }
 
 const DAYS_PER_YEAR_DECIMAL: Decimal = dec!(365.25);
-const SQRT_DAYS_PER_YEAR_APPROX: Decimal = dec!(19.111514854); // sqrt(365.25)
 const MIN_ANNUALIZATION_DAYS: i64 = 30;
 const MIN_RETURN_BASE: Decimal = Decimal::ONE;
 const ATTRIBUTION_RESIDUAL_TOLERANCE_RATE: Decimal = dec!(0.002);
@@ -318,6 +317,13 @@ struct DailyReturnSample {
 struct RiskSample {
     date: NaiveDate,
     simple_return: Decimal,
+    /// Calendar days this return covers — the gap from the observation before
+    /// it up to `date`. Carried per sample rather than inferred from the span
+    /// of the series, because the series is not evenly spaced: a day the
+    /// account path excludes leaves a gap without making the next day's return
+    /// any longer, and every sample is dated at the end of its own period, so
+    /// the first one's period starts before the series does.
+    period_days: i64,
 }
 
 #[derive(Clone, Debug)]
@@ -1445,10 +1451,9 @@ impl PerformanceService {
         samples: &[RiskSample],
         opening_date: Option<NaiveDate>,
     ) -> PerformanceRisk {
-        let returns: Vec<Decimal> = samples.iter().map(|sample| sample.simple_return).collect();
         let drawdown = Self::calculate_max_drawdown(samples, opening_date);
         PerformanceRisk {
-            volatility: Self::calculate_volatility(&returns),
+            volatility: Self::calculate_volatility(samples),
             max_drawdown: drawdown.max_drawdown,
             peak_date: drawdown.peak_date,
             trough_date: drawdown.trough_date,
@@ -3533,6 +3538,7 @@ impl PerformanceService {
                         risk_samples.push(RiskSample {
                             date: curr.valuation_date,
                             simple_return: daily_return,
+                            period_days: (curr.valuation_date - prev.valuation_date).num_days(),
                         });
                     }
                     if include_returns_series {
@@ -3556,11 +3562,18 @@ impl PerformanceService {
                 holdings_chained_return = Some(cumulative_value_factor - Decimal::ONE);
             }
         } else if !is_holdings_mode {
+            // `twr.samples` carries one entry per history window, in order, so
+            // the previous entry's date opens this entry's return period. The
+            // first entry's period opens where the history does.
+            let mut period_start = full_history.first().map(|point| point.valuation_date);
             for (date, sample) in &twr.samples {
                 if include_risk && !sample.excluded_from_compounding {
                     risk_samples.push(RiskSample {
                         date: *date,
                         simple_return: sample.twr,
+                        period_days: period_start
+                            .map(|start| (*date - start).num_days())
+                            .unwrap_or_default(),
                     });
                 }
                 if include_returns_series {
@@ -3569,6 +3582,7 @@ impl PerformanceService {
                         value: sample.cumulative_twr_to_date.round_dp(DECIMAL_PRECISION),
                     });
                 }
+                period_start = Some(*date);
             }
         }
 
@@ -4522,6 +4536,8 @@ impl PerformanceService {
                     risk_samples.push(RiskSample {
                         date: curr_point.valuation_date,
                         simple_return: daily_return,
+                        period_days: (curr_point.valuation_date - prev_point.valuation_date)
+                            .num_days(),
                     });
                 }
 
@@ -4729,6 +4745,7 @@ impl PerformanceService {
         let mut risk_samples = Vec::with_capacity(quote_points.len().saturating_sub(1));
         let mut cumulative_value = Decimal::ONE;
         let mut prev_price = start_price;
+        let mut prev_date = actual_start_date;
         returns.push(ReturnData {
             date: actual_start_date,
             value: Decimal::ZERO,
@@ -4737,12 +4754,14 @@ impl PerformanceService {
         for (date, price) in quote_points.iter().copied().skip(1) {
             if price <= Decimal::ZERO || prev_price <= Decimal::ZERO {
                 prev_price = price;
+                prev_date = date;
                 continue;
             }
             let daily_return = (price / prev_price) - Decimal::ONE;
             risk_samples.push(RiskSample {
                 date,
                 simple_return: daily_return,
+                period_days: (date - prev_date).num_days(),
             });
             cumulative_value *= Decimal::ONE + daily_return;
             returns.push(ReturnData {
@@ -4750,6 +4769,7 @@ impl PerformanceService {
                 value: (cumulative_value - Decimal::ONE).round_dp(DECIMAL_PRECISION),
             });
             prev_price = price;
+            prev_date = date;
         }
 
         let total_return = if start_price.is_zero() {
@@ -4950,23 +4970,60 @@ impl PerformanceService {
         base.powd(years) - Decimal::ONE
     }
 
-    fn calculate_volatility(daily_returns: &[Decimal]) -> Option<Decimal> {
-        if daily_returns.len() < 2 {
+    /// Observations per year implied by the periods the returns actually cover.
+    ///
+    /// Both risk paths feed [`risk_from_samples`](Self::risk_from_samples), and
+    /// they do not sample at the same frequency. Account risk is built from
+    /// `daily_account_valuation`, which carries a row for every calendar day
+    /// including weekends, so its series really does have ~365 observations a
+    /// year. Per-symbol risk is built from `quotes`, which only has rows on
+    /// trading days, so its series has ~252. Annualising both by a single
+    /// constant overstates one of them by `sqrt(365.25 / 252)` = 1.20.
+    ///
+    /// Measuring the periods rather than naming a convention keeps this correct
+    /// for a weekly or monthly series too, and means a caller cannot get it
+    /// wrong by picking the constant that matches the path it happens to know
+    /// about. Summing each return's own period, rather than reading the span
+    /// from the first sample's date to the last, is what keeps it correct for a
+    /// series with gaps: a day the account path drops shortens the series by an
+    /// observation without lengthening any return that remains.
+    fn periods_per_year(samples: &[RiskSample]) -> Option<Decimal> {
+        let count = i64::try_from(samples.len()).ok()?;
+        if count <= 0 {
             return None;
         }
 
-        let log_returns: Vec<Decimal> = daily_returns
+        let covered_days: i64 = samples
             .iter()
-            .filter_map(|daily_return| {
-                let factor = Decimal::ONE + *daily_return;
+            .try_fold(0i64, |total, sample| total.checked_add(sample.period_days))?;
+        if covered_days <= 0 {
+            return None;
+        }
+
+        // (count / covered_days) observations a day, over a calendar year.
+        Some(Decimal::from(count) * DAYS_PER_YEAR_DECIMAL / Decimal::from(covered_days))
+    }
+
+    fn calculate_volatility(samples: &[RiskSample]) -> Option<Decimal> {
+        if samples.len() < 2 {
+            return None;
+        }
+
+        // The samples that survive are the ones the variance is taken over, so
+        // they are also the ones whose periods set the frequency.
+        let (usable, log_returns): (Vec<RiskSample>, Vec<Decimal>) = samples
+            .iter()
+            .filter_map(|sample| {
+                let factor = Decimal::ONE + sample.simple_return;
                 if factor <= Decimal::ZERO {
                     return None;
                 }
-                factor
+                let log_return = factor
                     .to_f64()
-                    .and_then(|factor| Decimal::from_f64(factor.ln()))
+                    .and_then(|factor| Decimal::from_f64(factor.ln()))?;
+                Some((*sample, log_return))
             })
-            .collect();
+            .unzip();
 
         if log_returns.len() < 2 {
             return None;
@@ -4989,13 +5046,11 @@ impl PerformanceService {
             return None;
         }
 
-        let daily_volatility = variance.sqrt().unwrap_or(Decimal::ZERO);
+        let period_volatility = variance.sqrt().unwrap_or(Decimal::ZERO);
 
-        let annualization_factor = DAYS_PER_YEAR_DECIMAL
-            .sqrt()
-            .unwrap_or(SQRT_DAYS_PER_YEAR_APPROX);
+        let annualization_factor = Self::periods_per_year(&usable)?.sqrt()?;
 
-        Some((daily_volatility * annualization_factor).round_dp(DECIMAL_PRECISION))
+        Some((period_volatility * annualization_factor).round_dp(DECIMAL_PRECISION))
     }
 
     fn calculate_max_drawdown(
@@ -12031,14 +12086,17 @@ mod tests {
             RiskSample {
                 date: date("2026-05-01"),
                 simple_return: dec!(0.1),
+                period_days: 1,
             },
             RiskSample {
                 date: date("2026-05-02"),
                 simple_return: dec!(-0.2),
+                period_days: 1,
             },
             RiskSample {
                 date: date("2026-05-03"),
                 simple_return: dec!(-0.1),
+                period_days: 1,
             },
         ];
 
@@ -12058,14 +12116,17 @@ mod tests {
             RiskSample {
                 date: date("2026-05-01"),
                 simple_return: dec!(0.1),
+                period_days: 1,
             },
             RiskSample {
                 date: date("2026-05-02"),
                 simple_return: dec!(-0.1),
+                period_days: 1,
             },
             RiskSample {
                 date: date("2026-05-03"),
                 simple_return: dec!(0.12),
+                period_days: 1,
             },
         ];
 
@@ -12085,10 +12146,12 @@ mod tests {
             RiskSample {
                 date: date("2026-05-02"),
                 simple_return: dec!(-0.1),
+                period_days: 1,
             },
             RiskSample {
                 date: date("2026-05-03"),
                 simple_return: dec!(0.05),
+                period_days: 1,
             },
         ];
 
@@ -12111,10 +12174,12 @@ mod tests {
             RiskSample {
                 date: date("2026-05-01"),
                 simple_return: Decimal::ZERO,
+                period_days: 1,
             },
             RiskSample {
                 date: date("2026-05-02"),
                 simple_return: Decimal::ZERO,
+                period_days: 1,
             },
         ];
         let flat_risk =
@@ -12125,9 +12190,164 @@ mod tests {
 
     #[test]
     fn volatility_annualizes_calendar_daily_returns() {
-        let volatility = PerformanceService::calculate_volatility(&[dec!(0), dec!(0.1)]);
+        let samples = vec![
+            RiskSample {
+                date: date("2026-05-01"),
+                simple_return: dec!(0),
+                period_days: 1,
+            },
+            RiskSample {
+                date: date("2026-05-02"),
+                simple_return: dec!(0.1),
+                period_days: 1,
+            },
+        ];
+
+        let volatility = PerformanceService::calculate_volatility(&samples);
 
         assert_eq!(volatility, Some(dec!(1.2880105)));
+    }
+
+    /// The account path samples `daily_account_valuation`, which holds a row for
+    /// every calendar day, so a year of it is ~365 observations and 365.25 is
+    /// the right annualisation.
+    #[test]
+    fn periods_per_year_reads_a_calendar_daily_series_as_calendar_daily() {
+        let samples: Vec<RiskSample> = (0..366)
+            .map(|offset| RiskSample {
+                date: date("2025-01-01") + Duration::days(offset),
+                simple_return: Decimal::ZERO,
+                period_days: 1,
+            })
+            .collect();
+
+        let periods = PerformanceService::periods_per_year(&samples).unwrap();
+
+        assert_eq!(periods.round_dp(2), dec!(365.25));
+    }
+
+    /// The per-symbol path samples `quotes`, which only has rows on trading
+    /// days. Annualising that by 365.25 is what overstated per-asset volatility
+    /// by `sqrt(365.25 / 252)` = 1.20.
+    #[test]
+    fn periods_per_year_reads_a_trading_day_series_as_trading_days() {
+        // 2025-01-06 is a Monday, so offsets with `offset % 7 < 5` are weekdays.
+        // Each return covers the gap back to the session before it: one day
+        // inside the week, three across a weekend.
+        let samples: Vec<RiskSample> = (0..364)
+            .filter(|offset| offset % 7 < 5)
+            .map(|offset| RiskSample {
+                date: date("2025-01-06") + Duration::days(offset),
+                simple_return: Decimal::ZERO,
+                period_days: if offset % 7 == 0 { 3 } else { 1 },
+            })
+            .collect();
+
+        let periods = PerformanceService::periods_per_year(&samples).unwrap();
+
+        // Five sessions a week is ~261 observations a year before holidays, so
+        // the series lands near 252 rather than near 365.
+        assert!(
+            periods > dec!(250) && periods < dec!(266),
+            "expected a trading-day frequency, got {periods}"
+        );
+    }
+
+    /// The account path drops a day it cannot compute a return for, which
+    /// leaves a gap in the series without making the next day's return cover
+    /// any more ground. Reading the span from the first sample's date to the
+    /// last would charge those gap days to the returns that remain, deflating
+    /// the frequency and understating the volatility with it.
+    #[test]
+    fn periods_per_year_ignores_gaps_left_by_excluded_days() {
+        // Every third day excluded; each surviving return still covers one day.
+        let samples: Vec<RiskSample> = (0..90)
+            .filter(|offset| offset % 3 != 0)
+            .map(|offset| RiskSample {
+                date: date("2025-01-01") + Duration::days(offset),
+                simple_return: Decimal::ZERO,
+                period_days: 1,
+            })
+            .collect();
+
+        let periods = PerformanceService::periods_per_year(&samples).unwrap();
+
+        assert_eq!(periods.round_dp(2), dec!(365.25));
+    }
+
+    /// Every sample is dated at the end of the period it covers, so the first
+    /// sample's period is part of the series too — it opens at the observation
+    /// before the series starts. Measuring between sample dates would drop it.
+    #[test]
+    fn periods_per_year_counts_the_first_returns_own_period() {
+        let samples = vec![
+            RiskSample {
+                date: date("2026-01-08"),
+                simple_return: Decimal::ZERO,
+                period_days: 7,
+            },
+            RiskSample {
+                date: date("2026-01-09"),
+                simple_return: Decimal::ZERO,
+                period_days: 1,
+            },
+        ];
+
+        let periods = PerformanceService::periods_per_year(&samples).unwrap();
+
+        // Two returns covering eight days: 2 * 365.25 / 8. Reading the one-day
+        // gap between the two sample dates would have claimed 365.25.
+        assert_eq!(periods.round_dp(2), dec!(91.31));
+    }
+
+    /// The same dispersion sampled weekly must not be annualised as if it were
+    /// daily. This is the property the old single constant could not express.
+    #[test]
+    fn volatility_scales_with_the_frequency_of_the_series() {
+        let returns = [dec!(0), dec!(0.01), dec!(-0.01), dec!(0.02), dec!(-0.02)];
+
+        let build = |step: i64| -> Vec<RiskSample> {
+            returns
+                .iter()
+                .enumerate()
+                .map(|(index, simple_return)| RiskSample {
+                    date: date("2026-01-05") + Duration::days(index as i64 * step),
+                    simple_return: *simple_return,
+                    period_days: step,
+                })
+                .collect()
+        };
+
+        let daily = PerformanceService::calculate_volatility(&build(1)).unwrap();
+        let weekly = PerformanceService::calculate_volatility(&build(7)).unwrap();
+
+        // Same numbers, one seventh the sampling rate: sqrt(1/7) = 0.378 of the
+        // annualised figure.
+        let ratio = weekly / daily;
+        assert!(
+            (ratio - dec!(0.3779)).abs() < dec!(0.001),
+            "expected sqrt(1/7) scaling, got {ratio}"
+        );
+    }
+
+    /// Returns that cover no period carry no frequency, so there is nothing to
+    /// annualise by and the metric declines rather than inventing one.
+    #[test]
+    fn volatility_declines_when_the_returns_cover_no_period() {
+        let samples = vec![
+            RiskSample {
+                date: date("2026-05-01"),
+                simple_return: dec!(0),
+                period_days: 0,
+            },
+            RiskSample {
+                date: date("2026-05-01"),
+                simple_return: dec!(0.1),
+                period_days: 0,
+            },
+        ];
+
+        assert!(PerformanceService::calculate_volatility(&samples).is_none());
     }
 
     #[test]
@@ -12148,6 +12368,54 @@ mod tests {
 
         assert_eq!(result.risk.volatility, Some(Decimal::ZERO));
         assert_eq!(result.risk.max_drawdown, Some(Decimal::ZERO));
+    }
+
+    /// The same surviving returns must annualise the same way whether or not
+    /// an excluded day sits between them. A day the account path cannot compute
+    /// a return for drops that day's return — and the next one, which opens on
+    /// it — without stretching any return that remains, so the frequency is
+    /// still daily.
+    #[test]
+    fn excluded_day_does_not_change_the_annualisation_of_the_returns_around_it() {
+        // 05-04 is unavailable, so the returns into and out of it are dropped.
+        // What survives is +10%, -10%, -10%.
+        let mut gapped = vec![
+            valuation("2026-05-01", dec!(100), dec!(100), dec!(100), dec!(100)),
+            valuation("2026-05-02", dec!(110), dec!(100), dec!(110), dec!(100)),
+            valuation("2026-05-03", dec!(99), dec!(100), dec!(99), dec!(100)),
+            valuation("2026-05-04", dec!(108.9), dec!(100), dec!(108.9), dec!(100)),
+            valuation("2026-05-05", dec!(108.9), dec!(100), dec!(108.9), dec!(100)),
+            valuation("2026-05-06", dec!(98.01), dec!(100), dec!(98.01), dec!(100)),
+        ];
+        gapped[3].value_status = ValuationStatus::Unavailable;
+
+        // The same three returns, with nothing excluded between them.
+        let contiguous = vec![
+            valuation("2026-05-01", dec!(100), dec!(100), dec!(100), dec!(100)),
+            valuation("2026-05-02", dec!(110), dec!(100), dec!(110), dec!(100)),
+            valuation("2026-05-03", dec!(99), dec!(100), dec!(99), dec!(100)),
+            valuation("2026-05-04", dec!(89.1), dec!(100), dec!(89.1), dec!(100)),
+        ];
+
+        let compute = |history: &[DailyAccountValuation]| {
+            PerformanceService::compute_account_performance(
+                history,
+                Some(TrackingMode::Transactions),
+                None,
+                true,
+            )
+            .expect("performance should compute")
+            .risk
+            .volatility
+            .expect("three returns are enough for a volatility")
+        };
+
+        let gapped_volatility = compute(&gapped);
+
+        assert!(gapped_volatility > Decimal::ZERO);
+        // Reading the span between the first and last surviving sample dates
+        // would have annualised the gapped series by sqrt(1/2) of this.
+        assert_eq!(gapped_volatility, compute(&contiguous));
     }
 
     #[test]
