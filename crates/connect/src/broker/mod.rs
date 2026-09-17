@@ -1,3 +1,4 @@
+mod corporate_actions;
 pub mod mapping;
 mod models;
 pub mod orchestrator;
