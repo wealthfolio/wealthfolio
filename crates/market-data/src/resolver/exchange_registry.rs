@@ -111,6 +111,47 @@ lazy_static! {
     pub(crate) static ref REGISTRY: ExchangeRegistry = ExchangeRegistry::load();
 }
 
+/// Registry keys that are not ISO 10383 MICs, each with what blocks fixing it.
+///
+/// The catalog is keyed by MIC, and that key reaches the database: `assets`
+/// stores it as `instrument_exchange_mic` and embeds it in the generated
+/// `instrument_key`. A key that is not a MIC therefore cannot match what a
+/// broker or a provider reports for the same venue, and correcting one later
+/// costs a migration — which is how `XNEO` came to leave a stale asset row
+/// beside its live twin for five instruments.
+///
+/// This list exists so the cost is paid knowingly. It should shrink, never grow.
+#[cfg(test)]
+const NON_ISO_MIC_KEYS: &[(&str, &str)] = &[
+    (
+        "XAQE",
+        "Aquis operates two venues under separate MICs - AQSE, the recognised \
+         investment exchange securities list on, and AQXE, the MTF - and which \
+         one Yahoo's `.AQ` addresses has not been established",
+    ),
+    (
+        "XLON_IL",
+        "the International Order Book has no MIC of its own; it trades under \
+         XLON, so `.IL` needs the suffix index to prefer a primary venue rather \
+         than drop an ambiguous pair (see the `.AE` case)",
+    ),
+];
+
+/// Whether a string has the shape ISO 10383 gives a MIC: four uppercase
+/// alphanumerics.
+///
+/// A shape check cannot tell a real MIC from an invented four-character one -
+/// `XAQE` passes it and is still not a MIC - but it does catch the failure mode
+/// the catalog has actually had, which is a key made up to a local convention
+/// (`CXE`, `XTAI_OTC`, `XLON_IL`, `XNEO`).
+#[cfg(test)]
+fn is_iso_10383_shaped(mic: &str) -> bool {
+    mic.len() == 4
+        && mic
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+}
+
 impl ExchangeRegistry {
     fn load() -> Self {
         let json = include_str!("exchanges.json");
@@ -207,5 +248,77 @@ impl ExchangeRegistry {
             yahoo_suffix_to_mic: suffix_to_mic,
             yahoo_suffixes,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The catalog's key is a MIC, and everything downstream - the database
+    /// column, the generated `instrument_key`, what a broker reports, what a
+    /// provider search returns - assumes it. Anything else has to be reconciled
+    /// by hand, so a new one must be a deliberate act rather than a typo.
+    #[test]
+    fn registry_keys_are_iso_10383_mics() {
+        for entry in &REGISTRY.catalog.exchanges {
+            if NON_ISO_MIC_KEYS.iter().any(|(mic, _)| *mic == entry.mic) {
+                continue;
+            }
+
+            assert!(
+                is_iso_10383_shaped(&entry.mic),
+                "registry key '{}' is not shaped like an ISO 10383 MIC. Use the \
+                 venue's real MIC, and add a migration for the old spelling; if \
+                 there genuinely is not one, add it to NON_ISO_MIC_KEYS with the \
+                 reason.",
+                entry.mic
+            );
+        }
+    }
+
+    /// A stale exception is worse than none: it reads as a live constraint while
+    /// excusing a key that no longer exists. Fail when one is left behind so the
+    /// list is pruned with the entry it covers.
+    #[test]
+    fn non_iso_mic_exceptions_all_still_exist() {
+        for (mic, _reason) in NON_ISO_MIC_KEYS {
+            assert!(
+                REGISTRY.catalog.exchanges.iter().any(|e| e.mic == *mic),
+                "NON_ISO_MIC_KEYS names '{}', which is no longer in the catalog - \
+                 remove the exception",
+                mic
+            );
+        }
+    }
+
+    /// Pin the three this change re-spelled, so a revert is loud.
+    #[test]
+    fn cboe_europe_and_taipei_use_their_iso_mics() {
+        let mics: Vec<&str> = REGISTRY
+            .catalog
+            .exchanges
+            .iter()
+            .map(|e| e.mic.as_str())
+            .collect();
+
+        for mic in ["BCXE", "CCXE", "ROCO"] {
+            assert!(mics.contains(&mic), "expected the catalog to key on {mic}");
+        }
+        for mic in ["CXE", "DXE", "XTAI_OTC"] {
+            assert!(
+                !mics.contains(&mic),
+                "{mic} is not an ISO 10383 MIC and should no longer be a key"
+            );
+        }
+    }
+
+    #[test]
+    fn iso_mic_shape_accepts_digits_and_rejects_local_spellings() {
+        assert!(is_iso_10383_shaped("XLON"));
+        assert!(is_iso_10383_shaped("A24X"));
+        assert!(!is_iso_10383_shaped("CXE"));
+        assert!(!is_iso_10383_shaped("XTAI_OTC"));
+        assert!(!is_iso_10383_shaped("xlon"));
     }
 }
