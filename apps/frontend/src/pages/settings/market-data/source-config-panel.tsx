@@ -43,11 +43,15 @@ const PLACEHOLDERS = [
   "{currency}",
   "{TODAY}",
   "{TODAY:%Y-%m-%d}",
+  "{TODAY:%s}",
   "{FROM}",
   "{FROM:%Y-%m-%d}",
+  "{FROM:%s}",
   "{TO}",
   "{TO:%Y-%m-%d}",
+  "{TO:%s}",
   "{DATE:%Y-%m-%d}",
+  "{DATE:%s}",
 ];
 
 const SOURCE_TYPES: {

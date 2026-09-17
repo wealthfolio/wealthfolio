@@ -90,7 +90,7 @@ fn has_unsupported_date_directive(variable: &str, format: &str) -> bool {
 
     let mut chars = format.chars();
     while let Some(character) = chars.next() {
-        if character == '%' && !matches!(chars.next(), Some('Y' | 'm' | 'd')) {
+        if character == '%' && !matches!(chars.next(), Some('Y' | 'm' | 'd' | 's')) {
             return true;
         }
     }
@@ -108,8 +108,8 @@ pub(crate) enum PrepareRequestError<E> {
 /// Supported variables: `{SYMBOL}`, `{currency}`, `{CURRENCY}`, `{TODAY}`,
 /// `{FROM}`, `{TO}`, `{ISIN}`, `{MIC}`, `{DATE:format}`,
 /// `{FROM:format}`, `{TO:format}`, `{TODAY:format}`. `DATE` accepts any
-/// valid Chrono directive; the date-only variables support `%Y`, `%m`, and
-/// `%d`.
+/// valid Chrono directive; the date-only variables support `%Y`, `%m`, `%d`,
+/// and `%s`.
 pub fn expand_template(
     template: &str,
     ctx: &TemplateContext<'_>,
@@ -166,7 +166,12 @@ pub fn expand_template(
                 };
                 // Parse the ISO date and reformat; fall back to the raw string.
                 match chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-                    Ok(parsed) => parsed.format(format).to_string(),
+                    Ok(parsed) => parsed
+                        .and_hms_opt(0, 0, 0)
+                        .expect("midnight is always valid")
+                        .and_utc()
+                        .format(format)
+                        .to_string(),
                     Err(_) => date_str.to_string(),
                 }
             })
@@ -571,6 +576,13 @@ mod tests {
         let c = ctx(Some("2024-01-02"), Some("2024-03-04"));
         let out = expand_template("{FROM:%Y%m%d}-{TO:%d/%m/%Y}", &c).unwrap();
         assert_eq!(out, "20240102-04/03/2024");
+    }
+
+    #[test]
+    fn expands_formatted_from_and_to_unix_timestamp() {
+        let c = ctx(Some("2024-01-02"), Some("2024-03-04"));
+        let out = expand_template("{FROM:%s}-{TO:%s}", &c).unwrap();
+        assert_eq!(out, "1704153600-1709510400");
     }
 
     #[test]

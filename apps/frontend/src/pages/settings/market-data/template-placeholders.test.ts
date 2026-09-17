@@ -15,6 +15,18 @@ describe("template placeholders", () => {
     ).toBe("20240102/04/03/2024/2024/2024-06-15");
   });
 
+  it("expands %s to unix timestamp in seconds", () => {
+    expect(
+      expandTemplatePlaceholders(
+        "{FROM:%s}/{TO:%s}/{TODAY:%s}",
+        { FROM: "2024-01-02", TO: "2024-03-04", TODAY: "2024-01-02" },
+        now,
+      ),
+    ).toBe("1704153600/1709510400/1704153600");
+    const dateValue = expandTemplatePlaceholders("{DATE:%s}", {}, now);
+    expect(dateValue).toBe(String(Math.floor(now.getTime() / 1000)));
+  });
+
   it("keeps unknown placeholders unchanged", () => {
     expect(expandTemplatePlaceholders("{SYMBOL}/{UNKNOWN:%Q}", { SYMBOL: "AAPL" }, now)).toBe(
       "AAPL/{UNKNOWN:%Q}",
