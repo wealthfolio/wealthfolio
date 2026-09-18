@@ -1,3 +1,5 @@
+import { formatZonedDateKey } from "@/features/spending/lib/timezone";
+import { parseLocalDate } from "@/lib/utils";
 import { calculatePerformanceSummary } from "@/adapters";
 import { HistoryChart } from "@/components/history-chart";
 import { useHapticFeedback } from "@/hooks";
@@ -8,7 +10,7 @@ import { HoldingType, isAlternativeAssetKind } from "@/lib/constants";
 import { performancePeriodPnl, performanceSummaryReturn } from "@/lib/performance";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
-import { DateRange, TimePeriod } from "@/lib/types";
+import { TimePeriod } from "@/lib/types";
 import { PortfolioUpdateTrigger } from "@/pages/dashboard/portfolio-update-trigger";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { TimePeriod as UITimePeriod } from "@wealthfolio/ui";
@@ -73,14 +75,16 @@ function getDashboardNetContributionMaxDomainSpanRatio(period: UITimePeriod): nu
 
 export function DashboardContent() {
   const { t } = useTranslation();
+  const { settings } = useSettingsContext();
+  const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
   // Use the same persisted state as IntervalSelector for the interval code
   const [intervalCode] = usePersistentState<UITimePeriod>(INTERVAL_STORAGE_KEY, DEFAULT_INTERVAL);
 
-  // Derive initial values from the persisted interval code
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(
-    () => getInitialIntervalData(intervalCode).range,
-  );
   const [selectedInterval, setSelectedInterval] = useState<UITimePeriod>(() => intervalCode);
+  const dateRange = useMemo(
+    () => getInitialIntervalData(selectedInterval, parseLocalDate(todayISO)).range,
+    [selectedInterval, todayISO],
+  );
   const [isAllTime, setIsAllTime] = useState<boolean>(() => intervalCode === "ALL");
 
   const { holdings: allHoldings, isLoading: isHoldingsLoading } = useHoldings({ type: "all" });
@@ -109,7 +113,6 @@ export function DashboardContent() {
   const { valuationHistory, isLoading: isValuationHistoryLoading } =
     useValuationHistory(valuationHistoryRange);
 
-  const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
   const startDate =
@@ -167,13 +170,8 @@ export function DashboardContent() {
   const isNegative = totalValue < 0;
 
   // Callback for IntervalSelector
-  const handleIntervalSelect = (
-    code: TimePeriod,
-    _description: string,
-    range: DateRange | undefined,
-  ) => {
+  const handleIntervalSelect = (code: TimePeriod) => {
     setSelectedInterval(code);
-    setDateRange(range);
     setIsAllTime(code === "ALL");
   };
 

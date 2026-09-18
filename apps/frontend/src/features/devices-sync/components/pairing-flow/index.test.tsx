@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PairingFlow } from "./index";
 
 const hookMocks = vi.hoisted(() => ({
+  backupDatabase: vi.fn(),
   useSyncStatus: vi.fn(),
   usePairingIssuer: vi.fn(),
   usePairingClaimer: vi.fn(),
@@ -22,8 +23,7 @@ vi.mock("@/adapters", () => ({
     debug: vi.fn(),
     trace: vi.fn(),
   },
-  backupDatabase: vi.fn(),
-  openFileSaveDialog: vi.fn(),
+  backupDatabase: hookMocks.backupDatabase,
 }));
 
 describe("PairingFlow", () => {
@@ -202,4 +202,40 @@ describe("PairingFlow", () => {
     fireEvent.click(replaceButton);
     expect(approveOverwrite).toHaveBeenCalledTimes(1);
   });
+  it.each([true, false])(
+    "requires a successful managed backup before overwrite (success=%s)",
+    async (succeeds) => {
+      const approveOverwrite = vi.fn();
+      let finish!: () => void;
+      hookMocks.backupDatabase.mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            finish = () =>
+              succeeds ? resolve({ filename: "managed.db" }) : reject(new Error("disk full"));
+          }),
+      );
+      hookMocks.useSyncStatus.mockReturnValue({ device: { trustState: "untrusted" } });
+      hookMocks.usePairingIssuer.mockReturnValue({});
+      hookMocks.usePairingClaimer.mockReturnValue({
+        step: "overwrite_required",
+        overwriteInfo: { localRows: 1, nonEmptyTables: [] },
+        isApprovingOverwrite: false,
+        approveOverwrite,
+        cancel: vi.fn(),
+      });
+      render(<PairingFlow />);
+      fireEvent.click(screen.getByRole("button", { name: "Back up first" }));
+      expect(hookMocks.backupDatabase).toHaveBeenCalledTimes(1);
+      expect(approveOverwrite).not.toHaveBeenCalled();
+      finish();
+      if (succeeds) {
+        await waitFor(() => expect(approveOverwrite).toHaveBeenCalledTimes(1));
+      } else {
+        await waitFor(() =>
+          expect(screen.getByRole("button", { name: "Back up first" })).toBeEnabled(),
+        );
+        expect(approveOverwrite).not.toHaveBeenCalled();
+      }
+    },
+  );
 });

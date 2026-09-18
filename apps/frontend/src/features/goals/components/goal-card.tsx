@@ -1,3 +1,5 @@
+import { formatZonedDateKey } from "@/features/spending/lib/timezone";
+import { parseLocalDate } from "@/lib/utils";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { Goal } from "@/lib/types";
@@ -30,10 +32,10 @@ function coverImageSrc(goalType: string): string {
   return `/goals/${goalType}.png`;
 }
 
-function formatTimeLeft(t: TFn, targetDate?: string): string {
+function formatTimeLeft(t: TFn, targetDate?: string, timezone?: string): string {
   if (!targetDate) return t("goals:card.no_deadline");
-  const target = new Date(targetDate);
-  const now = new Date();
+  const target = parseLocalDate(targetDate);
+  const now = parseLocalDate(formatZonedDateKey(new Date(), timezone));
   if (!Number.isFinite(target.getTime())) return t("goals:card.no_deadline");
   if (target.getTime() <= now.getTime()) return t("goals:card.due");
   let months =
@@ -135,7 +137,7 @@ export function GoalCard({ goal }: { goal: Goal }) {
 
   const deadline = goal.targetDate ?? goal.projectedCompletionDate;
   const targetDateStr = formatTargetDate(deadline, dateFormatting);
-  const timeLeftStr = formatTimeLeft(t, deadline);
+  const timeLeftStr = formatTimeLeft(t, deadline, settings?.timezone);
 
   const remaining = Math.max(0, target - current);
   const hasRemaining = target > 0 && remaining > 0;

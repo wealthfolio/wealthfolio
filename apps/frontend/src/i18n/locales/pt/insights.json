@@ -68,7 +68,8 @@
       "holdings_count_many": "{{count}} posições",
       "accounts_count_one": "{{count}} conta",
       "accounts_count_other": "{{count}} contas",
-      "accounts_count_many": "{{count}} contas"
+      "accounts_count_many": "{{count}} contas",
+      "pnl_current_holdings": "Posições atuais"
     }
   },
   "networth": {
@@ -131,5 +132,35 @@
     "days_ago_one": "há {{count}} d",
     "days_ago_other": "há {{count}} d",
     "days_ago_many": "há {{count}} d"
+  },
+  "highlights": {
+    "movers": "Maiores variações",
+    "concentration": "Concentração",
+    "daily": "Variação diária · posições atuais",
+    "rank_by": "Ordenar variações diárias por",
+    "gainers": "Maiores altas",
+    "losers": "Maiores baixas",
+    "no_moves": "Nenhuma variação com dados disponíveis.",
+    "portfolio_share": "Parcela do valor da carteira, incluindo o saldo em caixa",
+    "largest": "Maior posição",
+    "top_five": "Cinco maiores posições",
+    "concentration_unavailable": "A concentração exige posições com valores positivos e uma carteira sem posições vendidas."
+  },
+  "customize": {
+    "edit": "Personalizar",
+    "widgets": "Widgets",
+    "reset": "Redefinir layout",
+    "cancel": "Cancelar",
+    "save": "Salvar layout",
+    "saving": "Salvando…",
+    "hint": "Arraste os widgets pelas alças ou ajuste a largura pela borda direita.",
+    "description": "Escolha quais widgets mostrar. Use as setas para alterar a ordem, inclusive no celular.",
+    "value": "Resumo da carteira",
+    "breakdown": "Detalhamento",
+    "move_up": "Mover {{widget}} para cima",
+    "move_down": "Mover {{widget}} para baixo",
+    "hide": "Ocultar {{widget}}",
+    "drag": "Arrastar {{widget}}",
+    "empty": "Nenhum widget selecionado. Personalize esta página para adicionar widgets."
   }
 }

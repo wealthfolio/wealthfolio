@@ -9,7 +9,7 @@ use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 
-use wealthfolio_core::secrets::SecretStore;
+use wealthfolio_core::secrets::{SecretStore, SYNC_IDENTITY_KEY};
 
 use crate::{
     crypto, CommitInitializeKeysRequest, DevicePlatform, DeviceSyncClient, EnrollDeviceResponse,
@@ -20,7 +20,6 @@ use crate::{
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SYNC_IDENTITY_KEY: &str = "sync_identity";
 const RESET_REASON_REINITIALIZE: &str = "reinitialize";
 
 static ENROLL_OPERATION_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -789,5 +788,41 @@ impl DeviceEnrollService {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use wealthfolio_core::secrets::LEGACY_SYNC_DEVICE_ID_KEY;
+
+    #[derive(Default)]
+    struct MemorySecrets(std::sync::Mutex<HashMap<String, String>>);
+
+    impl SecretStore for MemorySecrets {
+        fn get_secret(&self, key: &str) -> wealthfolio_core::errors::Result<Option<String>> {
+            Ok(self.0.lock().unwrap().get(key).cloned())
+        }
+        fn set_secret(&self, key: &str, value: &str) -> wealthfolio_core::errors::Result<()> {
+            self.0.lock().unwrap().insert(key.into(), value.into());
+            Ok(())
+        }
+        fn delete_secret(&self, key: &str) -> wealthfolio_core::errors::Result<()> {
+            self.0.lock().unwrap().remove(key);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn legacy_only_installations_require_enrollment() {
+        let store = Arc::new(MemorySecrets::default());
+        store
+            .set_secret(LEGACY_SYNC_DEVICE_ID_KEY, "old-device")
+            .unwrap();
+        let service = DeviceEnrollService::new(store, "http://127.0.0.1:1", "test".into(), None);
+        let state = service.get_sync_state("test-token").await.unwrap();
+        assert_eq!(state.state, SyncState::Fresh);
+        assert!(state.device_id.is_none());
     }
 }

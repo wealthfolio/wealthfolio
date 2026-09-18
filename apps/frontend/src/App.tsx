@@ -1,3 +1,5 @@
+import { NativeDatabaseGate } from "@/features/database-recovery/native-database-gate";
+import { RestoredPortfolioNotice } from "@/features/database-recovery/restored-portfolio-notice";
 import { isWeb } from "@/adapters";
 import { AddonRuntimeLoader } from "@/addons/addon-runtime-loader";
 import { setAddonQueryClient } from "@/addons/addons-runtime-context";
@@ -32,33 +34,31 @@ function App() {
 
   setAddonQueryClient(queryClient as unknown as Parameters<typeof setAddonQueryClient>[0]);
 
-  const routedContent = isWebEnv ? (
-    <AuthGate fallback={<LoginPage />}>
-      <AssetLogoRegistrySync />
-      <AppRoutes />
-    </AuthGate>
-  ) : (
-    <>
-      <AssetLogoRegistrySync />
-      <AppRoutes />
-    </>
+  const content = (
+    <WealthfolioConnectProvider>
+      <PrivacyProvider>
+        <SettingsProvider>
+          <TooltipProvider>
+            <Toaster mobileOffset={{ top: "68px" }} closeButton expand={false} />
+            <RestoredPortfolioNotice />
+            <AddonRuntimeLoader />
+            <EventDialogProvider>
+              <AssetLogoRegistrySync />
+              <AppRoutes />
+            </EventDialogProvider>
+          </TooltipProvider>
+        </SettingsProvider>
+      </PrivacyProvider>
+    </WealthfolioConnectProvider>
   );
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <WealthfolioConnectProvider>
-          <PrivacyProvider>
-            <SettingsProvider>
-              <TooltipProvider>
-                <Toaster mobileOffset={{ top: "68px" }} closeButton expand={false} />
-                <AddonRuntimeLoader />
-                <EventDialogProvider>{routedContent}</EventDialogProvider>
-              </TooltipProvider>
-            </SettingsProvider>
-          </PrivacyProvider>
-        </WealthfolioConnectProvider>
-      </AuthProvider>
+      <NativeDatabaseGate>
+        <AuthProvider>
+          {isWebEnv ? <AuthGate fallback={<LoginPage />}>{content}</AuthGate> : content}
+        </AuthProvider>
+      </NativeDatabaseGate>
     </QueryClientProvider>
   );
 }

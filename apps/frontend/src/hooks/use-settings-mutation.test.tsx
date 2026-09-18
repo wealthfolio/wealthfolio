@@ -103,7 +103,7 @@ describe("useSettingsMutation", () => {
    * The timezone travels in no request and appears in no query key, so nothing
    * else would evict the pages computed under the old one.
    */
-  it("refetches spending caches when the timezone changes", async () => {
+  it("refetches spending and planning caches when the timezone changes", async () => {
     vi.mocked(updateSettings).mockResolvedValue({
       timezone: "America/New_York",
       onboardingCompleted: true,
@@ -123,6 +123,9 @@ describe("useSettingsMutation", () => {
 
     const invalidated = invalidate.mock.calls.flatMap((call) => call[0]?.queryKey ?? []);
     expect(invalidated).toContain(QueryKeys.SPENDING_TRANSACTIONS);
+    expect(invalidated).toContain(QueryKeys.RETIREMENT_OVERVIEW);
+    expect(invalidated).toContain(QueryKeys.SAVE_UP_OVERVIEW);
+    expect(invalidated).toContain(QueryKeys.SAVE_UP_PREVIEW);
   });
 
   it("leaves spending caches alone for an unrelated setting", async () => {
@@ -144,5 +147,8 @@ describe("useSettingsMutation", () => {
 
     const invalidated = invalidate.mock.calls.flatMap((call) => call[0]?.queryKey ?? []);
     expect(invalidated).not.toContain(QueryKeys.SPENDING_TRANSACTIONS);
+    expect(invalidated).not.toContain(QueryKeys.RETIREMENT_OVERVIEW);
+    expect(invalidated).not.toContain(QueryKeys.SAVE_UP_OVERVIEW);
+    expect(invalidated).not.toContain(QueryKeys.SAVE_UP_PREVIEW);
   });
 });

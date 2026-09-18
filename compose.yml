@@ -22,6 +22,8 @@ services:
       WF_SECRET_KEY: "${WF_SECRET_KEY:-}"
       # Alternative: path inside the container to a separately mounted secret.
       WF_SECRET_KEY_FILE: "${WF_SECRET_KEY_FILE:-}"
+      # Startup requirement; convert existing databases offline before enabling.
+      WF_DB_REQUIRE_ENCRYPTION: "${WF_DB_REQUIRE_ENCRYPTION:-0}"
 
       # ── Authentication ────────────────────────────────────────────────
       # Required when listening on 0.0.0.0 (the default for Docker).

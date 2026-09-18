@@ -8,6 +8,9 @@ and this project adheres to
 
 ### Added
 
+- `NetworkRequest.timeoutSecs` for longer-running addon HTTP requests. Defaults
+  to 10 seconds; positive integer values are capped server-side at 120 seconds.
+
 - Optional `ActivityImport.isExternal` boundary override for transfer and credit
   imports.
 - `ExchangeRatesAPI.getRatesForDates(pairs)` for batched date-specific FX-rate

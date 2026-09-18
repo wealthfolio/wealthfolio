@@ -2,4 +2,8 @@
 <full-backup-content>
     <!-- Android Keystore keys are device-bound and cannot accompany restored ciphertext. -->
     <exclude domain="sharedpref" path="keyring-default.xml" />
+    <!-- Tauri stores app.db, conversion files and backups in dataDir.
+         Device-bound database keys cannot be restored with these files.
+         Use an explicit portable export to move portfolio data. -->
+    <exclude domain="root" path="." />
 </full-backup-content>

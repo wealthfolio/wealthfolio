@@ -2178,6 +2178,7 @@ mod service_tests {
                         auth_type: "bearer".to_string(),
                         secret_key: "api-token".to_string(),
                     }),
+                    timeout_secs: None,
                     injected_authorization: Some("Bearer secret-token".to_string()),
                 },
             )
@@ -2244,6 +2245,7 @@ mod service_tests {
                         auth_type: "bearer".to_string(),
                         secret_key: "api-token".to_string(),
                     }),
+                    timeout_secs: None,
                     injected_authorization: Some("Bearer secret-token".to_string()),
                 },
             )

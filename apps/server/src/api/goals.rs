@@ -243,10 +243,14 @@ async fn get_save_up_overview(
 }
 
 async fn preview_save_up_overview(
+    State(state): State<Arc<AppState>>,
     Json(input): Json<SaveUpInput>,
 ) -> ApiResult<Json<SaveUpOverview>> {
-    validate_save_up_input(&input)?;
-    Ok(Json(compute_save_up_overview(&input)))
+    let as_of = user_today(parse_user_timezone_or_default(
+        &state.timezone.read().unwrap(),
+    ));
+    validate_save_up_input(&input, as_of)?;
+    Ok(Json(compute_save_up_overview(&input, as_of)))
 }
 
 // ─── RetirementPlan-based Simulation Endpoints ───────────────────────────────
@@ -316,6 +320,7 @@ async fn resolve_retirement_inputs(
     planner_mode: Option<RetirementTimingMode>,
     plan: RetirementPlan,
     current_portfolio: f64,
+    as_of: chrono::NaiveDate,
 ) -> ApiResult<(RetirementPlan, f64, RetirementTimingMode)> {
     if let Some(goal_id) = goal_id {
         let valuation_map = build_valuation_map(state).await?;
@@ -330,7 +335,7 @@ async fn resolve_retirement_inputs(
         ))
     } else {
         let mut plan = plan;
-        normalize_retirement_plan_ages(&mut plan);
+        normalize_retirement_plan_ages(&mut plan, as_of);
         validate_retirement_plan(&plan)?;
         Ok((
             plan,
@@ -355,15 +360,19 @@ async fn retirement_projection(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RetirementSimulationRequest>,
 ) -> ApiResult<Json<fire::FireProjection>> {
+    let as_of = user_today(parse_user_timezone_or_default(
+        &state.timezone.read().unwrap(),
+    ));
     let (plan, current_portfolio, planner_mode) = resolve_retirement_inputs(
         &state,
         &req.goal_id,
         req.planner_mode,
         req.plan,
         req.current_portfolio,
+        as_of,
     )
     .await?;
-    let result = fire::project_retirement_with_mode(&plan, current_portfolio, planner_mode);
+    let result = fire::project_retirement_with_mode(&plan, current_portfolio, planner_mode, as_of);
     Ok(Json(result))
 }
 
@@ -371,6 +380,9 @@ async fn retirement_monte_carlo(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RetirementMonteCarloRequest>,
 ) -> ApiResult<Json<MonteCarloResult>> {
+    let as_of = user_today(parse_user_timezone_or_default(
+        &state.timezone.read().unwrap(),
+    ));
     let n = normalize_sim_count(req.n_sims);
     let (plan, current_portfolio, planner_mode) = resolve_retirement_inputs(
         &state,
@@ -378,6 +390,7 @@ async fn retirement_monte_carlo(
         req.planner_mode,
         req.plan,
         req.current_portfolio,
+        as_of,
     )
     .await?;
     let result = run_retirement_blocking(move || {
@@ -397,16 +410,20 @@ async fn retirement_stress_tests(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RetirementSimulationRequest>,
 ) -> ApiResult<Json<Vec<StressTestResult>>> {
+    let as_of = user_today(parse_user_timezone_or_default(
+        &state.timezone.read().unwrap(),
+    ));
     let (plan, current_portfolio, planner_mode) = resolve_retirement_inputs(
         &state,
         &req.goal_id,
         req.planner_mode,
         req.plan,
         req.current_portfolio,
+        as_of,
     )
     .await?;
     let result = run_retirement_blocking(move || {
-        fire::run_stress_tests_with_mode(&plan, current_portfolio, planner_mode)
+        fire::run_stress_tests_with_mode(&plan, current_portfolio, planner_mode, as_of)
     })
     .await?;
     Ok(Json(result))
@@ -416,16 +433,20 @@ async fn retirement_scenario_analysis(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RetirementSimulationRequest>,
 ) -> ApiResult<Json<Vec<ScenarioResult>>> {
+    let as_of = user_today(parse_user_timezone_or_default(
+        &state.timezone.read().unwrap(),
+    ));
     let (plan, current_portfolio, planner_mode) = resolve_retirement_inputs(
         &state,
         &req.goal_id,
         req.planner_mode,
         req.plan,
         req.current_portfolio,
+        as_of,
     )
     .await?;
     let result = run_retirement_blocking(move || {
-        fire::run_scenario_analysis_with_mode(&plan, current_portfolio, planner_mode)
+        fire::run_scenario_analysis_with_mode(&plan, current_portfolio, planner_mode, as_of)
     })
     .await?;
     Ok(Json(result))
@@ -435,12 +456,16 @@ async fn retirement_decision_sensitivity_map(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RetirementDecisionSensitivityMapRequest>,
 ) -> ApiResult<Json<DecisionSensitivityMatrix>> {
+    let as_of = user_today(parse_user_timezone_or_default(
+        &state.timezone.read().unwrap(),
+    ));
     let (plan, current_portfolio, planner_mode) = resolve_retirement_inputs(
         &state,
         &req.goal_id,
         req.planner_mode,
         req.plan,
         req.current_portfolio,
+        as_of,
     )
     .await?;
     let result = run_retirement_blocking(move || {
@@ -449,6 +474,7 @@ async fn retirement_decision_sensitivity_map(
             current_portfolio,
             planner_mode,
             req.map,
+            as_of,
         )
     })
     .await?;
@@ -459,6 +485,9 @@ async fn retirement_sequence_of_returns(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RetirementSorrRequest>,
 ) -> ApiResult<Json<Vec<SorrScenario>>> {
+    let as_of = user_today(parse_user_timezone_or_default(
+        &state.timezone.read().unwrap(),
+    ));
     let plan = if let Some(goal_id) = &req.goal_id {
         let valuation_map = build_valuation_map(&state).await?;
         state
@@ -468,7 +497,7 @@ async fn retirement_sequence_of_returns(
             .plan
     } else {
         let mut plan = req.plan;
-        normalize_retirement_plan_ages(&mut plan);
+        normalize_retirement_plan_ages(&mut plan, as_of);
         validate_retirement_plan(&plan)?;
         plan
     };

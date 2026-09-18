@@ -112,6 +112,10 @@ pub fn default_adapter_descriptors() -> Vec<EntityAdapterDescriptor> {
             table_name: "allocation_target_constraints",
         },
         EntityAdapterDescriptor {
+            entity: SyncEntity::AppPreference,
+            table_name: "app_settings",
+        },
+        EntityAdapterDescriptor {
             entity: SyncEntity::SpendingSetting,
             table_name: "app_settings",
         },

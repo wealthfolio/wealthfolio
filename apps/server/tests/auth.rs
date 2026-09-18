@@ -29,9 +29,9 @@ async fn build_test_router(password: &str) -> axum::Router {
     std::env::set_var("WF_SECRET_KEY", secret_b64);
     std::env::set_var("WF_CORS_ALLOW_ORIGINS", "http://localhost:3000");
 
-    let config = Config::from_env();
+    let config = Config::from_env().unwrap();
     let state = build_state(&config).await.unwrap();
-    app_router(state, &config)
+    app_router(state, &config).unwrap()
 }
 
 fn cleanup_env() {

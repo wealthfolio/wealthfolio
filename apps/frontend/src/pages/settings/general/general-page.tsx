@@ -4,6 +4,7 @@ import { usePlatform } from "@/hooks/use-platform";
 import { SettingsHeader } from "../settings-header";
 import { AutoUpdateSettings } from "./auto-update-settings";
 import { BaseCurrencySettings } from "./currency-settings";
+import { DatabaseEncryptionSettings } from "./database-encryption-settings";
 import { ExchangeRatesSettings } from "./exchange-rates/exchange-rates-settings";
 import { LanguageRegionSettings } from "./language-region-settings";
 
@@ -22,6 +23,9 @@ export default function GeneralSettingsPage() {
       <LanguageRegionSettings />
       <div className="pt-6">
         <ExchangeRatesSettings />
+      </div>
+      <div className="pt-6">
+        <DatabaseEncryptionSettings />
       </div>
       {!isMobile && (
         <div className="pt-6">

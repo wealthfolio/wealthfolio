@@ -12,10 +12,22 @@ image, and NDK `28.2.13676358` (the version pinned by the Android project).
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
+# Vendored OpenSSL needs the NDK LLVM indexer; GNU-prefixed ranlib is absent.
+export RANLIB_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ranlib"
+export RANLIB_armv7_linux_androideabi="$RANLIB_aarch64_linux_android"
+export RANLIB_i686_linux_android="$RANLIB_aarch64_linux_android"
+export RANLIB_x86_64_linux_android="$RANLIB_aarch64_linux_android"
 export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
 rustup target add aarch64-linux-android
 pnpm install --frozen-lockfile
 ```
+
+SQLCipher builds vendored OpenSSL, which requires Perl and the NDK toolchain.
+The target-specific `RANLIB_*` variables above are required for CLI builds with
+this NDK; its old GNU-prefixed `ranlib` binaries are absent. On Linux, use the
+`linux-x86_64` prebuilt directory; on Windows, use
+`windows-x86_64/bin/llvm-ranlib.exe`. The tracked Gradle build task configures
+LLVM ranlib automatically for Android Studio builds.
 
 ## Run with live reload
 
@@ -60,6 +72,14 @@ The ARM64 target works with Apple Silicon ARM64 emulators and ARM64 devices; use
 - Navigation: open accounts, holdings, activities, and settings; check Android
   Back, keyboard dismissal, and content around system bars.
 - Persistence: restart the app and confirm test data and settings remain.
+- Database encryption: enable it in General Settings, force-stop and reopen the
+  app, and verify the same test data is readable. Export a portable backup,
+  disable encryption, restart, and restore the export. Re-enable encryption to
+  verify the retained key still works.
+- Recovery: use an explicit portable export when moving to another device.
+  Android automatic backup excludes the database and internal backups because
+  their Keystore-protected key cannot accompany them. This also applies while
+  database encryption is disabled.
 - Files: import a sample CSV through the Android picker; export CSV and a
   database backup to Downloads. Restore that test backup and verify the data
   after restart. Also cancel each picker and check that the app remains usable.

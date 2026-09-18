@@ -296,16 +296,11 @@ export const exportDataTypeSchema = z.enum([
 export const ExportedFileFormat = {
   CSV: "CSV",
   JSON: "JSON",
-  SQLITE: "SQLite",
 } as const;
 
 export type ExportedFileFormat = (typeof ExportedFileFormat)[keyof typeof ExportedFileFormat];
 
-export const exportedFileFormatSchema = z.enum([
-  ExportedFileFormat.CSV,
-  ExportedFileFormat.JSON,
-  ExportedFileFormat.SQLITE,
-]);
+export const exportedFileFormatSchema = z.enum([ExportedFileFormat.CSV, ExportedFileFormat.JSON]);
 
 // Canonical activity types (closed set of 14)
 export const ActivityType = {

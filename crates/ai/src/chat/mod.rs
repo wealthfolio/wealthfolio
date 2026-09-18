@@ -20,7 +20,7 @@ use attachments::{messages_have_attachment_markers, validate_attachments, Sessio
 use streaming::spawn_chat_stream;
 use working_context::ChatWorkingContext;
 
-use futures::stream::BoxStream;
+use futures::{stream::BoxStream, StreamExt};
 use log::{debug, error, info};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -39,6 +39,111 @@ use crate::types::{
 // Used only by the inline `mod tests` (test-only fixtures + redact tests).
 #[cfg(test)]
 use crate::types::MessageAttachment;
+
+/// Poll the bounded channel and its producer together, including when the
+/// producer is waiting for channel capacity. Neither outlives the returned stream.
+fn owned_event_stream(
+    receiver: mpsc::Receiver<AiStreamEvent>,
+    producer: impl std::future::Future<Output = ()> + Send + 'static,
+) -> BoxStream<'static, AiStreamEvent> {
+    let producer = futures::stream::once(producer)
+        .filter_map(|()| futures::future::ready(None::<AiStreamEvent>));
+    futures::stream::select(
+        tokio_stream::wrappers::ReceiverStream::new(receiver),
+        producer,
+    )
+    .boxed()
+}
+
+#[cfg(test)]
+mod stream_ownership_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn bounded_producer_drains_final_events_without_deadlock() {
+        let (tx, rx) = mpsc::channel(100);
+        let mut events = owned_event_stream(rx, async move {
+            for n in 0..250 {
+                tx.send(AiStreamEvent::text_delta(
+                    "thread",
+                    "run",
+                    "message",
+                    &n.to_string(),
+                ))
+                .await
+                .unwrap();
+            }
+            tx.send(AiStreamEvent::done(
+                "thread",
+                "run",
+                ChatMessage::assistant_with_id("message", "thread"),
+                None,
+            ))
+            .await
+            .unwrap();
+        });
+        let mut count = 0;
+        while let Some(event) = tokio::time::timeout(Duration::from_secs(2), events.next())
+            .await
+            .unwrap()
+        {
+            if count == 250 {
+                assert!(matches!(event, AiStreamEvent::Done { .. }));
+            }
+            count += 1;
+        }
+        assert_eq!(count, 251);
+    }
+
+    #[tokio::test]
+    async fn error_event_is_delivered_before_end_of_stream() {
+        let (tx, rx) = mpsc::channel(1);
+        let mut events = owned_event_stream(rx, async move {
+            tx.send(AiStreamEvent::error(
+                "thread", "run", None, "TEST", "failure",
+            ))
+            .await
+            .unwrap();
+        });
+        assert!(matches!(
+            events.next().await,
+            Some(AiStreamEvent::Error { .. })
+        ));
+        assert!(events.next().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn dropping_running_stream_releases_producer_and_title_resources_immediately() {
+        let producer_resource = Arc::new(());
+        let title_resource = Arc::new(());
+        let producer_capture = producer_resource.clone();
+        let title_capture = title_resource.clone();
+        let (tx, rx) = mpsc::channel(1);
+        let mut events = owned_event_stream(rx, async move {
+            let response = async move {
+                let _capture = producer_capture;
+                tx.send(AiStreamEvent::text_delta(
+                    "thread", "run", "message", "started",
+                ))
+                .await
+                .unwrap();
+                std::future::pending::<()>().await;
+            };
+            let title = async move {
+                let _capture = title_capture;
+                std::future::pending::<()>().await;
+            };
+            tokio::join!(response, title);
+        });
+        assert!(events.next().await.is_some());
+        assert_eq!(Arc::strong_count(&producer_resource), 2);
+        assert_eq!(Arc::strong_count(&title_resource), 2);
+        drop(events);
+        // No yield or shutdown task is needed to release these captures.
+        assert_eq!(Arc::strong_count(&producer_resource), 1);
+        assert_eq!(Arc::strong_count(&title_resource), 1);
+    }
+}
 
 fn derive_initial_thread_title(first_user_message: &str) -> Option<String> {
     let trimmed = first_user_message.trim();
@@ -362,8 +467,8 @@ impl<E: AiEnvironment + 'static> ChatService<E> {
         let is_new_thread_clone = is_new_thread;
         let thinking_override = request.config.as_ref().and_then(|c| c.thinking);
 
-        // Spawn the streaming task
-        tokio::spawn(async move {
+        // The returned stream owns this work; disconnecting drops its services.
+        let producer = async move {
             if let Err(e) = spawn_chat_stream(
                 env,
                 tx.clone(),
@@ -395,11 +500,9 @@ impl<E: AiEnvironment + 'static> ChatService<E> {
                     ))
                     .await;
             }
-        });
+        };
 
-        // Convert receiver to stream
-        let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
-        Ok(Box::pin(stream))
+        Ok(owned_event_stream(rx, producer))
     }
 
     /// List available tool names.

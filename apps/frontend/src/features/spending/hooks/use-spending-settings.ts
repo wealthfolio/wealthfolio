@@ -18,12 +18,17 @@ export function useSpendingSettings() {
     settings: query.data,
     isEnabled: query.data?.enabled ?? false,
     accountIds: query.data?.accountIds ?? [],
+    excludedCategoryIds: query.data?.excludedCategoryIds ?? [],
     isLoading: query.isLoading,
     error: query.error,
   };
 }
 
-export function useSpendingSettingsMutation() {
+/**
+ * `silent` skips the hook's own toasts for callers that fold this write into a
+ * larger action and report the outcome once themselves.
+ */
+export function useSpendingSettingsMutation({ silent = false }: { silent?: boolean } = {}) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -34,8 +39,10 @@ export function useSpendingSettingsMutation() {
       // spending-scoped cache so each view refetches with the new account_ids.
       invalidateSpendingCaches(queryClient);
       queryClient.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] });
-      toast.success("Spending settings updated.");
+      if (!silent) toast.success("Spending settings updated.");
     },
-    onError: () => toast.error("Failed to update spending settings."),
+    onError: () => {
+      if (!silent) toast.error("Failed to update spending settings.");
+    },
   });
 }

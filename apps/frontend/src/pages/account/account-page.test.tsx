@@ -155,11 +155,14 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: vi.fn(),
 }));
 
-vi.mock("@wealthfolio/ui", () => {
+vi.mock("@wealthfolio/ui", async () => {
+  const { getInitialIntervalData } =
+    await import("@wealthfolio/ui/components/financial/interval-selector");
   const Icon = () => <span>icon</span>;
   const Passthrough = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
 
   return {
+    getInitialIntervalData,
     AnimatedToggleGroup: ({
       items,
       onValueChange,
@@ -494,6 +497,22 @@ describe("AccountPage", () => {
     render(<AccountPage />);
 
     expect(screen.getByText("snapshot-history")).toBeInTheDocument();
+  });
+  it("uses the configured calendar day for the initial account range", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-12-31T16:30:00Z"));
+      mockUseSettingsContext.mockReturnValue({
+        settings: { baseCurrency: "USD", timezone: "Asia/Shanghai" },
+      } as ReturnType<typeof useSettingsContext>);
+      render(<AccountPage />);
+      expect(mockUseValuationHistory.mock.calls[0][0]).toEqual({
+        from: new Date(2026, 9, 1),
+        to: new Date(2027, 0, 1),
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub const INSIGHTS_OVERVIEW_LAYOUT_KEY: &str = "insights_overview_layout";
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
@@ -15,7 +17,13 @@ pub struct Settings {
     pub auto_update_check_enabled: bool,
     pub menu_bar_visible: bool,
     pub sync_enabled: bool,
+    /// Read-only restore state; clearing UI feedback must not authorize sync.
+    #[serde(default)]
+    pub restore_reconnect_required: bool,
     pub default_return_metric: String,
+    /// Versioned dashboard preferences; the frontend validates the layout schema.
+    #[serde(default)]
+    pub insights_overview_layout: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 impl Default for Settings {
@@ -31,7 +39,9 @@ impl Default for Settings {
             auto_update_check_enabled: true,
             menu_bar_visible: true,
             sync_enabled: true,
+            restore_reconnect_required: false,
             default_return_metric: "twr".to_string(),
+            insights_overview_layout: None,
         }
     }
 }
@@ -50,6 +60,7 @@ pub struct SettingsUpdate {
     pub menu_bar_visible: Option<bool>,
     pub sync_enabled: Option<bool>,
     pub default_return_metric: Option<String>,
+    pub insights_overview_layout: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

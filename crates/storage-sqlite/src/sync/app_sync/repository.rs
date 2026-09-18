@@ -33,7 +33,8 @@ use super::model::{
     SyncAppliedEventDB, SyncCursorDB, SyncDeviceConfigDB, SyncEngineStateDB, SyncEntityMetadataDB,
     SyncOutboxEventDB, SyncTableStateDB,
 };
-use super::outbox_models::is_syncable_spending_setting_key;
+use super::outbox_models::{is_syncable_app_preference_key, is_syncable_spending_setting_key};
+use wealthfolio_core::settings::INSIGHTS_OVERVIEW_LAYOUT_KEY;
 
 fn enum_to_db<T: serde::Serialize>(value: &T) -> Result<String> {
     Ok(serde_json::to_string(value)?.trim_matches('"').to_string())
@@ -83,6 +84,26 @@ fn payload_column_catalog_cache() -> &'static Mutex<HashMap<String, PayloadColum
 
 fn escape_sqlite_str(value: &str) -> String {
     value.replace('\'', "''")
+}
+
+/// A unique path for a short-lived snapshot file, in the private scratch
+/// directory beside the application database rather than the shared system temp
+/// directory.
+fn snapshot_scratch_path(conn: &mut SqliteConnection, purpose: &str) -> Result<std::path::PathBuf> {
+    #[derive(QueryableByName)]
+    struct MainDatabaseFile {
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        file: String,
+    }
+
+    let main_file: String =
+        diesel::sql_query("SELECT file FROM pragma_database_list WHERE name = 'main'")
+            .get_result::<MainDatabaseFile>(conn)
+            .map(|row| row.file)
+            .map_err(StorageError::from)?;
+
+    let dir = crate::db::scratch_dir_beside(std::path::Path::new(&main_file))?;
+    Ok(dir.join(format!("wf_snapshot_{}_{}.db", purpose, Uuid::now_v7())))
 }
 
 fn quote_identifier(value: &str) -> String {
@@ -159,7 +180,7 @@ enum SyncRowFilter {
     ManualQuotes,
     UserImportRuns,
     UserSyncableActivities,
-    SpendingSettings,
+    SyncableSettings,
     UserTaxonomies,
     SyncableTaxonomyCategories,
     UserModifiedBudgetGroups,
@@ -190,7 +211,10 @@ impl SyncRowFilter {
                 "UPPER(run_type) = 'IMPORT' AND UPPER(source_system) IN ('CSV', 'MANUAL')"
             }
             Self::UserSyncableActivities => USER_SYNCABLE_ACTIVITIES_FILTER_SQL,
-            Self::SpendingSettings => "setting_key IN ('spending.enabled', 'spending.account_ids')",
+            Self::SyncableSettings => {
+                static FILTER: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| format!("setting_key IN ('spending.enabled', 'spending.account_ids', 'spending.excluded_category_ids', '{}')", INSIGHTS_OVERVIEW_LAYOUT_KEY));
+                FILTER.as_str()
+            },
             Self::UserTaxonomies => "is_system = 0",
             // Spending/income seed category IDs use the `cat_` prefix; user-created rows use UUIDs.
             Self::SyncableTaxonomyCategories => {
@@ -660,10 +684,10 @@ const SYNC_TABLE_SNAPSHOT_COPY_FILTERS: &[SyncTableFilterSpec] = &[
         table: "spending_activity_events",
         filter: SyncRowFilter::RowsWithUserSyncableActivity,
     },
-    // Only the spending module's app_settings keys participate in sync.
+    // Only explicitly allowlisted settings participate in sync.
     SyncTableFilterSpec {
         table: "app_settings",
-        filter: SyncRowFilter::SpendingSettings,
+        filter: SyncRowFilter::SyncableSettings,
     },
     SyncTableFilterSpec {
         table: "budget_group_assignments",
@@ -724,7 +748,7 @@ const SYNC_TABLE_SNAPSHOT_CLEAR_FILTERS: &[SyncTableFilterSpec] = &[
     },
     SyncTableFilterSpec {
         table: "app_settings",
-        filter: SyncRowFilter::SpendingSettings,
+        filter: SyncRowFilter::SyncableSettings,
     },
     SyncTableFilterSpec {
         table: "budget_group_assignments",
@@ -954,7 +978,9 @@ fn entity_storage_mapping(entity: &SyncEntity) -> Option<(&'static str, &'static
         SyncEntity::AllocationTarget => Some(("allocation_targets", "id")),
         SyncEntity::AllocationTargetWeight => Some(("allocation_target_weights", "id")),
         SyncEntity::AllocationTargetConstraint => Some(("allocation_target_constraints", "id")),
-        SyncEntity::SpendingSetting => Some(("app_settings", "setting_key")),
+        SyncEntity::SpendingSetting | SyncEntity::AppPreference => {
+            Some(("app_settings", "setting_key"))
+        }
         // CustomTaxonomy uses bundle replay — handled by custom branch in apply_remote_event_lww_tx
         SyncEntity::CustomTaxonomy => None,
         // Spending module entities
@@ -2030,6 +2056,14 @@ fn apply_remote_event_lww_tx(
                 entity_id_value
             );
             applied_entity_change = false;
+        } else if entity == SyncEntity::AppPreference
+            && !is_syncable_app_preference_key(&entity_id_value)
+        {
+            log::warn!(
+                "Skipping unsupported synced app preference '{}'",
+                entity_id_value
+            );
+            applied_entity_change = false;
         } else if entity == SyncEntity::SpendingPresetRuleDeletion {
             apply_spending_preset_rule_deletion_event(
                 conn,
@@ -2051,6 +2085,9 @@ fn apply_remote_event_lww_tx(
         } else if let Some((table_name, pk_name)) = entity_storage_mapping(&entity) {
             match op {
                 SyncOperation::Delete => {
+                    if entity == SyncEntity::Account {
+                        crate::accounts::delete_account_references(conn, &entity_id_value)?;
+                    }
                     if entity == SyncEntity::SpendingCategorizationRule {
                         tombstone_remote_preset_rule_delete(
                             conn,
@@ -3146,11 +3183,20 @@ impl AppSyncRepository {
                 validate_sync_table(table)?;
             }
 
-            let snapshot_path =
-                std::env::temp_dir().join(format!("wf_snapshot_export_{}.db", Uuid::now_v7()));
+            let snapshot_path = snapshot_scratch_path(&mut conn, "export")?;
             let escaped_path = escape_sqlite_str(&snapshot_path.to_string_lossy());
             let snapshot_alias = format!("snapshot_export_{}", Uuid::now_v7().simple());
-            let attach_sql = format!("ATTACH DATABASE '{}' AS {}", escaped_path, snapshot_alias);
+            // `KEY ''` is required, not cosmetic: SQLCipher's default for an
+            // attached database is to reuse the main database's key, so once the
+            // main database is encrypted this export would silently be encrypted
+            // with *this device's* key and uploaded in that form, while the
+            // receiving device attaches it expecting plaintext. Snapshots stay
+            // plaintext on the wire, which is what device sync's transport-level
+            // E2EE already protects.
+            let attach_sql = format!(
+                "ATTACH DATABASE '{}' AS {} KEY ''",
+                escaped_path, snapshot_alias
+            );
             let tx_result = conn.immediate_transaction::<_, StorageError, _>(|tx| {
                 diesel::sql_query(attach_sql.clone())
                     .execute(tx)
@@ -3184,13 +3230,15 @@ impl AppSyncRepository {
                 return Err(Error::from(err));
             }
 
-            let payload = std::fs::read(&snapshot_path).map_err(|e| {
+            // Remove the snapshot on every exit path, not just the success one.
+            let payload = std::fs::read(&snapshot_path);
+            let _ = std::fs::remove_file(&snapshot_path);
+            let payload = payload.map_err(|e| {
                 Error::Database(DatabaseError::Internal(format!(
                     "Failed reading exported snapshot: {}",
                     e
                 )))
             })?;
-            let _ = std::fs::remove_file(snapshot_path);
             Ok(payload)
         })
         .await
@@ -3218,8 +3266,13 @@ impl AppSyncRepository {
                 let now = Utc::now().to_rfc3339();
                 let escaped_path = escape_sqlite_str(&snapshot_db_path);
                 let snapshot_alias = format!("snapshot_{}", Uuid::new_v4().simple());
-                let attach_sql =
-                    format!("ATTACH DATABASE '{}' AS {}", escaped_path, snapshot_alias);
+                // Downloaded snapshots are plaintext (see the export site), so
+                // the attachment must say so explicitly rather than inheriting
+                // the main database's key.
+                let attach_sql = format!(
+                    "ATTACH DATABASE '{}' AS {} KEY ''",
+                    escaped_path, snapshot_alias
+                );
 
                 // APP_SYNC_TABLES is parent-first for inserts. Restore clears the
                 // selected tables in reverse order, then inserts in canonical order.
@@ -7729,7 +7782,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn snapshot_export_only_includes_spending_settings() {
+    async fn snapshot_export_only_includes_allowlisted_settings() {
         #[derive(diesel::QueryableByName)]
         struct CountRow {
             #[diesel(sql_type = diesel::sql_types::BigInt)]
@@ -7749,6 +7802,14 @@ mod tests {
                 (
                     app_settings::setting_key.eq("spending.account_ids"),
                     app_settings::setting_value.eq("[\"acc-1\"]"),
+                ),
+                (
+                    app_settings::setting_key.eq(INSIGHTS_OVERVIEW_LAYOUT_KEY),
+                    app_settings::setting_value.eq(r#"{"version":6,"hiddenWidgets":["regions"]}"#),
+                ),
+                (
+                    app_settings::setting_key.eq("spending.excluded_category_ids"),
+                    app_settings::setting_value.eq("[\"cat-1\"]"),
                 ),
                 (
                     app_settings::setting_key.eq("theme"),
@@ -7773,13 +7834,57 @@ mod tests {
         let settings_count: CountRow = diesel::sql_query("SELECT COUNT(*) AS c FROM app_settings")
             .get_result(&mut exported_conn)
             .expect("count settings");
-        assert_eq!(settings_count.c, 2);
+        assert_eq!(settings_count.c, 4);
 
         let theme_count: CountRow =
             diesel::sql_query("SELECT COUNT(*) AS c FROM app_settings WHERE setting_key = 'theme'")
                 .get_result(&mut exported_conn)
                 .expect("count theme setting");
         assert_eq!(theme_count.c, 0);
+        diesel::insert_into(app_settings::table)
+            .values((
+                app_settings::setting_key.eq("theme"),
+                app_settings::setting_value.eq("malicious-remote-theme"),
+            ))
+            .execute(&mut exported_conn)
+            .unwrap();
+        drop(exported_conn);
+        diesel::update(
+            app_settings::table.filter(app_settings::setting_key.eq(INSIGHTS_OVERVIEW_LAYOUT_KEY)),
+        )
+        .set(app_settings::setting_value.eq(r#"{"version":6,"hiddenWidgets":[]}"#))
+        .execute(&mut conn)
+        .unwrap();
+        repo.restore_snapshot_tables_from_file(
+            exported_path.to_string_lossy().to_string(),
+            vec!["app_settings".to_string()],
+            88,
+            "settings-device".to_string(),
+            Some(1),
+        )
+        .await
+        .unwrap();
+        let restored: String = app_settings::table
+            .filter(app_settings::setting_key.eq(INSIGHTS_OVERVIEW_LAYOUT_KEY))
+            .select(app_settings::setting_value)
+            .first(&mut conn)
+            .unwrap();
+        assert_eq!(restored, r#"{"version":6,"hiddenWidgets":["regions"]}"#);
+        let excluded_categories: String = app_settings::table
+            .filter(app_settings::setting_key.eq("spending.excluded_category_ids"))
+            .select(app_settings::setting_value)
+            .first(&mut conn)
+            .unwrap();
+        assert_eq!(excluded_categories, r#"["cat-1"]"#);
+        let theme: String = app_settings::table
+            .filter(app_settings::setting_key.eq("theme"))
+            .select(app_settings::setting_value)
+            .first(&mut conn)
+            .unwrap();
+        assert_eq!(
+            theme, "dark",
+            "Snapshot restore must keep device-local settings"
+        );
     }
 
     #[test]
@@ -7826,6 +7931,74 @@ mod tests {
             "error should mention the bad column: {}",
             err_msg
         );
+    }
+
+    #[tokio::test]
+    async fn replay_app_preference_is_allowlisted_and_uses_lww_without_echo() {
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+        let layout = r#"{"version":6,"hiddenWidgets":["regions"]}"#;
+        let applied = repo.apply_remote_event_lww(SyncEntity::AppPreference, INSIGHTS_OVERVIEW_LAYOUT_KEY.to_string(), SyncOperation::Update, "pref-1".to_string(), "2026-09-17T00:00:02Z".to_string(), 2, serde_json::json!({"settingKey": INSIGHTS_OVERVIEW_LAYOUT_KEY, "settingValue": layout})).await.unwrap();
+        assert!(applied);
+        let stale = repo.apply_remote_event_lww(SyncEntity::AppPreference, INSIGHTS_OVERVIEW_LAYOUT_KEY.to_string(), SyncOperation::Update, "pref-stale".to_string(), "2026-09-17T00:00:01Z".to_string(), 3, serde_json::json!({"settingKey": INSIGHTS_OVERVIEW_LAYOUT_KEY, "settingValue": "{}"})).await.unwrap();
+        assert!(!stale);
+        for key in ["theme", "sync_enabled", "spending.enabled"] {
+            assert!(!repo
+                .apply_remote_event_lww(
+                    SyncEntity::AppPreference,
+                    key.to_string(),
+                    SyncOperation::Update,
+                    format!("bad-{key}"),
+                    "2026-09-17T00:00:04Z".to_string(),
+                    4,
+                    serde_json::json!({"settingKey": key, "settingValue": "false"})
+                )
+                .await
+                .unwrap());
+        }
+        assert!(repo
+            .apply_remote_event_lww(
+                SyncEntity::AppPreference,
+                INSIGHTS_OVERVIEW_LAYOUT_KEY.to_string(),
+                SyncOperation::Update,
+                "mismatch".to_string(),
+                "2026-09-17T00:00:05Z".to_string(),
+                5,
+                serde_json::json!({"settingKey": "theme", "settingValue": "dark"})
+            )
+            .await
+            .is_err());
+        let mut conn = get_connection(&pool).unwrap();
+        let stored: String = app_settings::table
+            .filter(app_settings::setting_key.eq(INSIGHTS_OVERVIEW_LAYOUT_KEY))
+            .select(app_settings::setting_value)
+            .first(&mut conn)
+            .unwrap();
+        assert_eq!(stored, layout);
+        let outbox_count: i64 = sync_outbox::table.count().get_result(&mut conn).unwrap();
+        assert_eq!(
+            outbox_count, 0,
+            "Remote preferences must not echo to the outbox"
+        );
+        let deleted = repo
+            .apply_remote_event_lww(
+                SyncEntity::AppPreference,
+                INSIGHTS_OVERVIEW_LAYOUT_KEY.to_string(),
+                SyncOperation::Delete,
+                "pref-delete".to_string(),
+                "2026-09-17T00:00:06Z".to_string(),
+                6,
+                serde_json::json!({"settingKey": INSIGHTS_OVERVIEW_LAYOUT_KEY}),
+            )
+            .await
+            .unwrap();
+        assert!(deleted);
+        let remaining: i64 = app_settings::table
+            .filter(app_settings::setting_key.eq(INSIGHTS_OVERVIEW_LAYOUT_KEY))
+            .count()
+            .get_result(&mut conn)
+            .unwrap();
+        assert_eq!(remaining, 0);
     }
 
     #[tokio::test]

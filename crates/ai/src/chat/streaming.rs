@@ -710,18 +710,18 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
             .map(str::is_empty)
             .unwrap_or(true);
 
-    if should_attempt_title {
-        let thread_id_bg = thread_id.clone();
-        let run_id_bg = run_id.clone();
-        let tx_bg = tx.clone();
-        let repo_bg = repo.clone();
-        let env_bg = title_ctx.env.clone();
-        let user_message_bg = title_ctx.user_message.clone();
-        let provider_id_bg = title_ctx.provider_id.clone();
-        let model_id_bg = title_ctx.model_id.clone();
-        let initial_title_bg = title_ctx.initial_title.clone();
+    let title_future = async {
+        if should_attempt_title {
+            let thread_id_bg = thread_id.clone();
+            let run_id_bg = run_id.clone();
+            let tx_bg = tx.clone();
+            let repo_bg = repo.clone();
+            let env_bg = title_ctx.env.clone();
+            let user_message_bg = title_ctx.user_message.clone();
+            let provider_id_bg = title_ctx.provider_id.clone();
+            let model_id_bg = title_ctx.model_id.clone();
+            let initial_title_bg = title_ctx.initial_title.clone();
 
-        tokio::spawn(async move {
             debug!("Generating title for thread {} (concurrent)", thread_id_bg);
             let title_gen = TitleGenerator::new(env_bg, TitleGeneratorConfig::default());
             let new_title = title_gen
@@ -769,347 +769,359 @@ async fn stream_agent_response<E: AiEnvironment + 'static>(
                     ))
                     .await;
             }
-        });
-    }
+        }
+    };
+    let response_future = async {
+        // Track content parts for final message
+        let mut content_parts: Vec<ChatMessagePart> = vec![];
+        let mut accumulated_text = String::new();
+        let mut accumulated_reasoning = String::new();
+        let mut reasoning_parts: HashMap<String, usize> = HashMap::new();
 
-    // Track content parts for final message
-    let mut content_parts: Vec<ChatMessagePart> = vec![];
-    let mut accumulated_text = String::new();
-    let mut accumulated_reasoning = String::new();
-    let mut reasoning_parts: HashMap<String, usize> = HashMap::new();
+        // Parser for <think> tags (fallback for models that don't use native thinking API)
+        let mut think_parser = ThinkTagParser::default();
 
-    // Parser for <think> tags (fallback for models that don't use native thinking API)
-    let mut think_parser = ThinkTagParser::default();
-
-    while let Some(chunk) = stream.next().await {
-        match chunk {
-            // Text streaming - parse for <think> tags as fallback
-            Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(
-                Text { text, .. },
-            ))) => {
-                if !text.is_empty() {
-                    // Parse <think> tags and emit ordered segments (models should not think if disabled via API)
-                    for segment in think_parser.process(&text) {
-                        match segment {
-                            ParsedThinkSegment::Text(text_out) if !text_out.is_empty() => {
-                                // Flush reasoning before text to preserve order
-                                if !accumulated_reasoning.is_empty() {
-                                    content_parts.push(ChatMessagePart::Reasoning {
-                                        content: std::mem::take(&mut accumulated_reasoning),
-                                    });
+        while let Some(chunk) = stream.next().await {
+            match chunk {
+                // Text streaming - parse for <think> tags as fallback
+                Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(
+                    Text { text, .. },
+                ))) => {
+                    if !text.is_empty() {
+                        // Parse <think> tags and emit ordered segments (models should not think if disabled via API)
+                        for segment in think_parser.process(&text) {
+                            match segment {
+                                ParsedThinkSegment::Text(text_out) if !text_out.is_empty() => {
+                                    // Flush reasoning before text to preserve order
+                                    if !accumulated_reasoning.is_empty() {
+                                        content_parts.push(ChatMessagePart::Reasoning {
+                                            content: std::mem::take(&mut accumulated_reasoning),
+                                        });
+                                    }
+                                    accumulated_text.push_str(&text_out);
+                                    tx.send(AiStreamEvent::text_delta(
+                                        &thread_id,
+                                        &run_id,
+                                        &message_id,
+                                        &text_out,
+                                    ))
+                                    .await
+                                    .map_err(|e| AiError::Internal(e.to_string()))?;
                                 }
-                                accumulated_text.push_str(&text_out);
-                                tx.send(AiStreamEvent::text_delta(
-                                    &thread_id,
-                                    &run_id,
-                                    &message_id,
-                                    &text_out,
-                                ))
-                                .await
-                                .map_err(|e| AiError::Internal(e.to_string()))?;
-                            }
-                            ParsedThinkSegment::Reasoning(reasoning_out)
-                                if !reasoning_out.is_empty() =>
-                            {
-                                // Flush text before reasoning to preserve order
-                                if !accumulated_text.is_empty() {
-                                    content_parts.push(ChatMessagePart::Text {
-                                        content: std::mem::take(&mut accumulated_text),
-                                    });
+                                ParsedThinkSegment::Reasoning(reasoning_out)
+                                    if !reasoning_out.is_empty() =>
+                                {
+                                    // Flush text before reasoning to preserve order
+                                    if !accumulated_text.is_empty() {
+                                        content_parts.push(ChatMessagePart::Text {
+                                            content: std::mem::take(&mut accumulated_text),
+                                        });
+                                    }
+                                    accumulated_reasoning.push_str(&reasoning_out);
+                                    tx.send(AiStreamEvent::reasoning_delta(
+                                        &thread_id,
+                                        &run_id,
+                                        &message_id,
+                                        &reasoning_out,
+                                    ))
+                                    .await
+                                    .map_err(|e| AiError::Internal(e.to_string()))?;
                                 }
-                                accumulated_reasoning.push_str(&reasoning_out);
-                                tx.send(AiStreamEvent::reasoning_delta(
-                                    &thread_id,
-                                    &run_id,
-                                    &message_id,
-                                    &reasoning_out,
-                                ))
-                                .await
-                                .map_err(|e| AiError::Internal(e.to_string()))?;
+                                _ => {}
                             }
-                            _ => {}
                         }
                     }
                 }
-            }
 
-            // A completed native reasoning block replaces its earlier deltas.
-            Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Reasoning {
-                reasoning,
-                id,
-            })) => {
-                flush_pending_content(
-                    &mut content_parts,
-                    &mut accumulated_reasoning,
-                    &mut accumulated_text,
-                );
-                let delta = update_native_reasoning(
-                    &mut content_parts,
-                    &mut reasoning_parts,
-                    id,
-                    reasoning.display_text(),
-                    true,
-                );
-                if !delta.is_empty() {
-                    tx.send(AiStreamEvent::reasoning_delta(
-                        &thread_id,
-                        &run_id,
-                        &message_id,
-                        &delta,
-                    ))
-                    .await
-                    .map_err(|e| AiError::Internal(e.to_string()))?;
+                // A completed native reasoning block replaces its earlier deltas.
+                Ok(MultiTurnStreamItem::StreamAssistantItem(
+                    StreamedAssistantContent::Reasoning { reasoning, id },
+                )) => {
+                    flush_pending_content(
+                        &mut content_parts,
+                        &mut accumulated_reasoning,
+                        &mut accumulated_text,
+                    );
+                    let delta = update_native_reasoning(
+                        &mut content_parts,
+                        &mut reasoning_parts,
+                        id,
+                        reasoning.display_text(),
+                        true,
+                    );
+                    if !delta.is_empty() {
+                        tx.send(AiStreamEvent::reasoning_delta(
+                            &thread_id,
+                            &run_id,
+                            &message_id,
+                            &delta,
+                        ))
+                        .await
+                        .map_err(|e| AiError::Internal(e.to_string()))?;
+                    }
                 }
-            }
-            Ok(MultiTurnStreamItem::StreamAssistantItem(
-                StreamedAssistantContent::ReasoningDelta { reasoning, id, .. },
-            )) => {
-                flush_pending_content(
-                    &mut content_parts,
-                    &mut accumulated_reasoning,
-                    &mut accumulated_text,
-                );
-                let delta = update_native_reasoning(
-                    &mut content_parts,
-                    &mut reasoning_parts,
-                    id,
-                    reasoning,
-                    false,
-                );
-                if !delta.is_empty() {
-                    tx.send(AiStreamEvent::reasoning_delta(
-                        &thread_id,
-                        &run_id,
-                        &message_id,
-                        &delta,
-                    ))
-                    .await
-                    .map_err(|e| AiError::Internal(e.to_string()))?;
-                }
-            }
-
-            // Tool call
-            Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::ToolCall {
-                tool_call: RigToolCall { id, function, .. },
-                ..
-            })) => {
-                // Flush accumulated reasoning and text BEFORE the tool call to preserve order
-                if !accumulated_reasoning.is_empty() {
-                    content_parts.push(ChatMessagePart::Reasoning {
-                        content: std::mem::take(&mut accumulated_reasoning),
-                    });
-                }
-                if !accumulated_text.is_empty() {
-                    content_parts.push(ChatMessagePart::Text {
-                        content: std::mem::take(&mut accumulated_text),
-                    });
+                Ok(MultiTurnStreamItem::StreamAssistantItem(
+                    StreamedAssistantContent::ReasoningDelta { reasoning, id, .. },
+                )) => {
+                    flush_pending_content(
+                        &mut content_parts,
+                        &mut accumulated_reasoning,
+                        &mut accumulated_text,
+                    );
+                    let delta = update_native_reasoning(
+                        &mut content_parts,
+                        &mut reasoning_parts,
+                        id,
+                        reasoning,
+                        false,
+                    );
+                    if !delta.is_empty() {
+                        tx.send(AiStreamEvent::reasoning_delta(
+                            &thread_id,
+                            &run_id,
+                            &message_id,
+                            &delta,
+                        ))
+                        .await
+                        .map_err(|e| AiError::Internal(e.to_string()))?;
+                    }
                 }
 
-                let args: serde_json::Value =
-                    serde_json::from_str(&function.arguments.to_string()).unwrap_or_default();
-                let persisted_args = redact_tool_arguments_for_persistence(&function.name, &args);
-
-                content_parts.push(ChatMessagePart::ToolCall {
-                    tool_call_id: id.to_string(),
-                    name: function.name.clone(),
-                    arguments: persisted_args,
-                });
-
-                tx.send(AiStreamEvent::tool_call(
-                    &thread_id,
-                    &run_id,
-                    &message_id,
-                    ToolCall {
-                        id: id.to_string(),
-                        name: function.name.clone(),
-                        arguments: args,
+                // Tool call
+                Ok(MultiTurnStreamItem::StreamAssistantItem(
+                    StreamedAssistantContent::ToolCall {
+                        tool_call: RigToolCall { id, function, .. },
+                        ..
                     },
-                ))
-                .await
-                .map_err(|e| AiError::Internal(e.to_string()))?;
-            }
-
-            // Tool call delta (provider-native)
-            Ok(MultiTurnStreamItem::StreamAssistantItem(
-                StreamedAssistantContent::ToolCallDelta { .. },
-            )) => {
-                // Tool call deltas are handled by providers that stream tool args incrementally.
-                // We currently rely on full ToolCall items for execution.
-            }
-
-            // Provider-specific final payload
-            Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Final(_))) => {
-                // No-op: FinalResponse is handled separately; some providers emit a final payload here.
-            }
-
-            // Tool result
-            Ok(MultiTurnStreamItem::StreamUserItem(StreamedUserContent::ToolResult {
-                tool_result,
-                ..
-            })) => {
-                let content_to_string = |content: ToolResultContent| -> String {
-                    match content {
-                        ToolResultContent::Text(Text { text, .. }) => text,
-                        ToolResultContent::Image(image) => {
-                            image.data.try_into_inner().unwrap_or_default()
-                        }
-                        ToolResultContent::Json { value } => value.to_string(),
+                )) => {
+                    // Flush accumulated reasoning and text BEFORE the tool call to preserve order
+                    if !accumulated_reasoning.is_empty() {
+                        content_parts.push(ChatMessagePart::Reasoning {
+                            content: std::mem::take(&mut accumulated_reasoning),
+                        });
                     }
-                };
+                    if !accumulated_text.is_empty() {
+                        content_parts.push(ChatMessagePart::Text {
+                            content: std::mem::take(&mut accumulated_text),
+                        });
+                    }
 
-                let result_text = tool_result
-                    .content
-                    .into_iter()
-                    .map(content_to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n");
+                    let args: serde_json::Value =
+                        serde_json::from_str(&function.arguments.to_string()).unwrap_or_default();
+                    let persisted_args =
+                        redact_tool_arguments_for_persistence(&function.name, &args);
 
-                // Parse result as JSON for structured data
-                let data: serde_json::Value =
-                    serde_json::from_str(&result_text).unwrap_or(serde_json::json!(result_text));
-                content_parts.push(ChatMessagePart::ToolResult {
-                    tool_call_id: tool_result.call.to_string(),
-                    success: true,
-                    data: data.clone(),
-                    meta: std::collections::HashMap::new(),
-                    error: None,
-                });
+                    content_parts.push(ChatMessagePart::ToolCall {
+                        tool_call_id: id.to_string(),
+                        name: function.name.clone(),
+                        arguments: persisted_args,
+                    });
 
-                tx.send(AiStreamEvent::tool_result(
-                    &thread_id,
-                    &run_id,
-                    &message_id,
-                    ToolResultData {
+                    tx.send(AiStreamEvent::tool_call(
+                        &thread_id,
+                        &run_id,
+                        &message_id,
+                        ToolCall {
+                            id: id.to_string(),
+                            name: function.name.clone(),
+                            arguments: args,
+                        },
+                    ))
+                    .await
+                    .map_err(|e| AiError::Internal(e.to_string()))?;
+                }
+
+                // Tool call delta (provider-native)
+                Ok(MultiTurnStreamItem::StreamAssistantItem(
+                    StreamedAssistantContent::ToolCallDelta { .. },
+                )) => {
+                    // Tool call deltas are handled by providers that stream tool args incrementally.
+                    // We currently rely on full ToolCall items for execution.
+                }
+
+                // Provider-specific final payload
+                Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Final(
+                    _,
+                ))) => {
+                    // No-op: FinalResponse is handled separately; some providers emit a final payload here.
+                }
+
+                // Tool result
+                Ok(MultiTurnStreamItem::StreamUserItem(StreamedUserContent::ToolResult {
+                    tool_result,
+                    ..
+                })) => {
+                    let content_to_string = |content: ToolResultContent| -> String {
+                        match content {
+                            ToolResultContent::Text(Text { text, .. }) => text,
+                            ToolResultContent::Image(image) => {
+                                image.data.try_into_inner().unwrap_or_default()
+                            }
+                            ToolResultContent::Json { value } => value.to_string(),
+                        }
+                    };
+
+                    let result_text = tool_result
+                        .content
+                        .into_iter()
+                        .map(content_to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n");
+
+                    // Parse result as JSON for structured data
+                    let data: serde_json::Value = serde_json::from_str(&result_text)
+                        .unwrap_or(serde_json::json!(result_text));
+                    content_parts.push(ChatMessagePart::ToolResult {
                         tool_call_id: tool_result.call.to_string(),
                         success: true,
-                        data,
+                        data: data.clone(),
                         meta: std::collections::HashMap::new(),
                         error: None,
-                    },
-                ))
-                .await
-                .map_err(|e| AiError::Internal(e.to_string()))?;
-            }
+                    });
 
-            // Final response - use if no meaningful text was accumulated (some providers like Gemini
-            // may not stream text deltas for tool-calling responses, and Ollama/DeepSeek may
-            // send reasoning natively without streaming text deltas)
-            Ok(MultiTurnStreamItem::FinalResponse(final_response)) => {
-                let response_text = final_response.output;
-                // Use trim() to handle cases where only whitespace was accumulated
-                if !has_final_turn_text(&content_parts, &accumulated_text)
-                    && !response_text.trim().is_empty()
-                {
-                    accumulated_text = response_text.clone();
+                    tx.send(AiStreamEvent::tool_result(
+                        &thread_id,
+                        &run_id,
+                        &message_id,
+                        ToolResultData {
+                            tool_call_id: tool_result.call.to_string(),
+                            success: true,
+                            data,
+                            meta: std::collections::HashMap::new(),
+                            error: None,
+                        },
+                    ))
+                    .await
+                    .map_err(|e| AiError::Internal(e.to_string()))?;
+                }
+
+                // Final response - use if no meaningful text was accumulated (some providers like Gemini
+                // may not stream text deltas for tool-calling responses, and Ollama/DeepSeek may
+                // send reasoning natively without streaming text deltas)
+                Ok(MultiTurnStreamItem::FinalResponse(final_response)) => {
+                    let response_text = final_response.output;
+                    // Use trim() to handle cases where only whitespace was accumulated
+                    if !has_final_turn_text(&content_parts, &accumulated_text)
+                        && !response_text.trim().is_empty()
+                    {
+                        accumulated_text = response_text.clone();
+                        tx.send(AiStreamEvent::text_delta(
+                            &thread_id,
+                            &run_id,
+                            &message_id,
+                            &response_text,
+                        ))
+                        .await
+                        .map_err(|e| AiError::Internal(e.to_string()))?;
+                    }
+                }
+
+                // Other stream items - ignore
+                Ok(_) => {}
+
+                // Errors
+                Err(error) if hook.is_asset_selection_pause(&error) => break,
+                Err(error) => {
+                    error!("Stream error: {}", error);
+                    tx.send(AiStreamEvent::error(
+                        &thread_id,
+                        &run_id,
+                        Some(&message_id),
+                        "STREAM_ERROR",
+                        &error.to_string(),
+                    ))
+                    .await
+                    .map_err(|e| AiError::Internal(e.to_string()))?;
+                    return Err(AiError::Provider(error.to_string()));
+                }
+            }
+        }
+
+        // Flush any remaining buffered content from the think parser
+        for segment in think_parser.flush() {
+            match segment {
+                ParsedThinkSegment::Text(remaining_text) if !remaining_text.is_empty() => {
+                    if !accumulated_reasoning.is_empty() {
+                        content_parts.push(ChatMessagePart::Reasoning {
+                            content: std::mem::take(&mut accumulated_reasoning),
+                        });
+                    }
+                    accumulated_text.push_str(&remaining_text);
                     tx.send(AiStreamEvent::text_delta(
                         &thread_id,
                         &run_id,
                         &message_id,
-                        &response_text,
+                        &remaining_text,
                     ))
                     .await
                     .map_err(|e| AiError::Internal(e.to_string()))?;
                 }
-            }
-
-            // Other stream items - ignore
-            Ok(_) => {}
-
-            // Errors
-            Err(error) if hook.is_asset_selection_pause(&error) => break,
-            Err(error) => {
-                error!("Stream error: {}", error);
-                tx.send(AiStreamEvent::error(
-                    &thread_id,
-                    &run_id,
-                    Some(&message_id),
-                    "STREAM_ERROR",
-                    &error.to_string(),
-                ))
-                .await
-                .map_err(|e| AiError::Internal(e.to_string()))?;
-                return Err(AiError::Provider(error.to_string()));
+                ParsedThinkSegment::Reasoning(remaining_reasoning)
+                    if !remaining_reasoning.is_empty() =>
+                {
+                    if !accumulated_text.is_empty() {
+                        content_parts.push(ChatMessagePart::Text {
+                            content: std::mem::take(&mut accumulated_text),
+                        });
+                    }
+                    accumulated_reasoning.push_str(&remaining_reasoning);
+                    tx.send(AiStreamEvent::reasoning_delta(
+                        &thread_id,
+                        &run_id,
+                        &message_id,
+                        &remaining_reasoning,
+                    ))
+                    .await
+                    .map_err(|e| AiError::Internal(e.to_string()))?;
+                }
+                _ => {}
             }
         }
-    }
 
-    // Flush any remaining buffered content from the think parser
-    for segment in think_parser.flush() {
-        match segment {
-            ParsedThinkSegment::Text(remaining_text) if !remaining_text.is_empty() => {
-                if !accumulated_reasoning.is_empty() {
-                    content_parts.push(ChatMessagePart::Reasoning {
-                        content: std::mem::take(&mut accumulated_reasoning),
-                    });
-                }
-                accumulated_text.push_str(&remaining_text);
-                tx.send(AiStreamEvent::text_delta(
-                    &thread_id,
-                    &run_id,
-                    &message_id,
-                    &remaining_text,
-                ))
-                .await
-                .map_err(|e| AiError::Internal(e.to_string()))?;
-            }
-            ParsedThinkSegment::Reasoning(remaining_reasoning)
-                if !remaining_reasoning.is_empty() =>
-            {
-                if !accumulated_text.is_empty() {
-                    content_parts.push(ChatMessagePart::Text {
-                        content: std::mem::take(&mut accumulated_text),
-                    });
-                }
-                accumulated_reasoning.push_str(&remaining_reasoning);
-                tx.send(AiStreamEvent::reasoning_delta(
-                    &thread_id,
-                    &run_id,
-                    &message_id,
-                    &remaining_reasoning,
-                ))
-                .await
-                .map_err(|e| AiError::Internal(e.to_string()))?;
-            }
-            _ => {}
+        // Flush remaining accumulated content in order (reasoning before text)
+        if !accumulated_reasoning.is_empty() {
+            content_parts.push(ChatMessagePart::Reasoning {
+                content: accumulated_reasoning,
+            });
         }
+
+        // Push any remaining accumulated text at the END to preserve interleaved order
+        // (text before tool calls was already flushed when tool calls arrived)
+        if !accumulated_text.is_empty() {
+            content_parts.push(ChatMessagePart::Text {
+                content: accumulated_text,
+            });
+        }
+
+        // Build final message
+        let mut final_message = ChatMessage::assistant_with_id(&message_id, &thread_id);
+        final_message.content = ChatMessageContent::new(content_parts);
+
+        // Save assistant message to repository after stream completes
+        if let Err(e) = repo.create_message(final_message.clone()).await {
+            error!("Failed to save assistant message to repository: {}", e);
+            // Continue anyway - the message was streamed successfully
+        }
+
+        // Send done event - this is the terminal event, stream closes after this
+        tx.send(AiStreamEvent::done(
+            &thread_id,
+            &run_id,
+            final_message,
+            None,
+        ))
+        .await
+        .map_err(|e| AiError::Internal(e.to_string()))?;
+
+        Ok(())
+    };
+    // Title refinement is optional and must not keep a completed chat open.
+    // Dropping a pending title also releases its repository and environment.
+    tokio::pin!(response_future);
+    tokio::select! {
+        response = &mut response_future => response,
+        () = title_future => response_future.await,
     }
-
-    // Flush remaining accumulated content in order (reasoning before text)
-    if !accumulated_reasoning.is_empty() {
-        content_parts.push(ChatMessagePart::Reasoning {
-            content: accumulated_reasoning,
-        });
-    }
-
-    // Push any remaining accumulated text at the END to preserve interleaved order
-    // (text before tool calls was already flushed when tool calls arrived)
-    if !accumulated_text.is_empty() {
-        content_parts.push(ChatMessagePart::Text {
-            content: accumulated_text,
-        });
-    }
-
-    // Build final message
-    let mut final_message = ChatMessage::assistant_with_id(&message_id, &thread_id);
-    final_message.content = ChatMessageContent::new(content_parts);
-
-    // Save assistant message to repository after stream completes
-    if let Err(e) = repo.create_message(final_message.clone()).await {
-        error!("Failed to save assistant message to repository: {}", e);
-        // Continue anyway - the message was streamed successfully
-    }
-
-    // Send done event - this is the terminal event, stream closes after this
-    tx.send(AiStreamEvent::done(
-        &thread_id,
-        &run_id,
-        final_message,
-        None,
-    ))
-    .await
-    .map_err(|e| AiError::Internal(e.to_string()))?;
-
-    Ok(())
 }
 
 fn has_final_turn_text(parts: &[ChatMessagePart], pending: &str) -> bool {
@@ -1170,6 +1182,106 @@ fn update_native_reasoning(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn completed_chat_closes_while_title_provider_is_stalled() {
+        use crate::env::test_env::MockEnvironment;
+        use crate::provider_model::AI_PROVIDER_SETTINGS_KEY;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        let chat_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let title_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let chat_url = format!("http://{}", chat_listener.local_addr().unwrap());
+        let title_url = format!("http://{}", title_listener.local_addr().unwrap());
+        let (title_started_tx, title_started_rx) = tokio::sync::oneshot::channel();
+        let title_server = tokio::spawn(async move {
+            let (_socket, _) = title_listener.accept().await.unwrap();
+            title_started_tx.send(()).unwrap();
+            std::future::pending::<()>().await;
+        });
+        let chat_server = tokio::spawn(async move {
+            let (mut socket, _) = chat_listener.accept().await.unwrap();
+            let mut request = [0; 4096];
+            assert_ne!(socket.read(&mut request).await.unwrap(), 0);
+            let body = format!(
+                "data: {}\n\ndata: [DONE]\n\n",
+                serde_json::json!({
+                    "id": "fixture", "object": "chat.completion.chunk", "created": 1,
+                    "model": "fixture", "choices": [{"index": 0,
+                        "delta": {"role": "assistant", "content": "Complete"},
+                        "finish_reason": "stop"}]
+                })
+            );
+            let headers = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            socket.write_all(headers.as_bytes()).await.unwrap();
+            // The answer completes only after title generation has started.
+            title_started_rx.await.unwrap();
+            socket.write_all(body.as_bytes()).await.unwrap();
+            std::future::pending::<()>().await;
+        });
+
+        let env = Arc::new(MockEnvironment::new().with_secret("ai_openai", "fixture-key"));
+        env.settings_service
+            .set_setting_value(
+                AI_PROVIDER_SETTINGS_KEY,
+                &serde_json::json!({"schemaVersion": 1, "providers": {"openai": {"customUrl": title_url}}}).to_string(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            ProviderService::new(env.clone()).get_provider_url("openai"),
+            Some(title_url)
+        );
+        let agent = create_openai_client(Some("fixture-key".into()), "openai", Some(chat_url))
+            .unwrap()
+            .agent("fixture")
+            .build();
+        let title_ctx = TitleContext {
+            env: env.clone(),
+            current_title: Some("Initial title".into()),
+            is_new_thread: true,
+            user_message: "Fixture prompt".into(),
+            provider_id: "openai".into(),
+            model_id: "fixture".into(),
+            initial_title: Some("Initial title".into()),
+        };
+        let repo = env.chat_repository();
+        let (tx, rx) = mpsc::channel(100);
+        let mut events = super::super::owned_event_stream(rx, async move {
+            stream_agent_response(
+                agent,
+                Message::user("Fixture prompt"),
+                vec![],
+                tx,
+                repo,
+                "thread".into(),
+                "run".into(),
+                "message".into(),
+                title_ctx,
+            )
+            .await
+            .unwrap();
+        });
+        let completed = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let mut done = false;
+            while let Some(event) = events.next().await {
+                done |= matches!(event, AiStreamEvent::Done { .. });
+            }
+            done
+        })
+        .await;
+        chat_server.abort();
+        title_server.abort();
+        let _ = chat_server.await;
+        let _ = title_server.await;
+        assert!(completed.expect("chat should close without a title response"));
+        drop(events);
+        assert_eq!(Arc::strong_count(&env), 1);
+    }
 
     #[test]
     fn final_response_does_not_duplicate_text_flushed_before_reasoning() {

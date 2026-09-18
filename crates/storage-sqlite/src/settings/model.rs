@@ -11,3 +11,8 @@ pub struct AppSettingDB {
     pub setting_key: String,
     pub setting_value: String,
 }
+
+/// Separate outbox identity from the spending module's settings entity.
+#[derive(Serialize)]
+#[serde(transparent)]
+pub(crate) struct AppPreferenceDB<'a>(pub &'a AppSettingDB);

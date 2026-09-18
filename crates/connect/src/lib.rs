@@ -30,8 +30,8 @@ pub use post_login_bootstrap::{
     PostLoginBootstrapResult, PostLoginBootstrapStatus, PostLoginBootstrapSyncResult,
 };
 pub use token_lifecycle::{
-    ensure_valid_access_token, TokenLifecycleConfig, TokenLifecycleError, TokenLifecycleState,
-    CLOUD_ACCESS_TOKEN_KEY, CLOUD_REFRESH_TOKEN_KEY,
+    clear_restored_installation_credentials, ensure_valid_access_token, TokenLifecycleConfig,
+    TokenLifecycleError, TokenLifecycleState, CLOUD_ACCESS_TOKEN_KEY, CLOUD_REFRESH_TOKEN_KEY,
 };
 
 #[cfg(feature = "broker")]

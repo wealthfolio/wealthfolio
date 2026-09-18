@@ -103,9 +103,9 @@ async fn oidc_only_mode_status_and_login_redirect() {
     let tmp = tempdir().unwrap();
     set_oidc_env(&issuer, tmp.path().join("test.db"));
 
-    let config = Config::from_env();
+    let config = Config::from_env().unwrap();
     let state = build_state(&config).await.unwrap();
-    let app = app_router(state, &config);
+    let app = app_router(state, &config).unwrap();
 
     // 1. Status advertises OIDC, and password is not required.
     let status = app

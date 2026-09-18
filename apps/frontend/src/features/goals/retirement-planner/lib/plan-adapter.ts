@@ -23,12 +23,12 @@ export function ageFromBirthYearMonth(birthYearMonth: string, asOf = new Date())
 
 export function normalizePersonalProfile(
   personal: Partial<RetirementPlan["personal"]> | undefined,
+  asOf = new Date(),
 ): RetirementPlan["personal"] {
   const fallback = DEFAULT_RETIREMENT_PLAN.personal;
   const currentAge = Math.round(personal?.currentAge ?? fallback.currentAge);
-  const birthYearMonth =
-    personal?.birthYearMonth ?? fallback.birthYearMonth ?? inferBirthYearMonthFromAge(currentAge);
-  const derivedAge = ageFromBirthYearMonth(birthYearMonth) ?? currentAge;
+  const birthYearMonth = personal?.birthYearMonth ?? inferBirthYearMonthFromAge(currentAge, asOf);
+  const derivedAge = ageFromBirthYearMonth(birthYearMonth, asOf) ?? currentAge;
   const targetRetirementAge = Math.max(
     derivedAge + 1,
     Math.round(personal?.targetRetirementAge ?? fallback.targetRetirementAge),
@@ -48,23 +48,25 @@ export function normalizePersonalProfile(
   };
 }
 
-export function normalizeRetirementPlan(plan: RetirementPlan): RetirementPlan {
+export function normalizeRetirementPlan(plan: RetirementPlan, asOf = new Date()): RetirementPlan {
   return {
     ...plan,
-    personal: normalizePersonalProfile(plan.personal),
+    personal: normalizePersonalProfile(plan.personal, asOf),
     expenses: normalizeExpenseBudget(plan.expenses),
     incomeStreams: plan.incomeStreams ?? [],
   };
 }
 
-export function normalizeDashboardRetirementPlan(plan: RetirementPlan): RetirementPlan {
-  return normalizeRetirementPlan(plan);
+export function normalizeDashboardRetirementPlan(
+  plan: RetirementPlan,
+  asOf = new Date(),
+): RetirementPlan {
+  return normalizeRetirementPlan(plan, asOf);
 }
 
 export const DEFAULT_RETIREMENT_PLAN: RetirementPlan = {
   version: "v3",
   personal: {
-    birthYearMonth: inferBirthYearMonthFromAge(30),
     currentAge: 30,
     targetRetirementAge: 50,
     planningHorizonAge: 90,
@@ -93,11 +95,18 @@ export const DEFAULT_RETIREMENT_PLAN: RetirementPlan = {
 };
 
 /** DEFAULT_RETIREMENT_PLAN with its currency placeholder set to the account's base currency. */
-export function createDefaultRetirementPlan(baseCurrency: string): RetirementPlan {
-  return { ...DEFAULT_RETIREMENT_PLAN, currency: baseCurrency };
+export function createDefaultRetirementPlan(
+  baseCurrency: string,
+  asOf = new Date(),
+): RetirementPlan {
+  return {
+    ...DEFAULT_RETIREMENT_PLAN,
+    personal: normalizePersonalProfile(DEFAULT_RETIREMENT_PLAN.personal, asOf),
+    currency: baseCurrency,
+  };
 }
 
-export function parseSettingsJson(json: string): RetirementPlan {
+export function parseSettingsJson(json: string, asOf = new Date()): RetirementPlan {
   try {
     const raw = JSON.parse(json);
     const { withdrawal: _legacyWithdrawal, ...rawWithoutWithdrawal } = raw ?? {};
@@ -113,7 +122,7 @@ export function parseSettingsJson(json: string): RetirementPlan {
       ...DEFAULT_RETIREMENT_PLAN,
       ...rawWithoutWithdrawal,
       version: "v3",
-      personal: normalizePersonalProfile(raw.personal),
+      personal: normalizePersonalProfile(raw.personal, asOf),
       expenses: normalizeExpenseBudget(raw.expenses ?? DEFAULT_RETIREMENT_PLAN.expenses),
       incomeStreams: raw.incomeStreams ?? DEFAULT_RETIREMENT_PLAN.incomeStreams,
       investment: {
@@ -137,6 +146,6 @@ export function parseSettingsJson(json: string): RetirementPlan {
       tax: raw.tax ?? DEFAULT_RETIREMENT_PLAN.tax,
     };
   } catch {
-    return { ...DEFAULT_RETIREMENT_PLAN };
+    return createDefaultRetirementPlan(DEFAULT_RETIREMENT_PLAN.currency, asOf);
   }
 }

@@ -10,7 +10,7 @@
 //! stateless and survives restarts.
 
 use reqwest_oidc as reqwest;
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 use std::time::Duration;
 
 use axum::{
@@ -34,7 +34,7 @@ use openidconnect::{
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 
-use crate::main_lib::AppState;
+use crate::auth::AuthState;
 
 const TX_COOKIE_NAME: &str = "wf_oidc_tx";
 const TX_COOKIE_PATH: &str = "/api/v1/auth/oidc";
@@ -78,20 +78,20 @@ pub struct OidcConfig {
 
 impl OidcConfig {
     /// Reads `WF_OIDC_*` from the environment. Returns `None` when OIDC is not
-    /// configured. Panics on a partial configuration so misconfig fails loudly.
-    pub fn from_env() -> Option<Self> {
+    /// configured. Returns an error for incomplete or unsafe configuration.
+    pub fn from_env() -> anyhow::Result<Option<Self>> {
         let issuer_url = env_nonempty("WF_OIDC_ISSUER_URL");
         let client_id = env_nonempty("WF_OIDC_CLIENT_ID");
 
         match (issuer_url, client_id) {
-            (None, None) => None,
+            (None, None) => Ok(None),
             (Some(issuer_url), Some(client_id)) => {
-                let redirect_url = env_nonempty("WF_OIDC_REDIRECT_URL").unwrap_or_else(|| {
-                    panic!(
+                let redirect_url = env_nonempty("WF_OIDC_REDIRECT_URL").ok_or_else(|| {
+                    anyhow::anyhow!(
                         "WF_OIDC_REDIRECT_URL must be set when OIDC is enabled, \
                          e.g. https://your.host/api/v1/auth/oidc/callback"
                     )
-                });
+                })?;
                 let scopes = env_nonempty("WF_OIDC_SCOPES")
                     .map(|s| s.split_whitespace().map(str::to_string).collect::<Vec<_>>())
                     .filter(|v| !v.is_empty())
@@ -103,13 +103,11 @@ impl OidcConfig {
                 // authenticates full access to this instance, which is dangerous
                 // on a shared / multi-tenant / self-signup IdP. Require an explicit
                 // opt-in so a missing allowlist can never silently mean "open".
-                // Panicking here matches the other partial-config failures above
-                // and prints to stderr regardless of tracing being initialized.
                 let allow_any = env_nonempty("WF_OIDC_ALLOW_ANY")
                     .map(|v| matches!(v.to_ascii_lowercase().as_str(), "true" | "1" | "yes"))
                     .unwrap_or(false);
                 if allowed_emails.is_empty() && allowed_subs.is_empty() && !allow_any {
-                    panic!(
+                    anyhow::bail!(
                         "OIDC is enabled without an allowlist. Set WF_OIDC_ALLOWED_EMAILS \
                          and/or WF_OIDC_ALLOWED_SUBS to restrict who may sign in. To \
                          intentionally allow ANY user your IdP authenticates (only safe on \
@@ -126,7 +124,7 @@ impl OidcConfig {
                     .map(|v| !matches!(v.to_ascii_lowercase().as_str(), "false" | "0" | "no"))
                     .unwrap_or(true);
 
-                Some(Self {
+                Ok(Some(Self {
                     issuer_url,
                     client_id,
                     client_secret: env_nonempty("WF_OIDC_CLIENT_SECRET"),
@@ -136,9 +134,9 @@ impl OidcConfig {
                     allowed_subs,
                     post_logout_redirect_url: env_nonempty("WF_OIDC_POST_LOGOUT_REDIRECT_URL"),
                     rp_logout,
-                })
+                }))
             }
-            _ => panic!(
+            _ => anyhow::bail!(
                 "OIDC is partially configured: set BOTH WF_OIDC_ISSUER_URL and \
                  WF_OIDC_CLIENT_ID, or neither."
             ),
@@ -335,7 +333,7 @@ struct OidcTx {
 
 /// `GET /api/v1/auth/oidc/login` — start the flow: build the authorize URL and
 /// stash PKCE/nonce/CSRF in an encrypted cookie, then redirect to the IdP.
-pub async fn oidc_login(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+pub async fn oidc_login(State(state): State<AuthState>, headers: HeaderMap) -> Response {
     let Some(oidc) = state.oidc.clone() else {
         return error_redirect("oidc_not_configured");
     };
@@ -386,7 +384,7 @@ pub struct CallbackQuery {
 /// `GET /api/v1/auth/oidc/callback` — finish the flow: verify state, exchange the
 /// code, validate the ID token, enforce the allowlist, then mint `wf_session`.
 pub async fn oidc_callback(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AuthState>,
     headers: HeaderMap,
     Query(query): Query<CallbackQuery>,
 ) -> Response {
@@ -528,7 +526,7 @@ pub async fn oidc_callback(
 /// session (the encrypted ID-token cookie), redirects to the provider for
 /// RP-Initiated Logout. Otherwise redirects locally to `/`. Password sessions
 /// (no ID-token cookie) therefore only get a local logout.
-pub async fn oidc_logout(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+pub async fn oidc_logout(State(state): State<AuthState>, headers: HeaderMap) -> Response {
     let secure = cookie_secure(&state, &headers);
 
     let target = state
@@ -693,7 +691,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     diff == 0
 }
 
-fn cookie_secure(state: &AppState, headers: &HeaderMap) -> bool {
+fn cookie_secure(state: &AuthState, headers: &HeaderMap) -> bool {
     state
         .auth
         .as_ref()

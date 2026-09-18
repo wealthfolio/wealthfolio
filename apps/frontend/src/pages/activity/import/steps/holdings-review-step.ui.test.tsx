@@ -104,6 +104,47 @@ describe("HoldingsReviewStep validation feedback", () => {
     });
   });
 
+  it("shows only format guidance when the date column is ambiguous", async () => {
+    useImportContextMock.mockReturnValue({
+      dispatch,
+      state: {
+        headers: ["Date", "Symbol", "Quantity", "Currency"],
+        parsedRows: [
+          ["01/02/26", "IUIT", "301", "USD"],
+          ["03/04/26", "IUIT", "302", "USD"],
+          ["05/06/26", "IUIT", "303", "USD"],
+        ],
+        mapping: {
+          fieldMappings: {
+            [HoldingsFormat.DATE]: "Date",
+            [HoldingsFormat.SYMBOL]: "Symbol",
+            [HoldingsFormat.QUANTITY]: "Quantity",
+            [HoldingsFormat.CURRENCY]: "Currency",
+          },
+          symbolMappings: {},
+        },
+        parseConfig: {
+          dateFormat: "auto",
+          decimalSeparator: ".",
+          thousandsSeparator: ",",
+          defaultCurrency: "USD",
+        },
+        accountId: "account-1",
+        draftActivities: [],
+      },
+    });
+
+    render(<HoldingsReviewStep />);
+
+    expect(await screen.findByText("Date order is ambiguous")).toBeInTheDocument();
+    expect(screen.queryByText(/Use YYYY-MM-DD/)).not.toBeInTheDocument();
+    expect(checkHoldingsImportMock).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "SET_HOLDINGS_CHECK_PASSED",
+      payload: false,
+    });
+  });
+
   it("clears the shared validating state when the step unmounts", async () => {
     const view = render(<HoldingsReviewStep />);
 

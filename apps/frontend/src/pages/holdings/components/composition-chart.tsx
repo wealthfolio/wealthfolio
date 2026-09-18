@@ -409,7 +409,7 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+      <CardHeader className="flex shrink-0 flex-row flex-wrap items-center justify-between gap-2 space-y-0">
         <div className="flex items-center space-x-2">
           <CardTitle className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
             {t("holdings:composition")}

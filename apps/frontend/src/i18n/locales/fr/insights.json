@@ -68,7 +68,8 @@
       "holdings_count_many": "{{count}} positions",
       "accounts_count_one": "{{count}} compte",
       "accounts_count_other": "{{count}} comptes",
-      "accounts_count_many": "{{count}} comptes"
+      "accounts_count_many": "{{count}} comptes",
+      "pnl_current_holdings": "Positions actuelles"
     }
   },
   "networth": {
@@ -131,5 +132,35 @@
     "days_ago_one": "il y a {{count}}j",
     "days_ago_other": "il y a {{count}}j",
     "days_ago_many": "il y a {{count}}j"
+  },
+  "highlights": {
+    "movers": "Plus fortes variations",
+    "concentration": "Concentration",
+    "daily": "Variation du jour · positions actuelles",
+    "rank_by": "Classer les variations du jour par",
+    "gainers": "Hausses",
+    "losers": "Baisses",
+    "no_moves": "Aucune variation avec les données disponibles.",
+    "portfolio_share": "Part de la valeur du portefeuille, trésorerie incluse",
+    "largest": "Position la plus importante",
+    "top_five": "Les cinq principales positions",
+    "concentration_unavailable": "La concentration nécessite des valeurs de positions positives et un portefeuille sans positions à découvert."
+  },
+  "customize": {
+    "edit": "Personnaliser",
+    "widgets": "Widgets",
+    "reset": "Réinitialiser la disposition",
+    "cancel": "Annuler",
+    "save": "Enregistrer la disposition",
+    "saving": "Enregistrement…",
+    "hint": "Déplacez les widgets à l’aide de leur poignée ou ajustez leur largeur depuis le bord droit.",
+    "description": "Choisissez les widgets à afficher. Utilisez les flèches pour modifier leur ordre, y compris sur mobile.",
+    "value": "Résumé du portefeuille",
+    "breakdown": "Répartition",
+    "move_up": "Déplacer {{widget}} vers le haut",
+    "move_down": "Déplacer {{widget}} vers le bas",
+    "hide": "Masquer {{widget}}",
+    "drag": "Déplacer {{widget}}",
+    "empty": "Aucun widget sélectionné. Personnalisez cette page pour ajouter des widgets."
   }
 }

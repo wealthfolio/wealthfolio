@@ -5,6 +5,10 @@ import { MemoryRouter } from "react-router-dom";
 
 import { SavingGoals } from "./goals";
 
+vi.mock("@/lib/settings-provider", () => ({
+  useSettingsContext: () => ({ settings: { timezone: "Asia/Shanghai" } }),
+}));
+
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({
     data: [
@@ -53,6 +57,19 @@ describe("SavingGoals localization", () => {
 
   afterAll(() => {
     vi.useRealTimers();
+  });
+
+  it("marks a deadline due on the configured calendar day", () => {
+    vi.setSystemTime(new Date("2034-08-08T16:30:00Z"));
+    render(
+      <MemoryRouter>
+        <FormattingProvider locale="en-US">
+          <SavingGoals />
+        </FormattingProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("dashboard:goals.time_due")).toBeInTheDocument();
+    vi.setSystemTime(new Date("2026-08-18T12:00:00Z"));
   });
 
   it("formats progress and remaining time with the active locales", () => {

@@ -60,6 +60,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf pkg-config libssl-dev libsoup2.4-dev javascriptcoregtk-4.0 webkit2gtk-4.0 xdg-utils
 
+      - name: Verify vendored OpenSSL Perl prerequisite
+        shell: bash
+        run: perl -v
+
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
 
@@ -85,7 +89,9 @@ jobs:
 
       - name: Build release dependencies
         # Mirrors what tauri-action runs: release profile, custom-protocol on.
-        run: cargo build --release -p wealthfolio-app --features custom-protocol ${{ matrix.args }}
+        run:
+          cargo build --locked --release -p wealthfolio-app --features custom-protocol ${{
+          matrix.args }}
 
   warm-server:
     runs-on: ubuntu-22.04
@@ -96,7 +102,11 @@ jobs:
       - name: Install system build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev libsqlite3-dev build-essential
+          sudo apt-get install -y pkg-config libssl-dev libsqlite3-dev build-essential perl
+
+      - name: Verify vendored OpenSSL Perl prerequisite
+        shell: bash
+        run: perl -v
 
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
@@ -116,4 +126,4 @@ jobs:
           # OPENSSL_STATIC affects how openssl-sys (a cached dependency) is
           # built - must match the release job.
           OPENSSL_STATIC: "1"
-        run: cargo build --release --manifest-path apps/server/Cargo.toml
+        run: cargo build --locked --release --manifest-path apps/server/Cargo.toml

@@ -221,7 +221,5 @@
     "connectionFailed": "Error de conexión",
     "tryAgain": "Intentar de nuevo"
   },
-  "errors": {
-    "backupPlatformUnsupported": "La copia de seguridad antes de la sincronización de dispositivos solo se admite actualmente en escritorio, web y dispositivos móviles"
-  }
+  "errors": {}
 }

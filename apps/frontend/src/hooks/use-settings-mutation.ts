@@ -33,6 +33,11 @@ export function useSettingsMutation(
         // setting travels in the request, so nothing else would evict them.
         invalidateSpendingCaches(queryClient);
       }
+      if ("timezone" in variables) {
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.RETIREMENT_OVERVIEW] });
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.SAVE_UP_OVERVIEW] });
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.SAVE_UP_PREVIEW] });
+      }
       setSettings(updatedSettings);
       applySettingsToDocument(updatedSettings);
       // Don't show toast during onboarding

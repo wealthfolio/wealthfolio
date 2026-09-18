@@ -6,8 +6,8 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use chrono::Utc;
 use wealthfolio_core::portfolio::net_worth::{NetWorthHistoryPoint, NetWorthResponse};
+use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 use super::shared::{parse_date, parse_date_optional};
 
@@ -21,8 +21,11 @@ async fn get_net_worth(
     State(state): State<Arc<AppState>>,
     Query(q): Query<NetWorthQuery>,
 ) -> ApiResult<Json<NetWorthResponse>> {
-    let as_of_date =
-        parse_date_optional(q.date, "date")?.unwrap_or_else(|| Utc::now().date_naive());
+    let as_of_date = parse_date_optional(q.date, "date")?.unwrap_or_else(|| {
+        user_today(parse_user_timezone_or_default(
+            &state.timezone.read().unwrap(),
+        ))
+    });
     let response = state.net_worth_service.get_net_worth(as_of_date).await?;
     Ok(Json(response))
 }

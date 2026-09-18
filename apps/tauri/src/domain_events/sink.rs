@@ -36,13 +36,16 @@ impl TauriDomainEventSink {
     ///
     /// This should be called after ServiceContext is fully initialized and
     /// the AppHandle is available.
+    /// Returns the worker's handle so the database runtime can stop it: the
+    /// worker holds a `ServiceContext` clone for its whole life.
     pub fn start_queue_worker(
         receiver: mpsc::UnboundedReceiver<DomainEvent>,
         app_handle: AppHandle,
         context: Arc<ServiceContext>,
-    ) {
-        tokio::spawn(event_queue_worker(receiver, app_handle, context));
+    ) -> tauri::async_runtime::JoinHandle<()> {
+        let handle = tauri::async_runtime::spawn(event_queue_worker(receiver, app_handle, context));
         info!("TauriDomainEventSink queue worker started");
+        handle
     }
 }
 

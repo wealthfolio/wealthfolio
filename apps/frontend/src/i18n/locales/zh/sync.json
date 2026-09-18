@@ -211,7 +211,5 @@
     "connectionFailed": "连接失败",
     "tryAgain": "重试"
   },
-  "errors": {
-    "backupPlatformUnsupported": "设备同步前的备份目前仅支持桌面端、网页端和移动端"
-  }
+  "errors": {}
 }

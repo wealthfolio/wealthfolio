@@ -4,6 +4,7 @@ import {
   getActivitySpendingAmount,
   getActivityTypesForAccount,
   getEffectiveCashActivityType,
+  getVisibleSpendingAmount,
   isCashActivityIncome,
 } from "./constants";
 
@@ -152,6 +153,23 @@ describe("spending constants", () => {
       expect(isCashActivityIncome("CREDIT", AccountType.CASH, "REFUND")).toBe(false);
       expect(isCashActivityIncome("CREDIT", AccountType.CASH, "REIMBURSEMENT")).toBe(false);
       expect(isCashActivityIncome("CREDIT", AccountType.CREDIT_CARD, "BONUS")).toBe(false);
+    });
+  });
+
+  describe("getVisibleSpendingAmount", () => {
+    const withdrawal = { activityType: "WITHDRAWAL", amount: 100 };
+
+    it("uses the server-computed visible amount when the row carries one", () => {
+      expect(
+        getVisibleSpendingAmount({ ...withdrawal, visibleSpendingAmount: 0 }, AccountType.CASH),
+      ).toBe(0);
+      expect(
+        getVisibleSpendingAmount({ ...withdrawal, visibleSpendingAmount: 80 }, AccountType.CASH),
+      ).toBe(80);
+    });
+
+    it("falls back to the unfiltered spending amount for rows without it", () => {
+      expect(getVisibleSpendingAmount(withdrawal, AccountType.CASH)).toBe(100);
     });
   });
 });

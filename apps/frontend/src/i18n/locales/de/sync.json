@@ -215,7 +215,5 @@
     "connectionFailed": "Verbindung fehlgeschlagen",
     "tryAgain": "Erneut versuchen"
   },
-  "errors": {
-    "backupPlatformUnsupported": "Die Sicherung vor der Gerätesynchronisierung wird derzeit nur auf Desktop, Web und Mobilgeräten unterstützt"
-  }
+  "errors": {}
 }

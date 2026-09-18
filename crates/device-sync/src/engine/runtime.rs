@@ -165,6 +165,7 @@ impl DeviceSyncRuntimeState {
         let mut guard = self.background_task.lock().await;
         if let Some(handle) = guard.take() {
             handle.abort();
+            let _ = handle.await;
         }
     }
 
@@ -175,32 +176,88 @@ impl DeviceSyncRuntimeState {
 
     // ─── Pairing flow store ──────────────────────────────────────────────
 
-    pub fn create_flow(&self, pairing_id: String, phase: PairingFlowPhase) -> String {
+    fn flows(
+        &self,
+    ) -> Result<std::sync::MutexGuard<'_, HashMap<String, PairingFlowState>>, String> {
+        self.pairing_flows.lock().map_err(|_| {
+            "Pairing state is unavailable. Restart the application before pairing again."
+                .to_string()
+        })
+    }
+
+    pub fn create_flow(
+        &self,
+        pairing_id: String,
+        phase: PairingFlowPhase,
+    ) -> Result<String, String> {
         let flow_id = uuid::Uuid::new_v4().to_string();
-        let mut flows = self.pairing_flows.lock().unwrap();
+        let mut flows = self.flows()?;
         flows.insert(flow_id.clone(), PairingFlowState { phase, pairing_id });
-        flow_id
+        Ok(flow_id)
     }
 
-    pub fn get_flow_phase(&self, flow_id: &str) -> Option<PairingFlowPhase> {
-        let flows = self.pairing_flows.lock().unwrap();
-        flows.get(flow_id).map(|s| s.phase.clone())
+    pub fn get_flow_phase(&self, flow_id: &str) -> Result<Option<PairingFlowPhase>, String> {
+        let flows = self.flows()?;
+        Ok(flows.get(flow_id).map(|s| s.phase.clone()))
     }
 
-    pub fn get_flow_pairing_id(&self, flow_id: &str) -> Option<String> {
-        let flows = self.pairing_flows.lock().unwrap();
-        flows.get(flow_id).map(|s| s.pairing_id.clone())
+    pub fn get_flow_pairing_id(&self, flow_id: &str) -> Result<Option<String>, String> {
+        let flows = self.flows()?;
+        Ok(flows.get(flow_id).map(|s| s.pairing_id.clone()))
     }
 
-    pub fn set_flow_phase(&self, flow_id: &str, phase: PairingFlowPhase) {
-        let mut flows = self.pairing_flows.lock().unwrap();
+    pub fn set_flow_phase(&self, flow_id: &str, phase: PairingFlowPhase) -> Result<(), String> {
+        let mut flows = self.flows()?;
         if let Some(state) = flows.get_mut(flow_id) {
             state.phase = phase;
         }
+        Ok(())
     }
 
-    pub fn remove_flow(&self, flow_id: &str) {
-        let mut flows = self.pairing_flows.lock().unwrap();
+    pub fn remove_flow(&self, flow_id: &str) -> Result<(), String> {
+        let mut flows = self.flows()?;
         flows.remove(flow_id);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod shutdown_tests {
+    use super::*;
+
+    #[test]
+    fn poisoned_pairing_state_returns_errors_for_every_operation() {
+        let runtime = DeviceSyncRuntimeState::new();
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = runtime.pairing_flows.lock().unwrap();
+            panic!("interrupted pairing transition");
+        }));
+        assert!(runtime
+            .create_flow("pairing".into(), PairingFlowPhase::Success)
+            .is_err());
+        assert!(runtime.get_flow_phase("flow").is_err());
+        assert!(runtime.get_flow_pairing_id("flow").is_err());
+        assert!(runtime
+            .set_flow_phase("flow", PairingFlowPhase::Success)
+            .is_err());
+        assert!(runtime.remove_flow("flow").is_err());
+    }
+
+    #[tokio::test]
+    async fn stopping_background_waits_for_captured_resources_to_drop() {
+        let runtime = DeviceSyncRuntimeState::new();
+        let resource = Arc::new(());
+        let captured = resource.clone();
+        let (started, ready) = tokio::sync::oneshot::channel();
+        *runtime.background_task.lock().await = Some(tokio::spawn(async move {
+            let _resource = captured;
+            let _ = started.send(());
+            std::future::pending::<()>().await;
+        }));
+        ready.await.unwrap();
+        runtime.ensure_background_stopped().await;
+        assert_eq!(Arc::strong_count(&resource), 1);
+        assert!(!runtime.is_background_running().await);
+        runtime.ensure_background_stopped().await;
     }
 }

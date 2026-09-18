@@ -19,8 +19,77 @@ use axum::{
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 
 use crate::main_lib::AppState;
+
+/// Authentication survives database service replacement and holds no database handles.
+#[derive(Clone)]
+pub struct AuthState {
+    pub auth: Option<Arc<AuthManager>>,
+    pub oidc: Option<Arc<crate::oidc::OidcManager>>,
+}
+
+impl AuthState {
+    pub(crate) async fn from_config(config: &crate::config::Config) -> anyhow::Result<Self> {
+        let auth = config
+            .auth
+            .as_ref()
+            .map(AuthManager::new)
+            .transpose()?
+            .map(Arc::new);
+        let oidc = match config.oidc.as_ref() {
+            Some(oidc) => Some(Arc::new(
+                crate::oidc::OidcManager::discover(oidc, config.secrets_encryption_key).await?,
+            )),
+            None => None,
+        };
+        Ok(Self { auth, oidc })
+    }
+}
+
+pub(crate) fn router<S: Clone + Send + Sync + 'static>(state: AuthState) -> axum::Router<S> {
+    use crate::oidc;
+    use axum::routing::get;
+    use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+    // Rate limit login: 5 requests per 60 seconds per peer IP
+    let login_governor = GovernorConfigBuilder::default()
+        .per_second(12) // replenish 1 token every 12s → 5 per 60s
+        .burst_size(5)
+        .finish()
+        .expect("valid governor config");
+
+    // Rate limit the OIDC start + callback the same way (per peer IP).
+    let oidc_login_governor = GovernorConfigBuilder::default()
+        .per_second(12)
+        .burst_size(5)
+        .finish()
+        .expect("valid governor config");
+    let oidc_governor = GovernorConfigBuilder::default()
+        .per_second(12)
+        .burst_size(5)
+        .finish()
+        .expect("valid governor config");
+
+    axum::Router::new()
+        .route("/auth/status", get(auth_status))
+        .route(
+            "/auth/login",
+            axum::routing::post(login).layer(GovernorLayer::new(login_governor)),
+        )
+        .route("/auth/logout", axum::routing::post(logout))
+        .route("/auth/me", get(auth_me))
+        .route(
+            "/auth/oidc/login",
+            get(oidc::oidc_login).layer(GovernorLayer::new(oidc_login_governor)),
+        )
+        .route("/auth/oidc/logout", get(oidc::oidc_logout))
+        .route(
+            "/auth/oidc/callback",
+            get(oidc::oidc_callback).layer(GovernorLayer::new(oidc_governor)),
+        )
+        .with_state(state)
+}
 
 /// Controls when the `Secure` attribute is set on session cookies.
 ///
@@ -82,7 +151,13 @@ pub(crate) struct Claims {
     sub: String,
     exp: usize,
     iat: usize,
+    #[serde(default)]
+    sid: String,
 }
+
+/// Stable across sliding JWT refreshes; scopes transient whole-database jobs.
+#[derive(Clone)]
+pub(crate) struct BackupSession(pub String);
 
 #[derive(Deserialize)]
 pub struct LoginRequest {
@@ -151,6 +226,10 @@ impl AuthManager {
     }
 
     pub fn issue_token(&self) -> Result<String, AuthError> {
+        self.issue_token_for_session(uuid::Uuid::new_v4().to_string())
+    }
+
+    fn issue_token_for_session(&self, sid: String) -> Result<String, AuthError> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| AuthError::Internal("System clock is before UNIX_EPOCH".into()))?;
@@ -159,6 +238,7 @@ impl AuthManager {
             sub: "wealthfolio-web".to_string(),
             iat: now.as_secs() as usize,
             exp: exp.as_secs() as usize,
+            sid,
         };
         encode(&Header::default(), &claims, &self.encoding_key)
             .map_err(|e| AuthError::Internal(format!("Failed to sign token: {e}")))
@@ -254,6 +334,22 @@ pub fn derive_keys(master: &[u8]) -> ([u8; 32], [u8; 32]) {
     (jwt_key, secrets_key)
 }
 
+/// Derives the database encryption key from the master secret.
+///
+/// Stateless by design: nothing is stored, so a `.db` copied to any instance
+/// sharing `WF_SECRET_KEY` simply opens. Rotating this key means rotating the
+/// database, the JWT key and `secrets.json` coherently.
+pub fn derive_database_key(master: &[u8]) -> [u8; 32] {
+    use hkdf::Hkdf;
+    use sha2::Sha256;
+
+    let mut key = [0u8; 32];
+    Hkdf::<Sha256>::new(None, master)
+        .expand(b"wealthfolio-db", &mut key)
+        .expect("32 bytes is a valid HKDF-SHA256 output length");
+    key
+}
+
 pub fn decode_secret_key(raw: &str) -> anyhow::Result<Vec<u8>> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -290,7 +386,7 @@ pub fn clear_session_cookie(secure: bool) -> String {
 }
 
 pub async fn login(
-    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    axum::extract::State(state): axum::extract::State<AuthState>,
     headers: HeaderMap,
     Json(payload): Json<LoginRequest>,
 ) -> Result<Response, AuthError> {
@@ -312,7 +408,7 @@ pub async fn login(
     Ok(response)
 }
 
-pub async fn logout(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+pub async fn logout(State(state): State<AuthState>, headers: HeaderMap) -> Response {
     let secure = state
         .auth
         .as_ref()
@@ -326,7 +422,7 @@ pub async fn logout(State(state): State<Arc<AppState>>, headers: HeaderMap) -> R
 }
 
 pub async fn auth_me(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AuthState>,
     request: Request<Body>,
 ) -> Result<Json<serde_json::Value>, AuthError> {
     let Some(auth) = state.auth.clone() else {
@@ -338,7 +434,7 @@ pub async fn auth_me(
 }
 
 pub async fn auth_status(
-    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    axum::extract::State(state): axum::extract::State<AuthState>,
 ) -> Json<AuthStatusResponse> {
     Json(AuthStatusResponse {
         requires_password: state.auth.as_ref().is_some_and(|auth| auth.has_password()),
@@ -352,8 +448,19 @@ pub async fn require_jwt(
     next: Next,
 ) -> Result<Response, AuthError> {
     request.extensions_mut().insert(state.clone());
+    require_backup_session(State(state.auth.clone()), request, next).await
+}
 
-    let Some(auth) = state.auth.clone() else {
+/// Session authentication without retaining database services during maintenance.
+pub(crate) async fn require_backup_session(
+    State(auth): State<Option<Arc<AuthManager>>>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Result<Response, AuthError> {
+    let Some(auth) = auth else {
+        request
+            .extensions_mut()
+            .insert(BackupSession("local-no-auth".into()));
         return Ok(next.run(request).await);
     };
 
@@ -361,13 +468,22 @@ pub async fn require_jwt(
     let claims = auth.validate_token(&token)?;
 
     // Sliding session: refresh the cookie when past 50% of TTL
-    let needs_refresh = auth.should_refresh(&claims);
+    let needs_refresh = claims.sid.is_empty() || auth.should_refresh(&claims);
+    let session = if claims.sid.is_empty() {
+        // Concurrent refreshes of one legacy cookie must retain one identity.
+        format!("{:x}", sha2::Sha256::digest(token.as_bytes()))
+    } else {
+        claims.sid.clone()
+    };
+    request
+        .extensions_mut()
+        .insert(BackupSession(session.clone()));
     let secure = needs_refresh.then(|| auth.should_secure_cookie(request.headers()));
 
     let mut response = next.run(request).await;
 
     if needs_refresh {
-        if let Ok(new_token) = auth.issue_token() {
+        if let Ok(new_token) = auth.issue_token_for_session(session) {
             let ttl_secs = auth.expires_in().as_secs();
             let cookie = build_session_cookie(&new_token, ttl_secs, secure.unwrap_or(false));
             if let Ok(val) = HeaderValue::from_str(&cookie) {
@@ -423,6 +539,22 @@ fn extract_token(request: &Request<Body>) -> Result<String, AuthError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn session_identity_survives_refresh_but_not_a_new_login() {
+        let manager = make_manager(CookieSecurePolicy::Auto);
+        let first = manager
+            .validate_token(&manager.issue_token().unwrap())
+            .unwrap();
+        let refreshed = manager
+            .validate_token(&manager.issue_token_for_session(first.sid.clone()).unwrap())
+            .unwrap();
+        let second = manager
+            .validate_token(&manager.issue_token().unwrap())
+            .unwrap();
+        assert_eq!(first.sid, refreshed.sid);
+        assert_ne!(first.sid, second.sid);
+    }
 
     fn make_manager(policy: CookieSecurePolicy) -> AuthManager {
         let config = AuthConfig {

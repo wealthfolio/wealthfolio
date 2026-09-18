@@ -13,6 +13,7 @@ import {
   FormLabel,
   FormMessage,
   Input,
+  Switch,
 } from "@wealthfolio/ui";
 
 import type { CategoryNode } from "./category-item";
@@ -23,6 +24,7 @@ export interface CategoryFormValues {
   name: string;
   color?: string;
   icon?: string | null;
+  excluded?: boolean;
 }
 
 const PRESET_COLORS = [
@@ -43,6 +45,11 @@ interface CategoryFormProps {
   onSubmit: (values: CategoryFormValues) => void;
   onCancel: () => void;
   isLoading?: boolean;
+  /** Show the "Exclude from spending" switch (spending taxonomy, edit mode only). */
+  showExcludeToggle?: boolean;
+  initialExcluded?: boolean;
+  /** An ancestor category is excluded — the switch renders disabled. */
+  parentExcluded?: boolean;
 }
 
 export function CategoryForm({
@@ -51,6 +58,9 @@ export function CategoryForm({
   onSubmit,
   onCancel,
   isLoading,
+  showExcludeToggle = false,
+  initialExcluded = false,
+  parentExcluded = false,
 }: CategoryFormProps) {
   const { t } = useTranslation();
   const isEditing = !!category;
@@ -61,6 +71,7 @@ export function CategoryForm({
         name: z.string().min(1, t("spending:category.nameRequired")),
         color: z.string().optional(),
         icon: z.string().nullable().optional(),
+        excluded: z.boolean().optional(),
       }),
     [t],
   );
@@ -71,6 +82,7 @@ export function CategoryForm({
       name: category?.name ?? "",
       color: category?.color ?? parentCategory?.color ?? PRESET_COLORS[0],
       icon: category?.icon ?? parentCategory?.icon ?? null,
+      excluded: initialExcluded,
     },
   });
 
@@ -142,6 +154,32 @@ export function CategoryForm({
             </FormItem>
           )}
         />
+        {showExcludeToggle && (
+          <FormField
+            control={form.control}
+            name="excluded"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between gap-3 space-y-0 rounded-md border px-3 py-2.5">
+                <div>
+                  <FormLabel>{t("spending:category.excludeLabel")}</FormLabel>
+                  <p className="text-muted-foreground mt-0.5 text-xs">
+                    {parentExcluded
+                      ? t("spending:category.excludeDisabledParent")
+                      : t("spending:category.excludeDescription")}
+                  </p>
+                </div>
+                <FormControl>
+                  <Switch
+                    size="sm"
+                    checked={parentExcluded || !!field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={parentExcluded}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        )}
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={onCancel}>
             {t("common:cancel")}

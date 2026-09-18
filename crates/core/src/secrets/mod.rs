@@ -5,6 +5,12 @@ use crate::errors::Result;
 /// applications that may share the same underlying credential store.
 pub const SERVICE_PREFIX: &str = "wealthfolio_";
 
+/// Device enrollment identity and E2EE credentials.
+pub const SYNC_IDENTITY_KEY: &str = "sync_identity";
+
+/// Retired device ID entry; used only to clean up older installations.
+pub const LEGACY_SYNC_DEVICE_ID_KEY: &str = "sync_device_id";
+
 /// Format a service identifier into the canonical form expected by the
 /// platform-specific secret stores.
 pub fn format_service_id(service: &str) -> String {

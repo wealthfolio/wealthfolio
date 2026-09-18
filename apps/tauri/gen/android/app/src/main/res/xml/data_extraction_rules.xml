@@ -2,8 +2,16 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="keyring-default.xml" />
+        <!-- Tauri stores app.db, conversion files and backups in dataDir.
+             Device-bound database keys cannot be restored with these files.
+             Use an explicit portable export to move portfolio data. -->
+        <exclude domain="root" path="." />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="keyring-default.xml" />
+        <!-- Tauri stores app.db, conversion files and backups in dataDir.
+             Device-bound database keys cannot be restored with these files.
+             Use an explicit portable export to move portfolio data. -->
+        <exclude domain="root" path="." />
     </device-transfer>
 </data-extraction-rules>

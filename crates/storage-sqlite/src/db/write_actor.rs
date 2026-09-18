@@ -23,14 +23,42 @@ type Job = Box<dyn FnOnce(&mut SqliteConnection) -> Result<WriteJobResult> + Sen
 /// Implementations must stay non-blocking; use this only to signal lightweight wakeups.
 pub type OutboxObserver = Arc<dyn Fn() + Send + Sync + 'static>;
 
+/// A message for the writer actor: a job, or the request to stop.
+///
+/// Stopping travels through the same channel as the jobs so that it is observed
+/// only after everything already queued has run — the actor drains naturally,
+/// with no `select!` and no risk of dropping committed-but-unsent work.
+#[allow(clippy::type_complexity)]
+enum WriteMessage {
+    Job(Job, oneshot::Sender<Result<Box<dyn Any + Send + 'static>>>),
+    Shutdown(oneshot::Sender<()>),
+}
+
 /// Handle for sending jobs to the writer actor.
 #[derive(Clone)]
 pub struct WriteHandle {
     // Sender part of the MPSC channel to send jobs.
     // Each job is a boxed closure, and a oneshot sender is used for the reply.
     // The Box<dyn Any + Send> is used for type erasure of the job's return type.
-    #[allow(clippy::type_complexity)]
-    tx: mpsc::Sender<(Job, oneshot::Sender<Result<Box<dyn Any + Send + 'static>>>)>,
+    tx: mpsc::Sender<WriteMessage>,
+}
+
+/// Ownership of the writer actor's task.
+///
+/// The actor holds a pooled connection for the life of its task, so database
+/// maintenance cannot proceed until that task has actually finished. Retaining
+/// the `JoinHandle` is what makes "wait for it" possible at all.
+pub struct WriterTask {
+    join: tokio::task::JoinHandle<()>,
+}
+
+impl WriterTask {
+    /// Waits for the actor's task to finish, after [`WriteHandle::shutdown`].
+    pub async fn join(self) {
+        if let Err(e) = self.join.await {
+            log::warn!("Writer actor task did not exit cleanly: {}", e);
+        }
+    }
 }
 
 impl WriteHandle {
@@ -63,14 +91,16 @@ impl WriteHandle {
     {
         let (ret_tx, ret_rx) = oneshot::channel();
 
+        // The actor stops during database maintenance, so a closed channel is a
+        // normal outcome that callers must be able to surface — not a panic.
         self.tx
-            .send((Box::new(job), ret_tx))
+            .send(WriteMessage::Job(Box::new(job), ret_tx))
             .await
-            .expect("Writer actor's receiving channel was closed, indicating the actor stopped.");
+            .map_err(|_| writer_stopped())?;
 
         ret_rx
             .await
-            .expect("Writer actor dropped the reply sender without sending a result.")
+            .map_err(|_| writer_stopped())?
             .map(|boxed: Box<dyn Any + Send + 'static>| {
                 *boxed
                     .downcast::<T>()
@@ -119,6 +149,25 @@ impl WriteHandle {
         })
         .await
     }
+
+    /// Drains queued work, stops the actor and waits for its pooled connection
+    /// to be released.
+    ///
+    /// Until this returns, the actor's connection keeps the database open — and
+    /// that connection does not travel through `ServiceContext`, so dropping the
+    /// context does not release it.
+    pub async fn shutdown(&self) {
+        let (ack_tx, ack_rx) = oneshot::channel();
+        if self.tx.send(WriteMessage::Shutdown(ack_tx)).await.is_ok() {
+            let _ = ack_rx.await;
+        }
+    }
+}
+
+fn writer_stopped() -> Error {
+    Error::Database(DatabaseError::ConnectionFailed(
+        "The database writer is not running. Database maintenance may be in progress.".to_string(),
+    ))
 }
 
 pub struct DbWriteTx<'a> {
@@ -220,21 +269,27 @@ impl WriteProjection {
 ///
 /// # Returns
 /// A `WriteHandle` to send jobs to the spawned actor.
+/// Spawns a writer and **detaches** its task.
+///
+/// Without the [`WriterTask`] nobody can wait for the actor's pooled connection
+/// to be released, so database maintenance would fail its zero-connection proof.
+/// Use [`spawn_writer_with_outbox_observer`] anywhere that matters; this is for
+/// tests and throwaway pools.
 pub fn spawn_writer(pool: DbPool) -> Result<WriteHandle> {
-    spawn_writer_inner(pool, None)
+    spawn_writer_inner(pool, None).map(|(handle, _task)| handle)
 }
 
 pub fn spawn_writer_with_outbox_observer(
     pool: DbPool,
     outbox_observer: OutboxObserver,
-) -> Result<WriteHandle> {
+) -> Result<(WriteHandle, WriterTask)> {
     spawn_writer_inner(pool, Some(outbox_observer))
 }
 
 fn spawn_writer_inner(
     pool: DbPool,
     outbox_observer: Option<OutboxObserver>,
-) -> Result<WriteHandle> {
+) -> Result<(WriteHandle, WriterTask)> {
     fn acquire_writer_connection(pool: &DbPool) -> Result<super::DbConnection> {
         const PER_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(800);
         const RETRY_SLEEP: Duration = Duration::from_millis(200);
@@ -271,12 +326,21 @@ fn spawn_writer_inner(
 
     // Create an MPSC channel for sending jobs to the actor.
     // The channel is bounded; 1024 is an arbitrary size.
-    let (tx, mut rx) =
-        mpsc::channel::<(Job, oneshot::Sender<Result<Box<dyn Any + Send + 'static>>>)>(1024);
+    let (tx, mut rx) = mpsc::channel::<WriteMessage>(1024);
 
-    tokio::spawn(async move {
+    let join = tokio::spawn(async move {
+        let mut shutdown_ack: Option<oneshot::Sender<()>> = None;
+
         // Loop to receive and process jobs.
-        while let Some((job, reply_tx)) = rx.recv().await {
+        while let Some(message) = rx.recv().await {
+            let (job, reply_tx) = match message {
+                WriteMessage::Job(job, reply_tx) => (job, reply_tx),
+                WriteMessage::Shutdown(ack) => {
+                    shutdown_ack = Some(ack);
+                    break;
+                }
+            };
+
             // Execute the job within an immediate database transaction.
             // We wrap the job to return StorageError which implements From<diesel::result::Error>.
             // Then convert back to core::Error at the boundary.
@@ -300,11 +364,18 @@ fn spawn_writer_inner(
             // Ignore error if the receiver has dropped (e.g., request timed out or was cancelled).
             let _ = reply_tx.send(result);
         }
-        // If rx.recv() returns None, it means the sender (WriteHandle) was dropped,
-        // so the actor can terminate.
+        // If rx.recv() returns None, it means every sender (WriteHandle) was
+        // dropped, so the actor can terminate.
+
+        // Release the pooled connection before acknowledging, so that a caller
+        // awaiting the acknowledgement knows the database handle is gone.
+        drop(conn);
+        if let Some(ack) = shutdown_ack {
+            let _ = ack.send(());
+        }
     });
 
-    Ok(WriteHandle { tx })
+    Ok((WriteHandle { tx }, WriterTask { join }))
 }
 
 // Note: DbConnection (PooledConnection) derefs to SqliteConnection.
@@ -313,7 +384,7 @@ fn spawn_writer_inner(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, init, run_migrations};
+    use crate::db::DbAccess;
     use crate::sync::OutboxWriteRequest;
     use serde_json::json;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -327,16 +398,19 @@ mod tests {
             .keep()
             .to_string_lossy()
             .to_string();
-        let db_path = init(&app_data).expect("init db");
-        run_migrations(&db_path).expect("migrate db");
-        create_pool(&db_path).expect("create pool").as_ref().clone()
+        // An explicit path: `get_db_path` resolves to `$DATABASE_URL` when that
+        // is set, which would point the test at a real database.
+        let access = DbAccess::plaintext(format!("{app_data}/app.db"));
+        access.prepare().expect("init db");
+        access.run_migrations().expect("migrate db");
+        access.create_pool().expect("create pool").as_ref().clone()
     }
 
     #[tokio::test]
     async fn notifies_observer_once_for_transaction_with_multiple_outbox_rows() {
         let notify_count = Arc::new(AtomicUsize::new(0));
         let observer_count = notify_count.clone();
-        let writer = spawn_writer_with_outbox_observer(
+        let (writer, _task) = spawn_writer_with_outbox_observer(
             setup_pool(),
             Arc::new(move || {
                 observer_count.fetch_add(1, Ordering::SeqCst);
@@ -370,7 +444,7 @@ mod tests {
     async fn notifies_observer_even_if_caller_is_cancelled() {
         let notify_count = Arc::new(AtomicUsize::new(0));
         let observer_count = notify_count.clone();
-        let writer = spawn_writer_with_outbox_observer(
+        let (writer, _task) = spawn_writer_with_outbox_observer(
             setup_pool(),
             Arc::new(move || {
                 observer_count.fetch_add(1, Ordering::SeqCst);
@@ -408,10 +482,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn shutdown_releases_the_pooled_connection_and_fails_later_writes() {
+        let pool = setup_pool();
+        let (writer, task) =
+            spawn_writer_with_outbox_observer(pool.clone(), Arc::new(|| {})).expect("spawn writer");
+
+        writer
+            .exec_tx(|tx| tx.run(|_conn| Ok(())))
+            .await
+            .expect("write before shutdown");
+
+        writer.shutdown().await;
+        task.join().await;
+
+        // The actor's connection is what would otherwise keep the database open
+        // through maintenance, so it must be back in the pool by now.
+        assert_eq!(pool.state().idle_connections, pool.state().connections);
+
+        // A write after shutdown is an error, not a panic: maintenance stops the
+        // actor while commands may still be unwinding.
+        let result = writer.exec_tx(|tx| tx.run(|_conn| Ok(()))).await;
+        assert!(result.is_err(), "writes after shutdown must fail cleanly");
+    }
+
+    #[tokio::test]
+    async fn shutdown_drains_work_already_queued() {
+        let (writer, task) =
+            spawn_writer_with_outbox_observer(setup_pool(), Arc::new(|| {})).expect("spawn writer");
+
+        let queued = writer.exec_tx(|tx| {
+            tx.run(|_conn| {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                Ok(7u8)
+            })
+        });
+        let stopped = writer.shutdown();
+
+        let (queued, ()) = tokio::join!(queued, stopped);
+        assert_eq!(queued.expect("queued write must still run"), 7);
+        task.join().await;
+    }
+
+    #[tokio::test]
     async fn does_not_notify_observer_when_transaction_writes_no_outbox_rows() {
         let notify_count = Arc::new(AtomicUsize::new(0));
         let observer_count = notify_count.clone();
-        let writer = spawn_writer_with_outbox_observer(
+        let (writer, _task) = spawn_writer_with_outbox_observer(
             setup_pool(),
             Arc::new(move || {
                 observer_count.fetch_add(1, Ordering::SeqCst);

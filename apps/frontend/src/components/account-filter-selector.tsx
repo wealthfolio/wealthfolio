@@ -100,7 +100,16 @@ const SelectorTrigger = forwardRef<HTMLButtonElement, SelectorTriggerProps>(
         size={compact ? "sm" : "default"}
         {...props}
       >
-        <ScopeIcon value={value} />
+        {compact ? (
+          <span className="relative" aria-hidden="true">
+            <Icons.ListFilter className="h-4 w-4" />
+            {value.type !== "all" && (
+              <span className="bg-primary absolute -left-[1.5px] -top-1 h-2 w-2 rounded-full" />
+            )}
+          </span>
+        ) : (
+          <ScopeIcon value={value} />
+        )}
         {compact ? (
           <span className="sr-only">{label}</span>
         ) : (

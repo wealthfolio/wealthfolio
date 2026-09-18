@@ -9,9 +9,9 @@ async fn healthz_works() {
     std::env::set_var("WF_DB_PATH", tmp.path().join("test.db"));
     std::env::set_var("WF_SECRET_KEY", "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     std::env::set_var("WF_LISTEN_ADDR", "127.0.0.1:0");
-    let config = Config::from_env();
+    let config = Config::from_env().unwrap();
     let state = build_state(&config).await.unwrap();
-    let app = app_router(state, &config);
+    let app = app_router(state, &config).unwrap();
 
     let response = app
         .oneshot(

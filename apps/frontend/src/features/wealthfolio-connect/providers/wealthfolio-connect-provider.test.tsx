@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryKeys } from "@/lib/query-keys";
 import { usePostLoginConnectSync } from "../hooks/use-post-login-connect-sync";
 import { WealthfolioConnectProvider, useWealthfolioConnect } from "./wealthfolio-connect-provider";
 
@@ -90,8 +92,11 @@ function deferred<T>() {
   });
   return { promise, resolve, reject };
 }
+let queryClient: QueryClient;
 const wrapper = ({ children }: { children: ReactNode }) => (
-  <WealthfolioConnectProvider>{children}</WealthfolioConnectProvider>
+  <QueryClientProvider client={queryClient}>
+    <WealthfolioConnectProvider>{children}</WealthfolioConnectProvider>
+  </QueryClientProvider>
 );
 async function setup() {
   const hook = renderHook(useWealthfolioConnect, { wrapper });
@@ -101,6 +106,7 @@ async function setup() {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   mocks.restore.mockRejectedValue(new Error("No stored session"));
   mocks.setSession.mockResolvedValue({ data: { session: session("A") }, error: null });
   mocks.verifyOtp.mockResolvedValue({ data: { session: session("A") }, error: null });
@@ -128,6 +134,22 @@ beforeEach(() => {
 });
 
 describe("Cloud session lifecycle", () => {
+  it("invalidates restored settings only after the backend accepts reconnection", async () => {
+    const stored = deferred<void>();
+    mocks.store.mockReturnValueOnce(stored.promise);
+    queryClient.setQueryData([QueryKeys.SETTINGS], { restoreReconnectRequired: true });
+    const { result } = await setup();
+    let login!: Promise<void>;
+    await act(async () => {
+      login = result.current.signInWithEmail("A", "password");
+    });
+    expect(queryClient.getQueryState([QueryKeys.SETTINGS])?.isInvalidated).toBe(false);
+    await act(async () => {
+      stored.resolve();
+      await login;
+    });
+    expect(queryClient.getQueryState([QueryKeys.SETTINGS])?.isInvalidated).toBe(true);
+  });
   it.each(["web", "ios", "android"])(
     "ignores a canceled response from a replaced session on %s",
     async (platform) => {

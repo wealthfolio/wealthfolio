@@ -14,7 +14,7 @@ export const ExportForm = () => {
 
   const { exportData, isExporting, exportingFormat, exportingData } = useExportData();
 
-  // `name` values (CSV/JSON/SQLite) are format identifiers used as radio values —
+  // `name` values (CSV/JSON) are format identifiers used as radio values —
   // do NOT translate those; only the descriptions/labels are localized.
   const dataFormats = [
     { name: "CSV", icon: Icons.FileCsv, description: t("settings:export_format_csv_description") },
@@ -22,11 +22,6 @@ export const ExportForm = () => {
       name: "JSON",
       icon: Icons.FileJson,
       description: t("settings:export_format_json_description"),
-    },
-    {
-      name: "SQLite",
-      icon: Icons.Database,
-      description: t("settings:export_format_sqlite_description"),
     },
   ];
 
@@ -67,14 +62,6 @@ export const ExportForm = () => {
   const dataTypes = {
     CSV: csvJsonTypes,
     JSON: csvJsonTypes,
-    SQLite: [
-      {
-        key: "full",
-        name: t("settings:export_type_full_database"),
-        icon: Icons.Database,
-        description: t("settings:export_type_full_database_description"),
-      },
-    ],
   };
 
   const handleExport = (item: (typeof dataTypes)[ExportedFileFormat][number]) => {
@@ -92,7 +79,7 @@ export const ExportForm = () => {
         <h3 className="pb-3 pt-5 font-semibold">{t("settings:export_format_title")}</h3>
         <RadioGroup
           onValueChange={setSelectedFormat}
-          className="grid grid-cols-1 gap-4 md:grid-cols-3"
+          className="grid grid-cols-1 gap-4 md:grid-cols-2"
         >
           {dataFormats.map((format) => (
             <div key={format.name}>

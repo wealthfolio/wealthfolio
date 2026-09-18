@@ -1,3 +1,4 @@
+use crate::database::DatabaseRuntime;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
 
@@ -21,9 +22,10 @@ pub async fn install_addon_zip(
     zip_data: Vec<u8>,
     enable_after_install: Option<bool>,
     approved_network_hosts: Option<Vec<String>>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<AddonManifest, String> {
-    addon_service(&app_handle, &state)?
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?
         .install_addon_zip(
             zip_data,
             enable_after_install.unwrap_or(true),
@@ -35,9 +37,10 @@ pub async fn install_addon_zip(
 #[tauri::command]
 pub async fn list_installed_addons(
     app_handle: AppHandle,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Vec<InstalledAddon>, String> {
-    addon_service(&app_handle, &state)?.list_installed_addons()
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?.list_installed_addons()
 }
 
 #[tauri::command]
@@ -45,18 +48,20 @@ pub async fn toggle_addon(
     app_handle: AppHandle,
     addon_id: String,
     enabled: bool,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<(), String> {
-    addon_service(&app_handle, &state)?.toggle_addon(&addon_id, enabled)
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?.toggle_addon(&addon_id, enabled)
 }
 
 #[tauri::command]
 pub async fn uninstall_addon(
     app_handle: AppHandle,
     addon_id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<(), String> {
-    addon_service(&app_handle, &state)?
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?
         .uninstall_addon(&addon_id)
         .await
 }
@@ -65,9 +70,10 @@ pub async fn uninstall_addon(
 pub async fn load_addon_for_runtime(
     app_handle: AppHandle,
     addon_id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<ExtractedAddon, String> {
-    addon_service(&app_handle, &state)?.load_addon_for_runtime(&addon_id)
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?.load_addon_for_runtime(&addon_id)
 }
 
 #[tauri::command]
@@ -75,22 +81,28 @@ pub async fn load_addon_asset(
     app_handle: AppHandle,
     addon_id: String,
     asset_id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<tauri::ipc::Response, String> {
-    let addon_service = addon_service(&app_handle, &state)?;
-    let asset =
-        tokio::task::spawn_blocking(move || addon_service.load_addon_asset(&addon_id, &asset_id))
-            .await
-            .map_err(|error| format!("Addon asset task failed: {error}"))??;
+    let context = state.context()?;
+    let addon_service = addon_service(&app_handle, &context)?;
+    let asset = tokio::task::spawn_blocking(move || {
+        let result = addon_service.load_addon_asset(&addon_id, &asset_id);
+        drop(addon_service);
+        drop(context);
+        result
+    })
+    .await
+    .map_err(|error| format!("Addon asset task failed: {error}"))??;
     Ok(tauri::ipc::Response::new(asset.bytes))
 }
 
 #[tauri::command]
 pub async fn get_enabled_addons_on_startup(
     app_handle: AppHandle,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Vec<ExtractedAddon>, String> {
-    addon_service(&app_handle, &state)?.get_enabled_addons_on_startup()
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?.get_enabled_addons_on_startup()
 }
 
 // Legacy function for backward compatibility
@@ -145,10 +157,11 @@ pub async fn check_addon_update(
 #[tauri::command]
 pub async fn check_all_addon_updates(
     app_handle: AppHandle,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Vec<AddonUpdateCheckResult>, String> {
+    let context = state.context()?;
     let mut results = Vec::new();
-    let installed_addons = addon_service(&app_handle, &state)?.list_installed_addons()?;
+    let installed_addons = addon_service(&app_handle, &context)?.list_installed_addons()?;
 
     for addon in installed_addons {
         match addons::check_addon_update_from_api(&addon.metadata.id, &addon.metadata.version).await
@@ -190,9 +203,10 @@ pub async fn check_all_addon_updates(
 pub async fn update_addon_from_store_by_id(
     app_handle: AppHandle,
     addon_id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<AddonManifest, String> {
-    addon_service(&app_handle, &state)?
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?
         .update_addon_from_store(&addon_id)
         .await
 }
@@ -200,7 +214,7 @@ pub async fn update_addon_from_store_by_id(
 /// Fetch available addons from the store
 #[tauri::command]
 pub async fn fetch_addon_store_listings(
-    _state: State<'_, Arc<ServiceContext>>,
+    _state: State<'_, DatabaseRuntime>,
 ) -> Result<Vec<serde_json::Value>, String> {
     addons::fetch_addon_store_listings().await
 }
@@ -210,9 +224,10 @@ pub async fn fetch_addon_store_listings(
 pub async fn download_addon_to_staging(
     app_handle: AppHandle,
     addon_id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<ExtractedAddon, String> {
-    addon_service(&app_handle, &state)?
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?
         .download_addon_to_staging(&addon_id)
         .await
 }
@@ -224,9 +239,10 @@ pub async fn install_addon_from_staging(
     addon_id: String,
     enable_after_install: Option<bool>,
     approved_network_hosts: Option<Vec<String>>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<AddonManifest, String> {
-    addon_service(&app_handle, &state)?
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?
         .install_addon_from_staging(
             &addon_id,
             enable_after_install.unwrap_or(true),
@@ -240,9 +256,10 @@ pub async fn update_addon_network_approvals(
     app_handle: AppHandle,
     addon_id: String,
     approved_network_hosts: Vec<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<AddonManifest, String> {
-    addon_service(&app_handle, &state)?
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?
         .update_addon_network_approvals(&addon_id, approved_network_hosts)
 }
 
@@ -251,9 +268,10 @@ pub async fn update_addon_network_approvals(
 pub async fn clear_addon_staging(
     app_handle: AppHandle,
     addon_id: Option<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<(), String> {
-    addon_service(&app_handle, &state)?.clear_staging(addon_id.as_deref())
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?.clear_staging(addon_id.as_deref())
 }
 
 /// Submit or update a rating for an addon
@@ -262,9 +280,10 @@ pub async fn submit_addon_rating(
     addon_id: String,
     rating: u8,
     review: Option<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<serde_json::Value, String> {
-    let rating_instance_id = state.rating_instance_id.as_str();
+    let context = state.context()?;
+    let rating_instance_id = context.rating_instance_id.as_str();
     addons::submit_addon_rating(&addon_id, rating, review, rating_instance_id).await
 }
 
@@ -274,9 +293,10 @@ pub async fn get_addon_storage_item(
     app_handle: AppHandle,
     addon_id: String,
     key: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Option<String>, String> {
-    addon_service(&app_handle, &state)?
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?
         .get_addon_storage_item(&addon_id, &key)
         .await
 }
@@ -288,9 +308,10 @@ pub async fn set_addon_storage_item(
     addon_id: String,
     key: String,
     value: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<(), String> {
-    addon_service(&app_handle, &state)?
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?
         .set_addon_storage_item(&addon_id, &key, &value)
         .await
 }
@@ -301,9 +322,10 @@ pub async fn delete_addon_storage_item(
     app_handle: AppHandle,
     addon_id: String,
     key: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<(), String> {
-    addon_service(&app_handle, &state)?
+    let context = state.context()?;
+    addon_service(&app_handle, &context)?
         .delete_addon_storage_item(&addon_id, &key)
         .await
 }

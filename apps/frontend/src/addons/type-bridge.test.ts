@@ -278,11 +278,13 @@ describe("Addon Type Bridge", () => {
 
       await authAPI.network.request({
         url: "https://api.example.com/v1",
+        timeoutSecs: 30,
         auth: { type: "bearer", secretKey: "api-token" },
       });
 
       expect(mockAddonNetworkRequest).toHaveBeenCalledWith({
         url: "https://api.example.com/v1",
+        timeoutSecs: 30,
         auth: { type: "bearer", secretKey: "api-token" },
       });
     });

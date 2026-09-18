@@ -6,7 +6,7 @@ use crate::{
     domain_events::WebDomainEventSink, events::EventBus, oidc::OidcManager,
     secrets::build_secret_store,
 };
-use tracing::{error, warn};
+use tracing::warn;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 use wealthfolio_ai::{AiProviderService, AiProviderServiceTrait, ChatConfig, ChatService};
@@ -71,6 +71,7 @@ use wealthfolio_storage_sqlite::{
 };
 
 pub struct AppState {
+    pub backup_exports: crate::api::portable_backups::BackupExports,
     /// Domain event sink for emitting events after mutations.
     /// Note: The sink is used by services injected at construction time; this field
     /// is kept for documentation and possible future access patterns.
@@ -109,6 +110,9 @@ pub struct AppState {
     pub ai_chat_service: Arc<ChatService<ServerAiEnvironment>>,
     pub data_root: String,
     pub db_path: String,
+    /// Path plus key for the live database, so backups apply `PRAGMA key`.
+    pub db_access: db::DbAccess,
+    pub database_key: Arc<db::DbEncryptionKey>,
     pub secret_store: Arc<dyn SecretStore>,
     pub event_bus: EventBus,
     pub auth: Option<Arc<AuthManager>>,
@@ -146,6 +150,29 @@ pub struct AppState {
     pub mcp_enabled: bool,
     /// Whether agent tool calls are audited (from `Config::mcp_audit_enabled`).
     pub mcp_audit_enabled: bool,
+    // Drop after the services; retained even when all SQLite connections are idle.
+    _database_owner: Arc<db::DatabaseOwner>,
+}
+
+pub(crate) fn read_runtime_setting(
+    lock: &RwLock<String>,
+    name: &'static str,
+) -> crate::error::ApiResult<String> {
+    lock.read().map(|value| value.clone()).map_err(|_| {
+        crate::error::ApiError::Internal(format!(
+            "{name} state is unavailable. Restart the server before continuing."
+        ))
+    })
+}
+
+impl AppState {
+    pub(crate) fn base_currency(&self) -> crate::error::ApiResult<String> {
+        read_runtime_setting(&self.base_currency, "Base currency")
+    }
+
+    pub(crate) fn timezone(&self) -> crate::error::ApiResult<String> {
+        read_runtime_setting(&self.timezone, "Timezone")
+    }
 }
 
 pub fn init_tracing() {
@@ -241,15 +268,178 @@ fn start_sync_outbox_wake_worker(
     });
 }
 
+/// Supplies the database key derived from `WF_SECRET_KEY`.
+///
+/// Nothing is stored: the key exists whenever the master secret does, which is
+/// what makes a server database portable across any instance sharing it.
+struct DerivedKeyProvider {
+    key: [u8; 32],
+}
+
+impl wealthfolio_storage_sqlite::db::KeyProvider for DerivedKeyProvider {
+    fn existing(&self) -> wealthfolio_core::errors::Result<Option<db::DbEncryptionKey>> {
+        Ok(Some(db::DbEncryptionKey::from_bytes(&self.key)))
+    }
+
+    fn create(&self) -> wealthfolio_core::errors::Result<db::DbEncryptionKey> {
+        Ok(db::DbEncryptionKey::from_bytes(&self.key))
+    }
+}
+
+/// Opens the database and refuses to start when its state disagrees with
+/// `WF_DB_REQUIRE_ENCRYPTION`.
+///
+/// Fail closed in both directions. Booting an encrypted database with the flag
+/// unset would run a configuration the operator did not ask for; booting a
+/// plaintext database with the flag set would claim encryption the file does not
+/// have. Neither should be papered over.
+fn open_database(config: &Config, db_path: &str) -> anyhow::Result<db::DbAccess> {
+    let provider = DerivedKeyProvider {
+        key: config.database_key,
+    };
+    let policy = if config.db_encryption_required {
+        db::EncryptionPolicy::Encrypted
+    } else {
+        db::EncryptionPolicy::Plaintext
+    };
+
+    // build_state holds DatabaseOwner before reaching here, excluding other
+    // Wealthfolio instances using this database. Clear abandoned snapshot
+    // staging before this process starts operations that could create live files.
+    db::purge_scratch_dir(std::path::Path::new(db_path), database_root(db_path));
+
+    let access = db::bootstrap(db_path, &provider, policy)?;
+
+    match (access.is_encrypted(), config.db_encryption_required) {
+        (true, false) => anyhow::bail!(
+            "Refusing to start: the database at {} is encrypted but WF_DB_REQUIRE_ENCRYPTION is not \
+             enabled.\n\n\
+             Set WF_DB_REQUIRE_ENCRYPTION=1 to start, or decrypt the database with:\n  \
+             wealthfolio-server db decrypt",
+            access.path()
+        ),
+        (false, true) => anyhow::bail!(
+            "Refusing to start: WF_DB_REQUIRE_ENCRYPTION is enabled but the database at {} is not \
+             encrypted.\n\n\
+             Encrypt it with:\n  wealthfolio-server db encrypt\n\n\
+             Or unset WF_DB_REQUIRE_ENCRYPTION to keep running unencrypted.",
+            access.path()
+        ),
+        _ => Ok(access),
+    }
+}
+
+/// Converts the database between plaintext and encrypted, offline.
+///
+/// Deliberately not an API call: replacing the database file requires that
+/// nothing is connected to it, which on the server means the process is not
+/// serving. Run it with the server stopped.
+pub fn run_database_maintenance(encrypt: bool) -> anyhow::Result<()> {
+    // Deliberately not `Config::from_env()`: that enforces the *listening*
+    // server's policy (auth required off loopback, CORS, MCP) and panics when it
+    // is unmet. Converting the database opens no socket, so it must not be
+    // gated by any of it — it needs the master secret and the path, nothing more.
+    dotenvy::dotenv().ok();
+
+    let raw_secret_key = crate::config::load_secret_key(
+        std::env::var_os("WF_SECRET_KEY"),
+        std::env::var_os("WF_SECRET_KEY_FILE"),
+    )?;
+    let db_path = std::env::var("WF_DB_PATH").unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
+
+    std::env::set_var("DATABASE_URL", &db_path);
+
+    let database_key = crate::auth::derive_database_key(&raw_secret_key);
+    let provider = DerivedKeyProvider { key: database_key };
+
+    // Converting a database that is not there is never what the operator meant.
+    // Without this check `bootstrap` would happily *create* one — encrypted,
+    // under the encrypt policy — and the run would report "already encrypted;
+    // nothing to do", leaving an empty database at a mistyped WF_DB_PATH or on
+    // an unmounted volume while the real data sits untouched elsewhere.
+    let resolved_path = db::get_db_path(&db_path);
+    if !std::path::Path::new(&resolved_path).exists() {
+        anyhow::bail!(
+            "No database found at {resolved_path}.\n\n\
+             Check WF_DB_PATH and that the data volume is mounted. Nothing was created."
+        );
+    }
+
+    // The policy only decides how a database that does not exist yet is created,
+    // so take it from the operation being asked for; an existing file is always
+    // resolved by probing.
+    let policy = if encrypt {
+        db::EncryptionPolicy::Encrypted
+    } else {
+        db::EncryptionPolicy::Plaintext
+    };
+    let database_owner = db::DatabaseOwner::acquire(&resolved_path)?;
+    let current = db::bootstrap(&resolved_path, &provider, policy)?;
+
+    if current.is_encrypted() == encrypt {
+        tracing::info!(
+            "Database at {} is already {}; nothing to do",
+            current.path(),
+            if encrypt { "encrypted" } else { "plaintext" }
+        );
+        return Ok(());
+    }
+
+    let data_root = database_root(current.path()).to_string_lossy().into_owned();
+    // DatabaseOwner prevents this offline command from running alongside a
+    // serving instance for the same database. Clean abandoned staging before
+    // starting our own backup and conversion, whose files must remain intact.
+    db::purge_scratch_dir(
+        std::path::Path::new(current.path()),
+        std::path::Path::new(&data_root),
+    );
+    // Migrations must be current before the file is copied: the candidate is a
+    // logical copy of whatever schema the source has.
+    // Pre-migration backups retain source protection, including plaintext before encryption.
+    current.run_migrations_with_backup(&data_root, &database_owner)?;
+
+    let request = if encrypt {
+        db::maintenance::MaintenanceRequest::Enable {
+            key: Arc::new(db::DbEncryptionKey::from_bytes(&database_key)),
+        }
+    } else {
+        db::maintenance::MaintenanceRequest::Disable
+    };
+
+    let outcome = db::maintenance::run(&data_root, &current, request, &database_owner)?;
+    tracing::info!(
+        "Database at {} is now {}",
+        outcome.access.path(),
+        if outcome.access.is_encrypted() {
+            "encrypted"
+        } else {
+            "plaintext"
+        }
+    );
+    if let Some(backup) = outcome.pre_operation_backup {
+        tracing::info!("Pre-operation backup retained at {}", backup);
+    }
+    Ok(())
+}
+
+/// Default location of the database when `WF_DB_PATH` is unset.
+pub const DEFAULT_DB_PATH: &str = "./db/app.db";
+
+fn database_root(db_path: &str) -> &std::path::Path {
+    std::path::Path::new(db_path)
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| std::path::Path::new("."))
+}
+
 pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
+    let database_owner = Arc::new(db::DatabaseOwner::acquire(&config.db_path)?);
     // Ensure DATABASE_URL aligns with WF_DB_PATH so core picks the right file
     std::env::set_var("DATABASE_URL", &config.db_path);
-    let db_path = db::init(&config.db_path)?;
+    let db_access = open_database(config, &config.db_path)?;
+    let db_path = db_access.path().to_string();
     tracing::info!("Database path in use: {}", db_path);
-    let data_root_path = std::path::Path::new(&db_path)
-        .parent()
-        .unwrap_or_else(|| std::path::Path::new("."))
-        .to_path_buf();
+    let data_root_path = database_root(&db_path).to_path_buf();
 
     let resolved_secret_path = std::env::var("WF_SECRET_FILE")
         .ok()
@@ -267,21 +457,28 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         resolved_secret_path.to_string_lossy().to_string(),
     );
 
-    db::run_migrations(&db_path)?;
+    let migration_access = db_access.clone();
+    let migration_owner = database_owner.clone();
+    let backup_root = data_root_path.to_string_lossy().into_owned();
+    tokio::task::spawn_blocking(move || {
+        migration_access.run_migrations_with_backup(&backup_root, &migration_owner)
+    })
+    .await??;
 
-    let pool = db::create_pool(&db_path)?;
+    let pool = db_access.create_pool_with_owner(database_owner.clone())?;
     let (sync_outbox_wake_sender, sync_outbox_wake_receiver) = tokio::sync::mpsc::channel(128);
-    let writer = write_actor::spawn_writer_with_outbox_observer(
+    let writer_result = write_actor::spawn_writer_with_outbox_observer(
         (*pool).clone(),
         Arc::new(move || {
             let _ = sync_outbox_wake_sender.try_send(());
         }),
-    )
-    .map_err(|e| {
-        error!("Failed to initialize writer actor: {}", e);
-        e
-    })?;
+    );
+    let (writer, writer_task) = writer_result?;
 
+    let mut writer_task = Some(writer_task);
+    // Drop partially constructed services before draining the writer on failure.
+    // Retain the owner outside this future until cleanup has finished.
+    let result: anyhow::Result<Arc<AppState>> = async {
     // Domain event sink - two-phase initialization to handle circular dependencies
     // Phase 1: Create the sink (can receive events immediately, buffers until worker starts)
     let domain_event_sink = Arc::new(WebDomainEventSink::new());
@@ -532,7 +729,9 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
     ));
 
     let goal_repository = Arc::new(GoalRepository::new(pool.clone(), writer.clone()));
-    let goal_service = Arc::new(GoalService::new(goal_repository, account_service.clone()));
+    let goal_service = Arc::new(
+        GoalService::new(goal_repository, account_service.clone()).with_timezone(timezone.clone()),
+    );
 
     let limits_repository = Arc::new(ContributionLimitRepository::new(
         pool.clone(),
@@ -575,31 +774,6 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
     )
     .await?;
     recalculation_gate.replace_pending_accounts(final_cash_migration.pending_account_ids.clone());
-    if !final_cash_migration.pending_account_ids.is_empty() {
-        // The recalculation gate already serializes and forces full
-        // recomputation for pending accounts, so the rebuild can always run
-        // in the background instead of blocking (or failing) startup.
-        tracing::info!(
-            "Rebuilding {} account(s) after final-cash migration in the background",
-            final_cash_migration.pending_account_ids.len()
-        );
-        let settings_service = settings_service.clone();
-        let snapshot_service = snapshot_service.clone();
-        let valuation_service = valuation_service.clone();
-        let recalculation_gate = recalculation_gate.clone();
-        tokio::spawn(async move {
-            if let Err(error) = rebuild_pending_final_cash_accounts(
-                settings_service.as_ref(),
-                snapshot_service.as_ref(),
-                valuation_service.as_ref(),
-                recalculation_gate.as_ref(),
-            )
-            .await
-            {
-                tracing::warn!("Background final-cash rebuild failed: {}", error);
-            }
-        });
-    }
 
     // Spending: events + event_types
     let event_types_repo: Arc<dyn wealthfolio_spending::events::EventTypesRepositoryTrait> =
@@ -635,6 +809,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
             activity_events_repo.clone(),
             events_service.clone(),
             fx_service.clone(),
+            taxonomy_service.clone(),
         ),
     );
 
@@ -728,6 +903,7 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
             asset_repository.clone(),
             quote_service.clone(),
         )
+        .with_timezone(timezone.clone())
         .with_event_sink(domain_event_sink.clone()),
     );
 
@@ -837,8 +1013,48 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         warn!("Failed to prune local sync outbox: {}", err);
     }
 
+
+    let addon_storage_repository =
+        Arc::new(AddonStorageRepository::new(pool.clone(), writer.clone()));
+    let addon_service: Arc<dyn AddonServiceTrait + Send + Sync> = Arc::new(AddonService::new(
+        &config.addons_root,
+        rating_instance_id,
+        addon_storage_repository,
+    ));
+
+    let auth = crate::auth::AuthState::from_config(config).await?;
+    let auth_manager = auth.auth;
+    let oidc_manager = auth.oidc;
+
+    if !final_cash_migration.pending_account_ids.is_empty() {
+        // The recalculation gate already serializes and forces full
+        // recomputation for pending accounts, so the rebuild can always run
+        // in the background instead of blocking (or failing) startup.
+        tracing::info!(
+            "Rebuilding {} account(s) after final-cash migration in the background",
+            final_cash_migration.pending_account_ids.len()
+        );
+        let settings_service = settings_service.clone();
+        let snapshot_service = snapshot_service.clone();
+        let valuation_service = valuation_service.clone();
+        let recalculation_gate = recalculation_gate.clone();
+        tokio::spawn(async move {
+            if let Err(error) = rebuild_pending_final_cash_accounts(
+                settings_service.as_ref(),
+                snapshot_service.as_ref(),
+                valuation_service.as_ref(),
+                recalculation_gate.as_ref(),
+            )
+            .await
+            {
+                tracing::warn!("Background final-cash rebuild failed: {}", error);
+            }
+        });
+    }
+
     // Domain event sink - Phase 2: Start the worker now that all services are ready
     domain_event_sink.start_worker(
+        settings_service.clone(),
         asset_service.clone(),
         connect_sync_service.clone(),
         event_bus.clone(),
@@ -857,31 +1073,10 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         token_lifecycle.clone(),
         spending_settings_service.clone(),
         categorization_rules_service.clone(),
-    );
-
-    let addon_storage_repository =
-        Arc::new(AddonStorageRepository::new(pool.clone(), writer.clone()));
-    let addon_service: Arc<dyn AddonServiceTrait + Send + Sync> = Arc::new(AddonService::new(
-        &config.addons_root,
-        rating_instance_id,
-        addon_storage_repository,
-    ));
-
-    let auth_manager = config
-        .auth
-        .as_ref()
-        .map(AuthManager::new)
-        .transpose()?
-        .map(Arc::new);
-
-    let oidc_manager = match config.oidc.as_ref() {
-        Some(oidc_config) => Some(Arc::new(
-            OidcManager::discover(oidc_config, config.secrets_encryption_key).await?,
-        )),
-        None => None,
-    };
+    )?;
 
     let state = Arc::new(AppState {
+        backup_exports: crate::api::portable_backups::BackupExports::default(),
         domain_event_sink,
         account_service,
         settings_service,
@@ -911,6 +1106,9 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
         ai_chat_service,
         data_root,
         db_path,
+        db_access,
+        database_key: Arc::new(db::DbEncryptionKey::from_bytes(&config.database_key)),
+        _database_owner: Arc::clone(&database_owner),
         secret_store,
         event_bus,
         auth: auth_manager,
@@ -951,4 +1149,35 @@ pub async fn build_state(config: &Config) -> anyhow::Result<Arc<AppState>> {
     }
 
     Ok(state)
+    }.await;
+    if result.is_err() {
+        writer.shutdown().await;
+        if let Some(task) = writer_task.take() {
+            task.join().await;
+        }
+        drop(pool);
+    }
+    result
+}
+
+#[cfg(test)]
+mod runtime_setting_tests {
+    use super::*;
+    use axum::response::IntoResponse;
+
+    #[test]
+    fn poisoned_settings_return_internal_errors_instead_of_default_values() {
+        let setting = RwLock::new("USD".to_string());
+        let _ = std::panic::catch_unwind(|| {
+            let mut value = setting.write().unwrap();
+            value.clear();
+            panic!("interrupted settings update");
+        });
+        let error = read_runtime_setting(&setting, "Base currency").unwrap_err();
+        assert_eq!(
+            error.into_response().status(),
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        );
+        assert!(setting.is_poisoned());
+    }
 }

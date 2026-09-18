@@ -122,6 +122,9 @@ open class BuildTask : DefaultTask() {
             }
             androidLinker(target)?.let { (envName, linker) ->
                 environment(envName, linker.absolutePath)
+                // Vendored OpenSSL cannot use the removed GNU-prefixed ranlib.
+                val ranlibName = if (Os.isFamily(Os.FAMILY_WINDOWS)) "llvm-ranlib.exe" else "llvm-ranlib"
+                environment("TARGET_RANLIB", File(linker.parentFile, ranlibName).absolutePath)
             }
             args(listOf("--target", target))
         }.assertNormalExitValue()

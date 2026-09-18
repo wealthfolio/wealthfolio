@@ -15,7 +15,7 @@ export interface DateRange {
 interface IntervalData {
   code: TimePeriod;
   description: string;
-  calculateRange: () => DateRange | undefined;
+  calculateRange: (asOf: Date) => DateRange | undefined;
 }
 
 const intervalDescriptions: Record<TimePeriod, string> = {
@@ -34,47 +34,47 @@ const intervals: IntervalData[] = [
   {
     code: "1D",
     description: intervalDescriptions["1D"],
-    calculateRange: () => ({ from: subDays(new Date(), 1), to: new Date() }),
+    calculateRange: (asOf) => ({ from: subDays(asOf, 1), to: asOf }),
   },
   {
     code: "1W",
     description: intervalDescriptions["1W"],
-    calculateRange: () => ({ from: subWeeks(new Date(), 1), to: new Date() }),
+    calculateRange: (asOf) => ({ from: subWeeks(asOf, 1), to: asOf }),
   },
   {
     code: "1M",
     description: intervalDescriptions["1M"],
-    calculateRange: () => ({ from: subMonths(new Date(), 1), to: new Date() }),
+    calculateRange: (asOf) => ({ from: subMonths(asOf, 1), to: asOf }),
   },
   {
     code: "3M",
     description: intervalDescriptions["3M"],
-    calculateRange: () => ({ from: subMonths(new Date(), 3), to: new Date() }),
+    calculateRange: (asOf) => ({ from: subMonths(asOf, 3), to: asOf }),
   },
   {
     code: "6M",
     description: intervalDescriptions["6M"],
-    calculateRange: () => ({ from: subMonths(new Date(), 6), to: new Date() }),
+    calculateRange: (asOf) => ({ from: subMonths(asOf, 6), to: asOf }),
   },
   {
     code: "YTD",
     description: intervalDescriptions.YTD,
-    calculateRange: () => ({ from: startOfYear(new Date()), to: new Date() }),
+    calculateRange: (asOf) => ({ from: startOfYear(asOf), to: asOf }),
   },
   {
     code: "1Y",
     description: intervalDescriptions["1Y"],
-    calculateRange: () => ({ from: subYears(new Date(), 1), to: new Date() }),
+    calculateRange: (asOf) => ({ from: subYears(asOf, 1), to: asOf }),
   },
   {
     code: "5Y",
     description: intervalDescriptions["5Y"],
-    calculateRange: () => ({ from: subYears(new Date(), 5), to: new Date() }),
+    calculateRange: (asOf) => ({ from: subYears(asOf, 5), to: asOf }),
   },
   {
     code: "ALL",
     description: intervalDescriptions.ALL,
-    calculateRange: () => ({ from: new Date("1970-01-01"), to: new Date() }),
+    calculateRange: (asOf) => ({ from: new Date("1970-01-01"), to: asOf }),
   },
 ];
 
@@ -124,7 +124,7 @@ const IntervalSelector: React.FC<IntervalSelectorProps> = ({
       }
       // Notify parent
       const data = getIntervalData(value);
-      onIntervalSelect(data.code, data.description, data.calculateRange());
+      onIntervalSelect(data.code, data.description, data.calculateRange(new Date()));
       // Trigger haptic feedback
       onHaptic?.();
     },
@@ -163,12 +163,12 @@ const IntervalSelector: React.FC<IntervalSelectorProps> = ({
 };
 
 /** Helper to get interval data for a given code - use to derive range/description from a code */
-const getInitialIntervalData = (code: TimePeriod = DEFAULT_INTERVAL_CODE) => {
+const getInitialIntervalData = (code: TimePeriod = DEFAULT_INTERVAL_CODE, asOf: Date = new Date()) => {
   const data = getIntervalData(code);
   return {
     code: data.code,
     description: data.description,
-    range: data.calculateRange(),
+    range: data.calculateRange(asOf),
   };
 };
 

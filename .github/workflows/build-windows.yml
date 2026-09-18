@@ -29,6 +29,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Verify vendored OpenSSL Perl prerequisite
+        shell: bash
+        run: perl -v
+
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
 
@@ -66,7 +70,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
-          args: --target ${{ env.TARGET }} --bundles nsis
+          args: --target ${{ env.TARGET }} --bundles nsis -- --locked
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4

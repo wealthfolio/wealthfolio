@@ -1,3 +1,5 @@
+import { formatZonedDateKey } from "@/features/spending/lib/timezone";
+import { parseLocalDate } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,8 +36,8 @@ import type { PlannerMode, RetirementOverview } from "@/lib/types";
 import type { RetirementPlan } from "@/features/goals/retirement-planner/types";
 import {
   parseSettingsJson,
-  DEFAULT_RETIREMENT_PLAN,
   normalizeRetirementPlan,
+  createDefaultRetirementPlan,
 } from "@/features/goals/retirement-planner/lib/plan-adapter";
 import { usePortfolioData } from "@/features/goals/retirement-planner/hooks/use-portfolio";
 import DashboardPage from "@/features/goals/retirement-planner/pages/dashboard-page";
@@ -62,6 +64,8 @@ export default function GoalDetailPage() {
   const { mutate: savePlan } = savePlanMutation;
   const { deleteMutation } = useGoalMutations();
   const { settings } = useSettingsContext();
+  const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
+  const today = useMemo(() => parseLocalDate(todayISO), [todayISO]);
 
   const isRetirement = goal?.goalType === "retirement";
   const isSaveUp = goal && !isRetirement;
@@ -79,10 +83,10 @@ export default function GoalDetailPage() {
   // Parse retirement plan from settings JSON
   const retirementPlan: RetirementPlan = useMemo(() => {
     if (!plan?.settingsJson || plan.planKind !== "retirement") {
-      return { ...DEFAULT_RETIREMENT_PLAN, currency: baseCurrency };
+      return createDefaultRetirementPlan(baseCurrency, today);
     }
-    return { ...parseSettingsJson(plan.settingsJson), currency: baseCurrency };
-  }, [baseCurrency, plan]);
+    return { ...parseSettingsJson(plan.settingsJson, today), currency: baseCurrency };
+  }, [baseCurrency, plan, today]);
 
   // DC-linked account IDs from retirement plan income streams
   const dcLinkedAccountIds = useMemo(() => {
@@ -106,7 +110,7 @@ export default function GoalDetailPage() {
           planKind: "retirement",
           plannerMode: nextPlannerMode ?? plan?.plannerMode ?? "traditional",
           settingsJson: JSON.stringify(
-            normalizeRetirementPlan({ ...updated, currency: baseCurrency }),
+            normalizeRetirementPlan({ ...updated, currency: baseCurrency }, today),
           ),
         },
         {
@@ -116,7 +120,7 @@ export default function GoalDetailPage() {
         },
       );
     },
-    [baseCurrency, goalId, plan?.plannerMode, savePlan],
+    [baseCurrency, goalId, plan?.plannerMode, savePlan, today],
   );
 
   const [editOpen, setEditOpen] = useState(false);

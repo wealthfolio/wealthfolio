@@ -5,6 +5,7 @@
 
 use std::future::Future;
 use std::sync::Arc;
+use wealthfolio_core::settings::SettingsServiceTrait;
 
 use axum::{
     extract::{Query, State},
@@ -37,9 +38,6 @@ use wealthfolio_connect::{
 };
 #[cfg(feature = "device-sync")]
 use wealthfolio_device_sync::{EnableSyncResult, SyncState, SyncStateResult};
-
-#[cfg(feature = "device-sync")]
-const DEVICE_ID_KEY: &str = "sync_device_id";
 
 #[cfg(feature = "device-sync")]
 enum PostLoginDeviceBootstrapDecision {
@@ -366,7 +364,11 @@ async fn store_sync_session(
     ensure_cloud_sync_enabled()?;
     state
         .token_lifecycle
-        .store_session(state.secret_store.as_ref(), &body.refresh_token)
+        .store_session_after_restore(
+            state.secret_store.as_ref(),
+            state.settings_service.as_ref(),
+            &body.refresh_token,
+        )
         .await
         .map_err(map_token_lifecycle_error)?;
 
@@ -514,10 +516,14 @@ async fn get_sync_session_status(
     State(state): State<Arc<AppState>>,
 ) -> ApiResult<Json<SyncSessionStatus>> {
     ensure_cloud_sync_enabled()?;
-    let is_configured = state
-        .token_lifecycle
-        .is_session_configured(state.secret_store.as_ref())
-        .map_err(map_token_lifecycle_error)?;
+    let is_configured = !state
+        .settings_service
+        .requires_cloud_reconnect()
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        && state
+            .token_lifecycle
+            .is_session_configured(state.secret_store.as_ref())
+            .map_err(map_token_lifecycle_error)?;
 
     Ok(Json(SyncSessionStatus { is_configured }))
 }
@@ -545,6 +551,15 @@ async fn restore_sync_session(
 
 pub(crate) async fn mint_access_token(state: &AppState) -> ApiResult<String> {
     ensure_cloud_sync_enabled()?;
+    if state
+        .settings_service
+        .requires_cloud_reconnect()
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+    {
+        return Err(ApiError::Forbidden(
+            "Reconnect Wealthfolio Connect after restoring this backup.".into(),
+        ));
+    }
     let config = token_lifecycle_config();
     ensure_valid_access_token(
         state.secret_store.as_ref(),
@@ -1041,11 +1056,6 @@ async fn enable_device_sync(
         .await
         .map_err(|e| ApiError::Internal(e.message))?;
 
-    // Backward compatibility: keep legacy device-id key in sync.
-    state
-        .secret_store
-        .set_secret(DEVICE_ID_KEY, &result.device_id)
-        .map_err(|e| ApiError::Internal(format!("Failed to store device ID: {}", e)))?;
     device_sync_engine::clear_min_snapshot_created_at_from_store();
     let _ = state
         .app_sync_repository
@@ -1073,22 +1083,19 @@ async fn clear_device_sync_data(State(state): State<Arc<AppState>>) -> ApiResult
     ensure_device_sync_enabled()?;
     info!("[Connect] Clearing device sync data...");
 
+    device_sync_engine::ensure_background_engine_stopped(Arc::clone(&state))
+        .await
+        .map_err(ApiError::Internal)?;
     state
         .device_enroll_service
         .clear_sync_data()
         .map_err(|e| ApiError::Internal(e.message))?;
     let _ = state.app_sync_repository.reset_local_sync_session().await;
-    state
-        .secret_store
-        .delete_secret(DEVICE_ID_KEY)
-        .map_err(|e| ApiError::Internal(format!("Failed to clear device ID: {}", e)))?;
     device_sync_engine::clear_min_snapshot_created_at_from_store();
     let _ = state
         .app_sync_repository
         .clear_all_min_snapshot_created_at()
         .await;
-    let _ = device_sync_engine::ensure_background_engine_stopped(Arc::clone(&state)).await;
-
     info!("[Connect] Device sync data cleared");
     Ok(Json(()))
 }
@@ -1108,11 +1115,6 @@ async fn reinitialize_device_sync(
         .await
         .map_err(|e| ApiError::Internal(e.message))?;
 
-    // Backward compatibility: keep legacy device-id key in sync.
-    state
-        .secret_store
-        .set_secret(DEVICE_ID_KEY, &result.device_id)
-        .map_err(|e| ApiError::Internal(format!("Failed to store device ID: {}", e)))?;
     device_sync_engine::clear_min_snapshot_created_at_from_store();
     let _ = state
         .app_sync_repository

@@ -46,6 +46,7 @@ import type {
   UpdateAssetProfile,
 } from "@/lib/types";
 import type { HoldingInput } from "@/adapters";
+import type { AlternativeAssetHolding } from "@/lib/types";
 import type {
   CategorizationRule as InternalCategorizationRule,
   NewCategorizationRule,
@@ -103,6 +104,7 @@ export interface InternalHostAPI {
   getHoldings(accountId: string): Promise<Holding[]>;
   getActivities(accountId?: string): Promise<ActivityDetails[]>;
   getAccounts(): Promise<Account[]>;
+  getAlternativeHoldings(): Promise<AlternativeAssetHolding[]>;
 
   // Exchange rates
   getExchangeRates(): Promise<ExchangeRate[]>;
@@ -528,6 +530,13 @@ export function createSDKHostAPIBridge(
     "assets",
     guard,
   );
+  const alternativeAssets = guardNamespace(
+    {
+      getAll: internalAPI.getAlternativeHoldings,
+    },
+    "alternative-assets",
+    guard,
+  );
   const quotes = guardNamespace(
     {
       update: internalAPI.updateQuote,
@@ -690,6 +699,7 @@ export function createSDKHostAPIBridge(
     activities: activities as unknown as SDKApiWithoutSecrets["activities"],
     market: market as unknown as SDKApiWithoutSecrets["market"],
     assets: assets as unknown as SDKApiWithoutSecrets["assets"],
+    alternativeAssets: alternativeAssets as unknown as SDKApiWithoutSecrets["alternativeAssets"],
     quotes: quotes as unknown as SDKApiWithoutSecrets["quotes"],
     performance: performance as unknown as SDKApiWithoutSecrets["performance"],
     exchangeRates: exchangeRates as unknown as SDKApiWithoutSecrets["exchangeRates"],

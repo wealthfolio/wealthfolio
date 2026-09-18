@@ -221,7 +221,5 @@
     "connectionFailed": "Erro de conexão",
     "tryAgain": "Tentar novamente"
   },
-  "errors": {
-    "backupPlatformUnsupported": "O backup antes da sincronização de dispositivos só é suportado atualmente em desktop, web e iOS"
-  }
+  "errors": {}
 }

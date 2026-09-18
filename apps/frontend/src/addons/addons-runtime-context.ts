@@ -16,6 +16,7 @@ import {
   updateActivity,
   createAccount,
   getAccounts,
+  getAlternativeHoldings,
   updateAccount,
   addonNetworkRequest,
   getTransferPairForActivity,
@@ -463,6 +464,7 @@ export function createAddonHostAPI(
       getHoldings: (accountId: string) => getHoldings({ type: "account", accountId }),
       getActivities,
       getAccounts,
+      getAlternativeHoldings,
 
       getExchangeRates,
       updateExchangeRate,

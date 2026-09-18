@@ -61,6 +61,14 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
     riskLevel: 'high',
   },
   {
+    id: 'alternative-assets',
+    name: 'Alternative Assets',
+    description:
+      'Read-only access to alternative assets and liabilities (property, vehicles, collectibles, precious metals, other) tracked outside investment accounts',
+    functions: ['getAll'],
+    riskLevel: 'high',
+  },
+  {
     id: 'portfolio',
     name: 'Portfolio Data',
     description: 'Access to holdings, portfolio performance, and account valuations',

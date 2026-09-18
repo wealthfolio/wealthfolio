@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DeviceSyncSection } from "./device-sync-section";
 
 const hookMocks = vi.hoisted(() => ({
+  backupDatabase: vi.fn(),
   useSyncStatus: vi.fn(),
   useDevices: vi.fn(),
   useSyncActions: vi.fn(),
@@ -53,8 +54,7 @@ vi.mock("@/adapters", () => ({
     debug: vi.fn(),
     trace: vi.fn(),
   },
-  backupDatabase: vi.fn(),
-  openFileSaveDialog: vi.fn(),
+  backupDatabase: hookMocks.backupDatabase,
 }));
 
 vi.mock("./pairing-flow", async () => {
@@ -190,6 +190,21 @@ describe("DeviceSyncSection", () => {
         "max-sm:[&>button]:whitespace-normal",
         "sm:flex-wrap",
       );
+      let finishBackup!: (value: { filename: string }) => void;
+      hookMocks.backupDatabase.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishBackup = resolve;
+          }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Back up first" }));
+      expect(hookMocks.backupDatabase).toHaveBeenCalledTimes(1);
+      expect(bootstrapSync.mutateAsync).not.toHaveBeenCalledWith({ allowOverwrite: true });
+      await act(async () => {
+        finishBackup({ filename: "managed.db" });
+      });
+      await flushAsyncWork();
+      expect(bootstrapSync.mutateAsync).toHaveBeenCalledWith({ allowOverwrite: true });
     } finally {
       vi.useRealTimers();
     }

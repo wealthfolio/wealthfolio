@@ -4,8 +4,8 @@ From this version, an activity's **amount** is the final cash that moved,
 including fees and taxes. Readers book it as-is; nothing re-derives it at read
 time. On first launch after upgrading, a one-shot migration rewrites legacy rows
 to this contract. Make a normal database backup before updating. The application
-does not create a potentially large automatic startup backup. What you may
-notice:
+does not create a potentially large automatic startup backup before version 3.9.
+What you may notice:
 
 ## Some historical amounts were corrected or flagged
 

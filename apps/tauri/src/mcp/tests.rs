@@ -7,7 +7,7 @@ use tokio_util::sync::CancellationToken;
 use wealthfolio_agent_tools::AgentEnvironment;
 use wealthfolio_mcp::{AuditSink, McpAuditEntry};
 use wealthfolio_storage_sqlite::agent::{NewPersonalAccessToken, PatRepository};
-use wealthfolio_storage_sqlite::db::{create_pool, run_migrations, write_actor::spawn_writer};
+use wealthfolio_storage_sqlite::db::{write_actor::spawn_writer, DbAccess};
 
 use super::server::build_router;
 
@@ -16,8 +16,9 @@ use super::server::build_router;
 fn pat_repo() -> (Arc<PatRepository>, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("test.db").to_string_lossy().to_string();
-    run_migrations(&db_path).unwrap();
-    let pool = create_pool(&db_path).unwrap();
+    let access = DbAccess::plaintext(&db_path);
+    access.run_migrations().unwrap();
+    let pool = access.create_pool().unwrap();
     let writer = spawn_writer((*pool).clone()).unwrap();
     (Arc::new(PatRepository::new(pool, writer)), dir)
 }

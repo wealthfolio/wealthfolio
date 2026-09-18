@@ -27,11 +27,13 @@ async fn serves_index_html_for_unknown_route() {
     std::env::set_var("WF_STATIC_DIR", static_dir.path());
     std::env::set_var("WF_LISTEN_ADDR", "127.0.0.1:0");
 
-    let config = Config::from_env();
+    let config = Config::from_env().unwrap();
     let state = build_state(&config).await.unwrap();
     let static_service =
         ServeDir::new(static_dir.path()).fallback(ServeFile::new(index_path.clone()));
-    let app = app_router(state, &config).fallback_service(static_service);
+    let app = app_router(state, &config)
+        .unwrap()
+        .fallback_service(static_service);
 
     let response = app
         .oneshot(

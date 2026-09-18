@@ -346,6 +346,7 @@ export const ALLOWED_API_METHODS = new Set([
   "assets.getProfile",
   "assets.updateProfile",
   "assets.updateQuoteMode",
+  "alternativeAssets.getAll",
   "quotes.update",
   "quotes.getHistory",
   "performance.calculateHistory",

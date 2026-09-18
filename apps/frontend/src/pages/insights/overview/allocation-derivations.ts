@@ -42,6 +42,7 @@ export interface ValueStripData {
   invested: number;
   investedPercent: number;
   bookCost: number;
+  unrealizedPnl: number | null;
   holdingsCount: number;
   accountsCount: number;
   currencySplit: { currency: string; value: number; percentage: number }[];
@@ -108,7 +109,18 @@ function isCash(holding: Holding): boolean {
   return holding.holdingType?.toLowerCase() === "cash";
 }
 
-/** Headline figures for the value strip, derived from real holdings. */
+/** Aggregate reported P&L in the display currency; unknown gains are not zero. */
+function computeHoldingsUnrealizedPnl(holdings: Holding[]): number | null {
+  let total = 0;
+  for (const holding of holdings) {
+    if (isCash(holding)) continue;
+    const gain = holding.unrealizedGain?.base;
+    if (gain == null || !Number.isFinite(gain)) return null;
+    total += gain;
+  }
+  return total;
+}
+
 export function computeValueStrip(holdings: Holding[], accounts: Account[]): ValueStripData {
   let total = 0;
   let cash = 0;
@@ -161,6 +173,7 @@ export function computeValueStrip(holdings: Holding[], accounts: Account[]): Val
     invested,
     investedPercent: total > 0 ? (invested / total) * 100 : 0,
     bookCost: bookCost.total,
+    unrealizedPnl: computeHoldingsUnrealizedPnl(holdings),
     holdingsCount: holdings.length,
     accountsCount,
     currencySplit,
@@ -188,6 +201,7 @@ export function valueStripFromCurrentSummary(
     invested,
     investedPercent: total > 0 ? (invested / total) * 100 : 0,
     bookCost: bookCost.total,
+    unrealizedPnl: computeHoldingsUnrealizedPnl(holdings),
     holdingsCount: summary.holdingsCount,
     accountsCount: summary.accountCount,
     currencySplit: summary.currencySplit.map((split) => ({

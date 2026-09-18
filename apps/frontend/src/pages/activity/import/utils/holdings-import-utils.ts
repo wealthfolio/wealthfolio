@@ -7,6 +7,7 @@ import {
   MONTH_FIRST_NUMERIC_FORMATS,
   detectDateOrder,
   isAmbiguousNumericDate,
+  isDateInRange,
 } from "@/lib/utils";
 import type { DraftActivity } from "../context";
 import { HoldingsFormat } from "../steps/holdings-mapping-step";
@@ -225,7 +226,7 @@ export function parseDateToYMD(
   if (pattern) {
     try {
       const parsed = parse(trimmed, pattern, new Date());
-      if (isValid(parsed)) return formatDate(parsed, "yyyy-MM-dd");
+      if (isValid(parsed) && isDateInRange(parsed)) return formatDate(parsed, "yyyy-MM-dd");
     } catch {
       // fall through to auto-detection
     }
@@ -234,7 +235,7 @@ export function parseDateToYMD(
   if (dateFormat === "ISO8601") {
     try {
       const parsed = parseISO(trimmed);
-      if (isValid(parsed)) return formatDate(parsed, "yyyy-MM-dd");
+      if (isValid(parsed) && isDateInRange(parsed)) return formatDate(parsed, "yyyy-MM-dd");
     } catch {
       // fall through
     }
@@ -244,7 +245,7 @@ export function parseDateToYMD(
   if (isoMatch) {
     try {
       const parsed = parseISO(trimmed);
-      if (isValid(parsed)) return formatDate(parsed, "yyyy-MM-dd");
+      if (isValid(parsed) && isDateInRange(parsed)) return formatDate(parsed, "yyyy-MM-dd");
     } catch {
       // fall through
     }
@@ -257,7 +258,7 @@ export function parseDateToYMD(
   for (const p of commonPatterns) {
     try {
       const parsed = parse(trimmed, p, new Date());
-      if (isValid(parsed)) return formatDate(parsed, "yyyy-MM-dd");
+      if (isValid(parsed) && isDateInRange(parsed)) return formatDate(parsed, "yyyy-MM-dd");
     } catch {
       continue;
     }
@@ -268,7 +269,7 @@ export function parseDateToYMD(
   // just resolved. Anything still unparsed here is not a numeric date.
   if (!NUMERIC_DATE_SHAPE.test(trimmed)) {
     const date = new Date(trimmed);
-    if (!isNaN(date.getTime())) {
+    if (!isNaN(date.getTime()) && isDateInRange(date)) {
       return formatDate(date, "yyyy-MM-dd");
     }
   }

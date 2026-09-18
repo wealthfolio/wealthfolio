@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+zeroize = { workspace = true }
 wealthfolio-http = { workspace = true }
 # Internal crates
 wealthfolio-market-data = { workspace = true }
@@ -59,6 +60,7 @@ semver = "1"
 openidconnect = { version = "4", default-features = false, features = ["reqwest", "rustls-tls"] }
 rmcp = { workspace = true }
 subtle = "2"
+tempfile = "3"
 
 [features]
 default = ["connect-sync", "device-sync"]
@@ -67,4 +69,3 @@ device-sync = []
 
 [dev-dependencies]
 reqwest = { workspace = true }
-tempfile = "3"

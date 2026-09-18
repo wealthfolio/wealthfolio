@@ -234,7 +234,11 @@ export function AdvancedOptionsSection<TFieldValues extends FieldValues = FieldV
                         ref={field.ref}
                         name={field.name}
                         value={field.value}
-                        onValueChange={field.onChange}
+                        onValueChange={(value, isUserEdit) => {
+                          // A programmatic null reset must not echo back as undefined,
+                          // which would restore the controller's saved default rate.
+                          if (isUserEdit) field.onChange(value ?? null);
+                        }}
                         placeholder="1.0000"
                         maxDecimalPlaces={6}
                         className="w-full"

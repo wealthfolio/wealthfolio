@@ -1,0 +1,50 @@
+name: Build Linux Packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf pkg-config libssl-dev xdg-utils
+          perl -v
+      - name: Install repository Rust toolchain
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-linux-x86_64
+          save-if: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build release-mode packages
+        env:
+          CONNECT_AUTH_URL: ${{ vars.CONNECT_AUTH_URL }}
+          CONNECT_AUTH_PUBLISHABLE_KEY: ${{ vars.CONNECT_AUTH_PUBLISHABLE_KEY }}
+          CONNECT_API_URL: ${{ vars.CONNECT_API_URL }}
+          CONNECT_OAUTH_CALLBACK_URL: ${{ vars.CONNECT_OAUTH_CALLBACK_URL }}
+        # Test packages do not need updater signatures or release credentials.
+        run: >-
+          pnpm tauri build --ci --bundles appimage,deb --config
+          '{"bundle":{"createUpdaterArtifacts":false}}' -- --locked
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: wealthfolio-linux-x64-${{ github.sha }}
+          path: |
+            target/release/bundle/appimage/*.AppImage
+            target/release/bundle/deb/*.deb
+          if-no-files-found: error
+          retention-days: 7

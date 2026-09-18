@@ -211,7 +211,5 @@
     "connectionFailed": "接続に失敗しました",
     "tryAgain": "再試行"
   },
-  "errors": {
-    "backupPlatformUnsupported": "デバイス同期前のバックアップは、現在デスクトップ、Web、iOSのみ対応しています"
-  }
+  "errors": {}
 }

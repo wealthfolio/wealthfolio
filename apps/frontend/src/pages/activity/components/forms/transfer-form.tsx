@@ -23,6 +23,7 @@ import { useEffect, useMemo } from "react";
 import { FormProvider, useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { useActivityCurrency } from "../../hooks/use-activity-currency";
 import {
   AccountSelect,
   AdvancedOptionsSection,
@@ -162,7 +163,8 @@ export const createTransferFormSchema = (t?: TFunction) =>
         .positive({
           message: msg(t, "activity:form.err_fxrate_positive", "FX Rate must be positive."),
         })
-        .optional(),
+        .optional()
+        .nullable(),
       subtype: z.string().optional().nullable(),
       // Internal field for manual quote mode
       quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MARKET),
@@ -418,6 +420,11 @@ export function TransferForm({
 
   const { watch, setValue } = form;
   const isExternal = watch("isExternal");
+  useActivityCurrency(form, accounts, {
+    isEditing,
+    accountField: isExternal ? "accountId" : "fromAccountId",
+    trackCurrencyChanges: isExternal,
+  });
   const direction = watch("direction");
   const accountId = watch("accountId");
   const fromAccountId = watch("fromAccountId");
@@ -721,7 +728,6 @@ export function TransferForm({
               key={`external-${transferMode}-${direction}`}
               name="accountId"
               accounts={externalAccountOptions}
-              currencyName="currency"
               label={
                 direction === "in"
                   ? t("activity:form.label_to_account")
@@ -735,7 +741,6 @@ export function TransferForm({
               <AccountSelect
                 name="fromAccountId"
                 accounts={sourceAccountOptions}
-                currencyName="currency"
                 label={t("activity:form.label_from_account")}
                 placeholder={t("activity:form.placeholder_select_source_account")}
               />

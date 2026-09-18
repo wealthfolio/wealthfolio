@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { FormProvider, useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
 import type { TFunction } from "i18next";
+import { useActivityCurrency } from "../../hooks/use-activity-currency";
 import {
   AccountSelect,
   AdvancedOptionsSection,
@@ -47,6 +48,8 @@ export const createFeeFormSchema = (t?: TFunction) =>
       .string()
       .min(1, { message: msg(t, "activity:form.err_currency_required", "Currency is required.") }),
     subtype: z.string().optional().nullable(),
+    // Only carry an explicit reset; otherwise retain the stored rate on updates.
+    fxRate: z.null().optional(),
   });
 
 // Zod schema for FeeForm validation (English messages; used by tests).
@@ -97,6 +100,8 @@ export function FeeForm({
     },
   });
 
+  useActivityCurrency(form, accounts, { isEditing });
+
   const { watch } = form;
   const accountId = watch("accountId");
   const currency = watch("currency");
@@ -116,7 +121,7 @@ export function FeeForm({
     <FormProvider {...form}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <FormSection title={t("activity:form.section_account")}>
-          <AccountSelect name="accountId" accounts={accounts} currencyName="currency" />
+          <AccountSelect name="accountId" accounts={accounts} />
           <DatePicker name="activityDate" label={t("activity:field_date")} />
         </FormSection>
 

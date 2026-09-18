@@ -1,0 +1,37 @@
+.insights-widget-content > * {
+  min-height: inherit;
+}
+.insights-dashboard .react-grid-placeholder {
+  background: var(--primary);
+  border-radius: var(--radius);
+  opacity: 0.12;
+}
+.insights-dashboard .react-resizable-handle::after {
+  border-color: var(--muted-foreground);
+}
+
+.insights-widget-editing .insights-widget-content {
+  border-radius: var(--radius);
+  outline: 1px dashed color-mix(in srgb, var(--muted-foreground) 35%, transparent);
+  outline-offset: 2px;
+}
+.insights-widget-editing.react-draggable-dragging .insights-widget-content {
+  outline-color: var(--primary);
+}
+.insights-dashboard .insights-widget-editing > .react-resizable-handle {
+  opacity: 0.65;
+}
+
+/* Adjacent summary widgets retain the original continuous strip. */
+.insights-dashboard [data-summary-right] .insights-widget-content {
+  margin-right: -16px;
+}
+.insights-dashboard [data-summary-right] .insights-widget-content > * {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right-width: 0;
+}
+.insights-dashboard [data-summary-left] .insights-widget-content > * {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}

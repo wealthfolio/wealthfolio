@@ -64,7 +64,8 @@
       "holdings_count_one": "{{count}} 项持仓",
       "holdings_count_other": "{{count}} 项持仓",
       "accounts_count_one": "{{count}} 个账户",
-      "accounts_count_other": "{{count}} 个账户"
+      "accounts_count_other": "{{count}} 个账户",
+      "pnl_current_holdings": "当前持仓"
     }
   },
   "networth": {
@@ -123,5 +124,35 @@
       "per_month": "/月"
     },
     "days_ago_other": "{{count}} 天前"
+  },
+  "highlights": {
+    "movers": "涨跌排行",
+    "concentration": "集中度",
+    "daily": "每日变动 · 当前持仓",
+    "rank_by": "每日涨跌排序依据",
+    "gainers": "上涨持仓",
+    "losers": "下跌持仓",
+    "no_moves": "暂无可显示涨跌的数据。",
+    "portfolio_share": "占投资组合价值的比例（含现金）",
+    "largest": "最大持仓",
+    "top_five": "前五大持仓",
+    "concentration_unavailable": "集中度计算要求持仓价值为正，且投资组合中没有空头头寸。"
+  },
+  "customize": {
+    "edit": "自定义",
+    "widgets": "组件",
+    "reset": "重置布局",
+    "cancel": "取消",
+    "save": "保存布局",
+    "saving": "正在保存…",
+    "hint": "通过拖动手柄移动组件，或从右侧边缘调整宽度。",
+    "description": "选择要显示的组件。使用箭头调整顺序，移动端同样适用。",
+    "value": "投资组合摘要",
+    "breakdown": "明细",
+    "move_up": "上移{{widget}}",
+    "move_down": "下移{{widget}}",
+    "hide": "隐藏{{widget}}",
+    "drag": "拖动{{widget}}",
+    "empty": "未选择组件。请自定义此页面以添加组件。"
   }
 }

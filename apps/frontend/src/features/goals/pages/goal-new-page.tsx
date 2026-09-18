@@ -1,6 +1,7 @@
+import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import type { Goal, GoalType, PlannerMode } from "@/lib/types";
 import { useSettingsContext } from "@/lib/settings-provider";
-import { formatDateISO } from "@/lib/utils";
+import { formatDateISO, parseLocalDate } from "@/lib/utils";
 import {
   Button,
   DatePickerInput,
@@ -37,10 +38,6 @@ import {
 const DEFAULT_RETIREMENT_CURRENT_AGE = 30;
 const DEFAULT_TRADITIONAL_RETIREMENT_AGE = 65;
 const DEFAULT_FIRE_INDEPENDENCE_AGE = 50;
-const DEFAULT_RETIREMENT_BIRTH_YEAR_MONTH = inferBirthYearMonthFromAge(
-  DEFAULT_RETIREMENT_CURRENT_AGE,
-);
-
 /** Cover image by convention: /goals/{goalType}.png */
 function coverImageSrc(goalType: string): string {
   return `/goals/${goalType}.png`;
@@ -65,6 +62,12 @@ export default function GoalNewPage() {
   const createGoalFlow = useCreateGoalFlow();
   const { goals } = useGoals();
   const { settings } = useSettingsContext();
+  const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
+  const today = useMemo(() => parseLocalDate(todayISO), [todayISO]);
+  const defaultRetirementBirthYearMonth = inferBirthYearMonthFromAge(
+    DEFAULT_RETIREMENT_CURRENT_AGE,
+    today,
+  );
   const [selectedType, setSelectedType] = useState<GoalType | null>(null);
   const [plannerMode, setPlannerMode] = useState<PlannerMode>("traditional");
   const [title, setTitle] = useState("");
@@ -72,7 +75,7 @@ export default function GoalNewPage() {
   const [targetAmount, setTargetAmount] = useState(0);
   const [targetDate, setTargetDate] = useState("");
   const [retirementBirthYearMonth, setRetirementBirthYearMonth] = useState(
-    DEFAULT_RETIREMENT_BIRTH_YEAR_MONTH,
+    defaultRetirementBirthYearMonth,
   );
   const [retirementTargetAge, setRetirementTargetAge] = useState(
     DEFAULT_TRADITIONAL_RETIREMENT_AGE,
@@ -133,10 +136,10 @@ export default function GoalNewPage() {
   const baseCurrency = settings?.baseCurrency ?? "USD";
   const trimmedTitle = title.trim();
   const trimmedDescription = description.trim();
-  const retirementBirthAge = ageFromBirthYearMonth(retirementBirthYearMonth);
+  const retirementBirthAge = ageFromBirthYearMonth(retirementBirthYearMonth, today);
   const retirementCurrentAge = retirementBirthAge ?? DEFAULT_RETIREMENT_CURRENT_AGE;
   const retirementBirthYearMonthForCreate =
-    retirementBirthAge == null ? DEFAULT_RETIREMENT_BIRTH_YEAR_MONTH : retirementBirthYearMonth;
+    retirementBirthAge == null ? defaultRetirementBirthYearMonth : retirementBirthYearMonth;
   const retirementTargetAgeLabel =
     plannerMode === "fire"
       ? t("goals:new.independence_age_label")
@@ -166,7 +169,7 @@ export default function GoalNewPage() {
     setDescription(nextTemplate.description);
     setTargetAmount(nextTemplate.defaultTarget);
     setTargetDate("");
-    setRetirementBirthYearMonth(DEFAULT_RETIREMENT_BIRTH_YEAR_MONTH);
+    setRetirementBirthYearMonth(defaultRetirementBirthYearMonth);
     setRetirementTargetAge(DEFAULT_TRADITIONAL_RETIREMENT_AGE);
   };
 
@@ -188,19 +191,22 @@ export default function GoalNewPage() {
           planKind: "retirement" as const,
           plannerMode,
           settingsJson: JSON.stringify(
-            normalizeRetirementPlan({
-              ...createDefaultRetirementPlan(baseCurrency),
-              personal: {
-                ...DEFAULT_RETIREMENT_PLAN.personal,
-                birthYearMonth: retirementBirthYearMonthForCreate,
-                currentAge: retirementCurrentAge,
-                targetRetirementAge: Math.max(retirementCurrentAge + 1, retirementTargetAge),
-                planningHorizonAge: Math.max(
-                  DEFAULT_RETIREMENT_PLAN.personal.planningHorizonAge,
-                  retirementTargetAge + 1,
-                ),
+            normalizeRetirementPlan(
+              {
+                ...createDefaultRetirementPlan(baseCurrency, today),
+                personal: {
+                  ...DEFAULT_RETIREMENT_PLAN.personal,
+                  birthYearMonth: retirementBirthYearMonthForCreate,
+                  currentAge: retirementCurrentAge,
+                  targetRetirementAge: Math.max(retirementCurrentAge + 1, retirementTargetAge),
+                  planningHorizonAge: Math.max(
+                    DEFAULT_RETIREMENT_PLAN.personal.planningHorizonAge,
+                    retirementTargetAge + 1,
+                  ),
+                },
               },
-            }),
+              today,
+            ),
           ),
         }
       : undefined;
@@ -377,7 +383,7 @@ export default function GoalNewPage() {
                             value={retirementBirthYearMonth}
                             onChange={(event) => {
                               const next = event.target.value;
-                              const nextAge = ageFromBirthYearMonth(next);
+                              const nextAge = ageFromBirthYearMonth(next, today);
                               setRetirementBirthYearMonth(next);
                               if (nextAge != null) {
                                 setRetirementTargetAge((prev) => Math.max(nextAge + 1, prev));
@@ -445,7 +451,7 @@ export default function GoalNewPage() {
                   setDescription("");
                   setTargetDate("");
                   setPlannerMode("traditional");
-                  setRetirementBirthYearMonth(DEFAULT_RETIREMENT_BIRTH_YEAR_MONTH);
+                  setRetirementBirthYearMonth(defaultRetirementBirthYearMonth);
                   setRetirementTargetAge(DEFAULT_TRADITIONAL_RETIREMENT_AGE);
                 }}
               >

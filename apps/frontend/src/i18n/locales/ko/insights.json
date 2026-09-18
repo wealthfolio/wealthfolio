@@ -64,7 +64,8 @@
       "holdings_count_one": "보유 종목 {{count}}개",
       "holdings_count_other": "보유 종목 {{count}}개",
       "accounts_count_one": "계좌 {{count}}개",
-      "accounts_count_other": "계좌 {{count}}개"
+      "accounts_count_other": "계좌 {{count}}개",
+      "pnl_current_holdings": "현재 보유 종목"
     }
   },
   "networth": {
@@ -123,5 +124,35 @@
       "per_month": "/월"
     },
     "days_ago_other": "{{count}}일 전"
+  },
+  "highlights": {
+    "movers": "주요 등락 종목",
+    "concentration": "집중도",
+    "daily": "일일 변동 · 현재 보유 종목",
+    "rank_by": "일일 등락 종목 정렬 기준",
+    "gainers": "상승 종목",
+    "losers": "하락 종목",
+    "no_moves": "변동을 표시할 수 있는 데이터가 없습니다.",
+    "portfolio_share": "현금을 포함한 포트폴리오 가치 대비 비중",
+    "largest": "최대 보유 종목",
+    "top_five": "상위 5개 보유 종목",
+    "concentration_unavailable": "집중도를 표시하려면 보유 종목의 가치가 양수이고 공매도 포지션이 없어야 합니다."
+  },
+  "customize": {
+    "edit": "사용자 지정",
+    "widgets": "위젯",
+    "reset": "레이아웃 초기화",
+    "cancel": "취소",
+    "save": "레이아웃 저장",
+    "saving": "저장 중…",
+    "hint": "위젯의 핸들을 끌어 이동하거나 오른쪽 가장자리에서 너비를 조절하세요.",
+    "description": "표시할 위젯을 선택하세요. 모바일에서도 화살표로 순서를 바꿀 수 있습니다.",
+    "value": "포트폴리오 요약",
+    "breakdown": "세부 내역",
+    "move_up": "{{widget}} 위로 이동",
+    "move_down": "{{widget}} 아래로 이동",
+    "hide": "{{widget}} 숨기기",
+    "drag": "{{widget}} 끌기",
+    "empty": "선택된 위젯이 없습니다. 이 페이지를 사용자 지정하여 위젯을 추가하세요."
   }
 }

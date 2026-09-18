@@ -1,3 +1,4 @@
+import { isExpiredOptionAsset } from "./asset-utils";
 import { createActivity, getAssetHoldings, getAssetLots, searchActivities } from "@/adapters";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 import { AssetLogoDialog } from "@/components/asset-logo/asset-logo-dialog";
@@ -516,12 +517,10 @@ export const AssetProfilePage = () => {
     return option;
   }, [assetProfile]);
 
-  const isExpiredOption = useMemo(() => {
-    if (!optionSpec?.expiration) return false;
-    // Compare date-only: expired once the calendar day after expiration has started
-    const today = new Date().toISOString().split("T")[0];
-    return optionSpec.expiration < today;
-  }, [optionSpec]);
+  const isExpiredOption =
+    optionSpec?.expiration && assetProfile
+      ? isExpiredOptionAsset(assetProfile, settings?.timezone)
+      : false;
 
   const [confirmExpiryOpen, setConfirmExpiryOpen] = useState(false);
   const queryClient = useQueryClient();

@@ -42,7 +42,14 @@ pub fn router(state: Arc<AppState>, config: &Config) -> Router {
             state.mcp_audit_repository.clone(),
         )));
     }
-    let service = builder.build_http_service(http_config);
+    let handler = builder.build_handler();
+    let service = rmcp::transport::streamable_http_server::StreamableHttpService::new(
+        move || Ok(handler.clone()),
+        Arc::new(
+            rmcp::transport::streamable_http_server::session::local::LocalSessionManager::default(),
+        ),
+        http_config,
+    );
 
     Router::new()
         .nest_service("/mcp", service)

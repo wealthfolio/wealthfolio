@@ -64,9 +64,9 @@ async fn spawn_server(mcp_enabled: bool, audit_enabled: bool) -> TestServer {
             std::env::set_var("WF_MCP_AUDIT_ENABLED", "false");
         }
 
-        let config = Config::from_env();
+        let config = Config::from_env().unwrap();
         let state = build_state(&config).await.unwrap();
-        app_router(state, &config)
+        app_router(state, &config).unwrap()
     };
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

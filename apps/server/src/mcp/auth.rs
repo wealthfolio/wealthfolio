@@ -38,7 +38,7 @@ struct Inner {
 }
 
 impl PatAuthState {
-    pub fn new(repo: Arc<PatRepository>) -> Self {
+    pub(crate) fn new(repo: Arc<PatRepository>) -> Self {
         Self(Arc::new(Inner {
             repo,
             last_touch: Mutex::new(HashMap::new()),
@@ -108,7 +108,17 @@ fn authenticate(inner: &Inner, presented: &str) -> Option<McpAuthContext> {
 /// off the request path.
 fn touch_last_used(inner: &Inner, token_id: &str) {
     let should_touch = {
-        let mut map = inner.last_touch.lock().unwrap();
+        let mut map = match inner.last_touch.lock() {
+            Ok(map) => map,
+            Err(poisoned) => {
+                let mut map = poisoned.into_inner();
+                // Throttling is disposable; token validation never uses this cache.
+                map.clear();
+                inner.last_touch.clear_poison();
+                tracing::warn!("Reset token usage timestamp cache after an internal error");
+                map
+            }
+        };
         match map.get(token_id) {
             Some(last) if last.elapsed() < TOUCH_INTERVAL => false,
             _ => {
@@ -136,4 +146,53 @@ fn unauthorized() -> Response {
         r#"{"jsonrpc":"2.0","error":{"code":-32000,"message":"Unauthorized: a valid personal access token is required"},"id":null}"#,
     )
         .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wealthfolio_storage_sqlite::{agent::NewPersonalAccessToken, db};
+
+    #[tokio::test]
+    async fn poisoned_timestamp_cache_is_reset_without_bypassing_authentication() {
+        let dir = tempfile::tempdir().unwrap();
+        let access = db::DbAccess::plaintext(dir.path().join("auth.db").to_str().unwrap());
+        access.prepare().unwrap();
+        access.run_migrations().unwrap();
+        let pool = access.create_pool().unwrap();
+        let (writer, task) =
+            db::write_actor::spawn_writer_with_outbox_observer((*pool).clone(), Arc::new(|| {}))
+                .unwrap();
+        let repo = Arc::new(PatRepository::new(pool, writer.clone()));
+        let token = generate_token();
+        let row = repo
+            .create(NewPersonalAccessToken {
+                name: "test".into(),
+                token_prefix: token_prefix(&token).unwrap().into(),
+                token_hash: hash_token(&token),
+                scopes_json: "[]".into(),
+                expires_at: None,
+            })
+            .await
+            .unwrap();
+        let inner = Inner {
+            repo,
+            last_touch: Mutex::new(HashMap::new()),
+        };
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut cache = inner.last_touch.lock().unwrap();
+            cache.insert("stale".into(), Instant::now());
+            panic!("interrupted timestamp update");
+        }));
+        assert!(authenticate(&inner, "invalid").is_none());
+        assert!(authenticate(&inner, &token).is_some());
+        assert!(!inner.last_touch.is_poisoned());
+        {
+            let cache = inner.last_touch.lock().unwrap();
+            assert_eq!(cache.len(), 1);
+            assert!(cache.contains_key(&row.id));
+        }
+        writer.shutdown().await;
+        task.join().await;
+    }
 }

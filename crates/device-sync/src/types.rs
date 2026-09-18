@@ -593,6 +593,7 @@ pub fn sync_entity_from_remote(entity: &str) -> Option<SyncEntity> {
         "allocation_target_weight" => Some(SyncEntity::AllocationTargetWeight),
         "allocation_target_constraint" => Some(SyncEntity::AllocationTargetConstraint),
         "spending_setting" => Some(SyncEntity::SpendingSetting),
+        "app_preference" => Some(SyncEntity::AppPreference),
         "activity_taxonomy_assignment" => Some(SyncEntity::ActivityTaxonomyAssignment),
         "spending_activity_split" => Some(SyncEntity::SpendingActivitySplit),
         "spending_activity_event" => Some(SyncEntity::SpendingActivityEvent),
@@ -723,6 +724,14 @@ pub struct SnapshotUploadResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn app_preference_wire_entity_is_recognized() {
+        assert_eq!(
+            sync_entity_from_remote("app_preference"),
+            Some(SyncEntity::AppPreference)
+        );
+    }
 
     #[test]
     fn pull_response_deserializes_unknown_remote_entity() {

@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { FormProvider, useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { useActivityCurrency } from "../../hooks/use-activity-currency";
 import {
   AccountSelect,
   AdvancedOptionsSection,
@@ -118,7 +119,8 @@ export const createBuyFormSchema = (t?: TFunction) =>
         .positive({
           message: msg(t, "activity:form.err_fxrate_positive", "FX Rate must be positive."),
         })
-        .optional(),
+        .optional()
+        .nullable(),
       // Internal fields
       quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MARKET),
       exchangeMic: z.string().nullable().optional(),
@@ -271,6 +273,8 @@ export function BuyForm({
       currency: defaultValues?.currency?.trim() || initialCurrency,
     },
   });
+
+  useActivityCurrency(form, accounts, { isEditing });
 
   const { watch, setValue } = form;
   const accountId = watch("accountId");
@@ -491,7 +495,7 @@ export function BuyForm({
             </>
           )}
 
-          <AccountSelect name="accountId" accounts={accounts} currencyName="currency" />
+          <AccountSelect name="accountId" accounts={accounts} />
           <DatePicker name="activityDate" label={t("activity:field_date")} enableTime={true} />
         </FormSection>
 

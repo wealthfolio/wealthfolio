@@ -1,0 +1,72 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - name: Install Android target for the repository toolchain
+        run: |
+          rustup show active-toolchain
+          rustup target add aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android-release
+      - name: Install Android build tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" "platforms;android-36" "build-tools;36.0.0"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          echo "RANLIB_aarch64_linux_android=$ANDROID_HOME/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib" >> "$GITHUB_ENV"
+      - run: pnpm install --frozen-lockfile
+      - name: Initialize local Android build files
+        run: |
+          pnpm tauri android init --ci --skip-targets-install
+          git restore -- apps/tauri/gen/android
+      - name: Build release-mode ARM64 APK
+        env:
+          CONNECT_AUTH_URL: ${{ vars.CONNECT_AUTH_URL }}
+          CONNECT_AUTH_PUBLISHABLE_KEY: ${{ vars.CONNECT_AUTH_PUBLISHABLE_KEY }}
+          CONNECT_API_URL: ${{ vars.CONNECT_API_URL }}
+          CONNECT_OAUTH_CALLBACK_URL: ${{ vars.CONNECT_OAUTH_CALLBACK_URL }}
+        run: pnpm tauri android build --ci --apk --target aarch64 -- --locked
+      - name: Sign APK for testing
+        # A per-run test key makes the APK installable without production secrets.
+        # It cannot update store installs or APKs signed by another run.
+        run: |
+          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/test.keystore" \
+            -storepass android -keypass android -alias androidtestkey \
+            -keyalg RSA -keysize 2048 -validity 30 -dname "CN=Wealthfolio CI Test"
+          apk=$(find apps/tauri/gen/android/app/build/outputs/apk -name '*-release-unsigned.apk')
+          test -f "$apk"
+          mkdir -p artifacts
+          build_tools="$ANDROID_HOME/build-tools/36.0.0"
+          "$build_tools/zipalign" -P 16 -f 4 "$apk" "$RUNNER_TEMP/aligned.apk"
+          "$build_tools/apksigner" sign --ks "$RUNNER_TEMP/test.keystore" \
+            --ks-key-alias androidtestkey --ks-pass pass:android --key-pass pass:android \
+            --out artifacts/wealthfolio-android-arm64-test.apk "$RUNNER_TEMP/aligned.apk"
+          "$build_tools/apksigner" verify --verbose artifacts/wealthfolio-android-arm64-test.apk
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: wealthfolio-android-arm64-${{ github.sha }}
+          path: artifacts/*.apk
+          if-no-files-found: error
+          retention-days: 7

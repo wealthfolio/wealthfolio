@@ -215,7 +215,5 @@
     "connectionFailed": "連線失敗",
     "tryAgain": "重試"
   },
-  "errors": {
-    "backupPlatformUnsupported": "裝置同步前的備份目前只支援桌面版、網頁版與 iOS"
-  }
+  "errors": {}
 }

@@ -215,7 +215,5 @@
     "connectionFailed": "Connection failed",
     "tryAgain": "Try Again"
   },
-  "errors": {
-    "backupPlatformUnsupported": "Backup before device sync is currently supported on desktop, web, and mobile only"
-  }
+  "errors": {}
 }

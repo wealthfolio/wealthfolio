@@ -289,9 +289,10 @@ async fn spawn_auto_categorize_for_batch(events: &[DomainEvent], context: &Arc<S
         "Triggering auto-categorization for {} account(s)",
         account_ids.len()
     );
-    let rules_service = context.categorization_rules_service();
+    let context = Arc::clone(context);
     tokio::spawn(async move {
-        match rules_service
+        match context
+            .categorization_rules_service()
             .rerun_all(&account_ids, /* only_uncategorized */ true)
             .await
         {

@@ -64,7 +64,8 @@
       "holdings_count_one": "{{count}}銘柄",
       "holdings_count_other": "{{count}}銘柄",
       "accounts_count_one": "{{count}}口座",
-      "accounts_count_other": "{{count}}口座"
+      "accounts_count_other": "{{count}}口座",
+      "pnl_current_holdings": "現在の保有銘柄"
     }
   },
   "networth": {
@@ -123,5 +124,35 @@
       "per_month": "/月"
     },
     "days_ago_other": "{{count}}日前"
+  },
+  "highlights": {
+    "movers": "値動き上位",
+    "concentration": "集中度",
+    "daily": "日次変動 · 現在の保有銘柄",
+    "rank_by": "日次変動の並べ替え基準",
+    "gainers": "上昇銘柄",
+    "losers": "下落銘柄",
+    "no_moves": "値動きを表示できるデータがありません。",
+    "portfolio_share": "現金を含むポートフォリオ評価額に占める割合",
+    "largest": "最大の保有銘柄",
+    "top_five": "上位5銘柄",
+    "concentration_unavailable": "集中度を表示するには、保有銘柄の評価額が正で、空売りポジションがない必要があります。"
+  },
+  "customize": {
+    "edit": "カスタマイズ",
+    "widgets": "ウィジェット",
+    "reset": "レイアウトをリセット",
+    "cancel": "キャンセル",
+    "save": "レイアウトを保存",
+    "saving": "保存中…",
+    "hint": "ハンドルでウィジェットをドラッグするか、右端で幅を調整できます。",
+    "description": "表示するウィジェットを選択します。矢印で順序を変更できます。モバイルでも操作できます。",
+    "value": "ポートフォリオ概要",
+    "breakdown": "内訳",
+    "move_up": "{{widget}}を上に移動",
+    "move_down": "{{widget}}を下に移動",
+    "hide": "{{widget}}を非表示",
+    "drag": "{{widget}}をドラッグ",
+    "empty": "ウィジェットが選択されていません。このページをカスタマイズして追加してください。"
   }
 }

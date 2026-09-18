@@ -14,9 +14,10 @@ fn setup() -> (
     db::WriteHandle,
 ) {
     let dir = tempdir().unwrap();
-    let db_path = db::init(dir.path().to_str().unwrap()).unwrap();
-    db::run_migrations(&db_path).unwrap();
-    let pool = db::create_pool(&db_path).unwrap();
+    let access = db::DbAccess::plaintext(db::get_db_path(dir.path().to_str().unwrap()));
+    access.prepare().unwrap();
+    access.run_migrations().unwrap();
+    let pool = access.create_pool().unwrap();
     let writer = db::write_actor::spawn_writer((*pool).clone()).unwrap();
     (dir, pool, writer)
 }

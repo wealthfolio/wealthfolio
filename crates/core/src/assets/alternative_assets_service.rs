@@ -8,7 +8,7 @@
 //! - No activities (avoids activity clutter)
 //! - Just asset record + valuation quotes
 
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 use chrono::{TimeZone, Utc};
@@ -30,6 +30,7 @@ use crate::errors::{Error, Result, ValidationError};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::quotes::constants::DATA_SOURCE_MANUAL;
 use crate::quotes::{Quote, QuoteServiceTrait};
+use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 /// Service for managing alternative assets.
 ///
@@ -41,6 +42,7 @@ pub struct AlternativeAssetService {
     alternative_asset_repository: Arc<dyn AlternativeAssetRepositoryTrait>,
     asset_repository: Arc<dyn AssetRepositoryTrait>,
     quote_service: Arc<dyn QuoteServiceTrait>,
+    timezone: Arc<RwLock<String>>,
     event_sink: Arc<dyn DomainEventSink>,
 }
 
@@ -56,7 +58,19 @@ impl AlternativeAssetService {
             asset_repository,
             quote_service,
             event_sink: Arc::new(NoOpDomainEventSink),
+            timezone: Arc::new(RwLock::new(String::new())),
         }
+    }
+
+    pub fn with_timezone(mut self, timezone: Arc<RwLock<String>>) -> Self {
+        self.timezone = timezone;
+        self
+    }
+
+    fn today(&self) -> chrono::NaiveDate {
+        user_today(parse_user_timezone_or_default(
+            &self.timezone.read().unwrap(),
+        ))
     }
 
     /// Sets the domain event sink for this service.
@@ -587,7 +601,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
         // Fetch latest quotes for all alternative assets, restricted to rows
         // with day <= today so future-dated payoff rows (e.g. a mortgage's
         // planned 2041 zero) do not zero out the balance today.
-        let as_of = chrono::Local::now().date_naive();
+        let as_of = self.today();
         let quotes = self
             .quote_service
             .get_latest_quotes_as_of(&asset_ids, as_of)?;
@@ -694,6 +708,7 @@ mod tests {
     // assert_eq!(…, Decimal::new(180_000, 0)) will fail.
     // ---------------------------------------------------------------------------
     struct MockQuoteService {
+        cutoff: Arc<std::sync::Mutex<Option<NaiveDate>>>,
         /// Quotes returned by get_latest_quotes_as_of (correct, today-bounded path).
         as_of_quotes: HashMap<String, Quote>,
         /// Quotes returned by get_latest_quotes (old, unbounded path — should NOT be called).
@@ -717,8 +732,9 @@ mod tests {
         fn get_latest_quotes_as_of(
             &self,
             symbols: &[String],
-            _as_of: NaiveDate,
+            as_of: NaiveDate,
         ) -> Result<HashMap<String, Quote>> {
+            *self.cutoff.lock().unwrap() = Some(as_of);
             Ok(symbols
                 .iter()
                 .filter_map(|s| self.as_of_quotes.get(s).cloned().map(|q| (s.clone(), q)))
@@ -1179,7 +1195,9 @@ mod tests {
         let past_quote = make_quote(ASSET_ID, Decimal::new(180_000, 0), past_day);
         let future_zero_quote = make_quote(ASSET_ID, Decimal::ZERO, future_day);
 
+        let cutoff = Arc::new(std::sync::Mutex::new(None));
         let quote_svc = MockQuoteService {
+            cutoff: cutoff.clone(),
             as_of_quotes: [(ASSET_ID.to_string(), past_quote)].into_iter().collect(),
             latest_quotes: [(ASSET_ID.to_string(), future_zero_quote)]
                 .into_iter()
@@ -1206,15 +1224,26 @@ mod tests {
         };
         let alt_repo = NoOpAltAssetRepository;
 
+        let timezone = Arc::new(RwLock::new("Pacific/Kiritimati".to_string()));
         let service = AlternativeAssetService::new(
             Arc::new(alt_repo),
             Arc::new(asset_repo),
             Arc::new(quote_svc),
-        );
+        )
+        .with_timezone(timezone.clone());
 
         let holdings = service
             .get_alternative_holdings()
             .expect("get_alternative_holdings should succeed");
+
+        for zone in ["Pacific/Kiritimati", "Etc/GMT+12"] {
+            *timezone.write().unwrap() = zone.to_string();
+            service.get_alternative_holdings().unwrap();
+            assert_eq!(
+                *cutoff.lock().unwrap(),
+                Some(user_today(parse_user_timezone_or_default(zone)))
+            );
+        }
 
         assert_eq!(holdings.len(), 1, "expected exactly one holding");
         assert_eq!(

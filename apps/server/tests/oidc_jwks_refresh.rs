@@ -262,9 +262,9 @@ async fn callback_refreshes_jwks_after_key_rotation() {
     set_oidc_env(&idp.issuer, tmp.path().join("test.db"));
 
     // Discovery runs here, caching the (still empty) JWKS.
-    let config = Config::from_env();
+    let config = Config::from_env().unwrap();
     let state = build_state(&config).await.unwrap();
-    let app = app_router(state, &config);
+    let app = app_router(state, &config).unwrap();
 
     let signing_key = CoreRsaPrivateSigningKey::from_pem(
         TEST_RSA_PEM,

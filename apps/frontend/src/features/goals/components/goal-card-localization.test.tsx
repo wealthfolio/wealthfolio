@@ -11,7 +11,9 @@ vi.mock("@/hooks/use-balance-privacy", () => ({
 }));
 
 vi.mock("@/lib/settings-provider", () => ({
-  useSettingsContext: () => ({ settings: { baseCurrency: "EUR" } }),
+  useSettingsContext: () => ({
+    settings: { baseCurrency: "EUR", timezone: "America/Los_Angeles" },
+  }),
 }));
 
 const goal: Goal = {
@@ -39,5 +41,20 @@ describe("GoalCard localization", () => {
     );
 
     expect(screen.getByText(/12,5[\u00a0\u202f ]%/)).toBeInTheDocument();
+  });
+  it("does not mark tomorrow's deadline due when UTC has already crossed midnight", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-01-01T01:00:00Z"));
+      render(
+        <MemoryRouter>
+          <GoalCard goal={{ ...goal, targetDate: "2026-01-01" }} />
+        </MemoryRouter>,
+      );
+      expect(screen.queryByText(/DUE/)).not.toBeInTheDocument();
+      expect(screen.getByText(/0M LEFT/)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

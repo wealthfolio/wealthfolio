@@ -9,7 +9,7 @@ import {
 } from "@wealthfolio/ui/components/ui/sheet";
 import { AmountDisplay, Skeleton } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -50,6 +50,7 @@ export function AllocationDetailSheet({
 }: AllocationDetailSheetProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const { isBalanceHidden } = useBalancePrivacy();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
@@ -209,12 +210,18 @@ export function AllocationDetailSheet({
     <Sheet open={isOpen} onOpenChange={handleOpenChange}>
       <SheetContent
         className="flex w-full flex-col overflow-hidden sm:max-w-xl"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          titleRef.current?.focus();
+        }}
         style={{
           paddingTop: "max(env(safe-area-inset-top, 0px), 1.5rem)",
         }}
       >
         <SheetHeader className="mt-4">
-          <SheetTitle>{allocation?.taxonomyName ?? t("holdings:allocation")}</SheetTitle>
+          <SheetTitle ref={titleRef} tabIndex={-1} className="outline-none">
+            {allocation?.taxonomyName ?? t("holdings:allocation")}
+          </SheetTitle>
         </SheetHeader>
 
         <div className="flex-1 space-y-4 overflow-y-auto py-4">

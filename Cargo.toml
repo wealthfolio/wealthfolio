@@ -28,7 +28,12 @@ serde_json = "1"
 # Database
 diesel = { version = "2.2", features = ["sqlite", "chrono", "r2d2", "numeric", "returning_clauses_for_sqlite_3_35"] }
 diesel_migrations = { version = "2.2", features = ["sqlite"] }
-rusqlite = { version = "0.34", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
+# SQLCipher: enabling it on the single shared `libsqlite3-sys` transparently
+# encrypts Diesel's and rusqlite's query layers alike. Always compiled in — with
+# no key applied SQLCipher behaves as plain SQLite and opens plaintext databases
+# unchanged, so there is exactly one build configuration to test.
+libsqlite3-sys = { version = "0.38", features = ["bundled-sqlcipher-vendored-openssl"] }
 r2d2 = "0.8"
 
 # Time
@@ -63,6 +68,8 @@ log = "0.4"
 chacha20poly1305 = { version = "0.10", features = ["std"] }
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 hkdf = "0.12"
+zeroize = "1"
+hex = "0.4"
 sha2 = "0.10"
 rand = "0.8"
 

@@ -1,3 +1,5 @@
+import { formatZonedDateKey } from "@/features/spending/lib/timezone";
+import { useSettingsContext } from "@/lib/settings-provider";
 import { AccountScopeSelector } from "@/components/account-filter-selector";
 import { BenchmarkSymbolSelector } from "@/components/benchmark-symbol-selector";
 import {
@@ -29,7 +31,7 @@ import {
 } from "@/lib/performance";
 import { getPerformanceDateRangeForRequest } from "@/lib/performance-date-range";
 import { DateRange, PerformanceResult, TrackedItem } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, parseLocalDate } from "@/lib/utils";
 import {
   AlertFeedback,
   Badge,
@@ -1048,21 +1050,24 @@ export default function PerformancePage() {
     "performance:selectedItemId",
     null,
   );
-  const [dateRange, setDateRange] = usePersistentState<DateRange | undefined>(
+  const { settings } = useSettingsContext();
+  const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
+  const today = useMemo(() => parseLocalDate(todayISO), [todayISO]);
+  const [savedDateRange, setDateRange] = usePersistentState<DateRange | undefined | null>(
     "performance:dateRange",
-    {
-      from: subMonths(new Date(), 12),
-      to: new Date(),
-    },
+    null,
+  );
+  const dateRange = useMemo(
+    () => (savedDateRange === null ? { from: subMonths(today, 12), to: today } : savedDateRange),
+    [savedDateRange, today],
   );
 
   useEffect(() => {
     if (!dateRange?.from || !dateRange?.to) return;
-    const today = new Date();
     if (isSameDay(dateRange.from, subDays(today, 1)) && isSameDay(dateRange.to, today)) {
       setDateRange({ from: subDays(today, 7), to: today });
     }
-  }, [dateRange, setDateRange]);
+  }, [dateRange, setDateRange, today]);
   // Scope selectors include hidden accounts and mixed account types. Resolve
   // their names from the full inventory; the backend applies report eligibility.
   const {
@@ -1448,6 +1453,7 @@ export default function PerformancePage() {
       <div className="pointer-events-auto fixed right-2 top-4 z-20 hidden items-center gap-2 md:flex lg:right-4">
         <AccountScopeSelector value={accountScope} onChange={setAccountScope} />
         <DateRangeSelector
+          asOf={today}
           value={dateRange}
           onChange={setDateRange}
           hiddenRanges={PERFORMANCE_HIDDEN_DATE_RANGES}
@@ -1458,6 +1464,7 @@ export default function PerformancePage() {
         <div className="flex items-center justify-end gap-2 md:hidden">
           <AccountScopeSelector value={accountScope} onChange={setAccountScope} />
           <DateRangeSelector
+            asOf={today}
             value={dateRange}
             onChange={setDateRange}
             hiddenRanges={PERFORMANCE_HIDDEN_DATE_RANGES}

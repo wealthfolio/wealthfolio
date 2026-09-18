@@ -18,6 +18,7 @@ use crate::secrets::{addon_secret_service_id, legacy_addon_secret_service_id, Se
 const MAX_REQUEST_BODY_BYTES: usize = 1024 * 1024;
 const MAX_RESPONSE_BODY_BYTES: usize = 2 * 1024 * 1024;
 const REQUEST_TIMEOUT_SECS: u64 = 10;
+const MAX_REQUEST_TIMEOUT_SECS: u64 = 120;
 
 fn validate_addon_runtime_id(addon_id: &str) -> Result<(), String> {
     validate_addon_id(&addon_id.to_ascii_lowercase())
@@ -39,6 +40,9 @@ pub struct AddonNetworkRequest {
     pub headers: Option<BTreeMap<String, String>>,
     pub body: Option<String>,
     pub auth: Option<AddonNetworkAuth>,
+    /// HTTP timeout through response-body completion, excluding the preceding DNS lookup.
+    /// Defaults to 10 seconds; positive values are capped at 120 seconds.
+    pub timeout_secs: Option<u64>,
     #[serde(skip)]
     pub injected_authorization: Option<String>,
 }
@@ -57,6 +61,7 @@ pub async fn perform_addon_network_request(
     request: AddonNetworkRequest,
 ) -> Result<AddonNetworkResponse, String> {
     validate_addon_runtime_id(addon_id)?;
+    let timeout_secs = resolve_request_timeout_secs(request.timeout_secs)?;
     let url = validate_url(&request.url, allowed_hosts)?;
     let host = url
         .host_str()
@@ -69,10 +74,7 @@ pub async fn perform_addon_network_request(
         return Err("Addon network request body is too large".to_string());
     }
 
-    let client = wealthfolio_http::client_builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-        .resolve_to_addrs(&host, &resolved_addresses)
+    let client = addon_network_client_builder(&host, &resolved_addresses, timeout_secs)
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -160,6 +162,26 @@ pub fn resolve_addon_network_auth_header(
         return Err("Addon network auth secret is empty".to_string());
     }
     Ok(Some(format!("{} {}", scheme, secret)))
+}
+
+fn addon_network_client_builder(
+    host: &str,
+    resolved_addresses: &[SocketAddr],
+    timeout_secs: u64,
+) -> reqwest::ClientBuilder {
+    wealthfolio_http::client_builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(timeout_secs))
+        .resolve_to_addrs(host, resolved_addresses)
+}
+
+fn resolve_request_timeout_secs(timeout_secs: Option<u64>) -> Result<u64, String> {
+    match timeout_secs {
+        Some(0) => Err("Addon network timeoutSecs must be a positive integer".to_string()),
+        value => Ok(value
+            .unwrap_or(REQUEST_TIMEOUT_SECS)
+            .min(MAX_REQUEST_TIMEOUT_SECS)),
+    }
 }
 
 fn validate_url(url: &str, allowed_hosts: &[String]) -> Result<Url, String> {
@@ -336,6 +358,128 @@ mod tests {
         fn delete_secret(&self, _service: &str) -> Result<()> {
             Ok(())
         }
+    }
+
+    #[test]
+    fn resolves_request_timeout() {
+        for (requested, expected) in [
+            (None, 10),
+            (Some(1), 1),
+            (Some(30), 30),
+            (Some(120), 120),
+            (Some(121), 120),
+            (Some(u64::MAX), 120),
+        ] {
+            assert_eq!(resolve_request_timeout_secs(requested).unwrap(), expected);
+        }
+        assert!(resolve_request_timeout_secs(Some(0)).is_err());
+    }
+
+    #[test]
+    fn deserializes_request_timeout() {
+        let request: AddonNetworkRequest = serde_json::from_value(serde_json::json!({
+            "url": "https://api.example.com/v1"
+        }))
+        .unwrap();
+        assert_eq!(request.timeout_secs, None);
+
+        let request: AddonNetworkRequest = serde_json::from_value(serde_json::json!({
+            "url": "https://api.example.com/v1", "timeoutSecs": 30
+        }))
+        .unwrap();
+        assert_eq!(request.timeout_secs, Some(30));
+        assert_eq!(serde_json::to_value(request).unwrap()["timeoutSecs"], 30);
+
+        for invalid in [
+            serde_json::json!(-1),
+            serde_json::json!(1.5),
+            serde_json::json!("30"),
+        ] {
+            assert!(
+                serde_json::from_value::<AddonNetworkRequest>(serde_json::json!({
+                    "url": "https://api.example.com/v1", "timeoutSecs": invalid
+                }))
+                .is_err()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn rejects_zero_timeout_before_resolving_host() {
+        let request = serde_json::from_value(serde_json::json!({
+            "url": "https://api.example.invalid/v1", "timeoutSecs": 0
+        }))
+        .unwrap();
+        assert_eq!(
+            perform_addon_network_request(
+                "example-addon",
+                &["api.example.invalid".into()],
+                request
+            )
+            .await
+            .unwrap_err(),
+            "Addon network timeoutSecs must be a positive integer"
+        );
+    }
+
+    #[tokio::test]
+    async fn timeout_override_allows_a_body_slower_than_the_default() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let mut connections = tokio::task::JoinSet::new();
+            for _ in 0..2 {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                connections.spawn(async move {
+                    let mut request = [0; 1024];
+                    let mut received = 0;
+                    while !request[..received]
+                        .windows(4)
+                        .any(|bytes| bytes == b"\r\n\r\n")
+                    {
+                        let count = socket.read(&mut request[received..]).await.unwrap();
+                        assert!(count > 0, "expected complete request headers");
+                        received += count;
+                    }
+                    socket
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n",
+                        )
+                        .await
+                        .unwrap();
+                    tokio::time::sleep(Duration::from_secs(REQUEST_TIMEOUT_SECS + 1)).await;
+                    // The default-timeout client will already have disconnected.
+                    let _ = socket.write_all(b"ok").await;
+                });
+            }
+            while let Some(result) = connections.join_next().await {
+                result.unwrap();
+            }
+        });
+        let fetch_body = |timeout| async move {
+            // Exercise the production client configuration with a local transport fixture.
+            // Public URL/IP validation remains enforced by perform_addon_network_request.
+            addon_network_client_builder(
+                "127.0.0.1",
+                &[address],
+                resolve_request_timeout_secs(timeout).unwrap(),
+            )
+            .no_proxy()
+            .build()
+            .unwrap()
+            .get(format!("http://{address}"))
+            .send()
+            .await?
+            .text()
+            .await
+        };
+        let (default_result, override_result) =
+            tokio::join!(fetch_body(None), fetch_body(Some(30)));
+        assert!(default_result.unwrap_err().is_timeout());
+        assert_eq!(override_result.unwrap(), "ok");
+        server.await.unwrap();
     }
 
     #[test]

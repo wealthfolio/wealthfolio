@@ -16,6 +16,7 @@ wealthfolio-ai = { workspace = true }
 wealthfolio-connect = { workspace = true }
 wealthfolio-device-sync = { workspace = true }
 wealthfolio-spending = { workspace = true }
+wealthfolio-market-data = { workspace = true }
 
 # Workspace dependencies
 tokio = { workspace = true }
@@ -30,12 +31,18 @@ async-trait = { workspace = true }
 log = { workspace = true }
 num-traits = { workspace = true }
 sha2 = { workspace = true }
+rand = { workspace = true }
+zeroize = { workspace = true }
+hex = { workspace = true }
+tempfile = "3"
+fs2 = "0.4"
 
 # Database (SQLite/Diesel specific)
 diesel = { workspace = true }
 diesel_migrations = { workspace = true }
 rusqlite = { workspace = true }
+libsqlite3-sys = { workspace = true }
 r2d2 = { workspace = true }
 
-[dev-dependencies]
-tempfile = "3"
+[target.'cfg(target_os = "android")'.dependencies]
+libc = "0.2"

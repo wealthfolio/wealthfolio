@@ -24,7 +24,7 @@ use wealthfolio_spending::cash_activities::{
     CashActivity, CashActivityFilter, CashActivitySearchRequest, CashActivitySearchResponse,
 };
 use wealthfolio_spending::categorization_rules::{
-    CategorizationRule, CategorizationRulesService, NewCategorizationRule, UpdateCategorizationRule,
+    CategorizationRule, NewCategorizationRule, UpdateCategorizationRule,
 };
 use wealthfolio_spending::events::{Event, EventType, NewEvent, NewEventType, UpdateEvent};
 use wealthfolio_spending::insight::{SpendingInsight, SpendingInsightRequest};
@@ -65,17 +65,18 @@ async fn update_spending_settings(
     } else {
         Vec::new()
     };
-    spawn_auto_categorize(state.categorization_rules_service.clone(), to_categorize);
+    spawn_auto_categorize(&state, to_categorize);
     Ok(Json(after))
 }
 
 /// Fire-and-forget auto-categorize for direct (user-initiated) triggers.
 /// See the Tauri counterpart in `apps/tauri/src/commands/spending.rs` for the
 /// design rationale.
-fn spawn_auto_categorize(rules_service: Arc<CategorizationRulesService>, account_ids: Vec<String>) {
+fn spawn_auto_categorize(state: &AppState, account_ids: Vec<String>) {
     if account_ids.is_empty() {
         return;
     }
+    let rules_service = state.categorization_rules_service.clone();
     tokio::spawn(async move {
         match rules_service
             .rerun_all(&account_ids, /* only_uncategorized */ true)
@@ -104,10 +105,7 @@ async fn spawn_auto_categorize_for_opted_in_accounts(state: &Arc<AppState>) {
     if !settings.enabled {
         return;
     }
-    spawn_auto_categorize(
-        state.categorization_rules_service.clone(),
-        settings.account_ids,
-    );
+    spawn_auto_categorize(state, settings.account_ids);
 }
 
 async fn spending_enabled(state: &Arc<AppState>) -> ApiResult<bool> {
@@ -167,8 +165,8 @@ async fn search_cash_activities(
             base_currency: None,
         }));
     }
-    let base = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base = state.base_currency()?;
+    let timezone = state.timezone()?;
     let response = state
         .cash_activity_service
         .search(request, Some(base.as_str()), &timezone)
@@ -486,8 +484,8 @@ async fn get_budget(
     State(state): State<Arc<AppState>>,
     Query(query): Query<BudgetQuery>,
 ) -> ApiResult<Json<BudgetSnapshot>> {
-    let base = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base = state.base_currency()?;
+    let timezone = state.timezone()?;
     Ok(Json(
         state
             .budget_service
@@ -501,8 +499,8 @@ async fn upsert_budget_target(
     Query(query): Query<BudgetQuery>,
     Json(payload): Json<NewBudgetTarget>,
 ) -> ApiResult<Json<BudgetSnapshot>> {
-    let base = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base = state.base_currency()?;
+    let timezone = state.timezone()?;
     Ok(Json(
         state
             .budget_service
@@ -516,8 +514,8 @@ async fn delete_budget_target(
     Query(query): Query<BudgetQuery>,
     Path(id): Path<String>,
 ) -> ApiResult<Json<BudgetSnapshot>> {
-    let base = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base = state.base_currency()?;
+    let timezone = state.timezone()?;
     Ok(Json(
         state
             .budget_service
@@ -531,8 +529,8 @@ async fn upsert_budget_rollover_setting(
     Query(query): Query<BudgetQuery>,
     Json(payload): Json<NewBudgetRolloverSetting>,
 ) -> ApiResult<Json<BudgetSnapshot>> {
-    let base = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base = state.base_currency()?;
+    let timezone = state.timezone()?;
     Ok(Json(
         state
             .budget_service
@@ -546,8 +544,8 @@ async fn delete_budget_rollover_setting(
     Query(query): Query<BudgetQuery>,
     Path(id): Path<String>,
 ) -> ApiResult<Json<BudgetSnapshot>> {
-    let base = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base = state.base_currency()?;
+    let timezone = state.timezone()?;
     Ok(Json(
         state
             .budget_service
@@ -561,8 +559,8 @@ async fn create_budget_group(
     Query(query): Query<BudgetQuery>,
     Json(payload): Json<NewBudgetGroup>,
 ) -> ApiResult<Json<BudgetSnapshot>> {
-    let base = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base = state.base_currency()?;
+    let timezone = state.timezone()?;
     Ok(Json(
         state
             .budget_service
@@ -577,8 +575,8 @@ async fn update_budget_group(
     Path(id): Path<String>,
     Json(payload): Json<UpdateBudgetGroup>,
 ) -> ApiResult<Json<BudgetSnapshot>> {
-    let base = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base = state.base_currency()?;
+    let timezone = state.timezone()?;
     Ok(Json(
         state
             .budget_service
@@ -599,8 +597,8 @@ async fn delete_budget_group(
     Path(id): Path<String>,
     Json(payload): Json<DeleteBudgetGroupBody>,
 ) -> ApiResult<Json<BudgetSnapshot>> {
-    let base = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base = state.base_currency()?;
+    let timezone = state.timezone()?;
     Ok(Json(
         state
             .budget_service
@@ -627,8 +625,8 @@ async fn assign_category_to_group(
     Query(query): Query<BudgetQuery>,
     Json(payload): Json<AssignCategoryToGroupBody>,
 ) -> ApiResult<Json<BudgetSnapshot>> {
-    let base = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base = state.base_currency()?;
+    let timezone = state.timezone()?;
     Ok(Json(
         state
             .budget_service
@@ -647,8 +645,8 @@ async fn reset_budget_groups(
     State(state): State<Arc<AppState>>,
     Query(query): Query<BudgetQuery>,
 ) -> ApiResult<Json<BudgetSnapshot>> {
-    let base = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base = state.base_currency()?;
+    let timezone = state.timezone()?;
     Ok(Json(
         state
             .budget_service
@@ -661,8 +659,8 @@ async fn get_spending_report(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ReportRequest>,
 ) -> ApiResult<Json<MonthlyReport>> {
-    let timezone = state.timezone.read().unwrap().clone();
-    let base_currency = state.base_currency.read().unwrap().clone();
+    let timezone = state.timezone()?;
+    let base_currency = state.base_currency()?;
     Ok(Json(
         state
             .spending_analytics_service
@@ -675,8 +673,8 @@ async fn get_spending_insight(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SpendingInsightRequest>,
 ) -> ApiResult<Json<SpendingInsight>> {
-    let currency = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let currency = state.base_currency()?;
+    let timezone = state.timezone()?;
     Ok(Json(
         state
             .spending_insight_service
@@ -698,8 +696,8 @@ async fn copy_budget_targets(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CopyBudgetTargetsBody>,
 ) -> ApiResult<Json<BudgetSnapshot>> {
-    let base = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base = state.base_currency()?;
+    let timezone = state.timezone()?;
     Ok(Json(
         state
             .budget_service
@@ -724,9 +722,9 @@ async fn get_event_spending_summaries(
         currency: None,
     });
     if req.currency.is_none() {
-        req.currency = Some(state.base_currency.read().unwrap().clone());
+        req.currency = Some(state.base_currency()?);
     }
-    let timezone = state.timezone.read().unwrap().clone();
+    let timezone = state.timezone()?;
     Ok(Json(
         state
             .spending_analytics_service

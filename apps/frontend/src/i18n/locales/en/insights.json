@@ -59,6 +59,7 @@
       "cash_balance": "Cash balance",
       "invested": "Invested",
       "book_cost": "Book cost",
+      "pnl_current_holdings": "Current holdings",
       "no_cash_balance": "No cash balance",
       "of_portfolio": "{{percent}} of portfolio",
       "available_cash": "Available cash",
@@ -125,5 +126,35 @@
     },
     "days_ago_one": "{{count}}d ago",
     "days_ago_other": "{{count}}d ago"
+  },
+  "highlights": {
+    "movers": "Top movers",
+    "concentration": "Concentration",
+    "daily": "Daily change · current holdings",
+    "rank_by": "Rank daily movers by",
+    "gainers": "Gainers",
+    "losers": "Losers",
+    "no_moves": "No moves with available data.",
+    "portfolio_share": "Share of portfolio value, including cash",
+    "largest": "Largest holding",
+    "top_five": "Top five holdings",
+    "concentration_unavailable": "Concentration needs positive holdings values and a portfolio without short positions."
+  },
+  "customize": {
+    "edit": "Customize",
+    "widgets": "Widgets",
+    "reset": "Reset layout",
+    "cancel": "Cancel",
+    "save": "Save layout",
+    "saving": "Saving…",
+    "hint": "Drag widgets by their handles or adjust their width from the right edge.",
+    "description": "Choose which widgets to show. Use the arrows to change their order, including on mobile.",
+    "value": "Portfolio summary",
+    "breakdown": "Breakdown",
+    "move_up": "Move {{widget}} up",
+    "move_down": "Move {{widget}} down",
+    "hide": "Hide {{widget}}",
+    "drag": "Drag {{widget}}",
+    "empty": "No widgets selected. Customize this page to add widgets."
   }
 }

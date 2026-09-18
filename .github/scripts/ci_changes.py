@@ -3,27 +3,37 @@ import sys
 
 
 def classify(paths):
-    required = dict(frontend=False, rust=False, formatting=False, android=False)
+    required = dict(frontend=False, rust=False, formatting=False, android=False,
+                    ios=False)
     for path in paths:
         if path.startswith((".github/workflows/", ".github/scripts/")):
-            required.update(frontend=True, rust=True, formatting=True, android=True)
+            required.update({name: True for name in required})
+        elif path.startswith("docs/") or path.lower().endswith((".md", ".mdx")):
+            required["formatting"] = True
+        elif path.startswith(("apps/tauri/gen/android/", "apps/tauri/icons/android/")) or path in (
+            "apps/tauri/tauri.android.conf.json", "apps/tauri/capabilities/android.json",
+        ):
+            required.update(rust=True, android=True)
+        elif path.startswith(("apps/tauri/gen/apple/", "apps/tauri/icons/ios/")) or path in (
+            "apps/tauri/Info.ios.plist", "apps/tauri/tauri.ios.conf.json",
+            "apps/tauri/capabilities/ios.json", "apps/tauri/scripts/sync-ios-composer-icon.mjs",
+        ):
+            required.update(rust=True, ios=True)
         elif path.startswith(("apps/tauri/", "apps/server/", "crates/", ".cargo/")) or path in (
             "Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.toml", "rustfmt.toml", ".rustfmt.toml",
         ):
             required["rust"] = True
-            # Server-only code is not linked into the mobile app.
+            # Server-only code is not linked into either mobile app.
             if not path.startswith("apps/server/"):
-                required["android"] = True
+                required.update(android=True, ios=True)
             if path.startswith("apps/tauri/tauri.conf"):
                 required["frontend"] = True
         elif path in ("Dockerfile", ".dockerignore") or path.startswith("docker-compose"):
             required.update(frontend=True, rust=True, formatting=True)
-        elif path.startswith("docs/") or path.lower().endswith((".md", ".mdx")):
-            required["formatting"] = True
         else:
             required.update(frontend=True, formatting=True)
             if path in ("package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "apps/frontend/package.json"):
-                required["android"] = True
+                required.update(android=True, ios=True)
     return required
 
 

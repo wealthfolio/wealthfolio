@@ -44,6 +44,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf pkg-config libssl-dev libsoup2.4-dev javascriptcoregtk-4.0 webkit2gtk-4.0 xdg-utils
 
+      - name: Verify vendored OpenSSL Perl prerequisite
+        shell: bash
+        run: perl -v
+
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -117,7 +121,7 @@ jobs:
           releaseBody: "See the assets to download and install this version."
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }} ${{ steps.win-bundles.outputs.args }}
+          args: ${{ matrix.args }} ${{ steps.win-bundles.outputs.args }} -- --locked
 
   prebuild-server-linux:
     # Standalone server tarball for self-hosters (Proxmox LXC, bare metal, systemd).
@@ -135,7 +139,11 @@ jobs:
       - name: Install system build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev libsqlite3-dev build-essential
+          sudo apt-get install -y pkg-config libssl-dev libsqlite3-dev build-essential perl
+
+      - name: Verify vendored OpenSSL Perl prerequisite
+        shell: bash
+        run: perl -v
 
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
@@ -172,7 +180,7 @@ jobs:
           CONNECT_AUTH_URL: ${{ vars.CONNECT_AUTH_URL }}
           CONNECT_AUTH_PUBLISHABLE_KEY: ${{ vars.CONNECT_AUTH_PUBLISHABLE_KEY }}
           CONNECT_API_URL: ${{ vars.CONNECT_API_URL }}
-        run: cargo build --release --manifest-path apps/server/Cargo.toml
+        run: cargo build --locked --release --manifest-path apps/server/Cargo.toml
 
       - name: Verify server binary runtime dependencies
         run: |
@@ -199,6 +207,12 @@ jobs:
           STAGE="wealthfolio-server-${VERSION}-linux-amd64"
           tar -czf "${STAGE}.tar.gz" "${STAGE}"
           sha256sum "${STAGE}.tar.gz" > "${STAGE}.tar.gz.sha256"
+
+      - name: Smoke-test extracted server release on Debian 13
+        run: |
+          mkdir -p "$RUNNER_TEMP/server-smoke"
+          tar -xzf "wealthfolio-server-${GITHUB_REF_NAME#v}-linux-amd64.tar.gz" -C "$RUNNER_TEMP/server-smoke" --strip-components=1
+          python3 .github/scripts/encryption_smoke.py --package "$RUNNER_TEMP/server-smoke"
 
       - name: Upload to GitHub release
         uses: softprops/action-gh-release@v2

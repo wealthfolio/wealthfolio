@@ -221,7 +221,5 @@
     "connectionFailed": "Échec de la connexion",
     "tryAgain": "Réessayer"
   },
-  "errors": {
-    "backupPlatformUnsupported": "La sauvegarde avant la synchronisation des appareils est actuellement prise en charge uniquement sur ordinateur, web et mobile"
-  }
+  "errors": {}
 }

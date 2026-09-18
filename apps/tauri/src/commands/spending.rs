@@ -1,3 +1,4 @@
+use crate::database::DatabaseRuntime;
 use std::sync::Arc;
 
 use crate::context::ServiceContext;
@@ -19,8 +20,8 @@ use wealthfolio_spending::cash_activities::{
     CashActivity, CashActivityFilter, CashActivitySearchRequest, CashActivitySearchResponse,
 };
 use wealthfolio_spending::categorization_rules::{
-    CategorizationRule, CategorizationRulesService, ImportPresetResult, NewCategorizationRule,
-    RemovePresetResult, RulePresetSummary, UpdateCategorizationRule,
+    CategorizationRule, ImportPresetResult, NewCategorizationRule, RemovePresetResult,
+    RulePresetSummary, UpdateCategorizationRule,
 };
 use wealthfolio_spending::events::{Event, EventType, NewEvent, NewEventType, UpdateEvent};
 use wealthfolio_spending::insight::{SpendingInsight, SpendingInsightRequest};
@@ -35,12 +36,14 @@ const MAX_BULK_CATEGORY_ASSIGNMENTS: usize = 1_000;
 ///
 /// Errors are logged, never propagated — the originating command (e.g. saving
 /// settings) succeeds independently of the background categorize.
-fn spawn_auto_categorize(rules_service: Arc<CategorizationRulesService>, account_ids: Vec<String>) {
+fn spawn_auto_categorize(context: Arc<ServiceContext>, account_ids: Vec<String>) {
     if account_ids.is_empty() {
         return;
     }
     tauri::async_runtime::spawn(async move {
-        match rules_service
+        // Keep the context alive so database maintenance can see this job.
+        match context
+            .categorization_rules_service()
             .rerun_all(&account_ids, /* only_uncategorized */ true)
             .await
         {
@@ -57,7 +60,7 @@ fn spawn_auto_categorize(rules_service: Arc<CategorizationRulesService>, account
 /// an auto-categorize pass. Used by rule mutations / preset imports where the
 /// scope is "every spending account, not just one diff". No-op if spending is
 /// disabled or no accounts are opted in.
-async fn spawn_auto_categorize_for_opted_in_accounts(state: &State<'_, Arc<ServiceContext>>) {
+async fn spawn_auto_categorize_for_opted_in_accounts(state: &Arc<ServiceContext>) {
     let settings = match state.spending_settings_service().get().await {
         Ok(s) => s,
         Err(e) => {
@@ -71,10 +74,10 @@ async fn spawn_auto_categorize_for_opted_in_accounts(state: &State<'_, Arc<Servi
     if !settings.enabled {
         return;
     }
-    spawn_auto_categorize(state.categorization_rules_service(), settings.account_ids);
+    spawn_auto_categorize(Arc::clone(state), settings.account_ids);
 }
 
-async fn spending_enabled(state: &State<'_, Arc<ServiceContext>>) -> Result<bool, String> {
+async fn spending_enabled(state: &Arc<ServiceContext>) -> Result<bool, String> {
     state
         .spending_settings_service()
         .get()
@@ -85,10 +88,11 @@ async fn spending_enabled(state: &State<'_, Arc<ServiceContext>>) -> Result<bool
 
 #[tauri::command]
 pub async fn get_spending_settings(
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<SpendingSettings, String> {
+    let context = state.context()?;
     debug!("Fetching spending settings...");
-    state
+    context
         .spending_settings_service()
         .get()
         .await
@@ -98,10 +102,11 @@ pub async fn get_spending_settings(
 #[tauri::command]
 pub async fn update_spending_settings(
     update: SpendingSettingsUpdate,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<SpendingSettings, String> {
+    let context = state.context()?;
     debug!("Updating spending settings...");
-    let settings_service = state.spending_settings_service();
+    let settings_service = context.spending_settings_service();
     let (before, after) = settings_service
         .update_with_previous(update)
         .await
@@ -124,20 +129,21 @@ pub async fn update_spending_settings(
     } else {
         Vec::new()
     };
-    spawn_auto_categorize(state.categorization_rules_service(), to_categorize);
+    spawn_auto_categorize(Arc::clone(&context), to_categorize);
     Ok(after)
 }
 
 #[tauri::command]
 pub async fn list_cash_activities(
     filter: Option<CashActivityFilter>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Vec<CashActivity>, String> {
+    let context = state.context()?;
     debug!("Listing cash activities...");
-    if !spending_enabled(&state).await? {
+    if !spending_enabled(&context).await? {
         return Ok(Vec::new());
     }
-    state
+    context
         .cash_activity_service()
         .list(filter.unwrap_or_default())
         .await
@@ -147,10 +153,11 @@ pub async fn list_cash_activities(
 #[tauri::command]
 pub async fn search_cash_activities(
     request: Option<CashActivitySearchRequest>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<CashActivitySearchResponse, String> {
+    let context = state.context()?;
     debug!("Searching cash activities...");
-    if !spending_enabled(&state).await? {
+    if !spending_enabled(&context).await? {
         return Ok(CashActivitySearchResponse {
             items: Vec::new(),
             total_count: 0,
@@ -158,9 +165,9 @@ pub async fn search_cash_activities(
             base_currency: None,
         });
     }
-    let base_currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    state
+    let base_currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    context
         .cash_activity_service()
         .search(
             request.unwrap_or_default(),
@@ -175,9 +182,10 @@ pub async fn search_cash_activities(
 pub async fn set_activity_event(
     activity_id: String,
     event_id: Option<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Activity, String> {
-    state
+    let context = state.context()?;
+    context
         .cash_activity_service()
         .set_event(&activity_id, event_id)
         .await
@@ -187,9 +195,10 @@ pub async fn set_activity_event(
 #[tauri::command]
 pub async fn get_activity_assignments(
     activity_id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Vec<ActivityTaxonomyAssignment>, String> {
-    state
+    let context = state.context()?;
+    context
         .cash_activity_service()
         .list_assignments(&activity_id)
         .await
@@ -201,9 +210,10 @@ pub async fn assign_activity_category(
     activity_id: String,
     taxonomy_id: String,
     category_id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<ActivityTaxonomyAssignment, String> {
-    state
+    let context = state.context()?;
+    context
         .cash_activity_service()
         .assign_category(&activity_id, &taxonomy_id, &category_id)
         .await
@@ -214,9 +224,10 @@ pub async fn assign_activity_category(
 pub async fn unassign_activity_category(
     activity_id: String,
     taxonomy_id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<(), String> {
-    state
+    let context = state.context()?;
+    context
         .cash_activity_service()
         .unassign_category(&activity_id, &taxonomy_id)
         .await
@@ -226,9 +237,10 @@ pub async fn unassign_activity_category(
 #[tauri::command]
 pub async fn get_activity_splits(
     activity_id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Vec<ActivitySplit>, String> {
-    state
+    let context = state.context()?;
+    context
         .cash_activity_service()
         .list_splits(&activity_id)
         .await
@@ -239,9 +251,10 @@ pub async fn get_activity_splits(
 pub async fn replace_activity_splits(
     activity_id: String,
     splits: Vec<NewActivitySplit>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Vec<ActivitySplit>, String> {
-    state
+    let context = state.context()?;
+    context
         .cash_activity_service()
         .replace_splits(&activity_id, splits)
         .await
@@ -251,9 +264,10 @@ pub async fn replace_activity_splits(
 #[tauri::command]
 pub async fn clear_activity_splits(
     activity_id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<(), String> {
-    state
+    let context = state.context()?;
+    context
         .cash_activity_service()
         .clear_splits(&activity_id)
         .await
@@ -266,14 +280,15 @@ pub async fn clear_activity_splits(
 #[tauri::command]
 pub async fn bulk_assign_categories(
     items: Vec<BulkCategoryAssignment>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Vec<ActivityTaxonomyAssignment>, String> {
+    let context = state.context()?;
     if items.len() > MAX_BULK_CATEGORY_ASSIGNMENTS {
         return Err(format!(
             "At most {MAX_BULK_CATEGORY_ASSIGNMENTS} category assignments can be submitted at once"
         ));
     }
-    state
+    context
         .cash_activity_service()
         .bulk_assign_categories(&items)
         .await
@@ -282,9 +297,10 @@ pub async fn bulk_assign_categories(
 
 #[tauri::command]
 pub async fn list_categorization_rules(
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Vec<CategorizationRule>, String> {
-    state
+    let context = state.context()?;
+    context
         .categorization_rules_service()
         .list()
         .await
@@ -294,14 +310,15 @@ pub async fn list_categorization_rules(
 #[tauri::command]
 pub async fn create_categorization_rule(
     rule: NewCategorizationRule,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<CategorizationRule, String> {
-    let created = state
+    let context = state.context()?;
+    let created = context
         .categorization_rules_service()
         .create(rule)
         .await
         .map_err(|e| format!("Failed to create rule: {}", e))?;
-    spawn_auto_categorize_for_opted_in_accounts(&state).await;
+    spawn_auto_categorize_for_opted_in_accounts(&context).await;
     Ok(created)
 }
 
@@ -309,14 +326,15 @@ pub async fn create_categorization_rule(
 pub async fn update_categorization_rule(
     id: String,
     patch: UpdateCategorizationRule,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<CategorizationRule, String> {
-    let updated = state
+    let context = state.context()?;
+    let updated = context
         .categorization_rules_service()
         .update(&id, patch)
         .await
         .map_err(|e| format!("Failed to update rule: {}", e))?;
-    spawn_auto_categorize_for_opted_in_accounts(&state).await;
+    spawn_auto_categorize_for_opted_in_accounts(&context).await;
     Ok(updated)
 }
 
@@ -327,23 +345,25 @@ pub async fn update_categorization_rule(
 #[tauri::command]
 pub async fn upsert_categorization_rule(
     rule: NewCategorizationRule,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<CategorizationRule, String> {
-    let saved = state
+    let context = state.context()?;
+    let saved = context
         .categorization_rules_service()
         .upsert(rule)
         .await
         .map_err(|e| format!("Failed to save rule: {}", e))?;
-    spawn_auto_categorize_for_opted_in_accounts(&state).await;
+    spawn_auto_categorize_for_opted_in_accounts(&context).await;
     Ok(saved)
 }
 
 #[tauri::command]
 pub async fn delete_categorization_rule(
     id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<(), String> {
-    state
+    let context = state.context()?;
+    context
         .categorization_rules_service()
         .delete(&id)
         .await
@@ -353,9 +373,10 @@ pub async fn delete_categorization_rule(
 #[tauri::command]
 pub async fn rerun_categorization_rules(
     only_uncategorized: bool,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<usize, String> {
-    let s = state
+    let context = state.context()?;
+    let s = context
         .spending_settings_service()
         .get()
         .await
@@ -363,7 +384,7 @@ pub async fn rerun_categorization_rules(
     if !s.enabled {
         return Ok(0);
     }
-    state
+    context
         .categorization_rules_service()
         .rerun_all(&s.account_ids, only_uncategorized)
         .await
@@ -372,12 +393,13 @@ pub async fn rerun_categorization_rules(
 
 #[tauri::command]
 pub async fn list_rule_presets(
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Vec<RulePresetSummary>, String> {
-    if !spending_enabled(&state).await? {
+    let context = state.context()?;
+    if !spending_enabled(&context).await? {
         return Ok(Vec::new());
     }
-    state
+    context
         .categorization_rules_service()
         .list_presets()
         .await
@@ -387,11 +409,12 @@ pub async fn list_rule_presets(
 #[tauri::command]
 pub async fn import_rule_preset(
     preset_id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<ImportPresetResult, String> {
+    let context = state.context()?;
     // Build the categoryKey → (taxonomy_id, category_id) resolver from the
     // activity-scope taxonomies (spending_categories + income_sources).
-    let taxonomies = state
+    let taxonomies = context
         .taxonomy_service()
         .get_taxonomies_with_categories()
         .map_err(|e| format!("Failed to load taxonomies: {}", e))?;
@@ -404,21 +427,22 @@ pub async fn import_rule_preset(
         }
     }
 
-    let result = state
+    let result = context
         .categorization_rules_service()
         .import_preset(&preset_id, &resolver)
         .await
         .map_err(|e| format!("Failed to import rule preset: {}", e))?;
-    spawn_auto_categorize_for_opted_in_accounts(&state).await;
+    spawn_auto_categorize_for_opted_in_accounts(&context).await;
     Ok(result)
 }
 
 #[tauri::command]
 pub async fn remove_rule_preset(
     preset_id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<RemovePresetResult, String> {
-    state
+    let context = state.context()?;
+    context
         .categorization_rules_service()
         .remove_preset(&preset_id)
         .await
@@ -426,13 +450,12 @@ pub async fn remove_rule_preset(
 }
 
 #[tauri::command]
-pub async fn list_event_types(
-    state: State<'_, Arc<ServiceContext>>,
-) -> Result<Vec<EventType>, String> {
-    if !spending_enabled(&state).await? {
+pub async fn list_event_types(state: State<'_, DatabaseRuntime>) -> Result<Vec<EventType>, String> {
+    let context = state.context()?;
+    if !spending_enabled(&context).await? {
         return Ok(Vec::new());
     }
-    state
+    context
         .events_service()
         .list_types()
         .await
@@ -442,9 +465,10 @@ pub async fn list_event_types(
 #[tauri::command]
 pub async fn create_event_type(
     new_type: NewEventType,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<EventType, String> {
-    state
+    let context = state.context()?;
+    context
         .events_service()
         .create_type(new_type)
         .await
@@ -471,9 +495,10 @@ where
 pub async fn update_event_type(
     id: String,
     patch: UpdateEventType,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<EventType, String> {
-    state
+    let context = state.context()?;
+    context
         .events_service()
         .update_type(&id, patch.name, patch.color)
         .await
@@ -483,9 +508,10 @@ pub async fn update_event_type(
 #[tauri::command]
 pub async fn delete_event_type(
     id: String,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<(), String> {
-    state
+    let context = state.context()?;
+    context
         .events_service()
         .delete_type(&id)
         .await
@@ -493,11 +519,12 @@ pub async fn delete_event_type(
 }
 
 #[tauri::command]
-pub async fn list_events(state: State<'_, Arc<ServiceContext>>) -> Result<Vec<Event>, String> {
-    if !spending_enabled(&state).await? {
+pub async fn list_events(state: State<'_, DatabaseRuntime>) -> Result<Vec<Event>, String> {
+    let context = state.context()?;
+    if !spending_enabled(&context).await? {
         return Ok(Vec::new());
     }
-    state
+    context
         .events_service()
         .list_events()
         .await
@@ -507,9 +534,10 @@ pub async fn list_events(state: State<'_, Arc<ServiceContext>>) -> Result<Vec<Ev
 #[tauri::command]
 pub async fn create_event(
     event: NewEvent,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Event, String> {
-    state
+    let context = state.context()?;
+    context
         .events_service()
         .create_event(event)
         .await
@@ -520,9 +548,10 @@ pub async fn create_event(
 pub async fn update_event(
     id: String,
     patch: UpdateEvent,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Event, String> {
-    state
+    let context = state.context()?;
+    context
         .events_service()
         .update_event(&id, patch)
         .await
@@ -530,8 +559,9 @@ pub async fn update_event(
 }
 
 #[tauri::command]
-pub async fn delete_event(id: String, state: State<'_, Arc<ServiceContext>>) -> Result<(), String> {
-    state
+pub async fn delete_event(id: String, state: State<'_, DatabaseRuntime>) -> Result<(), String> {
+    let context = state.context()?;
+    context
         .events_service()
         .delete_event(&id)
         .await
@@ -541,11 +571,12 @@ pub async fn delete_event(id: String, state: State<'_, Arc<ServiceContext>>) -> 
 #[tauri::command]
 pub async fn get_budget(
     period_key: Option<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<BudgetSnapshot, String> {
-    let base_currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    state
+    let context = state.context()?;
+    let base_currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    context
         .budget_service()
         .get(period_key, &base_currency, &timezone)
         .await
@@ -556,11 +587,12 @@ pub async fn get_budget(
 pub async fn upsert_budget_target(
     target: NewBudgetTarget,
     period_key: Option<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<BudgetSnapshot, String> {
-    let base_currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    state
+    let context = state.context()?;
+    let base_currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    context
         .budget_service()
         .upsert_target(target, period_key, &base_currency, &timezone)
         .await
@@ -571,11 +603,12 @@ pub async fn upsert_budget_target(
 pub async fn delete_budget_target(
     id: String,
     period_key: Option<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<BudgetSnapshot, String> {
-    let base_currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    state
+    let context = state.context()?;
+    let base_currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    context
         .budget_service()
         .delete_target(&id, period_key, &base_currency, &timezone)
         .await
@@ -586,11 +619,12 @@ pub async fn delete_budget_target(
 pub async fn upsert_budget_rollover_setting(
     setting: NewBudgetRolloverSetting,
     period_key: Option<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<BudgetSnapshot, String> {
-    let base_currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    state
+    let context = state.context()?;
+    let base_currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    context
         .budget_service()
         .upsert_rollover_setting(setting, period_key, &base_currency, &timezone)
         .await
@@ -601,11 +635,12 @@ pub async fn upsert_budget_rollover_setting(
 pub async fn delete_budget_rollover_setting(
     id: String,
     period_key: Option<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<BudgetSnapshot, String> {
-    let base_currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    state
+    let context = state.context()?;
+    let base_currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    context
         .budget_service()
         .delete_rollover_setting(&id, period_key, &base_currency, &timezone)
         .await
@@ -616,11 +651,12 @@ pub async fn delete_budget_rollover_setting(
 pub async fn create_budget_group(
     group: NewBudgetGroup,
     period_key: Option<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<BudgetSnapshot, String> {
-    let base_currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    state
+    let context = state.context()?;
+    let base_currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    context
         .budget_service()
         .create_group(group, period_key, &base_currency, &timezone)
         .await
@@ -632,11 +668,12 @@ pub async fn update_budget_group(
     id: String,
     patch: UpdateBudgetGroup,
     period_key: Option<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<BudgetSnapshot, String> {
-    let base_currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    state
+    let context = state.context()?;
+    let base_currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    context
         .budget_service()
         .update_group(&id, patch, period_key, &base_currency, &timezone)
         .await
@@ -648,11 +685,12 @@ pub async fn delete_budget_group(
     id: String,
     reassign_to_group_id: String,
     period_key: Option<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<BudgetSnapshot, String> {
-    let base_currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    state
+    let context = state.context()?;
+    let base_currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    context
         .budget_service()
         .delete_group(
             &id,
@@ -670,11 +708,12 @@ pub async fn assign_category_to_group(
     category_id: String,
     group_id: String,
     period_key: Option<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<BudgetSnapshot, String> {
-    let base_currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    state
+    let context = state.context()?;
+    let base_currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    context
         .budget_service()
         .assign_category_to_group(category_id, group_id, period_key, &base_currency, &timezone)
         .await
@@ -684,11 +723,12 @@ pub async fn assign_category_to_group(
 #[tauri::command]
 pub async fn reset_budget_groups(
     period_key: Option<String>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<BudgetSnapshot, String> {
-    let base_currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    state
+    let context = state.context()?;
+    let base_currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    context
         .budget_service()
         .reset_groups(period_key, &base_currency, &timezone)
         .await
@@ -700,11 +740,12 @@ pub async fn copy_budget_targets(
     source_period_key: String,
     target_period_key: String,
     overwrite: bool,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<BudgetSnapshot, String> {
-    let base_currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    state
+    let context = state.context()?;
+    let base_currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    context
         .budget_service()
         .copy_period_targets(
             &source_period_key,
@@ -720,11 +761,12 @@ pub async fn copy_budget_targets(
 #[tauri::command]
 pub async fn get_spending_report(
     request: ReportRequest,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<MonthlyReport, String> {
-    let timezone = state.get_timezone();
-    let base_currency = state.get_base_currency();
-    state
+    let context = state.context()?;
+    let timezone = context.get_timezone();
+    let base_currency = context.get_base_currency();
+    context
         .spending_analytics_service()
         .monthly_report(request, &timezone, &base_currency)
         .await
@@ -734,11 +776,12 @@ pub async fn get_spending_report(
 #[tauri::command]
 pub async fn get_spending_insight(
     request: SpendingInsightRequest,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<SpendingInsight, String> {
-    let currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    state
+    let context = state.context()?;
+    let currency = context.get_base_currency();
+    let timezone = context.get_timezone();
+    context
         .spending_insight_service()
         .compute(request, &currency, &timezone)
         .await
@@ -748,18 +791,19 @@ pub async fn get_spending_insight(
 #[tauri::command]
 pub async fn get_event_spending_summaries(
     request: Option<EventSummariesRequest>,
-    state: State<'_, Arc<ServiceContext>>,
+    state: State<'_, DatabaseRuntime>,
 ) -> Result<Vec<EventSpendingSummary>, String> {
+    let context = state.context()?;
     let mut req = request.unwrap_or(EventSummariesRequest {
         start_date: None,
         end_date: None,
         currency: None,
     });
     if req.currency.is_none() {
-        req.currency = Some(state.get_base_currency());
+        req.currency = Some(context.get_base_currency());
     }
-    let timezone = state.get_timezone();
-    state
+    let timezone = context.get_timezone();
+    context
         .spending_analytics_service()
         .event_spending_summaries(req, &timezone)
         .await

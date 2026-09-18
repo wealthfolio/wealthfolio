@@ -1,0 +1,10 @@
+{
+  "appVersion": "3.9.0",
+  "producerArch": "aarch64",
+  "producerOs": "macos",
+  "sha256": {
+    "plaintext.db": "2cd3257746c0c327c75ab7e549238d11fc64b2ae1cb8b6bee6ee0d24784f3ab7",
+    "protected.wfbackup": "08a3001cd51dbb5378c65b1c8e3db12988440cdff8fc57e153c73a3cdf7a23f6"
+  },
+  "sqlcipherVersion": "4.14.0 community"
+}

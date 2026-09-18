@@ -9,6 +9,7 @@ import { useSettingsContext } from "@/lib/settings-provider";
 import { DashboardContent } from "./dashboard-content";
 
 const uiMocks = vi.hoisted(() => ({
+  realIntervals: false,
   intervalCode: "3M" as "3M" | "ALL",
 }));
 
@@ -45,22 +46,34 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: vi.fn(),
 }));
 
-vi.mock("@wealthfolio/ui", () => ({
-  GainAmount: ({ value }: { value: number }) => <span>{`gain-amount:${value}`}</span>,
-  GainPercent: ({ value }: { value: number }) => <span>{`gain-percent:${value}`}</span>,
-  getInitialIntervalData: (code?: string) =>
-    code === "ALL"
-      ? {
-          range: { from: new Date("1970-01-01T00:00:00Z"), to: new Date("2026-06-24T00:00:00Z") },
-          description: "All Time",
-        }
-      : {
-          range: { from: new Date("2026-03-01T00:00:00Z"), to: new Date("2026-06-01T00:00:00Z") },
-          description: "3M",
-        },
-  IntervalSelector: () => <div>interval-selector</div>,
-  usePersistentState: () => [uiMocks.intervalCode, vi.fn()],
-}));
+vi.mock("@wealthfolio/ui", async () => {
+  const { getInitialIntervalData } =
+    await import("@wealthfolio/ui/components/financial/interval-selector");
+  return {
+    GainAmount: ({ value }: { value: number }) => <span>{`gain-amount:${value}`}</span>,
+    GainPercent: ({ value }: { value: number }) => <span>{`gain-percent:${value}`}</span>,
+    getInitialIntervalData: (code?: "ALL" | "3M", asOf?: Date) =>
+      uiMocks.realIntervals
+        ? getInitialIntervalData(code, asOf)
+        : code === "ALL"
+          ? {
+              range: {
+                from: new Date("1970-01-01T00:00:00Z"),
+                to: new Date("2026-06-24T00:00:00Z"),
+              },
+              description: "All Time",
+            }
+          : {
+              range: {
+                from: new Date("2026-03-01T00:00:00Z"),
+                to: new Date("2026-06-01T00:00:00Z"),
+              },
+              description: "3M",
+            },
+    IntervalSelector: () => <div>interval-selector</div>,
+    usePersistentState: () => [uiMocks.intervalCode, vi.fn()],
+  };
+});
 
 vi.mock("@wealthfolio/ui/components/ui/skeleton", () => ({
   Skeleton: () => <div>loading</div>,
@@ -111,6 +124,7 @@ const mockUseSettingsContext = vi.mocked(useSettingsContext);
 describe("DashboardContent", () => {
   beforeEach(() => {
     uiMocks.intervalCode = "3M";
+    uiMocks.realIntervals = false;
     vi.clearAllMocks();
   });
 
@@ -342,5 +356,30 @@ describe("DashboardContent", () => {
     expect(screen.getByText("balance:N/A")).toBeInTheDocument();
     expect(screen.queryByText("balance:0")).not.toBeInTheDocument();
     expect(screen.getByTestId("portfolio-as-of")).toHaveTextContent("");
+  });
+  it("anchors the real preset to the configured day rather than the host day", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-12-31T16:30:00Z"));
+      uiMocks.realIntervals = true;
+      mockCurrentValuation();
+      mockUseSettingsContext.mockReturnValue({
+        settings: { baseCurrency: "USD", timezone: "Asia/Shanghai" },
+      } as ReturnType<typeof useSettingsContext>);
+      mockUseHoldings.mockReturnValue({ holdings: [], isLoading: false } as unknown as ReturnType<
+        typeof useHoldings
+      >);
+      mockUseValuationHistory.mockReturnValue({ valuationHistory: [], isLoading: false });
+      mockUseQuery.mockReturnValue({ data: undefined, isLoading: false } as ReturnType<
+        typeof useQuery
+      >);
+      render(<DashboardContent />);
+      expect(mockUseValuationHistory).toHaveBeenLastCalledWith({
+        from: new Date(2026, 9, 1),
+        to: new Date(2027, 0, 1),
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

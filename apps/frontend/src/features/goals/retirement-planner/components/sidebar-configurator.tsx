@@ -1,3 +1,6 @@
+import { useSettingsContext } from "@/lib/settings-provider";
+import { formatZonedDateKey } from "@/features/spending/lib/timezone";
+import { parseLocalDate } from "@/lib/utils";
 import { GoalFundingEditor } from "@/features/goals/components/goal-funding-editor";
 import {
   DEFAULT_RETURN_SLIDER_MAX,
@@ -24,7 +27,7 @@ import {
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import type { TFunction } from "i18next";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_DC_PAYOUT_ESTIMATE_RATE } from "../lib/constants";
 import {
@@ -403,6 +406,9 @@ export function SidebarConfigurator({
   goalId?: string;
   dcLinkedAccountIds?: string[];
 }) {
+  const { settings } = useSettingsContext();
+  const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
+  const today = useMemo(() => parseLocalDate(todayISO), [todayISO]);
   const amountFormatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
 
@@ -421,12 +427,12 @@ export function SidebarConfigurator({
   }, []);
 
   const saveDraft = useCallback(() => {
-    onSavePlan?.(normalizeDashboardRetirementPlan(draft), draftMode);
+    onSavePlan?.(normalizeDashboardRetirementPlan(draft, today), draftMode);
     setDirty(false);
     setEditingSection(null);
     setExpandedExpenseId(null);
     setExpandedIncomeId(null);
-  }, [draft, draftMode, onSavePlan]);
+  }, [draft, draftMode, onSavePlan, today]);
 
   const cancelEdit = useCallback(() => {
     setDraft(structuredClone(plan));
@@ -549,11 +555,11 @@ export function SidebarConfigurator({
     (draft.tax?.taxFreeWithdrawalRate ?? 0) === 0;
 
   const birthYearMonth =
-    draft.personal.birthYearMonth ?? inferBirthYearMonthFromAge(draft.personal.currentAge);
-  const maxBirthYearMonth = inferBirthYearMonthFromAge(0);
+    draft.personal.birthYearMonth ?? inferBirthYearMonthFromAge(draft.personal.currentAge, today);
+  const maxBirthYearMonth = inferBirthYearMonthFromAge(0, today);
   const updateBirthYearMonth = (nextBirthYearMonth: string) => {
     if (!nextBirthYearMonth) return;
-    const nextAge = ageFromBirthYearMonth(nextBirthYearMonth) ?? draft.personal.currentAge;
+    const nextAge = ageFromBirthYearMonth(nextBirthYearMonth, today) ?? draft.personal.currentAge;
     update((d) => {
       const targetRetirementAge = Math.max(nextAge + 1, d.personal.targetRetirementAge);
       const planningHorizonAge = Math.max(targetRetirementAge + 1, d.personal.planningHorizonAge);

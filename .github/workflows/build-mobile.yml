@@ -1,0 +1,62 @@
+name: Build Mobile
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android release APK
+    uses: ./.github/workflows/build-android.yml
+  ios:
+    name: iOS unsigned archive
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install iOS targets for the repository toolchain
+        run: |
+          rustup show active-toolchain
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ios
+      - name: Check iOS device compilation
+        run: |
+          mkdir -p dist
+          printf '<!DOCTYPE html><html></html>' > dist/index.html
+          cargo check --locked -p wealthfolio-app --target aarch64-apple-ios
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - name: Initialize local iOS build files
+        run: |
+          brew install xcodegen
+          node apps/tauri/scripts/sync-ios-composer-icon.mjs
+          pnpm tauri ios init --ci --skip-targets-install
+          # Keep reviewed project customizations and generated local dependency files.
+          git restore -- apps/tauri/gen/apple
+      - name: Build unsigned iOS simulator archive
+        run:
+          pnpm tauri ios build --ci --debug --no-sign --archive-only --target aarch64-sim --
+          --locked
+      - name: Upload simulator archive
+        run:
+          tar -czf "$RUNNER_TEMP/wealthfolio-ios-simulator.tar.gz" -C apps/tauri/gen/apple/build
+          wealthfolio-app_iOS.xcarchive
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wealthfolio-ios-simulator-${{ github.sha }}
+          path: ${{ runner.temp }}/wealthfolio-ios-simulator.tar.gz
+          if-no-files-found: error
+          retention-days: 7

@@ -13,6 +13,7 @@ use crate::portfolio::allocation_targets::{
 };
 use crate::portfolio::snapshot::AccountStateSnapshotDB;
 use crate::portfolios::{PortfolioAccountDB, PortfolioDB};
+use crate::settings::model::AppPreferenceDB;
 use crate::settings::model::AppSettingDB;
 use crate::sync::import_run::ImportRunDB;
 use crate::sync::platform::PlatformDB;
@@ -25,12 +26,18 @@ use crate::sync::{
 use crate::taxonomies::AssetTaxonomyAssignmentDB;
 use uuid::Uuid;
 use wealthfolio_core::portfolio::snapshot::SnapshotSource;
+use wealthfolio_core::settings::INSIGHTS_OVERVIEW_LAYOUT_KEY;
 use wealthfolio_core::sync::SyncEntity;
 use wealthfolio_core::sync::SyncOperation;
-use wealthfolio_spending::settings::{SETTING_KEY_ACCOUNT_IDS, SETTING_KEY_ENABLED};
+use wealthfolio_spending::settings::{
+    SETTING_KEY_ACCOUNT_IDS, SETTING_KEY_ENABLED, SETTING_KEY_EXCLUDED_CATEGORY_IDS,
+};
 
 pub(crate) fn is_syncable_spending_setting_key(key: &str) -> bool {
-    matches!(key, SETTING_KEY_ENABLED | SETTING_KEY_ACCOUNT_IDS)
+    matches!(
+        key,
+        SETTING_KEY_ENABLED | SETTING_KEY_ACCOUNT_IDS | SETTING_KEY_EXCLUDED_CATEGORY_IDS
+    )
 }
 
 impl SyncOutboxModel for AccountDB {
@@ -293,6 +300,26 @@ impl SyncOutboxModel for AppSettingDB {
         is_syncable_spending_setting_key(entity_id)
     }
 
+    fn delete_payload(entity_id: &str) -> serde_json::Value {
+        serde_json::json!({ "setting_key": entity_id })
+    }
+}
+
+pub(crate) fn is_syncable_app_preference_key(key: &str) -> bool {
+    key == INSIGHTS_OVERVIEW_LAYOUT_KEY
+}
+
+impl SyncOutboxModel for AppPreferenceDB<'_> {
+    const ENTITY: SyncEntity = SyncEntity::AppPreference;
+    fn sync_entity_id(&self) -> &str {
+        &self.0.setting_key
+    }
+    fn should_sync_outbox(&self, _op: SyncOperation) -> bool {
+        is_syncable_app_preference_key(&self.0.setting_key)
+    }
+    fn should_sync_outbox_delete(entity_id: &str) -> bool {
+        is_syncable_app_preference_key(entity_id)
+    }
     fn delete_payload(entity_id: &str) -> serde_json::Value {
         serde_json::json!({ "setting_key": entity_id })
     }

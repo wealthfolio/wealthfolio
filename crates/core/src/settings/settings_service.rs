@@ -115,6 +115,14 @@ pub trait SettingsServiceTrait: Send + Sync {
 
     fn is_sync_enabled(&self) -> Result<bool>;
 
+    /// A restored portfolio must not reuse this installation's cloud identity.
+    fn requires_cloud_reconnect(&self) -> Result<bool> {
+        Ok(self
+            .get_setting_value("restore_reconnect_required")?
+            .as_deref()
+            == Some("true"))
+    }
+
     /// Get a single setting value by key. Returns None if not found.
     fn get_setting_value(&self, key: &str) -> Result<Option<String>>;
 

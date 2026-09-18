@@ -3,9 +3,7 @@ import { notifyUnauthorized } from "@/lib/auth-token";
 import type { DataExportResult } from "../types";
 import { API_PREFIX } from "./core";
 
-type DataExportFileFormat = Exclude<ExportedFileFormat, "SQLite">;
-
-const fallbackFileName = (data: ExportDataType, format: DataExportFileFormat): string => {
+const fallbackFileName = (data: ExportDataType, format: ExportedFileFormat): string => {
   const currentDate = new Date().toISOString().split("T")[0];
   return `${data}_${currentDate}.${format.toLowerCase()}`;
 };
@@ -39,7 +37,7 @@ const downloadBlob = (blob: Blob, fileName: string) => {
 };
 
 export const exportDataFile = async (
-  format: DataExportFileFormat,
+  format: ExportedFileFormat,
   data: ExportDataType,
 ): Promise<DataExportResult> => {
   const url = `${API_PREFIX}/utilities/export/${encodeURIComponent(data)}/${encodeURIComponent(

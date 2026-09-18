@@ -130,6 +130,8 @@ pub enum SyncEntity {
     // would clash with the codebase's existing event-system vocabulary
     // (DomainEvent, EventBus, sync_applied_events, etc.).
     SpendingSetting,
+    /// Allowlisted cross-device UI preferences stored in app_settings.
+    AppPreference,
     ActivityTaxonomyAssignment,
     SpendingActivitySplit,
     SpendingActivityEvent,
@@ -383,6 +385,7 @@ mod tests {
             SyncEntity::AllocationTargetWeight,
             SyncEntity::AllocationTargetConstraint,
             SyncEntity::SpendingSetting,
+            SyncEntity::AppPreference,
             SyncEntity::ActivityTaxonomyAssignment,
             SyncEntity::SpendingActivitySplit,
             SyncEntity::SpendingActivityEvent,
@@ -427,6 +430,7 @@ mod tests {
             "\"allocation_target_weight\"",
             "\"allocation_target_constraint\"",
             "\"spending_setting\"",
+            "\"app_preference\"",
             "\"activity_taxonomy_assignment\"",
             "\"spending_activity_split\"",
             "\"spending_activity_event\"",

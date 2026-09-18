@@ -68,7 +68,8 @@
       "holdings_count_other": "{{count}} posizioni",
       "accounts_count_one": "{{count}} conto",
       "accounts_count_many": "{{count}} conti",
-      "accounts_count_other": "{{count}} conti"
+      "accounts_count_other": "{{count}} conti",
+      "pnl_current_holdings": "Posizioni attuali"
     }
   },
   "networth": {
@@ -131,5 +132,35 @@
     "days_ago_one": "{{count}}g fa",
     "days_ago_many": "{{count}}g fa",
     "days_ago_other": "{{count}}g fa"
+  },
+  "highlights": {
+    "movers": "Variazioni principali",
+    "concentration": "Concentrazione",
+    "daily": "Variazione giornaliera · posizioni attuali",
+    "rank_by": "Ordina le variazioni giornaliere per",
+    "gainers": "Rialzi",
+    "losers": "Ribassi",
+    "no_moves": "Nessuna variazione con i dati disponibili.",
+    "portfolio_share": "Quota del valore del portafoglio, liquidità inclusa",
+    "largest": "Posizione più grande",
+    "top_five": "Le cinque posizioni principali",
+    "concentration_unavailable": "La concentrazione richiede valori delle posizioni positivi e un portafoglio senza posizioni corte."
+  },
+  "customize": {
+    "edit": "Personalizza",
+    "widgets": "Widget",
+    "reset": "Ripristina disposizione",
+    "cancel": "Annulla",
+    "save": "Salva disposizione",
+    "saving": "Salvataggio…",
+    "hint": "Trascina i widget tramite le maniglie o regola la larghezza dal bordo destro.",
+    "description": "Scegli quali widget mostrare. Usa le frecce per cambiarne l’ordine, anche sui dispositivi mobili.",
+    "value": "Riepilogo del portafoglio",
+    "breakdown": "Ripartizione",
+    "move_up": "Sposta {{widget}} in alto",
+    "move_down": "Sposta {{widget}} in basso",
+    "hide": "Nascondi {{widget}}",
+    "drag": "Trascina {{widget}}",
+    "empty": "Nessun widget selezionato. Personalizza questa pagina per aggiungere widget."
   }
 }

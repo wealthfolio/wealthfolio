@@ -5,7 +5,6 @@ use crate::{
     config::Config,
     main_lib::AppState,
     models::{Account, AccountUpdate, NewAccount},
-    oidc,
 };
 use axum::middleware;
 use axum::{
@@ -19,11 +18,9 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::{
     cors::{Any, CorsLayer},
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
-    timeout::TimeoutLayer,
     trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 use tracing::Level;
@@ -56,6 +53,7 @@ mod limits;
 mod market_data;
 mod net_worth;
 mod performance;
+pub(crate) mod portable_backups;
 mod portfolio;
 mod portfolios;
 mod secrets;
@@ -117,23 +115,27 @@ pub async fn security_headers(request: Request<Body>, next: Next) -> Response {
     response
 }
 
-#[allow(deprecated)]
-pub fn app_router(state: Arc<AppState>, config: &Config) -> Router {
-    let cors = if config.cors_allow.iter().any(|o| o == "*") {
-        CorsLayer::new().allow_origin(Any)
+pub(crate) fn cors_layer(config: &Config) -> anyhow::Result<CorsLayer> {
+    if config.cors_allow.iter().any(|o| o == "*") {
+        Ok(CorsLayer::new().allow_origin(Any))
     } else {
         let origins = config
             .cors_allow
             .iter()
-            .map(|o| o.parse().unwrap())
-            .collect::<Vec<_>>();
-        CorsLayer::new()
+            .map(|origin| origin.parse::<HeaderValue>())
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| anyhow::anyhow!("Invalid header value in WF_CORS_ALLOW_ORIGINS"))?;
+        Ok(CorsLayer::new()
             .allow_origin(origins)
-            .allow_credentials(true)
-    };
+            .allow_credentials(true))
+    }
+}
+
+#[allow(deprecated)]
+pub fn app_router(state: Arc<AppState>, config: &Config) -> anyhow::Result<Router> {
+    let cors = cors_layer(config)?;
 
     let openapi = ApiDoc::openapi();
-    let requires_auth = state.auth.is_some();
 
     // Compose all protected routes from individual modules
     #[allow(unused_mut)]
@@ -186,53 +188,18 @@ pub fn app_router(state: Arc<AppState>, config: &Config) -> Router {
         }),
     );
 
-    let protected_api = if requires_auth {
-        protected_api.layer(middleware::from_fn_with_state(
-            state.clone(),
-            auth::require_jwt,
-        ))
-    } else {
-        protected_api
-    };
-
-    // Rate limit login: 5 requests per 60 seconds per peer IP
-    let login_governor = GovernorConfigBuilder::default()
-        .per_second(12) // replenish 1 token every 12s → 5 per 60s
-        .burst_size(5)
-        .finish()
-        .expect("valid governor config");
-
-    // Rate limit the OIDC start + callback the same way (per peer IP).
-    let oidc_login_governor = GovernorConfigBuilder::default()
-        .per_second(12)
-        .burst_size(5)
-        .finish()
-        .expect("valid governor config");
-    let oidc_governor = GovernorConfigBuilder::default()
-        .per_second(12)
-        .burst_size(5)
-        .finish()
-        .expect("valid governor config");
+    let protected_api = protected_api.layer(middleware::from_fn_with_state(
+        state.clone(),
+        auth::require_jwt,
+    ));
 
     let api = Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
-        .route("/auth/status", get(auth::auth_status))
-        .route(
-            "/auth/login",
-            axum::routing::post(auth::login).layer(GovernorLayer::new(login_governor)),
-        )
-        .route("/auth/logout", axum::routing::post(auth::logout))
-        .route("/auth/me", get(auth::auth_me))
-        .route(
-            "/auth/oidc/login",
-            get(oidc::oidc_login).layer(GovernorLayer::new(oidc_login_governor)),
-        )
-        .route("/auth/oidc/logout", get(oidc::oidc_logout))
-        .route(
-            "/auth/oidc/callback",
-            get(oidc::oidc_callback).layer(GovernorLayer::new(oidc_governor)),
-        )
+        .merge(auth::router(auth::AuthState {
+            auth: state.auth.clone(),
+            oidc: state.oidc.clone(),
+        }))
         .merge(protected_api)
         .with_state(state.clone());
 
@@ -241,13 +208,28 @@ pub fn app_router(state: Arc<AppState>, config: &Config) -> Router {
     let mut router = Router::new()
         .nest("/api/v1", api)
         .with_state(state.clone())
-        .layer(TimeoutLayer::new(config.request_timeout));
+        .layer(middleware::from_fn({
+            let ordinary_timeout = config.request_timeout;
+            move |request: axum::extract::Request, next: middleware::Next| async move {
+                use axum::response::IntoResponse;
+                let path = request.uri().path();
+                let timeout =
+                    if path.contains("/utilities/database/backups/") && path.ends_with("/export") {
+                        std::time::Duration::from_secs(30 * 60)
+                    } else {
+                        ordinary_timeout
+                    };
+                tokio::time::timeout(timeout, next.run(request))
+                    .await
+                    .unwrap_or_else(|_| axum::http::StatusCode::REQUEST_TIMEOUT.into_response())
+            }
+        }));
 
     if config.mcp_enabled {
-        router = router.merge(crate::mcp::router(state, config));
+        router = router.merge(crate::mcp::router(state.clone(), config));
     }
 
-    router
+    Ok(router
         .layer(cors)
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .layer(PropagateRequestIdLayer::x_request_id())
@@ -262,7 +244,7 @@ pub fn app_router(state: Arc<AppState>, config: &Config) -> Router {
                 })
                 .on_request(DefaultOnRequest::new().level(Level::INFO))
                 .on_response(DefaultOnResponse::new().level(Level::INFO)),
-        )
+        ))
 }
 
 #[cfg(test)]

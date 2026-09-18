@@ -139,22 +139,53 @@ describe("saveAppDataFileViaPicker", () => {
     const staged = await stagePickedDatabaseFileForRestore("content://picked/backup.db");
 
     expect(staged).toEqual({
-      relativePath: "pending-restores/restore-id/restore.db",
-      pendingDir: "pending-restores/restore-id",
+      relativePath: "scratch/portable-picked-restore-id/restore.db",
+      pendingDir: "scratch/portable-picked-restore-id",
     });
-    expect(mocks.mkdir).toHaveBeenCalledWith("pending-restores/restore-id", {
+    expect(mocks.mkdir).toHaveBeenCalledWith("scratch/portable-picked-restore-id", {
       baseDir: "AppData",
       recursive: true,
+      mode: 0o700,
     });
     expect(mocks.openFile).toHaveBeenNthCalledWith(1, "content://picked/backup.db", {
       read: true,
     });
-    expect(mocks.openFile).toHaveBeenNthCalledWith(2, "pending-restores/restore-id/restore.db", {
-      write: true,
-      create: true,
-      truncate: true,
-      baseDir: "AppData",
-    });
+    expect(mocks.openFile).toHaveBeenNthCalledWith(
+      2,
+      "scratch/portable-picked-restore-id/restore.db",
+      {
+        write: true,
+        create: true,
+        truncate: true,
+        baseDir: "AppData",
+      },
+    );
     expect(destination.write).toHaveBeenCalledWith(new Uint8Array([4, 5]));
+  });
+  it("stops a cancelled import copy and removes its private directory", async () => {
+    const controller = new AbortController();
+    const { source, destination } = mockFileCopy();
+    controller.abort();
+    await expect(
+      stagePickedDatabaseFileForRestore("content://picked/backup", controller.signal),
+    ).rejects.toThrow();
+    expect(source.close).toHaveBeenCalled();
+    expect(destination.close).toHaveBeenCalled();
+    expect(mocks.remove).toHaveBeenCalledWith(
+      expect.stringContaining("scratch/portable-picked-"),
+      expect.objectContaining({ recursive: true }),
+    );
+  });
+
+  it("bounds mobile import copies without buffering the full backup", async () => {
+    const { source, destination } = mockFileCopy();
+    source.read.mockReset().mockResolvedValue(1024 * 1024);
+    destination.write.mockImplementation(async (bytes: Uint8Array) => bytes.length);
+    await expect(stagePickedDatabaseFileForRestore("content://picked/oversized")).rejects.toThrow(
+      "2 GiB",
+    );
+    expect(destination.write).toHaveBeenCalledTimes(2048);
+    expect(source.close).toHaveBeenCalled();
+    expect(destination.close).toHaveBeenCalled();
   });
 });

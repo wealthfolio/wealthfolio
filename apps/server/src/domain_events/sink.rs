@@ -47,16 +47,24 @@ impl WebDomainEventSink {
         }
     }
 
+    fn take_receiver(&self) -> anyhow::Result<mpsc::UnboundedReceiver<DomainEvent>> {
+        self.rx
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Domain event receiver state is unavailable"))?
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("Domain event worker has already started"))
+    }
+
     /// Starts the background worker that processes events.
     ///
     /// This must be called after all services are created. Events received
     /// before this call are buffered and will be processed once the worker starts.
     ///
-    /// # Panics
-    /// Panics if called more than once.
+    /// Returns an error if the receiver is unavailable or already in use.
     #[allow(clippy::too_many_arguments)]
     pub fn start_worker(
         &self,
+        settings_service: Arc<dyn wealthfolio_core::settings::SettingsServiceTrait>,
         asset_service: Arc<dyn AssetServiceTrait + Send + Sync>,
         connect_sync_service: Arc<dyn BrokerSyncServiceTrait + Send + Sync>,
         event_bus: EventBus,
@@ -83,15 +91,11 @@ impl WebDomainEventSink {
         categorization_rules_service: Arc<
             wealthfolio_spending::categorization_rules::CategorizationRulesService,
         >,
-    ) {
-        let rx = self
-            .rx
-            .lock()
-            .unwrap()
-            .take()
-            .expect("start_worker() can only be called once");
+    ) -> anyhow::Result<()> {
+        let rx = self.take_receiver()?;
 
         let deps = Arc::new(QueueWorkerDeps {
+            settings_service,
             asset_service,
             connect_sync_service,
             event_bus,
@@ -114,6 +118,7 @@ impl WebDomainEventSink {
 
         // Spawn the background worker
         tokio::spawn(event_queue_worker(rx, deps));
+        Ok(())
     }
 
     /// Creates a WebDomainEventSink with just the sender.
@@ -149,6 +154,19 @@ impl DomainEventSink for WebDomainEventSink {
 mod tests {
     use super::*;
     use tokio::sync::mpsc;
+
+    #[test]
+    fn receiver_is_taken_once_and_poison_is_reported() {
+        let sink = WebDomainEventSink::new();
+        assert!(sink.take_receiver().is_ok());
+        assert!(sink.take_receiver().is_err());
+        let poisoned = WebDomainEventSink::new();
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = poisoned.rx.lock().unwrap();
+            panic!("interrupted worker startup");
+        }));
+        assert!(poisoned.take_receiver().is_err());
+    }
 
     #[tokio::test]
     async fn test_sink_sends_events() {

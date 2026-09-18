@@ -60,6 +60,78 @@ function account(id: string, name: string, group?: string): Account {
 }
 
 describe("allocation dashboard derivations", () => {
+  it("sums only unrealized P&L in base currency and excludes cash", () => {
+    const security = holding({
+      id: "stock",
+      accountId: "a",
+      holdingType: "security",
+      localCurrency: "CAD",
+      localValue: 150,
+      baseValue: 100,
+    });
+    security.unrealizedGain = { local: 45, base: 30 };
+    security.realizedGain = { local: 15, base: 10 };
+    const loss = {
+      ...security,
+      id: "loss",
+      unrealizedGain: { local: -10, base: -5 },
+      realizedGain: { local: -4, base: -2 },
+    };
+    const cash = {
+      ...security,
+      id: "cash",
+      holdingType: "cash",
+      unrealizedGain: { local: 900, base: 600 },
+      realizedGain: { local: 900, base: 600 },
+    } as Holding;
+    expect(computeValueStrip([security, loss, cash], []).unrealizedPnl).toBe(25);
+    expect(computeValueStrip([loss], []).unrealizedPnl).toBe(-5);
+    expect(computeValueStrip([], []).unrealizedPnl).toBe(0);
+  });
+
+  it("keeps P&L unavailable when a non-cash holding lacks performance", () => {
+    const security = holding({
+      id: "stock",
+      accountId: "a",
+      holdingType: "security",
+      localCurrency: "USD",
+      localValue: 150,
+      baseValue: 150,
+    });
+    expect(computeValueStrip([security], []).unrealizedPnl).toBeNull();
+    security.realizedGain = { local: 0, base: 0 };
+    security.unrealizedGain = { local: NaN, base: NaN };
+    expect(computeValueStrip([security], []).unrealizedPnl).toBeNull();
+  });
+
+  it("uses holdings P&L when the current valuation summary provides balances", () => {
+    const security = holding({
+      id: "stock",
+      accountId: "a",
+      holdingType: "security",
+      localCurrency: "USD",
+      localValue: 150,
+      baseValue: 150,
+    });
+    security.unrealizedGain = { local: 35, base: 35 };
+    security.realizedGain = { local: 5, base: 5 };
+    const summary = {
+      scopeId: "account:a",
+      baseCurrency: "USD",
+      cashBalanceBase: 0,
+      investmentMarketValueBase: 150,
+      totalValueBase: 150,
+      holdingsCount: 1,
+      accountCount: 1,
+      currencySplit: [],
+      cashCurrencySplit: [],
+      sourceDataAsOf: "2026-09-17",
+      calculatedAt: "2026-09-17",
+      warnings: [],
+    };
+    expect(valueStripFromCurrentSummary(summary, [security]).unrealizedPnl).toBe(35);
+  });
+
   it("derives total exposure and cash-by-currency from holdings", () => {
     const data = computeValueStrip(
       [

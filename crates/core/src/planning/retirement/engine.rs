@@ -822,8 +822,12 @@ pub(crate) fn required_capital_for(
 
 // ─── Plan-aware Deterministic Projection ────────────────────────────────────
 
-pub fn project_retirement(plan: &RetirementPlan, current_portfolio: f64) -> FireProjection {
-    project_retirement_with_mode(plan, current_portfolio, RetirementTimingMode::Fire)
+pub fn project_retirement(
+    plan: &RetirementPlan,
+    current_portfolio: f64,
+    as_of: chrono::NaiveDate,
+) -> FireProjection {
+    project_retirement_with_mode(plan, current_portfolio, RetirementTimingMode::Fire, as_of)
 }
 
 pub(crate) fn retirement_start_decision(
@@ -858,9 +862,16 @@ pub fn project_retirement_with_mode(
     plan: &RetirementPlan,
     current_portfolio: f64,
     mode: RetirementTimingMode,
+    as_of: chrono::NaiveDate,
 ) -> FireProjection {
     let mut required_capital_cache = RequiredCapitalCache::new();
-    project_retirement_with_mode_cached(plan, current_portfolio, mode, &mut required_capital_cache)
+    project_retirement_with_mode_cached(
+        plan,
+        current_portfolio,
+        mode,
+        &mut required_capital_cache,
+        as_of,
+    )
 }
 
 pub(crate) fn project_retirement_with_mode_cached(
@@ -868,6 +879,7 @@ pub(crate) fn project_retirement_with_mode_cached(
     current_portfolio: f64,
     mode: RetirementTimingMode,
     required_capital_cache: &mut RequiredCapitalCache,
+    as_of: chrono::NaiveDate,
 ) -> FireProjection {
     let target_at_goal = required_capital_for(
         plan,
@@ -885,7 +897,7 @@ pub(crate) fn project_retirement_with_mode_cached(
         }
     };
 
-    let start_year = chrono::Local::now().year() as u32;
+    let start_year = as_of.year() as u32;
     let current_age = plan.personal.current_age;
     let horizon_years =
         (plan.personal.planning_horizon_age as i32 - current_age as i32).max(1) as u32;
@@ -1130,6 +1142,7 @@ pub(crate) fn project_retirement_with_mode_cached(
 
 #[cfg(test)]
 mod tests {
+    const AS_OF: chrono::NaiveDate = chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
     use super::*;
     use rand::SeedableRng;
 
@@ -1258,9 +1271,20 @@ mod tests {
     }
 
     #[test]
+    fn projection_years_follow_the_supplied_calendar_date() {
+        let plan = base_plan();
+        for year in [2025, 2026] {
+            let date = chrono::NaiveDate::from_ymd_opt(year, 12, 31).unwrap();
+            let projection = project_retirement(&plan, 100_000.0, date);
+            assert_eq!(projection.year_by_year[0].year, year as u32);
+            assert_eq!(projection.year_by_year[1].year, year as u32 + 1);
+        }
+    }
+
+    #[test]
     fn projection_reaches_fire() {
         let p = base_plan();
-        let proj = project_retirement(&p, 100_000.0);
+        let proj = project_retirement(&p, 100_000.0, AS_OF);
         assert!(proj.fire_age.is_some(), "should reach FIRE");
         assert!(proj.fire_age.unwrap() <= p.personal.target_retirement_age);
     }
@@ -1268,7 +1292,7 @@ mod tests {
     #[test]
     fn fire_mode_reports_early_fi_but_starts_withdrawals_at_target_age() {
         let p = base_plan();
-        let proj = project_retirement(&p, 100_000.0);
+        let proj = project_retirement(&p, 100_000.0, AS_OF);
 
         let fi_age = proj.fire_age.expect("should reach FI");
         assert!(fi_age <= p.personal.target_retirement_age);
@@ -1288,7 +1312,7 @@ mod tests {
     #[test]
     fn projection_snapshots_continuous() {
         let p = base_plan();
-        let proj = project_retirement(&p, 50_000.0);
+        let proj = project_retirement(&p, 50_000.0, AS_OF);
         let expected_len = (p.personal.planning_horizon_age - p.personal.current_age + 1) as usize;
         assert_eq!(proj.year_by_year.len(), expected_len);
     }
@@ -1511,7 +1535,7 @@ mod tests {
             post_payout_return: None,
         });
 
-        let projection = project_retirement(&plan, 500_000.0);
+        let projection = project_retirement(&plan, 500_000.0, AS_OF);
         let age_64 = projection
             .year_by_year
             .iter()
@@ -1585,6 +1609,7 @@ mod tests {
         let projection = project_retirement(
             &plan_with_fund(0.12, Some(PayoutMode::Drawdown), 0.0, false),
             5_000_000.0,
+            AS_OF,
         );
 
         assert_eq!(
@@ -1615,7 +1640,8 @@ mod tests {
     fn an_annuity_fund_at_the_same_rate_pays_to_the_horizon() {
         // The shipped behaviour, and the reason drawdown had to be opt-in: at 12%
         // on a pot earning nothing, an annuity still pays every year.
-        let projection = project_retirement(&plan_with_fund(0.12, None, 0.0, false), 5_000_000.0);
+        let projection =
+            project_retirement(&plan_with_fund(0.12, None, 0.0, false), 5_000_000.0, AS_OF);
 
         assert!(projection.income_stream_exhaustion.is_empty());
         for age in [73, 80, 95] {
@@ -1628,10 +1654,12 @@ mod tests {
 
     #[test]
     fn an_explicit_annuity_projects_identically_to_an_absent_payout_mode() {
-        let stored = project_retirement(&plan_with_fund(0.12, None, 0.0, false), 5_000_000.0);
+        let stored =
+            project_retirement(&plan_with_fund(0.12, None, 0.0, false), 5_000_000.0, AS_OF);
         let explicit = project_retirement(
             &plan_with_fund(0.12, Some(PayoutMode::Annuity), 0.0, false),
             5_000_000.0,
+            AS_OF,
         );
 
         let income = |projection: &FireProjection| -> Vec<f64> {
@@ -1658,6 +1686,7 @@ mod tests {
         let projection = project_retirement(
             &plan_with_fund(0.03, Some(PayoutMode::Drawdown), 0.05, false),
             5_000_000.0,
+            AS_OF,
         );
 
         assert!(projection.income_stream_exhaustion.is_empty());
@@ -1673,10 +1702,12 @@ mod tests {
         let fixed = project_retirement(
             &plan_with_fund(0.12, Some(PayoutMode::Drawdown), 0.0, false),
             5_000_000.0,
+            AS_OF,
         );
         let indexed = project_retirement(
             &plan_with_fund(0.12, Some(PayoutMode::Drawdown), 0.0, true),
             5_000_000.0,
+            AS_OF,
         );
 
         let fixed_age = fixed.income_stream_exhaustion[0].exhausted_age;
@@ -1692,6 +1723,7 @@ mod tests {
         let projection = project_retirement(
             &plan_with_fund(0.12, Some(PayoutMode::Drawdown), 0.0, false),
             5_000_000.0,
+            AS_OF,
         );
 
         assert!((pension_assets_at(&projection, 65) - 100_000.0).abs() < 1e-6);
@@ -1711,7 +1743,7 @@ mod tests {
         plan.personal.current_age = 60;
         plan.personal.target_retirement_age = 70;
 
-        let projection = project_retirement(&plan, 5_000_000.0);
+        let projection = project_retirement(&plan, 5_000_000.0, AS_OF);
 
         assert_eq!(projection.retirement_start_age, Some(70));
         for (age, expected) in [(65, 100_000.0), (66, 88_000.0), (70, 40_000.0)] {
@@ -1746,7 +1778,7 @@ mod tests {
             plan.investment.retirement_annual_return = 0.0337;
             plan.investment.annual_investment_fee_rate = 0.006;
             plan.income_streams[0].post_payout_return = post_payout_return;
-            let projection = project_retirement(&plan, 5_000_000.0);
+            let projection = project_retirement(&plan, 5_000_000.0, AS_OF);
             (65..=95)
                 .map(|age| pension_assets_at(&projection, age))
                 .collect()
@@ -1788,7 +1820,7 @@ mod tests {
             post_payout_return: None,
         });
 
-        let projection = project_retirement(&plan, 5_000_000.0);
+        let projection = project_retirement(&plan, 5_000_000.0, AS_OF);
 
         let r = plan_accumulation_return(&plan);
         let before = pension_assets_at(&projection, 64);
@@ -1811,7 +1843,7 @@ mod tests {
         {
             let mut plan = plan_with_fund(0.12, Some(PayoutMode::Drawdown), 0.0, indexed);
             plan.income_streams[0].annual_growth_rate = custom_growth;
-            let projection = project_retirement(&plan, 5_000_000.0);
+            let projection = project_retirement(&plan, 5_000_000.0, AS_OF);
 
             assert!(
                 (income_at(&projection, 65) - 12_000.0).abs() < 1e-6,
@@ -1826,7 +1858,7 @@ mod tests {
         let mut already_started = plan_with_fund(0.12, Some(PayoutMode::Drawdown), 0.0, true);
         already_started.personal.current_age = 65;
         already_started.income_streams[0].start_age = 60;
-        let projection = project_retirement(&already_started, 5_000_000.0);
+        let projection = project_retirement(&already_started, 5_000_000.0, AS_OF);
         assert!((income_at(&projection, 65) - 12_000.0).abs() < 1e-6);
     }
 
@@ -1893,7 +1925,7 @@ mod tests {
             post_payout_return: Some(0.0),
         });
 
-        let projection = project_retirement(&plan, 5_000_000.0);
+        let projection = project_retirement(&plan, 5_000_000.0, AS_OF);
         let before = pension_assets_at(&projection, 64);
         let at_start = pension_assets_at(&projection, 65);
         let expected = before * 0.90 + end_of_year_value_of_monthly_contributions(500.0, -0.10);
@@ -1930,7 +1962,7 @@ mod tests {
             post_payout_return: None,
         });
 
-        let projection = project_retirement(&plan, 5_000_000.0);
+        let projection = project_retirement(&plan, 5_000_000.0, AS_OF);
         let reported = |age: u32| {
             projection
                 .year_by_year
@@ -1991,7 +2023,7 @@ mod tests {
         let target_at_35 = compute_required_capital(&p, 35).expect("target should be reachable");
         assert!(target_at_35 > target_at_60);
         // With 500k portfolio: should NOT reach FI at 35, but should eventually reach FI.
-        let proj = project_retirement(&p, 500_000.0);
+        let proj = project_retirement(&p, 500_000.0, AS_OF);
         assert!(proj.fire_age.is_some(), "should eventually reach FIRE");
         assert!(
             proj.fire_age.unwrap() > 35,
@@ -2012,7 +2044,7 @@ mod tests {
             end_age: Some(60),
             essential: None,
         });
-        let proj = project_retirement(&plan, 500_000.0);
+        let proj = project_retirement(&plan, 500_000.0, AS_OF);
         // Find fire-phase snapshots
         let fire_snaps: Vec<_> = proj
             .year_by_year
@@ -2111,7 +2143,7 @@ mod tests {
             country_code: None,
             withdrawal_buckets: TaxBucketBalances::default(),
         });
-        let proj = project_retirement(&p, 100_000.0);
+        let proj = project_retirement(&p, 100_000.0, AS_OF);
         let fire_snaps: Vec<_> = proj
             .year_by_year
             .iter()
@@ -2185,7 +2217,7 @@ mod tests {
             payout_mode: None,
             post_payout_return: None,
         });
-        let proj = project_retirement(&plan, 800_000.0);
+        let proj = project_retirement(&plan, 800_000.0, AS_OF);
         let at_60 = proj
             .year_by_year
             .iter()
@@ -2216,7 +2248,7 @@ mod tests {
             end_age: Some(65),
             essential: None,
         });
-        let proj = project_retirement(&plan, 800_000.0);
+        let proj = project_retirement(&plan, 800_000.0, AS_OF);
         let at_60 = proj
             .year_by_year
             .iter()
@@ -2248,7 +2280,7 @@ mod tests {
             country_code: None,
             withdrawal_buckets: TaxBucketBalances::default(),
         });
-        let proj = project_retirement(&plan, 1_500_000.0);
+        let proj = project_retirement(&plan, 1_500_000.0, AS_OF);
         let at_55 = proj
             .year_by_year
             .iter()
@@ -2279,7 +2311,8 @@ mod tests {
         plan.expenses.items[0].monthly_amount = 20_000.0;
         plan.investment.monthly_contribution = 0.0;
 
-        let projection = project_retirement_with_mode(&plan, 10_000.0, RetirementTimingMode::Fire);
+        let projection =
+            project_retirement_with_mode(&plan, 10_000.0, RetirementTimingMode::Fire, AS_OF);
 
         assert!(projection.fire_age.is_none());
         assert!(projection.retirement_start_age.is_none());
@@ -2301,7 +2334,7 @@ mod tests {
         plan.investment.monthly_contribution = 0.0;
 
         let projection =
-            project_retirement_with_mode(&plan, 10_000.0, RetirementTimingMode::Traditional);
+            project_retirement_with_mode(&plan, 10_000.0, RetirementTimingMode::Traditional, AS_OF);
 
         assert!(projection.fire_age.is_none());
         assert_eq!(

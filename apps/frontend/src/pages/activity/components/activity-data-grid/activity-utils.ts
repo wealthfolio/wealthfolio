@@ -1,3 +1,4 @@
+import { getActivityCurrencyPatch } from "../../activity-currency";
 import {
   isAssetBackedIncomeSubtype,
   isAssetIdentityRequired,
@@ -407,15 +408,34 @@ export function applyTransactionUpdate(params: TransactionUpdateParams): LocalTr
     updated = { ...updated, accountId: newAccountId };
     const account = accountLookup.get(newAccountId);
     if (account) {
-      updated = { ...updated, accountName: account.name, accountCurrency: account.currency };
-
-      // Auto-fill currency: account currency (users enter prices in account currency)
-      updated = { ...updated, currency: account.currency };
+      updated = {
+        ...updated,
+        ...getActivityCurrencyPatch({
+          currency: updated.currency,
+          previousCurrency: updated.currency,
+          accountCurrency: account.currency,
+          previousAccountCurrency: updated.accountCurrency,
+          useAccountDefault: Boolean(updated.isNew || !updated.currency),
+        }),
+        accountName: account.name,
+        accountCurrency: account.currency,
+      };
     }
     updated = applyCashDefaults(updated, resolveTransactionCurrency, fallbackCurrency);
     updated = applySplitDefaults(updated);
   } else if (field === "currency") {
-    updated = { ...updated, currency: typeof value === "string" ? value : updated.currency };
+    const currency = typeof value === "string" ? value : updated.currency;
+    updated = {
+      ...updated,
+      currency,
+      ...getActivityCurrencyPatch({
+        currency,
+        previousCurrency: updated.currency,
+        accountCurrency: updated.accountCurrency,
+        previousAccountCurrency: updated.accountCurrency,
+        useAccountDefault: false,
+      }),
+    };
     updated = applyCashDefaults(updated, resolveTransactionCurrency, fallbackCurrency);
     updated = applySplitDefaults(updated);
   } else if (field === "comment") {

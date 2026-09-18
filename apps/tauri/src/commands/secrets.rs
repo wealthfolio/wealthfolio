@@ -1,5 +1,5 @@
-use crate::{context::ServiceContext, secret_store::KeyringSecretStore};
-use std::sync::Arc;
+use crate::database::DatabaseRuntime;
+use crate::secret_store::KeyringSecretStore;
 use tauri::{AppHandle, State};
 use wealthfolio_core::secrets::{
     addon_secret_service_id, legacy_addon_secret_service_id, validate_unscoped_secret_service_id,
@@ -10,7 +10,7 @@ use wealthfolio_core::secrets::{
 pub async fn set_secret(
     secret_key: String,
     secret: String,
-    _state: State<'_, Arc<ServiceContext>>, // keep signature consistent
+    _state: State<'_, DatabaseRuntime>, // keep signature consistent
 ) -> Result<(), String> {
     validate_unscoped_secret_service_id(&secret_key)?;
     KeyringSecretStore
@@ -21,7 +21,7 @@ pub async fn set_secret(
 #[tauri::command]
 pub async fn get_secret(
     secret_key: String,
-    _state: State<'_, Arc<ServiceContext>>,
+    _state: State<'_, DatabaseRuntime>,
 ) -> Result<Option<String>, String> {
     validate_unscoped_secret_service_id(&secret_key)?;
     KeyringSecretStore
@@ -32,7 +32,7 @@ pub async fn get_secret(
 #[tauri::command]
 pub async fn delete_secret(
     secret_key: String,
-    _state: State<'_, Arc<ServiceContext>>,
+    _state: State<'_, DatabaseRuntime>,
 ) -> Result<(), String> {
     validate_unscoped_secret_service_id(&secret_key)?;
     KeyringSecretStore
@@ -46,7 +46,7 @@ pub async fn set_addon_secret(
     key: String,
     secret: String,
     _app: AppHandle,
-    _state: State<'_, Arc<ServiceContext>>,
+    _state: State<'_, DatabaseRuntime>,
 ) -> Result<(), String> {
     let service_id = addon_secret_service_id(&addon_id, &key)?;
     let legacy_service_id = legacy_addon_secret_service_id(&addon_id, &key)?;
@@ -63,7 +63,7 @@ pub async fn get_addon_secret(
     addon_id: String,
     key: String,
     _app: AppHandle,
-    _state: State<'_, Arc<ServiceContext>>,
+    _state: State<'_, DatabaseRuntime>,
 ) -> Result<Option<String>, String> {
     let service_id = addon_secret_service_id(&addon_id, &key)?;
     if let Some(secret) = KeyringSecretStore
@@ -93,7 +93,7 @@ pub async fn delete_addon_secret(
     addon_id: String,
     key: String,
     _app: AppHandle,
-    _state: State<'_, Arc<ServiceContext>>,
+    _state: State<'_, DatabaseRuntime>,
 ) -> Result<(), String> {
     let service_id = addon_secret_service_id(&addon_id, &key)?;
     let legacy_service_id = legacy_addon_secret_service_id(&addon_id, &key)?;

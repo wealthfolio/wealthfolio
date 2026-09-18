@@ -3,8 +3,6 @@ import type { DataExportResult } from "../types";
 import { invoke } from "./core";
 import { saveAppDataFileViaPicker } from "./files";
 
-type DataExportFileFormat = Exclude<ExportedFileFormat, "SQLite">;
-
 interface BackendDataExportResult {
   status: "saved" | "pending" | "empty" | "canceled";
   relativePath?: string;
@@ -12,7 +10,7 @@ interface BackendDataExportResult {
 }
 
 export const exportDataFile = async (
-  format: DataExportFileFormat,
+  format: ExportedFileFormat,
   data: ExportDataType,
 ): Promise<DataExportResult> => {
   const result = await invoke<BackendDataExportResult>("export_data_file", {

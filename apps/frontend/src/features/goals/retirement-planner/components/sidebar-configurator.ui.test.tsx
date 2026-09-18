@@ -96,3 +96,7 @@ describe("SidebarConfigurator pension fund returns", () => {
     expect(Number(slider.value)).toBeCloseTo(-0.02);
   });
 });
+
+vi.mock("@/lib/settings-provider", () => ({
+  useSettingsContext: () => ({ settings: { timezone: "Asia/Shanghai" } }),
+}));

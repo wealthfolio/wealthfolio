@@ -8,6 +8,8 @@ import {
 import { useAuth } from "@/context/auth-context";
 import { getPlatform } from "@/hooks/use-platform";
 import { CONNECT_ENABLED } from "@/lib/connect-config";
+import { QueryKeys } from "@/lib/query-keys";
+import { useQueryClient } from "@tanstack/react-query";
 import { createClient, Session, SupabaseClient, User } from "@supabase/supabase-js";
 import {
   createContext,
@@ -206,6 +208,7 @@ const createSupabaseClient = () => {
 
 // Internal provider used when Connect is enabled
 function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const [isInitializing, setIsInitializing] = useState(true);
@@ -303,13 +306,18 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   }, []);
 
   // The backend is the sole owner of persistent credentials and token rotation.
-  const storeTokens = useCallback(async (next: Session | null) => {
-    if (next?.refresh_token) {
-      await storeSyncSession(next.refresh_token);
-    } else {
-      await clearSyncSession();
-    }
-  }, []);
+  const storeTokens = useCallback(
+    async (next: Session | null) => {
+      if (next?.refresh_token) {
+        await storeSyncSession(next.refresh_token);
+        // Reconnect clears the backend's read-only restore flag.
+        void queryClient.invalidateQueries({ queryKey: [QueryKeys.SETTINGS] });
+      } else {
+        await clearSyncSession();
+      }
+    },
+    [queryClient],
+  );
 
   // Handle auth callback from URL (deep link or web redirect)
   const handleAuthCallback = useCallback(

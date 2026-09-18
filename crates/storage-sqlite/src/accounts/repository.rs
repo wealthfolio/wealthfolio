@@ -197,6 +197,7 @@ impl AccountRepositoryTrait for AccountRepository {
         let event_subject_id = id_to_delete_owned.clone();
         self.writer
             .exec_tx(move |tx| {
+                super::delete_account_references(tx.conn(), &id_to_delete_owned)?;
                 let affected_rows = diesel::delete(accounts.find(id_to_delete_owned))
                     .execute(tx.conn())
                     .map_err(StorageError::from)?;

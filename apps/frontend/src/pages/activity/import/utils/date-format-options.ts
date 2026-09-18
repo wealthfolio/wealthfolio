@@ -97,6 +97,14 @@ export const DATE_FORMAT_OPTIONS: DateFormatOption[] = [
 
   // ── ISO 8601 ───────────────────────────────────────────────────────────────
   { value: "ISO8601", label: "ISO 8601 — 2024-05-01T14:30:00Z", dateFnsPattern: null },
+
+  // ── Date only (two-digit year) ─────────────────────────────────────────────
+  { value: "DD/MM/YY", label: "DD/MM/YY — 01/05/24", dateFnsPattern: "dd/MM/yy" },
+  { value: "MM/DD/YY", label: "MM/DD/YY — 05/01/24", dateFnsPattern: "MM/dd/yy" },
+  { value: "DD.MM.YY", label: "DD.MM.YY — 01.05.24", dateFnsPattern: "dd.MM.yy" },
+  { value: "MM.DD.YY", label: "MM.DD.YY — 05.01.24", dateFnsPattern: "MM.dd.yy" },
+  { value: "DD-MM-YY", label: "DD-MM-YY — 01-05-24", dateFnsPattern: "dd-MM-yy" },
+  { value: "MM-DD-YY", label: "MM-DD-YY — 05-01-24", dateFnsPattern: "MM-dd-yy" },
 ];
 
 /** Lookup map: config value → date-fns pattern */

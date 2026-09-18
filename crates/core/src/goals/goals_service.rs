@@ -11,10 +11,11 @@ use crate::planning::retirement::{
 };
 use crate::planning::{validate_save_up_input, SaveUpInput, SaveUpOverview};
 use crate::portfolio::fire::{compute_retirement_overview_with_mode, RetirementOverview};
+use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
 use async_trait::async_trait;
-use chrono::{Local, Months};
+use chrono::{Months, NaiveDate};
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 const GOAL_LIFECYCLE_ACTIVE: &str = "active";
 const GOAL_LIFECYCLE_ACHIEVED: &str = "achieved";
@@ -92,9 +93,9 @@ fn build_retirement_seed_rules(
         .collect()
 }
 
-fn date_for_plan_age(plan: &RetirementPlan, age: u32) -> Option<String> {
+fn date_for_plan_age(plan: &RetirementPlan, age: u32, as_of: NaiveDate) -> Option<String> {
     let years = age.checked_sub(plan.personal.current_age)?;
-    let today = Local::now().date_naive();
+    let today = as_of;
     today
         .checked_add_months(Months::new(years.saturating_mul(12)))
         .map(|date| date.format("%Y-%m-%d").to_string())
@@ -409,6 +410,7 @@ pub fn validate_retirement_plan(plan: &RetirementPlan) -> Result<()> {
 pub struct GoalService<T: GoalRepositoryTrait> {
     goal_repo: Arc<T>,
     account_service: Arc<dyn AccountServiceTrait>,
+    timezone: Arc<RwLock<String>>,
 }
 
 impl<T: GoalRepositoryTrait> GoalService<T> {
@@ -416,7 +418,19 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
         GoalService {
             goal_repo,
             account_service,
+            timezone: Arc::new(RwLock::new(String::new())),
         }
+    }
+
+    pub fn with_timezone(mut self, timezone: Arc<RwLock<String>>) -> Self {
+        self.timezone = timezone;
+        self
+    }
+
+    fn today(&self) -> chrono::NaiveDate {
+        user_today(parse_user_timezone_or_default(
+            &self.timezone.read().unwrap(),
+        ))
     }
 
     fn validate_goal_funding_accounts(&self, account_ids: &HashSet<String>) -> Result<()> {
@@ -454,6 +468,7 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
         &self,
         goal_id: &str,
         valuation_map: &AccountValuationMap,
+        as_of: NaiveDate,
     ) -> Result<PreparedRetirementSimulationInput> {
         let goal = self.goal_repo.load_goal(goal_id)?;
         if goal.goal_type != "retirement" {
@@ -475,7 +490,7 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
             RetirementTimingMode::from_str(stored_plan.planner_mode.as_deref().unwrap_or("fire"));
 
         let mut retirement_plan: RetirementPlan = serde_json::from_str(&stored_plan.settings_json)?;
-        normalize_retirement_plan_ages(&mut retirement_plan);
+        normalize_retirement_plan_ages(&mut retirement_plan, as_of);
         validate_retirement_plan(&retirement_plan)?;
 
         let current_portfolio = compute_goal_value_from_shares(&funding_rules, valuation_map);
@@ -708,7 +723,7 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
                         e
                     ))
                 })?;
-            normalize_retirement_plan_ages(&mut retirement_plan);
+            normalize_retirement_plan_ages(&mut retirement_plan, self.today());
             validate_retirement_plan(&retirement_plan)?;
 
             // Reject linking a DC stream to an account that has participating shares
@@ -761,12 +776,14 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
             false
         };
 
+        let as_of = self.today();
         let retirement_summary = if has_retirement_plan {
-            let prepared = self.prepare_retirement_input(goal_id, valuations)?;
+            let prepared = self.prepare_retirement_input(goal_id, valuations, as_of)?;
             let overview = compute_retirement_overview_with_mode(
                 &prepared.plan,
                 prepared.current_portfolio,
                 prepared.planner_mode,
+                as_of,
             );
             let completion_age = match prepared.planner_mode {
                 RetirementTimingMode::Fire => overview
@@ -781,7 +798,7 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
                 } else {
                     None
                 },
-                date_for_plan_age(&prepared.plan, completion_age),
+                date_for_plan_age(&prepared.plan, completion_age, as_of),
                 overview.portfolio_at_goal_age,
                 overview.status,
             ))
@@ -868,11 +885,13 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
         goal_id: &str,
         valuation_map: &AccountValuationMap,
     ) -> Result<RetirementOverview> {
-        let prepared = self.prepare_retirement_input(goal_id, valuation_map)?;
+        let as_of = self.today();
+        let prepared = self.prepare_retirement_input(goal_id, valuation_map, as_of)?;
         let mut overview = compute_retirement_overview_with_mode(
             &prepared.plan,
             prepared.current_portfolio,
             prepared.planner_mode,
+            as_of,
         );
 
         if matches!(prepared.planner_mode, RetirementTimingMode::Fire) {
@@ -889,7 +908,7 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
         goal_id: &str,
         valuation_map: &AccountValuationMap,
     ) -> Result<PreparedRetirementSimulationInput> {
-        self.prepare_retirement_input(goal_id, valuation_map)
+        self.prepare_retirement_input(goal_id, valuation_map, self.today())
     }
 
     async fn compute_save_up_overview(
@@ -930,8 +949,9 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
             expected_annual_return: expected_return,
         };
 
-        validate_save_up_input(&input)?;
-        Ok(crate::planning::compute_save_up_overview(&input))
+        let as_of = self.today();
+        validate_save_up_input(&input, as_of)?;
+        Ok(crate::planning::compute_save_up_overview(&input, as_of))
     }
 }
 

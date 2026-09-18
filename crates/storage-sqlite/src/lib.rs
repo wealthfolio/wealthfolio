@@ -52,9 +52,9 @@ pub mod taxonomies;
 
 // Re-export database utilities
 pub use db::{
-    backup_database, create_pool, get_connection, get_db_path, init, is_valid_backup_filename,
-    restore_database, restore_database_safe, run_migrations, DbConnection, DbPool,
-    DbTransactionExecutor, WriteHandle,
+    backup_database, backup_database_to_file, bootstrap, get_connection, get_db_path,
+    is_valid_backup_filename, DbAccess, DbConnection, DbEncryptionKey, DbPool,
+    DbTransactionExecutor, EncryptionPolicy, KeyProvider, NoKeyProvider, WriteHandle, WriterTask,
 };
 
 // Re-export storage errors and conversion helpers

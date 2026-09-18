@@ -47,6 +47,7 @@ export const QueryKeys = {
 
   // Settings related keys
   SETTINGS: "settings",
+  DATABASE_ENCRYPTION: "databaseEncryption",
   DATABASE_BACKUPS: "databaseBackups",
   EXCHANGE_RATES: "exchangeRates",
 

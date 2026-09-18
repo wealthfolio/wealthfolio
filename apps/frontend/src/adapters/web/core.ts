@@ -40,6 +40,10 @@ export const COMMANDS: CommandMap = {
   is_auto_update_check_enabled: { method: "GET", path: "/settings/auto-update-enabled" },
   get_app_info: { method: "GET", path: "/app/info" },
   check_update: { method: "GET", path: "/app/check-update" },
+  get_database_encryption_status: {
+    method: "GET",
+    path: "/utilities/database/encryption",
+  },
   backup_database: { method: "POST", path: "/utilities/database/backup" },
   list_database_backups: { method: "GET", path: "/utilities/database/backups" },
   delete_database_backup: { method: "DELETE", path: "/utilities/database/backups" },
@@ -274,17 +278,12 @@ export const COMMANDS: CommandMap = {
   set_addon_storage_item: { method: "PUT", path: "/addons/storage" },
   delete_addon_storage_item: { method: "DELETE", path: "/addons/storage" },
   // Device Sync - Device management
-  register_device: { method: "POST", path: "/sync/device/register" },
   get_device: { method: "GET", path: "/sync/device" },
   list_devices: { method: "GET", path: "/sync/devices" },
   update_device: { method: "PATCH", path: "/sync/device" },
   delete_device: { method: "DELETE", path: "/sync/device" },
   revoke_device: { method: "POST", path: "/sync/device" },
-  // Device Sync - Team keys (E2EE)
-  initialize_team_keys: { method: "POST", path: "/sync/keys/initialize" },
-  commit_initialize_team_keys: { method: "POST", path: "/sync/keys/initialize/commit" },
-  rotate_team_keys: { method: "POST", path: "/sync/keys/rotate" },
-  commit_rotate_team_keys: { method: "POST", path: "/sync/keys/rotate/commit" },
+  // Device Sync - Sync reset
   reset_team_sync: { method: "POST", path: "/sync/team/reset" },
   // Device Sync - Pairing (Issuer - Trusted Device)
   create_pairing: { method: "POST", path: "/sync/pairing" },
@@ -1676,24 +1675,6 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     // Device Sync commands - Device management
-    case "register_device": {
-      const { displayName, deviceNonce, instanceId } = payload as {
-        displayName: string;
-        deviceNonce?: string;
-        instanceId?: string;
-      };
-      // Detect platform from browser user agent
-      const userAgent = navigator.userAgent.toLowerCase();
-      let platform = "server"; // default fallback
-      if (userAgent.includes("mac")) platform = "macos";
-      else if (userAgent.includes("win")) platform = "windows";
-      else if (userAgent.includes("linux") && !userAgent.includes("android")) platform = "linux";
-      else if (userAgent.includes("android")) platform = "android";
-      else if (userAgent.includes("iphone") || userAgent.includes("ipad")) platform = "ios";
-
-      body = JSON.stringify({ displayName, platform, deviceNonce: deviceNonce ?? instanceId });
-      break;
-    }
     case "get_device": {
       const { deviceId } = (payload ?? {}) as { deviceId?: string };
       if (deviceId) {
@@ -1719,35 +1700,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       url += `/${encodeURIComponent(deviceId)}/revoke`;
       break;
     }
-    // Device Sync commands - Team keys (E2EE)
-    case "commit_initialize_team_keys": {
-      const { keyVersion, deviceKeyEnvelope, signature, challengeResponse, recoveryEnvelope } =
-        payload as {
-          keyVersion: number;
-          deviceKeyEnvelope: string;
-          signature: string;
-          challengeResponse?: string;
-          recoveryEnvelope?: string;
-        };
-      body = JSON.stringify({
-        keyVersion,
-        deviceKeyEnvelope,
-        signature,
-        challengeResponse,
-        recoveryEnvelope,
-      });
-      break;
-    }
-    case "commit_rotate_team_keys": {
-      const { newKeyVersion, envelopes, signature, challengeResponse } = payload as {
-        newKeyVersion: number;
-        envelopes: { deviceId: string; deviceKeyEnvelope: string }[];
-        signature: string;
-        challengeResponse?: string;
-      };
-      body = JSON.stringify({ newKeyVersion, envelopes, signature, challengeResponse });
-      break;
-    }
+    // Device Sync commands - Sync reset
     case "reset_team_sync": {
       const { reason } = (payload ?? {}) as { reason?: string };
       body = reason ? JSON.stringify({ reason }) : JSON.stringify({});
@@ -1840,8 +1793,6 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "list_devices":
-    case "initialize_team_keys":
-    case "rotate_team_keys":
     case "post_login_bootstrap":
     case "clear_sync_session":
     case "get_sync_session_status":

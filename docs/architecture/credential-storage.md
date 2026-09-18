@@ -5,6 +5,9 @@ logic. Desktop and mobile builds use native credential services through Tauri.
 Browser builds route secret-store operations to the server's encrypted vault
 rather than browser storage.
 
+For database keys, portable exports and restore behavior, see
+[database encryption and backups](database-encryption-and-backups.md).
+
 ## Native credentials
 
 The Tauri implementation of the shared `SecretStore` contract uses
@@ -41,10 +44,18 @@ device with an ordinary app-data backup. Android Keystore stores cryptographic
 keys; arbitrary API-token strings remain encrypted outside it.
 
 The Android manifest selects backup rules that exclude `keyring-default.xml`
-from legacy full backup, cloud backup, and device-to-device transfer. Other app
-data retains its existing backup policy. After a restore to another device,
-credentials must be re-entered or recreated; restoring portfolio data does not
-restore device-bound credentials.
+from legacy full backup, cloud backup, and device-to-device transfer. Tauri
+stores its database directly in Android `dataDir`, so the rules also exclude the
+`root` domain: the database, encryption marker, maintenance files, and internal
+backups cannot be transferred without their device-bound key. This exclusion
+applies whether database encryption is enabled or disabled. Use Wealthfolio’s
+portable export and restore to move portfolio data to another device;
+credentials must be re-entered or recreated.
+
+Android database encryption uses this persistent store, with an immediate key
+read-back before conversion. Enabling/disabling rebuilds the runtime in place,
+as on iOS; a process restart subsequently reopens the database with the retained
+key. Disabling keeps the key so older encrypted backups remain readable.
 
 Sources:
 [manifest](../../apps/tauri/gen/android/app/src/main/AndroidManifest.xml),

@@ -103,7 +103,7 @@ fn validate_finite_amount(label: &str, value: f64, min: f64, max: f64) -> Result
     }
 }
 
-pub fn validate_save_up_input(input: &SaveUpInput) -> Result<()> {
+pub fn validate_save_up_input(input: &SaveUpInput, as_of: chrono::NaiveDate) -> Result<()> {
     validate_finite_amount(
         "Current value",
         input.current_value,
@@ -137,7 +137,7 @@ pub fn validate_save_up_input(input: &SaveUpInput) -> Result<()> {
     if let Some(target_date) = input.target_date.as_deref() {
         let parsed = parse_date(target_date)
             .ok_or_else(|| invalid_save_up_input("Target date must use YYYY-MM-DD"))?;
-        let now = chrono::Local::now().date_naive();
+        let now = as_of;
         if months_between(now, parsed) > MAX_SAVE_UP_HORIZON_MONTHS {
             return Err(invalid_save_up_input(
                 "Target date must be within 100 years",
@@ -274,7 +274,11 @@ pub fn find_completion_date(
 }
 
 /// Generate monthly trajectory points with 3 scenarios.
-pub fn generate_projection_series(input: &SaveUpInput, months: i32) -> Vec<SaveUpTrajectoryPoint> {
+pub fn generate_projection_series(
+    input: &SaveUpInput,
+    months: i32,
+    as_of: chrono::NaiveDate,
+) -> Vec<SaveUpTrajectoryPoint> {
     if months <= 0 {
         return vec![];
     }
@@ -288,7 +292,7 @@ pub fn generate_projection_series(input: &SaveUpInput, months: i32) -> Vec<SaveU
         ("optimistic", input.expected_annual_return + 0.02),
     ];
 
-    let start = chrono::Local::now().date_naive();
+    let start = as_of;
 
     // We collect into an ordered vec of (label, nominal, optimistic, pessimistic).
     // First build per-scenario vectors, then merge.
@@ -346,8 +350,8 @@ pub fn generate_projection_series(input: &SaveUpInput, months: i32) -> Vec<SaveU
 // ---------------------------------------------------------------------------
 
 /// Compute the full save-up overview from inputs.
-pub fn compute_save_up_overview(input: &SaveUpInput) -> SaveUpOverview {
-    let now = chrono::Local::now().date_naive();
+pub fn compute_save_up_overview(input: &SaveUpInput, as_of: chrono::NaiveDate) -> SaveUpOverview {
+    let now = as_of;
 
     let target_date = input.target_date.as_deref().and_then(parse_date);
 
@@ -386,7 +390,7 @@ pub fn compute_save_up_overview(input: &SaveUpInput) -> SaveUpOverview {
         };
 
         let months = months_between(now, td).min(MAX_SAVE_UP_HORIZON_MONTHS);
-        let traj = generate_projection_series(input, months);
+        let traj = generate_projection_series(input, months, as_of);
 
         (projected, required, h, traj)
     } else {
@@ -434,6 +438,25 @@ pub fn compute_save_up_overview(input: &SaveUpInput) -> SaveUpOverview {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn overview_uses_the_supplied_date_for_growth_and_trajectory() {
+        let input = SaveUpInput {
+            current_value: 1000.0,
+            target_amount: 2000.0,
+            target_date: Some("2027-01-01".to_string()),
+            monthly_contribution: 100.0,
+            expected_annual_return: 0.10,
+        };
+        let december =
+            compute_save_up_overview(&input, NaiveDate::from_ymd_opt(2025, 12, 31).unwrap());
+        let january =
+            compute_save_up_overview(&input, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap());
+        assert_eq!(december.trajectory[0].date, "2025-12");
+        assert_eq!(january.trajectory[0].date, "2026-01");
+        assert!(december.projected_value_at_target_date > january.projected_value_at_target_date);
+    }
+
+    const AS_OF: chrono::NaiveDate = chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
     use super::*;
 
     fn date(y: i32, m: u32, d: u32) -> NaiveDate {
@@ -522,7 +545,7 @@ mod tests {
             monthly_contribution: 500.0,
             expected_annual_return: 0.07,
         };
-        let overview = compute_save_up_overview(&input);
+        let overview = compute_save_up_overview(&input, AS_OF);
         assert_eq!(overview.health, "on_track");
         assert!(overview.projected_value_at_target_date > 100000.0);
         assert!(overview.progress > 0.79 && overview.progress < 0.81);
@@ -537,7 +560,7 @@ mod tests {
             monthly_contribution: 200.0,
             expected_annual_return: 0.05,
         };
-        let overview = compute_save_up_overview(&input);
+        let overview = compute_save_up_overview(&input, AS_OF);
         assert_eq!(overview.health, "not_applicable");
         assert_eq!(overview.projected_value_at_target_date, 0.0);
         assert!(overview.trajectory.is_empty());
@@ -554,15 +577,14 @@ mod tests {
             monthly_contribution: 100.0,
             expected_annual_return: 0.07,
         };
-        let overview = compute_save_up_overview(&input);
+        let overview = compute_save_up_overview(&input, AS_OF);
         assert_eq!(overview.health, "not_applicable");
         assert_eq!(overview.progress, 0.0);
     }
 
     #[test]
     fn validate_save_up_input_rejects_unbounded_preview_work() {
-        let target_date = chrono::Local::now()
-            .date_naive()
+        let target_date = AS_OF
             .checked_add_months(chrono::Months::new((MAX_SAVE_UP_HORIZON_MONTHS + 1) as u32))
             .unwrap()
             .format("%Y-%m-%d")
@@ -575,7 +597,7 @@ mod tests {
             expected_annual_return: 0.07,
         };
 
-        assert!(validate_save_up_input(&input)
+        assert!(validate_save_up_input(&input, AS_OF)
             .expect_err("distant target dates should be rejected")
             .to_string()
             .contains("within 100 years"));
@@ -590,7 +612,7 @@ mod tests {
             monthly_contribution: 100.0,
             expected_annual_return: 0.07,
         };
-        assert!(validate_save_up_input(&input)
+        assert!(validate_save_up_input(&input, AS_OF)
             .expect_err("non-finite target should be rejected")
             .to_string()
             .contains("Target amount"));
@@ -602,7 +624,7 @@ mod tests {
             monthly_contribution: 100.0,
             expected_annual_return: 2.0,
         };
-        assert!(validate_save_up_input(&input)
+        assert!(validate_save_up_input(&input, AS_OF)
             .expect_err("unbounded returns should be rejected")
             .to_string()
             .contains("Expected annual return"));
@@ -617,7 +639,7 @@ mod tests {
             monthly_contribution: 500.0,
             expected_annual_return: 0.07,
         };
-        let overview = compute_save_up_overview(&input);
+        let overview = compute_save_up_overview(&input, AS_OF);
         // Trajectory should have roughly (months between now and target + 1) points
         assert!(!overview.trajectory.is_empty());
         // All points should have the target line

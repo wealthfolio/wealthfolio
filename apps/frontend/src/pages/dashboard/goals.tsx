@@ -1,3 +1,6 @@
+import { formatZonedDateKey } from "@/features/spending/lib/timezone";
+import { useSettingsContext } from "@/lib/settings-provider";
+import { parseLocalDate } from "@/lib/utils";
 import { getGoals } from "@/adapters";
 import { DashboardCard } from "@/components/dashboard-card";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -45,10 +48,10 @@ function statusDotClass(status: Goal["statusHealth"]) {
   return "bg-muted-foreground/35";
 }
 
-function formatTimeRemaining(t: TFunction, targetDate?: string): string {
+function formatTimeRemaining(t: TFunction, targetDate?: string, timezone?: string): string {
   if (!targetDate) return t("dashboard:goals.time_no_deadline");
-  const target = new Date(targetDate);
-  const now = new Date();
+  const target = parseLocalDate(targetDate);
+  const now = parseLocalDate(formatZonedDateKey(new Date(), timezone));
   if (!Number.isFinite(target.getTime())) return t("dashboard:goals.time_no_deadline");
   if (target.getTime() <= now.getTime()) return t("dashboard:goals.time_due");
   let months =
@@ -78,6 +81,7 @@ function ViewAllLink() {
 }
 
 export function SavingGoals() {
+  const { settings } = useSettingsContext();
   const amountFormatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
@@ -136,7 +140,7 @@ export function SavingGoals() {
         const target = goal.summaryTargetAmount ?? goal.targetAmount ?? 0;
         const currency = goal.currency ?? "USD";
         const deadline = goal.targetDate ?? goal.projectedCompletionDate;
-        const timeStr = formatTimeRemaining(t, deadline);
+        const timeStr = formatTimeRemaining(t, deadline, settings?.timezone);
         const pctDisplay = numberFormatting.formatPercent(pct, { digits: 0 });
 
         const currentDisplay = isBalanceHidden

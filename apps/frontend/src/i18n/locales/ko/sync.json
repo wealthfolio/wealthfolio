@@ -211,7 +211,5 @@
     "connectionFailed": "연결 실패",
     "tryAgain": "다시 시도"
   },
-  "errors": {
-    "backupPlatformUnsupported": "기기 동기화 전 백업은 현재 데스크톱, 웹, iOS에서만 지원됩니다"
-  }
+  "errors": {}
 }

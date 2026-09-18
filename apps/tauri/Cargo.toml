@@ -11,6 +11,7 @@ repository = "https://github.com/wealthfolio/wealthfolio"
 tauri-build = { version = "2.5", features = [] }
 
 [dependencies]
+zeroize = { workspace = true }
 # Internal crates
 wealthfolio-market-data = { workspace = true }
 wealthfolio-core = { workspace = true }

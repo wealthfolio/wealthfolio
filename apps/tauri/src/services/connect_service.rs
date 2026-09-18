@@ -9,7 +9,7 @@ use wealthfolio_connect::{
     ensure_valid_access_token, ConnectApiClient, TokenLifecycleConfig, TokenLifecycleState,
     DEFAULT_CLOUD_API_URL,
 };
-use wealthfolio_core::secrets::SecretStore;
+use wealthfolio_core::{secrets::SecretStore, settings::SettingsServiceTrait};
 
 /// Returns true when broker/connect sync was compiled in.
 pub fn is_connect_sync_enabled() -> bool {
@@ -62,14 +62,19 @@ fn token_lifecycle_config() -> Option<TokenLifecycleConfig> {
 /// convenient methods for common cloud API operations.
 pub struct ConnectService {
     secret_store: Arc<dyn SecretStore>,
+    settings: Arc<dyn SettingsServiceTrait>,
     token_lifecycle: Arc<TokenLifecycleState>,
 }
 
 impl ConnectService {
     /// Create a new ConnectService instance.
-    pub fn new(secret_store: Arc<dyn SecretStore>) -> Self {
+    pub fn new(
+        secret_store: Arc<dyn SecretStore>,
+        settings: Arc<dyn SettingsServiceTrait>,
+    ) -> Self {
         Self {
             secret_store,
+            settings,
             token_lifecycle: Arc::new(TokenLifecycleState::new()),
         }
     }
@@ -80,6 +85,13 @@ impl ConnectService {
             return Err("Cloud sync feature is disabled in this build.".to_string());
         }
 
+        if self
+            .settings
+            .requires_cloud_reconnect()
+            .map_err(|e| e.to_string())?
+        {
+            return Err("Reconnect Wealthfolio Connect after restoring this backup.".into());
+        }
         let config = token_lifecycle_config();
         ensure_valid_access_token(
             self.secret_store.as_ref(),
@@ -91,6 +103,13 @@ impl ConnectService {
     }
 
     pub fn is_session_configured(&self) -> Result<bool, String> {
+        if self
+            .settings
+            .requires_cloud_reconnect()
+            .map_err(|e| e.to_string())?
+        {
+            return Ok(false);
+        }
         self.token_lifecycle
             .is_session_configured(self.secret_store.as_ref())
             .map_err(|err| err.to_string())
@@ -98,7 +117,7 @@ impl ConnectService {
 
     pub async fn store_session(&self, token: &str) -> Result<(), String> {
         self.token_lifecycle
-            .store_session(self.secret_store.as_ref(), token)
+            .store_session_after_restore(self.secret_store.as_ref(), self.settings.as_ref(), token)
             .await
             .map_err(|err| err.to_string())
     }

@@ -1,4 +1,4 @@
-use chrono::{Datelike, Local, NaiveDate};
+use chrono::{Datelike, NaiveDate};
 use serde::{Deserialize, Serialize};
 
 use crate::portfolio::fire::GlidepathSettings;
@@ -65,14 +65,12 @@ pub fn age_from_birth_year_month(birth_year_month: &str, as_of: NaiveDate) -> Op
     u32::try_from(age).ok()
 }
 
-pub fn normalize_retirement_plan_ages(plan: &mut RetirementPlan) {
+pub fn normalize_retirement_plan_ages(plan: &mut RetirementPlan, as_of: chrono::NaiveDate) {
     if let Some(age) = plan
         .personal
         .birth_year_month
         .as_deref()
-        .and_then(|birth_year_month| {
-            age_from_birth_year_month(birth_year_month, Local::now().date_naive())
-        })
+        .and_then(|birth_year_month| age_from_birth_year_month(birth_year_month, as_of))
     {
         plan.personal.current_age = age;
     }
@@ -80,11 +78,12 @@ pub fn normalize_retirement_plan_ages(plan: &mut RetirementPlan) {
 
 #[cfg(test)]
 mod tests {
+    const AS_OF: chrono::NaiveDate = chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
     use super::{
         age_from_birth_year_month, normalize_retirement_plan_ages, PayoutMode,
         RetirementIncomeStream, RetirementPlan, StreamKind,
     };
-    use chrono::{Datelike, Local, NaiveDate};
+    use chrono::{Datelike, NaiveDate};
 
     #[test]
     fn derives_age_from_birth_year_month() {
@@ -213,7 +212,7 @@ mod tests {
 
     #[test]
     fn age_normalization_only_updates_current_age() {
-        let today = Local::now().date_naive();
+        let today = AS_OF;
         let birth_year_month = format!("{}-{:02}", today.year() - 40, today.month());
         let raw = format!(
             r#"{{
@@ -243,7 +242,14 @@ mod tests {
         let mut expected = serde_json::to_value(&plan).expect("plan should serialize");
         expected["personal"]["currentAge"] = serde_json::Value::from(40);
 
-        normalize_retirement_plan_ages(&mut plan);
+        normalize_retirement_plan_ages(&mut plan, AS_OF);
+        let prior_day = AS_OF.pred_opt().unwrap();
+        let mut prior_plan = plan.clone();
+        normalize_retirement_plan_ages(&mut prior_plan, prior_day);
+        assert_eq!(
+            prior_plan.personal.current_age + 1,
+            plan.personal.current_age
+        );
 
         let actual = serde_json::to_value(&plan).expect("plan should serialize");
         assert_eq!(actual, expected);

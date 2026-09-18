@@ -96,6 +96,8 @@ const copyFileByHandle = async (
   options: {
     fromPathBaseDir?: BaseDirectory;
     toPathBaseDir?: BaseDirectory;
+    maxBytes?: number;
+    signal?: AbortSignal;
   } = {},
 ): Promise<void> => {
   let source: FileHandle | null = null;
@@ -116,10 +118,16 @@ const copyFileByHandle = async (
     destination = (await openFile(toPath, destinationOptions)) as FileHandle;
 
     const buffer = new Uint8Array(COPY_BUFFER_SIZE);
+    let copied = 0;
     while (true) {
+      options.signal?.throwIfAborted();
       const bytesRead = await source.read(buffer);
-      if (bytesRead === null) {
+      if (bytesRead === null || bytesRead === 0) {
         break;
+      }
+      copied += bytesRead;
+      if (options.maxBytes !== undefined && copied > options.maxBytes) {
+        throw new Error("Backup exceeds the supported 2 GiB limit");
       }
       await writeAll(destination, buffer.subarray(0, bytesRead));
     }
@@ -247,14 +255,17 @@ export const saveAppDataFileViaPicker = async (
 
 export const stagePickedDatabaseFileForRestore = async (
   pickedFilePath: string,
+  signal?: AbortSignal,
 ): Promise<StagedRestore> => {
-  const pendingDir = `pending-restores/${restoreId()}`;
+  const pendingDir = `scratch/portable-picked-${restoreId()}`;
   const relativePath = `${pendingDir}/restore.db`;
 
   try {
-    await mkdir(pendingDir, { baseDir: BaseDirectory.AppData, recursive: true });
+    await mkdir(pendingDir, { baseDir: BaseDirectory.AppData, recursive: true, mode: 0o700 });
     await copyFileByHandle(pickedFilePath, relativePath, {
       toPathBaseDir: BaseDirectory.AppData,
+      maxBytes: 2 * 1024 * 1024 * 1024,
+      signal,
     });
     return { relativePath, pendingDir };
   } catch (error) {

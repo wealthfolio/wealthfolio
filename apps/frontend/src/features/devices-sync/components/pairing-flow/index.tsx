@@ -2,16 +2,7 @@
 // Main component that orchestrates the pairing flow (issuer and claimer)
 // =====================================================================
 
-import {
-  backupDatabase,
-  backupDatabaseToPath,
-  backupDatabaseToPendingExport,
-  isWeb,
-  logger,
-  openFolderDialog,
-  saveAppDataFileViaPicker,
-} from "@/adapters";
-import { getPlatform as getRuntimePlatform } from "@/hooks/use-platform";
+import { backupDatabase, logger } from "@/adapters";
 import { Icons } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { useEffect, useRef, useCallback, useState } from "react";
@@ -234,23 +225,7 @@ function ClaimerFlow({
     setIsBackingUp(true);
     setBackupError(null);
     try {
-      if (isWeb) {
-        await backupDatabase();
-      } else {
-        const runtimePlatform = await getRuntimePlatform();
-        if (runtimePlatform.is_desktop) {
-          const selectedDir = await openFolderDialog();
-          if (!selectedDir) return;
-          await backupDatabaseToPath(selectedDir);
-        } else {
-          if (!runtimePlatform.is_mobile) {
-            throw new Error(t("sync:errors.backupPlatformUnsupported"));
-          }
-          const { relativePath, filename } = await backupDatabaseToPendingExport();
-          const saved = await saveAppDataFileViaPicker(relativePath, filename);
-          if (!saved) return;
-        }
-      }
+      await backupDatabase();
       await approveOverwrite();
     } catch (err) {
       logSyncError("Pairing overwrite backup failed", err);

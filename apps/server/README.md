@@ -53,6 +53,11 @@ Key environment variables
   - `WF_OIDC_POST_LOGOUT_REDIRECT_URL`: **Optional**. When the IdP advertises an `end_session_endpoint`, sign-out performs RP-Initiated Logout (ends the IdP session too); otherwise logout is local-only. Set this to return to the app after IdP logout — it must be **registered** with the IdP (e.g. Keycloak's "Valid post logout redirect URIs"). If unset, the IdP shows its own logged-out page.
   - `WF_OIDC_RP_LOGOUT`: **Optional**, default `true`. Set to `false` to force local-only logout even when the IdP supports RP-Initiated Logout.
 - `WF_SECRET_FILE`: Optional override for where encrypted secrets are stored. Defaults to `<data-root>/secrets.json`.
+- `WF_DB_REQUIRE_ENCRYPTION`: Optional, default `0`. Requires the live database to
+  match the configured encryption policy. `1` creates a new encrypted database,
+  but does not convert an existing plaintext file. Stop the server and use
+  `wealthfolio-server db encrypt` or `db decrypt` for conversion, preserving the
+  same master key and setting the startup flag to match afterward.
 
 Notes
 - The server also honors `DATABASE_URL`; when running in this workspace, `WF_DB_PATH` is preferred and propagated to `DATABASE_URL` internally so the core layer uses the expected path.
@@ -97,3 +102,18 @@ For container mounts and deployment examples, see
 [self-hosting configuration](../../docs/self-host/README.md#master-key-configuration).
 The [credential storage architecture](../../docs/architecture/credential-storage.md)
 explains the native backends and server vault.
+
+## Backups and portable recovery
+
+The Backups screen creates managed snapshots and exports password-protected
+portable files. Server restore is offline: stop the service, then run
+`wealthfolio-server db restore <file> [--password-stdin] [--yes]` with the same
+key, database path, user and encryption policy. Without `--yes`, validation shows
+a summary without replacing the database. Passwords are accepted only through
+non-terminal standard input, never command arguments.
+
+The command requires an existing readable destination, validates the backup and
+saves a pre-restore snapshot. A portable backup password is independent of the
+server master key. There are no web restore/upload or maintenance/retry endpoints.
+See [the operator backup guide](../../docs/self-host/backups.md) for safe password
+input, container commands, cross-platform transfers and failed-startup recovery.

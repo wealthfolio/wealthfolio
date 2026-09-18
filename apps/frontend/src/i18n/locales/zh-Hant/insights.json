@@ -65,7 +65,8 @@
       "holdings_count_one": "{{count}} 項持有部位",
       "holdings_count_other": "{{count}} 項持有部位",
       "accounts_count_one": "{{count}} 個帳戶",
-      "accounts_count_other": "{{count}} 個帳戶"
+      "accounts_count_other": "{{count}} 個帳戶",
+      "pnl_current_holdings": "目前持有部位"
     }
   },
   "networth": {
@@ -125,5 +126,35 @@
     },
     "days_ago_other": "{{count}} 天前",
     "days_ago_one": "{{count}} 天前"
+  },
+  "highlights": {
+    "movers": "漲跌排行",
+    "concentration": "集中度",
+    "daily": "每日變動 · 目前持有部位",
+    "rank_by": "每日漲跌排序依據",
+    "gainers": "上漲部位",
+    "losers": "下跌部位",
+    "no_moves": "尚無可顯示漲跌的資料。",
+    "portfolio_share": "佔投資組合價值的比例（含現金）",
+    "largest": "最大持有部位",
+    "top_five": "前五大持有部位",
+    "concentration_unavailable": "集中度計算需要持有部位的價值為正，且投資組合中沒有放空部位。"
+  },
+  "customize": {
+    "edit": "自訂",
+    "widgets": "小工具",
+    "reset": "重設版面配置",
+    "cancel": "取消",
+    "save": "儲存版面配置",
+    "saving": "儲存中…",
+    "hint": "拖曳小工具的控點以移動位置，或從右側邊緣調整寬度。",
+    "description": "選擇要顯示的小工具。使用箭頭調整順序，行動裝置也適用。",
+    "value": "投資組合摘要",
+    "breakdown": "明細",
+    "move_up": "將{{widget}}上移",
+    "move_down": "將{{widget}}下移",
+    "hide": "隱藏{{widget}}",
+    "drag": "拖曳{{widget}}",
+    "empty": "未選取小工具。請自訂此頁面以新增小工具。"
   }
 }

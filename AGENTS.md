@@ -97,6 +97,19 @@ crates/
 
 ## Agent Playbook
 
+### Bug-fix PR reviews
+
+- Trace the reported symptom through the actual execution path before judging
+  the fix.
+- Establish why the original code fails and how the changed code prevents that
+  failure.
+- Seek a reproduction or regression test that fails before and passes after.
+- Distinguish confirmed findings, hypotheses, and unverified behavior.
+- “No regressions found” does not mean “the reported bug is fixed.”
+- If root-cause evidence is missing, explicitly conclude **“fix not verified”**;
+  do not imply approval.
+- Inspect the exact PR revision and report validation limitations.
+
 ### Adding a feature with backend data
 
 1. **Frontend route/UI** → `apps/frontend/src/pages/`,
@@ -131,6 +144,16 @@ Frontend → Adapter (tauri/web) → Command wrapper
 ---
 
 ## Conventions
+
+### Avoid magic strings
+
+- Use named constants for secret-store keys and other identifiers shared across
+  code paths.
+- Reuse existing constants; do not duplicate their declarations or inline their
+  values at call sites.
+- Put shared constants in the owning module or crate and import them across
+  runtimes where possible.
+- Keep persisted key values unchanged when replacing literals with constants.
 
 ### TypeScript
 

@@ -6,7 +6,7 @@ use axum::{
 use serde::Serialize;
 use thiserror::Error;
 use wealthfolio_ai::ProviderApiError;
-use wealthfolio_core::errors::Error as CoreError;
+use wealthfolio_core::errors::{DatabaseError, Error as CoreError};
 
 #[allow(dead_code)]
 #[derive(Error, Debug)]
@@ -83,8 +83,46 @@ impl IntoResponse for ApiError {
 
 pub type ApiResult<T> = Result<T, ApiError>;
 
+impl ApiError {
+    /// Invalid backups remain client errors; unavailable runtime state is an
+    /// internal failure, even when it travels through a blocking backup task.
+    pub(crate) fn backup(error: anyhow::Error) -> Self {
+        if matches!(
+            error.downcast_ref::<CoreError>(),
+            Some(CoreError::Database(DatabaseError::Internal(_)))
+        ) {
+            Self::Internal(error.to_string())
+        } else {
+            Self::BadRequest(error.to_string())
+        }
+    }
+}
+
 impl From<ProviderApiError> for ApiError {
     fn from(err: ProviderApiError) -> Self {
         ApiError::BadRequest(err.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn backup_state_failure_is_internal_and_validation_remains_a_client_error() {
+        let fault = anyhow::Error::new(CoreError::Database(DatabaseError::Internal(
+            "Snapshot state unavailable".into(),
+        )))
+        .context("Export failed");
+        assert_eq!(
+            ApiError::backup(fault).into_response().status(),
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+        assert_eq!(
+            ApiError::backup(anyhow::anyhow!("Invalid backup filename"))
+                .into_response()
+                .status(),
+            StatusCode::BAD_REQUEST
+        );
     }
 }

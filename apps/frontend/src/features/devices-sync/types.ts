@@ -108,37 +108,6 @@ export interface TrustedDeviceSummary {
   lastSeenAt: string | null;
 }
 
-// Discriminated union for device enrollment response
-// Note: Uses snake_case to match Rust serde serialization
-export type EnrollDeviceResponse =
-  | { mode: "BOOTSTRAP"; device_id: string; e2ee_key_version: number }
-  | {
-      mode: "PAIR";
-      device_id: string;
-      e2ee_key_version: number;
-      require_sas: boolean;
-      pairing_ttl_seconds: number;
-      trusted_devices: TrustedDeviceSummary[];
-    }
-  | { mode: "READY"; device_id: string; e2ee_key_version: number; trust_state: TrustState };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Team Keys Types (E2EE)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Discriminated union for initializing team keys response
-// Note: Uses snake_case to match Rust serde serialization
-export type InitializeKeysResult =
-  | { mode: "BOOTSTRAP"; challenge: string; nonce: string; key_version: number }
-  | {
-      mode: "PAIRING_REQUIRED";
-      e2ee_key_version: number;
-      require_sas: boolean;
-      pairing_ttl_seconds: number;
-      trusted_devices: TrustedDeviceSummary[];
-    }
-  | { mode: "READY"; e2ee_key_version: number };
-
 // Response from resetting team sync
 export interface ResetTeamSyncResponse {
   success: boolean;
