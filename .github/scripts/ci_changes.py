@@ -26,7 +26,7 @@ def classify(paths):
             # Server-only code is not linked into either mobile app.
             if not path.startswith("apps/server/"):
                 required.update(android=True, ios=True)
-            if path.startswith("apps/tauri/tauri.conf"):
+            if path.startswith("apps/tauri/tauri.conf") or path == "apps/server/src/api.rs":
                 required["frontend"] = True
         elif path in ("Dockerfile", ".dockerignore") or path.startswith("docker-compose"):
             required.update(frontend=True, rust=True, formatting=True)

@@ -28,6 +28,10 @@ class ChangeDetectionTests(unittest.TestCase):
     def test_server_only(self):
         self.assert_jobs(["apps/server/src/main.rs"], "rust")
 
+    def test_application_csp_contract(self):
+        self.assert_jobs(["apps/server/src/api.rs"], "frontend", "rust")
+        self.assert_jobs(["apps/frontend/index.html"], "frontend", "formatting")
+
     def test_shared_workflows(self):
         self.assert_jobs([".github/workflows/pr-check.yml"], "frontend", "rust", "formatting", "android", "ios")
 

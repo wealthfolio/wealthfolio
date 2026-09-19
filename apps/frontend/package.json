@@ -18,7 +18,7 @@
     "dev:addons": "cross-env BUILD_TARGET=web node scripts/dev-addon-sandbox.mjs --mode addon-dev",
     "build:addon-sandbox-runtime": "vite build --config vite.addon-sandbox.config.ts",
     "verify:addon-sandbox-runtime": "node scripts/verify-addon-sandbox-runtime.mjs",
-    "build": "tsc && cross-env BUILD_TARGET=web pnpm build:addon-sandbox-runtime && cross-env BUILD_TARGET=web vite build && node scripts/verify-addon-sandbox-runtime.mjs --dist",
+    "build": "tsc && cross-env BUILD_TARGET=web pnpm build:addon-sandbox-runtime && cross-env BUILD_TARGET=web vite build && node scripts/verify-addon-sandbox-runtime.mjs --dist --web",
     "build:tauri": "cross-env BUILD_TARGET=tauri pnpm build:addon-sandbox-runtime && cross-env BUILD_TARGET=tauri vite build && node scripts/verify-addon-sandbox-runtime.mjs --dist",
     "preview": "vite preview",
     "test": "vitest",

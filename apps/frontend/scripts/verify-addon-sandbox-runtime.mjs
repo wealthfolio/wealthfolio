@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { init, parse } from "es-module-lexer";
+import { JSDOM } from "jsdom";
 
 const FRONTEND_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GENERATED_DIR = path.join(FRONTEND_ROOT, "public", "__generated__");
@@ -81,7 +82,41 @@ function assertEmbedderAllowsSandboxRuntime(policy, label) {
   }
 }
 
-export async function verifyAddonSandboxRuntime({ dist = false } = {}) {
+// Require explicit hashes for application inline code, even if a policy is loosened.
+export function assertApplicationScriptsAllowed(html, policy) {
+  const document = new JSDOM(html).window.document;
+  const policies = [policy, ...extractMetaCsps(html)].map((value) =>
+    parseCsp(value, "Application CSP"),
+  );
+  for (const script of document.querySelectorAll("script:not([src])")) {
+    const type = script.getAttribute("type")?.trim().toLowerCase() ?? "";
+    if (
+      type &&
+      !["module", "importmap", "speculationrules"].includes(type) &&
+      !/^(text|application)\/(x-)?(java|ecma)script$/.test(type) &&
+      !/^text\/(javascript1\.[0-5]|jscript|livescript)$/.test(type)
+    ) {
+      continue; // Data blocks such as application/json are not executable scripts.
+    }
+    const body = script.textContent;
+    if (!body.trim()) continue;
+    const hash = `sha256-${createHash("sha256").update(body).digest("base64")}`;
+    for (const [index, directives] of policies.entries()) {
+      const sources =
+        directives.get("script-src-elem") ??
+        directives.get("script-src") ??
+        directives.get("default-src");
+      if ((sources || index === 0) && !sources?.includes(`'${hash}'`)) {
+        throw new Error(
+          `Application inline script is missing '${hash}' from its CSP. ` +
+            "Update the policy to match the built index.html; do not enable unsafe-inline.",
+        );
+      }
+    }
+  }
+}
+
+export async function verifyAddonSandboxRuntime({ dist = false, web = false } = {}) {
   const artifactDirectory = dist
     ? path.resolve(FRONTEND_ROOT, "..", "..", "dist", "__generated__")
     : GENERATED_DIR;
@@ -160,6 +195,12 @@ export async function verifyAddonSandboxRuntime({ dist = false } = {}) {
   ) {
     throw new Error("Application HTML CSP must contain frame-src 'none'");
   }
+  if (web) {
+    assertApplicationScriptsAllowed(
+      embedderHtml,
+      extractRustStringConstant(serverApi, "SERVER_CSP"),
+    );
+  }
   const tauriSecurity = JSON.parse(tauriConfigJson).app?.security;
   assertEmbedderAllowsSandboxRuntime(tauriSecurity?.csp ?? "", "Tauri CSP");
   assertEmbedderAllowsSandboxRuntime(tauriSecurity?.devCsp ?? "", "Tauri development CSP");
@@ -181,5 +222,8 @@ export async function verifyAddonSandboxRuntime({ dist = false } = {}) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  await verifyAddonSandboxRuntime({ dist: process.argv.includes("--dist") });
+  await verifyAddonSandboxRuntime({
+    dist: process.argv.includes("--dist"),
+    web: process.argv.includes("--web"),
+  });
 }

@@ -13,6 +13,7 @@ mod models;
 mod oidc;
 mod scheduler;
 mod secrets;
+mod static_files;
 
 use config::Config;
 use main_lib::init_tracing;
@@ -108,9 +109,7 @@ async fn main() -> anyhow::Result<()> {
     scheduler::start_background_workers(state.clone());
     let static_dir = std::path::PathBuf::from(&config.static_dir);
     let router = api::app_router(state.clone(), &config)?
-        .fallback_service(tower_http::services::ServeDir::new(&static_dir).fallback(
-            tower_http::services::ServeFile::new(static_dir.join("index.html")),
-        ))
+        .fallback_service(static_files::router(&static_dir))
         .layer(axum::middleware::from_fn(api::security_headers));
     let result = axum::serve(
         listener,
