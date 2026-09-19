@@ -8,7 +8,6 @@ import {
   CsvRowData,
   ImportFormat,
   ImportMappingData,
-  ImportRequiredField,
   type SymbolSearchResult,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -56,7 +55,7 @@ export function MappingHeaderCell({
   const displayHeader = Array.isArray(mappedHeader) ? mappedHeader[0] : mappedHeader;
   const isMapped = displayHeader ? headers.includes(displayHeader) : false;
   const isEditing = editingHeader === field || !isMapped;
-  const isRequired = requiredFields.includes(field as ImportRequiredField);
+  const isRequired = requiredFields.includes(field);
 
   return (
     <div>
