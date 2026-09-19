@@ -21,6 +21,9 @@ and this project adheres to
   Wealthfolio's categorization-rules engine. Requires a Wealthfolio release that
   ships this bridge (unreleased at the time of writing). See the
   [Spend Categorization API reference](../../docs/addons/addon-api-reference.md#spend-categorization-api).
+- `SpendingAPI.getReport()` and `SpendingAPI.searchCashActivities()` for
+  read-only aggregate reports and categorized transaction searches. Transaction
+  search requires the high-risk `activities.searchCashActivities` permission.
 - `registerTranslations()` and `useAddonTranslation()` for translating addon UI
   strings. Resources live on a dedicated i18next instance inside the addon
   sandbox, isolated from the host catalog; the language follows the host

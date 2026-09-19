@@ -488,6 +488,8 @@ fn test_detect_addon_permissions_spending() {
         content: r#"
             export default async function enable(ctx) {
                 await ctx.api.spending.isEnabled();
+                await ctx.api.spending.searchCashActivities({});
+                await ctx.api.spending.getReport({});
                 await ctx.api.spending.getCategories();
                 await ctx.api.spending.getRules();
                 await ctx.api.spending.saveRule({});
@@ -515,12 +517,22 @@ fn test_detect_addon_permissions_spending() {
         std::collections::HashSet::from([
             "isEnabled",
             "getCategories",
+            "getReport",
             "getRules",
             "saveRule",
             "deleteRule",
             "rerunRules",
         ])
     );
+
+    let activities_permission = detected_permissions
+        .iter()
+        .find(|permission| permission.category == "activities")
+        .expect("cash activity search should require activities permission");
+    assert!(activities_permission
+        .functions
+        .iter()
+        .any(|function| function.name == "searchCashActivities"));
 }
 
 #[test]

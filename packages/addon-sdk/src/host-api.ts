@@ -16,6 +16,8 @@ import type {
   ActivityUpdate,
   AccountValuation,
   CheckSnapshotImportResult,
+  CashActivitySearchRequest,
+  CashActivitySearchResponse,
   ImportActivitiesResult,
   Asset,
   AlternativeAssetHolding,
@@ -45,6 +47,8 @@ import type {
   CategorizationRuleInput,
   SpendCategory,
   SpendCategoryKind,
+  SpendingReport,
+  SpendingReportRequest,
   SymbolSearchResult,
   TransferMatchCandidate,
   TransferMatchCandidateRequest,
@@ -467,10 +471,9 @@ export interface ExchangeRatesAPI {
 }
 
 /**
- * Spend categorization APIs
- * Lets addons classify activities (e.g. WITHDRAWALs) into the user's
- * existing spend-category taxonomy via Wealthfolio's categorization-rules
- * engine, rather than a one-off per-activity tag.
+ * Spending APIs
+ * Lets addons read spending reports and categorized cash activities, and
+ * classify activities through Wealthfolio's categorization-rules engine.
  */
 export interface SpendingAPI {
   /**
@@ -480,6 +483,25 @@ export interface SpendingAPI {
    * @returns Promise resolving to whether Spending is enabled
    */
   isEnabled(): Promise<boolean>;
+
+  /**
+   * Search activities from accounts enabled for Spending, including their
+   * cash-flow bucket, category assignments, splits, and spending amounts.
+   * Requires the high-risk `activities.searchCashActivities` permission.
+   * @param request Search filters, sort, and pagination
+   * @returns Promise resolving to a page of enriched cash activities
+   */
+  searchCashActivities(
+    request: CashActivitySearchRequest,
+  ): Promise<CashActivitySearchResponse>;
+
+  /**
+   * Get aggregate spending, income, and saving totals and category breakdowns
+   * for a date range.
+   * @param request Inclusive RFC3339 date range and optional spending-account filter
+   * @returns Promise resolving to the spending report
+   */
+  getReport(request: SpendingReportRequest): Promise<SpendingReport>;
 
   /**
    * List selectable spend categories, flattened with a display path.

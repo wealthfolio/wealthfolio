@@ -48,6 +48,11 @@ import type {
 import type { HoldingInput } from "@/adapters";
 import type { AlternativeAssetHolding } from "@/lib/types";
 import type {
+  CashActivitySearchRequest,
+  CashActivitySearchResponse,
+} from "@/features/spending/types/cash-activity";
+import type { MonthlyReport, ReportRequest } from "@/features/spending/types/report";
+import type {
   CategorizationRule as InternalCategorizationRule,
   NewCategorizationRule,
 } from "@/features/spending/types/rule";
@@ -114,6 +119,8 @@ export interface InternalHostAPI {
 
   // Spend categorization
   isSpendingEnabled(): Promise<boolean>;
+  searchCashActivities(request: CashActivitySearchRequest): Promise<CashActivitySearchResponse>;
+  getSpendingReport(request: ReportRequest): Promise<MonthlyReport>;
   getSpendCategories(kind?: SpendCategoryKind): Promise<SpendCategory[]>;
   listCategorizationRules(): Promise<InternalCategorizationRule[]>;
   upsertCategorizationRule(rule: NewCategorizationRule): Promise<InternalCategorizationRule>;
@@ -564,9 +571,10 @@ export function createSDKHostAPIBridge(
     "currency",
     guard,
   );
-  const spending = guardNamespace(
+  const spendingCategorization = guardNamespace(
     {
       isEnabled: internalAPI.isSpendingEnabled,
+      getReport: internalAPI.getSpendingReport,
       getCategories: internalAPI.getSpendCategories,
       getRules: async (): Promise<SDKCategorizationRule[]> => {
         const prefix = `addon:${addonId || "unknown-addon"}:`;
@@ -613,6 +621,14 @@ export function createSDKHostAPIBridge(
     "spending",
     guard,
   );
+  const spendingActivities = guardNamespace(
+    {
+      searchCashActivities: internalAPI.searchCashActivities,
+    },
+    "activities",
+    guard,
+  );
+  const spending = { ...spendingCategorization, ...spendingActivities };
   const contributionLimits = guardNamespace(
     {
       getAll: internalAPI.getContributionLimit,

@@ -252,6 +252,12 @@ pub fn detect_addon_permissions(addon_files: &[AddonFile]) -> Vec<AddonPermissio
             "Access to transaction history and activity management",
         ),
         (
+            "activities",
+            "spending",
+            vec!["searchCashActivities"],
+            "Access to categorized spending transactions",
+        ),
+        (
             "accounts",
             "accounts",
             vec!["getAll", "create"],
@@ -323,12 +329,13 @@ pub fn detect_addon_permissions(addon_files: &[AddonFile]) -> Vec<AddonPermissio
             vec![
                 "isEnabled",
                 "getCategories",
+                "getReport",
                 "getRules",
                 "saveRule",
                 "deleteRule",
                 "rerunRules",
             ],
-            "Access to spend categories and categorization rules",
+            "Access to spending reports, categories, and categorization rules",
         ),
         (
             "settings",
