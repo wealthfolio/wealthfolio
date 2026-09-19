@@ -12,6 +12,9 @@ interface ValueHistoryToolbarProps {
   onCancel: () => void;
   isSaving?: boolean;
   isLiability?: boolean;
+  onEarlyRepayment?: () => void;
+  onCloseLoan?: () => void;
+  onRecalculateSchedule?: () => void;
 }
 
 export function ValueHistoryToolbar({
@@ -25,6 +28,9 @@ export function ValueHistoryToolbar({
   onCancel,
   isSaving = false,
   isLiability = false,
+  onEarlyRepayment,
+  onCloseLoan,
+  onRecalculateSchedule,
 }: ValueHistoryToolbarProps) {
   const { t } = useTranslation();
 
@@ -35,6 +41,27 @@ export function ValueHistoryToolbar({
           <Icons.Plus className="mr-2 h-4 w-4" />
           {isLiability ? t("asset:valueToolbar.add_balance") : t("asset:valueToolbar.add_value")}
         </Button>
+
+        {isLiability && onEarlyRepayment && (
+          <Button variant="outline" size="sm" onClick={onEarlyRepayment} disabled={isSaving}>
+            <Icons.HandCoins className="mr-2 h-4 w-4" />
+            {t("asset:loanActions.early_repayment")}
+          </Button>
+        )}
+
+        {isLiability && onCloseLoan && (
+          <Button variant="outline" size="sm" onClick={onCloseLoan} disabled={isSaving}>
+            <Icons.Lock className="mr-2 h-4 w-4" />
+            {t("asset:loanActions.close_loan")}
+          </Button>
+        )}
+
+        {isLiability && onRecalculateSchedule && (
+          <Button variant="outline" size="sm" onClick={onRecalculateSchedule} disabled={isSaving}>
+            <Icons.RefreshCw className="mr-2 h-4 w-4" />
+            {t("asset:loanActions.recalculate_schedule")}
+          </Button>
+        )}
 
         {selectedRowCount > 0 && (
           <Button variant="outline" size="sm" onClick={onDeleteSelected} disabled={isSaving}>
