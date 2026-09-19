@@ -409,3 +409,51 @@ describe("pt-PT formatting", () => {
     expect(format(date, "PPPP", { locale })).toBe("segunda-feira, 9 de março de 2026");
   });
 });
+
+describe("de-CH formatting", () => {
+  // Switzerland keeps German calendar text but neither German nor French
+  // separators: digits group with an apostrophe and the decimal mark is a dot.
+  const swissDecimal = /^1['’]234\.56$/;
+
+  it("resolves Switzerland to Swiss German, not Germany", () => {
+    expect(resolveFormattingLocale("CH")).toBe("de-CH");
+    expect(resolveFormattingLocale("de-CH")).toBe("de-CH");
+  });
+
+  it("groups with an apostrophe and marks decimals with a dot", () => {
+    const formatter = createFormatter(resolveFormattingLocale("CH"), "UTC");
+
+    expect(formatter.formatDecimal(1234.56)).toMatch(swissDecimal);
+    expect(formatter.formatAmount(1234.56, "CHF")).toMatch(
+      /^CHF\s?1['’]234\.56$|^1['’]234\.56\s?CHF$/,
+    );
+    expect(formatter.formatPercent(0.125, { digits: 1 })).toMatch(/^12\.5\s*%$/);
+    // Germany shares the language and differs on both separators.
+    expect(createFormatter("de-DE", "UTC").formatDecimal(1234.56)).toBe("1.234,56");
+  });
+
+  it("writes dates day-first with dot separators", () => {
+    const formatter = createFormatter(resolveFormattingLocale("CH"), "UTC");
+    const date = new Date(Date.UTC(2026, 6, 10, 14, 30));
+
+    expect(formatter.formatDate(date, { dateStyle: "short" })).toMatch(/^10\.07\.(?:20)?26$/);
+    expect(formatter.formatTime(date, { timeStyle: "short" })).toBe("14:30");
+    expect(parseLocalizedDate("10.07.2026", "de-CH")).toEqual(new Date(2026, 6, 10));
+  });
+
+  it("round-trips Swiss numbers through parsing", () => {
+    const formatter = createFormatter(resolveFormattingLocale("CH"), "UTC");
+    const grouped = formatter.formatDecimal(1234.56);
+
+    expect(parseLocalizedNumber(grouped, "de-CH")).toBe(1234.56);
+    expect(parseLocalizedNumber("1234.56", "de-CH")).toBe(1234.56);
+    expect(parseLocalizedDecimalString(grouped, "de-CH")).toBe("1234.56");
+  });
+
+  it("uses German calendar text with a Monday week start", () => {
+    const locale = dateFnsLocaleFor(resolveFormattingLocale("CH"));
+
+    expect(locale.localize.month(0)).toBe("Januar");
+    expect(locale.options?.weekStartsOn).toBe(1);
+  });
+});

@@ -28,6 +28,7 @@ const FORMATTING_REGION_OPTIONS = [
   ["GB", "unitedKingdom"],
   ["FR", "france"],
   ["DE", "germany"],
+  ["CH", "switzerland"],
   ["ES", "spain"],
   ["MX", "mexico"],
   ["BR", "brazil"],

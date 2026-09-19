@@ -8,7 +8,8 @@ use log::{debug, error};
 use std::sync::Arc;
 
 const SUPPORTED_FORMATTING_REGIONS: &[&str] = &[
-    "system", "CA", "US", "GB", "FR", "DE", "ES", "MX", "BR", "PT", "CN", "TW", "JP", "KR", "IT",
+    "system", "CA", "US", "GB", "FR", "DE", "CH", "ES", "MX", "BR", "PT", "CN", "TW", "JP", "KR",
+    "IT",
 ];
 const SUPPORTED_UI_LANGUAGES: &[&str] = &[
     "en", "fr", "de", "es", "pt", "zh", "zh-Hant", "ja", "ko", "it",
@@ -342,6 +343,8 @@ mod tests {
     #[test]
     fn keeps_explicit_formatting_region_separate_from_ui_language() {
         assert_eq!(normalize_formatting_region("en", "de-DE"), "DE");
+        // Swiss German shares its language with Germany but formats differently.
+        assert_eq!(normalize_formatting_region("de", "de-CH"), "CH");
     }
 
     #[test]
@@ -356,6 +359,7 @@ mod tests {
         assert!(validate_formatting_region("KR").is_ok());
         assert!(validate_formatting_region("TW").is_ok());
         assert!(validate_formatting_region("IT").is_ok());
+        assert!(validate_formatting_region("CH").is_ok());
         assert!(validate_formatting_region("de-DE").is_err());
     }
 }
