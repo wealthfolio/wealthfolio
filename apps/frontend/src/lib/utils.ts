@@ -182,6 +182,7 @@ export function tryParseDate(dateStr: string, order?: DateOrder): Date | null {
 
     // Additional Banking Formats
     "dd-MMM-yyyy", // "01-MAY-2024" - Legacy Banking
+    "dd-MMM-yy", // "01-MAY-24" - Short Year (J.P. Morgan Personal Investing)
     "ddMMMyyyy", // "01MAY2024" - Swift/Wire
     "dd MMM yy", // "01 MAY 24" - Short Year
     "MMM dd, yy", // "MAY 01, 24" - US Short
