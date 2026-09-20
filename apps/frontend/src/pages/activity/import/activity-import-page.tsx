@@ -55,6 +55,7 @@ import {
   canProceedFromAssetReviewStep,
   holdingsImportHasAssets,
 } from "./utils/asset-review-utils";
+import { autoMatchAccountMappings, collectCsvAccountValues } from "./utils/account-matching";
 import { ACTIVITY_SKIP, isFieldMapped, primaryHeader } from "./utils/draft-utils";
 import { findMappedActivityType, validateTickerSymbol } from "./utils/validation-utils";
 import {
@@ -458,14 +459,23 @@ function ImportWizardContent() {
           importProfile,
         );
         const existingAccountMappings = state.mapping?.accountMappings ?? {};
-        // When no account column is mapped, pre-fill accountMappings[""] with the selected
-        // account so every row resolves without requiring manual per-row assignment.
+        // Without an account column, pre-fill accountMappings[""] with the selected account so
+        // every row resolves without requiring manual per-row assignment. With one, resolve its
+        // values against existing accounts so exact matches need no manual assignment either.
         const accountMappings =
           !mergedFieldMappings[ImportFormat.ACCOUNT] &&
           state.accountId &&
           !existingAccountMappings[""]
             ? { ...existingAccountMappings, "": state.accountId }
-            : existingAccountMappings;
+            : autoMatchAccountMappings(
+                collectCsvAccountValues(
+                  state.parsedRows,
+                  state.headers,
+                  mergedFieldMappings[ImportFormat.ACCOUNT],
+                ),
+                accounts ?? [],
+                existingAccountMappings,
+              );
         dispatch(
           setMapping(
             sanitizeImportMappingForProfile(

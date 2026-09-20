@@ -28,6 +28,7 @@ import {
 } from "../context";
 import { TemplatePicker } from "../components/template-picker";
 import { computeFieldMappings, useImportMapping } from "../hooks/use-import-mapping";
+import { autoMatchAccountMappings, collectCsvAccountValues } from "../utils/account-matching";
 import { ACTIVITY_SKIP, isFieldMapped } from "../utils/draft-utils";
 import { validateTickerSymbol, findMappedActivityType } from "../utils/validation-utils";
 import {
@@ -185,6 +186,33 @@ export function MappingStepUnified() {
       return row[mapping] || "";
     },
     [localMapping.fieldMappings],
+  );
+
+  // Picking the account column resolves its values against existing accounts, so an
+  // exact match needs no manual assignment.
+  const handleColumnMappingWithAccountMatch = useCallback(
+    (field: ImportFormat, value: string) => {
+      handleColumnMapping(field, value);
+      if (field !== ImportFormat.ACCOUNT) return;
+
+      const currentMappings = localMapping.accountMappings;
+      const accountMappings = autoMatchAccountMappings(
+        collectCsvAccountValues(parsedRows, headers, value.trim()),
+        accounts,
+        currentMappings,
+      );
+      if (accountMappings !== currentMappings) {
+        updateMapping({ accountMappings });
+      }
+    },
+    [
+      accounts,
+      handleColumnMapping,
+      headers,
+      localMapping.accountMappings,
+      parsedRows,
+      updateMapping,
+    ],
   );
 
   // Check if all required fields are mapped
@@ -574,6 +602,7 @@ export function MappingStepUnified() {
         setTemplateError(null);
 
         let nextHeaders = headers;
+        let nextRows = parsedRows;
         let nextParseConfig: typeof state.parseConfig = isDefaultTemplate
           ? baselineParseConfig
           : template.parseConfig
@@ -586,26 +615,37 @@ export function MappingStepUnified() {
         if (state.file) {
           const parsed = await parseCsv(state.file, nextParseConfig);
           nextHeaders = parsed.headers;
+          nextRows = parsed.rows;
           nextParseConfig = mergeDetectedParseConfig(nextParseConfig, parsed.detectedConfig);
           dispatch(setParsedData(parsed.headers, parsed.rows));
           dispatch(setParseConfig(nextParseConfig));
         }
+
+        const nextFieldMappings = computeFieldMappings(
+          nextHeaders,
+          template.fieldMappings,
+          importProfile,
+        );
 
         updateMapping(
           sanitizeImportMappingForProfile(
             {
               accountId: accountId || "",
               name: isDefaultActivityTemplateId(template.id) ? "" : template.name,
-              fieldMappings: computeFieldMappings(
-                nextHeaders,
-                template.fieldMappings,
-                importProfile,
-              ),
+              fieldMappings: nextFieldMappings,
               activityMappings: isTransactionImportProfile(importProfile)
                 ? mergeActivityMappingsForImportProfile(template.activityMappings, importProfile)
                 : template.activityMappings,
               symbolMappings: template.symbolMappings,
-              accountMappings: template.accountMappings || {},
+              accountMappings: autoMatchAccountMappings(
+                collectCsvAccountValues(
+                  nextRows,
+                  nextHeaders,
+                  nextFieldMappings[ImportFormat.ACCOUNT],
+                ),
+                accounts,
+                template.accountMappings || {},
+              ),
               symbolMappingMeta: template.symbolMappingMeta || {},
               parseConfig: nextParseConfig,
             },
@@ -621,10 +661,12 @@ export function MappingStepUnified() {
     },
     [
       accountId,
+      accounts,
       baselineParseConfig,
       dispatch,
       headers,
       importProfile,
+      parsedRows,
       state.file,
       state.parseConfig,
       templates,
@@ -895,7 +937,7 @@ export function MappingStepUnified() {
                 headers={headers}
                 data={dataToMap}
                 accounts={accounts}
-                handleColumnMapping={handleColumnMapping}
+                handleColumnMapping={handleColumnMappingWithAccountMatch}
                 handleActivityTypeMapping={handleActivityTypeMapping}
                 handleSymbolMapping={handleSymbolMapping}
                 handleAccountIdMapping={handleAccountIdMapping}
