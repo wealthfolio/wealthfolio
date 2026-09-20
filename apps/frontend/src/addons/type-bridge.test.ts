@@ -595,6 +595,23 @@ describe("Addon Type Bridge", () => {
       expect(getSpendingReport).toHaveBeenCalledWith(request);
     });
 
+    it("denies reports to addons with only existing categorization permissions", () => {
+      const getSpendingReport = vi.fn();
+      const sdkAPI = createSDKHostAPIBridge(
+        { getSpendingReport, ...loggerMocks } as unknown as InternalHostAPI,
+        "test-addon",
+        spendingGuard("getRules"),
+      );
+
+      expect(() =>
+        sdkAPI.spending.getReport({
+          startDate: "2026-01-01T00:00:00Z",
+          endDate: "2026-01-31T23:59:59Z",
+        }),
+      ).toThrow("Addon 'test-addon' is not allowed to call spending.getReport");
+      expect(getSpendingReport).not.toHaveBeenCalled();
+    });
+
     it("requires transaction-history permission for cash activity search", async () => {
       const searchCashActivities = vi.fn().mockResolvedValue({ items: [], totalCount: 0 });
       const request = {
@@ -611,6 +628,8 @@ describe("Addon Type Bridge", () => {
       expect(() => spendingOnlyAPI.spending.searchCashActivities(request)).toThrow(
         "Addon 'test-addon' is not allowed to call activities.searchCashActivities",
       );
+
+      expect(searchCashActivities).not.toHaveBeenCalled();
 
       const activityGuard = createPermissionGuard("test-addon", [
         {

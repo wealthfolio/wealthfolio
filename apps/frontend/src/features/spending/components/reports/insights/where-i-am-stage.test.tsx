@@ -18,6 +18,7 @@ vi.mock("../../../hooks/use-spending-settings", () => ({
 function report(outflow: number): MonthlyReport {
   const summary = { income: 0, outflow, saved: 0, net: -outflow, count: 1 };
   return {
+    baseCurrency: "USD",
     current: summary,
     prior: summary,
     spendingBreakdown: [],

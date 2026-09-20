@@ -497,7 +497,8 @@ export interface SpendingAPI {
 
   /**
    * Get aggregate spending, income, and saving totals and category breakdowns
-   * for a date range.
+   * for a date range. Amounts use the returned `baseCurrency`, with exchange
+   * rates taken at each period's end.
    * @param request Inclusive RFC3339 date range and optional spending-account filter
    * @returns Promise resolving to the spending report
    */

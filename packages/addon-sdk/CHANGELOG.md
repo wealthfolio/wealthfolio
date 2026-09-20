@@ -24,6 +24,8 @@ and this project adheres to
 - `SpendingAPI.getReport()` and `SpendingAPI.searchCashActivities()` for
   read-only aggregate reports and categorized transaction searches. Transaction
   search requires the high-risk `activities.searchCashActivities` permission.
+  Reports include `baseCurrency` to identify the currency of all monetary
+  amounts.
 - `registerTranslations()` and `useAddonTranslation()` for translating addon UI
   strings. Resources live on a dedicated i18next instance inside the addon
   sandbox, isolated from the host catalog; the language follows the host

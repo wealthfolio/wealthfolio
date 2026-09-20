@@ -883,6 +883,11 @@ amount. Filters supplied in `accountIds` are intersected with the configured
 Spending accounts. This method requires the high-risk
 `activities.searchCashActivities` permission.
 
+`netAmount` and `visibleSpendingAmount` use the activity's own `currency`.
+`netAmountBase`, when available, uses the response's `baseCurrency` with the
+activity's stored exchange rate when available, otherwise a rate resolved for
+the activity date.
+
 ```typescript
 const page = await ctx.api.spending.searchCashActivities({
   startDate: "2026-01-01T00:00:00Z",
@@ -909,13 +914,22 @@ Returns aggregate spending, income, and saving totals, category breakdowns, and
 daily series for a date range. This method uses the medium-risk
 `spending.getReport` permission and does not expose transaction notes.
 
+All monetary amounts use the returned `baseCurrency`, including when the report
+is empty. Current-period amounts use exchange rates at the requested end date;
+prior-period amounts use rates at the prior period's end. These can differ from
+cash-search conversions, which use each activity's date.
+
 ```typescript
 const report = await ctx.api.spending.getReport({
   startDate: "2026-01-01T00:00:00Z",
   endDate: "2026-12-31T23:59:59Z",
 });
 
-console.log(report.current.outflow, report.spendingBreakdown);
+console.log(
+  report.baseCurrency,
+  report.current.outflow,
+  report.spendingBreakdown,
+);
 ```
 
 #### `getCategories(kind?: SpendCategoryKind): Promise<SpendCategory[]>`

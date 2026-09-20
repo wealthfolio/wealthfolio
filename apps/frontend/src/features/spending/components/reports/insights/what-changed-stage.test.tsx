@@ -41,6 +41,7 @@ function report(
   spendingBreakdown: CategoryBreakdownRow[],
 ): MonthlyReport {
   return {
+    baseCurrency: "USD",
     current: { income: 0, outflow, saved: 0, net: -outflow, count },
     prior: { income: 0, outflow: 0, saved: 0, net: 0, count: 0 },
     spendingBreakdown,

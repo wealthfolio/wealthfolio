@@ -67,6 +67,8 @@ pub struct DayCategoryBucket {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MonthlyReport {
+    /// Currency of every monetary amount, including empty reports.
+    pub base_currency: String,
     pub current: PeriodSummary,
     pub prior: PeriodSummary,
     pub spending_breakdown: Vec<CategoryBreakdownRow>,

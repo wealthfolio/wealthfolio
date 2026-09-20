@@ -17,7 +17,11 @@ vi.mock("@/addons/addons-runtime-context", () => ({
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 import { ALLOWED_API_METHODS, AddonIframeManager } from "./addon-iframe-manager";
-import { createSDKHostAPIBridge, type InternalHostAPI } from "../type-bridge";
+import {
+  createPermissionGuard,
+  createSDKHostAPIBridge,
+  type InternalHostAPI,
+} from "../type-bridge";
 import { resetAddonSandboxRuntimeAssetsForTest } from "./addon-sandbox-assets";
 import { setAddonLocalizationSnapshot } from "./addon-sandbox-localization";
 import { loadAddonAsset } from "@/adapters";
@@ -532,6 +536,92 @@ describe("AddonIframeManager", () => {
     );
     await vi.waitFor(() => expect(document.querySelector("iframe")).toBeNull());
   });
+
+  it.each([
+    [
+      "getReport",
+      "spending",
+      "getSpendingReport",
+      { baseCurrency: "CAD", current: { outflow: 120 } },
+    ],
+    [
+      "searchCashActivities",
+      "activities",
+      "searchCashActivities",
+      { baseCurrency: "CAD", items: [], totalCount: 0 },
+    ],
+  ] as const)(
+    "enforces %s permissions through iframe RPC",
+    async (method, category, internalMethod, result) => {
+      const manager = new AddonIframeManager();
+      const postMessage = vi.fn();
+      const backend = vi.fn().mockResolvedValue(result);
+      const internalAPI = { [internalMethod]: backend } as unknown as InternalHostAPI;
+      const permissions = [
+        {
+          category: "spending",
+          purpose: "Categorize transactions",
+          functions: [{ name: "getRules", isDeclared: true, isDetected: false }],
+        },
+      ];
+      const runtime = {
+        addonId: input.addonId,
+        api: createSDKHostAPIBridge(
+          internalAPI,
+          input.addonId,
+          createPermissionGuard(input.addonId, permissions),
+        ),
+        iframe: { contentWindow: { postMessage } },
+        nonce: "nonce-1",
+      };
+      const internals = manager as unknown as {
+        dispatchMessage: (runtime: unknown, message: unknown) => Promise<void>;
+      };
+      const request = { startDate: "2026-01-01T00:00:00Z", endDate: "2026-01-31T23:59:59Z" };
+      const message = {
+        type: "api",
+        args: [request],
+        method: `spending.${method}`,
+        requestId: "spending-read",
+      };
+
+      await internals.dispatchMessage(runtime, message);
+      expect(backend).not.toHaveBeenCalled();
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "rpcResponse",
+          requestId: message.requestId,
+          ok: false,
+          error: expect.stringContaining(`is not allowed to call ${category}.${method}`) as unknown,
+        }),
+        "*",
+      );
+
+      runtime.api = createSDKHostAPIBridge(
+        internalAPI,
+        input.addonId,
+        createPermissionGuard(input.addonId, [
+          {
+            category,
+            purpose: "Read spending",
+            functions: [{ name: method, isDeclared: true, isDetected: false }],
+          },
+        ]),
+      );
+      postMessage.mockClear();
+      await internals.dispatchMessage(runtime, message);
+      expect(backend).toHaveBeenCalledExactlyOnceWith(request);
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "rpcResponse",
+          requestId: message.requestId,
+          ok: true,
+          result,
+        }),
+        "*",
+      );
+    },
+  );
 
   it("whitelists the transfer pairing methods for addon API calls", async () => {
     const manager = new AddonIframeManager();

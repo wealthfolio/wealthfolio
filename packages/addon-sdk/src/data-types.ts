@@ -723,7 +723,7 @@ export interface CashActivity extends Activity {
   netAmount: number;
   /** `netAmount` converted to the response's `baseCurrency`, when available. */
   netAmountBase?: number | null;
-  /** Spending amount after excluded-category portions have been removed. */
+  /** Signed spending in the activity's own currency, after excluded portions are removed. */
   visibleSpendingAmount?: number;
 }
 
@@ -783,6 +783,8 @@ export interface SpendingDayCategoryBucket {
 }
 
 export interface SpendingReport {
+  /** Currency of all monetary amounts; rates are taken at each period's end. */
+  baseCurrency: string;
   current: SpendingPeriodSummary;
   prior: SpendingPeriodSummary;
   spendingBreakdown: SpendingCategoryBreakdownRow[];
