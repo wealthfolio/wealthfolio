@@ -245,7 +245,10 @@ mod tests {
         )
         .unwrap();
         let future = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
-        fs::File::open(dir.path().join("index.html"))
+        // Windows `SetFileTime` needs write access; a read-only handle fails.
+        fs::File::options()
+            .write(true)
+            .open(dir.path().join("index.html"))
             .unwrap()
             .set_times(fs::FileTimes::new().set_modified(future))
             .unwrap();
