@@ -3,6 +3,20 @@ import { profileScope } from "./session";
 import type { ProfileSession } from "./session";
 
 export const PROFILE_STATE_TIMEOUT_MS = 10_000;
+// One channel per JS context prevents commands from notifying their own shell.
+export const profileChangesChannel =
+  isWeb && typeof BroadcastChannel !== "undefined"
+    ? new BroadcastChannel("wealthfolio:profiles")
+    : undefined;
+const PROFILE_MUTATIONS = new Set([
+  "unlock_profile",
+  "lock_profile",
+  "create_profile",
+  "delete_profile",
+  "update_profile",
+  "set_profile_password",
+  "recover_profile_password",
+]);
 export interface ProfileSummary {
   id: string;
   name: string;
@@ -28,7 +42,7 @@ export async function profileCommand<T>(
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke<T>(command, { ...payload, ...(scoped ? { scopeId: profileScope() } : {}) });
   }
-  // State polling must not leave cached financial screens open indefinitely.
+  // State reads must not leave cached financial screens open indefinitely.
   // Bound web locking too, so its existing retry screen remains usable offline.
   const controller =
     command === "get_profile_state" || command === "lock_profile"
@@ -49,7 +63,9 @@ export async function profileCommand<T>(
       signal: controller?.signal,
     });
     if (!res.ok) throw new Error(await res.text());
-    return (await res.json()) as T;
+    const result = (await res.json()) as T;
+    if (PROFILE_MUTATIONS.has(command)) profileChangesChannel?.postMessage("changed");
+    return result;
   } finally {
     window.clearTimeout(timeout);
   }

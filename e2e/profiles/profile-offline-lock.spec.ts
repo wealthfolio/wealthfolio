@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext } from "@playwright/test";
+import { expect, test, type BrowserContext, type Request } from "@playwright/test";
 
 async function command(context: BrowserContext, name: string, data = {}, scope?: string) {
   const response = await context.request.post(`/api/v1/profiles/${name}`, {
@@ -9,7 +9,7 @@ async function command(context: BrowserContext, name: string, data = {}, scope?:
   return response.json();
 }
 
-test("idle offline state polling hides private content and Retry revokes the backend session", async ({
+test("idle offline state refresh hides private content and Retry revokes the backend session", async ({
   page,
   context,
 }, info) => {
@@ -56,14 +56,25 @@ test("idle offline state polling hides private content and Retry revokes the bac
   await expect(
     page.getByRole("link", { name: "Synthetic private account", exact: true }),
   ).toBeVisible();
-  const failedPoll = page.waitForEvent("requestfailed", {
+  // The former poll would have made five reads in this window.
+  await expect(page.locator("body")).toBeVisible();
+  expect(await page.evaluate(() => document.visibilityState)).toBe("visible");
+  let stateReads = 0;
+  const countStateReads = (request: Request) => {
+    if (request.url().endsWith("/profiles/get_profile_state")) stateReads += 1;
+  };
+  page.on("request", countStateReads);
+  await page.waitForTimeout(10_000);
+  page.off("request", countStateReads);
+  expect(stateReads).toBe(0);
+  const failedRead = page.waitForEvent("requestfailed", {
     predicate: (request) => request.url().endsWith("/profiles/get_profile_state"),
   });
   try {
     // No clicks, keys, navigation, focus changes, or synthetic activity events:
-    // the real two-second state poll must close the cached financial screen.
+    // the state re-check triggered by going offline must close the cached financial screen.
     await context.setOffline(true);
-    await failedPoll;
+    await failedRead;
     await expect(page.locator(".app-shell")).not.toBeVisible({ timeout: 15000 });
     await expect(
       page.getByRole("link", { name: "Synthetic private account", exact: true }),
@@ -93,4 +104,34 @@ test("idle offline state polling hides private content and Retry revokes the bac
   } finally {
     await context.setOffline(false);
   }
+});
+
+test("a server-side lock without a tab broadcast covers the idle screen", async ({
+  page,
+  context,
+}) => {
+  const profile = await command(context, "create_profile", {
+    name: "Stream lock profile",
+    avatarId: "clay-bot-animated",
+  });
+  const grant = await command(context, "unlock_profile", { profileId: profile.id });
+  const settings = await context.request.put("/api/v1/settings", {
+    headers: { "x-wf-profile-scope": grant.scopeId },
+    data: {
+      onboardingCompleted: true,
+      baseCurrency: "USD",
+      timezone: "UTC",
+      language: "en",
+      syncEnabled: false,
+    },
+  });
+  expect(settings.ok()).toBeTruthy();
+  await page.goto("/settings/accounts");
+  await expect(page.locator(".app-shell").first()).toBeVisible();
+
+  // Same browser session, but outside the page, so no BroadcastChannel message.
+  // Only the server ending the event stream can tell the page.
+  await command(context, "lock_profile");
+  await expect(page.locator(".app-shell")).toHaveCount(0, { timeout: 5000 });
+  await expect(page.getByRole("heading", { name: "Who's using Wealthfolio?" })).toBeVisible();
 });

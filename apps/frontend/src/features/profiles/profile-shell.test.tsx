@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { profileChangesChannel } from "./api";
 import { ProfileShell } from "./profile-shell";
 import { ProfileMenu } from "./profile-menu";
 import { MobileProfileMenu } from "./mobile-profile-menu";
@@ -27,7 +28,10 @@ vi.mock("@tauri-apps/api/event", () => ({
     return () => {};
   }),
 }));
-vi.mock("./api", () => ({ profileCommand: mocks.command }));
+vi.mock("./api", () => ({
+  profileCommand: mocks.command,
+  profileChangesChannel: new EventTarget(),
+}));
 vi.mock("./auth-bridge", () => ({ isNativeAuthPending: () => false }));
 vi.mock("./session", () => ({
   installProfileSession: mocks.admitted,
@@ -238,13 +242,15 @@ it("prompts for the existing password when a migrated profile has a stale unlock
   const password = await screen.findByLabelText("Password");
   expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
   expect(mocks.reload).not.toHaveBeenCalled();
-  // The poll restores the stale registry hint before the user submits their password.
-  await waitFor(
+  // A state read restores the stale registry hint before the user submits their password.
+  act(
     () =>
-      expect(
-        mocks.command.mock.calls.filter(([name]) => name === "get_profile_state").length,
-      ).toBeGreaterThanOrEqual(2),
-    { timeout: 3500 },
+      void profileChangesChannel?.dispatchEvent(new MessageEvent("message", { data: "changed" })),
+  );
+  await waitFor(() =>
+    expect(
+      mocks.command.mock.calls.filter(([name]) => name === "get_profile_state").length,
+    ).toBeGreaterThanOrEqual(2),
   );
   fireEvent.change(password, { target: { value: "wrong password" } });
   fireEvent.submit(password.closest("form")!);
@@ -385,14 +391,16 @@ it("ignores a status read from before a switch started", async () => {
   });
   mount();
   await screen.findByText("Private portfolio");
-  // Hold a real polling read, then invalidate it with an explicit switch.
+  // Hold a real background read, then invalidate it with an explicit switch.
   mocks.command.mockImplementation((command) =>
     command === "get_profile_state" ? old.promise : Promise.resolve(null),
   );
   mocks.command.mockClear();
-  await waitFor(() => expect(mocks.command).toHaveBeenCalledWith("get_profile_state"), {
-    timeout: 3000,
-  });
+  act(
+    () =>
+      void profileChangesChannel?.dispatchEvent(new MessageEvent("message", { data: "changed" })),
+  );
+  await waitFor(() => expect(mocks.command).toHaveBeenCalledWith("get_profile_state"));
   await menuAction("Switch profile");
   await screen.findByRole("heading", { name: "Who's using Wealthfolio?" });
   await act(async () => old.resolve(unlocked));
@@ -893,19 +901,110 @@ it("uses native startup and lock events without polling", async () => {
   expect(screen.getByRole("heading", { name: "Who's using Wealthfolio?" })).toBeInTheDocument();
 });
 
-it("continues polling web profile state", async () => {
+const profileStateReads = () =>
+  mocks.command.mock.calls.filter(([command]) => command === "get_profile_state").length;
+
+it.each([true, false])("never polls web profile state (active: %s)", async (active) => {
   vi.useFakeTimers();
+  mocks.command.mockResolvedValue({ ...unlocked, session: active ? unlocked.session : null });
   mount();
   await act(async () => {});
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(4000);
+    await vi.advanceTimersByTimeAsync(300_000);
   });
-  expect(
-    mocks.command.mock.calls.filter(([command]) => command === "get_profile_state"),
-  ).toHaveLength(3);
+  expect(profileStateReads()).toBe(1);
 });
 
-it("hides financial content on a failed idle poll and retries backend locking after reconnect", async () => {
+it("refreshes only when visibility changes to visible", async () => {
+  const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+  try {
+    mount();
+    await act(async () => {});
+    await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+    expect(profileStateReads()).toBe(1);
+    visibility.mockReturnValue("visible");
+    await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+    expect(profileStateReads()).toBe(2);
+  } finally {
+    visibility.mockRestore();
+  }
+});
+
+it("closes locally without locking the server when another tab already closed the session", async () => {
+  mount();
+  await screen.findByText("Private portfolio");
+  mocks.command.mockClear();
+  mocks.command.mockResolvedValue({ ...unlocked, session: null });
+  await act(async () => {
+    profileChangesChannel?.dispatchEvent(new MessageEvent("message", { data: "changed" }));
+  });
+  expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Who's using Wealthfolio?" })).toBeInTheDocument();
+  expect(mocks.command).not.toHaveBeenCalledWith("lock_profile", expect.anything());
+});
+
+it("keeps another tab's unlock queued behind a read that observed its lock", async () => {
+  mount();
+  await screen.findByText("Private portfolio");
+  const closed = deferred<Omit<typeof unlocked, "session"> & { session: null }>();
+  mocks.command.mockClear();
+  mocks.command.mockReturnValueOnce(closed.promise).mockResolvedValue(unlocked);
+  // The other tab's lock and unlock both arrive while the first read is in flight.
+  await act(async () => {
+    profileChangesChannel?.dispatchEvent(new MessageEvent("message", { data: "changed" }));
+    profileChangesChannel?.dispatchEvent(new MessageEvent("message", { data: "changed" }));
+  });
+  await act(async () => closed.resolve({ ...unlocked, session: null }));
+  await waitFor(() => expect(profileStateReads()).toBeGreaterThanOrEqual(2));
+  expect(mocks.command).not.toHaveBeenCalledWith("lock_profile", expect.anything());
+  expect(await screen.findByText("Private portfolio")).toBeInTheDocument();
+});
+
+it("follows another tab's unlock from the lock screen and unsubscribes on unmount", async () => {
+  mocks.command.mockResolvedValue({ ...unlocked, session: null });
+  const view = mount();
+  await act(async () => {});
+  expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
+  mocks.command.mockResolvedValue(unlocked);
+  await act(async () => {
+    profileChangesChannel?.dispatchEvent(new MessageEvent("message", { data: "changed" }));
+  });
+  expect(profileStateReads()).toBe(2);
+  expect(screen.getByText("Private portfolio")).toBeInTheDocument();
+  view.unmount();
+  profileChangesChannel?.dispatchEvent(new MessageEvent("message", { data: "changed" }));
+  expect(profileStateReads()).toBe(2);
+});
+
+it("re-reads a cross-tab unlock received during an in-flight locked-state read", async () => {
+  const pending = deferred<Omit<typeof unlocked, "session"> & { session: null }>();
+  mocks.command.mockReturnValueOnce(pending.promise);
+  mount();
+  await act(async () => {
+    profileChangesChannel?.dispatchEvent(new MessageEvent("message", { data: "changed" }));
+    profileChangesChannel?.dispatchEvent(new MessageEvent("message", { data: "changed" }));
+  });
+  expect(profileStateReads()).toBe(1);
+  await act(async () => pending.resolve({ ...unlocked, session: null }));
+  expect(profileStateReads()).toBe(2);
+  expect(screen.getByText("Private portfolio")).toBeInTheDocument();
+});
+
+it.each(["online", "offline", "wealthfolio:event-stream-error"])(
+  "re-reads web profile state on %s",
+  async (event) => {
+    vi.useFakeTimers();
+    mount();
+    await act(async () => {});
+    expect(profileStateReads()).toBe(1);
+    await act(async () => {
+      window.dispatchEvent(new Event(event));
+    });
+    expect(profileStateReads()).toBe(2);
+  },
+);
+
+it("hides financial content on a failed offline state read and retries backend locking after reconnect", async () => {
   vi.useFakeTimers();
   mocks.command.mockResolvedValue({
     ...unlocked,
@@ -917,7 +1016,7 @@ it("hides financial content on a failed idle poll and retries backend locking af
 
   mocks.command.mockRejectedValue(new TypeError("Failed to fetch"));
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(2000);
+    window.dispatchEvent(new Event("offline"));
   });
   expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
   expect(mocks.command).toHaveBeenCalledWith("lock_profile", { preserveAuth: false });
@@ -926,7 +1025,7 @@ it("hides financial content on a failed idle poll and retries backend locking af
   // A stale, still-valid server grant must not reopen the closed view.
   mocks.command.mockResolvedValue(unlocked);
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(6000);
+    window.dispatchEvent(new Event("online"));
   });
   expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
   mocks.command.mockResolvedValue(null);

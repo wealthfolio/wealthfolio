@@ -13,7 +13,12 @@ import { isWeb } from "@/adapters";
 import { Button, Icons, Input, Label } from "@wealthfolio/ui";
 import { PasswordInput } from "@wealthfolio/ui/components/ui/password-input";
 import { useCallback, useEffect, useRef, useState, type ReactNode, type FormEvent } from "react";
-import { profileCommand, type ProfileState, type ProfileSummary } from "./api";
+import {
+  profileCommand,
+  profileChangesChannel,
+  type ProfileState,
+  type ProfileSummary,
+} from "./api";
 import { DEFAULT_PROFILE_AVATAR, ProfileAvatar } from "./profile-avatar";
 import { ProfileAvatarPicker } from "./profile-avatar-picker";
 import { ProfileStartupRecovery } from "./profile-startup-recovery";
@@ -161,8 +166,19 @@ export function ProfileShell({ children }: { children: ReactNode }) {
           if (needsClose.current || phaseRef.current === "active") {
             needsClose.current = false;
             setState(next);
-            await lock(true, intent.current);
-            return;
+            if (!isWeb) {
+              await lock(true, intent.current);
+              return;
+            }
+            // Web has no teardown to join, and the server already has no session.
+            // Locking it again could revoke a session another tab just opened.
+            revokeProfileSession();
+            needsClose.current = false;
+            setSelected(currentProfile.current);
+            setPassword("");
+            setConfirmPassword("");
+            setConfirmationInvalid(false);
+            setMode("choose");
           }
           setState(next);
           setCovered(true);
@@ -191,8 +207,24 @@ export function ProfileShell({ children }: { children: ReactNode }) {
       }
     };
     refreshRef.current = () => void refresh();
-    // Web has no native session events and must observe changes from other clients.
-    const webTimer = isWeb ? window.setInterval(() => void refresh(), 2000) : undefined;
+    // Other tabs announce profile mutations; the event stream drops on revocation
+    // or idle expiry. Becoming visible reconciles frozen or suspended tabs.
+    const visibleRefresh = () => {
+      if (document.visibilityState !== "hidden") void refresh();
+    };
+    const wake = () => void refresh();
+    const profileChanged = (event: MessageEvent) => {
+      if (event.data === "changed") void refresh();
+    };
+    profileChangesChannel?.addEventListener("message", profileChanged);
+    const webEvents = [
+      [document, "visibilitychange", visibleRefresh],
+      [window, "online", wake],
+      [window, "offline", wake],
+      [window, "wealthfolio:event-stream-error", wake],
+    ] as const;
+    if (isWeb)
+      for (const [target, name, handler] of webEvents) target.addEventListener(name, handler);
     const locked = () => {
       epoch.current += 1;
       void queries.cancelQueries();
@@ -240,7 +272,9 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     else void refresh();
     return () => {
       cancelled = true;
-      window.clearInterval(webTimer);
+      profileChangesChannel?.removeEventListener("message", profileChanged);
+      if (isWeb)
+        for (const [target, name, handler] of webEvents) target.removeEventListener(name, handler);
       unlisteners.forEach((unlisten) => unlisten());
       window.removeEventListener("wealthfolio:profile-locked", locked);
     };

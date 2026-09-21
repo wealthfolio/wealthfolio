@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/features/profiles/api", () => ({
   profileCommand: (command: string) =>
     command === "get_profile_state" ? mocks.profile() : Promise.resolve(0),
+  profileChangesChannel: new EventTarget(),
 }));
 vi.mock("@/features/profiles/session", () => ({
   installProfileSession: () => true,

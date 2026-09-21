@@ -46,6 +46,9 @@ class ServerEventBridge {
     );
     this.eventSource.onerror = (error) => {
       logger.warn("Portfolio event stream error", error);
+      // The server ends this stream when the profile session is revoked or
+      // idle-expires; with no polling, this is how an untouched screen locks.
+      window.dispatchEvent(new Event("wealthfolio:event-stream-error"));
     };
   }
 
