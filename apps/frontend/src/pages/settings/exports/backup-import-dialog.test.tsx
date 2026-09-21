@@ -60,7 +60,8 @@ it("validates the selected snapshot before confirming its immutable ID once", as
   expect(mocks.confirm).not.toHaveBeenCalled();
   const confirm = await screen.findByRole("button", { name: copy.backup_restore_title });
   expect(mocks.saved).toHaveBeenCalledWith("old.db", expect.any(AbortSignal));
-  expect(screen.getByText(copy.backup_replace_warning)).toBeVisible();
+  // The restore step fades in from opacity 0; wait for it on slow runners.
+  await waitFor(() => expect(screen.getByText(copy.backup_replace_warning)).toBeVisible());
   expect(screen.getByText(copy.backup_destination_encrypted)).toBeVisible();
   fireEvent.click(confirm);
   fireEvent.click(confirm);
