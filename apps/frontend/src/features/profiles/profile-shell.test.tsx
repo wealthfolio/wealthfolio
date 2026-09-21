@@ -13,12 +13,14 @@ const mocks = vi.hoisted(() => ({
   command: vi.fn(),
   admitted: vi.fn(() => true),
   reload: vi.fn(),
+  listen: vi.fn(async () => async () => {}),
 }));
 vi.mock("@/lib/reload-application", () => ({ reloadApplication: mocks.reload }));
 vi.mock("@/adapters", () => ({
   get isWeb() {
     return mocks.isWeb;
   },
+  listenPortfolioUpdateStart: mocks.listen,
 }));
 vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(async (_event: string, callback: () => void) => {
@@ -929,6 +931,26 @@ it("refreshes only when visibility changes to visible", async () => {
     visibility.mockRestore();
   }
 });
+
+it.each([
+  ["web session admitted", true, true, 1],
+  ["web session rejected", true, false, 0],
+  ["desktop session", false, true, 0],
+])(
+  "keeps the profile event stream open on every route (%s)",
+  async (_name, isWeb, admitted, calls) => {
+    mocks.isWeb = isWeb;
+    mocks.admitted.mockReturnValue(admitted);
+    mocks.command.mockResolvedValue(unlocked);
+    mocks.listen.mockClear();
+    mount();
+    await waitFor(() => expect(profileStateReads()).toBeGreaterThanOrEqual(1));
+    await act(async () => {});
+    expect(mocks.listen).toHaveBeenCalledTimes(calls);
+    if (calls) expect(mocks.listen).toHaveBeenCalledWith(expect.any(Function));
+    mocks.admitted.mockReturnValue(true);
+  },
+);
 
 it("closes locally without locking the server when another tab already closed the session", async () => {
   mount();

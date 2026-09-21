@@ -9,7 +9,7 @@ import { clearOpeningProfile, rememberOpeningProfile } from "./startup-hint";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { isNativeAuthPending } from "./auth-bridge";
-import { isWeb } from "@/adapters";
+import { isWeb, listenPortfolioUpdateStart } from "@/adapters";
 import { Button, Icons, Input, Label } from "@wealthfolio/ui";
 import { PasswordInput } from "@wealthfolio/ui/components/ui/password-input";
 import { useCallback, useEffect, useRef, useState, type ReactNode, type FormEvent } from "react";
@@ -35,6 +35,9 @@ const PROFILE_SELECTION_MS = 180;
 const MIN_PASSWORD_LENGTH = 4;
 const MAX_PASSWORD_LENGTH = 128;
 const PASSWORD_LENGTH_ERROR = "PROFILE_PASSWORD_LENGTH";
+// Idle expiry reaches an untouched screen only by the server ending the event
+// stream. Hold it open for every admitted route, not just AppLayout ones.
+const keepEventStreamOpen = () => undefined;
 
 export function ProfileShell({ children }: { children: ReactNode }) {
   const queries = useQueryClient();
@@ -152,6 +155,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
           const profile = next.profiles.find((p) => p.id === next.session?.profileId);
           if (profile) rememberOpeningProfile(profile);
           if (!installProfileSession(next.session, profile?.isLegacy)) return;
+          if (isWeb) void listenPortfolioUpdateStart(keepEventStreamOpen).catch(() => undefined);
           currentProfile.current = profile;
           setState(next);
           setCovered(false);

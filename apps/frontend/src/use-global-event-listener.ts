@@ -54,8 +54,6 @@ function getSyncSkips(payload?: MarketSyncCompletePayload | null): [string, stri
   return Array.isArray(payload?.skipped_reasons) ? payload.skipped_reasons : [];
 }
 
-// On web these listeners keep the profile-scoped event stream open. The server
-// ends it on revocation or idle expiry, which is how an untouched screen locks.
 const useGlobalEventListener = () => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
