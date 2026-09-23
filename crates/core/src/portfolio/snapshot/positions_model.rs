@@ -95,16 +95,16 @@ pub struct Position {
     pub asset_id: String,
     /// Serialized as an exact decimal string (not the crate-wide f64 default) so
     /// repeated snapshot JSON round-trips don't accumulate float rounding error.
-    /// See `super::decimal_serde` for why this isn't `rust_decimal::serde::str`.
-    #[serde(with = "super::decimal_serde")]
+    /// Only the writer is overridden so legacy numeric JSON remains readable.
+    #[serde(serialize_with = "rust_decimal::serde::str::serialize")]
     pub quantity: Decimal,
     /// Average cost per unit in the asset's currency. See `quantity` for why
     /// this is string-encoded.
-    #[serde(with = "super::decimal_serde")]
+    #[serde(serialize_with = "rust_decimal::serde::str::serialize")]
     pub average_cost: Decimal,
     /// Total cost basis of all lots in the asset's currency. See `quantity` for
     /// why this is string-encoded.
-    #[serde(with = "super::decimal_serde")]
+    #[serde(serialize_with = "rust_decimal::serde::str::serialize")]
     pub total_cost_basis: Decimal,
     /// The currency of the asset and the cost basis values (e.g., "USD", "EUR"). Set by the first acquisition activity.
     pub currency: String,
@@ -129,7 +129,10 @@ pub struct Position {
     pub is_alternative: bool,
     /// Contract multiplier for derivatives (e.g., 100 for equity options).
     /// Defaults to 1 for non-derivative positions and for snapshots created before this field existed.
-    #[serde(default = "default_multiplier", with = "super::decimal_serde")]
+    #[serde(
+        default = "default_multiplier",
+        serialize_with = "rust_decimal::serde::str::serialize"
+    )]
     pub contract_multiplier: Decimal,
     /// Precomputed cost basis of all lots in the ACCOUNT currency, converted at
     /// each lot's acquisition-date FX (stored lot rate preferred, else
@@ -137,11 +140,11 @@ pub struct Position {
     /// valuation can read a scalar instead of walking `lots`. `None` for
     /// snapshots serialized before this field existed and for positions with no
     /// materialized lots; consumers fall back to walking `lots` in that case.
-    #[serde(default, with = "super::decimal_serde::option")]
+    #[serde(default, serialize_with = "rust_decimal::serde::str_option::serialize")]
     pub cost_basis_account: Option<Decimal>,
     /// Precomputed cost basis of all lots in the app BASE currency, converted at
     /// each lot's acquisition-date FX. See [`Position::cost_basis_account`].
-    #[serde(default, with = "super::decimal_serde::option")]
+    #[serde(default, serialize_with = "rust_decimal::serde::str_option::serialize")]
     pub cost_basis_base: Option<Decimal>,
 }
 

@@ -5,7 +5,7 @@ use diesel::prelude::*;
 use diesel::sql_types::{Integer, Nullable, Text};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::str::FromStr;
 
 use wealthfolio_core::constants::DECIMAL_PRECISION;
@@ -116,6 +116,14 @@ impl TryFrom<AccountStateSnapshotDB> for AccountStateSnapshot {
 // Conversion from Domain model to DB model
 impl From<AccountStateSnapshot> for AccountStateSnapshotDB {
     fn from(domain: AccountStateSnapshot) -> Self {
+        // This map is serialized separately from the snapshot; encode its values
+        // as strings here to avoid the workspace's default f64 serialization.
+        let cash_balances: HashMap<_, _> = domain
+            .cash_balances
+            .iter()
+            .map(|(currency, amount)| (currency, amount.to_string()))
+            .collect();
+
         Self {
             id: domain.id.clone(),
             account_id: domain.account_id,
@@ -123,7 +131,7 @@ impl From<AccountStateSnapshot> for AccountStateSnapshotDB {
             currency: domain.currency,
             positions: serde_json::to_string(&domain.positions)
                 .unwrap_or_else(|_| "{}".to_string()),
-            cash_balances: serde_json::to_string(&domain.cash_balances)
+            cash_balances: serde_json::to_string(&cash_balances)
                 .unwrap_or_else(|_| "{}".to_string()),
             cost_basis: domain.cost_basis.round_dp(DECIMAL_PRECISION).to_string(),
             net_contribution: domain
@@ -157,6 +165,92 @@ impl From<AccountStateSnapshot> for AccountStateSnapshotDB {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn snapshot_json_columns_preserve_exact_decimals() {
+        let precise = Decimal::from_str("12345678901234.123456789").unwrap();
+        let position = Position {
+            quantity: precise,
+            average_cost: precise,
+            total_cost_basis: precise,
+            contract_multiplier: precise,
+            cost_basis_account: Some(precise),
+            cost_basis_base: Some(precise),
+            ..Default::default()
+        };
+        let mut snapshot = AccountStateSnapshot::default();
+        snapshot
+            .positions
+            .insert("asset-1".into(), position.clone());
+        snapshot.cash_balances.insert("USD".into(), precise);
+        snapshot.cash_balances.insert("EUR".into(), -precise);
+
+        let row = AccountStateSnapshotDB::from(snapshot.clone());
+        let positions: serde_json::Value = serde_json::from_str(&row.positions).unwrap();
+        let cash: serde_json::Value = serde_json::from_str(&row.cash_balances).unwrap();
+        assert_eq!(positions["asset-1"]["quantity"], precise.to_string());
+        assert_eq!(cash["USD"], precise.to_string());
+
+        let restored = AccountStateSnapshot::try_from(row).unwrap();
+        assert_eq!(restored.positions["asset-1"], position);
+        assert_eq!(restored.cash_balances, snapshot.cash_balances);
+    }
+
+    #[test]
+    fn legacy_snapshot_numbers_keep_existing_decimal_read_precision() {
+        // These numeric values were supported by the original Decimal reader.
+        // Converting them through Decimal::try_from(f64) adds rounding.
+        for numeric_json in [
+            "1.2345678901234567",
+            "100000000000000.02",
+            "9007199254740993",
+        ] {
+            let expected: Decimal = serde_json::from_str(numeric_json).unwrap();
+            let number: serde_json::Value = serde_json::from_str(numeric_json).unwrap();
+            let mut position = serde_json::to_value(Position::default()).unwrap();
+            for field in [
+                "quantity",
+                "averageCost",
+                "totalCostBasis",
+                "contractMultiplier",
+                "costBasisAccount",
+                "costBasisBase",
+            ] {
+                position[field] = number.clone();
+            }
+            let mut row = AccountStateSnapshotDB::from(AccountStateSnapshot::default());
+            row.positions = serde_json::json!({"asset-1": position}).to_string();
+            row.cash_balances = format!(r#"{{"USD":{numeric_json}}}"#);
+
+            let restored = AccountStateSnapshot::try_from(row).unwrap();
+            let position = &restored.positions["asset-1"];
+            assert_eq!(position.quantity, expected);
+            assert_eq!(position.average_cost, expected);
+            assert_eq!(position.total_cost_basis, expected);
+            assert_eq!(position.contract_multiplier, expected);
+            assert_eq!(position.cost_basis_account, Some(expected));
+            assert_eq!(position.cost_basis_base, Some(expected));
+            assert_eq!(restored.cash_balances["USD"], expected);
+        }
+    }
+
+    #[test]
+    fn snapshot_position_decimal_defaults_accept_missing_and_null_fields() {
+        let mut position = serde_json::to_value(Position::default()).unwrap();
+        let fields = position.as_object_mut().unwrap();
+        fields.remove("contractMultiplier");
+        fields.remove("costBasisAccount");
+        fields.insert("costBasisBase".into(), serde_json::Value::Null);
+        let mut row = AccountStateSnapshotDB::from(AccountStateSnapshot::default());
+        row.positions = serde_json::json!({"asset-1": position}).to_string();
+
+        let restored = AccountStateSnapshot::try_from(row).unwrap();
+        let position = &restored.positions["asset-1"];
+        assert_eq!(position.contract_multiplier, Decimal::ONE);
+        assert_eq!(position.cost_basis_account, None);
+        assert_eq!(position.cost_basis_base, None);
+        assert!(restored.cash_balances.is_empty());
+    }
 
     #[test]
     fn malformed_snapshot_date_is_not_coerced_to_epoch() {

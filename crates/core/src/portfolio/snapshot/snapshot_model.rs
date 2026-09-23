@@ -131,7 +131,7 @@ pub struct AccountStateSnapshot {
     #[serde(default)]
     pub positions: HashMap<String, Position>, // asset_id -> Position (holds quantity, lots, cost basis info)
 
-    #[serde(default, with = "super::decimal_serde::map")]
+    #[serde(default)]
     pub cash_balances: HashMap<String, Decimal>, // currency -> amount
 
     // --- Calculated Aggregates (Account Currency) ---
@@ -239,49 +239,5 @@ impl AccountStateSnapshot {
             && a.total_cost_basis == b.total_cost_basis
             && a.currency == b.currency
             && a.contract_multiplier == b.contract_multiplier
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::str::FromStr;
-
-    #[test]
-    fn cash_balances_round_trip_preserves_exact_decimal_precision() {
-        // f64 holds ~15-17 significant decimal digits; this value has more, so
-        // the old crate-wide f64 serde encoding would corrupt it silently.
-        let precise = Decimal::from_str("12345678901234.123456789").unwrap();
-        let mut cash_balances = HashMap::new();
-        cash_balances.insert("USD".to_string(), precise);
-
-        let snapshot = AccountStateSnapshot {
-            cash_balances,
-            ..AccountStateSnapshot::default()
-        };
-
-        let json = serde_json::to_string(&snapshot).unwrap();
-        let round_tripped: AccountStateSnapshot = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(round_tripped.cash_balances.get("USD"), Some(&precise));
-
-        // Encoded as a JSON string now, not a float.
-        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert!(value["cashBalances"]["USD"].is_string());
-    }
-
-    #[test]
-    fn cash_balances_deserialize_accepts_legacy_numeric_json() {
-        // Snapshots persisted before this fix stored cash_balances values as
-        // plain JSON numbers, not strings. Confirm old rows keep loading.
-        let snapshot = AccountStateSnapshot::default();
-        let mut value = serde_json::to_value(&snapshot).unwrap();
-        value["cashBalances"] = serde_json::json!({ "USD": 1234.5 });
-
-        let round_tripped: AccountStateSnapshot = serde_json::from_value(value).unwrap();
-        assert_eq!(
-            round_tripped.cash_balances.get("USD"),
-            Some(&Decimal::from_str("1234.5").unwrap())
-        );
     }
 }

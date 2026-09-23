@@ -1,7 +1,6 @@
 //! Portfolio snapshot module - holdings calculation and state management.
 
 mod date_policy;
-pub(crate) mod decimal_serde;
 pub mod holdings_calculator;
 mod holdings_import_validation;
 mod holdings_timeline;
