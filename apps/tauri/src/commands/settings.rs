@@ -109,7 +109,7 @@ pub async fn update_settings(
     if base_currency_changed {
         debug!(
             "Base currency changed from {} to {}, updating state.",
-            previous_base_currency, &updated_settings.base_currency
+            previous_base_currency, updated_settings.base_currency
         );
         context.update_base_currency(updated_settings.base_currency.clone());
     }
@@ -117,7 +117,7 @@ pub async fn update_settings(
     if timezone_changed {
         debug!(
             "Timezone changed from {} to {}, updating state.",
-            previous_timezone, &updated_settings.timezone
+            previous_timezone, updated_settings.timezone
         );
         context.update_timezone(updated_settings.timezone.clone());
         context.health_service().clear_cache().await;

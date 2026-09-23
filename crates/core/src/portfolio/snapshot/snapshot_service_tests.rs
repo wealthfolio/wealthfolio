@@ -1415,7 +1415,7 @@ mod tests {
             let store = self.snapshots.read().unwrap();
             let mut all_snapshots = Vec::new();
 
-            for (_account_id, account_snapshots) in store.iter() {
+            for account_snapshots in store.values() {
                 let filtered: Vec<AccountStateSnapshot> = account_snapshots
                     .iter()
                     .filter(|snap| {

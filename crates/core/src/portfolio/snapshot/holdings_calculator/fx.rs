@@ -373,7 +373,7 @@ impl HoldingsCalculator {
                     Err(e) => {
                         warn!(
                             "Failed to convert cash {} {} to base currency {}: {}. Using unconverted.",
-                            amount, currency, &base_ccy, e
+                            amount, currency, base_ccy, e
                         );
                         total_base += amount;
                     }

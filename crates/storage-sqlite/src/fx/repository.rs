@@ -454,7 +454,7 @@ impl FxRepository {
 
         self.writer
             .exec_tx(move |tx| {
-                let expected_key = format!("FX:{}/{}", &from_owned, &to_owned);
+                let expected_key = format!("FX:{}/{}", from_owned, to_owned);
                 let existing: Option<AssetDB> = assets::table
                     .filter(assets::instrument_key.eq(&expected_key))
                     .first(tx.conn())

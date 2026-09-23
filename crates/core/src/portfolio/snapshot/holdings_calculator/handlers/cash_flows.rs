@@ -48,7 +48,7 @@ impl HoldingsCalculator {
             Err(e) => {
                 warn!(
                     "Holdings Calc (NetContrib Deposit {}): Failed conversion {} {}->{} on {}: {}. Base contribution not updated.",
-                    activity.id, gross_effect, activity_currency, &base_ccy, activity_date, e
+                    activity.id, gross_effect, activity_currency, base_ccy, activity_date, e
                 );
                 Decimal::ZERO
             }
@@ -97,7 +97,7 @@ impl HoldingsCalculator {
             Err(e) => {
                 warn!(
                     "Holdings Calc (NetContrib Withdrawal {}): Failed conversion {} {}->{} on {}: {}. Base contribution not updated.",
-                    activity.id, gross_effect, activity_currency, &base_ccy, activity_date, e
+                    activity.id, gross_effect, activity_currency, base_ccy, activity_date, e
                 );
                 Decimal::ZERO
             }
@@ -155,7 +155,7 @@ impl HoldingsCalculator {
                         activity.id,
                         gross_effect,
                         activity_currency,
-                        &base_ccy,
+                        base_ccy,
                         activity_date,
                         e
                     );
