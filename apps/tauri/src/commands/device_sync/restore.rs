@@ -165,7 +165,11 @@ impl RestorePorts for TauriEnginePorts {
 
     async fn resume_sync(&self, restored: bool) -> Result<(), String> {
         if restored {
-            run_sync_cycle(Arc::clone(&self.context), true).await?;
+            // The snapshot is committed; a failed initial cycle must not prevent
+            // the background engine from starting and retrying sync.
+            if let Err(error) = run_sync_cycle(Arc::clone(&self.context), true).await {
+                warn!("[DeviceSync] Post-restore sync cycle failed: {}", error);
+            }
         }
         ensure_background_engine_started(Arc::clone(&self.context)).await
     }
