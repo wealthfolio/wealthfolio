@@ -45,6 +45,7 @@ pub struct ActivityDto {
     pub currency: String,
     pub account_id: String,
     pub account_name: Option<String>,
+    pub notes: Option<String>,
 }
 
 /// Output envelope for activities tool.
@@ -250,6 +251,7 @@ impl AgentTool for SearchActivities {
                     currency: a.currency,
                     account_id: a.account_id.clone(),
                     account_name: Some(a.account_name),
+                    notes: a.comment,
                 }
             })
             .collect();
