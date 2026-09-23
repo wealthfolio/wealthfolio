@@ -449,6 +449,7 @@ prepare_asset_classification
 commit_activity_draft              -- persist one reviewed draft
 commit_activity_drafts             -- persist a batch
 commit_asset_classification_draft  -- persist one reviewed classification draft
+commit_categorization_rule         -- persist one reviewed categorization rule draft
 ```
 
 ### MCP-only CSV Import Tools
@@ -461,6 +462,14 @@ commit_activity_import             -- import through the real pipeline
 
 `import_csv` remains **assistant/UI-only** — it is not exposed over MCP; the
 agent-facing CSV path is the three import tools above.
+
+For categorization rules, `create_categorization_rule` returns an in-memory
+draft and does not save it. After showing that draft to the user and receiving
+confirmation, an MCP client passes the returned `rule` object to
+`commit_categorization_rule`. The commit calls the same rule service as the
+in-app confirmation widget; there is no server-side pending-draft queue. The
+commit saves the rule for future categorization; it does not rerun rules over
+existing transactions.
 
 Rules:
 
@@ -521,7 +530,8 @@ activities:write         commit_activity_draft / commit_activity_drafts,
 classification:suggest   propose_transaction_categories,
                          create_categorization_rule,
                          prepare_asset_classification
-classification:write     commit_asset_classification_draft
+classification:write     commit_asset_classification_draft,
+                         commit_categorization_rule
                          (also requires classification:suggest)
 ```
 

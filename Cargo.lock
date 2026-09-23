@@ -8753,6 +8753,7 @@ dependencies = [
 name = "wealthfolio-agent-tools"
 version = "3.9.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "chrono",
  "log",

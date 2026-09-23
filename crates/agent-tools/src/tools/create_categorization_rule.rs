@@ -2,8 +2,8 @@
 //!
 //! When a user gives a "save this for next time" hint (e.g. "T&T is groceries",
 //! "treat coffee shops as food/coffee"), the agent calls this to draft a
-//! `categorization_rule` row for user review. The frontend persists the rule
-//! only after the user confirms the draft widget.
+//! `categorization_rule` row for user review. The in-app confirmation widget
+//! or the MCP commit tool persists the rule only after user confirmation.
 
 use log::debug;
 use serde::{Deserialize, Serialize};
@@ -66,9 +66,11 @@ pub struct CreateCategorizationRuleOutput {
 const CREATE_CATEGORIZATION_RULE_DESCRIPTION: &str =
     "Draft a persistent categorization rule for user confirmation. Call this when the user gives a \
      generalizable hint like 'T&T is groceries', 'treat coffee shops as food', \
-     'gym charges are health'. The rule is not saved until the user confirms the widget. \
-     \n\nWORKFLOW: when the user supplies such a hint while reviewing a draft, \
-     call `create_categorization_rule` to render the confirmation widget, then stop. \
+     'gym charges are health'. The rule is not saved by this tool. \
+     \n\nWORKFLOW: In the in-app assistant, render the confirmation widget and stop; \
+     the widget saves the rule when confirmed. In an external MCP client, show \
+     the returned draft to the user and, after confirmation, pass its `rule` \
+     object to `commit_categorization_rule`. \
      \n\nUse `pattern: \"T&T\"` with default `matchType: \"contains\"` for typical \
      merchant-name hints. Get both `taxonomyId` and `categoryKey` from the `taxonomies` \
      list returned by `list_categorization_context`. If the user scopes the hint to an \

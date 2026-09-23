@@ -93,10 +93,56 @@ impl AgentToolCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+    use wealthfolio_spending::categorization_rules::{CategorizationRule, NewCategorizationRule};
 
-    /// Stub environment for authorization tests: every service accessor
-    /// panics, proving denied/unknown calls never touch services.
-    struct PanicEnv;
+    /// Stub environment for authorization tests: service access panics unless
+    /// a test explicitly supplies the rule service.
+    #[derive(Default)]
+    struct PanicEnv {
+        rules: Option<Arc<TestRuleService>>,
+    }
+
+    #[derive(Default)]
+    struct TestRuleService {
+        created: Mutex<Vec<NewCategorizationRule>>,
+    }
+
+    #[async_trait::async_trait]
+    impl wealthfolio_spending::categorization_rules::CategorizationRulesServiceTrait
+        for TestRuleService
+    {
+        async fn list(&self) -> anyhow::Result<Vec<CategorizationRule>> {
+            unreachable!("not used by the commit test")
+        }
+
+        async fn create(&self, rule: NewCategorizationRule) -> anyhow::Result<CategorizationRule> {
+            let now = chrono::Utc::now().naive_utc();
+            let created = CategorizationRule {
+                id: rule.id.clone().unwrap(),
+                name: rule.name.clone(),
+                pattern: rule.pattern.clone(),
+                match_type: rule.match_type,
+                taxonomy_id: rule.taxonomy_id.clone(),
+                category_id: rule.category_id.clone(),
+                activity_type: rule.activity_type.clone(),
+                amount_op: rule.amount_op,
+                amount_value: rule.amount_value,
+                amount_value2: rule.amount_value2,
+                priority: rule.priority,
+                is_global: rule.is_global,
+                account_id: rule.account_id.clone(),
+                preset_id: rule.preset_id.clone(),
+                preset_rule_key: rule.preset_rule_key.clone(),
+                preset_version: rule.preset_version.clone(),
+                preset_modified: false,
+                created_at: now,
+                updated_at: now,
+            };
+            self.created.lock().unwrap().push(rule);
+            Ok(created)
+        }
+    }
 
     impl AgentEnvironment for PanicEnv {
         fn base_currency(&self) -> String {
@@ -175,7 +221,7 @@ mod tests {
             &self,
         ) -> Arc<dyn wealthfolio_spending::categorization_rules::CategorizationRulesServiceTrait>
         {
-            unimplemented!("PanicEnv")
+            self.rules.clone().expect("PanicEnv")
         }
     }
 
@@ -185,7 +231,12 @@ mod tests {
         let granted = AgentScopeSet::new();
         for name in catalog.iter().map(|tool| tool.name()).collect::<Vec<_>>() {
             let err = catalog
-                .execute(Arc::new(PanicEnv), &granted, name, serde_json::json!({}))
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &granted,
+                    name,
+                    serde_json::json!({}),
+                )
                 .await
                 .unwrap_err();
             assert!(
@@ -206,6 +257,7 @@ mod tests {
         assert!(!names.contains(&"commit_activity_draft"));
         assert!(!names.contains(&"commit_activity_drafts"));
         assert!(!names.contains(&"commit_asset_classification_draft"));
+        assert!(!names.contains(&"commit_categorization_rule"));
         assert!(!names.contains(&"prepare_activity_import"));
         assert!(!names.contains(&"commit_activity_import"));
         assert!(!names.contains(&"get_import_mapping"));
@@ -218,6 +270,7 @@ mod tests {
         assert!(names.contains(&"commit_activity_draft"));
         assert!(names.contains(&"commit_activity_drafts"));
         assert!(names.contains(&"commit_asset_classification_draft"));
+        assert!(names.contains(&"commit_categorization_rule"));
         assert!(names.contains(&"get_import_mapping"));
         assert!(names.contains(&"prepare_activity_import"));
         assert!(names.contains(&"commit_activity_import"));
@@ -233,9 +286,15 @@ mod tests {
             "commit_activity_draft",
             "commit_activity_drafts",
             "commit_asset_classification_draft",
+            "commit_categorization_rule",
         ] {
             let err = catalog
-                .execute(Arc::new(PanicEnv), &granted, name, serde_json::json!({}))
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &granted,
+                    name,
+                    serde_json::json!({}),
+                )
                 .await
                 .unwrap_err();
             assert!(
@@ -243,6 +302,48 @@ mod tests {
                 "tool {name} should be scope-denied, got: {err}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn categorization_rule_commit_requires_write_scope_and_saves_reviewed_rule() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let rules = Arc::new(TestRuleService::default());
+        let env = Arc::new(PanicEnv {
+            rules: Some(rules.clone()),
+        });
+        let input = serde_json::json!({
+            "rule": {
+                "id": "draft-1", "name": "Coffee", "pattern": "CAFE",
+                "matchType": "contains", "taxonomyId": "spending_categories",
+                "categoryId": "food", "activityType": null, "amountOp": null,
+                "amountValue": null, "amountValue2": null, "priority": 0,
+                "isGlobal": true, "accountId": null, "presetId": null,
+                "presetRuleKey": null, "presetVersion": null
+            }
+        });
+
+        let suggest_only = AgentScopeSet::from_strs(["classification:suggest"]);
+        let denied = catalog
+            .execute(
+                env.clone(),
+                &suggest_only,
+                "commit_categorization_rule",
+                input.clone(),
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(denied, AgentToolError::ScopeDenied { .. }));
+        assert!(rules.created.lock().unwrap().is_empty());
+
+        let writable = AgentScopeSet::from_strs(["classification:suggest", "classification:write"]);
+        let result = catalog
+            .execute(env, &writable, "commit_categorization_rule", input)
+            .await
+            .unwrap();
+        assert_eq!(result.content["created"]["id"], "draft-1");
+        let saved = rules.created.lock().unwrap();
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].pattern, "CAFE");
     }
 
     #[tokio::test]
@@ -265,7 +366,7 @@ mod tests {
             .collect();
         let err = catalog
             .execute(
-                Arc::new(PanicEnv),
+                Arc::new(PanicEnv::default()),
                 &granted,
                 "commit_activity_drafts",
                 serde_json::json!({ "drafts": drafts }),
@@ -283,7 +384,7 @@ mod tests {
         let catalog = AgentToolCatalog::v1_read_tools();
         let err = catalog
             .execute(
-                Arc::new(PanicEnv),
+                Arc::new(PanicEnv::default()),
                 &AgentScopeSet::read_only(),
                 "no_such_tool",
                 serde_json::json!({}),
