@@ -98,11 +98,11 @@ pub async fn store_sync_session(
         .store_session(token, confirm_rebind.unwrap_or(false), || async {
             #[cfg(feature = "device-sync")]
             {
+                context.device_sync_runtime().clear_restore().await;
                 context
                     .device_sync_runtime()
                     .ensure_background_stopped()
                     .await;
-                context.device_sync_runtime().clear_flows()?;
                 context.sync_approvals.clear()?;
             }
             context
@@ -279,6 +279,8 @@ async fn disconnect_cloud_session(context: &ServiceContext) -> Result<(), String
     context
         .connect_service()
         .clear_session_with(|| async {
+            #[cfg(feature = "device-sync")]
+            context.device_sync_runtime().clear_restore().await;
             #[cfg(feature = "device-sync")]
             clear_min_snapshot_created_at_from_store(context);
             let _ = context

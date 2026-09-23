@@ -400,12 +400,12 @@ and serializes login/logout/token refresh. Pairing key writes must match the
 current device ID and enrollment nonce; stale UI callbacks cannot recreate an
 identity cleared by rebinding. Background engine startup is paused and the
 previous worker is stopped and joined. Cleanup clears local enrollment and sync
-keys, pairing consent/flows, outbox/cursors and broker mappings. Accounts,
-holdings, activities, database encryption keys, the local password and unrelated
-secrets remain. Broker mappings and sync control state are cleared in one SQLite
-writer transaction. No cloud reset or deletion is invoked. Device sync must be
-set up again explicitly; retained portfolio data may later be synced to the new
-account after that setup.
+keys, any pending restore operation, outbox/cursors and broker mappings.
+Accounts, holdings, activities, database encryption keys, the local password and
+unrelated secrets remain. Broker mappings and sync control state are cleared in
+one SQLite writer transaction. No cloud reset or deletion is invoked. Device
+sync must be set up again explicitly; retained portfolio data may later be
+synced to the new account after that setup.
 
 Cleanup failures leave cloud access gated off and do not store candidate
 credentials. The old binding remains until cleanup succeeds. A failed credential
@@ -424,9 +424,15 @@ callback parameters.
 
 Pairing retains existing frontend crypto and backend snapshot orchestration.
 Operations carry the originating scope; ordinary pairing state is discarded on
-lock/switch. No new remote profile identifier or device-sync wire format is
-introduced. Local profile operations never reset a cloud team or copy keys
-between household members.
+lock/switch. On the receiving device, the profile's device-sync runtime owns
+restoration as one in-memory operation shared by pairing, recurring sync checks
+and retries; the UI only displays it. Consent covers one replacement attempt;
+the replacement runs as one writer transaction, after which the usual portfolio
+update recalculates the restored data. Native lock/switch lets a started restore
+transaction finish and cancels the rest; after a restart, committed bootstrap
+state decides whether a new attempt is needed. No new remote profile identifier
+or device-sync wire format is introduced. Local profile operations never reset a
+cloud team or copy keys between household members.
 
 Native MCP closes on lock and reopens against the active context. Web `/mcp`
 retains independent PAT authorization. `X-WF-Profile-Id` selects a profile;

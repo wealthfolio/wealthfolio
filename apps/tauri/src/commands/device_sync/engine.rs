@@ -3,8 +3,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use tauri::AppHandle;
 
 use crate::context::ServiceContext;
+use crate::database::DatabaseRuntime;
 use wealthfolio_core::events::DomainEvent;
 use wealthfolio_device_sync::engine::{
     CredentialStore, OutboxStore, ReplayEvent, ReplayStore, SyncIdentity, SyncTransport,
@@ -15,7 +17,9 @@ use wealthfolio_device_sync::{
 };
 use wealthfolio_storage_sqlite::sync::SqliteSyncEngineDbPorts;
 
-fn transport_err_from_sync(e: wealthfolio_device_sync::DeviceSyncError) -> TransportError {
+pub(super) fn transport_err_from_sync(
+    e: wealthfolio_device_sync::DeviceSyncError,
+) -> TransportError {
     TransportError {
         message: e.to_string(),
         retry_class: e.retry_class(),
@@ -27,7 +31,7 @@ fn transport_err_from_sync(e: wealthfolio_device_sync::DeviceSyncError) -> Trans
     }
 }
 
-fn transport_err_permanent(message: String) -> TransportError {
+pub(super) fn transport_err_permanent(message: String) -> TransportError {
     TransportError {
         message,
         retry_class: wealthfolio_device_sync::ApiRetryClass::Permanent,
@@ -41,15 +45,38 @@ use super::{
     persist_device_config_from_identity, sync_identity_can_run_background, SyncCycleResult,
 };
 
-struct TauriEnginePorts {
-    context: Arc<ServiceContext>,
+pub(super) struct TauriEnginePorts {
+    pub(super) context: Arc<ServiceContext>,
     db: SqliteSyncEngineDbPorts,
+    /// Present when these ports drive a restore operation.
+    pub(super) restore_host: Option<RestoreHost>,
+}
+
+/// What a restore needs beyond the engine: events, backups and Connect admission.
+pub(super) struct RestoreHost {
+    pub(super) handle: AppHandle,
+    pub(super) runtime: Arc<DatabaseRuntime>,
 }
 
 impl TauriEnginePorts {
     fn new(context: Arc<ServiceContext>) -> Self {
         let db = SqliteSyncEngineDbPorts::new(context.app_sync_repository());
-        Self { context, db }
+        Self {
+            context,
+            db,
+            restore_host: None,
+        }
+    }
+
+    pub(super) fn for_restore(
+        context: Arc<ServiceContext>,
+        handle: AppHandle,
+        runtime: Arc<DatabaseRuntime>,
+    ) -> Self {
+        Self {
+            restore_host: Some(RestoreHost { handle, runtime }),
+            ..Self::new(context)
+        }
     }
 
     fn to_parent_identity(identity: &SyncIdentity) -> super::SyncIdentity {

@@ -15,14 +15,14 @@ use wealthfolio_core::sync::{
     snapshot_covers_cursor_and_schema, APP_SYNC_TABLES, SNAPSHOT_SCHEMA_VERSION,
 };
 use wealthfolio_device_sync::engine::{
-    self, CredentialStore, OutboxStore, ReadyReconcileStore, ReplayEvent, ReplayStore,
-    SyncIdentity, SyncTransport, TransportError,
+    self, CredentialStore, OutboxStore, ReplayEvent, ReplayStore, RestoreFile, RestoreOperation,
+    RestorePorts, StartRestore, SyncIdentity, SyncTransport, TransportError,
 };
 use wealthfolio_device_sync::{
     DeviceSyncClient, ReconcileReadyStateResponse, SyncPullResponse, SyncPushRequest,
     SyncPushResponse, SyncState,
 };
-use wealthfolio_storage_sqlite::sync::{SqliteSyncEngineDbPorts, SyncTableRowCount};
+use wealthfolio_storage_sqlite::sync::SqliteSyncEngineDbPorts;
 
 fn transport_err_from_sync(e: wealthfolio_device_sync::DeviceSyncError) -> TransportError {
     TransportError {
@@ -36,11 +36,10 @@ fn transport_err_from_sync(e: wealthfolio_device_sync::DeviceSyncError) -> Trans
     }
 }
 
+/// Pairing freshness gates kept in memory beside their SQLite copies.
 #[derive(Default)]
 pub struct SyncApprovals {
     min_snapshot: Mutex<HashMap<String, String>>,
-    ready: Mutex<HashMap<String, bool>>,
-    pairing: Mutex<HashMap<String, bool>>,
 }
 impl SyncApprovals {
     pub(crate) fn clear(&self) -> Result<(), String> {
@@ -48,19 +47,10 @@ impl SyncApprovals {
             .lock()
             .map_err(|_| "Sync approval state unavailable")?
             .clear();
-        self.ready
-            .lock()
-            .map_err(|_| "Sync approval state unavailable")?
-            .clear();
-        self.pairing
-            .lock()
-            .map_err(|_| "Sync approval state unavailable")?
-            .clear();
         Ok(())
     }
 }
 
-const SNAPSHOT_FRESHNESS_CLOCK_SKEW_LEEWAY_SECS: i64 = 120;
 const SYNC_SOURCE_RESTORE_REQUIRED_CODE: &str = "SYNC_SOURCE_RESTORE_REQUIRED";
 
 fn is_snapshot_index_conflict(message: &str) -> bool {
@@ -124,68 +114,12 @@ pub struct SyncPairingSourceStatusResult {
     pub server_cursor: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncBootstrapOverwriteCheckTableResult {
-    pub table: String,
-    pub rows: i64,
-}
-
-#[derive(Debug, Clone)]
-pub struct SyncBootstrapOverwriteCheckResult {
-    pub bootstrap_required: bool,
-    pub has_local_data: bool,
-    pub local_rows: i64,
-    pub non_empty_tables: Vec<SyncBootstrapOverwriteCheckTableResult>,
-}
-
-#[derive(Debug, Clone)]
-pub struct SyncBootstrapResult {
-    pub status: String,
-    pub message: String,
-    pub snapshot_id: Option<String>,
-    pub cursor: Option<i64>,
-}
-
 #[derive(Debug, Clone)]
 pub struct SyncSnapshotUploadResult {
     pub status: String,
     pub snapshot_id: Option<String>,
     pub oplog_seq: Option<i64>,
     pub message: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct SyncReconcileReadyStateResult {
-    pub status: String,
-    pub message: String,
-    pub bootstrap_action: String,
-    pub bootstrap_status: String,
-    pub bootstrap_message: Option<String>,
-    pub bootstrap_snapshot_id: Option<String>,
-    pub cycle_status: Option<String>,
-    pub cycle_needs_bootstrap: bool,
-    pub retry_attempted: bool,
-    pub retry_cycle_status: Option<String>,
-    pub background_status: String,
-}
-
-impl From<engine::SyncReadyReconcileResult> for SyncReconcileReadyStateResult {
-    fn from(value: engine::SyncReadyReconcileResult) -> Self {
-        Self {
-            status: value.status,
-            message: value.message,
-            bootstrap_action: value.bootstrap_action,
-            bootstrap_status: value.bootstrap_status,
-            bootstrap_message: value.bootstrap_message,
-            bootstrap_snapshot_id: value.bootstrap_snapshot_id,
-            cycle_status: value.cycle_status,
-            cycle_needs_bootstrap: value.cycle_needs_bootstrap,
-            retry_attempted: value.retry_attempted,
-            retry_cycle_status: value.retry_cycle_status,
-            background_status: value.background_status,
-        }
-    }
 }
 
 fn cloud_api_base_url() -> String {
@@ -240,12 +174,6 @@ pub fn set_min_snapshot_created_at_in_store(
     Ok(())
 }
 
-fn remove_min_snapshot_created_at_from_store(state: &AppState, device_id: &str) {
-    if let Ok(mut guard) = state.sync_approvals.min_snapshot.lock() {
-        guard.remove(device_id);
-    }
-}
-
 pub fn clear_min_snapshot_created_at_from_store(state: &AppState) {
     if let Ok(mut guard) = state.sync_approvals.min_snapshot.lock() {
         guard.clear();
@@ -259,125 +187,6 @@ fn get_min_snapshot_created_at_from_store(state: &AppState, device_id: &str) -> 
         .lock()
         .ok()
         .and_then(|map| map.get(device_id).cloned())
-}
-
-fn has_ready_state_overwrite_approval(state: &AppState, device_id: &str) -> bool {
-    state
-        .sync_approvals
-        .ready
-        .lock()
-        .ok()
-        .and_then(|map| map.get(device_id).copied())
-        .unwrap_or(false)
-}
-
-fn set_ready_state_overwrite_approval(state: &AppState, device_id: &str) {
-    if let Ok(mut guard) = state.sync_approvals.ready.lock() {
-        guard.insert(device_id.to_string(), true);
-    }
-}
-
-fn clear_ready_state_overwrite_approval(state: &AppState, device_id: &str) {
-    if let Ok(mut guard) = state.sync_approvals.ready.lock() {
-        guard.remove(device_id);
-    }
-}
-
-fn has_pairing_overwrite_approval(state: &AppState, pairing_id: &str) -> bool {
-    state
-        .sync_approvals
-        .pairing
-        .lock()
-        .ok()
-        .and_then(|map| map.get(pairing_id).copied())
-        .unwrap_or(false)
-}
-
-fn set_pairing_overwrite_approval(state: &AppState, pairing_id: &str) {
-    if let Ok(mut guard) = state.sync_approvals.pairing.lock() {
-        guard.insert(pairing_id.to_string(), true);
-    }
-}
-
-fn clear_pairing_overwrite_approval(state: &AppState, pairing_id: &str) {
-    if let Ok(mut guard) = state.sync_approvals.pairing.lock() {
-        guard.remove(pairing_id);
-    }
-}
-
-fn pairing_bootstrap_phase(
-    bootstrap: &SyncBootstrapResult,
-) -> Result<Option<PairingFlowPhase>, String> {
-    match bootstrap.status.as_str() {
-        "requested" => Ok(Some(PairingFlowPhase::Syncing {
-            detail: "waiting_snapshot".to_string(),
-        })),
-        "applied" | "skipped" => Ok(None),
-        "skipped_not_ready" => Err(bootstrap.message.clone()),
-        other => Err(format!(
-            "Snapshot bootstrap did not complete (status={}): {}",
-            other, bootstrap.message
-        )),
-    }
-}
-
-async fn abort_pairing_flow_local_state(state: &Arc<AppState>, pairing_id: &str) {
-    clear_pairing_overwrite_approval(state, pairing_id);
-
-    let device_id = get_sync_identity_from_store(state).and_then(|identity| identity.device_id);
-    if let Some(device_id) = device_id.as_deref() {
-        if let Ok(token) = crate::api::connect::mint_access_token(state).await {
-            let client = create_client();
-            let _ = client.cancel_pairing(&token, device_id, pairing_id).await;
-            if let Err(err) = client.delete_device(&token, device_id).await {
-                tracing::warn!(
-                    "[DeviceSync] Failed to delete confirmed pairing device while cancelling flow: {}",
-                    err
-                );
-            }
-        }
-        remove_min_snapshot_created_at_from_store(state, device_id);
-        let _ = state
-            .app_sync_repository
-            .clear_min_snapshot_created_at(device_id.to_string())
-            .await;
-    }
-
-    if let Err(err) = ensure_background_engine_stopped(Arc::clone(state)).await {
-        tracing::warn!(
-            "[DeviceSync] Failed to stop engine while cancelling pairing flow: {}",
-            err
-        );
-    }
-    if let Err(err) = state.device_enroll_service.clear_sync_data() {
-        tracing::warn!(
-            "[DeviceSync] Failed to clear local sync identity while cancelling pairing flow: {}",
-            err.message
-        );
-    }
-    let _ = state.app_sync_repository.reset_local_sync_session().await;
-    clear_min_snapshot_created_at_from_store(state);
-    let _ = state
-        .app_sync_repository
-        .clear_all_min_snapshot_created_at()
-        .await;
-}
-
-fn should_keep_ready_state_overwrite_approval(result: &engine::SyncReadyReconcileResult) -> bool {
-    if result.status == "error" {
-        return true;
-    }
-
-    result.bootstrap_status == "requested"
-        || result.cycle_needs_bootstrap
-        || matches!(
-            result.cycle_status.as_deref(),
-            Some("wait_snapshot") | Some("stale_cursor")
-        )
-        || matches!(
-            result.retry_cycle_status.as_deref(),
-            Some("wait_snapshot") | Some("stale_cursor")
-        )
 }
 
 async fn persist_device_config_from_identity(
@@ -429,43 +238,8 @@ fn decrypt_sync_payload(
         .map_err(|e| format!("Failed to decrypt sync payload: {}", e))
 }
 
-fn is_sqlite_image(bytes: &[u8]) -> bool {
-    bytes.starts_with(b"SQLite format 3\0")
-}
-
 fn sha256_checksum(bytes: &[u8]) -> String {
     wealthfolio_device_sync::crypto::sha256_checksum(bytes)
-}
-
-fn decode_snapshot_sqlite_payload(
-    blob: Vec<u8>,
-    identity: &SyncIdentity,
-) -> Result<Vec<u8>, String> {
-    let root_key = identity
-        .root_key
-        .as_deref()
-        .ok_or("Missing root_key in sync identity")?;
-    let key_version = identity
-        .key_version
-        .ok_or("Missing key_version in sync identity")?;
-    if key_version <= 0 {
-        return Err("Invalid key version in sync identity".to_string());
-    }
-
-    let blob_text = String::from_utf8(blob)
-        .map_err(|_| "Snapshot payload is not valid UTF-8 (expected encrypted ciphertext)")?;
-    let dek = wealthfolio_device_sync::crypto::derive_dek(root_key, key_version as u32)
-        .map_err(|e| format!("Failed to derive snapshot DEK: {}", e))?;
-    let decrypted = wealthfolio_device_sync::crypto::decrypt(&dek, blob_text.trim())
-        .map_err(|e| format!("Failed to decrypt snapshot payload: {}", e))?;
-
-    let sqlite_bytes = BASE64_STANDARD
-        .decode(decrypted.trim())
-        .map_err(|e| format!("Failed to base64-decode decrypted snapshot: {}", e))?;
-    if !is_sqlite_image(&sqlite_bytes) {
-        return Err("Decrypted snapshot is not a valid SQLite image".to_string());
-    }
-    Ok(sqlite_bytes)
 }
 
 struct ServerEnginePorts {
@@ -799,63 +573,6 @@ pub async fn get_pairing_source_status(
     })
 }
 
-pub async fn get_bootstrap_overwrite_check(
-    state: &Arc<AppState>,
-) -> Result<SyncBootstrapOverwriteCheckResult, String> {
-    ensure_device_sync_enabled()?;
-    let device_id = get_sync_identity_from_store(state).and_then(|i| i.device_id);
-    let bootstrap_required = match device_id.as_deref() {
-        Some(device_id) => state
-            .app_sync_repository
-            .needs_bootstrap(device_id)
-            .map_err(|e| e.to_string())?,
-        None => true,
-    };
-    if !bootstrap_required {
-        if let Some(device_id) = device_id.as_deref() {
-            clear_ready_state_overwrite_approval(state, device_id);
-        }
-        return Ok(SyncBootstrapOverwriteCheckResult {
-            bootstrap_required,
-            has_local_data: false,
-            local_rows: 0,
-            non_empty_tables: Vec::new(),
-        });
-    }
-
-    if let Some(device_id) = device_id.as_deref() {
-        if has_ready_state_overwrite_approval(state, device_id) {
-            return Ok(SyncBootstrapOverwriteCheckResult {
-                bootstrap_required,
-                has_local_data: false,
-                local_rows: 0,
-                non_empty_tables: Vec::new(),
-            });
-        }
-    }
-
-    let summary = state
-        .app_sync_repository
-        .get_local_sync_overwrite_risk_summary()
-        .map_err(|e| e.to_string())?;
-
-    Ok(SyncBootstrapOverwriteCheckResult {
-        bootstrap_required,
-        has_local_data: summary.total_rows > 0,
-        local_rows: summary.total_rows,
-        non_empty_tables: summary
-            .non_empty_tables
-            .into_iter()
-            .map(
-                |SyncTableRowCount { table, rows }| SyncBootstrapOverwriteCheckTableResult {
-                    table,
-                    rows,
-                },
-            )
-            .collect(),
-    })
-}
-
 pub async fn run_sync_cycle(
     state: Arc<AppState>,
     post_bootstrap: bool,
@@ -870,79 +587,6 @@ pub async fn run_sync_cycle(
     // Note: on_pull_complete is now called by the engine itself via ReplayStore trait
 
     Ok(result)
-}
-
-struct ServerReadyReconcileRunner {
-    state: Arc<AppState>,
-}
-
-#[async_trait]
-impl ReadyReconcileStore for ServerReadyReconcileRunner {
-    async fn get_sync_state(&self) -> Result<SyncState, String> {
-        let token = crate::api::connect::mint_access_token(&self.state)
-            .await
-            .map_err(|e| e.to_string())?;
-        self.state
-            .device_enroll_service
-            .get_sync_state(&token)
-            .await
-            .map(|value| value.state)
-            .map_err(|err| err.message)
-    }
-
-    async fn bootstrap_snapshot_if_needed(&self) -> Result<engine::SyncBootstrapResult, String> {
-        let result = sync_bootstrap_snapshot_if_needed(Arc::clone(&self.state)).await?;
-        Ok(engine::SyncBootstrapResult {
-            status: result.status,
-            message: result.message,
-            snapshot_id: result.snapshot_id,
-        })
-    }
-
-    async fn run_sync_cycle(
-        &self,
-        post_bootstrap: bool,
-    ) -> Result<engine::SyncCycleResult, String> {
-        run_sync_cycle(Arc::clone(&self.state), post_bootstrap).await
-    }
-
-    async fn ensure_background_started(&self) -> Result<bool, String> {
-        ensure_background_engine_started(Arc::clone(&self.state)).await?;
-        Ok(self.state.device_sync_runtime.is_background_running().await)
-    }
-}
-
-pub async fn reconcile_ready_state(
-    state: Arc<AppState>,
-    allow_overwrite: bool,
-) -> Result<SyncReconcileReadyStateResult, String> {
-    ensure_device_sync_enabled()?;
-    let device_id = get_sync_identity_from_store(&state).and_then(|identity| identity.device_id);
-    let has_overwrite_approval = device_id
-        .as_deref()
-        .map(|id| has_ready_state_overwrite_approval(&state, id))
-        .unwrap_or(false);
-    if allow_overwrite {
-        if let Some(device_id) = device_id.as_deref() {
-            set_ready_state_overwrite_approval(&state, device_id);
-        }
-    }
-    let runner = ServerReadyReconcileRunner {
-        state: state.clone(),
-    };
-    let result = engine::run_ready_reconcile_state(&runner).await;
-
-    if let Some(device_id) = device_id.as_deref() {
-        if (allow_overwrite || has_overwrite_approval)
-            && should_keep_ready_state_overwrite_approval(&result)
-        {
-            set_ready_state_overwrite_approval(&state, device_id);
-        } else {
-            clear_ready_state_overwrite_approval(&state, device_id);
-        }
-    }
-
-    Ok(result.into())
 }
 
 pub async fn ensure_background_engine_started(state: Arc<AppState>) -> Result<(), String> {
@@ -998,411 +642,6 @@ fn sync_source_restore_required_error() -> String {
     format!(
         "{SYNC_SOURCE_RESTORE_REQUIRED_CODE}: This device needs to set up sync again before you add another device."
     )
-}
-
-enum MissingSnapshotDisposition {
-    CompleteNoBootstrap { message: String },
-    WaitForSnapshot { message: String },
-}
-
-async fn classify_missing_snapshot_disposition(
-    client: &DeviceSyncClient,
-    token: &str,
-    device_id: &str,
-) -> MissingSnapshotDisposition {
-    match client.get_reconcile_ready_state(token, device_id).await {
-        Ok(reconcile) => match reconcile.action.as_str() {
-            "NOOP" | "PULL_TAIL" => MissingSnapshotDisposition::CompleteNoBootstrap {
-                message: "No remote snapshot is required for this device".to_string(),
-            },
-            "WAIT_SNAPSHOT" | "BOOTSTRAP_SNAPSHOT" => MissingSnapshotDisposition::WaitForSnapshot {
-                message: "Waiting for a trusted device to upload a snapshot".to_string(),
-            },
-            other => {
-                tracing::debug!(
-                    "[DeviceSync] Snapshot missing with reconcile action='{}'; waiting for remote snapshot",
-                    other
-                );
-                MissingSnapshotDisposition::WaitForSnapshot {
-                    message:
-                        "Snapshot is not available yet. Waiting for upload from a trusted device."
-                            .to_string(),
-                }
-            }
-        },
-        Err(err) => {
-            tracing::debug!(
-                "[DeviceSync] Failed to inspect reconcile action while snapshot missing: {}",
-                err
-            );
-            MissingSnapshotDisposition::WaitForSnapshot {
-                message: "Snapshot is not available yet. Waiting for upload from a trusted device."
-                    .to_string(),
-            }
-        }
-    }
-}
-
-async fn snapshot_satisfies_freshness_gate(
-    client: &DeviceSyncClient,
-    token: &str,
-    device_id: &str,
-    latest: &wealthfolio_device_sync::SnapshotLatestResponse,
-    min_created_at: &str,
-) -> Result<bool, String> {
-    let latest_created_at = wealthfolio_device_sync::parse_sync_datetime_to_utc(&latest.created_at)
-        .map_err(|e| format!("Invalid snapshot created_at in metadata: {}", e))?;
-    let min_created_at = wealthfolio_device_sync::parse_sync_datetime_to_utc(min_created_at)
-        .map_err(|e| format!("Invalid min snapshot freshness gate: {}", e))?;
-    if latest_created_at + Duration::seconds(SNAPSHOT_FRESHNESS_CLOCK_SKEW_LEEWAY_SECS)
-        > min_created_at
-    {
-        return Ok(true);
-    }
-
-    match client.get_events_cursor(token, device_id).await {
-        Ok(cursor) if latest.oplog_seq >= cursor.cursor => {
-            tracing::info!(
-                "[DeviceSync] Accepting snapshot {} older than freshness gate because oplog_seq {} already covers remote cursor {}",
-                latest.snapshot_id,
-                latest.oplog_seq,
-                cursor.cursor
-            );
-            Ok(true)
-        }
-        Ok(cursor) => {
-            tracing::debug!(
-                "[DeviceSync] Snapshot {} is older than freshness gate and oplog_seq {} does not cover remote cursor {}",
-                latest.snapshot_id,
-                latest.oplog_seq,
-                cursor.cursor
-            );
-            Ok(false)
-        }
-        Err(err) => {
-            tracing::debug!(
-                "[DeviceSync] Failed to verify remote cursor for freshness gate on snapshot {}: {}",
-                latest.snapshot_id,
-                err
-            );
-            Ok(false)
-        }
-    }
-}
-
-pub async fn sync_bootstrap_snapshot_if_needed(
-    state: Arc<AppState>,
-) -> Result<SyncBootstrapResult, String> {
-    crate::api::connect::ensure_device_sync_subscription(&state).await?;
-    ensure_device_sync_enabled()?;
-    let identity = get_sync_identity_from_store(&state)
-        .ok_or_else(|| "No sync identity configured. Please enable sync first.".to_string())?;
-    let device_id = identity
-        .device_id
-        .clone()
-        .ok_or_else(|| "No device ID configured".to_string())?;
-    let token = crate::api::connect::mint_access_token(&state)
-        .await
-        .map_err(|e| e.to_string())?;
-    // Check in-memory first, then fall back to SQLite (survives restart)
-    let raw_freshness_gate =
-        get_min_snapshot_created_at_from_store(&state, &device_id).or_else(|| {
-            state
-                .app_sync_repository
-                .get_min_snapshot_created_at(&device_id)
-                .ok()
-                .flatten()
-        });
-    let min_snapshot_created_at = match raw_freshness_gate {
-        Some(value) => match wealthfolio_device_sync::normalize_sync_datetime(&value) {
-            Ok(normalized) => Some(normalized),
-            Err(_) => {
-                tracing::warn!(
-                    "[DeviceSync] Dropping invalid min snapshot freshness gate: {}",
-                    value
-                );
-                remove_min_snapshot_created_at_from_store(&state, &device_id);
-                let _ = state
-                    .app_sync_repository
-                    .clear_min_snapshot_created_at(device_id.clone())
-                    .await;
-                None
-            }
-        },
-        None => None,
-    };
-
-    let sync_state = state
-        .device_enroll_service
-        .get_sync_state(&token)
-        .await
-        .map_err(|e| e.message)?;
-    if sync_state.state != SyncState::Ready {
-        return Ok(SyncBootstrapResult {
-            status: "skipped_not_ready".to_string(),
-            message: "Device is not in READY state".to_string(),
-            snapshot_id: None,
-            cursor: None,
-        });
-    }
-    persist_device_config_from_identity(&state, &identity, "trusted").await;
-
-    let sync_repo = Arc::clone(&state.app_sync_repository);
-    let reconcile_action = create_client()
-        .get_reconcile_ready_state(&token, &device_id)
-        .await
-        .ok()
-        .map(|reconcile| reconcile.action);
-
-    let needs_bootstrap = sync_repo
-        .needs_bootstrap(&device_id)
-        .map_err(|e| e.to_string())?;
-    if !needs_bootstrap && min_snapshot_created_at.is_none() {
-        let reconcile_requires_snapshot = matches!(
-            reconcile_action.as_deref(),
-            Some("WAIT_SNAPSHOT") | Some("BOOTSTRAP_SNAPSHOT")
-        );
-        if !reconcile_requires_snapshot {
-            clear_min_snapshot_created_at_from_store(&state);
-            return Ok(SyncBootstrapResult {
-                status: "skipped".to_string(),
-                message: "Snapshot bootstrap already completed".to_string(),
-                snapshot_id: None,
-                cursor: Some(sync_repo.get_cursor().map_err(|e| e.to_string())?),
-            });
-        }
-
-        tracing::debug!(
-            "[DeviceSync] Local bootstrap marked complete but reconcile still requires snapshot; re-checking latest snapshot metadata"
-        );
-    }
-
-    if reconcile_action.as_deref() == Some("WAIT_SNAPSHOT") {
-        tracing::debug!(
-            "[DeviceSync] Reconcile indicates WAIT_SNAPSHOT; checking latest snapshot metadata for race-safe bootstrap"
-        );
-    }
-
-    let latest = match create_client()
-        .get_latest_snapshot_with_cursor_fallback(&token, &device_id)
-        .await
-    {
-        Ok(value) => value,
-        Err(err) => {
-            if err.status_code() == Some(404) {
-                if min_snapshot_created_at.is_some() {
-                    tracing::debug!(
-                        "[DeviceSync] No snapshot found (404) while freshness gate is active; waiting for trusted device upload"
-                    );
-                    return Ok(SyncBootstrapResult {
-                        status: "requested".to_string(),
-                        message: "Waiting for a snapshot generated after pairing confirmation"
-                            .to_string(),
-                        snapshot_id: None,
-                        cursor: Some(sync_repo.get_cursor().map_err(|e| e.to_string())?),
-                    });
-                }
-                let client = create_client();
-                match classify_missing_snapshot_disposition(&client, &token, &device_id).await {
-                    MissingSnapshotDisposition::CompleteNoBootstrap { message } => {
-                        sync_repo
-                            .reset_and_mark_bootstrap_complete(device_id, identity.key_version)
-                            .await
-                            .map_err(|e| e.to_string())?;
-                        clear_min_snapshot_created_at_from_store(&state);
-                        return Ok(SyncBootstrapResult {
-                            status: "skipped".to_string(),
-                            message,
-                            snapshot_id: None,
-                            cursor: Some(sync_repo.get_cursor().map_err(|e| e.to_string())?),
-                        });
-                    }
-                    MissingSnapshotDisposition::WaitForSnapshot { message } => {
-                        return Ok(SyncBootstrapResult {
-                            status: "requested".to_string(),
-                            message,
-                            snapshot_id: None,
-                            cursor: Some(sync_repo.get_cursor().map_err(|e| e.to_string())?),
-                        });
-                    }
-                }
-            }
-            return Err(err.to_string());
-        }
-    };
-
-    let latest = match latest {
-        Some(value) => value,
-        None => {
-            if min_snapshot_created_at.is_some() {
-                tracing::debug!(
-                    "[DeviceSync] Snapshot metadata is empty while freshness gate is active; waiting for trusted device upload"
-                );
-                return Ok(SyncBootstrapResult {
-                    status: "requested".to_string(),
-                    message: "Waiting for a snapshot generated after pairing confirmation"
-                        .to_string(),
-                    snapshot_id: None,
-                    cursor: Some(sync_repo.get_cursor().map_err(|e| e.to_string())?),
-                });
-            }
-            let client = create_client();
-            match classify_missing_snapshot_disposition(&client, &token, &device_id).await {
-                MissingSnapshotDisposition::CompleteNoBootstrap { message } => {
-                    sync_repo
-                        .reset_and_mark_bootstrap_complete(device_id, identity.key_version)
-                        .await
-                        .map_err(|e| e.to_string())?;
-                    clear_min_snapshot_created_at_from_store(&state);
-                    return Ok(SyncBootstrapResult {
-                        status: "skipped".to_string(),
-                        message,
-                        snapshot_id: None,
-                        cursor: Some(sync_repo.get_cursor().map_err(|e| e.to_string())?),
-                    });
-                }
-                MissingSnapshotDisposition::WaitForSnapshot { message } => {
-                    return Ok(SyncBootstrapResult {
-                        status: "requested".to_string(),
-                        message,
-                        snapshot_id: None,
-                        cursor: Some(sync_repo.get_cursor().map_err(|e| e.to_string())?),
-                    });
-                }
-            }
-        }
-    };
-
-    const LOCAL_SCHEMA_VERSION: i32 = SNAPSHOT_SCHEMA_VERSION;
-    if latest.schema_version > LOCAL_SCHEMA_VERSION {
-        return Err(format!(
-            "Snapshot schema version {} is newer than local version {}. Please update the app.",
-            latest.schema_version, LOCAL_SCHEMA_VERSION
-        ));
-    }
-
-    let snapshot_id = latest.snapshot_id.trim().to_string();
-    if snapshot_id.is_empty() {
-        return Err(
-            "Latest snapshot metadata had empty snapshot_id. No valid snapshot available."
-                .to_string(),
-        );
-    }
-
-    let snapshot_oplog_seq = latest.oplog_seq;
-    if let Some(min_created_at) = min_snapshot_created_at.as_deref() {
-        let client = create_client();
-        if !snapshot_satisfies_freshness_gate(&client, &token, &device_id, &latest, min_created_at)
-            .await?
-        {
-            tracing::debug!(
-                "[DeviceSync] Snapshot {} is older than required freshness gate beyond leeway and does not cover current remote cursor",
-                latest.snapshot_id,
-            );
-            return Ok(SyncBootstrapResult {
-                status: "requested".to_string(),
-                message: "Waiting for a snapshot generated after pairing confirmation".to_string(),
-                snapshot_id: None,
-                cursor: Some(sync_repo.get_cursor().map_err(|e| e.to_string())?),
-            });
-        }
-    }
-    let latest_checksum = if latest.checksum.trim().is_empty() {
-        None
-    } else {
-        Some(latest.checksum)
-    };
-    let latest_tables = if latest.covers_tables.is_empty() {
-        APP_SYNC_TABLES.iter().map(|v| v.to_string()).collect()
-    } else {
-        latest.covers_tables
-    };
-
-    let (headers, blob) = match create_client()
-        .download_snapshot(&token, &device_id, &snapshot_id)
-        .await
-    {
-        Ok(value) => value,
-        Err(err) => {
-            if err.status_code() == Some(404) {
-                return Err(format!(
-                    "Snapshot {} is no longer available. No valid snapshot to download.",
-                    snapshot_id
-                ));
-            }
-            return Err(err.to_string());
-        }
-    };
-    let actual_checksum = sha256_checksum(&blob);
-    if headers.checksum != actual_checksum {
-        return Err(format!(
-            "Snapshot checksum mismatch (download header): expected={}, got={}",
-            headers.checksum, actual_checksum
-        ));
-    }
-    if let Some(expected_checksum) = latest_checksum.as_ref() {
-        if expected_checksum != &actual_checksum {
-            return Err(format!(
-                "Snapshot checksum mismatch (latest metadata): expected={}, got={}",
-                expected_checksum, actual_checksum
-            ));
-        }
-    }
-
-    let sqlite_image = decode_snapshot_sqlite_payload(blob, &identity)?;
-    // App-private storage, not the shared system temp directory: the snapshot
-    // image is a plaintext copy of synced financial rows.
-    let scratch_dir = wealthfolio_storage_sqlite::db::profile_scratch_dir(&state.data_root)
-        .map_err(|e| format!("Failed to prepare the snapshot scratch directory: {}", e))?;
-    let temp_snapshot_path = scratch_dir.join(format!("wf_snapshot_server_{}.db", Uuid::new_v4()));
-    std::fs::write(&temp_snapshot_path, sqlite_image)
-        .map_err(|e| format!("Failed to persist snapshot image: {}", e))?;
-    let snapshot_path_str = temp_snapshot_path.to_string_lossy().to_string();
-
-    let mut tables_to_restore: Vec<String> = latest_tables
-        .iter()
-        .filter(|table| APP_SYNC_TABLES.contains(&table.as_str()))
-        .map(|table| table.to_string())
-        .collect();
-    if tables_to_restore.is_empty() {
-        tables_to_restore = APP_SYNC_TABLES
-            .iter()
-            .map(|table| table.to_string())
-            .collect();
-    }
-
-    let restore_result = sync_repo
-        .restore_snapshot_tables_from_file(
-            snapshot_path_str,
-            tables_to_restore,
-            snapshot_oplog_seq,
-            device_id.clone(),
-            identity.key_version,
-        )
-        .await;
-    let _ = std::fs::remove_file(&temp_snapshot_path);
-    restore_result.map_err(|e| e.to_string())?;
-
-    // Trigger portfolio recalculation so derived state is up-to-date
-    state
-        .domain_event_sink
-        .emit(DomainEvent::device_sync_pull_complete());
-
-    // Clear freshness gate from both in-memory and SQLite
-    clear_min_snapshot_created_at_from_store(&state);
-    if let Err(err) = sync_repo.clear_min_snapshot_created_at(device_id).await {
-        tracing::warn!(
-            "[DeviceSync] Failed to clear freshness gate from SQLite: {}",
-            err
-        );
-    }
-
-    Ok(SyncBootstrapResult {
-        status: "applied".to_string(),
-        message: "Snapshot bootstrap completed".to_string(),
-        snapshot_id: Some(snapshot_id),
-        cursor: Some(snapshot_oplog_seq),
-    })
 }
 
 pub async fn generate_snapshot_now(
@@ -1678,194 +917,232 @@ pub async fn complete_pairing_with_transfer(
     Ok(())
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ConfirmPairingWithBootstrapResult {
-    pub status: String, // "applied", "overwrite_required", "already_complete"
-    pub message: String,
-    pub local_rows: Option<i64>,
-    pub non_empty_tables: Option<Vec<SyncBootstrapOverwriteCheckTableResult>>,
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Restore Operation
+// ─────────────────────────────────────────────────────────────────────────────
 
-/// Claimer: Confirm pairing → check overwrite → bootstrap → sync cycle in one call.
-/// Call with allow_overwrite=false first. If returns "overwrite_required", show dialog,
-/// then call again with allow_overwrite=true.
-pub async fn confirm_pairing_with_bootstrap(
-    state: Arc<AppState>,
-    pairing_id: String,
-    proof: Option<String>,
-    min_snapshot_created_at: Option<String>,
-    allow_overwrite: bool,
-) -> Result<ConfirmPairingWithBootstrapResult, String> {
-    ensure_device_sync_enabled()?;
-    let identity = get_sync_identity_from_store(&state)
-        .ok_or_else(|| "No sync identity configured".to_string())?;
-    let device_id = identity
-        .device_id
-        .clone()
-        .ok_or_else(|| "No device ID configured".to_string())?;
-    let token = crate::api::connect::mint_access_token(&state)
-        .await
-        .map_err(|e| e.to_string())?;
-    let client = create_client();
+const DEVICE_SYNC_RESTORE_EVENT: &str = "device-sync:restore-operation";
 
-    // 1. Confirm pairing via Connect API (idempotent — tolerate "already confirmed")
-    tracing::info!("[DeviceSync] confirm_pairing_with_bootstrap: confirming pairing");
-    match client
-        .confirm_pairing(
-            &token,
-            &device_id,
-            &pairing_id,
-            wealthfolio_device_sync::ConfirmPairingRequest { proof },
-        )
-        .await
-    {
-        Ok(_) => {}
-        Err(e) => {
-            // If the pairing was already confirmed (e.g. retry after partial failure),
-            // only tolerate the specific already-confirmed response.
-            let is_already_confirmed = is_pairing_already_confirmed_error(&e);
-            if is_already_confirmed {
-                tracing::info!(
-                    "[DeviceSync] confirm_pairing already done, continuing: {}",
-                    e
-                );
-            } else {
-                return Err(e.to_string());
-            }
-        }
-    }
-
-    // 2. Set freshness gate
-    if let Some(min_created_at) = min_snapshot_created_at.as_deref() {
-        if let Ok(parsed_min) = wealthfolio_device_sync::parse_sync_datetime_to_utc(min_created_at)
+#[async_trait]
+impl RestorePorts for ServerEnginePorts {
+    async fn get_latest_snapshot(
+        &self,
+        token: &str,
+        device_id: &str,
+    ) -> Result<Option<wealthfolio_device_sync::SnapshotLatestResponse>, TransportError> {
+        match create_client()
+            .get_latest_snapshot_with_cursor_fallback(token, device_id)
+            .await
         {
-            let max_allowed = chrono::Utc::now() + chrono::Duration::minutes(10);
-            if parsed_min <= max_allowed {
-                if let Ok(normalized) =
-                    wealthfolio_device_sync::normalize_sync_datetime(min_created_at)
-                {
-                    let _ = set_min_snapshot_created_at_in_store(&state, &device_id, &normalized);
-                    let _ = state
-                        .app_sync_repository
-                        .set_min_snapshot_created_at(device_id.clone(), normalized)
-                        .await;
-                }
-            }
+            Ok(snapshot) => Ok(snapshot),
+            Err(err) if err.status_code() == Some(404) => Ok(None),
+            Err(err) => Err(transport_err_from_sync(err)),
         }
     }
 
-    // 3. Check if bootstrap is needed
-    let needs_bootstrap = state
-        .app_sync_repository
-        .needs_bootstrap(&device_id)
-        .map_err(|e| e.to_string())?;
-    if !needs_bootstrap {
-        clear_pairing_overwrite_approval(&state, &pairing_id);
-        return Ok(ConfirmPairingWithBootstrapResult {
-            status: "already_complete".to_string(),
-            message: "No bootstrap needed".to_string(),
-            local_rows: None,
-            non_empty_tables: None,
-        });
+    async fn download_snapshot(
+        &self,
+        token: &str,
+        device_id: &str,
+        snapshot_id: &str,
+    ) -> Result<Option<(wealthfolio_device_sync::SnapshotDownloadHeaders, Vec<u8>)>, TransportError>
+    {
+        match create_client()
+            .download_snapshot(token, device_id, snapshot_id)
+            .await
+        {
+            Ok(snapshot) => Ok(Some(snapshot)),
+            Err(err) if err.status_code() == Some(404) => Ok(None),
+            Err(err) => Err(transport_err_from_sync(err)),
+        }
     }
 
-    // 4. Check overwrite risk
-    if allow_overwrite {
-        set_pairing_overwrite_approval(&state, &pairing_id);
+    fn needs_bootstrap(&self, device_id: &str) -> Result<bool, String> {
+        self.state
+            .app_sync_repository
+            .needs_bootstrap(device_id)
+            .map_err(|e| e.to_string())
     }
-    let overwrite_approved = allow_overwrite || has_pairing_overwrite_approval(&state, &pairing_id);
-    if !overwrite_approved {
-        let summary = state
+
+    fn last_cycle_status(&self) -> Result<Option<String>, String> {
+        self.state
+            .app_sync_repository
+            .get_engine_status()
+            .map(|status| status.last_cycle_status)
+            .map_err(|e| e.to_string())
+    }
+
+    fn freshness_gate(&self, device_id: &str) -> Option<String> {
+        // In memory first, then SQLite, which survives restarts.
+        get_min_snapshot_created_at_from_store(&self.state, device_id).or_else(|| {
+            self.state
+                .app_sync_repository
+                .get_min_snapshot_created_at(device_id)
+                .ok()
+                .flatten()
+        })
+    }
+
+    async fn clear_freshness_gate(&self, device_id: &str) {
+        clear_min_snapshot_created_at_from_store(&self.state);
+        if let Err(err) = self
+            .state
+            .app_sync_repository
+            .clear_min_snapshot_created_at(device_id.to_string())
+            .await
+        {
+            tracing::warn!("[DeviceSync] Failed to clear freshness gate: {}", err);
+        }
+    }
+
+    fn local_rows(&self) -> Result<i64, String> {
+        self.state
             .app_sync_repository
             .get_local_sync_overwrite_risk_summary()
-            .map_err(|e| e.to_string())?;
-        if summary.total_rows > 0 {
-            return Ok(ConfirmPairingWithBootstrapResult {
-                status: "overwrite_required".to_string(),
-                message: format!(
-                    "Local data ({} rows) will be replaced by remote snapshot",
-                    summary.total_rows
-                ),
-                local_rows: Some(summary.total_rows),
-                non_empty_tables: Some(
-                    summary
-                        .non_empty_tables
-                        .into_iter()
-                        .map(|t| SyncBootstrapOverwriteCheckTableResult {
-                            table: t.table,
-                            rows: t.rows,
-                        })
-                        .collect(),
-                ),
-            });
-        }
+            .map(|summary| summary.total_rows)
+            .map_err(|e| e.to_string())
     }
 
-    // 5. Bootstrap snapshot
-    tracing::info!("[DeviceSync] confirm_pairing_with_bootstrap: bootstrapping");
-    let bootstrap = sync_bootstrap_snapshot_if_needed(Arc::clone(&state)).await?;
-    if bootstrap.status == "requested" {
-        // Snapshot not yet available — caller should retry
-        return Ok(ConfirmPairingWithBootstrapResult {
-            status: "waiting_snapshot".to_string(),
-            message: bootstrap.message,
-            local_rows: None,
-            non_empty_tables: None,
-        });
+    async fn mark_restore_not_needed(
+        &self,
+        device_id: &str,
+        key_version: Option<i32>,
+    ) -> Result<(), String> {
+        self.state
+            .app_sync_repository
+            .reset_and_mark_bootstrap_complete(device_id.to_string(), key_version)
+            .await
+            .map_err(|e| e.to_string())
     }
 
-    // 6. Run sync cycle after bootstrap
-    tracing::info!("[DeviceSync] confirm_pairing_with_bootstrap: running sync cycle");
-    let _ = run_sync_cycle(Arc::clone(&state), true).await;
+    fn scratch_dir(&self) -> Result<std::path::PathBuf, String> {
+        wealthfolio_storage_sqlite::db::profile_scratch_dir(&self.state.data_root)
+            .map_err(|e| format!("Failed to prepare the snapshot scratch directory: {e}"))
+    }
 
-    // 7. Start background engine
-    let engine_state = Arc::clone(&state);
-    tokio::spawn(async move {
-        if let Err(err) = ensure_background_engine_started(engine_state).await {
-            tracing::warn!("[DeviceSync] Post-bootstrap engine start failed: {}", err);
+    async fn backup_before_restore(&self) -> Result<(), String> {
+        let access = self.state.db_access.clone();
+        let data_root = self.state.data_root.clone();
+        let owner = self.state._database_owner.clone();
+        tokio::task::spawn_blocking(move || {
+            let _owner = owner;
+            wealthfolio_storage_sqlite::db::backup_database(&access, &data_root)
+        })
+        .await
+        .map_err(|e| format!("Backup task failed: {e}"))?
+        .map_err(|e| e.to_string())?;
+        tracing::info!("[DeviceSync] Backup saved before restore");
+        Ok(())
+    }
+
+    async fn replace_local_data(&self, snapshot: RestoreFile<'_>) -> Result<(), String> {
+        self.state
+            .app_sync_repository
+            .restore_snapshot_tables_from_file(
+                snapshot.path.to_string_lossy().to_string(),
+                snapshot.tables,
+                snapshot.oplog_seq,
+                snapshot.device_id,
+                snapshot.key_version,
+            )
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    async fn resume_sync(&self, restored: bool) -> Result<(), String> {
+        if restored {
+            run_sync_cycle(Arc::clone(&self.state), true).await?;
         }
-    });
+        ensure_background_engine_started(Arc::clone(&self.state)).await
+    }
 
-    clear_pairing_overwrite_approval(&state, &pairing_id);
+    fn refresh_portfolio(&self) {
+        // The same signal a sync pull sends: the portfolio pipeline recalculates
+        // and reports its own progress and errors.
+        self.state
+            .domain_event_sink
+            .emit(DomainEvent::device_sync_pull_complete());
+    }
 
-    Ok(ConfirmPairingWithBootstrapResult {
-        status: "applied".to_string(),
-        message: "Bootstrap completed and sync cycle run".to_string(),
-        local_rows: None,
-        non_empty_tables: None,
-    })
+    fn publish_restore(&self, operation: &RestoreOperation) {
+        match serde_json::to_value(operation) {
+            Ok(payload) => self
+                .state
+                .event_bus
+                .publish(crate::events::ServerEvent::with_payload(
+                    DEVICE_SYNC_RESTORE_EVENT,
+                    payload,
+                )),
+            Err(err) => tracing::warn!("[DeviceSync] Failed to publish restore state: {}", err),
+        }
+    }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Pairing Flow Coordinator
-// ─────────────────────────────────────────────────────────────────────────────
+fn restore_ports(state: &Arc<AppState>) -> Arc<ServerEnginePorts> {
+    Arc::new(ServerEnginePorts::new(Arc::clone(state)))
+}
 
-use wealthfolio_device_sync::engine::{
-    OverwriteInfo, OverwriteTableInfo, PairingFlowPhase, PairingFlowResponse,
-};
+pub async fn start_restore(
+    state: Arc<AppState>,
+    request: StartRestore,
+) -> Result<Option<RestoreOperation>, String> {
+    ensure_device_sync_enabled()?;
+    state
+        .device_sync_runtime
+        .start_restore(restore_ports(&state), request)
+        .await
+}
 
-pub async fn begin_pairing_confirm(
+/// Read-only: polling never starts or advances restoration.
+pub fn get_restore(state: &AppState) -> Result<Option<RestoreOperation>, String> {
+    ensure_device_sync_enabled()?;
+    state.device_sync_runtime.restore_operation()
+}
+
+pub fn approve_restore(
+    state: Arc<AppState>,
+    operation_id: &str,
+    backup: bool,
+) -> Result<RestoreOperation, String> {
+    ensure_device_sync_enabled()?;
+    state
+        .device_sync_runtime
+        .approve_restore(restore_ports(&state), operation_id, backup)
+}
+
+pub fn retry_restore(state: Arc<AppState>, operation_id: &str) -> Result<RestoreOperation, String> {
+    ensure_device_sync_enabled()?;
+    state
+        .device_sync_runtime
+        .retry_restore(restore_ports(&state), operation_id)
+}
+
+pub fn cancel_restore(
+    state: Arc<AppState>,
+    operation_id: &str,
+) -> Result<RestoreOperation, String> {
+    ensure_device_sync_enabled()?;
+    state
+        .device_sync_runtime
+        .cancel_restore(&*restore_ports(&state), operation_id)
+}
+
+/// Receiving device: confirm pairing, record the freshness gate, then hand
+/// restoration to the profile's restore operation.
+pub async fn begin_pairing_restore(
     state: Arc<AppState>,
     pairing_id: String,
     proof: String,
     min_snapshot_created_at: Option<String>,
-) -> Result<PairingFlowResponse, String> {
+) -> Result<RestoreOperation, String> {
     ensure_device_sync_enabled()?;
-    let identity = get_sync_identity_from_store(&state)
-        .ok_or_else(|| "No sync identity configured".to_string())?;
-    let device_id = identity
-        .device_id
-        .clone()
+    let device_id = get_sync_identity_from_store(&state)
+        .and_then(|identity| identity.device_id)
         .ok_or_else(|| "No device ID configured".to_string())?;
     let token = crate::api::connect::mint_access_token(&state)
         .await
         .map_err(|e| e.to_string())?;
-    let client = create_client();
-    let runtime = &state.device_sync_runtime;
-
-    // 1. Confirm pairing (idempotent)
-    match client
+    match create_client()
         .confirm_pairing(
             &token,
             &device_id,
@@ -1875,248 +1152,35 @@ pub async fn begin_pairing_confirm(
         .await
     {
         Ok(_) => {}
-        Err(e) => {
-            if is_pairing_already_confirmed_error(&e) {
-                tracing::info!("[DeviceSync] begin_pairing_confirm: already confirmed, continuing");
-            } else {
-                return Err(e.to_string());
-            }
+        Err(err) if is_pairing_already_confirmed_error(&err) => {
+            tracing::info!("[DeviceSync] Pairing already confirmed, continuing");
         }
+        Err(err) => return Err(err.to_string()),
     }
 
-    // 2. Set freshness gate
     if let Some(min_created_at) = min_snapshot_created_at.as_deref() {
-        if let Ok(parsed_min) = wealthfolio_device_sync::parse_sync_datetime_to_utc(min_created_at)
-        {
-            let max_allowed = chrono::Utc::now() + chrono::Duration::minutes(10);
-            if parsed_min <= max_allowed {
-                if let Ok(normalized) =
-                    wealthfolio_device_sync::normalize_sync_datetime(min_created_at)
+        let within_limit = wealthfolio_device_sync::parse_sync_datetime_to_utc(min_created_at)
+            .is_ok_and(|parsed| parsed <= Utc::now() + Duration::minutes(10));
+        match wealthfolio_device_sync::normalize_sync_datetime(min_created_at) {
+            Ok(normalized) if within_limit => {
+                set_min_snapshot_created_at_in_store(&state, &device_id, &normalized)?;
+                if let Err(err) = state
+                    .app_sync_repository
+                    .set_min_snapshot_created_at(device_id.clone(), normalized)
+                    .await
                 {
-                    let _ = set_min_snapshot_created_at_in_store(&state, &device_id, &normalized);
-                    let _ = state
-                        .app_sync_repository
-                        .set_min_snapshot_created_at(device_id.clone(), normalized)
-                        .await;
+                    tracing::warn!("[DeviceSync] Failed to persist freshness gate: {}", err);
                 }
             }
+            _ => tracing::warn!("[DeviceSync] Ignoring invalid pairing freshness gate"),
         }
     }
 
-    // 3. Check if bootstrap is needed
-    let needs_bootstrap = state
-        .app_sync_repository
-        .needs_bootstrap(&device_id)
-        .map_err(|e| e.to_string())?;
-    if !needs_bootstrap {
-        return Ok(PairingFlowResponse {
-            flow_id: uuid::Uuid::new_v4().to_string(),
-            phase: PairingFlowPhase::Success,
-        });
-    }
-
-    // 4. If real local portfolio data exists, keep consent inside the pairing flow.
-    let summary = state
-        .app_sync_repository
-        .get_local_sync_overwrite_risk_summary()
-        .map_err(|e| e.to_string())?;
-    if summary.total_rows > 0 {
-        tracing::info!(
-            "[DeviceSync] begin_pairing_confirm: overwrite risk found ({} rows)",
-            summary.total_rows
-        );
-        let phase = PairingFlowPhase::OverwriteRequired {
-            info: OverwriteInfo {
-                local_rows: summary.total_rows,
-                non_empty_tables: summary
-                    .non_empty_tables
-                    .into_iter()
-                    .map(|t| OverwriteTableInfo {
-                        table: t.table,
-                        rows: t.rows,
-                    })
-                    .collect(),
-            },
-        };
-        let flow_id = runtime.create_flow(pairing_id, phase.clone())?;
-        return Ok(PairingFlowResponse { flow_id, phase });
-    }
-
-    // 5. Bootstrap snapshot
-    let bootstrap = sync_bootstrap_snapshot_if_needed(Arc::clone(&state)).await?;
-    if let Some(phase) = pairing_bootstrap_phase(&bootstrap)? {
-        let flow_id = runtime.create_flow(pairing_id, phase.clone())?;
-        return Ok(PairingFlowResponse { flow_id, phase });
-    }
-
-    // 6. Run sync cycle + start engine
-    let _ = run_sync_cycle(Arc::clone(&state), true).await;
-    let engine_state = Arc::clone(&state);
-    tokio::spawn(async move {
-        if let Err(err) = ensure_background_engine_started(engine_state).await {
-            tracing::warn!("[DeviceSync] Post-bootstrap engine start failed: {}", err);
-        }
-    });
-
-    Ok(PairingFlowResponse {
-        flow_id: uuid::Uuid::new_v4().to_string(),
-        phase: PairingFlowPhase::Success,
-    })
-}
-
-pub async fn get_pairing_flow_state_handler(
-    state: Arc<AppState>,
-    flow_id: String,
-) -> Result<PairingFlowResponse, String> {
-    ensure_device_sync_enabled()?;
-    let runtime = &state.device_sync_runtime;
-
-    let phase = runtime
-        .get_flow_phase(&flow_id)?
-        .ok_or_else(|| "Flow not found".to_string())?;
-
-    // If syncing, re-check bootstrap
-    if let PairingFlowPhase::Syncing { ref detail } = phase {
-        if detail == "waiting_snapshot" {
-            match sync_bootstrap_snapshot_if_needed(Arc::clone(&state)).await {
-                Ok(bootstrap) => match pairing_bootstrap_phase(&bootstrap) {
-                    Ok(Some(phase)) => {
-                        runtime.set_flow_phase(&flow_id, phase.clone())?;
-                        return Ok(PairingFlowResponse { flow_id, phase });
-                    }
-                    Ok(None) => {
-                        let _ = run_sync_cycle(Arc::clone(&state), true).await;
-                        let engine_state = Arc::clone(&state);
-                        tokio::spawn(async move {
-                            if let Err(err) = ensure_background_engine_started(engine_state).await {
-                                tracing::warn!(
-                                    "[DeviceSync] Post-bootstrap engine start failed: {}",
-                                    err
-                                );
-                            }
-                        });
-                        if let Some(pid) = runtime.get_flow_pairing_id(&flow_id)? {
-                            clear_pairing_overwrite_approval(&state, &pid);
-                        }
-                        runtime.remove_flow(&flow_id)?;
-                        return Ok(PairingFlowResponse {
-                            flow_id,
-                            phase: PairingFlowPhase::Success,
-                        });
-                    }
-                    Err(e) => {
-                        if let Some(pid) = runtime.get_flow_pairing_id(&flow_id)? {
-                            clear_pairing_overwrite_approval(&state, &pid);
-                        }
-                        runtime.remove_flow(&flow_id)?;
-                        return Ok(PairingFlowResponse {
-                            flow_id,
-                            phase: PairingFlowPhase::Error { message: e },
-                        });
-                    }
-                },
-                Err(e) => {
-                    if let Some(pid) = runtime.get_flow_pairing_id(&flow_id)? {
-                        clear_pairing_overwrite_approval(&state, &pid);
-                    }
-                    runtime.remove_flow(&flow_id)?;
-                    return Ok(PairingFlowResponse {
-                        flow_id,
-                        phase: PairingFlowPhase::Error { message: e },
-                    });
-                }
-            }
-        }
-    }
-
-    Ok(PairingFlowResponse { flow_id, phase })
-}
-
-pub async fn approve_pairing_overwrite_handler(
-    state: Arc<AppState>,
-    flow_id: String,
-) -> Result<PairingFlowResponse, String> {
-    ensure_device_sync_enabled()?;
-    let runtime = &state.device_sync_runtime;
-
-    let phase = runtime
-        .get_flow_phase(&flow_id)?
-        .ok_or_else(|| "Flow not found".to_string())?;
-    if !matches!(phase, PairingFlowPhase::OverwriteRequired { .. }) {
-        return Err("Flow is not in overwrite_required phase".to_string());
-    }
-
-    let pairing_id = runtime
-        .get_flow_pairing_id(&flow_id)?
-        .ok_or_else(|| "Flow not found".to_string())?;
-
-    set_pairing_overwrite_approval(&state, &pairing_id);
-
-    runtime.set_flow_phase(
-        &flow_id,
-        PairingFlowPhase::Syncing {
-            detail: "bootstrapping".to_string(),
-        },
-    )?;
-
-    match sync_bootstrap_snapshot_if_needed(Arc::clone(&state)).await {
-        Ok(bootstrap) => {
-            if let Some(phase) = match pairing_bootstrap_phase(&bootstrap) {
-                Ok(phase) => phase,
-                Err(e) => {
-                    clear_pairing_overwrite_approval(&state, &pairing_id);
-                    runtime.remove_flow(&flow_id)?;
-                    return Ok(PairingFlowResponse {
-                        flow_id,
-                        phase: PairingFlowPhase::Error { message: e },
-                    });
-                }
-            } {
-                runtime.set_flow_phase(&flow_id, phase.clone())?;
-                return Ok(PairingFlowResponse { flow_id, phase });
-            }
-
-            let _ = run_sync_cycle(Arc::clone(&state), true).await;
-            let engine_state = Arc::clone(&state);
-            tokio::spawn(async move {
-                if let Err(err) = ensure_background_engine_started(engine_state).await {
-                    tracing::warn!("[DeviceSync] Post-overwrite engine start failed: {}", err);
-                }
-            });
-            clear_pairing_overwrite_approval(&state, &pairing_id);
-            runtime.remove_flow(&flow_id)?;
-            Ok(PairingFlowResponse {
-                flow_id,
-                phase: PairingFlowPhase::Success,
-            })
-        }
-        Err(e) => {
-            clear_pairing_overwrite_approval(&state, &pairing_id);
-            runtime.remove_flow(&flow_id)?;
-            Ok(PairingFlowResponse {
-                flow_id,
-                phase: PairingFlowPhase::Error { message: e },
-            })
-        }
-    }
-}
-
-pub async fn cancel_pairing_flow_handler(
-    state: Arc<AppState>,
-    flow_id: String,
-) -> Result<PairingFlowResponse, String> {
-    let runtime = &state.device_sync_runtime;
-
-    if let Some(pairing_id) = runtime.get_flow_pairing_id(&flow_id)? {
-        abort_pairing_flow_local_state(&state, &pairing_id).await;
-    }
-
-    runtime.remove_flow(&flow_id)?;
-
-    Ok(PairingFlowResponse {
-        flow_id,
-        phase: PairingFlowPhase::Success,
-    })
+    state
+        .device_sync_runtime
+        .start_restore(restore_ports(&state), StartRestore::Pairing)
+        .await?
+        .ok_or_else(|| "Setup could not start.".to_string())
 }
 
 pub async fn cancel_snapshot_upload(state: Arc<AppState>) {
@@ -2155,40 +1219,5 @@ mod tests {
         );
 
         assert!(!is_pairing_already_approved_error(&err));
-    }
-
-    #[test]
-    fn reconcile_result_conversion_preserves_fields() {
-        let source = engine::SyncReadyReconcileResult {
-            status: "ok".to_string(),
-            message: "done".to_string(),
-            bootstrap_action: "none".to_string(),
-            bootstrap_status: "applied".to_string(),
-            bootstrap_message: Some("bootstrap ok".to_string()),
-            bootstrap_snapshot_id: Some("snap-1".to_string()),
-            cycle_status: Some("ok".to_string()),
-            cycle_needs_bootstrap: false,
-            retry_attempted: true,
-            retry_cycle_status: Some("ok".to_string()),
-            background_status: "started".to_string(),
-        };
-
-        let converted: SyncReconcileReadyStateResult = source.clone().into();
-        assert_eq!(converted.status, source.status);
-        assert_eq!(converted.message, source.message);
-        assert_eq!(converted.bootstrap_status, source.bootstrap_status);
-        assert_eq!(converted.bootstrap_message, source.bootstrap_message);
-        assert_eq!(
-            converted.bootstrap_snapshot_id,
-            source.bootstrap_snapshot_id
-        );
-        assert_eq!(converted.cycle_status, source.cycle_status);
-        assert_eq!(
-            converted.cycle_needs_bootstrap,
-            source.cycle_needs_bootstrap
-        );
-        assert_eq!(converted.retry_attempted, source.retry_attempted);
-        assert_eq!(converted.retry_cycle_status, source.retry_cycle_status);
-        assert_eq!(converted.background_status, source.background_status);
     }
 }

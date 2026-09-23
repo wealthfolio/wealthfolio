@@ -33,30 +33,6 @@ pub struct SyncCycleResult {
     pub dead_letter_count: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncBootstrapResult {
-    pub status: String,
-    pub message: String,
-    pub snapshot_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncReadyReconcileResult {
-    pub status: String,
-    pub message: String,
-    pub bootstrap_action: String,
-    pub bootstrap_status: String,
-    pub bootstrap_message: Option<String>,
-    pub bootstrap_snapshot_id: Option<String>,
-    pub cycle_status: Option<String>,
-    pub cycle_needs_bootstrap: bool,
-    pub retry_attempted: bool,
-    pub retry_cycle_status: Option<String>,
-    pub background_status: String,
-}
-
 #[derive(Debug, Clone)]
 pub struct ReplayEvent {
     pub entity: SyncEntity,
@@ -194,12 +170,4 @@ pub trait CredentialStore: Send + Sync {
         identity: &SyncIdentity,
         payload_key_version: i32,
     ) -> Result<String, String>;
-}
-
-#[async_trait]
-pub trait ReadyReconcileStore: Send + Sync {
-    async fn get_sync_state(&self) -> Result<SyncState, String>;
-    async fn bootstrap_snapshot_if_needed(&self) -> Result<SyncBootstrapResult, String>;
-    async fn run_sync_cycle(&self, post_bootstrap: bool) -> Result<SyncCycleResult, String>;
-    async fn ensure_background_started(&self) -> Result<bool, String>;
 }

@@ -928,6 +928,11 @@ impl DatabaseRuntime {
             let _ = worker.await;
         }
 
+        // A restore in progress starts engine and portfolio work; stop it before
+        // stopping those. A replacement already handed to the writer still commits.
+        #[cfg(feature = "device-sync")]
+        context.device_sync_runtime().clear_restore().await;
+
         // Portfolio requests can outlive their caller; join them before closing the writer.
         context.portfolio_tasks.stop().await;
 

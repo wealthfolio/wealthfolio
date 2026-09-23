@@ -71,6 +71,8 @@ pub async fn enable_device_sync(context: ConnectAccess) -> Result<EnableSyncResu
 #[tauri::command]
 pub async fn clear_device_sync_data(context: ConnectAccess) -> Result<(), String> {
     let context = context.context()?;
+    // A restore prepared for the old identity must never be approved later.
+    context.device_sync_runtime().clear_restore().await;
     ensure_background_engine_stopped(Arc::clone(&context)).await?;
     let result = context
         .device_enroll_service()
@@ -95,6 +97,7 @@ pub async fn clear_device_sync_data(context: ConnectAccess) -> Result<(), String
 #[tauri::command]
 pub async fn reinitialize_device_sync(context: ConnectAccess) -> Result<EnableSyncResult, String> {
     let context = context.context()?;
+    context.device_sync_runtime().clear_restore().await;
     let token = context.connect_service().get_valid_access_token().await?;
     let result = context
         .device_enroll_service()

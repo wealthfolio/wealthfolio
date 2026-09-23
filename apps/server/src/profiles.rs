@@ -165,6 +165,7 @@ impl WebProfiles {
                 worker.abort();
                 let _ = worker.await;
             }
+            runtime.device_sync_runtime.clear_restore().await;
             runtime
                 .device_sync_runtime
                 .ensure_background_stopped()

@@ -211,34 +211,6 @@ struct DeviceSyncPairingSourceStatusResponse {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg(feature = "device-sync")]
-struct DeviceSyncBootstrapOverwriteCheckTableResponse {
-    table: String,
-    rows: i64,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-#[cfg(feature = "device-sync")]
-struct DeviceSyncBootstrapOverwriteCheckResponse {
-    bootstrap_required: bool,
-    has_local_data: bool,
-    local_rows: i64,
-    non_empty_tables: Vec<DeviceSyncBootstrapOverwriteCheckTableResponse>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-#[cfg(feature = "device-sync")]
-struct DeviceSyncBootstrapResponse {
-    status: String,
-    message: String,
-    snapshot_id: Option<String>,
-    cursor: Option<i64>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-#[cfg(feature = "device-sync")]
 struct DeviceSyncCycleResponse {
     status: String,
     lock_version: i64,
@@ -257,50 +229,6 @@ struct DeviceSyncCycleResponse {
 struct DeviceSyncBackgroundResponse {
     status: String,
     message: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-#[cfg(feature = "device-sync")]
-struct DeviceSyncReconcileReadyResponse {
-    status: String,
-    message: String,
-    bootstrap_action: String,
-    bootstrap_status: String,
-    bootstrap_message: Option<String>,
-    bootstrap_snapshot_id: Option<String>,
-    cycle_status: Option<String>,
-    cycle_needs_bootstrap: bool,
-    retry_attempted: bool,
-    retry_cycle_status: Option<String>,
-    background_status: String,
-}
-
-#[cfg(feature = "device-sync")]
-fn to_device_sync_reconcile_ready_response(
-    result: device_sync_engine::SyncReconcileReadyStateResult,
-) -> DeviceSyncReconcileReadyResponse {
-    DeviceSyncReconcileReadyResponse {
-        status: result.status,
-        message: result.message,
-        bootstrap_action: result.bootstrap_action,
-        bootstrap_status: result.bootstrap_status,
-        bootstrap_message: result.bootstrap_message,
-        bootstrap_snapshot_id: result.bootstrap_snapshot_id,
-        cycle_status: result.cycle_status,
-        cycle_needs_bootstrap: result.cycle_needs_bootstrap,
-        retry_attempted: result.retry_attempted,
-        retry_cycle_status: result.retry_cycle_status,
-        background_status: result.background_status,
-    }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[cfg(feature = "device-sync")]
-struct DeviceSyncReconcileReadyRequest {
-    #[serde(default)]
-    allow_overwrite: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -408,8 +336,8 @@ async fn store_sync_session(
             || async {
                 #[cfg(feature = "device-sync")]
                 {
+                    state.device_sync_runtime.clear_restore().await;
                     state.device_sync_runtime.ensure_background_stopped().await;
-                    state.device_sync_runtime.clear_flows()?;
                     state.sync_approvals.clear()?;
                 }
                 state
@@ -551,6 +479,8 @@ async fn disconnect_cloud_session(state: &AppState) -> Result<(), String> {
     state
         .token_lifecycle
         .clear_session_with(state.secret_store.as_ref(), || async {
+            #[cfg(feature = "device-sync")]
+            state.device_sync_runtime.clear_restore().await;
             #[cfg(feature = "device-sync")]
             device_sync_engine::clear_min_snapshot_created_at_from_store(state);
             let _ = state
@@ -1154,6 +1084,8 @@ async fn clear_device_sync_data(
     ensure_device_sync_enabled()?;
     info!("[Connect] Clearing device sync data...");
 
+    // A restore prepared for the old identity must never be approved later.
+    state.device_sync_runtime.clear_restore().await;
     device_sync_engine::ensure_background_engine_stopped(Arc::clone(&state))
         .await
         .map_err(ApiError::Internal)?;
@@ -1178,6 +1110,7 @@ async fn reinitialize_device_sync(
 ) -> ApiResult<Json<EnableSyncResult>> {
     ensure_device_sync_enabled()?;
     info!("[Connect] Reinitializing device sync...");
+    state.device_sync_runtime.clear_restore().await;
     let token = mint_access_token(&state).await?;
 
     let result = state
@@ -1244,62 +1177,6 @@ async fn get_device_sync_pairing_source_status(
 }
 
 #[cfg(feature = "device-sync")]
-async fn get_device_sync_bootstrap_overwrite_check(
-    axum::Extension(state): axum::Extension<Arc<AppState>>,
-) -> ApiResult<Json<DeviceSyncBootstrapOverwriteCheckResponse>> {
-    ensure_device_sync_enabled()?;
-    let result = device_sync_engine::get_bootstrap_overwrite_check(&state)
-        .await
-        .map_err(ApiError::Internal)?;
-
-    Ok(Json(DeviceSyncBootstrapOverwriteCheckResponse {
-        bootstrap_required: result.bootstrap_required,
-        has_local_data: result.has_local_data,
-        local_rows: result.local_rows,
-        non_empty_tables: result
-            .non_empty_tables
-            .into_iter()
-            .map(|table| DeviceSyncBootstrapOverwriteCheckTableResponse {
-                table: table.table,
-                rows: table.rows,
-            })
-            .collect(),
-    }))
-}
-
-#[cfg(feature = "device-sync")]
-async fn bootstrap_device_snapshot(
-    axum::Extension(state): axum::Extension<Arc<AppState>>,
-) -> ApiResult<Json<DeviceSyncBootstrapResponse>> {
-    ensure_device_sync_enabled()?;
-    let result = device_sync_engine::sync_bootstrap_snapshot_if_needed(Arc::clone(&state))
-        .await
-        .map_err(ApiError::Internal)?;
-
-    // Start the background sync engine whenever this device is READY.
-    let should_start_engine = if let Ok(token) = mint_access_token(&state).await {
-        state
-            .device_enroll_service
-            .get_sync_state(&token)
-            .await
-            .map(|sync_state| sync_state.state == SyncState::Ready)
-            .unwrap_or(false)
-    } else {
-        false
-    };
-    if should_start_engine {
-        let _ = device_sync_engine::ensure_background_engine_started(Arc::clone(&state)).await;
-    }
-
-    Ok(Json(DeviceSyncBootstrapResponse {
-        status: result.status,
-        message: result.message,
-        snapshot_id: result.snapshot_id,
-        cursor: result.cursor,
-    }))
-}
-
-#[cfg(feature = "device-sync")]
 async fn trigger_device_sync_cycle(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<DeviceSyncCycleResponse>> {
@@ -1341,18 +1218,6 @@ async fn start_device_sync_background_engine(
             "Background engine not started because sync identity is not configured".to_string()
         },
     }))
-}
-
-#[cfg(feature = "device-sync")]
-async fn reconcile_device_sync_ready_state(
-    axum::Extension(state): axum::Extension<Arc<AppState>>,
-    Json(body): Json<DeviceSyncReconcileReadyRequest>,
-) -> ApiResult<Json<DeviceSyncReconcileReadyResponse>> {
-    ensure_device_sync_enabled()?;
-    let result = device_sync_engine::reconcile_ready_state(state, body.allow_overwrite)
-        .await
-        .map_err(ApiError::Internal)?;
-    Ok(Json(to_device_sync_reconcile_ready_response(result)))
 }
 
 #[cfg(feature = "device-sync")]
@@ -1448,18 +1313,6 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route(
             "/connect/device/pairing-source-status",
             get(get_device_sync_pairing_source_status),
-        )
-        .route(
-            "/connect/device/bootstrap-overwrite-check",
-            get(get_device_sync_bootstrap_overwrite_check),
-        )
-        .route(
-            "/connect/device/reconcile-ready-state",
-            post(reconcile_device_sync_ready_state),
-        )
-        .route(
-            "/connect/device/bootstrap-snapshot",
-            post(bootstrap_device_snapshot),
         )
         .route(
             "/connect/device/trigger-cycle",
@@ -1727,36 +1580,5 @@ mod tests {
     #[test]
     fn connect_router_includes_device_engine_routes() {
         let _router: Router = router();
-    }
-
-    #[cfg(feature = "device-sync")]
-    #[test]
-    fn reconcile_response_mapping_preserves_fields() {
-        let source = device_sync_engine::SyncReconcileReadyStateResult {
-            status: "ok".to_string(),
-            message: "done".to_string(),
-            bootstrap_action: "NO_BOOTSTRAP".to_string(),
-            bootstrap_status: "applied".to_string(),
-            bootstrap_message: Some("bootstrap ok".to_string()),
-            bootstrap_snapshot_id: Some("snap-1".to_string()),
-            cycle_status: Some("ok".to_string()),
-            cycle_needs_bootstrap: false,
-            retry_attempted: true,
-            retry_cycle_status: Some("ok".to_string()),
-            background_status: "started".to_string(),
-        };
-
-        let mapped = to_device_sync_reconcile_ready_response(source.clone());
-        assert_eq!(mapped.status, source.status);
-        assert_eq!(mapped.message, source.message);
-        assert_eq!(mapped.bootstrap_action, source.bootstrap_action);
-        assert_eq!(mapped.bootstrap_status, source.bootstrap_status);
-        assert_eq!(mapped.bootstrap_message, source.bootstrap_message);
-        assert_eq!(mapped.bootstrap_snapshot_id, source.bootstrap_snapshot_id);
-        assert_eq!(mapped.cycle_status, source.cycle_status);
-        assert_eq!(mapped.cycle_needs_bootstrap, source.cycle_needs_bootstrap);
-        assert_eq!(mapped.retry_attempted, source.retry_attempted);
-        assert_eq!(mapped.retry_cycle_status, source.retry_cycle_status);
-        assert_eq!(mapped.background_status, source.background_status);
     }
 }

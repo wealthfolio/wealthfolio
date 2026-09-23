@@ -125,9 +125,9 @@ async fn connect_lock_blocks_connect_routes_and_mixed_writes_but_not_local_data(
     ));
     #[cfg(feature = "device-sync")]
     requests.push((
-        "/sync/pairing/flow/state",
+        "/sync/restore/cancel",
         "POST",
-        json!({"flowId": "test"}),
+        json!({"operationId": "test"}),
         StatusCode::SERVICE_UNAVAILABLE,
     ));
     for (path, method, body, expected) in requests {

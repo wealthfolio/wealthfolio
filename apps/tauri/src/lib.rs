@@ -636,15 +636,9 @@ pub fn run() {
             #[cfg(feature = "device-sync")]
             commands::device_sync::reset_team_sync,
             #[cfg(feature = "device-sync")]
-            commands::device_sync::device_sync_bootstrap_snapshot_if_needed,
-            #[cfg(feature = "device-sync")]
             commands::device_sync::device_sync_engine_status,
             #[cfg(feature = "device-sync")]
             commands::device_sync::device_sync_pairing_source_status,
-            #[cfg(feature = "device-sync")]
-            commands::device_sync::device_sync_bootstrap_overwrite_check,
-            #[cfg(feature = "device-sync")]
-            commands::device_sync::device_sync_reconcile_ready_state,
             #[cfg(feature = "device-sync")]
             commands::device_sync::device_sync_trigger_cycle,
             #[cfg(feature = "device-sync")]
@@ -676,17 +670,19 @@ pub fn run() {
             // Composite pairing endpoints
             #[cfg(feature = "device-sync")]
             commands::device_sync::complete_pairing_with_transfer,
+            // Restore operation (receiving device)
             #[cfg(feature = "device-sync")]
-            commands::device_sync::confirm_pairing_with_bootstrap,
-            // Pairing flow coordinator
+            commands::device_sync::device_sync_start_restore,
             #[cfg(feature = "device-sync")]
-            commands::device_sync::begin_pairing_confirm,
+            commands::device_sync::device_sync_get_restore,
             #[cfg(feature = "device-sync")]
-            commands::device_sync::get_pairing_flow_state,
+            commands::device_sync::device_sync_approve_restore,
             #[cfg(feature = "device-sync")]
-            commands::device_sync::approve_pairing_overwrite,
+            commands::device_sync::device_sync_retry_restore,
             #[cfg(feature = "device-sync")]
-            commands::device_sync::cancel_pairing_flow,
+            commands::device_sync::device_sync_cancel_restore,
+            #[cfg(feature = "device-sync")]
+            commands::device_sync::device_sync_begin_pairing_restore,
             // Device enroll service (high-level commands)
             #[cfg(feature = "device-sync")]
             commands::device_enroll_service::get_device_sync_state,
