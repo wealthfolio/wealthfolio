@@ -4,6 +4,7 @@ import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useIsCompactTableViewport } from "@/hooks/use-platform";
 import { SidebarNav } from "./sidebar-nav";
 
 export default function SettingsLayout() {
@@ -141,78 +142,77 @@ export default function SettingsLayout() {
   const isMainSettingsPage =
     location.pathname === "/settings" || location.pathname === "/settings/";
 
-  // Mobile-first: show list view on main page, detail view on specific pages
+  // One tree and one <Outlet />: a CSS-hidden second copy of a page would still
+  // run its effects and open portaled dialogs. Only the phone settings list
+  // needs the viewport, because it replaces the index page. Same 1024px
+  // breakpoint as `lg`.
+  const isCompact = useIsCompactTableViewport();
+
+  if (isCompact && isMainSettingsPage) {
+    return (
+      <ApplicationShell className="settings-root app-shell h-screen overflow-x-hidden">
+        {/* Mobile Settings List View (carded list with dividers) */}
+        <div className="scan-hide-target w-full max-w-full overflow-x-hidden">
+          <div className="bg-background/95 supports-backdrop-filter:bg-background/60 pt-safe sticky top-0 z-10 border-b backdrop-blur">
+            <div className="flex min-h-[60px] items-center justify-center px-4">
+              <h1 className="text-lg font-semibold">{t("settings:title")}</h1>
+            </div>
+          </div>
+          <div className="space-y-6 p-3 pb-[var(--mobile-nav-total-offset)]">
+            {sections.map((section) => {
+              const mobileItems = section.items.filter((item) => item.href !== "agent-access");
+              if (mobileItems.length === 0) return null;
+
+              return (
+                <div key={section.title} className="space-y-3">
+                  <div className="text-muted-foreground px-2 text-xs font-semibold uppercase tracking-widest">
+                    {section.title}
+                  </div>
+                  <div className="divide-border bg-card divide-y overflow-hidden rounded-2xl border shadow-sm">
+                    {mobileItems.map((item) => (
+                      <button
+                        key={item.href}
+                        onClick={() => navigate(item.href)}
+                        className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition-colors active:opacity-90"
+                        aria-label={item.title}
+                      >
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <div className="text-muted-foreground shrink-0">{item.icon}</div>
+                          <div className="min-w-0">
+                            <div className="text-foreground truncate text-base font-medium">
+                              {item.title}
+                            </div>
+                            {item?.subtitle && (
+                              <div className="text-muted-foreground truncate text-sm">
+                                {item.subtitle}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <Icons.ChevronRight className="text-muted-foreground h-4 w-4 shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </ApplicationShell>
+    );
+  }
+
   return (
     <ApplicationShell className="settings-root app-shell h-screen overflow-x-hidden">
-      {/* Mobile Layout */}
-      <div className="w-full lg:hidden">
-        {isMainSettingsPage ? (
-          // Mobile Settings List View (carded list with dividers)
-          <div className="scan-hide-target w-full max-w-full overflow-x-hidden">
-            <div className="bg-background/95 supports-backdrop-filter:bg-background/60 pt-safe sticky top-0 z-10 border-b backdrop-blur">
-              <div className="flex min-h-[60px] items-center justify-center px-4">
-                <h1 className="text-lg font-semibold">{t("settings:title")}</h1>
-              </div>
+      <div className="scan-hide-target pt-safe w-full max-w-full overflow-x-hidden scroll-smooth lg:flex lg:justify-start lg:pt-0">
+        <div className="flex w-full max-w-full flex-col p-2 pb-[var(--mobile-nav-total-offset)] lg:max-w-6xl lg:px-2 lg:py-8">
+          <div className="hidden lg:block">
+            <div className="space-y-0.5">
+              <h2 className="text-2xl font-bold tracking-tight">{t("settings:title")}</h2>
             </div>
-            <div className="space-y-6 p-3 pb-[var(--mobile-nav-total-offset)] lg:p-4 lg:pb-4">
-              {sections.map((section) => {
-                const mobileItems = section.items.filter((item) => item.href !== "agent-access");
-                if (mobileItems.length === 0) return null;
-
-                return (
-                  <div key={section.title} className="space-y-3">
-                    <div className="text-muted-foreground px-2 text-xs font-semibold uppercase tracking-widest">
-                      {section.title}
-                    </div>
-                    <div className="divide-border bg-card divide-y overflow-hidden rounded-2xl border shadow-sm">
-                      {mobileItems.map((item) => (
-                        <button
-                          key={item.href}
-                          onClick={() => navigate(item.href)}
-                          className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition-colors active:opacity-90"
-                          aria-label={item.title}
-                        >
-                          <div className="flex min-w-0 flex-1 items-center gap-3">
-                            <div className="text-muted-foreground shrink-0">{item.icon}</div>
-                            <div className="min-w-0">
-                              <div className="text-foreground truncate text-base font-medium">
-                                {item.title}
-                              </div>
-                              {item?.subtitle && (
-                                <div className="text-muted-foreground truncate text-sm">
-                                  {item.subtitle}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <Icons.ChevronRight className="text-muted-foreground h-4 w-4 shrink-0" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <Separator className="my-6" />
           </div>
-        ) : (
-          <div className="scan-hide-target pt-safe w-full max-w-full overflow-x-hidden">
-            <div className="w-full max-w-full overflow-x-hidden scroll-smooth">
-              <div className="p-2 pb-[var(--mobile-nav-total-offset)] lg:p-4 lg:pb-4">
-                <Outlet />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Desktop Layout */}
-      <div className="hidden lg:flex lg:w-full lg:justify-start">
-        <div className="flex w-full max-w-6xl flex-col px-2 py-8">
-          <div className="space-y-0.5">
-            <h2 className="text-2xl font-bold tracking-tight">{t("settings:title")}</h2>
-          </div>
-          <Separator className="my-6" />
-          <div className="flex gap-10">
+          <div className="lg:flex lg:gap-10">
             <aside className="hidden w-[240px] shrink-0 lg:sticky lg:top-24 lg:flex lg:flex-col lg:self-start">
               <div className="space-y-6">
                 {sections.map((section) => (
@@ -225,7 +225,7 @@ export default function SettingsLayout() {
                 ))}
               </div>
             </aside>
-            <div className="mb-8 min-w-0 flex-1">
+            <div className="min-w-0 lg:mb-8 lg:flex-1">
               <Outlet />
             </div>
           </div>
