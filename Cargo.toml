@@ -88,3 +88,8 @@ wealthfolio-ai = { path = "crates/ai" }
 wealthfolio-spending = { path = "crates/spending" }
 wealthfolio-agent-tools = { path = "crates/agent-tools" }
 wealthfolio-mcp = { path = "crates/wealthfolio-mcp" }
+
+# Tauri 2.x requires tao 0.35; this upstream fix keeps the iOS scene configuration alive.
+# Remove when a Tauri release accepts tao >= 0.36.
+[patch.crates-io]
+tao = { git = "https://github.com/tauri-apps/tao", rev = "f2163508" }

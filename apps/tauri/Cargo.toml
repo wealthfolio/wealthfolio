@@ -23,7 +23,7 @@ wealthfolio-spending = { workspace = true }
 wealthfolio-agent-tools = { workspace = true }
 
 # Tauri
-tauri = { version = "2.11.5", features = [] }
+tauri = { version = "2.11.6", features = [] }
 tauri-plugin-fs = "2.5"
 tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
@@ -65,7 +65,7 @@ rand = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
-tauri = { version = "2.11.5", features = ["test"] }
+tauri = { version = "2.11.6", features = ["test"] }
 
 [features]
 default = ["connect-sync", "device-sync"]
