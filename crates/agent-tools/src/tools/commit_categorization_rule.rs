@@ -7,7 +7,10 @@
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use wealthfolio_spending::categorization_rules::{CategorizationRule, NewCategorizationRule};
+use wealthfolio_spending::categorization_rules::{
+    compile_regex_pattern, CategorizationRule, NewCategorizationRule, RuleMatchType,
+    MAX_REGEX_PATTERN_LEN,
+};
 
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
@@ -32,6 +35,21 @@ fn validate_draft(rule: &NewCategorizationRule) -> Result<(), AgentToolError> {
         return Err(AgentToolError::InvalidInput(
             "rule.id from create_categorization_rule is required".to_string(),
         ));
+    }
+    if rule.pattern.trim().is_empty() {
+        return Err(AgentToolError::InvalidInput(
+            "rule.pattern cannot be empty".to_string(),
+        ));
+    }
+    if rule.pattern.len() > MAX_REGEX_PATTERN_LEN {
+        return Err(AgentToolError::InvalidInput(format!(
+            "rule.pattern must be {MAX_REGEX_PATTERN_LEN} characters or fewer"
+        )));
+    }
+    if matches!(rule.match_type, RuleMatchType::Regex) {
+        compile_regex_pattern(&rule.pattern).map_err(|_| {
+            AgentToolError::InvalidInput("rule.pattern is not a valid regex".to_string())
+        })?;
     }
     if rule
         .taxonomy_id
@@ -82,7 +100,7 @@ impl AgentTool for CommitCategorizationRule {
                     "properties": {
                         "id": { "type": "string" },
                         "name": { "type": "string" },
-                        "pattern": { "type": "string" },
+                        "pattern": { "type": "string", "minLength": 1, "maxLength": MAX_REGEX_PATTERN_LEN },
                         "matchType": { "type": "string", "enum": ["contains", "starts_with", "exact", "regex"] },
                         "taxonomyId": { "type": ["string", "null"] },
                         "categoryId": { "type": ["string", "null"] },
@@ -203,6 +221,44 @@ mod tests {
             validate_draft(&rule),
             Err(AgentToolError::InvalidInput(_))
         ));
+    }
+
+    #[test]
+    fn rejects_empty_and_oversized_patterns() {
+        let mut rule: NewCategorizationRule = serde_json::from_value(serde_json::json!({
+            "id": "rule-1", "name": "Coffee", "pattern": "CAFE", "matchType": "contains",
+            "taxonomyId": "spending_categories", "categoryId": "food", "activityType": null,
+            "amountOp": null, "amountValue": null, "amountValue2": null,
+            "priority": 0, "isGlobal": true, "accountId": null,
+            "presetId": null, "presetRuleKey": null, "presetVersion": null
+        }))
+        .unwrap();
+
+        rule.pattern = "  ".to_string();
+        assert!(matches!(
+            validate_draft(&rule),
+            Err(AgentToolError::InvalidInput(_))
+        ));
+        rule.pattern = "x".repeat(MAX_REGEX_PATTERN_LEN + 1);
+        assert!(matches!(
+            validate_draft(&rule),
+            Err(AgentToolError::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_regex_error_does_not_echo_pattern() {
+        let mut rule: NewCategorizationRule = serde_json::from_value(serde_json::json!({
+            "id": "rule-1", "name": "Coffee", "pattern": "CAFE", "matchType": "regex",
+            "taxonomyId": "spending_categories", "categoryId": "food", "activityType": null,
+            "amountOp": null, "amountValue": null, "amountValue2": null,
+            "priority": 0, "isGlobal": true, "accountId": null,
+            "presetId": null, "presetRuleKey": null, "presetVersion": null
+        }))
+        .unwrap();
+        rule.pattern = "PRIVATE-MERCHANT-(".to_string();
+        let error = validate_draft(&rule).unwrap_err().to_string();
+        assert!(!error.contains("PRIVATE-MERCHANT"));
     }
 
     #[test]

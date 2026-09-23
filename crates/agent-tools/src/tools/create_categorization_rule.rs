@@ -170,8 +170,9 @@ impl CreateCategorizationRule {
             Some(_) => RuleMatchType::Contains,
         };
         if matches!(match_type, RuleMatchType::Regex) {
-            compile_regex_pattern(&pattern)
-                .map_err(|err| AgentToolError::ExecutionFailed(format!("invalid regex: {err}")))?;
+            compile_regex_pattern(&pattern).map_err(|_| {
+                AgentToolError::ExecutionFailed("invalid regex pattern".to_string())
+            })?;
         }
 
         let category_path = path_parts.join(" / ");

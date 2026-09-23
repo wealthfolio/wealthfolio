@@ -488,14 +488,18 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        27,
-        "full-scope token must see all 27 tools: {names:?}"
+        28,
+        "full-scope token must see all 28 tools: {names:?}"
     );
     assert!(
         names.contains(&"commit_activity_import"),
         "import tool visible"
     );
     assert!(names.contains(&"record_activity"), "draft tool visible");
+    assert!(
+        names.contains(&"commit_categorization_rule"),
+        "categorization rule commit tool visible"
+    );
     assert!(
         names.contains(&"prepare_asset_classification"),
         "suggest tool visible"
